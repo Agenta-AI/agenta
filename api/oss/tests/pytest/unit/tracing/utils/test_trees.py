@@ -151,10 +151,48 @@ def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     ]
     root_costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["cumulative"]
 
+    # The root is a task, which cannot call a model itself, so the usage on it
+    # is a roll-up of what the child already reports and is not added again.
+    assert root_tokens == {"prompt": 4.0, "completion": 5.0, "total": 9.0}
+    assert root_costs["prompt"] == pytest.approx(0.4)
+    assert root_costs["completion"] == pytest.approx(0.5)
+    assert root_costs["total"] == pytest.approx(0.9)
+
+
+def test_a_model_call_adds_its_own_usage_to_its_children():
+    """A chat span makes its own call, so its usage is real, not a roll-up."""
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        span_type=SpanType.CHAT,
+        prompt_tokens=1,
+        completion_tokens=2,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        span_type=SpanType.CHAT,
+        prompt_tokens=4,
+        completion_tokens=5,
+        prompt_cost=0.4,
+        completion_cost=0.5,
+        start_offset_s=1,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_tokens(tree, span_idx)
+    cumulate_costs(tree, span_idx)
+
+    root_tokens = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"][
+        "cumulative"
+    ]
+
     assert root_tokens == {"prompt": 5.0, "completion": 7.0, "total": 12.0}
-    assert root_costs["prompt"] == pytest.approx(0.5)
-    assert root_costs["completion"] == pytest.approx(0.7)
-    assert root_costs["total"] == pytest.approx(1.2)
 
 
 def test_cumulate_errors_propagates_scalar_counts_from_children_to_parent():
@@ -729,3 +767,282 @@ def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():
 
 def test_promote_identity_by_trace_empty_list_is_noop():
     assert promote_identity_by_trace([]) == []
+
+
+# ── split-batch traces ───────────────────────────────────────────────
+#
+# One agent trace reaches the API as two OTLP batches from two processes: the
+# in-sandbox harness exports invoke_agent / turn / chat, and the SDK exports the
+# workflow root about a second later. Neither batch is a complete trace.
+
+AGENT_UUID = "61d6cfe0-4b90-11ec-61d6-cfe04b9011ec"
+TURN_UUID = "71d6cfe0-4b90-11ec-71d6-cfe04b9011ec"
+CHAT_A_UUID = "81d6cfe0-4b90-11ec-81d6-cfe04b9011ec"
+CHAT_B_UUID = "91d6cfe0-4b90-11ec-91d6-cfe04b9011ec"
+
+
+def _harness_batch() -> list[OTelFlatSpan]:
+    """The harness batch: everything under the root, but not the root itself."""
+    return [
+        _span(
+            span_id=AGENT_UUID,
+            parent_id=ROOT_UUID,  # exported by the SDK, in a later batch
+            span_name="invoke_agent",
+            span_type=SpanType.AGENT,
+            start_offset_s=1,
+        ),
+        _span(
+            span_id=TURN_UUID,
+            parent_id=AGENT_UUID,
+            span_name="turn 0",
+            span_type=SpanType.CHAIN,
+            start_offset_s=2,
+        ),
+        _span(
+            span_id=CHAT_A_UUID,
+            parent_id=TURN_UUID,
+            span_name="chat model-a",
+            span_type=SpanType.CHAT,
+            prompt_tokens=14100,
+            completion_tokens=471,
+            prompt_cost=0.010575,
+            completion_cost=0.00176625,
+            start_offset_s=3,
+        ),
+        _span(
+            span_id=CHAT_B_UUID,
+            parent_id=TURN_UUID,
+            span_name="chat model-b",
+            span_type=SpanType.CHAT,
+            prompt_tokens=17700,
+            completion_tokens=23,
+            prompt_cost=0.013275,
+            completion_cost=0.00008625,
+            start_offset_s=4,
+        ),
+    ]
+
+
+EXPECTED_TOTAL_COST = 0.010575 + 0.00176625 + 0.013275 + 0.00008625
+EXPECTED_TOTAL_TOKENS = 14100 + 471 + 17700 + 23
+
+
+def test_span_whose_parent_is_absent_becomes_a_local_root():
+    span_idx = parse_span_dtos_to_span_idx(_harness_batch())
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    # invoke_agent's parent is in another batch, so it anchors the tree here
+    # instead of being dropped along with everything beneath it.
+    assert list(tree.keys()) == [AGENT_UUID]
+    assert list(tree[AGENT_UUID].keys()) == [TURN_UUID]
+    assert set(tree[AGENT_UUID][TURN_UUID].keys()) == {CHAT_A_UUID, CHAT_B_UUID}
+
+
+def test_tree_is_built_regardless_of_start_time_order():
+    batch = _harness_batch()
+    # A parent that starts after its child must still adopt it.
+    batch[1].start_time = datetime(2024, 1, 1, 0, 0, 9, tzinfo=timezone.utc)
+
+    tree = parse_span_idx_to_span_id_tree(parse_span_dtos_to_span_idx(batch))
+
+    assert list(tree.keys()) == [AGENT_UUID]
+    assert list(tree[AGENT_UUID].keys()) == [TURN_UUID]
+
+
+def test_harness_batch_cumulates_within_itself(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    out = calculate_and_propagate_metrics(_harness_batch())
+    out_idx = {span.span_id: span for span in out}
+
+    agent_metrics = out_idx[AGENT_UUID].attributes["ag"]["metrics"]
+
+    assert round(agent_metrics["costs"]["cumulative"]["total"], 8) == round(
+        EXPECTED_TOTAL_COST, 8
+    )
+    assert agent_metrics["tokens"]["cumulative"]["total"] == EXPECTED_TOTAL_TOKENS
+
+
+def test_recompute_over_the_stored_trace_gives_the_root_full_totals(monkeypatch):
+    """What TracingService.ingest does after the second batch lands."""
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    # Batch 1: the harness spans, no root.
+    first = calculate_and_propagate_metrics(_harness_batch())
+
+    # Batch 2: the root on its own. Alone it can only cumulate its own metrics.
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="_agent",
+        span_type=SpanType.WORKFLOW,
+        start_offset_s=0,
+    )
+    second = calculate_and_propagate_metrics([root])
+    root_costs = second[0].attributes["ag"]["metrics"]["costs"]
+
+    assert "cumulative" not in root_costs
+
+    # Recompute over the whole stored trace.
+    out = calculate_and_propagate_metrics(first + second)
+    out_idx = {span.span_id: span for span in out}
+    root_metrics = out_idx[ROOT_UUID].attributes["ag"]["metrics"]
+
+    assert round(root_metrics["costs"]["cumulative"]["total"], 8) == round(
+        EXPECTED_TOTAL_COST, 8
+    )
+    assert root_metrics["tokens"]["cumulative"]["total"] == EXPECTED_TOTAL_TOKENS
+
+
+def test_recompute_is_idempotent(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="_agent",
+        span_type=SpanType.WORKFLOW,
+        start_offset_s=0,
+    )
+    spans = _harness_batch() + [root]
+
+    once = calculate_and_propagate_metrics(spans)
+    twice = calculate_and_propagate_metrics(once)
+
+    idx = {span.span_id: span for span in twice}
+
+    assert round(
+        idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["cumulative"]["total"], 8
+    ) == round(EXPECTED_TOTAL_COST, 8)
+    assert (
+        idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"]["cumulative"]["total"]
+        == EXPECTED_TOTAL_TOKENS
+    )
+
+
+# ── instrumentation-reported cost wins ───────────────────────────────
+
+
+def test_calculate_costs_keeps_a_reported_cost(monkeypatch):
+    """A cost the harness measured must survive the pricing-table pass."""
+    called = []
+
+    def _never(model, prompt_tokens, completion_tokens):
+        called.append(model)
+        return (99.0, 99.0)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _never,
+    )
+
+    span = _span(
+        span_id=CHAT_A_UUID,
+        span_name="chat gateway/some-model",
+        span_type=SpanType.CHAT,
+        prompt_tokens=100,
+        completion_tokens=10,
+    )
+    span.attributes["ag"]["metrics"]["costs"]["incremental"]["total"] = 0.004242
+
+    calculate_costs({CHAT_A_UUID: span})
+
+    assert span.attributes["ag"]["metrics"]["costs"]["incremental"]["total"] == 0.004242
+    assert called == []
+
+
+def test_calculate_costs_still_prices_a_span_without_a_reported_cost(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (
+            prompt_tokens * 0.01,
+            completion_tokens * 0.02,
+        ),
+    )
+
+    span = _span(
+        span_id=CHAT_A_UUID,
+        span_name="chat gpt-4o-mini",
+        span_type=SpanType.CHAT,
+        prompt_tokens=100,
+        completion_tokens=10,
+    )
+
+    calculate_costs({CHAT_A_UUID: span})
+
+    costs = span.attributes["ag"]["metrics"]["costs"]["incremental"]
+
+    assert costs["total"] == pytest.approx(100 * 0.01 + 10 * 0.02)
+
+
+def test_the_agent_run_total_is_not_counted_twice(monkeypatch):
+    """The harness stamps the run total on the agent span; children repeat it."""
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    batch = _harness_batch()
+    agent = batch[0]
+
+    # What sdk/agents/tracing.py record_usage stamps on the agent span.
+    agent.attributes["ag"]["metrics"]["tokens"]["incremental"] = {
+        "prompt": 14100 + 17700,
+        "completion": 471 + 23,
+        "total": EXPECTED_TOTAL_TOKENS,
+    }
+    agent.attributes["ag"]["metrics"]["costs"]["incremental"] = {
+        "total": EXPECTED_TOTAL_COST,
+    }
+
+    out = calculate_and_propagate_metrics(batch)
+    out_idx = {span.span_id: span for span in out}
+    agent_metrics = out_idx[AGENT_UUID].attributes["ag"]["metrics"]
+
+    assert agent_metrics["tokens"]["cumulative"]["total"] == EXPECTED_TOTAL_TOKENS
+    assert round(agent_metrics["costs"]["cumulative"]["total"], 8) == round(
+        EXPECTED_TOTAL_COST, 8
+    )
+
+
+def test_an_agent_without_per_call_spans_keeps_its_reported_usage(monkeypatch):
+    """Not every harness emits per-call spans; that run must still show usage."""
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda model, prompt_tokens, completion_tokens: (0.0, 0.0),
+    )
+
+    agent = _span(
+        span_id=AGENT_UUID,
+        span_name="invoke_agent",
+        span_type=SpanType.AGENT,
+        start_offset_s=1,
+    )
+    agent.attributes["ag"]["metrics"]["tokens"]["incremental"] = {
+        "prompt": 100.0,
+        "completion": 10.0,
+        "total": 110.0,
+    }
+    agent.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": 0.5}
+
+    tool = _span(
+        span_id=TURN_UUID,
+        parent_id=AGENT_UUID,
+        span_name="execute_tool read",
+        span_type=SpanType.TOOL,
+        start_offset_s=2,
+    )
+
+    out = calculate_and_propagate_metrics([agent, tool])
+    out_idx = {span.span_id: span for span in out}
+    agent_metrics = out_idx[AGENT_UUID].attributes["ag"]["metrics"]
+
+    assert agent_metrics["tokens"]["cumulative"]["total"] == 110.0
+    assert agent_metrics["costs"]["cumulative"]["total"] == 0.5

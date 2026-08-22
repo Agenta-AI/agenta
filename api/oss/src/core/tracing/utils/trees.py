@@ -31,11 +31,19 @@ def calculate_and_propagate_metrics(
     """
     Calculate and propagate costs/tokens/errors for a list of span DTOs.
 
-    This must be called BEFORE batching to ensure complete trace trees.
-    If called after batching, partial traces will fail to propagate correctly.
+    Give it the complete trace whenever you can: cumulative metrics are only as
+    complete as the spans passed in. Over a partial trace it still propagates
+    correctly within each subtree present - a span whose parent is missing is
+    treated as a local root - but a root that arrives without its children ends
+    up with only its own metrics. `TracingService.ingest` therefore recomputes
+    over the stored trace after each batch is written, which is what makes the
+    numbers whole for traces split across several OTLP batches.
+
+    Calling it repeatedly is safe: cumulative values are derived from
+    incremental ones and overwritten, never accumulated onto the previous result.
 
     Args:
-        span_dtos: List of span DTOs (should be from a complete trace)
+        span_dtos: List of span DTOs (ideally a complete trace)
 
     Returns:
         List of span DTOs with calculated and propagated costs/tokens/errors
@@ -175,19 +183,37 @@ def promote_identity_by_trace(
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
+    """
+    Build the span-id tree for a set of spans.
+
+    A span whose parent is absent from `span_idx` becomes a LOCAL ROOT rather
+    than being dropped. One trace routinely reaches the API in several OTLP
+    batches from different processes - an in-sandbox agent harness exports the
+    spans it produces, and the SDK exports the workflow root about a second
+    later - so a batch commonly holds a subtree whose parent lives in another
+    batch. Dropping those spans would leave the entire subtree out of the tree,
+    and no cumulative metric would ever be computed for any of it.
+
+    Spans caught in a parent cycle stay out of the tree, so the depth-first
+    walks over the result always terminate.
+    """
     span_id_tree = OrderedDict()
-    index = {}
+    index = OrderedDict()
 
-    def push(span_dto: OTelFlatSpan) -> None:
-        if span_dto.parent_id is None:
-            span_id_tree[span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = span_id_tree[span_dto.span_id]
-        elif span_dto.parent_id in index:
-            index[span_dto.parent_id][span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = index[span_dto.parent_id][span_dto.span_id]
+    ordered = sorted(span_idx.values(), key=lambda span_dto: span_dto.start_time)
 
-    for span_dto in sorted(span_idx.values(), key=lambda span_dto: span_dto.start_time):
-        push(span_dto)
+    # Seed every node first so placement does not depend on a parent having an
+    # earlier start_time than its children.
+    for span_dto in ordered:
+        index[span_dto.span_id] = OrderedDict()
+
+    for span_dto in ordered:
+        parent_id = span_dto.parent_id
+
+        if parent_id is not None and parent_id in index:
+            index[parent_id][span_dto.span_id] = index[span_dto.span_id]
+        else:
+            span_id_tree[span_dto.span_id] = index[span_dto.span_id]
 
     return span_id_tree
 
@@ -347,6 +373,7 @@ def cumulate_costs(
         _get_cumulative,
         _accumulate,
         _set_cumulative,
+        prefer_children=True,
     )
 
 
@@ -469,6 +496,7 @@ def cumulate_tokens(
         _get_cumulative,
         _accumulate,
         _set_cumulative,
+        prefer_children=True,
     )
 
 
@@ -538,6 +566,18 @@ def cumulate_errors(
     )
 
 
+def _is_non_zero(metric) -> bool:
+    if isinstance(metric, dict):
+        return any(value for value in metric.values())
+
+    return bool(metric)
+
+
+def _is_model_call(span: OTelFlatSpan) -> bool:
+    """Whether the span calls a model itself, so its usage is its own spend."""
+    return bool(span.span_type) and span.span_type.name.lower() in TYPES_WITH_COSTS
+
+
 def _cumulate_tree_dfs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
@@ -545,11 +585,12 @@ def _cumulate_tree_dfs(
     get_cumulative,
     accumulate,
     set_cumulative,
+    prefer_children: bool = False,
 ):
     for span_id, children_spans_id_tree in spans_id_tree.items():
         children_spans_id_tree: OrderedDict
 
-        cumulated_metric = get_incremental(spans_idx[span_id])
+        own_metric = get_incremental(spans_idx[span_id])
 
         _cumulate_tree_dfs(
             children_spans_id_tree,
@@ -558,11 +599,36 @@ def _cumulate_tree_dfs(
             get_cumulative,
             accumulate,
             set_cumulative,
+            prefer_children,
         )
+
+        children_metric = None
 
         for child_span_id in children_spans_id_tree.keys():
             marginal_metric = get_cumulative(spans_idx[child_span_id])
-            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
+
+            children_metric = (
+                marginal_metric
+                if children_metric is None
+                else accumulate(children_metric, marginal_metric)
+            )
+
+        if children_metric is None:
+            cumulated_metric = own_metric
+        elif (
+            prefer_children
+            and _is_non_zero(children_metric)
+            and not _is_model_call(spans_idx[span_id])
+        ):
+            # Usage on a span that cannot call a model itself is a roll-up of
+            # the calls its children already report: an agent harness stamps the
+            # run total on the agent span, and the per-call chat spans repeat
+            # it. Adding both would count every call twice. A span whose
+            # children report nothing still falls back to its own figure, which
+            # is what keeps runs with no per-call instrumentation working.
+            cumulated_metric = children_metric
+        else:
+            cumulated_metric = accumulate(own_metric, children_metric)
 
         set_cumulative(spans_idx[span_id], cumulated_metric)
 
@@ -591,6 +657,23 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             and span.attributes
         ):
             attr: dict = span.attributes
+
+            # A cost reported by the instrumentation itself (gen_ai.usage.cost)
+            # is authoritative and must not be replaced by a pricing-table
+            # estimate: the harness or gateway knows the price actually charged,
+            # which public pricing cannot reproduce for proxied, aliased or
+            # negotiated models.
+            reported_cost = (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("incremental", {})
+                .get("total")
+            )
+
+            if reported_cost:
+                continue
+
             model = attr.get("ag", {}).get("meta", {}).get("response", {}).get(
                 "model"
             ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")

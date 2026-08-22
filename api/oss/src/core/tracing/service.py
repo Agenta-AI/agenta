@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
+from copy import deepcopy
 from datetime import datetime
 
 from genson import SchemaBuilder
@@ -98,6 +99,23 @@ DEFAULT_ANALYTICS_SPECS: Tuple[Tuple[MetricType, str], ...] = (
 )
 
 
+def _metrics_snapshot(span_dto: OTelFlatSpan) -> Optional[Dict[str, Any]]:
+    """Copy a span's metrics attributes, to detect whether a recompute changed them."""
+    attributes = span_dto.attributes
+
+    if not isinstance(attributes, dict):
+        return None
+
+    namespace = attributes.get("ag")
+
+    if not isinstance(namespace, dict):
+        return None
+
+    metrics = namespace.get("metrics")
+
+    return deepcopy(metrics) if isinstance(metrics, dict) else None
+
+
 class TracingService:
     """
     Tracing service for managing spans and traces.
@@ -120,11 +138,91 @@ class TracingService:
         span_dtos: List[OTelFlatSpan],
     ) -> List[OTelLink]:
         """Ingest spans (upsert: create if new, update if exists)."""
-        return await self.tracing_dao.ingest(
+        link_dtos = await self.tracing_dao.ingest(
             project_id=project_id,
             user_id=user_id,
             #
             span_dtos=span_dtos,
+        )
+
+        try:
+            await self._recumulate_metrics_by_trace(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                span_dtos=span_dtos,
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "Failed to re-cumulate trace metrics; "
+                "spans are stored but cumulative metrics may stay partial",
+                exc_info=True,
+            )
+
+        return link_dtos
+
+    async def _recumulate_metrics_by_trace(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        span_dtos: List[OTelFlatSpan],
+    ) -> None:
+        """
+        Recompute cumulative metrics over each affected trace as it is stored.
+
+        A trace commonly reaches the API in several OTLP batches from different
+        processes: an in-sandbox agent harness exports the spans it produces,
+        and the SDK exports the workflow root about a second later. Computing
+        over one batch alone leaves the root with no cumulative metric at all.
+
+        The value has to be right in the database rather than repaired on read,
+        because the Observability list, the analytics dashboard and evaluation
+        run metrics all aggregate `attributes.ag.metrics.*.cumulative` in SQL
+        over root spans, and the list also filters and sorts on it.
+
+        Only spans whose metrics changed are written back, so a trace that
+        arrived complete costs a single read. Two batches of one trace handled
+        by different worker replicas can interleave read and write; the loser
+        writes a partial roll-up, and the next batch of that trace repairs it.
+        """
+        trace_ids = list({span_dto.trace_id for span_dto in span_dtos})
+
+        if not trace_ids:
+            return
+
+        stored_span_dtos = await self.tracing_dao.fetch(
+            project_id=project_id,
+            trace_ids=trace_ids,
+        )
+
+        if not stored_span_dtos:
+            return
+
+        snapshots = {
+            span_dto.span_id: _metrics_snapshot(span_dto)
+            for span_dto in stored_span_dtos
+        }
+
+        recumulated_span_dtos = calculate_and_propagate_metrics_by_trace(
+            stored_span_dtos,
+        )
+
+        changed_span_dtos = [
+            span_dto
+            for span_dto in recumulated_span_dtos
+            if _metrics_snapshot(span_dto) != snapshots.get(span_dto.span_id)
+        ]
+
+        if not changed_span_dtos:
+            return
+
+        await self.tracing_dao.ingest(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            span_dtos=changed_span_dtos,
         )
 
     async def ingest_span_dtos(
