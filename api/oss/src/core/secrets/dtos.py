@@ -1,6 +1,11 @@
 from typing import Optional, Union, List, Dict, Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from oss.src.core.secrets.managed import (
+    PublicSecretManagementDTO,
+    SecretManagementDTO,
+)
 
 from oss.src.core.secrets.enums import (
     SecretKind,
@@ -258,13 +263,11 @@ class SecretDTO(BaseModel):
 
 
 class CreateSecretDTO(Slug, BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     header: Header
     secret: SecretDTO
     write_only: bool = True
-    # Server-controlled: which platform component provisioned and owns this row (see
-    # `core/secrets/managed.py`). In-process callers set it; every user-facing route
-    # rejects a client-supplied value with HTTP 400.
-    managed_by: Optional[str] = None
 
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
@@ -323,12 +326,10 @@ class UpdateSecretPayloadDTO(BaseModel):
 
 
 class UpdateSecretDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     header: Optional[Header] = None
     secret: Optional[UpdateSecretPayloadDTO] = None
-    # Server-controlled. None keeps the stored marker; a non-empty string sets it and an
-    # empty string clears it, both only for in-process callers that pass
-    # `allow_managed=True` (`ManagedByIsServerControlledError` otherwise).
-    managed_by: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -383,14 +384,11 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
 class SecretResponseDTO(_SecretResponseBaseDTO):
     """Trusted internal representation. Credential material remains available."""
 
-    # Read-only: present when a platform component owns the row, absent otherwise (the
-    # vault routes exclude None fields). Users can read and use such a row, but not edit
-    # or delete it.
-    managed_by: Optional[str] = None
+    management: Optional[SecretManagementDTO] = None
 
 
 class PublicSecretResponseDTO(_SecretResponseBaseDTO):
     """Caller-facing representation after grant-aware value projection."""
 
-    managed_by: Optional[str] = None
+    management: Optional[PublicSecretManagementDTO] = None
     value_status: SecretValueStatus

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
+from oss.src.core.secrets.managed import SecretManagementDTO
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -50,12 +51,14 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID | None,
         organization_id: UUID | None,
         create_secret_dto: CreateSecretDTO,
+        management: SecretManagementDTO | None = None,
     ):
         self._validate_scope(project_id, organization_id)
         secrets_dbe = map_secrets_dto_to_dbe(
             project_id=project_id,
             organization_id=organization_id,
             secret_dto=create_secret_dto,
+            management=management,
         )
         async with self.engine.session() as session:
             session.add(secrets_dbe)
