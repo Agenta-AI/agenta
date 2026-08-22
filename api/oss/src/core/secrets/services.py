@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from pydantic import ValidationError
 
 from oss.src.utils.env import env
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
@@ -20,9 +21,15 @@ from oss.src.core.secrets.redaction import (
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretResponseDTO,
+    SecretDTO,
+    UpdateSecretPayloadDTO,
     SecretValueRequiredError,
     UpdateSecretDTO,
-    WriteOnlyCannotBeDisabledError,
+)
+
+from oss.src.core.secrets.managed import (
+    ManagedByIsServerControlledError,
+    ManagedSecretReadOnlyError,
 )
 
 
@@ -75,8 +82,8 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
 
     An update that omits the value means "keep the stored one" — the contract replace-only
     forms rely on for write-only secrets, applied uniformly so update semantics do not fork
-    on the flag. An empty string counts as omitted: an empty credential is never a
-    meaningful value, and replace-only forms submit empty for "unchanged".
+    on the flag. An explicit empty string is invalid; replace-only forms must omit an
+    unchanged credential field.
 
     Only called when the update keeps the stored kind AND provider family — a credential
     must never silently cross identities (see `update_secret`).
@@ -93,7 +100,9 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
             and hasattr(update_container, field)
         ):
             current_value = getattr(update_container, field)
-            if current_value is None or current_value == "":
+            if current_value == "":
+                raise SecretValueRequiredError()
+            if current_value is None:
                 stored_value = getattr(stored_container, field, None)
                 if stored_value is not None:
                     setattr(update_container, field, stored_value)
@@ -101,7 +110,7 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
 
 
-def _revalidate_merged_secret(*, secret: Any) -> None:
+def _revalidate_merged_secret(*, secret: Any) -> UpdateSecretPayloadDTO:
     """Re-run the payload validators over the update as it will be stored.
 
     Validation runs at construction, before keep-on-omit fills the value in, so a merged
@@ -110,7 +119,8 @@ def _revalidate_merged_secret(*, secret: Any) -> None:
     committed.
     """
     try:
-        type(secret).model_validate(secret.model_dump())
+        complete = SecretDTO.model_validate(secret.model_dump(mode="python"))
+        return UpdateSecretPayloadDTO.model_validate(complete.model_dump(mode="python"))
     except ValidationError as exc:
         raise SecretValueRequiredError(
             message=(
@@ -163,15 +173,21 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
 
     for extras_key in CREDENTIAL_EXTRAS_KEYS:
         stored_value = stored_extras.get(extras_key)
-        if stored_value is not None and not update_extras.get(extras_key):
+        requested_value = update_extras.get(extras_key)
+        if requested_value == "":
+            raise SecretValueRequiredError()
+        if stored_value is not None and (
+            extras_key not in update_extras or requested_value is None
+        ):
             update_extras[extras_key] = stored_value
 
 
-def _resolve_credential_carry_over(
+def _resolve_update(
     stored_secret_dto: SecretResponseDTO,
+    requested_update: UpdateSecretDTO,
     *,
-    update_secret_dto: UpdateSecretDTO,
-) -> None:
+    allow_managed: bool,
+) -> UpdateSecretDTO:
     """Fill this update's omitted credential from the row UNDER THE WRITE LOCK.
 
     Called by the DAO inside the locked transaction rather than by the service before it,
@@ -183,36 +199,51 @@ def _resolve_credential_carry_over(
     another kind's or another provider's credential — and that decision reads the same
     stored row, so it belongs under the same lock.
     """
-    if update_secret_dto.secret is None:
-        return
+    if not allow_managed and stored_secret_dto.managed_by:
+        raise ManagedSecretReadOnlyError(managed_by=stored_secret_dto.managed_by)
+
+    resolved_update = requested_update.model_copy(deep=True)
+    if resolved_update.secret is None:
+        return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
 
     same_identity = (
-        stored_secret_dto.kind == update_secret_dto.secret.kind
+        stored_secret_dto.kind == resolved_update.secret.kind
         and _provider_family(stored_secret_dto.data)
-        == _provider_family(update_secret_dto.secret.data)
+        == _provider_family(resolved_update.secret.data)
         # A custom secret's format is identity too: carrying a stored text value into a
         # json update would store a string where the shape says object, and the payload
         # validators never see it because they ran before the value was filled in.
         and _secret_format(stored_secret_dto.data)
-        == _secret_format(update_secret_dto.secret.data)
+        == _secret_format(resolved_update.secret.data)
     )
 
     if same_identity:
         _carry_over_saved_policy(
             stored_data=stored_secret_dto.data,
-            update_data=update_secret_dto.secret.data,
+            update_data=resolved_update.secret.data,
         )
         _carry_over_saved_value(
             kind=str(stored_secret_dto.kind.value),
             stored_data=stored_secret_dto.data,
-            update_data=update_secret_dto.secret.data,
+            update_data=resolved_update.secret.data,
         )
         # The payload was validated before the carry-over filled it in, so what the
         # validators actually saw was a value-less shape. Re-validate the merged result:
         # nothing reaches the row that a create of the same shape would have refused.
-        _revalidate_merged_secret(secret=update_secret_dto.secret)
+        resolved_update.secret = _revalidate_merged_secret(
+            secret=resolved_update.secret
+        )
     else:
-        _require_explicit_value(secret=update_secret_dto.secret)
+        _require_explicit_value(secret=resolved_update.secret)
+
+    return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
+
+
+def _authorize_delete(
+    stored_secret_dto: SecretResponseDTO, *, allow_managed: bool
+) -> None:
+    if not allow_managed and stored_secret_dto.managed_by:
+        raise ManagedSecretReadOnlyError(managed_by=stored_secret_dto.managed_by)
 
 
 def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
@@ -258,18 +289,20 @@ class VaultService:
                 uuid4(),
             )
 
-        # The write-only default for NEW secrets is env-gated (off until the web UI ships
-        # replace-only secret forms); an explicit request value always wins. Existing rows
-        # are untouched (they carry no flag).
-        if create_secret_dto.write_only is None:
-            create_secret_dto.write_only = env.agenta.vault.write_only_default
-
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
                 project_id=project_id,
                 organization_id=organization_id,
                 create_secret_dto=create_secret_dto,
             )
+
+        # Managed implies write-only, over both the request and the env default: a managed
+        # row's credential is one Agenta provisioned and the organization never supplied,
+        # so there is no state in which handing it back to a user is right. Forced here
+        # because `write_only` is pinned once stored — a readable managed row could never
+        # be tightened afterwards.
+        if create_secret_dto.managed_by:
+            create_secret_dto.write_only = True
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
@@ -279,7 +312,10 @@ class VaultService:
                 organization_id=organization_id,
                 create_secret_dto=create_secret_dto,
             )
-            return secret_dto
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+        return secret_dto
 
     async def _name_and_slug_provider_key(
         self,
@@ -358,14 +394,30 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ):
-        with set_data_encryption_key(
-            data_encryption_key=self._data_encryption_key,
-        ):
-            secrets_dtos = await self.secrets_dao.list(
-                project_id=project_id,
-                organization_id=organization_id,
+        if project_id is not None:
+            secrets_dtos = await get_cache(
+                namespace="list_secrets",
+                project_id=str(project_id),
+                key={},
+                model=SecretResponseDTO,
+                is_list=True,
             )
-            return secrets_dtos
+            if secrets_dtos is not None:
+                return secrets_dtos
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secrets_dtos = await self.secrets_dao.list(
+                project_id=project_id, organization_id=organization_id
+            )
+
+        if project_id is not None:
+            await set_cache(
+                namespace="list_secrets",
+                project_id=str(project_id),
+                key={},
+                value=secrets_dtos,
+            )
+        return secrets_dtos
 
     async def update_secret(
         self,
@@ -374,51 +426,44 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
+        allow_managed: bool = False,
     ):
+        """Update a secret. `allow_managed` is the in-process owner's key to a managed row.
+
+        It defaults to off so that every caller reached from a user-facing route — today's
+        and tomorrow's — gets the managed guard without opting in. The component that
+        provisioned a managed row passes True to run its own reconcile or teardown.
+        """
+        if not allow_managed and update_secret_dto.managed_by is not None:
+            raise ManagedByIsServerControlledError()
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            if (
-                update_secret_dto.secret is not None
-                or update_secret_dto.write_only is not None
-            ):
-                stored_secret_dto = await self.secrets_dao.get_by_id(
-                    secret_id=secret_id,
-                    project_id=project_id,
-                    organization_id=organization_id,
-                )
-                if stored_secret_dto is not None:
-                    if (
-                        stored_secret_dto.write_only
-                        and update_secret_dto.write_only is False
-                    ):
-                        raise WriteOnlyCannotBeDisabledError()
-
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
-                # Resolved against the LOCKED row, not the snapshot above: see
-                # `_resolve_credential_carry_over`.
-                resolve_update=(
-                    partial(
-                        _resolve_credential_carry_over,
-                        update_secret_dto=update_secret_dto,
-                    )
-                    if update_secret_dto.secret is not None
-                    else None
+                resolve_update=partial(
+                    _resolve_update,
+                    allow_managed=allow_managed,
                 ),
             )
-            return secret_dto
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+        return secret_dto
 
     async def delete_secret(
         self,
         secret_id: UUID,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
+        allow_managed: bool = False,
     ) -> None:
+        """Delete a secret. A managed row refuses unless the owner passes `allow_managed`."""
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -426,5 +471,11 @@ class VaultService:
                 secret_id=secret_id,
                 project_id=project_id,
                 organization_id=organization_id,
+                authorize_delete=partial(
+                    _authorize_delete,
+                    allow_managed=allow_managed,
+                ),
             )
-            return
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))

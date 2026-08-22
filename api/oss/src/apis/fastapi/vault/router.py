@@ -8,7 +8,6 @@ from fastapi.routing import APIRoute
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.dtos import (
@@ -16,9 +15,13 @@ from oss.src.core.secrets.dtos import (
     SecretValueRequiredError,
     UpdateSecretDTO,
     SecretResponseDTO,
-    WriteOnlyCannotBeDisabledError,
+    PublicSecretResponseDTO,
 )
-from oss.src.core.secrets.redaction import redact_secret_response
+from oss.src.core.secrets.managed import (
+    ManagedByIsServerControlledError,
+    ManagedSecretReadOnlyError,
+)
+from oss.src.core.secrets.redaction import project_secret_response
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -75,7 +78,7 @@ class VaultRouter:
             methods=["POST"],
             operation_id="create_secret",
             response_model_exclude_none=True,
-            response_model=SecretResponseDTO,
+            response_model=PublicSecretResponseDTO,
         )
         self.router.add_api_route(
             "/secrets/",
@@ -83,7 +86,7 @@ class VaultRouter:
             methods=["GET"],
             operation_id="list_secrets",
             response_model_exclude_none=True,
-            response_model=List[SecretResponseDTO],
+            response_model=List[PublicSecretResponseDTO],
         )
         self.router.add_api_route(
             "/secrets/{secret_id_or_slug}",
@@ -91,7 +94,7 @@ class VaultRouter:
             methods=["GET"],
             operation_id="read_secret",
             response_model_exclude_none=True,
-            response_model=SecretResponseDTO,
+            response_model=PublicSecretResponseDTO,
         )
         self.router.add_api_route(
             "/secrets/{secret_id}",
@@ -99,7 +102,7 @@ class VaultRouter:
             methods=["PUT"],
             operation_id="update_secret",
             response_model_exclude_none=True,
-            response_model=SecretResponseDTO,
+            response_model=PublicSecretResponseDTO,
         )
         self.router.add_api_route(
             "/secrets/{secret_id}",
@@ -112,20 +115,39 @@ class VaultRouter:
     @staticmethod
     def _for_caller(
         request: Request, secret_dto: SecretResponseDTO
-    ) -> SecretResponseDTO:
+    ) -> PublicSecretResponseDTO:
         """The response shape ``request``'s principal may see.
 
         Only the platform runtime (a Secret token carrying the ``secret-resolve`` grant)
-        receives write-only values in plaintext; every user principal — session, ApiKey,
-        unscoped Secret token — gets the redacted shape.
+        receives write-only values in plaintext. Every caller still receives the same
+        public response type rather than the internal service DTO.
         """
-        if request_has_grant(request, SECRET_RESOLVE_GRANT):
-            return secret_dto
+        return project_secret_response(
+            secret_dto,
+            reveal_write_only=request_has_grant(request, SECRET_RESOLVE_GRANT),
+        )
 
-        return redact_secret_response(secret_dto)
+    @staticmethod
+    def _refuse_client_managed_by(body) -> None:
+        """`managed_by` states that Agenta provisioned the row; a client may not claim it.
+
+        Rejected rather than ignored: a caller that sent it believes the row will be
+        managed (or un-managed), and silently dropping the field would leave it wrong
+        about what the vault now holds.
+        """
+        if body.managed_by is None:
+            return
+
+        error = ManagedByIsServerControlledError()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error.message,
+        )
 
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
+        self._refuse_client_managed_by(body)
+
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -142,9 +164,6 @@ class VaultRouter:
         vault_secret = await self.service.create_secret(
             project_id=UUID(request.state.project_id),
             create_secret_dto=body,
-        )
-        await invalidate_cache(
-            project_id=request.state.project_id,
         )
         return self._for_caller(request, vault_secret)
 
@@ -213,6 +232,8 @@ class VaultRouter:
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
+        self._refuse_client_managed_by(body)
+
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -233,17 +254,20 @@ class VaultRouter:
                 update_secret_dto=body,
                 user_id=UUID(request.state.user_id),
             )
-        except (SecretValueRequiredError, WriteOnlyCannotBeDisabledError) as e:
+        except SecretValueRequiredError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
+            ) from e
+        except ManagedSecretReadOnlyError as e:
+            # 409, not 400: the payload is well-formed; the stored row's managed state is
+            # what forbids the change.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
         return self._for_caller(request, secrets_dto)
 
     @intercept_exceptions()
@@ -261,11 +285,13 @@ class VaultRouter:
                 status_code=403,
             )
 
-        await self.service.delete_secret(
-            project_id=UUID(request.state.project_id),
-            secret_id=UUID(secret_id),
-        )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
+        try:
+            await self.service.delete_secret(
+                project_id=UUID(request.state.project_id),
+                secret_id=UUID(secret_id),
+            )
+        except ManagedSecretReadOnlyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=e.message
+            ) from e
         return status.HTTP_204_NO_CONTENT
