@@ -8,6 +8,9 @@ from urllib.parse import urlparse
 import click
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def get_metrics_keys_from_schema(schema=None, path=()) -> List[Dict[str, str]]:
@@ -182,6 +185,38 @@ def warn_deprecated_env_vars():
                 fg="yellow",
             )
         )
+
+
+def warn_unconfigured_platform_runtime_key():
+    """Say at boot when nothing can read a write-only secret, and why.
+
+    A run reads a write-only secret only through a credential the platform runtime is
+    issued, and the runtime is recognized by a shared key. Unset, that key defaults to the
+    placeholder the example env files ship, which is refused — so a deployment that turned
+    write-only on, or enabled a bridge that seeds write-only rows, silently gets runs that
+    cannot read their own connection. The failure surfaces as "provide the provider key in
+    this run's environment", which is true for a standalone run and useless here, so the
+    cause has to be said where an operator will see it.
+    """
+    runtime_key = (env.agenta.services_internal_key or "").strip()
+    if runtime_key and runtime_key != "replace-me":
+        return
+
+    # The bridge config is an EE addition and may not exist on this build, so ask rather
+    # than assume: this runs at startup, where an AttributeError would stop the API.
+    bridge = getattr(env, "starter_credits_bridge", None)
+    seeds_write_only_rows = bool(bridge is not None and bridge.enabled)
+
+    if not (env.agenta.vault.write_only_default or seeds_write_only_rows):
+        return
+
+    log.warning(
+        "AGENTA_SERVICES_INTERNAL_KEY is not configured (and AGENTA_AUTH_KEY is the "
+        "placeholder). Write-only secrets are in use on this deployment, and runs "
+        "against a connection whose secret is write-only will not be able to read it. "
+        "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and the services "
+        "container."
+    )
 
 
 def validate_required_env_vars():
