@@ -25,8 +25,8 @@ export type SidebarSessionGroupBy = "agent" | "date" | "status" | "pinned"
 
 export interface SidebarSessionFilters {
     groupBy: SidebarSessionGroupBy
-    /** Agent workflow id, matched against the turns' references. Null = every agent. */
-    agentId: string | null
+    /** Agent workflow ids, matched against the turns' references. Empty = every agent. */
+    agentIds: string[]
     status: SidebarSessionStatusFilter
     activity: SidebarSessionActivityFilter
     pinnedOnly: boolean
@@ -36,7 +36,7 @@ export interface SidebarSessionFilters {
 
 export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
     groupBy: "agent",
-    agentId: null,
+    agentIds: [],
     status: "all",
     activity: "all",
     pinnedOnly: false,
@@ -85,7 +85,12 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         return (
             Object.keys(DEFAULT_SIDEBAR_SESSION_FILTERS) as (keyof SidebarSessionFilters)[]
-        ).some((key) => filters[key] !== DEFAULT_SIDEBAR_SESSION_FILTERS[key])
+        ).some((key) => {
+            const value = filters[key]
+            // An array default is a fresh [] every read, so identity would report dirty forever.
+            if (Array.isArray(value)) return value.length > 0
+            return value !== DEFAULT_SIDEBAR_SESSION_FILTERS[key]
+        })
     }),
 )
 

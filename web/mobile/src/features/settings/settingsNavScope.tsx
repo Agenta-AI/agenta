@@ -79,7 +79,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
-    const Header = ({collapsed}: SidebarSlotContext) => {
+    const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
         const router = useRouter()
         const lastPath = useAtomValue(lastNonSettingsPathAtom)
 
@@ -98,7 +98,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     collapsed={collapsed}
                     onBack={() => void router.push(lastPath ?? `${projectURL}/apps`)}
                 />
-                <SidebarToggleButton />
+                <SidebarToggleButton onDismiss={onDismiss} />
             </div>
         )
     }

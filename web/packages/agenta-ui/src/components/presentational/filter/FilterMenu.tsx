@@ -18,14 +18,22 @@ export interface FilterMenuOption {
     label: string
 }
 
-/** A single-choice dimension: opens a submenu of its options. */
+/** A dimension with its own submenu of options — single-choice, or `multiple` for a set. */
 export interface FilterMenuFacet {
     key: string
     label: string
-    value: string
+    /** Single-choice: the chosen option. Ignored when `multiple`. */
+    value?: string
+    /** Multi-choice: the chosen options. Empty renders `emptyLabel` and counts as default. */
+    values?: string[]
+    multiple?: boolean
     options: FilterMenuOption[]
     /** The neutral value. Anything else renders emphasised, so an open menu shows what is on. */
     defaultValue?: string
+    /** Multi-choice only: what the summary reads with nothing selected, e.g. "All agents". */
+    emptyLabel?: string
+    /** Multi-choice only: the summary past one selection, e.g. `(n) => `${n} agents``. */
+    manyLabel?: (count: number) => string
     icon?: ReactNode
 }
 
@@ -41,6 +49,8 @@ export interface FilterMenuProps {
     facets?: FilterMenuFacet[]
     toggles?: FilterMenuToggle[]
     onFacetChange?: (key: string, value: string) => void
+    /** Multi-choice facets report a toggle instead; the host owns the resulting set. */
+    onFacetToggle?: (key: string, value: string, on: boolean) => void
     onToggleChange?: (key: string, on: boolean) => void
     onReset?: () => void
     resetLabel?: string
@@ -67,6 +77,7 @@ export const FilterMenu = ({
     facets,
     toggles,
     onFacetChange,
+    onFacetToggle,
     onToggleChange,
     onReset,
     resetLabel = "Reset to defaults",
@@ -91,40 +102,71 @@ export const FilterMenu = ({
                 avoidCollisions={avoidCollisions}
                 className="min-w-[212px]"
             >
-                {facets?.map((facet) => (
-                    <DropdownMenuSub key={facet.key}>
-                        <DropdownMenuSubTrigger>
-                            {facet.icon ? (
-                                <span className="flex shrink-0 items-center">{facet.icon}</span>
-                            ) : null}
-                            <span className="flex-1 truncate">{facet.label}</span>
-                            <span
-                                className={
-                                    facet.defaultValue !== undefined &&
-                                    facet.value !== facet.defaultValue
-                                        ? "ml-2 max-w-[92px] truncate text-colorText"
-                                        : "ml-2 max-w-[92px] truncate text-colorTextTertiary"
-                                }
-                            >
-                                {facet.options.find((option) => option.value === facet.value)
-                                    ?.label ?? facet.value}
-                            </span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent className="max-h-[280px] min-w-[176px] overflow-y-auto">
-                            {facet.options.map((option) => (
-                                <DropdownMenuItem
-                                    key={option.value}
-                                    onSelect={() => onFacetChange?.(facet.key, option.value)}
+                {facets?.map((facet) => {
+                    const selected = facet.multiple ? (facet.values ?? []) : []
+                    const isOn = (value: string) =>
+                        facet.multiple ? selected.includes(value) : value === facet.value
+                    // Multi: nothing selected IS the default, so the summary reads as neutral.
+                    const offDefault = facet.multiple
+                        ? selected.length > 0
+                        : facet.defaultValue !== undefined && facet.value !== facet.defaultValue
+                    const summary = facet.multiple
+                        ? selected.length === 0
+                            ? (facet.emptyLabel ?? "All")
+                            : selected.length === 1
+                              ? (facet.options.find((option) => option.value === selected[0])
+                                    ?.label ?? selected[0])
+                              : (facet.manyLabel?.(selected.length) ??
+                                `${selected.length} selected`)
+                        : (facet.options.find((option) => option.value === facet.value)?.label ??
+                          facet.value)
+
+                    return (
+                        <DropdownMenuSub key={facet.key}>
+                            <DropdownMenuSubTrigger>
+                                {facet.icon ? (
+                                    <span className="flex shrink-0 items-center">{facet.icon}</span>
+                                ) : null}
+                                <span className="flex-1 truncate">{facet.label}</span>
+                                <span
+                                    className={
+                                        offDefault
+                                            ? "ml-2 max-w-[92px] truncate text-colorText"
+                                            : "ml-2 max-w-[92px] truncate text-colorTextTertiary"
+                                    }
                                 >
-                                    <span className="flex-1 truncate">{option.label}</span>
-                                    {option.value === facet.value ? (
-                                        <Check className="ml-2 size-3.5 shrink-0" />
-                                    ) : null}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                ))}
+                                    {summary}
+                                </span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent className="max-h-[280px] min-w-[176px] overflow-y-auto">
+                                {facet.options.map((option) => (
+                                    <DropdownMenuItem
+                                        key={option.value}
+                                        // Multi-choice stays open: picking a set one item per
+                                        // reopen is the whole cost of the feature.
+                                        onSelect={(event) => {
+                                            if (!facet.multiple) {
+                                                onFacetChange?.(facet.key, option.value)
+                                                return
+                                            }
+                                            event.preventDefault()
+                                            onFacetToggle?.(
+                                                facet.key,
+                                                option.value,
+                                                !selected.includes(option.value),
+                                            )
+                                        }}
+                                    >
+                                        <span className="flex-1 truncate">{option.label}</span>
+                                        {isOn(option.value) ? (
+                                            <Check className="ml-2 size-3.5 shrink-0" />
+                                        ) : null}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                    )
+                })}
 
                 {hasFacets && hasToggles ? <DropdownMenuSeparator /> : null}
 

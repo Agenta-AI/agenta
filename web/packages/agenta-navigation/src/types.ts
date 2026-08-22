@@ -74,6 +74,9 @@ export type SidebarSelection =
 export interface SidebarSlotContext {
     collapsed: boolean
     lastPath?: string
+    /** Set only where the rail is a dismissible overlay (the small-screen drawer). A docked rail
+     * passes none, which is how a slot tells the two mounts apart without guessing a breakpoint. */
+    onDismiss?: () => void
 }
 
 export type SidebarSlot = ComponentType<SidebarSlotContext>
@@ -109,4 +112,7 @@ export interface SidebarShellProps {
     className?: string
     /** Called when a nav link is clicked; the drawer mount uses it to close itself. */
     onNavigate?: () => void
+    /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
+     * offer a close instead of a collapse toggle without testing a viewport width. */
+    onDismiss?: () => void
 }

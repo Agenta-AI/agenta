@@ -1,6 +1,11 @@
 import {useMemo} from "react"
 
-import type {SidebarScope, SidebarSection, SidebarSelection} from "@agenta/navigation"
+import type {
+    SidebarScope,
+    SidebarSection,
+    SidebarSelection,
+    SidebarSlotContext,
+} from "@agenta/navigation"
 import {SidebarBanners, SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
@@ -39,9 +44,10 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         )
     }
 
-    // The rail collapses at lg+ exactly as the desktop's does, so it carries the same toggle.
-    const Header = ({collapsed}: {collapsed: boolean}) => (
-        <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
+    // Docked at lg+, so it carries the desktop's collapse toggle; in the drawer `onDismiss`
+    // arrives and the same button becomes the sheet's close.
+    const Header = ({collapsed, onDismiss}: SidebarSlotContext) => (
+        <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />
     )
 
     const AfterBottom = () => (

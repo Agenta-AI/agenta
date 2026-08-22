@@ -24,8 +24,6 @@ import {
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
-const ALL_AGENTS = "__all__"
-
 const GROUP_BY_OPTIONS = [
     {value: "agent", label: "Agent"},
     {value: "date", label: "Date"},
@@ -70,12 +68,16 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 options: GROUP_BY_OPTIONS,
             },
             {
-                key: "agentId",
+                key: "agentIds",
                 label: "Agent",
                 icon: <RobotIcon size={14} />,
-                value: filters.agentId ?? ALL_AGENTS,
-                defaultValue: ALL_AGENTS,
-                options: [{value: ALL_AGENTS, label: "All agents"}, ...agentOptions],
+                // The one multi-choice facet: narrowing to two teammates' agents is a real
+                // question, where two statuses or two date windows are not.
+                multiple: true,
+                values: filters.agentIds,
+                emptyLabel: "All agents",
+                manyLabel: (count) => `${count} agents`,
+                options: agentOptions,
             },
             {
                 key: "status",
@@ -94,7 +96,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 options: ACTIVITY_OPTIONS,
             },
         ],
-        [agentOptions, filters.activity, filters.agentId, filters.groupBy, filters.status],
+        [agentOptions, filters.activity, filters.agentIds, filters.groupBy, filters.status],
     )
 
     const toggles = useMemo<FilterMenuToggle[]>(
@@ -117,12 +119,23 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
 
     const onFacetChange = useCallback(
         (key: string, value: string) => {
-            if (key === "agentId") setFilters({agentId: value === ALL_AGENTS ? null : value})
             if (key === "status") setFilters({status: value as SidebarSessionStatusFilter})
             if (key === "groupBy") setFilters({groupBy: value as SidebarSessionGroupBy})
             if (key === "activity") setFilters({activity: value as SidebarSessionActivityFilter})
         },
         [setFilters],
+    )
+
+    const onFacetToggle = useCallback(
+        (key: string, value: string, on: boolean) => {
+            if (key !== "agentIds") return
+            setFilters({
+                agentIds: on
+                    ? [...filters.agentIds, value]
+                    : filters.agentIds.filter((id) => id !== value),
+            })
+        },
+        [filters.agentIds, setFilters],
     )
 
     const onToggleChange = useCallback(
@@ -136,10 +149,11 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             toggles={toggles}
             dirty={dirty}
             onFacetChange={onFacetChange}
+            onFacetToggle={onFacetToggle}
             onToggleChange={onToggleChange}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
             // otherwise move the menu somewhere different depending on scroll position.
-            align="start"
+            align="end"
             avoidCollisions={false}
         >
             <button

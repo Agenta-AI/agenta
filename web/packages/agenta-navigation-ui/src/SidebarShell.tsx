@@ -145,9 +145,10 @@ const renderSlot = (
     Slot: SidebarSection["before"] | SidebarScope["header"] | SidebarScope["footer"],
     collapsed: boolean,
     lastPath?: string,
+    onDismiss?: () => void,
 ) => {
     if (!Slot) return null
-    return <Slot collapsed={collapsed} lastPath={lastPath} />
+    return <Slot collapsed={collapsed} lastPath={lastPath} onDismiss={onDismiss} />
 }
 
 const SidebarShell: React.FC<SidebarShellProps> = ({
@@ -159,6 +160,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     theme,
     className,
     onNavigate,
+    onDismiss,
 }) => {
     const [collapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
@@ -325,7 +327,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 ].join(" ")}
             >
                 <div className="flex flex-col h-full w-[var(--ag-sidebar-w)] transition-all duration-300">
-                    {renderSlot(scope.header, collapsed, scope.lastPath)}
+                    {renderSlot(scope.header, collapsed, scope.lastPath, onDismiss)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
                             <div
@@ -350,7 +352,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     </SidebarErrorBoundary>
                 </div>
             </aside>
-            {!collapsed && (
+            {/* No resizer in an overlay mount: the sheet is a fixed width, so the handle would
+                drag the rail out of alignment with the sheet that frames it. */}
+            {!collapsed && !onDismiss && (
                 <div
                     // Invisible 9px grab strip straddling the hairline; the ::after IS the
                     // hairline, tinted only while hovering or dragging.

@@ -76,7 +76,9 @@ const requestFilters = (filters: SidebarSessionFilters) => {
     // `coalesce(updated_at, created_at) >= oldest`, so this is a real server predicate.
     const hours = ACTIVITY_WINDOW_HOURS[filters.activity]
     return {
-        references: filters.agentId ? [{id: filters.agentId}] : undefined,
+        // NOT one `references` list: the DAO matches it with JSONB containment, so two ids ask
+        // for sessions belonging to BOTH agents. Selecting several means one request each.
+        agentIds: filters.agentIds,
         flags: Object.keys(flags).length ? flags : undefined,
         archivedOnly: filters.archivedOnly,
         // `querySessions` defaults this to true; the rail must hide archived rows unless the
@@ -84,6 +86,34 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         includeArchived: filters.archivedOnly,
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
+}
+
+/**
+ * Poll only while something can still change: a row's dot is driven by `is_alive`, which the
+ * server flips when the stream ends — with no request, the dot stays filled until you reload.
+ * Stops once every row is idle, so a quiet rail costs nothing.
+ */
+const livePollInterval = (rows: SessionStream[] | null | undefined) =>
+    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running) ? 15_000 : false
+
+/**
+ * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
+ *
+ * Unioned by session id and re-sorted by last activity, which is the order the server would have
+ * returned had it been able to answer in one query. Each request carries the full window, so the
+ * merge widens coverage rather than splitting it.
+ */
+const queryByAgents = async (
+    agentIds: readonly string[],
+    run: (references: {id: string}[] | undefined) => Promise<SessionStream[] | null>,
+): Promise<SessionStream[] | null> => {
+    if (agentIds.length === 0) return run(undefined)
+    const pages = await Promise.all(agentIds.map((id) => run([{id}])))
+    const byId = new Map<string, SessionStream>()
+    for (const page of pages) for (const row of page ?? []) byId.set(row.session_id, row)
+    const activity = (row: SessionStream) =>
+        new Date(row.updated_at ?? row.created_at ?? 0).getTime()
+    return [...byId.values()].sort((a, b) => activity(b) - activity(a))
 }
 
 /**
@@ -124,7 +154,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {references, flags, archivedOnly, includeArchived, oldest} = requestFilters(filters)
+        const {agentIds, flags, archivedOnly, includeArchived, oldest} = requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
         const waitingIds = waitingQuery.data ?? null
@@ -132,26 +162,28 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             queryKey: [
                 "sidebar-sessions",
                 projectId,
-                filters.agentId,
+                filters.agentIds,
                 filters.status,
                 filters.activity,
                 filters.archivedOnly,
                 waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
-                querySessions({
-                    projectId: projectId ?? "",
-                    references,
-                    flags,
-                    archivedOnly,
-                    includeArchived,
-                    oldest,
-                    // No server predicate for "awaiting input" — the ids are pushed down instead.
-                    sessionIds: waiting ? (waitingIds ?? []) : undefined,
-                    limit: scopeLimit(scopeId),
-                    abortSignal: signal,
-                    lowPriority: true,
-                }),
+                queryByAgents(agentIds, (references) =>
+                    querySessions({
+                        projectId: projectId ?? "",
+                        references,
+                        flags,
+                        archivedOnly,
+                        includeArchived,
+                        oldest,
+                        // No server predicate for "awaiting input" — ids are pushed down instead.
+                        sessionIds: waiting ? (waitingIds ?? []) : undefined,
+                        limit: scopeLimit(scopeId),
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                ),
             // Pinned-only keeps this query MOUNTED but disabled. Unmounting it would flip the source
             // to `loading`, and the idle-fallback cache only rescues `idle` — the list would blank.
             // "Awaiting input" additionally waits for the id set, or it would ask for everything.
@@ -161,6 +193,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             // switch, where holding the previous project's rows would be wrong.
             placeholderData: scopeGroups(scopeId) ? keepPreviousData : undefined,
             staleTime: 30_000,
+            refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
         }
     }),
@@ -171,7 +204,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const allPinnedIds = get(pinnedSessionIdsAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {references, flags, archivedOnly, includeArchived} = requestFilters(filters)
+        const {agentIds, flags, archivedOnly, includeArchived} = requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingIds = get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? null
         // "Awaiting input" has no server predicate — it is an id set — so a pin has to be
@@ -186,27 +219,30 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 "sidebar-sessions-pinned",
                 projectId,
                 pinnedIds,
-                filters.agentId,
+                filters.agentIds,
                 filters.status,
                 filters.archivedOnly,
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
             queryFn: ({signal}) =>
-                querySessions({
-                    projectId: projectId ?? "",
-                    references,
-                    flags,
-                    archivedOnly,
-                    includeArchived,
-                    sessionIds: pinnedIds,
-                    abortSignal: signal,
-                    lowPriority: true,
-                }),
+                queryByAgents(agentIds, (references) =>
+                    querySessions({
+                        projectId: projectId ?? "",
+                        references,
+                        flags,
+                        archivedOnly,
+                        includeArchived,
+                        sessionIds: pinnedIds,
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                ),
             enabled:
                 Boolean(projectId) && pinnedIds.length > 0 && (!waiting || waitingIds !== null),
             placeholderData: scopeGroups(scopeId) ? keepPreviousData : undefined,
             staleTime: 30_000,
+            refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
         }
     }),

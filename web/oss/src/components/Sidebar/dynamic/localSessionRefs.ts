@@ -42,6 +42,8 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             agentId: scope,
             pinned: pinned.includes(session.id),
             alive: false,
+            // A client-created session has no server row yet, so it cannot be archived.
+            archived: false,
             running: isLive(session.id),
         }))
 })

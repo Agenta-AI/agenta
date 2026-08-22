@@ -54,7 +54,8 @@ function ContextMenuContent({
 const itemBase = [
     "relative flex w-full cursor-pointer select-none items-center gap-2 outline-none",
     "box-border rounded-control-sm px-3 py-input-y-ghost text-field-md",
-    "[&[data-highlighted]]:bg-muted",
+    // See dropdown-menu: `muted` is the popover's own colour in dark, so it shows no hover.
+    "[&[data-highlighted]]:bg-accent",
     "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
 ]
