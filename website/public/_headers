@@ -48,7 +48,19 @@
   ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
+# Published API specification — agents fetch it cross-origin from browser-based
+# tools, so it needs CORS. One day TTL: it only changes when the API does.
+/openapi.json
+  ! Cache-Control
+  Cache-Control: public, max-age=86400, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+
 # HTML pages — short TTL; stale-while-revalidate so users see fresh content.
+#
+# NOTE: Cloudflare does NOT apply this file to responses served by worker code.
+# The HTML routes in wrangler.jsonc's `run_worker_first` allowlist are answered
+# by worker/index.ts, which re-applies the policy below from its own HEADERS
+# constant (worker/negotiate.ts). Edit both together.
 /*
   Cache-Control: public, max-age=60, stale-while-revalidate=3600
   X-Content-Type-Options: nosniff
