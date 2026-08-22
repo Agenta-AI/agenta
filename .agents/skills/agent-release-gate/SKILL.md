@@ -40,8 +40,11 @@ uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-stor
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
-`--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
-via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
+`--all` includes cells P2 and P2b (a custom OpenAI-compatible provider, with `provider` unset
+and set respectively), which need a vault slug passed via `--custom-slug`; the driver fails
+fast if it's missing. Add `--custom-name` when that connection's display name differs from
+its slug — `model_keys` is built from the name, so the namespaced model key only matches
+when the name is right. Cells S1, S2 and C1 additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
 each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
 have permission to manage Secrets, because credential hiding is on by default; without it those

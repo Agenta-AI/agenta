@@ -286,9 +286,18 @@ class _ConnectionCandidate:
         )
 
     def selected_model_id(self, model: ModelRef) -> str:
-        full = model.to_model_string()
+        """The model id to send upstream, with the vault's storage namespace stripped.
+
+        Matches the SAME lookup values as ``matches_model``: a stored key is namespaced
+        ``<connection-name>/<kind>/<model>`` and never carries a provider prefix, so comparing it
+        only against ``to_model_string()`` misses whenever the request also names a provider
+        (``openai/<name>/custom/<model>``) and the namespaced id would then be sent upstream as
+        the model name. Matching and stripping must agree, or a connection matches but resolves
+        to a model the upstream does not know.
+        """
+        values = _model_lookup_values(model, self.deployment)
         for key in self.model_keys:
-            if key == full:
+            if key in values:
                 parts = key.split("/", 2)
                 return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
