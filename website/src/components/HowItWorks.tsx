@@ -880,14 +880,18 @@ export default function HowItWorks() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
+            {/* The no-JS / reduced-motion layout is what a crawler reads, so
+                the beat title has to be a real <h3> here too (see the scroll
+                layout below). margin:0 keeps it pixel-identical. */}
+            <h3
               style={{
+                margin: 0,
                 font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
                 color: "#F7F6F4",
               }}
             >
               {label}
-            </span>
+            </h3>
             <span
               style={{
                 font: "var(--text-body-sm)",
@@ -998,14 +1002,19 @@ export default function HowItWorks() {
                       gap: 16,
                     }}
                   >
-                    <span
+                    {/* Beat titles are <h3> under this section's <h2>: the
+                        accordion is the page's real substructure, and an outline
+                        extractor should see it. margin:0 keeps it pixel-identical
+                        (global.css carries no heading reset). */}
+                    <h3
                       style={{
+                        margin: 0,
                         font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
                         color: active ? "#F7F6F4" : "rgba(255,255,255,0.55)",
                       }}
                     >
                       {b.title}
-                    </span>
+                    </h3>
                     <Chevron active={active} />
                   </div>
                   <div
