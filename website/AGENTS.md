@@ -64,26 +64,38 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
 
 ## CI preview deploys
 
-Every PR that touches `website/**` gets an automatically deployed preview, via
-`.github/workflows/15-website-preview.yml`.
+Every non-draft PR that touches `website/**` gets a secretless static build through
+`.github/workflows/15-website-preview.yml`. The build has a read-only GitHub token,
+does not receive repository secrets, and uploads only `website/dist` as a seven-day
+artifact. This is the only workflow that checks out and executes pull-request code.
 
-- **How:** the workflow builds the site and runs `wrangler versions upload
-  --preview-alias pr-<number>` against the single `agenta-website-preview` worker.
-  This publishes a new *version* with its own shareable preview URL and does **not**
-  touch the worker's production deployment, so one worker serves every PR's preview
-  (no per-PR worker sprawl, no cleanup job). The stable alias makes the URL
-  deterministic per PR: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
-- **Where the URL appears:** a single sticky PR comment (header `website-preview`)
-  that updates in place on every push, so pushes never spam new comments.
-- **Secrets (GitHub Actions, referenced by name — never commit values):**
-  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` for the deploy, and the four R2
-  vars (`R2_S3_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the
-  non-secret `R2_FONTS_BUCKET`, set inline in the workflow) so the licensed fonts are
-  fetched into the preview build. Without the R2 secrets the build still succeeds with
-  fallback fonts (see the asset-hosting section above).
-- **Fork PRs:** deployment is skipped for PRs from forks (the job guards on
-  `head.repo.full_name == github.repository`), so secrets are never exposed to
-  untrusted code. Fork PRs simply get no preview comment.
+`.github/workflows/15-website-preview-deploy.yml` is the trusted half of the flow. It
+runs from the default branch, downloads the static artifact, rejects special files and
+oversized artifacts, injects the licensed fonts with the trusted default-branch script,
+and uploads the files to Cloudflare. It never checks out or executes contributor code.
+
+- **Internal PRs:** a successful build deploys automatically, preserving the normal
+  contributor workflow.
+- **Fork and Dependabot PRs:** the workflow posts an approval request containing the
+  exact current head SHA. A maintainer with write access approves it by commenting
+  `/preview <head-sha>`. The deploy workflow verifies the commenter's repository
+  permission, the current PR head, and the successful build run before downloading
+  anything. Every new push requires a new SHA-specific approval. A maintainer can use
+  the deploy workflow's manual dispatch with the same PR number and reviewed SHA as a
+  backup.
+- **How:** the deployer runs `wrangler versions upload --preview-alias pr-<number>`
+  against the single `agenta-website-preview` worker. This publishes a new version with
+  its own shareable preview URL and does not touch the worker's production deployment,
+  so one worker serves every PR preview without per-PR cleanup. The stable alias makes
+  the URL deterministic: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
+- **Where the URL appears:** one sticky PR comment (`<!-- website-preview -->`) changes
+  from approval instructions to the deployed URL. New pushes update it in place.
+- **Secrets (GitHub Actions, referenced by name, never commit values):**
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` for the deploy, and
+  `R2_S3_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, plus the non-secret
+  `R2_FONTS_BUCKET`. Only the trusted deploy workflow receives them. The secretless
+  build uses fallback fonts; the deployer adds the six licensed files directly to
+  `dist/fonts` before upload.
 
 ## CI production deploy
 

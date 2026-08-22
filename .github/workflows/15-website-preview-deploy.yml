@@ -1,0 +1,410 @@
+name: "15 - website preview deploy"
+
+on:
+  # Internal branches keep their automatic preview. Forks stop after the
+  # secretless build until a maintainer approves the exact head SHA.
+  workflow_run:
+    workflows: ["15 - website preview"]
+    types: [completed]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number"
+        required: true
+        type: string
+      head_sha:
+        description: "Reviewed pull request head SHA (full or 7+ character prefix)"
+        required: true
+        type: string
+
+# This workflow has credentials, so it runs only trusted default-branch code.
+# It treats the downloaded website as untrusted static data and never executes it.
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: website-preview-deploy-${{ github.event.issue.number || inputs.pr_number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_VERSION: "4.113.0"
+  R2_FONTS_BUCKET: agenta-brand-fonts
+
+jobs:
+  resolve:
+    name: Resolve approved preview artifact
+    if: >-
+      github.repository == 'Agenta-AI/agenta' &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.conclusion == 'success') ||
+       (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/preview')) ||
+       github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      approval_required: ${{ steps.resolve.outputs.approval_required }}
+      artifact_name: ${{ steps.resolve.outputs.artifact_name }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
+    steps:
+      - name: Resolve pull request, approval, and build run
+        id: resolve
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const repository = `${owner}/${repo}`;
+            const buildWorkflow = '15-website-preview.yml';
+
+            async function getPullRequest(number) {
+              return (await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: number,
+              })).data;
+            }
+
+            async function requireMaintainer(username) {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner,
+                repo,
+                username,
+              });
+              if (!['admin', 'maintain', 'write'].includes(data.permission)) {
+                core.setFailed(`@${username} does not have permission to approve previews.`);
+                return false;
+              }
+              return true;
+            }
+
+            async function findSuccessfulBuild(pr, headSha) {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+                owner,
+                repo,
+                workflow_id: buildWorkflow,
+                event: 'pull_request',
+                head_sha: headSha,
+                per_page: 100,
+              });
+              return runs.find((run) =>
+                run.status === 'completed' &&
+                run.conclusion === 'success' &&
+                run.head_sha === headSha &&
+                run.head_branch === pr.head.ref &&
+                run.head_repository?.full_name === pr.head.repo?.full_name
+              );
+            }
+
+            async function findWorkflowRunPullRequest(run) {
+              const pullReference = (run.pull_requests || [])[0];
+              if (pullReference) {
+                return getPullRequest(pullReference.number);
+              }
+
+              // GitHub leaves workflow_run.pull_requests empty for public fork
+              // PRs. Resolve those from the immutable run owner + branch pair,
+              // then bind the result back to the run's exact head SHA.
+              const headOwner = run.head_repository?.owner?.login;
+              if (!headOwner || !run.head_branch) {
+                return null;
+              }
+              const candidates = await github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: 'open',
+                head: `${headOwner}:${run.head_branch}`,
+                per_page: 100,
+              });
+              return candidates.find((pull) =>
+                pull.head.sha === run.head_sha &&
+                pull.head.repo?.full_name === run.head_repository?.full_name
+              ) || null;
+            }
+
+            let approvalRequired = false;
+            let buildRun;
+            let headSha;
+            let pr;
+            let shouldDeploy = false;
+
+            if (context.eventName === 'workflow_run') {
+              buildRun = context.payload.workflow_run;
+              pr = await findWorkflowRunPullRequest(buildRun);
+              if (!pr) {
+                core.setFailed('The completed build is not associated with a pull request.');
+                return;
+              }
+
+              headSha = buildRun.head_sha;
+              if (pr.head.sha !== headSha) {
+                core.notice(`Skipping stale build ${headSha}; PR #${pr.number} is now ${pr.head.sha}.`);
+                return;
+              }
+
+              const internalBranch = pr.head.repo?.full_name === repository;
+              const trustedActor = buildRun.actor?.login !== 'dependabot[bot]';
+              shouldDeploy = internalBranch && trustedActor;
+              approvalRequired = !shouldDeploy;
+            } else {
+              if (!(await requireMaintainer(context.actor))) {
+                return;
+              }
+
+              let prNumber;
+              let requestedSha;
+              if (context.eventName === 'issue_comment') {
+                const match = context.payload.comment.body.trim().match(/^\/preview\s+([0-9a-f]{7,40})$/i);
+                if (!match) {
+                  core.setFailed('Use `/preview <head-sha>` with a 7 to 40 character commit SHA.');
+                  return;
+                }
+                prNumber = context.payload.issue.number;
+                requestedSha = match[1].toLowerCase();
+              } else {
+                prNumber = Number('${{ inputs.pr_number }}');
+                requestedSha = '${{ inputs.head_sha }}'.trim().toLowerCase();
+                if (!Number.isInteger(prNumber) || !/^[0-9a-f]{7,40}$/.test(requestedSha)) {
+                  core.setFailed('Provide a valid PR number and a 7 to 40 character head SHA.');
+                  return;
+                }
+              }
+
+              pr = await getPullRequest(prNumber);
+              headSha = pr.head.sha.toLowerCase();
+              if (!headSha.startsWith(requestedSha)) {
+                core.setFailed(`Reviewed SHA ${requestedSha} does not match current PR head ${headSha}.`);
+                return;
+              }
+
+              buildRun = await findSuccessfulBuild(pr, headSha);
+              if (!buildRun) {
+                core.setFailed(`No successful website preview build found for PR #${pr.number} at ${headSha}.`);
+                return;
+              }
+              shouldDeploy = true;
+            }
+
+            core.setOutput('approval_required', String(approvalRequired));
+            core.setOutput('artifact_name', `website-preview-${pr.number}-${headSha}`);
+            core.setOutput('head_sha', headSha);
+            core.setOutput('pr_number', String(pr.number));
+            core.setOutput('run_id', String(buildRun.id));
+            core.setOutput('should_deploy', String(shouldDeploy));
+
+  announce:
+    name: Request maintainer approval
+    needs: resolve
+    if: needs.resolve.outputs.approval_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post approval instructions
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        with:
+          script: |
+            const marker = '<!-- website-preview -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const headSha = process.env.HEAD_SHA;
+            const body = [
+              marker,
+              '### Website preview',
+              '',
+              `A secretless build is ready for \`${headSha}\`.`,
+              '',
+              'A maintainer can deploy this exact artifact by commenting:',
+              '',
+              `\`/preview ${headSha}\``,
+              '',
+              'A new push requires a new approval.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+  deploy:
+    name: Deploy approved website preview
+    needs: resolve
+    if: needs.resolve.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted deploy configuration
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Install Wrangler
+        run: npm install --global "wrangler@${WRANGLER_VERSION}"
+
+      - name: Download preview artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.resolve.outputs.artifact_name }}
+          path: ${{ runner.temp }}/website-preview
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Validate and stage static artifact
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/website-preview
+          DEPLOY_DIR: ${{ github.workspace }}/website/dist
+        run: |
+          set -euo pipefail
+
+          test -f "$ARTIFACT_DIR/index.html" || {
+            echo "::error::Preview artifact has no index.html"
+            exit 1
+          }
+
+          unexpected=$(find "$ARTIFACT_DIR" -mindepth 1 ! -type f ! -type d -print -quit)
+          test -z "$unexpected" || {
+            echo "::error::Preview artifact contains a non-regular entry: $unexpected"
+            exit 1
+          }
+
+          file_count=$(find "$ARTIFACT_DIR" -type f -printf '.' | wc -c)
+          total_bytes=$(find "$ARTIFACT_DIR" -type f -printf '%s\n' | awk '{ total += $1 } END { print total + 0 }')
+          test "$file_count" -le 10000 || {
+            echo "::error::Preview artifact contains too many files: $file_count"
+            exit 1
+          }
+          test "$total_bytes" -le 157286400 || {
+            echo "::error::Preview artifact is too large: $total_bytes bytes"
+            exit 1
+          }
+
+          mkdir -p "$DEPLOY_DIR"
+          cp -R --no-preserve=mode,ownership "$ARTIFACT_DIR"/. "$DEPLOY_DIR"/
+
+      - name: Inject licensed fonts with trusted code
+        env:
+          R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          node website/scripts/fetch-fonts.mjs
+          mkdir -p website/dist/fonts
+          for font in \
+            GT-Alpina-Light.woff2 \
+            GT-Alpina-Light-Italic.woff2 \
+            GT-Alpina-Regular.woff2 \
+            GT-Alpina-Regular-Italic.woff2 \
+            GT-Alpina-Medium.woff2 \
+            PPMondwest-Regular.woff2
+          do
+            test -s "website/public/fonts/$font" || {
+              echo "::error::Licensed preview font is missing: $font"
+              exit 1
+            }
+            install -m 0644 "website/public/fonts/$font" "website/dist/fonts/$font"
+          done
+
+      - name: Deploy preview version
+        id: deploy
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          alias="pr-${PR_NUMBER}"
+          log_file="${RUNNER_TEMP}/wrangler.log"
+          wrangler versions upload --config wrangler.jsonc \
+            --preview-alias "$alias" 2>&1 | tee "$log_file"
+          url=$(grep -oiE 'Version Preview Alias URL: https://[a-z0-9.-]+\.workers\.dev' "$log_file" | sed 's/.*: //' | head -1)
+          if [ -z "$url" ]; then
+            echo "::error::Could not extract preview alias URL from Wrangler output"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify preview serves the site
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$PREVIEW_URL/")
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Preview URL did not return 200 (last code: $code)"
+          exit 1
+
+      - name: Comment preview URL
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        with:
+          script: |
+            const marker = '<!-- website-preview -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const body = [
+              marker,
+              '### Website preview',
+              '',
+              `Preview URL: ${process.env.PREVIEW_URL}`,
+              '',
+              `Built from \`${process.env.HEAD_SHA}\`. This comment updates in place on every deployment.`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
