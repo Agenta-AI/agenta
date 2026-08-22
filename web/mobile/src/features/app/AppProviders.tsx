@@ -13,6 +13,7 @@ import {queryClient} from "@/lib/queryClient"
 import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
 import {ExecutionHeaders} from "./ExecutionHeaders"
+import {ProjectWatch} from "./ProjectWatch"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
 // window.__env is already populated when this module first evaluates.
@@ -34,6 +35,9 @@ export const AppProviders = ({children}: PropsWithChildren) => (
             <HydrateAtoms>
                 <ContextSync />
                 <AuthGate />
+                {/* Keeps the session lists live: without it nothing on this surface told them the
+                    server had changed, so they showed stale rows until a remount. */}
+                <ProjectWatch />
                 <ExecutionHeaders />
                 {children}
             </HydrateAtoms>
