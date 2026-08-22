@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import SecretStr
 
 from oss.src.apis.fastapi.providers.models import (
     ProbeProviderRequest,
@@ -11,10 +12,8 @@ from oss.src.apis.fastapi.providers.models import (
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.providers.exceptions import ProviderProbeError
-from pydantic import SecretStr
-
 from oss.src.core.providers.dtos import ProviderCredentials
+from oss.src.core.providers.exceptions import ProviderProbeError
 from oss.src.core.providers.service import ProviderProbeService
 from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
 from oss.src.core.secrets.services import VaultService
@@ -26,13 +25,6 @@ log = get_module_logger(__name__)
 
 
 def _typed_or_stored(typed, stored):
-    """What this field probes with: what the caller typed, else what is stored.
-
-    Absent and blank mean the same thing here, which is the contract the rest of the
-    vault path already uses: a form that cannot prefill a value submits an empty string,
-    and reading that as "probe with no URL" would fail a connection that is fine. Only a
-    real value overrides.
-    """
     if typed is None:
         return stored
 
@@ -44,20 +36,6 @@ def _typed_or_stored(typed, stored):
 
 
 def _stored_credential(secret, settings, extras):
-    """The credential a stored connection authenticates with, wherever the vault keeps it.
-
-    Which field holds it is per secret kind, and that is already written down once, in the
-    classifier redaction and keep-on-omit use. Asking it here means the probe looks where
-    the value actually is for every kind, instead of knowing about one or two of them.
-
-    A custom provider is the exception the classifier alone does not cover: its primary
-    field is `provider.key`, but the connection form writes the key into
-    `provider.extras.api_key`, so the probe falls back there. That is the rule the runtime
-    resolver applies too (`platform/connections.py`: `key` or `extras["api_key"]`), which
-    is what makes the probe test the credential a run would actually use. Every other
-    credential that lives in extras (a Bedrock bearer token, an AWS pair) is read from
-    extras by the adapter that needs it, so it travels untouched.
-    """
     container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
         str(getattr(secret.kind, "value", secret.kind)), (None, None)
     )
@@ -72,14 +50,6 @@ def _stored_credential(secret, settings, extras):
 
 
 def _merged_extras(typed, stored):
-    """Extras merged KEY BY KEY, not replaced wholesale.
-
-    `extras` is a bag of independent fields, some credential and some config: a Bedrock
-    connection keeps its bearer token or key pair next to its region. Replacing the whole
-    dict because the caller typed one of them would drop the credential and probe with
-    nothing, which reads as a broken connection. Each key follows the same rule as every
-    other field: what was typed wins, blank or absent keeps what is stored.
-    """
     if not typed:
         return stored
 
@@ -93,7 +63,6 @@ def _merged_extras(typed, stored):
 
 
 def _stored_kind(secret) -> str:
-    """The provider family a stored secret was saved for, as the probe registry spells it."""
     kind = getattr(secret.data, "kind", None)
 
     return str(getattr(kind, "value", kind))
@@ -112,9 +81,6 @@ class ProvidersRouter:
         vault_service: VaultService,
     ):
         self.service = provider_probe_service
-        # Read INTERNALLY, in plaintext: a stored credential is spent on the probe's own
-        # outbound request and never returned. The redacted outward shape would test a
-        # write-only connection with an empty key and report it broken.
         self.vault_service = vault_service
 
         self.router = APIRouter(route_class=SecretSafeRoute)
@@ -135,12 +101,6 @@ class ProvidersRouter:
         kind: Optional[str],
         typed: ProviderCredentials,
     ) -> Tuple[str, ProviderCredentials]:
-        """The stored connection, with anything typed in this request laid over it.
-
-        Scoped to the caller's project, so an id from another project is simply not
-        found. What is typed wins field by field: that is what lets a card test an edit
-        it has not saved yet, a new base URL being the case this exists for.
-        """
         secret = await self.vault_service.get_secret_by_id(
             secret_id=secret_id,
             project_id=project_id,
@@ -152,15 +112,17 @@ class ProvidersRouter:
                 detail="Secret not found",
             )
 
+        if secret.management is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Managed secrets cannot be probed.",
+            )
+
         stored_kind = _stored_kind(secret)
         settings = getattr(secret.data, "provider", None)
         stored_extras = getattr(settings, "extras", None) if settings else None
         stored_key = _stored_credential(secret, settings, stored_extras)
 
-        # A stored credential belongs to the provider it was saved for. Sending it to a
-        # different provider family is never part of testing a connection, and it is how
-        # one provider's key ends up in another provider's logs — so a kind change is
-        # honored only when the caller also typed the credential to go with it.
         if kind is not None and kind != stored_kind and typed.key is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

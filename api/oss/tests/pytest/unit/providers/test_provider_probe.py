@@ -27,6 +27,7 @@ from oss.src.core.providers.exceptions import (
     UnsupportedProviderKind,
 )
 from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 
 
 CANARY = "sk-CANARY-DO-NOT-LEAK-abc123"
@@ -1140,3 +1141,41 @@ def test_every_secret_kind_the_classifier_knows_has_a_credential_location():
 
     assert PRIMARY_CREDENTIAL_FIELDS["provider_key"] == ("provider", "key")
     assert PRIMARY_CREDENTIAL_FIELDS["custom_provider"] == ("provider", "key")
+
+
+@pytest.mark.parametrize("path", ["/providers/probe", "/vault/v1/providers/probe"])
+def test_a_managed_secret_cannot_be_probed_even_with_caller_overrides(
+    monkeypatch, path
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id,
+        PROJECT_ID,
+        _stored_provider_key(),
+    )
+    secret = vault.records[(str(PROJECT_ID), str(secret_id))]
+    secret.management = SecretManagementDTO(
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+    )
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        path,
+        json={
+            "secret_id": str(secret_id),
+            "kind": "custom",
+            "provider": {
+                "key": CANARY,
+                "url": "https://override.example.com/v1",
+                "extras": {"api_key": CANARY, "region": "override"},
+            },
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Managed secrets cannot be probed."}
+    assert recorder.requests == []
+    assert STORED_KEY not in response.text
+    assert CANARY not in response.text
