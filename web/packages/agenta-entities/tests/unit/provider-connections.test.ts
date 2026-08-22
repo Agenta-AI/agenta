@@ -13,6 +13,7 @@ import {
     hasRequiredCredential,
     modelDisplayOrder,
     nextConnectionName,
+    probeRequestFor,
     providerModelCatalog,
     storedCredentialFields,
     toProviderConnections,
@@ -760,6 +761,38 @@ describe("probeProvider", () => {
         expect(result?.discovery.models).toEqual(["gpt-5.5"])
     })
 
+    it("puts the stored row on the wire as `secret_id`, and omits the field otherwise", async () => {
+        const answer = {
+            data: {
+                credential: {status: "valid", message: "ok"},
+                discovery: {status: "fetched", models: ["m"]},
+                fetched_at: "2026-08-12T10:00:00Z",
+            },
+        }
+
+        axiosPost.mockResolvedValueOnce(answer)
+        await probeProvider({
+            projectId: "proj-1",
+            kind: "custom",
+            provider: {url: "https://llm.example.com/v1"},
+            secretId: "sec-1",
+        })
+        expect(axiosPost).toHaveBeenLastCalledWith(
+            "https://agenta.test/api/providers/probe",
+            {
+                kind: "custom",
+                provider: {url: "https://llm.example.com/v1"},
+                secret_id: "sec-1",
+            },
+            {params: {project_id: "proj-1"}},
+        )
+
+        // Absent, not null: the server reads a present `secret_id` as "resolve the stored row".
+        axiosPost.mockResolvedValueOnce(answer)
+        await probeProvider({projectId: "proj-1", kind: "openai", provider: {key: "sk-one"}})
+        expect(axiosPost.mock.lastCall?.[1]).not.toHaveProperty("secret_id")
+    })
+
     it("defaults a fetched-but-model-less discovery to an empty list", async () => {
         axiosPost.mockResolvedValueOnce({
             data: {
@@ -872,6 +905,87 @@ describe("write-only records", () => {
 
         expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({
             key: "sk-new",
+        })
+    })
+})
+
+describe("Test on a write-only connection: the enable rule and the request shape", () => {
+    // A write-only record hands its secret back to nobody, so the card's key box is empty on every
+    // edit. Test used to demand typed material and was therefore unreachable for exactly the
+    // connections most likely to need a model refresh.
+    const stored = (overrides: Partial<ProviderConnection> = {}): ProviderConnection =>
+        connection({id: "sec-1", hasStoredCredential: true, ...overrides})
+
+    describe("the enable rule", () => {
+        it("enables Test on a stored credential alone, with nothing typed", () => {
+            const fields = storedCredentialFields(stored())
+
+            expect(hasRequiredCredential("openai", {apiKey: ""}, fields)).toBe(true)
+        })
+
+        it("still refuses an empty form on a connection with nothing stored", () => {
+            expect(
+                hasRequiredCredential("openai", {apiKey: ""}, storedCredentialFields(connection())),
+            ).toBe(false)
+        })
+
+        it("keeps enabling a custom endpoint on its base URL alone", () => {
+            // Confirmed against the backend, not assumed: `OpenAICompatibleAdapter` adds the
+            // Authorization header only `if key`, answers `credential: unknown` +
+            // `discovery: fetched` for a keyless 200, and has a test pinning exactly that. An open
+            // OpenAI-compatible server is a real deployment, so its URL stays sufficient.
+            expect(
+                hasRequiredCredential("custom", {apiBaseUrl: "https://llm.example.com/v1"}),
+            ).toBe(true)
+            expect(hasRequiredCredential("custom", {apiBaseUrl: ""})).toBe(false)
+        })
+    })
+
+    describe("the request shape", () => {
+        it("names the stored row instead of sending an empty credential", () => {
+            const request = probeRequestFor("openai", {apiKey: ""}, stored())
+
+            expect(request).toEqual({kind: "openai", provider: {}, secret_id: "sec-1"})
+        })
+
+        it("sends typed non-secret fields alongside the stored row, for the server to override", () => {
+            const request = probeRequestFor(
+                "custom",
+                {apiKey: "", apiBaseUrl: "https://edited.example.com/v1"},
+                stored({kind: "custom"}),
+            )
+
+            expect(request).toEqual({
+                kind: "custom",
+                provider: {url: "https://edited.example.com/v1"},
+                secret_id: "sec-1",
+            })
+        })
+
+        it("spends the typed credential and names no row once the user types one", () => {
+            const request = probeRequestFor("openai", {apiKey: "sk-typed"}, stored())
+
+            expect(request).toEqual({kind: "openai", provider: {key: "sk-typed"}})
+            expect(request.secret_id).toBeUndefined()
+        })
+
+        it("names no row when the connection holds nothing, or when there is no connection", () => {
+            expect(probeRequestFor("openai", {apiKey: ""}, connection()).secret_id).toBeUndefined()
+            expect(probeRequestFor("openai", {apiKey: ""}, null).secret_id).toBeUndefined()
+        })
+
+        it("drops blank extras rather than sending a stored-row probe with empty AWS fields", () => {
+            const request = probeRequestFor(
+                "bedrock",
+                {region: "eu-central-1", bearerToken: ""},
+                stored({kind: "bedrock"}),
+            )
+
+            expect(request).toEqual({
+                kind: "bedrock",
+                provider: {extras: {aws_region_name: "eu-central-1"}},
+                secret_id: "sec-1",
+            })
         })
     })
 })

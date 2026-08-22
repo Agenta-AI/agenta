@@ -38,7 +38,7 @@ import {
     secretNoteForKind,
     SecretKind,
     storedCredentialFields,
-    toProviderCredentials,
+    probeRequestFor,
     type CredentialValues,
     type ProbeProviderResponse,
     type ProviderConnection,
@@ -166,10 +166,10 @@ const ProviderConnectionCard = ({
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
     // They still count as filled — otherwise editing only the model list would demand the key again.
     const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    // Typed OR already in the vault. Test used to demand typed material, because an empty form had
+    // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
+    // so a write-only connection is testable without retyping a key it can never read back.
     const credentialFilled = hasRequiredCredential(kind, credential, storedFields)
-    // What the user actually typed. Test spends a credential on a live call, so it must never fire
-    // on an empty form just because the vault holds a key it cannot read back.
-    const typedCredentialFilled = hasRequiredCredential(kind, credential)
     const storedCredentialUnchanged = useMemo(
         () =>
             !!connection &&
@@ -277,11 +277,13 @@ const ProviderConnectionCard = ({
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
+        const request = probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
-                kind,
-                provider: toProviderCredentials(kind, credential),
+                kind: request.kind,
+                provider: request.provider,
+                secretId: request.secret_id,
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
@@ -289,7 +291,7 @@ const ProviderConnectionCard = ({
             setProbe(null)
             setProbeFailure(`Agenta could not reach ${title} to test this credential.`)
         }
-    }, [projectId, probeMutation, kind, credential, title])
+    }, [projectId, probeMutation, kind, credential, connection, title])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -362,7 +364,7 @@ const ProviderConnectionCard = ({
             variant="outline"
             className="shrink-0"
             loading={probeMutation.isPending}
-            disabled={!typedCredentialFilled || !projectId}
+            disabled={!credentialFilled || !projectId}
             onClick={() => void runProbe()}
         >
             {credentialFailed ? "Retry" : "Test"}

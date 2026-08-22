@@ -109,6 +109,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    probeRequestFor,
     storedCredentialFields,
     maskSecret,
     nextConnectionName,
