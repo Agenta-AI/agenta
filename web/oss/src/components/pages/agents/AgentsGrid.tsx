@@ -1,18 +1,14 @@
-import {PlusIcon} from "@phosphor-icons/react"
-import {Empty, Skeleton} from "antd"
+import {AgentRosterGrid, type AgentRosterEntry} from "@agenta/entity-ui/agent"
+import {useWaitingByAgent} from "@agenta/sessions/state"
 
-import AgentCard from "@/oss/components/AgentCard"
+import AgentActivityCell from "@/oss/components/pages/agent-home/components/YourAgentsTable/AgentActivityCell"
 import type {AgentColumnActions} from "@/oss/components/pages/agent-home/components/YourAgentsTable/columns"
-import {useWaitingByAgent} from "@/oss/components/pages/agent-home/components/YourAgentsTable/useAgentActivity"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import UserReference from "@/oss/components/References/UserReference"
 
 /**
- * The agents roster as a card grid.
- *
- * The table it replaces put five columns behind a horizontal scroll, so reading an agent meant
- * scrolling sideways past provenance to reach whether anything is blocked. A card is one agent at
- * a glance, and the create affordance is the grid's last cell rather than a control set apart from
- * the things it creates.
+ * The agents roster — the SHARED roster grid (`@agenta/entity-ui/agent`) with this app's row
+ * mapping, its verbs, and the two data-connected cells the package deliberately does not own.
  */
 const AgentsGrid = ({
     rows,
@@ -26,46 +22,37 @@ const AgentsGrid = ({
     onCreate: () => void
 }) => {
     const waitingByAgent = useWaitingByAgent()
-
-    if (isLoading && rows.length === 0) {
-        return <Skeleton active paragraph={{rows: 6}} title={false} />
+    // The card's neutral shape; `record` is recovered by id for the action callbacks.
+    const agents: AgentRosterEntry[] = rows.map((record) => ({
+        id: record.workflowId,
+        name: record.name,
+        description: record.description,
+        updatedAt: record.updatedAt,
+    }))
+    const rowById = new Map(rows.map((record) => [record.workflowId, record] as const))
+    const withRow = (fn: (record: AppWorkflowRow) => void) => (agent: AgentRosterEntry) => {
+        const record = rowById.get(agent.id)
+        if (record) fn(record)
     }
 
-    // `pt-5` is the room the grid variant's overhanging avatar needs. It belongs to the grid, not
-    // to each card — on the card it left the avatar-less dashed cell misaligned.
     return (
-        // auto-rows-fr: every row the same height. The h-full cards stretch to their row, and
-        // the create cell's min-h made the LAST row taller than the rest without it.
-        <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
-            {rows.map((record) => (
-                <AgentCard
-                    key={record.key}
-                    variant="grid"
-                    record={record}
-                    waiting={waitingByAgent.get(record.workflowId) ?? 0}
-                    actions={actions}
-                />
-            ))}
-
-            {/* Dashed, so it reads as a slot to fill rather than an agent that exists. It carries
-            the same warm tint as the real cards in light so the grid reads as one surface; dark
-            keeps it transparent, which is what it renders today. */}
-            <button
-                type="button"
-                onClick={onCreate}
-                className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-[var(--ag-surface-paper)] p-5 text-center transition-colors hover:border-colorPrimary dark:bg-transparent"
-            >
-                <PlusIcon size={18} className="text-colorTextTertiary" />
-                <span className="text-sm text-colorText">New agent</span>
-                <span className="text-xs text-colorTextTertiary">start blank</span>
-            </button>
-
-            {!isLoading && rows.length === 0 ? (
-                <div className="col-span-full">
-                    <Empty description="No agents yet" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                </div>
-            ) : null}
-        </div>
+        <AgentRosterGrid
+            agents={agents}
+            isLoading={isLoading}
+            waitingByAgent={waitingByAgent}
+            onCreate={onCreate}
+            onOpenOverview={withRow((record) => actions.onOpen(record))}
+            onOpenPlayground={withRow((record) => actions.onOpenPlayground(record))}
+            onRename={withRow((record) => actions.onRename(record))}
+            onArchive={withRow((record) => actions.onArchive(record))}
+            renderActivity={(agent) => <AgentActivityCell agentId={agent.id} />}
+            renderOwner={(agent) => {
+                const record = rowById.get(agent.id)
+                return record?.createdById ? (
+                    <UserReference userId={record.createdById} className="truncate" />
+                ) : null
+            }}
+        />
     )
 }
 

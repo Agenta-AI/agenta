@@ -5,7 +5,7 @@
  * refetch), so sub-minute precision would only promise a liveness the row doesn't have.
  */
 export const timeAgo = (ts?: number): string => {
-    if (ts == null || !Number.isFinite(ts)) return ""
+    if (!ts) return ""
     const s = Math.max(0, Math.round((Date.now() - ts) / 1000))
     if (s < 60) return "just now"
     const m = Math.round(s / 60)

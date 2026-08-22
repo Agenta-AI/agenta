@@ -11,51 +11,23 @@
  */
 import type {ComponentType, ReactNode} from "react"
 
-import type {ToolUIPart} from "ai"
+import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
 /**
- * Normalised view of a tool part a client-tool widget reads, mirroring OSS's `ClientToolMeta`
- * (`clientTools/types.ts`). Structural (no `ai` dependency beyond the raw part) so a skin widget
- * and the resolvers agree on one shape.
+ * The client-tool widget contract is DEFINED in @agenta/shared/clientTools and re-exported here, so
+ * that hosts and skins keep one import site (`@agenta/chat/skin`) while the widget package
+ * (@agenta/entity-ui) can reach the same types without depending on @agenta/chat. The dispatcher
+ * here already imports those widgets by value; a dependency back the other way is a workspace
+ * package cycle, which pnpm materializes as an endless node_modules symlink chain and which sends
+ * the production webpack build into a non-terminating directory walk. See
+ * `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`.
  */
-export interface ClientToolMeta {
-    toolCallId: string
-    toolName: string
-    /** The `render.kind` hint (from a sibling `data-render` part), checked before `toolName`. */
-    renderKind?: string
-    state: string
-    input: unknown
-    output: unknown
-    /** A result already settled it (`output-available`/`output-error`). */
-    settled: boolean
-    /** The raw part, for widgets that need fields beyond the normalised view. */
-    part: ToolUIPart
-}
-
-/** Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`. */
-export interface SettleClientTool {
-    (args: {output: Record<string, unknown>}): void
-    (args: {errorText: string}): void
-}
-
-/** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */
-export interface ClientToolWidgetProps {
-    meta: ClientToolMeta
-    /** Settle the part (resumes the run). No-op once already settled. */
-    settle: SettleClientTool
-    /** An earlier part in this turn already auto-settled as a degradation; the widget should park
-     * (visible notice, no auto-settle) instead of looping. */
-    degradedEarlierInTurn?: boolean
-}
-
-/**
- * What the OSS clientTools registry actually stores per entry: a bare component (see
- * `BY_RENDER_KIND`/`BY_TOOL_NAME` in `clientTools/registry.tsx`, both
- * `Record<string, ComponentType<ClientToolHandlerProps>>` — no separate per-entry metadata; "meta"
- * only exists as the `meta: ClientToolMeta` prop the component receives, captured above in
- * `ClientToolWidgetProps`).
- */
-export type ClientToolWidget = ComponentType<ClientToolWidgetProps>
+export type {
+    ClientToolMeta,
+    ClientToolWidget,
+    ClientToolWidgetProps,
+    SettleClientTool,
+} from "@agenta/shared/clientTools"
 
 /** Props an approval body receives — mirrors OSS `ApprovalBodyProps`. */
 export interface ApprovalBodyProps {
@@ -63,6 +35,10 @@ export interface ApprovalBodyProps {
     input: unknown
     /** Selected agent revision — specialized bodies diff payloads against its committed config. */
     entityId: string
+    /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
+    manifest?: unknown
+    /** Build mode: the dock is narrow, so the body stacks in one column instead of two panes. */
+    compact?: boolean
     /** The dock's generic payload block — render it verbatim when the payload can't be previewed. */
     fallback: ReactNode
 }
@@ -79,8 +55,14 @@ export interface ApprovalBodyEntry {
     approveLabel?: string
 }
 
-/** Best-effort tool family, inferred from the wire-name shape only — mirrors OSS `ToolKind`. */
-export type ToolKind = "gateway" | "mcp" | "platform"
+/** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
+export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
+
+/** The row's sentence in both tenses. The done form says what was attempted, not that it worked. */
+export interface ToolActivity {
+    running: string
+    done: string
+}
 
 /**
  * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
@@ -97,6 +79,12 @@ export interface ToolDisplayEntry {
     /** Where the tool comes from ("Gmail", "Linear · MCP"); overrides the parsed default. */
     source?: string
     kind?: ToolKind
+    /** The row's sentence. A function when it names an app: it gets the real name, or undefined
+     * until the catalog answers. */
+    activity?: ToolActivity | ((appName?: string) => ToolActivity)
+    /** The app this call is about, read from its own arguments or result. `action` is the gateway
+     * ACTION token of a tool this one merely reported. */
+    app?: (input: unknown, output: unknown) => {slug?: string; action?: string}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
 }
@@ -108,8 +96,14 @@ export interface ToolDisplayEntry {
 export interface ResolvedToolDisplay {
     label: string
     source?: string
+    /** A tool-catalog integration slug ("github"); look it up for the app's real spelling. */
+    sourceKey?: string
     raw: string
     kind: ToolKind
+    /** Plain-English sentence for the activity row. Falls back to `label` when none is known. */
+    activity: ToolActivity
+    /** Short technical detail for the row's secondary slot (a command, a filename). */
+    detail?: string
     summary?: (input: unknown, output: unknown) => string | null
 }
 

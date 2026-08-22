@@ -1,5 +1,7 @@
-import {useWatchEventSource} from "@/oss/hooks/useProjectWatch"
+import {useWatchEventSource} from "@agenta/sessions/watch"
+
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 
 /** Watch endpoint URL — same-origin `/api` + cookie auth, consumed via native EventSource. */
 const sessionWatchUrl = (sessionId: string, projectId: string): string =>
@@ -30,6 +32,7 @@ export const useSessionRecordsWatch = ({
     useWatchEventSource({
         url,
         enabled,
+        refreshSession,
         on: {
             ready: onRecordsChanged,
             "records-changed": onRecordsChanged,

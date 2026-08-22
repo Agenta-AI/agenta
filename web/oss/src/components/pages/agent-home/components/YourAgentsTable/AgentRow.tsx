@@ -29,13 +29,12 @@ const AgentRow = ({
         tabIndex={0}
         onClick={() => actions.onOpenPlayground(record)}
         onKeyDown={(event) => {
-            // Only the row itself: the menu trigger is a child, and its Enter/Space must not
-            // also open the playground.
+            // Only the row itself: the kebab inside it handles its own keys, and Space on a
+            // container that does not preventDefault also scrolls the page.
             if (event.target !== event.currentTarget) return
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                actions.onOpenPlayground(record)
-            }
+            if (event.key !== "Enter" && event.key !== " ") return
+            event.preventDefault()
+            actions.onOpenPlayground(record)
         }}
         className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-2 py-2.5 text-left hover:bg-colorFillQuaternary"
     >

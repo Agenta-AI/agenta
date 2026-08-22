@@ -10,8 +10,10 @@
  * Covered: open · onClose · title · footer · extra · placement→side · width/height · closable ·
  * maskClosable · keyboard(Esc) · afterOpenChange · styles(body/header/footer) · className/rootClassName ·
  * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click).
- * Deferred (rare / unused): `mask={false}` (Radix always renders the overlay), custom `closeIcon`,
- * `push`, `loading`. Add if a call-site needs them.
+ * `closeIcon={null}` hides the close button; a custom NODE is not rendered yet (no call-site
+ * passes one). Still deferred: `mask={false}` (Radix always renders the overlay), `push`,
+ * `loading` — verify against real call-sites before calling any of them unused, since this list
+ * was wrong about `closeOnLayoutClick`, `closeIcon` AND `classNames`.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -106,7 +108,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
-    /** antd `Drawer` had this; Radix already closes on outside-click, so it's effectively a no-op. */
+    /** `false` SUPPRESSES outside-click dismissal (antd `Drawer`'s meaning). Overrides
+     * `maskClosable` when both are given. */
     closeOnLayoutClick?: boolean
 }
 
@@ -132,10 +135,13 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         size,
         closable = true,
         maskClosable = true,
+        closeOnLayoutClick,
         keyboard = true,
         zIndex,
         getContainer,
         styles: customStyles,
+        classNames: customClassNames,
+        closeIcon,
         className,
         rootClassName,
         afterOpenChange,
@@ -165,6 +171,12 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     }, [open, shouldRender, afterOpenChange])
 
     const styles = customStyles as DrawerStyles | undefined
+    // Same object-form-only treatment as `styles` above. Without this the semantic class slots
+    // went nowhere: `classNames={{body: "!p-0"}}` left the body's default padding in place.
+    const slotClassNames = customClassNames as DrawerSemanticClassNames | undefined
+    // antd `closeIcon={null}` means "no close button" — distinct from `closable={false}`, though
+    // both end up hiding it. Undefined leaves `closable` in charge.
+    const showClose = closable !== false && closeIcon !== null
 
     // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
     // `instanceof` before this ever needs a real container.
@@ -187,6 +199,10 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     if (!shouldRender) return null
 
     const side = placement as "top" | "right" | "bottom" | "left"
+    // 13 drawers pass `closeOnLayoutClick={false}` and no `maskClosable`, so reading only the
+    // latter dismissed every one of them on a stray outside click — losing typed input on the form
+    // ones. Explicit `closeOnLayoutClick` wins; otherwise fall back to antd's `maskClosable`.
+    const dismissOnOutside = closeOnLayoutClick ?? maskClosable
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.
     // antd `size`: "default"=378, "large"=736; a number is treated as px (antd v6 behaviour).
@@ -208,20 +224,24 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
             <SheetContent
                 side={side}
                 container={container}
-                className={cn(rootClassName, className)}
+                className={cn(rootClassName, className, slotClassNames?.content)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}
                 onPointerDownOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
                 onInteractOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
             >
-                {title != null || extra != null || closable !== false ? (
-                    <SheetHeader showCloseButton={closable !== false} style={styles?.header}>
+                {title != null || extra != null || showClose ? (
+                    <SheetHeader
+                        showCloseButton={showClose}
+                        style={styles?.header}
+                        className={slotClassNames?.header}
+                    >
                         {title != null ? (
                             <SheetTitle className="flex-1">{title}</SheetTitle>
                         ) : (
@@ -233,12 +253,19 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                 {/* antd `.ant-drawer-body`: 24px padding, scrolls internally. */}
                 <div
                     data-slot="drawer-body"
-                    className="min-h-0 flex-1 overflow-y-auto px-6 py-6 text-field-md text-colorText"
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto px-6 py-6 text-field-md text-colorText",
+                        slotClassNames?.body,
+                    )}
                     style={styles?.body}
                 >
                     {children}
                 </div>
-                {footer != null ? <SheetFooter style={styles?.footer}>{footer}</SheetFooter> : null}
+                {footer != null ? (
+                    <SheetFooter style={styles?.footer} className={slotClassNames?.footer}>
+                        {footer}
+                    </SheetFooter>
+                ) : null}
             </SheetContent>
         </Sheet>
     )

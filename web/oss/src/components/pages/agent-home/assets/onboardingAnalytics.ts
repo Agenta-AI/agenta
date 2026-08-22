@@ -10,8 +10,6 @@ interface CapturePostHog {
     capture?: (event: string, properties?: Record<string, unknown>) => unknown
 }
 
-const MESSAGE_CAPTURE_LIMIT = 500
-
 /** Coarse keyword bucket for a free-text "describe your agent" message. First match wins. */
 export function classifyAgentIntent(message: string): string {
     const text = message.toLowerCase()
@@ -33,7 +31,7 @@ export type FirstAgentIntentSource =
 
 export interface FirstAgentIntentPayload {
     source: FirstAgentIntentSource
-    /** Extra event properties (template name/category/mode, or the truncated composer message). */
+    /** Extra event properties (template name/category/mode). Never the composer's own text. */
     properties?: Record<string, unknown>
     /** Person property to `$set`; omitted for pure avoidance signals (skipped/browse_templates). */
     intentValue?: string
@@ -57,7 +55,3 @@ export function captureFirstAgentIntent(
         // analytics must never break onboarding
     }
 }
-
-/** Truncate a free-text composer message before sending it as an event property. */
-export const truncateForCapture = (message: string): string =>
-    message.trim().slice(0, MESSAGE_CAPTURE_LIMIT)

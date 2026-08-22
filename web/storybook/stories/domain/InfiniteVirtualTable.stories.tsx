@@ -1,9 +1,8 @@
 import {useCallback, useState} from "react"
 
-import {InfiniteVirtualTable} from "@agenta/ui/table"
+import {InfiniteVirtualTable, type ColumnDefs} from "@agenta/ui/table"
 import {Badge} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import type {ColumnsType} from "antd/es/table"
 
 /**
  * InfiniteVirtualTable — the @agenta/ui virtualized data grid engine
@@ -63,7 +62,7 @@ const makeRows = (count: number): EvalRow[] =>
 
 const MOCK_ROWS = makeRows(60)
 
-const columns: ColumnsType<EvalRow> = [
+const columns: ColumnDefs<EvalRow> = [
     {title: "Run name", dataIndex: "name", key: "name", width: 260, fixed: "left"},
     {
         title: "Status",

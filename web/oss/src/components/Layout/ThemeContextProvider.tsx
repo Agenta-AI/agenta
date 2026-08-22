@@ -1,18 +1,9 @@
-import {
-    PropsWithChildren,
-    createContext,
-    useState,
-    useContext,
-    useCallback,
-    useEffect,
-    useMemo,
-} from "react"
+import {PropsWithChildren, createContext, useContext, useCallback, useEffect, useMemo} from "react"
 
+import {useThemeMode} from "@agenta/ui/theme"
 import {ConfigProvider, theme} from "antd"
 import {Inter} from "next/font/google"
-import {useLocalStorage} from "usehooks-ts"
 
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {
     DARK_TOKEN_OVERRIDES,
     darkComponents,
@@ -60,9 +51,6 @@ export const getDeviceTheme = () => {
         : ThemeMode.Light
 }
 
-const getAppTheme = (themeMode: ThemeMode): ThemeType =>
-    themeMode === ThemeMode.System ? getDeviceTheme() : (themeMode as ThemeType)
-
 const isColorValue = (val: unknown): boolean =>
     typeof val === "string" && /^(#|rgba?\(|hsla?\()/.test(val.trim())
 
@@ -95,40 +83,19 @@ const stripComponentColors = <T extends Record<string, Record<string, unknown>>>
 const strippedLightComponents = stripComponentColors(antdTokens.components)
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.System)
-    const [appTheme, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
+    // The stored preference, the theme it resolves to, the OS listener and the `.dark` class
+    // all live in @agenta/ui/theme, so this app and /m read and write one contract. What stays
+    // here is the part only this app has: antd's ConfigProvider and its cssVar key class.
+    const {themeMode, resolved, setMode} = useThemeMode()
+    const appTheme: ThemeType = resolved === "dark" ? ThemeMode.Dark : ThemeMode.Light
 
+    // antd's cssVar key class (`agenta`) makes the global `--ant-*` design-token variables
+    // (emitted by ConfigProvider's `cssVar: {key: "agenta"}` under the `.agenta` selector)
+    // resolve everywhere — including plain elements outside antd component subtrees, so
+    // Tailwind/CSS can alias them.
     useEffect(() => {
-        const handleSystemThemeChange = ({matches}: MediaQueryListEvent) => {
-            if (themeMode === ThemeMode.System) {
-                setAppTheme(matches ? ThemeMode.Dark : ThemeMode.Light)
-            }
-        }
-
-        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-        mediaQuery.addEventListener("change", handleSystemThemeChange)
-
-        return () => {
-            mediaQuery.removeEventListener("change", handleSystemThemeChange)
-        }
-    }, [themeMode])
-
-    useLazyEffect(() => {
-        setAppTheme(getAppTheme(themeMode))
-    }, [themeMode])
-
-    // Toggle the `.dark` class on <html> so the CSS-variable token layer (and any
-    // Tailwind `dark:` variants) reflect the active theme. Also add antd's cssVar
-    // key class (`agenta`) so the global `--ant-*` design-token variables (emitted
-    // by ConfigProvider's `cssVar: {key: "agenta"}` option under the `.agenta`
-    // selector) resolve everywhere — including plain elements outside antd
-    // component subtrees, so Tailwind/CSS can alias them.
-    useEffect(() => {
-        const root = document.documentElement
-        root.classList.toggle("dark", appTheme === ThemeMode.Dark)
-        root.classList.add("agenta")
-        root.style.colorScheme = appTheme === ThemeMode.Dark ? "dark" : "light"
-    }, [appTheme])
+        document.documentElement.classList.add("agenta")
+    }, [])
 
     const isDark = appTheme === ThemeMode.Dark
 
@@ -185,14 +152,11 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [isDark])
 
-    const toggleAppTheme = useCallback(
-        (themeType: ThemeModeType) => setThemeMode(themeType as ThemeMode),
-        [setThemeMode],
-    )
+    const toggleAppTheme = useCallback((themeType: ThemeModeType) => setMode(themeType), [setMode])
 
     // Stable value so useAppTheme consumers only re-render on actual theme changes
     const contextValue = useMemo(
-        () => ({appTheme, toggleAppTheme, themeMode}),
+        () => ({appTheme, toggleAppTheme, themeMode: themeMode as ThemeMode}),
         [appTheme, toggleAppTheme, themeMode],
     )
 

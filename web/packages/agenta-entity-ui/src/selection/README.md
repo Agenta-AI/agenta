@@ -93,38 +93,38 @@ import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui
 
 ### Variant Selection Guide
 
-| Variant | Use Case | Hierarchy Depth |
-|---------|----------|-----------------|
-| `cascading` | Inline dropdowns, compact space | Any (typically 2-3) |
-| `breadcrumb` | Modal/drawer, full-page selection | Any (typically 3+) |
-| `list-popover` | Sidebar lists with hover details | Exactly 2 levels |
+| Variant        | Use Case                          | Hierarchy Depth     |
+| -------------- | --------------------------------- | ------------------- |
+| `cascading`    | Inline dropdowns, compact space   | Any (typically 2-3) |
+| `breadcrumb`   | Modal/drawer, full-page selection | Any (typically 3+)  |
+| `list-popover` | Sidebar lists with hover details  | Exactly 2 levels    |
 
 ### Using Unified Hooks
 
 For custom UIs, use the mode-specific hooks directly:
 
 ```tsx
-import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui'
+import {useCascadingMode, useBreadcrumbMode, useListPopoverMode} from "@agenta/entity-ui"
 
 // Cascading mode
-const { levels, isComplete } = useCascadingMode({
-  adapter: 'appRevision',
-  instanceId: 'my-cascading',
-  onSelect: handleSelect,
+const {levels, isComplete} = useCascadingMode({
+    adapter: "appRevision",
+    instanceId: "my-cascading",
+    onSelect: handleSelect,
 })
 
 // Breadcrumb mode
-const { breadcrumb, items, navigateDown, navigateUp, select } = useBreadcrumbMode({
-  adapter: 'appRevision',
-  instanceId: 'my-breadcrumb',
-  onSelect: handleSelect,
+const {breadcrumb, items, navigateDown, navigateUp, select} = useBreadcrumbMode({
+    adapter: "appRevision",
+    instanceId: "my-breadcrumb",
+    onSelect: handleSelect,
 })
 
 // List-popover mode
-const { parents, handleParentHover, handleChildSelect } = useListPopoverMode({
-  adapter: 'testset',
-  instanceId: 'my-list',
-  onSelect: handleSelect,
+const {parents, handleParentHover, handleChildSelect} = useListPopoverMode({
+    adapter: "testset",
+    instanceId: "my-list",
+    onSelect: handleSelect,
 })
 ```
 
@@ -137,20 +137,20 @@ Before using the selection components, adapters must be initialized. This is don
 The testset and appRevision adapters are **auto-configured** from `EntityRelation` definitions in `@agenta/entities`. They no longer require runtime configuration. Only the evaluator adapter still needs runtime config:
 
 ```typescript
-import { initializeSelectionSystem } from '@agenta/entity-ui'
+import {initializeSelectionSystem} from "@agenta/entity-ui"
 
 // Testset and appRevision adapters are auto-configured from entity relations.
 // Only evaluator needs runtime config (no evaluator relations defined yet).
 initializeSelectionSystem({
-  user: {
-    membersAtom: workspaceMembersAtom,
-    currentUserAtom: userAtom,
-  },
-  evaluatorRevision: {
-    evaluatorsAtom: evaluatorRevision.selectors.evaluators,
-    variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
-    revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
-  },
+    user: {
+        membersAtom: workspaceMembersAtom,
+        currentUserAtom: userAtom,
+    },
+    evaluatorRevision: {
+        evaluatorsAtom: evaluatorRevision.selectors.evaluators,
+        variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
+        revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
+    },
 })
 ```
 
@@ -216,10 +216,10 @@ selection/
 
 ## Pre-built Adapters
 
-| Adapter | Hierarchy | Selection Result | Source |
-|---------|-----------|------------------|--------|
-| `appRevisionAdapter` | App → Variant → Revision | `AppRevisionSelectionResult` | Relation-based |
-| `testsetAdapter` | Testset → Revision | `TestsetSelectionResult` | Relation-based |
+| Adapter                    | Hierarchy                      | Selection Result                   | Source                  |
+| -------------------------- | ------------------------------ | ---------------------------------- | ----------------------- |
+| `appRevisionAdapter`       | App → Variant → Revision       | `AppRevisionSelectionResult`       | Relation-based          |
+| `testsetAdapter`           | Testset → Revision             | `TestsetSelectionResult`           | Relation-based          |
 | `evaluatorRevisionAdapter` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` | Legacy (runtime config) |
 
 The `appRevisionAdapter` and `testsetAdapter` are built using relation-based factories (`createThreeLevelAdapter` / `createTwoLevelAdapter`). They derive their hierarchy configuration from `EntityRelation` definitions in `@agenta/entities`, eliminating ~200 lines of boilerplate per adapter.
@@ -289,19 +289,21 @@ Relations declaratively define parent-child hierarchies. The selection adapter f
 ### Selection Result
 
 The result returned when a user makes a selection:
+
 ```typescript
 interface EntitySelectionResult<TMeta> {
-  type: SelectableEntityType
-  id: string
-  label: string
-  path: SelectionPathItem[]
-  metadata: TMeta
+    type: SelectableEntityType
+    id: string
+    label: string
+    path: SelectionPathItem[]
+    metadata: TMeta
 }
 ```
 
 ## Usage in the Codebase
 
 The system is used in:
+
 - **TestsetSelectionModal**: `EntityPicker variant="list-popover"` for testset/revision selection
 - **EntitySelectorModal**: `EntityPicker variant="breadcrumb"` for modal-based selection
 - **Playground EntitySelector**: `EntityPicker variant="cascading"` for app revision selection
@@ -314,13 +316,13 @@ Renders cascading `Select` dropdowns for each hierarchy level:
 
 ```tsx
 <EntityPicker<AppRevisionSelectionResult>
-  variant="cascading"
-  adapter="appRevision"
-  onSelect={handleSelect}
-  showLabels            // Show label above each select
-  layout="horizontal"   // or "vertical"
-  gap={12}              // Gap between selects
-  size="middle"         // Ant Design size
+    variant="cascading"
+    adapter="appRevision"
+    onSelect={handleSelect}
+    showLabels // Show label above each select
+    layout="horizontal" // or "vertical"
+    gap={12} // Gap between selects
+    size="middle" // Ant Design size
 />
 ```
 
@@ -330,17 +332,17 @@ Shows one level at a time with breadcrumb navigation:
 
 ```tsx
 <EntityPicker<AppRevisionSelectionResult>
-  variant="breadcrumb"
-  adapter="appRevision"
-  onSelect={handleSelect}
-  showSearch            // Search input
-  showBreadcrumb        // Breadcrumb trail
-  showBackButton        // Back arrow button
-  rootLabel="All Apps"  // Root breadcrumb label
-  maxHeight={400}       // List max height
-  autoSelectSingle      // Auto-select when only 1 option
-  infiniteScroll        // Enable virtual scrolling
-  pageSize={50}         // Page size for pagination
+    variant="breadcrumb"
+    adapter="appRevision"
+    onSelect={handleSelect}
+    showSearch // Search input
+    showBreadcrumb // Breadcrumb trail
+    showBackButton // Back arrow button
+    rootLabel="All Apps" // Root breadcrumb label
+    maxHeight={400} // List max height
+    autoSelectSingle // Auto-select when only 1 option
+    infiniteScroll // Enable virtual scrolling
+    pageSize={50} // Page size for pagination
 />
 ```
 
@@ -350,17 +352,17 @@ Displays parent list with hover popovers for children (2-level hierarchies only)
 
 ```tsx
 <EntityPicker<TestsetSelectionResult>
-  variant="list-popover"
-  adapter="testset"
-  onSelect={handleSelect}
-  selectedParentId={currentTestsetId}
-  selectedChildId={currentRevisionId}
-  autoSelectLatest      // Auto-select latest child on mount
-  selectLatestOnParentClick // Select latest when clicking parent
-  popoverPlacement="rightTop"
-  popoverTrigger="hover"
-  disabledParentIds={disabledSet}
-  disabledChildIds={disabledChildSet}
+    variant="list-popover"
+    adapter="testset"
+    onSelect={handleSelect}
+    selectedParentId={currentTestsetId}
+    selectedChildId={currentRevisionId}
+    autoSelectLatest // Auto-select latest child on mount
+    selectLatestOnParentClick // Select latest when clicking parent
+    popoverPlacement="rightTop"
+    popoverTrigger="hover"
+    disabledParentIds={disabledSet}
+    disabledChildIds={disabledChildSet}
 />
 ```
 
@@ -369,23 +371,23 @@ Displays parent list with hover popovers for children (2-level hierarchies only)
 A modal for entity selection with tab support for multiple entity types:
 
 ```tsx
-import { useEntitySelector } from '@agenta/entity-ui'
+import {useEntitySelector} from "@agenta/entity-ui"
 
 function MyComponent() {
-  const { open } = useEntitySelector()
+    const {open} = useEntitySelector()
 
-  const handleAdd = async () => {
-    const selection = await open({
-      title: 'Select Entity',
-      allowedTypes: ['appRevision', 'evaluatorRevision'],
-    })
+    const handleAdd = async () => {
+        const selection = await open({
+            title: "Select Entity",
+            allowedTypes: ["appRevision", "evaluatorRevision"],
+        })
 
-    if (selection) {
-      console.log('Selected:', selection.type, selection.id)
+        if (selection) {
+            console.log("Selected:", selection.type, selection.id)
+        }
     }
-  }
 
-  return <button onClick={handleAdd}>Add Entity</button>
+    return <button onClick={handleAdd}>Add Entity</button>
 }
 ```
 

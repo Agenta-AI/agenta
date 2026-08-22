@@ -14,6 +14,12 @@ ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"
 
 WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/agenta-ai/agenta-web:latest}"
+WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-ghcr.io/agenta-ai/agenta-web-mobile:latest}"
+# The mobile app (/m) is opt-in while it is pre-GA, mirroring the compose
+# `with-web-mobile` profile (run.sh --with-mobile). Everything downstream
+# (configure.sh, deploy-from-images.sh) keys off whether the service exists,
+# so this flag is the single switch.
+WITH_MOBILE="${AGENTA_RAILWAY_WITH_MOBILE:-false}"
 API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/agenta-ai/agenta-api:latest}"
 SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/agenta-ai/agenta-services:latest}"
 RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/agenta-ai/agenta-runner:latest}"
@@ -268,6 +274,9 @@ main() {
     fi
 
     add_service_image web "$WEB_IMAGE"
+    if [ "$WITH_MOBILE" = "true" ]; then
+        add_service_image web-mobile "$WEB_MOBILE_IMAGE"
+    fi
     add_service_image api "$API_IMAGE"
     add_service_image services "$SERVICES_IMAGE"
     add_service_image runner "$RUNNER_IMAGE"

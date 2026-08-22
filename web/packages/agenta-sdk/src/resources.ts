@@ -11,6 +11,7 @@
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
+import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
@@ -19,6 +20,8 @@ import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
 import {TriggersClient} from "@agentaai/api-client/resources/triggers"
+import {UsersClient} from "@agentaai/api-client/resources/users"
+import {WebhooksClient} from "@agentaai/api-client/resources/webhooks"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
@@ -55,6 +58,21 @@ export function getLowPriorityToolsClient(): ToolsClient {
 let _secrets: SecretsClient | undefined
 export function getSecretsClient(): SecretsClient {
     return (_secrets ??= new SecretsClient(buildClientOptions()))
+}
+
+let _keys: KeysClient | undefined
+export function getKeysClient(): KeysClient {
+    return (_keys ??= new KeysClient(buildClientOptions()))
+}
+
+let _users: UsersClient | undefined
+export function getUsersClient(): UsersClient {
+    return (_users ??= new UsersClient(buildClientOptions()))
+}
+
+let _webhooks: WebhooksClient | undefined
+export function getWebhooksClient(): WebhooksClient {
+    return (_webhooks ??= new WebhooksClient(buildClientOptions()))
 }
 
 let _workflows: WorkflowsClient | undefined

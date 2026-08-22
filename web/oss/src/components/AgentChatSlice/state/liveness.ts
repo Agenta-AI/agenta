@@ -1,3 +1,5 @@
+import {type SessionRunStatus} from "@agenta/chat/model"
+import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
@@ -11,12 +13,6 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
-
-import {
-    type SessionRunStatus,
-    sessionLocalSettledAtAtomFamily,
-    sessionStatusAtomFamily,
-} from "./sessions"
 
 /**
  * Backend liveness for the project's sessions (cross-device truth). The tab dot reads this to
