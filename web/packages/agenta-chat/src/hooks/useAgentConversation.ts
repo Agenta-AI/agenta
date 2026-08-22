@@ -17,6 +17,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    invalidateSessionListQueries,
+    invalidateSessionLivenessQueries,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -266,6 +268,15 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            // The first turn is what creates the durable session row; every later one changes its
+            // title, preview and activity. Nothing else tells the session lists, so a brand-new
+            // session surfaced only on their next remount past the stale time.
+            invalidateSessionListQueries()
+            // Nothing else invalidates liveness at turn end either, so the project-wide poll's
+            // cached `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch
+            // immediately — the runner awaits its `is_running: false` heartbeat BEFORE closing
+            // this stream (services/runner/src/server.ts `aliveWatchdog.release()`).
+            invalidateSessionLivenessQueries()
         },
         onError: (err) => {
             // A failed stream never dispatches the pending resume, so drop the marker: leaving it

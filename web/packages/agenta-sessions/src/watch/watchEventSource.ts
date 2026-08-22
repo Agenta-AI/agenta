@@ -1,11 +1,5 @@
 import {useEffect, useRef} from "react"
 
-import {useAtomValue} from "jotai"
-import Session from "supertokens-auth-react/recipe/session"
-
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {projectIdAtom} from "@/oss/state/project"
-
 const RETRY_BASE_MS = 1_000
 const RETRY_MAX_MS = 30_000
 const MIN_INTERVAL_MS = 3_000
@@ -16,17 +10,40 @@ const retryDelayMs = (attempt: number): number =>
 export type WatchEventHandler = (event: MessageEvent<string>) => void
 export type WatchEventHandlers = Record<string, WatchEventHandler>
 
+/**
+ * Renew the session before reopening a fatally-closed stream. Injected, not imported: the hosts
+ * refresh through different SuperTokens builds, and `@agenta/auth` sits above this package.
+ */
+export type RefreshSession = () => Promise<unknown>
+
+/**
+ * One foreground-only EventSource, with the reconnect policy every Agenta watch stream needs.
+ *
+ * - Foreground only: the source closes on `visibilitychange → hidden` and reopens on visible, so a
+ *   backgrounded tab holds no stream open.
+ * - Transient errors ride EventSource's own reconnect (the server pins the delay with an SSE
+ *   `retry:` preamble). Only a fatal `CLOSED` is ours to handle, on a jittered backoff — and it
+ *   refreshes the session first, because the usual fatal cause is a 401 at the access-token
+ *   refresh boundary and a stream carries no interceptor to refresh-and-retry the way the
+ *   Fern/axios calls do.
+ * - Handlers are coalesced to one call per event name per `MIN_INTERVAL_MS`, so a burst of server
+ *   events (or a reconnect loop) cannot fan out into a refetch storm.
+ */
 export const useWatchEventSource = ({
     url,
     enabled = true,
     on,
+    refreshSession,
 }: {
     url: string | null
     enabled?: boolean
     on: WatchEventHandlers
+    refreshSession: RefreshSession
 }): void => {
     const onRef = useRef(on)
     onRef.current = on
+    const refreshRef = useRef(refreshSession)
+    refreshRef.current = refreshSession
     const eventNamesKey = Object.keys(on).sort().join("|")
 
     useEffect(() => {
@@ -94,7 +111,7 @@ export const useWatchEventSource = ({
                 attempt += 1
                 retryHandle = window.setTimeout(() => {
                     retryHandle = undefined
-                    void Session.attemptRefreshingSession()
+                    void Promise.resolve(refreshRef.current())
                         .catch(() => false)
                         .finally(open)
                 }, delay)
@@ -116,16 +133,4 @@ export const useWatchEventSource = ({
             close()
         }
     }, [enabled, eventNamesKey, url])
-}
-
-export type ProjectWatchEvent = "ready" | "session-changed" | "workflow-changed"
-export type ProjectWatchHandlers = Record<ProjectWatchEvent, WatchEventHandler>
-
-export const useProjectWatch = ({on}: {on: ProjectWatchHandlers}): void => {
-    const projectId = useAtomValue(projectIdAtom)
-    const url = projectId
-        ? `${getAgentaApiUrl()}/sessions/watch?project_id=${encodeURIComponent(projectId)}`
-        : null
-
-    useWatchEventSource({url, on})
 }
