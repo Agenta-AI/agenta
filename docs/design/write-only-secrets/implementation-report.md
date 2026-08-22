@@ -96,8 +96,8 @@ or guard, and #6165 introduces that complete contract. The final combined behavi
 
 Local automated verification passed:
 
-- 2,664 OSS API unit tests after the v0.114 rebase.
-- 3,005 combined OSS and EE API unit tests after the v0.114 rebase.
+- 2,635 OSS API unit tests from an isolated #6164 checkout (73 Postgres/live-key tests skipped).
+- 3,005 combined OSS and EE API unit tests from an isolated final-stack checkout (73 Postgres/live-key tests skipped).
 - 233 focused API tests covering secrets, grants, middleware, provider probe, SSO/webhook
   behavior, and starter-credit seeding/client behavior.
 - Standalone boundary checks after the split: 55 write-only tests on #6164 alone, 65
