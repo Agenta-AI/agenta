@@ -57,7 +57,7 @@ services:
         # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
         # container's process env), so mirror the gate flag into an env file the
         # app loads. Prod standalone reads process.env at request time — dev-only.
-        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/ee/.env.development.local && pnpm dev-ee'
+        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-true}" > /app/ee/.env.development.local && pnpm dev-ee'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -75,7 +75,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -89,13 +89,14 @@ services:
 
     web-mobile:
         # === ACTIVATION =========================================== #
-        profiles:
-            - with-web-mobile
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
+        # hand-rolled `docker compose up`.
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
         # Same dev-sandbox env mirroring as the web service (see comment there).
-        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-false}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -109,7 +110,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
             AGENTA_MOBILE_REVERSE_GATE: ${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:

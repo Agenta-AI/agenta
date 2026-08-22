@@ -85,6 +85,7 @@ class + annotations and provide an equivalent path-rewrite mechanism.
 Agenta is accessible via Ingress:
 {{- if $ingress.host }}
   Web UI:   http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/
+  Mobile:   http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/m
   API:      http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/api/
   Services: http{{ if $ingress.tls }}s{{ end }}://{{ $ingress.host }}/services/
 {{- else }}
@@ -93,6 +94,7 @@ Agenta is accessible via Ingress:
 
   Then access:
     Web UI:   http://<INGRESS_IP>/
+    Mobile:   http://<INGRESS_IP>/m
     API:      http://<INGRESS_IP>/api/
     Services: http://<INGRESS_IP>/services/
 {{- end }}
@@ -102,6 +104,9 @@ Agenta services are available via ClusterIP. Use port-forward to access them:
 
   # Web UI
   kubectl port-forward svc/{{ include "agenta.fullname" . }}-web {{ include "agenta.web.port" . }}:{{ include "agenta.web.port" . }} -n {{ .Release.Namespace }}
+
+  # Mobile UI
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-web-mobile {{ include "agenta.webMobile.port" . }}:{{ include "agenta.webMobile.port" . }} -n {{ .Release.Namespace }}
 
   # API
   kubectl port-forward svc/{{ include "agenta.fullname" . }}-api {{ include "agenta.api.port" . }}:{{ include "agenta.api.port" . }} -n {{ .Release.Namespace }}

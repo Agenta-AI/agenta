@@ -27,9 +27,9 @@ services:
 
     web-mobile:
         # === ACTIVATION =========================================== #
-        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
-        profiles:
-            - with-web-mobile
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
+        # hand-rolled `docker compose up`.
         # === IMAGE ================================================ #
         # The mobile app is edition-agnostic OSS-repo code: one public image
         # serves both editions (no internal-ee variant).
