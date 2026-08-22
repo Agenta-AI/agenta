@@ -2,6 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode}
 
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import {ProjectWatch} from "@agenta/sessions/watch"
 import AppMessageContext from "@agenta/ui/app-message"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
@@ -14,6 +15,7 @@ import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
+import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
@@ -38,7 +40,6 @@ import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
-import ProjectWatch from "./ProjectWatch"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
 
@@ -450,7 +451,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
-                    <ProjectWatch />
+                    <ProjectWatch refreshSession={refreshSession} />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}
