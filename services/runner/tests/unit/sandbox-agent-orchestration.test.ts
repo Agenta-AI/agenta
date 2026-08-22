@@ -409,6 +409,28 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  it("passes the live turn credential provider to the trace exporter", async () => {
+    const { calls, deps } = fakeHarness();
+    let authorization = "Secret initial";
+    const credential = () => authorization;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+      { credential },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.otelOptions.authorization, credential);
+    authorization = "Secret refreshed";
+    assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
+  });
+
   it("delivers the current legacy inline image before one text block", async () => {
     const { calls, deps } = fakeHarness({ capabilities: { images: true } });
 

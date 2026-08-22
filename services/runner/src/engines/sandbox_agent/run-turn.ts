@@ -265,7 +265,9 @@ export async function runTurn(
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
-      authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
+      // The session keepalive owns this getter and refreshes its value while a long turn runs.
+      // Resolve it only when the trace batch leaves the runner, not when the turn starts.
+      authorization: credential,
       captureContent: request.telemetry?.capture?.content?.enabled,
       // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
       // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan
