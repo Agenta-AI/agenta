@@ -52,6 +52,9 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
     const [saving, setSaving] = useState(false)
 
     const isEditing = !!selectedSecret?.id
+    // A write-only record returns no content. The form is then replace-only: nothing is prefilled,
+    // and leaving it untouched keeps whatever is stored.
+    const valueHidden = isEditing && selectedSecret?.writeOnly === true
 
     useEffect(() => {
         if (!open) return
@@ -64,7 +67,11 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
             setFormat(selectedSecret.format)
             if (selectedSecret.format === CustomSecretFormat.Json) {
                 setTextValue("")
-                setKvRows(objectToRows(selectedSecret.content))
+                setKvRows(
+                    selectedSecret.content == null
+                        ? [{key: "", value: ""}]
+                        : objectToRows(selectedSecret.content),
+                )
             } else {
                 setTextValue(
                     typeof selectedSecret.content === "string" ? selectedSecret.content : "",
@@ -136,9 +143,14 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
         return true
     }
 
-    const buildContent = (): CustomSecretContent | null => {
+    /** The content to send: `undefined` keeps the stored value, `null` means the form is invalid. */
+    const buildContent = (): CustomSecretContent | null | undefined => {
         if (format === CustomSecretFormat.Text) {
+            if (valueHidden && !textValue) return undefined
             return textValue
+        }
+        if (valueHidden && jsonView === "grid" && !kvRows.some((row) => row.key.trim())) {
+            return undefined
         }
         if (jsonView === "json" && !syncJsonToRows()) {
             return null
@@ -269,7 +281,10 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                         <div className="flex items-baseline gap-2">
-                            <Typography.Text className="font-medium">Content</Typography.Text>
+                            <Typography.Text className="font-medium">
+                                {/* TODO(copy: owner) */}
+                                {valueHidden ? "Replace content" : "Content"}
+                            </Typography.Text>
                             {format === CustomSecretFormat.Json &&
                                 jsonView === "grid" &&
                                 hasDuplicateKeys && (
@@ -292,6 +307,15 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                             />
                         )}
                     </div>
+
+                    {valueHidden ? (
+                        <Typography.Text type="secondary" className="text-xs">
+                            {/* TODO(copy: owner) */}
+                            {selectedSecret?.keyPreview
+                                ? `Value configured (${selectedSecret.keyPreview}). Leave blank to keep it.`
+                                : "Value configured. Leave blank to keep it."}
+                        </Typography.Text>
+                    ) : null}
 
                     {format === CustomSecretFormat.Text ? (
                         <Input.TextArea

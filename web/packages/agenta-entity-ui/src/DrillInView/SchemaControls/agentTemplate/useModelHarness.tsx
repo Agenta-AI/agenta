@@ -36,6 +36,7 @@ import {
     harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
+    bareConnectionModelId,
     modelLabel,
     providerForModel,
     vaultModelGroups,
@@ -342,11 +343,16 @@ export function useModelHarness({
     )
 
     // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
-    // names the model the way the picker did.
+    // names the model the way the picker did. A connection model key is namespaced
+    // ("<connection>/<deployment>/..."), which neither the catalog nor the schema knows it by, so
+    // both are also asked about its bare id — the summary must read as a model name either way.
+    const bareModel = modelId ? bareConnectionModelId(modelId) : null
     const modelSummary =
         [
             enumLabel(harnessProps.kind, harness.kind),
-            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+            modelLabel(capabilities, harnessValue, modelId) ??
+                modelLabel(capabilities, harnessValue, bareModel) ??
+                enumLabel(props.llm, bareModel),
         ]
             .filter(Boolean)
             .join(" · ") || undefined
