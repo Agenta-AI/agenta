@@ -65,8 +65,11 @@ export const Pill = memo(
                 <PopoverTrigger asChild>
                     <span className="inline-flex">{pill}</span>
                 </PopoverTrigger>
-                {/* antd anchored this below and sized it 240px wide. */}
-                <PopoverContent side="bottom" className="w-60">
+                {/* antd anchored this below and centred it: 240px wide, 12px inner padding,
+                    and the app's 14px text. PopoverContent is deliberately padding-less and
+                    size-less, and it portals out of the app's font scope with preflight off,
+                    so without these the panel inherits <body>'s 16px and no inset at all. */}
+                <PopoverContent side="bottom" align="center" className="w-60 p-3 text-sm">
                     {popoverContent}
                 </PopoverContent>
             </Popover>

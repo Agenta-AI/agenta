@@ -206,37 +206,65 @@ const FlyoutChildren = ({
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) => (
     <>
-        {items.map((child) =>
-            child.isPlaceholder || child.isGroupLabel ? (
-                <DropdownMenuLabel key={child.key} className="text-xs text-colorTextTertiary">
-                    {child.title}
-                </DropdownMenuLabel>
-            ) : child.divider ? (
-                <DropdownMenuSeparator key={child.key} />
-            ) : (
-                <DropdownMenuItem
-                    key={child.key}
-                    disabled={child.disabled}
-                    className={clsx(selectedKeys.includes(child.key) && "font-medium")}
-                    asChild={Boolean(child.link)}
-                    onSelect={child.link ? undefined : () => child.onClick?.(undefined as never)}
-                >
-                    {child.link ? (
-                        <Link
-                            href={child.link}
-                            className="!text-inherit no-underline"
-                            target={isExternal(child.link) ? "_blank" : undefined}
-                            rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
-                            onClick={linkClickHandler(child, onItemSelect)}
-                        >
-                            {child.title}
-                        </Link>
-                    ) : (
-                        <span>{child.title}</span>
-                    )}
-                </DropdownMenuItem>
-            ),
-        )}
+        {items.map((child) => {
+            if (child.isPlaceholder || child.isGroupLabel) {
+                return (
+                    <DropdownMenuLabel key={child.key} className="text-xs text-colorTextTertiary">
+                        {child.title}
+                    </DropdownMenuLabel>
+                )
+            }
+            // The icon is the row's leading glyph on every other path (LeafRow, the group row,
+            // the collapsed trigger). The flyout has to draw it too, or Help & Docs loses the
+            // icons the antd menu always rendered through its own `icon` slot.
+            const body = (
+                <>
+                    {child.icon ? (
+                        <span className="flex shrink-0 items-center">{child.icon}</span>
+                    ) : null}
+                    <span className="min-w-0 truncate">{child.title}</span>
+                </>
+            )
+            return (
+                <Fragment key={child.key}>
+                    <DropdownMenuItem
+                        disabled={child.disabled}
+                        // gap-[10px] over the item's default gap-2: antd's Menu icon margin.
+                        // It rides on `className` (which goes through tailwind-merge) rather
+                        // than on the Link, because `asChild` merges classes by concatenation
+                        // and would leave both gaps in the list.
+                        className={clsx(
+                            "gap-[10px]",
+                            selectedKeys.includes(child.key) && "font-medium",
+                        )}
+                        asChild={Boolean(child.link)}
+                        onSelect={
+                            child.link
+                                ? undefined
+                                : (event) => child.onClick?.(event as unknown as MouseEvent)
+                        }
+                    >
+                        {child.link ? (
+                            <Link
+                                href={child.link}
+                                className="!text-inherit no-underline"
+                                target={isExternal(child.link) ? "_blank" : undefined}
+                                rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
+                                onClick={linkClickHandler(child, onItemSelect)}
+                            >
+                                {body}
+                            </Link>
+                        ) : (
+                            body
+                        )}
+                    </DropdownMenuItem>
+                    {/* `divider` means "a rule FOLLOWS this row", which is the contract the
+                        inline path and the old antd menu both implement. Treating it as "this
+                        row IS a rule" replaced the Documentation item with a hairline. */}
+                    {child.divider ? <DropdownMenuSeparator /> : null}
+                </Fragment>
+            )
+        })}
     </>
 )
 
