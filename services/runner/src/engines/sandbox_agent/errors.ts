@@ -62,15 +62,15 @@ export interface ClassifiedRunError {
  * reader of these is the person chatting, to whom "claude:" is noise.
  */
 const STARTER_CREDITS_EXHAUSTED_MESSAGE =
-  "This organization's starter credits are used up. Add your own provider key to keep going.";
+  "Your free Agenta credits are used up. Add your own provider key to keep going.";
 const STARTER_CREDITS_PROGRAM_PAUSED_MESSAGE =
-  "The free starter credits program is paused right now. Add your own provider key to continue.";
+  "Free Agenta credits are paused right now. Add your own provider key to continue.";
 const RATE_LIMITED_MESSAGE =
   "Too many requests right now. Try again in a moment.";
 const PROVIDER_RATE_LIMITED_MESSAGE =
   "Too many requests to the model provider right now. Try again in a moment.";
 const STARTER_CREDITS_UNAVAILABLE_MESSAGE =
-  "The starter credits service is temporarily unavailable. Try again in a moment.";
+  "Agenta credits are temporarily unavailable. Try again in a moment.";
 
 /*
  * Recognition is matched on the BODY, never on the HTTP status alone: 429 covers admission-time

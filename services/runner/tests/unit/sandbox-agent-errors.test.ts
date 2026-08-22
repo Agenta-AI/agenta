@@ -184,7 +184,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       classifyRunError(new Error(KEY_BUDGET_BODY), "claude", "anthropic"),
       {
         message:
-          "This organization's starter credits are used up. Add your own provider key to keep going.",
+          "Your free Agenta credits are used up. Add your own provider key to keep going.",
         code: "starter_credits_exhausted",
       },
     );
@@ -197,7 +197,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       classifyRunError(new Error(TEAM_BUDGET_BODY), "pi_core", "gemini"),
       {
         message:
-          "The free starter credits program is paused right now. Add your own provider key to continue.",
+          "Free Agenta credits are paused right now. Add your own provider key to continue.",
         code: "starter_credits_program_paused",
       },
     );
@@ -213,7 +213,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
   it("maps a proxy database outage to the service-unavailable state", () => {
     assert.deepEqual(classifyRunError(new Error(NO_DB_BODY), "claude"), {
       message:
-        "The starter credits service is temporarily unavailable. Try again in a moment.",
+        "Agenta credits are temporarily unavailable. Try again in a moment.",
       code: "starter_credits_unavailable",
     });
   });
@@ -228,7 +228,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       ),
       {
         message:
-          "The starter credits service is temporarily unavailable. Try again in a moment.",
+          "Agenta credits are temporarily unavailable. Try again in a moment.",
         code: "starter_credits_unavailable",
       },
     );
@@ -334,7 +334,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       classifyRunError(new Error(LIVE_KEY_BUDGET_BODY), "pi_core", "gemini"),
       {
         message:
-          "This organization's starter credits are used up. Add your own provider key to keep going.",
+          "Your free Agenta credits are used up. Add your own provider key to keep going.",
         code: "starter_credits_exhausted",
       },
     );
@@ -380,7 +380,7 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       ),
       {
         message:
-          "This organization's starter credits are used up. Add your own provider key to keep going.",
+          "Your free Agenta credits are used up. Add your own provider key to keep going.",
         code: "starter_credits_exhausted",
       },
     );
