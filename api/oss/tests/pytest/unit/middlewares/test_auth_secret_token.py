@@ -9,11 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
-from jwt import encode
+from jwt import decode, encode
 from starlette.requests import Request
 
 from oss.src.middlewares import auth
-from oss.src.utils.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import InternalServerErrorException, UnauthorizedException
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
@@ -112,6 +112,49 @@ async def test_live_token_authenticates_and_logs_nothing(log):
     assert request.state.user_id == "u"
     assert request.state.project_id == "p"
     assert log.calls == []
+
+
+@pytest.mark.asyncio
+async def test_signed_token_records_exact_issued_at_lifetime(log):
+    token = await auth.sign_secret_token(user_id="u", project_id="p")
+
+    claims = decode(
+        jwt=token,
+        key=SECRET_KEY,
+        algorithms=["HS256"],
+    )
+
+    assert isinstance(claims["iat"], int)
+    assert isinstance(claims["exp"], int)
+    assert claims["exp"] - claims["iat"] == auth._SECRET_EXP
+
+
+@pytest.mark.asyncio
+async def test_intentional_http_exception_survives_verification(log, monkeypatch):
+    expected = HTTPException(status_code=401, detail="Intentional denial")
+
+    def reject(*args, **kwargs):
+        raise expected
+
+    monkeypatch.setattr(auth, "decode", reject)
+
+    with pytest.raises(HTTPException) as raised:
+        await auth.verify_secret_token(request=_request(), secret_token="unused")
+
+    assert raised.value is expected
+
+
+@pytest.mark.asyncio
+async def test_unexpected_verification_error_stays_internal(log, monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(auth, "decode", fail)
+
+    with pytest.raises(InternalServerErrorException) as raised:
+        await auth.verify_secret_token(request=_request(), secret_token="unused")
+
+    assert raised.value.status_code == 500
 
 
 def test_unauthorized_reason_reads_the_raiser_s_reason():

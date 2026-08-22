@@ -1,6 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import asyncio
 import traceback
 
@@ -943,6 +943,9 @@ async def verify_secret_token(
 
         raise UnauthorizedException(reason="invalid_token") from exc
 
+    except HTTPException:
+        raise
+
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
 
@@ -984,9 +987,8 @@ async def sign_secret_token(
         if not _SECRET_KEY:
             raise InternalServerErrorException()
 
-        _exp = int(
-            (datetime.now(timezone.utc) + timedelta(seconds=_SECRET_EXP)).timestamp()
-        )
+        _issued_at = int(datetime.now(timezone.utc).timestamp())
+        _exp = _issued_at + _SECRET_EXP
 
         auth_context = {
             "user_id": user_id,
@@ -995,6 +997,7 @@ async def sign_secret_token(
             "workspace_id": workspace_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            "iat": _issued_at,
             "exp": _exp,
         }
 
