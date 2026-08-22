@@ -230,17 +230,24 @@ apply_ci_auth_key() {
     local svc svc_id
     # Every service legacy configure.sh gave the key to: the workers use it for
     # internal calls while processing evaluation runs, so partial coverage
-    # split-brains auth and evaluations finish with status "errors".
-    for svc in web api services worker-queues worker-streams cron alembic; do
+    # split-brains auth and evaluations finish with status "errors". web-mobile
+    # carries AGENTA_AUTH_KEY for the same reason web does (same image
+    # entrypoint, same runtime config), so it needs the CI key too.
+    for svc in web web-mobile api services worker-queues worker-streams cron alembic; do
         svc_id="$(clone_service_id "$svc")"
-        [ -n "$svc_id" ] || { printf "No serviceId for '%s' while applying the CI auth key.\n" "$svc" >&2; return 1; }
+        if [ -z "$svc_id" ]; then
+            # A service the clone does not have yet (see OPTIONAL_SERVICES) is
+            # skipped here too; anything else missing is still fatal.
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
         rw_graphql \
             'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
             "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$AGENTA_AUTH_KEY" \
                 '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_AUTH_KEY: $v}}}')" \
             >/dev/null || return 1
     done
-    printf "CI auth key applied to api and services.\n"
+    printf "CI auth key applied to every service that consumes it.\n"
 }
 
 clone_service_id() {
