@@ -403,9 +403,24 @@ def test_empty_name_stays_the_explicit_clear():
     assert SessionStreamHeaderEdit(name="").name == ""
 
 
-def test_omitted_and_none_name_still_mean_no_change():
-    assert SessionStreamHeaderEdit().name is None
-    assert SessionStreamHeaderEdit(name=None).name is None
+def test_none_name_still_means_no_change_when_another_field_is_set():
+    # Omitting every header field is rejected (silent no-op / wrapped body guard).
+    # Explicit name=None still means "leave name alone" when description is present.
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="no header field to update"):
+        SessionStreamHeaderEdit()
+
+    edit = SessionStreamHeaderEdit(name=None, description="keep name")
+    assert edit.name is None
+    assert edit.description == "keep name"
+
+
+def test_wrapped_or_unknown_top_level_keys_are_rejected():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        SessionStreamHeaderEdit.model_validate({"header": {"name": "x"}})
 
 
 def test_a_normal_rename_validates():

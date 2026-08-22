@@ -149,3 +149,49 @@ class TestSessionStreamHeaderBasics:
         )
         assert response.status_code == 200
         assert response.json()["stream"]["name"] == ""
+
+    def test_wrapped_header_body_rejected(self, authed_api):
+        # Clients that nest fields under {"header": {...}} used to get 200 with a
+        # silent no-op because every recognised field was absent. Reject that shape.
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Keep Me"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"header": {"name": "Should Not Apply"}},
+        )
+        assert response.status_code == 422
+
+        get_resp = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert get_resp.json()["stream"]["name"] == "Keep Me"
+
+    def test_empty_header_body_rejected(self, authed_api):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Keep Me"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={},
+        )
+        assert response.status_code == 422
+
+        get_resp = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert get_resp.json()["stream"]["name"] == "Keep Me"

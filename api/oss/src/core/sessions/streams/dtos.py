@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
@@ -90,7 +90,14 @@ class SessionStreamHeaderEdit(Header):
     contain a non-whitespace character: storing ``"   "`` clears the visible title
     while the row still holds a value, a state no caller ever means. The LLM-facing
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
+
+    Unknown top-level keys are forbidden (``extra="forbid"``) so a wrapped body such
+    as ``{"header": {"name": "..."}}`` fails validation instead of silently no-op'ing
+    when every recognised field is absent. At least one of ``name`` / ``description``
+    must be present in the request body for the same reason.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     @field_validator("name")
     @classmethod
@@ -101,6 +108,14 @@ class SessionStreamHeaderEdit(Header):
                 " (send an empty string to clear the title)"
             )
         return value
+
+    @model_validator(mode="after")
+    def _require_at_least_one_header_field(self) -> "SessionStreamHeaderEdit":
+        if not self.model_fields_set.intersection({"name", "description"}):
+            raise ValueError(
+                "no header field to update; send name or description at the top level"
+            )
+        return self
 
 
 class SessionStreamQuery(BaseModel):
