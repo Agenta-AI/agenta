@@ -6,11 +6,7 @@
  * pair only exists when the harness can both drive the connection and spell the model, and a pick
  * persists the exact connection slug. Runs under @agenta/entity-ui's own vitest runner.
  */
-import {
-    SecretKind,
-    SecretManagementPolicy,
-    type ProviderConnection,
-} from "@agenta/entities/secret"
+import {SecretKind, SecretManagementPolicy, type ProviderConnection} from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
 import {

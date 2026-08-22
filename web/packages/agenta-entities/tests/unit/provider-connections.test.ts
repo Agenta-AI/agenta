@@ -28,7 +28,11 @@ import {
     credentialFieldsForKind,
     secretKindForProviderKind,
 } from "../../src/secret/core/providerCatalog"
-import {SecretKind, SecretManagementPolicy, VAULT_PERSIST_REDACTED} from "../../src/secret/core/types"
+import {
+    SecretKind,
+    SecretManagementPolicy,
+    VAULT_PERSIST_REDACTED,
+} from "../../src/secret/core/types"
 
 const fernProbeProvider = vi.fn()
 
