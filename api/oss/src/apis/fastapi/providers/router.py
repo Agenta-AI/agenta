@@ -12,6 +12,8 @@ from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.providers.exceptions import ProviderProbeError
+from pydantic import SecretStr
+
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.service import ProviderProbeService
 from oss.src.core.secrets.services import VaultService
@@ -20,6 +22,24 @@ from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+def _typed_or_stored(typed, stored):
+    """What this field probes with: what the caller typed, else what is stored.
+
+    Absent and blank mean the same thing here, which is the contract the rest of the
+    vault path already uses: a form that cannot prefill a value submits an empty string,
+    and reading that as "probe with no URL" would fail a connection that is fine. Only a
+    real value overrides.
+    """
+    if typed is None:
+        return stored
+
+    value = typed.get_secret_value() if isinstance(typed, SecretStr) else typed
+    if value in ("", {}, []):
+        return stored
+
+    return typed
 
 
 def _stored_kind(secret) -> str:
@@ -100,18 +120,10 @@ class ProvidersRouter:
             )
 
         merged = ProviderCredentials(
-            key=typed.key if typed.key is not None else stored_key,
-            url=typed.url if typed.url is not None else getattr(settings, "url", None),
-            version=(
-                typed.version
-                if typed.version is not None
-                else getattr(settings, "version", None)
-            ),
-            extras=(
-                typed.extras
-                if typed.extras is not None
-                else getattr(settings, "extras", None)
-            ),
+            key=_typed_or_stored(typed.key, stored_key),
+            url=_typed_or_stored(typed.url, getattr(settings, "url", None)),
+            version=_typed_or_stored(typed.version, getattr(settings, "version", None)),
+            extras=_typed_or_stored(typed.extras, getattr(settings, "extras", None)),
         )
 
         return kind or stored_kind, merged

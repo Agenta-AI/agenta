@@ -940,3 +940,47 @@ def test_a_probe_must_name_a_kind_or_a_secret(monkeypatch):
 
     assert response.status_code == 422
     assert CANARY not in response.text
+
+
+def test_blank_typed_fields_fall_back_to_the_stored_ones(monkeypatch, public_dns):
+    # The card drops blanks, but a form that submits "" must not be read as "probe with
+    # no URL and no key" — that fails a connection which is actually fine.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id, PROJECT_ID, _stored_custom_provider(url="https://old.example.com/v1")
+    )
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"url": "", "key": "", "version": "", "extras": {}},
+        },
+    )
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["host"] == "old.example.com"
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_an_omitted_provider_object_probes_exactly_what_is_stored(
+    monkeypatch, public_dns
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id, PROJECT_ID, _stored_custom_provider(url="https://old.example.com/v1")
+    )
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["host"] == "old.example.com"
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
