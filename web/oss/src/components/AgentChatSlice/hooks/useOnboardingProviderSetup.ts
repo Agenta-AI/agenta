@@ -24,7 +24,7 @@ import {
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    modelLabel,
+    modelDisplayName,
     providerForModel,
     readHarnessKind,
     selectableHarnesses,
@@ -138,7 +138,7 @@ export function useOnboardingProviderSetup(
         })
         if (!next) return
         setConfiguration(entityId, next)
-        const label = modelLabel(capabilities, harness, selection.modelId) ?? selection.modelId
+        const label = modelDisplayName(capabilities, harness, selection.modelId)
         raiseDraftSignal({
             revisionId: entityId,
             sectionKeys: ["model-harness"],

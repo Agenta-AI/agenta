@@ -2,6 +2,9 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Create-time secret payload. Required credential fields must be present.
+ */
 export interface SecretDto {
     kind: AgentaApi.SecretKind;
     data: SecretDto.Data;

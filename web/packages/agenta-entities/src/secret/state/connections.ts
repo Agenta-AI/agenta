@@ -42,9 +42,10 @@ export const providerConnectionsAtom = atom<ProviderConnection[]>((get) =>
  */
 export const probeProviderMutationAtom = atomWithMutation<
     ProbeProviderResponse | null,
-    {projectId: string; kind: string; provider: ProbeProviderCredentials}
+    {projectId: string; kind?: string; provider: ProbeProviderCredentials; secretId?: string}
 >(() => ({
-    mutationFn: ({projectId, kind, provider}) => probeProvider({projectId, kind, provider}),
+    mutationFn: ({projectId, kind, provider, secretId}) =>
+        probeProvider({projectId, kind, provider, secretId}),
 }))
 
 /**

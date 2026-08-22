@@ -4,6 +4,7 @@ import {
     activeModelsSummary,
     credentialSummary,
     deleteSecretAtom,
+    SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
     type ProviderConnection,
@@ -72,8 +73,18 @@ export const AIProvidersPage = ({
 
     const canRemove = Boolean(renderRemoveDialog)
 
+    // A connection Agenta provisioned is not the user's to edit or remove — the API answers 409 —
+    // so it is not listed here. It stays in `providerConnectionsAtom`, which is what the composer
+    // gate and the model pickers count: hiding the row must not make the project look keyless,
+    // which is also why the drawer below still receives the unfiltered list.
     const rows = useMemo<ConnectionRow[]>(
-        () => connections.map((connection) => ({...connection, key: connection.id})),
+        () =>
+            connections
+                .filter(
+                    (connection) =>
+                        connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+                )
+                .map((connection) => ({...connection, key: connection.id})),
         [connections],
     )
 
