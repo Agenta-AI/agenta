@@ -1,14 +1,6 @@
 {
     "name": "agenta-web",
     "version": "0.113.0",
-    "workspaces": [
-        "ee",
-        "mobile",
-        "oss",
-        "tests",
-        "variants-state",
-        "packages/*"
-    ],
     "dependencies": {
         "ajv-formats": "^3.0.1",
         "jotai-eager": "^0.2.6",

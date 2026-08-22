@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
         "@agenta/playground-ui",
         "@agenta/chat",
     ],
+    // Next 16 appends a managed "nextjs-agent-rules" block to AGENTS.md on every
+    // `next dev`. This repo curates its own agent instructions (see the root
+    // AGENTS.md compartmentalization playbook), so keep the framework out of that
+    // file — otherwise every mobile dev run dirties a tracked file.
+    agentRules: false,
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx"],
     productionBrowserSourceMaps: true,

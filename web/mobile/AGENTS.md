@@ -82,3 +82,11 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Build: `pnpm build-mobile`
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
 - Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
+
+Mobile is the only app on Next 16; oss, ee and storybook stay on Next 15. `web/package.json`
+therefore must NOT declare an npm `workspaces` array. npm and `npx` read that field, treat
+`web/` as the project root from any subdirectory, and resolve `next` to the Next 15 copy in
+`web/node_modules`. `npx next build` in `web/mobile` then runs the Next 15 CLI against a
+Next 16 app and dies with `Cannot read properties of undefined (reading 'AmpStateContext')`.
+The repo drives every workspace through `pnpm-workspace.yaml`, so the field bought nothing.
+See issue #6188.
