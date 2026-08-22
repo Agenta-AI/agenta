@@ -64,6 +64,31 @@ export function remoteLabel(url: string): string {
     return u.replace(/\.git$/, "")
 }
 
+/** Drop every leading `/` in one pass. */
+function stripLeadingSlashes(value: string): string {
+    let start = 0
+    while (start < value.length && value[start] === "/") start += 1
+    return value.slice(start)
+}
+
+/** Drop every trailing `/` in one pass. */
+function stripTrailingSlashes(value: string): string {
+    let end = value.length
+    while (end > 0 && value[end - 1] === "/") end -= 1
+    return value.slice(0, end)
+}
+
+/** Drop a trailing `.git` or `.git/`, the two forms a clone URL ends in. */
+function stripDotGitSuffix(value: string): string {
+    if (value.endsWith(".git")) return value.slice(0, -4)
+    if (value.endsWith(".git/")) return value.slice(0, -5)
+    return value
+}
+
+/** `<scheme>://<authority>/<path>`; the authority class excludes `/`, so the split is unambiguous. */
+const SCHEME_URL_RE = /^([a-z][a-z0-9+.-]*):\/\/([^/\s]*)(\/[^\s]*)$/i
+const DIGITS_RE = /^[0-9]+$/
+
 /**
  * A browsable `https://` URL for a remote, or null when it isn't web-browsable (a local path,
  * `file://`, or a host that isn't a real domain). Built ONLY from a validated host + path with a
@@ -76,13 +101,27 @@ export function remoteHref(url: string): string | null {
     if (!clean) return null
     let host: string
     let path: string
-    const scheme = clean.match(
-        /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/\s]*@)?([^:/\s]+)(?::\d+)?\/+(.+)$/i,
-    )
+    // Scheme, authority and path in three NON-OVERLAPPING pieces: the authority stops at the first
+    // `/`, so the engine never has to try a second split. The old single pattern let `\/+` and
+    // `(.+)` compete for the same slashes, which cost quadratic time on a URL full of them.
+    const scheme = clean.match(SCHEME_URL_RE)
     if (scheme) {
         // Only network schemes become links; `file:` and friends stay plain text.
         if (!["http", "https", "ssh", "git"].includes(scheme[1].toLowerCase())) return null
-        host = scheme[2]
+        const authority = scheme[2]
+        // Drop `user@` or `user:pass@` — the host is what follows the FIRST `@`, which is what the
+        // previous `(?:[^@/\s]*@)?` prefix consumed.
+        const at = authority.indexOf("@")
+        const hostPort = at >= 0 ? authority.slice(at + 1) : authority
+        // An optional `:<digits>` port. Anything else after the host is not a URL we link.
+        const colon = hostPort.indexOf(":")
+        if (colon >= 0) {
+            const port = hostPort.slice(colon + 1)
+            if (!DIGITS_RE.test(port)) return null
+            host = hostPort.slice(0, colon)
+        } else {
+            host = hostPort
+        }
         path = scheme[3]
     } else {
         // scp form REQUIRES a `user@` (`git@host:path`) — a bare `host:path` is ambiguous with a
@@ -95,10 +134,10 @@ export function remoteHref(url: string): string | null {
     // Require a real domain (a dot) — rejects `localhost`, internal `server:path` scp hosts, and
     // Windows drive letters, none of which are browsable.
     if (!/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(host)) return null
-    const rel = path
-        .replace(/^\/+/, "")
-        .replace(/\.git\/?$/, "")
-        .replace(/\/+$/, "")
+    // Character walks rather than `^\/+` / `\/+$` replacements: a repeated quantifier anchored to
+    // one end still rescans the whole run of slashes on every retry, which is quadratic on a path
+    // made of them. The accepted input and the result are unchanged.
+    const rel = stripTrailingSlashes(stripDotGitSuffix(stripLeadingSlashes(path)))
     if (!rel || /\s/.test(rel)) return null
     return `https://${host}/${rel}`
 }
@@ -124,9 +163,11 @@ export function parseRemote(cfg: string): RepoRemote | null {
             section = sec[1].trim()
             continue
         }
-        const m = line.match(/^url\s*=\s*(.+)$/)
-        if (m) {
-            const url = m[1].trim()
+        // `indexOf` + `trim`, not `^url\s*=\s*(.+)$`: the two `\s*` runs and the trailing `.+`
+        // overlap, so a `url=` line padded with spaces made the engine retry every split.
+        const eq = line.indexOf("=")
+        if (eq > 0 && line.slice(0, eq).trimEnd() === "url" && eq + 1 < line.length) {
+            const url = line.slice(eq + 1).trim()
             if (!firstUrl) firstUrl = url
             if (section && /^remote\s+"origin"$/.test(section)) originUrl = url
         }

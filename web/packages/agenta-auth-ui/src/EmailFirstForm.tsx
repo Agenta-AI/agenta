@@ -1,11 +1,10 @@
 import {useState, type FormEvent} from "react"
 
+import {isValidEmailAddress} from "@agenta/auth"
 import clsx from "clsx"
 
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage} from "./types"
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export interface EmailFirstFormProps {
     email: string
@@ -36,7 +35,7 @@ export const EmailFirstForm = ({
         event.preventDefault()
         const value = email.trim()
         if (!value) return setValidation("Please add your email!")
-        if (!EMAIL_RE.test(value)) return setValidation("Please enter a valid email address!")
+        if (!isValidEmailAddress(value)) return setValidation("Please enter a valid email address!")
         setValidation(null)
         try {
             setIsLoading(true)
