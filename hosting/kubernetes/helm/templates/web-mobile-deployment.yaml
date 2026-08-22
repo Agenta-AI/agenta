@@ -1,45 +1,45 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
-{{- $web := default dict $values.web -}}
+{{- $webMobile := default dict $values.webMobile -}}
 {{- $agenta := default dict $values.agenta -}}
-{{- if eq (include "agenta.web.enabled" .) "true" }}
+{{- if eq (include "agenta.webMobile.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agenta.fullname" . }}-web
+  name: {{ include "agenta.fullname" . }}-web-mobile
   labels:
     {{- include "agenta.labels" . | nindent 4 }}
-    app.kubernetes.io/component: web
+    app.kubernetes.io/component: web-mobile
 spec:
-  replicas: {{ include "agenta.web.replicas" . }}
+  replicas: {{ include "agenta.webMobile.replicas" . }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: web
+      app.kubernetes.io/component: web-mobile
   template:
     metadata:
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: web
+        app.kubernetes.io/component: web-mobile
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
-      {{- with $web.podSecurityContext }}
+      {{- with $webMobile.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: web
-          image: {{ include "agenta.webImage" . }}
-          imagePullPolicy: {{ include "agenta.web.pullPolicy" . }}
-          {{- with $web.securityContext }}
+        - name: web-mobile
+          image: {{ include "agenta.webMobileImage" . }}
+          imagePullPolicy: {{ include "agenta.webMobile.pullPolicy" . }}
+          {{- with $webMobile.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command: ["/app/entrypoint.sh"]
-          args: ["node", {{ include "agenta.webServerPath" . | quote }}]
+          args: ["node", "mobile/server.js"]
           ports:
             - name: http
-              containerPort: {{ include "agenta.web.port" . }}
+              containerPort: {{ include "agenta.webMobile.port" . }}
               protocol: TCP
           env:
             - name: HOSTNAME
@@ -54,6 +54,8 @@ spec:
               value: {{ $agenta.apiUrl | default "" | quote }}
             - name: AGENTA_MOBILE_GATE
               value: {{ eq (include "agenta.webMobile.enabled" .) "true" | quote }}
+            - name: AGENTA_MOBILE_REVERSE_GATE
+              value: "true"
             - name: AGENTA_AUTH_KEY
               valueFrom:
                 secretKeyRef:
@@ -73,13 +75,13 @@ spec:
                   key: SUPERTOKENS_API_KEY
                   optional: true
             {{- include "agenta.webOptionalEnv" . | nindent 12 }}
-            {{- range $key, $val := $web.env }}
+            {{- range $key, $val := $webMobile.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
           startupProbe:
             httpGet:
-              path: /
+              path: /m/__env.js
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -87,31 +89,31 @@ spec:
             failureThreshold: 30
           livenessProbe:
             httpGet:
-              path: /
+              path: /m/__env.js
               port: http
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /m/__env.js
               port: http
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          {{- with $web.resources }}
+          {{- with $webMobile.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with $web.nodeSelector }}
+      {{- with $webMobile.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $web.tolerations }}
+      {{- with $webMobile.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $web.affinity }}
+      {{- with $webMobile.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
