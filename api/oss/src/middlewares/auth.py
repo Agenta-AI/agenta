@@ -9,7 +9,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
-from jwt import encode, decode, DecodeError, ExpiredSignatureError
+from jwt import encode, decode, DecodeError, ExpiredSignatureError, InvalidTokenError
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
@@ -88,6 +88,9 @@ _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
 
 _SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
+# Signer and verifier can be different replicas with drifting clocks, and `iat` makes PyJWT
+# reject a token minted a moment "in the future". Tolerate that much drift on `iat` and `exp`.
+_SECRET_LEEWAY = 30  # seconds
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
@@ -910,6 +913,7 @@ async def verify_secret_token(
             jwt=secret_token,
             key=_SECRET_KEY,
             algorithms=["HS256"],
+            leeway=_SECRET_LEEWAY,
         )
 
         request.state.user_id = auth_context.get("user_id")
@@ -939,6 +943,20 @@ async def verify_secret_token(
             path=request.url.path,
             method=request.method,
             reason="invalid_token",
+        )
+
+        raise UnauthorizedException(reason="invalid_token") from exc
+
+    except InvalidTokenError as exc:
+        # Every other claim rejection PyJWT can raise (a clock-skewed `iat` past the leeway
+        # raises `ImmatureSignatureError`, which is neither a `DecodeError` nor an
+        # `ExpiredSignatureError`). The token is unusable, not the server broken, so it is a 401.
+        log.debug(
+            "[auth] secret token unauthorized",
+            path=request.url.path,
+            method=request.method,
+            reason="invalid_token",
+            error=type(exc).__name__,
         )
 
         raise UnauthorizedException(reason="invalid_token") from exc

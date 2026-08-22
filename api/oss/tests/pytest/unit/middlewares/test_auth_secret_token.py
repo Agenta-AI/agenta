@@ -61,10 +61,17 @@ def _request() -> Request:
     )
 
 
-def _token(expires_in_seconds: int) -> str:
-    expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
+def _token(expires_in_seconds: int, issued_in_seconds: int = 0) -> str:
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(seconds=expires_in_seconds)
+    issued_at = now + timedelta(seconds=issued_in_seconds)
     return encode(
-        payload={"user_id": "u", "project_id": "p", "exp": int(expiry.timestamp())},
+        payload={
+            "user_id": "u",
+            "project_id": "p",
+            "iat": int(issued_at.timestamp()),
+            "exp": int(expiry.timestamp()),
+        },
         key=SECRET_KEY,
         algorithm="HS256",
     )
@@ -111,6 +118,40 @@ async def test_live_token_authenticates_and_logs_nothing(log):
 
     assert request.state.user_id == "u"
     assert request.state.project_id == "p"
+    assert log.calls == []
+
+
+@pytest.mark.asyncio
+async def test_clock_skewed_token_is_unauthorized_not_internal(log):
+    # `iat` turns on PyJWT's "not issued in the future" check, which raises
+    # `ImmatureSignatureError` — an `InvalidTokenError` that is neither a `DecodeError` nor an
+    # `ExpiredSignatureError`. Without a handler for it a skewed signer clock would 500.
+    with pytest.raises(UnauthorizedException) as raised:
+        await auth.verify_secret_token(
+            request=_request(),
+            secret_token=_token(expires_in_seconds=600, issued_in_seconds=300),
+        )
+
+    assert raised.value.status_code == 401
+    assert raised.value.detail["reason"] == "invalid_token"
+
+    (_, event, fields) = log.of("debug")[0]
+    assert event == "[auth] secret token unauthorized"
+    assert fields["reason"] == "invalid_token"
+    assert fields["error"] == "ImmatureSignatureError"
+
+
+@pytest.mark.asyncio
+async def test_small_clock_skew_still_authenticates(log):
+    # Signer and verifier can be different replicas; drift under the leeway must not fail auth.
+    request = _request()
+
+    await auth.verify_secret_token(
+        request=request,
+        secret_token=_token(expires_in_seconds=600, issued_in_seconds=10),
+    )
+
+    assert request.state.user_id == "u"
     assert log.calls == []
 
 
