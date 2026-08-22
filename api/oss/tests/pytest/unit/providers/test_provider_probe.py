@@ -1110,3 +1110,33 @@ def test_provider_key_still_wins_over_an_extras_key(monkeypatch, public_dns):
 
     (sent,) = recorder.requests
     assert sent.headers["authorization"] == "Bearer sk-STORED-PRIMARY-abc123"
+
+
+def test_a_bedrock_connection_probes_with_its_stored_extras_credential(
+    monkeypatch, public_dns
+):
+    # Bedrock keeps its credential in extras and the adapter reads it from there, so
+    # nothing is typed at all: the whole credential has to survive the merge.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    assert response.json()["credential"]["status"] == "valid"
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    assert "us-east-1" in str(sent.url)
+    assert STORED_KEY not in response.text
+
+
+def test_every_secret_kind_the_classifier_knows_has_a_credential_location():
+    # The probe asks the classifier where a kind keeps its credential. If a kind is ever
+    # added to the vault without an entry there, this probe would silently send nothing.
+    from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+
+    assert PRIMARY_CREDENTIAL_FIELDS["provider_key"] == ("provider", "key")
+    assert PRIMARY_CREDENTIAL_FIELDS["custom_provider"] == ("provider", "key")

@@ -16,6 +16,7 @@ from pydantic import SecretStr
 
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -42,19 +43,30 @@ def _typed_or_stored(typed, stored):
     return typed
 
 
-def _stored_credential(settings, extras):
-    """The key a stored connection authenticates with, wherever the vault keeps it.
+def _stored_credential(secret, settings, extras):
+    """The credential a stored connection authenticates with, wherever the vault keeps it.
 
-    A standard connection keeps it at `provider.key`; a custom one keeps it at
-    `provider.extras.api_key`, which is what the connection form writes. Reading only the
-    first sends a custom connection's probe out unauthenticated, and against a provider
-    whose catalog is public that looks like a pass rather than a failure. This is the same
-    rule the runtime resolver applies (`platform/connections.py`: `key` or
-    `extras["api_key"]`), so the probe tests the credential a run would actually use.
+    Which field holds it is per secret kind, and that is already written down once, in the
+    classifier redaction and keep-on-omit use. Asking it here means the probe looks where
+    the value actually is for every kind, instead of knowing about one or two of them.
+
+    A custom provider is the exception the classifier alone does not cover: its primary
+    field is `provider.key`, but the connection form writes the key into
+    `provider.extras.api_key`, so the probe falls back there. That is the rule the runtime
+    resolver applies too (`platform/connections.py`: `key` or `extras["api_key"]`), which
+    is what makes the probe test the credential a run would actually use. Every other
+    credential that lives in extras (a Bedrock bearer token, an AWS pair) is read from
+    extras by the adapter that needs it, so it travels untouched.
     """
-    key = getattr(settings, "key", None) if settings else None
-    if key:
-        return key
+    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
+        str(getattr(secret.kind, "value", secret.kind)), (None, None)
+    )
+
+    if container_name is not None:
+        container = getattr(secret.data, container_name, None)
+        primary = getattr(container, field, None) if container is not None else None
+        if primary:
+            return primary
 
     return (extras or {}).get("api_key") or None
 
@@ -143,7 +155,7 @@ class ProvidersRouter:
         stored_kind = _stored_kind(secret)
         settings = getattr(secret.data, "provider", None)
         stored_extras = getattr(settings, "extras", None) if settings else None
-        stored_key = _stored_credential(settings, stored_extras)
+        stored_key = _stored_credential(secret, settings, stored_extras)
 
         # A stored credential belongs to the provider it was saved for. Sending it to a
         # different provider family is never part of testing a connection, and it is how
