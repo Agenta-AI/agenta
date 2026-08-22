@@ -154,27 +154,28 @@ The vault returns plaintext only to a caller whose verified `Secret` token carri
   the END USER's credential at `/access/permissions/check` on their behalf, so nothing
   about the presented token says a run is starting — and that route is reachable by a
   browser. The runtime therefore proves what it is with a secret only the backend holds
-  (`AGENTA_SERVICES_INTERNAL_KEY`, falling back to `AGENTA_AUTH_KEY`), sent as
-  `X-Agenta-Runtime-Key` on the internal hop and compared in constant time. The
-  well-known placeholder is refused, so an unconfigured deployment issues no grant rather
-  than accepting a string anyone could send.
+  (`AGENTA_SERVICES_INTERNAL_KEY`), sent as `X-Agenta-Runtime-Key` on the internal
+  hop and compared in constant time. This key has no fallback to
+  `AGENTA_AUTH_KEY`. If it is missing or remains the well-known placeholder, the API
+  issues no grant instead of accepting a string anyone could send.
 - **A caller refreshing a grant it already holds.** The runner re-exchanges its run
   credential every few heartbeats; the exchange carries the grant forward rather than
   re-deciding it. The runner is never given the runtime secret, and it never reaches a
   sandbox.
 
-**A deployment that sets neither loses agent runs against write-only connections**, and
-the failure names something else: the run reports "provide the provider key in this run's
+**A deployment without the dedicated key loses agent runs against write-only connections**,
+and the failure names something else: the run reports "provide the provider key in this run's
 environment", which is right for a standalone run and misleading here. The services
 middleware therefore warns once, at the point of use, naming the variable to set. The
 placeholder is the shipped default in the example env files, so this is the common case,
 not an edge one.
 
 **Deployment.** Set `AGENTA_SERVICES_INTERNAL_KEY` to the same value on the API and the
-services container before turning write-only on (`AGENTA_AUTH_KEY` serves if it is a real
-value). The API warns at startup when a deployment uses write-only secrets without one,
-and a component that seeds write-only rows refuses to seed rather than store a credential
-no run can read.
+Services container before turning write-only on. It must be independent from
+`AGENTA_AUTH_KEY` and must not be provisioned to web, runner, sandbox, worker, cron, or
+migration containers. The API warns at startup when a deployment uses write-only secrets
+without one, and a component that seeds write-only rows refuses to seed rather than store
+a credential no run can read.
 
 The exchange never mints the grant from the requested `action` alone. It did once, and
 that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and

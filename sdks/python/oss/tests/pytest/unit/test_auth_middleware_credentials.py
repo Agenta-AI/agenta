@@ -109,8 +109,8 @@ async def test_no_runtime_key_means_no_header(platform, monkeypatch):
 
 async def test_a_missing_runtime_key_says_so_once(platform, monkeypatch, caplog):
     # The failure it causes reports a missing provider key, which is the wrong advice for
-    # this cause. An operator who never set AGENTA_AUTH_KEY — the shipped default — has no
-    # other way to reach it.
+    # this cause. The standalone-run advice is misleading here, and an operator who never
+    # set the dedicated runtime key has no other way to reach the actual cause.
     monkeypatch.setattr(auth_module, "_RUNTIME_KEY", "")
     monkeypatch.setattr(auth_module, "_RUNTIME_KEY_WARNED", False)
     platform.body = {"effect": "allow", "credentials": "Secret general-token"}
@@ -126,3 +126,27 @@ async def test_a_missing_runtime_key_says_so_once(platform, monkeypatch, caplog)
     ]
     assert len(notices) == 1
     assert "AGENTA_SERVICES_INTERNAL_KEY" in notices[0].getMessage()
+    assert "AGENTA_AUTH_KEY" not in notices[0].getMessage()
+
+
+def test_runtime_key_configuration_never_falls_back_to_the_admin_key(monkeypatch):
+    configured = {"AGENTA_AUTH_KEY": "administrator-key"}
+    monkeypatch.setattr(
+        auth_module,
+        "getenv",
+        lambda name, default=None: configured.get(name, default),
+    )
+
+    assert auth_module._runtime_key_from_environment() == ""
+
+
+def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
+    monkeypatch.setattr(
+        auth_module,
+        "getenv",
+        lambda name, default=None: (
+            "replace-me" if name == "AGENTA_SERVICES_INTERNAL_KEY" else default
+        ),
+    )
+
+    assert auth_module._runtime_key_from_environment() == ""

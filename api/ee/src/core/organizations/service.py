@@ -639,6 +639,7 @@ class OrganizationProvidersService:
                         )
                     ),
                 ),
+                write_only=False,
             )
 
             secret_dto = await self._vault_service().create_secret(

@@ -21,7 +21,6 @@ from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
-from oss.src.utils.env import env
 
 
 PROJECT_ID = str(uuid4())
@@ -74,16 +73,11 @@ class _FakeSecretsDAO:
         # Production resolves the update against the row under the write lock; the fake
         # does the same at the same point, so keep-on-omit is exercised, not skipped.
         if resolve_update is not None:
-            resolve_update(stored)
-
-        write_only = update_secret_dto.write_only
-        if write_only is None:
-            write_only = stored.write_only
+            update_secret_dto = resolve_update(stored, update_secret_dto)
 
         updated = stored.model_copy(
             update={
                 "header": update_secret_dto.header or stored.header,
-                "write_only": write_only,
             }
         )
         if update_secret_dto.secret is not None:
@@ -93,7 +87,12 @@ class _FakeSecretsDAO:
         self.records[str(secret_id)] = updated
         return updated
 
-    async def delete(self, secret_id, project_id, organization_id):
+    async def delete(
+        self, secret_id, project_id, organization_id, authorize_delete=None
+    ):
+        stored = self.records.get(str(secret_id))
+        if stored is not None and authorize_delete is not None:
+            authorize_delete(stored)
         self.records.pop(str(secret_id), None)
 
 
@@ -146,28 +145,12 @@ def test_create_echo_is_redacted_for_a_write_only_secret(harness):
 
     assert created["write_only"] is True
     assert "key" not in created["data"]["provider"]
-    assert created["has_key"] is True
-    assert created["key_preview"] == "sk-****et"
+    assert created["value_status"]["configured"] is True
+    assert created["value_status"]["preview"] == "sk-****et"
     assert KEY not in str(created)
 
 
-def test_create_without_the_flag_keeps_todays_response_while_the_gate_is_off(harness):
-    # The current frontend sends no flag; until AGENTA_VAULT_WRITE_ONLY_DEFAULT flips on,
-    # its creates must behave exactly as today.
-    client = harness
-
-    created = _create(client)
-
-    assert created["write_only"] is False
-    assert created["data"]["provider"]["key"] == KEY
-    assert "has_key" not in created
-    assert "key_preview" not in created
-
-
-def test_create_without_the_flag_is_write_only_once_the_gate_is_on(
-    harness, monkeypatch
-):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
+def test_create_without_the_flag_defaults_to_write_only(harness):
     client = harness
 
     created = _create(client)
@@ -183,8 +166,8 @@ def test_create_with_explicit_false_keeps_todays_response(harness):
 
     assert created["write_only"] is False
     assert created["data"]["provider"]["key"] == KEY
-    assert "has_key" not in created
-    assert "key_preview" not in created
+    assert created["value_status"]["configured"] is True
+    assert "preview" not in created["value_status"]
 
 
 def test_read_is_redacted_for_users_and_plaintext_for_the_grant(harness):
@@ -208,7 +191,7 @@ def test_list_is_redacted_for_users(harness):
     assert listed.status_code == 200
     (secret,) = listed.json()
     assert "key" not in secret["data"]["provider"]
-    assert secret["has_key"] is True
+    assert secret["value_status"]["configured"] is True
     assert KEY not in listed.text
 
 
@@ -245,10 +228,7 @@ def test_update_echo_is_redacted_and_omitted_key_keeps_the_stored_value(harness)
     assert runtime_read.json()["data"]["provider"]["key"] == KEY
 
 
-def test_todays_edit_form_shape_empty_string_key_keeps_the_stored_value(harness):
-    # The CURRENT frontend cannot prefill a redacted value, so its edit form re-sends
-    # `key: ""`. If "" cleared the credential, every edit through today's UI would wipe a
-    # write-only secret — so empty string must mean "keep the stored value".
+def test_explicit_empty_string_key_is_rejected(harness):
     client = harness
     created = _create(client, write_only=True)
 
@@ -262,7 +242,7 @@ def test_todays_edit_form_shape_empty_string_key_keeps_the_stored_value(harness)
             },
         },
     )
-    assert updated.status_code == 200, updated.text
+    assert updated.status_code == 400, updated.text
 
     runtime_read = client.get(f"/secrets/{created['id']}", headers=GRANT)
     assert runtime_read.json()["data"]["provider"]["key"] == KEY
@@ -274,8 +254,8 @@ def test_write_only_cannot_be_disabled_over_the_api(harness):
 
     response = client.put(f"/secrets/{created['id']}", json={"write_only": False})
 
-    assert response.status_code == 400
-    assert "write-only" in response.json()["detail"]
+    assert response.status_code == 422
+    assert "cannot be updated" in response.text
 
 
 def test_readable_secret_lists_with_its_value_as_today(harness):
@@ -422,10 +402,10 @@ def test_openapi_documents_the_write_only_contract(harness):
 
     schemas = client.app.openapi()["components"]["schemas"]
 
-    for field in ("write_only", "has_key", "key_preview"):
-        assert field in schemas["SecretResponseDTO"]["properties"]
+    for field in ("write_only", "value_status"):
+        assert field in schemas["PublicSecretResponseDTO"]["properties"]
     assert "write_only" in schemas["CreateSecretDTO"]["properties"]
-    assert "write_only" in schemas["UpdateSecretDTO"]["properties"]
+    assert "write_only" not in schemas["UpdateSecretDTO"]["properties"]
 
 
 CANARY = "sk-CANARY-DO-NOT-ECHO-abc123"

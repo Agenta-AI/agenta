@@ -104,14 +104,29 @@ def test_request_without_verified_token_has_no_grants():
 
 
 @pytest.mark.asyncio
-async def test_foreign_grant_names_do_not_confer_secret_resolve(log):
-    token = await auth.sign_secret_token(user_id="u", grants=["something-else"])
+async def test_unknown_grant_is_rejected_at_issuance(log):
+    with pytest.raises(ValueError, match="unsupported grant"):
+        await auth.sign_secret_token(user_id="u", grants=["something-else"])
 
-    request = _request()
-    await auth.verify_secret_token(request=request, secret_token=token)
 
-    assert request.state.token_grants == ("something-else",)
-    assert not auth.request_has_grant(request, auth.SECRET_RESOLVE_GRANT)
+@pytest.mark.asyncio
+async def test_unknown_grant_is_rejected_at_consumption(log):
+    expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
+    token = encode(
+        payload={
+            "user_id": "u",
+            "grants": ["something-else"],
+            "exp": int(expiry.timestamp()),
+        },
+        key=SECRET_KEY,
+        algorithm="HS256",
+    )
+
+    with pytest.raises(UnauthorizedException) as rejected:
+        await auth.verify_secret_token(request=_request(), secret_token=token)
+
+    assert rejected.value.status_code == 401
+    assert rejected.value.detail["reason"] == "invalid_token"
 
 
 @pytest.mark.asyncio

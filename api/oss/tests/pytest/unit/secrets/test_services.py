@@ -77,7 +77,7 @@ class _FakeSecretsDAO:
         # Production resolves the update against the row under the write lock; the fake
         # does the same at the same point, so keep-on-omit is exercised, not skipped.
         if resolve_update is not None:
-            resolve_update(stored)
+            update_secret_dto = resolve_update(stored, update_secret_dto)
         # Like the postgres mapping, the whole data blob is replaced: whatever the payload
         # omits is gone unless the service carried it over first.
         record = SecretResponseDTO(

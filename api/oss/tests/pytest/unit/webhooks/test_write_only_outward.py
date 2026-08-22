@@ -1,8 +1,8 @@
 """Webhook responses are write-only-aware; internal signing keeps plaintext.
 
 The signing secret lives in the vault, but it is a SHARED secret: the subscriber verifies
-our signature with the same value, so webhook records are created readable regardless of
-the env gate. Once a record IS write-only (only a manual tighten gets it there), no
+our signature with the same value, so webhook records explicitly opt out of write-only.
+Once a legacy record IS write-only, no
 USER-facing webhook response — create echo, fetch, edit echo — may carry the value again,
 while the internal resolver the signer uses stays plaintext.
 """
@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.secrets.dtos import SecretResponseDTO, UpdateSecretDTO
+from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.webhooks.types import (
@@ -20,7 +20,6 @@ from oss.src.core.webhooks.types import (
     WebhookSubscriptionData,
     WebhookSubscriptionEdit,
 )
-from oss.src.utils.env import env
 
 
 PROJECT_ID = uuid4()
@@ -65,11 +64,8 @@ class _FakeSecretsDAO:
         # Production resolves the update against the row under the write lock; the fake
         # does the same at the same point, so keep-on-omit is exercised, not skipped.
         if resolve_update is not None:
-            resolve_update(stored)
-        write_only = update_secret_dto.write_only
-        if write_only is None:
-            write_only = stored.write_only
-        updated = stored.model_copy(update={"write_only": write_only})
+            update_secret_dto = resolve_update(stored, update_secret_dto)
+        updated = stored.model_copy()
         if update_secret_dto.secret is not None:
             updated.data = update_secret_dto.secret.data
         self.records[secret_id] = updated
@@ -129,11 +125,15 @@ def _subscription_create():
     )
 
 
+def _mark_write_only(vault_service, secret_id):
+    stored = vault_service.secrets_dao.records[secret_id]
+    vault_service.secrets_dao.records[secret_id] = stored.model_copy(
+        update={"write_only": True}
+    )
+
+
 @pytest.mark.asyncio
-async def test_gate_on_still_leaves_the_signing_secret_readable(services, monkeypatch):
-    # The vault-wide write-only default must not reach webhook signing secrets: the
-    # subscriber needs the value to verify signatures.
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
+async def test_webhook_signing_secret_is_explicitly_readable(services):
     webhooks_service, _ = services
 
     created = await webhooks_service.create_subscription(
@@ -151,12 +151,9 @@ async def test_gate_on_still_leaves_the_signing_secret_readable(services, monkey
 
 
 @pytest.mark.asyncio
-async def test_gate_on_returns_a_generated_secret_on_the_create_echo(
-    services, monkeypatch
-):
+async def test_generated_secret_is_returned_on_the_create_echo(services):
     # The create echo is the ONLY place a caller can read a secret Agenta generated for
     # them. Redacting it would ship a subscription that can never be verified.
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", True)
     webhooks_service, _ = services
 
     created = await webhooks_service.create_subscription(
@@ -183,8 +180,7 @@ async def test_gate_on_returns_a_generated_secret_on_the_create_echo(
 
 
 @pytest.mark.asyncio
-async def test_gate_off_keeps_todays_responses(services, monkeypatch):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+async def test_explicit_readable_secret_keeps_existing_responses(services):
     webhooks_service, _ = services
 
     created = await webhooks_service.create_subscription(
@@ -202,10 +198,7 @@ async def test_gate_off_keeps_todays_responses(services, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_manually_tightened_secret_stops_appearing_in_fetches(
-    services, monkeypatch
-):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+async def test_legacy_write_only_secret_stops_appearing_in_fetches(services):
     webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
@@ -218,11 +211,7 @@ async def test_manually_tightened_secret_stops_appearing_in_fetches(
     stored = await webhooks_service.fetch_subscription(
         project_id=PROJECT_ID, subscription_id=created.id
     )
-    await vault_service.update_secret(
-        secret_id=UUID(str(stored.secret_id)),
-        project_id=PROJECT_ID,
-        update_secret_dto=UpdateSecretDTO(write_only=True),
-    )
+    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
 
     fetched = await webhooks_service.fetch_subscription(
         project_id=PROJECT_ID,
@@ -232,8 +221,7 @@ async def test_manually_tightened_secret_stops_appearing_in_fetches(
 
 
 @pytest.mark.asyncio
-async def test_internal_resolver_keeps_plaintext_for_signing(services, monkeypatch):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+async def test_internal_resolver_keeps_plaintext_for_signing(services):
     webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
@@ -245,11 +233,7 @@ async def test_internal_resolver_keeps_plaintext_for_signing(services, monkeypat
     stored = await webhooks_service.dao.fetch_subscription(
         project_id=PROJECT_ID, subscription_id=created.id
     )
-    await vault_service.update_secret(
-        secret_id=UUID(str(stored.secret_id)),
-        project_id=PROJECT_ID,
-        update_secret_dto=UpdateSecretDTO(write_only=True),
-    )
+    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
 
     stored = await webhooks_service.dao.fetch_subscription(
         project_id=PROJECT_ID, subscription_id=created.id
@@ -264,11 +248,10 @@ async def test_internal_resolver_keeps_plaintext_for_signing(services, monkeypat
 
 @pytest.mark.asyncio
 async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_value(
-    services, monkeypatch
+    services,
 ):
     # The rotation path builds an update-path payload DTO; the parent `SecretDTO` does not
     # validate there, so this pins that editing a subscription's secret still works.
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
     webhooks_service, _ = services
 
     created = await webhooks_service.create_subscription(
@@ -302,10 +285,7 @@ async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_valu
 
 
 @pytest.mark.asyncio
-async def test_rotation_echo_stays_redacted_for_a_write_only_secret(
-    services, monkeypatch
-):
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
+async def test_rotation_echo_stays_redacted_for_a_write_only_secret(services):
     webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
@@ -317,11 +297,7 @@ async def test_rotation_echo_stays_redacted_for_a_write_only_secret(
     stored = await webhooks_service.dao.fetch_subscription(
         project_id=PROJECT_ID, subscription_id=created.id
     )
-    await vault_service.update_secret(
-        secret_id=UUID(str(stored.secret_id)),
-        project_id=PROJECT_ID,
-        update_secret_dto=UpdateSecretDTO(write_only=True),
-    )
+    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
 
     edited = await webhooks_service.edit_subscription(
         project_id=PROJECT_ID,

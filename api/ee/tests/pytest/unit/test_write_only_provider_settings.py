@@ -12,7 +12,9 @@ from uuid import uuid4
 
 import pytest
 
+from ee.src.core.organizations import service as organization_service_module
 from ee.src.core.organizations.service import OrganizationProvidersService
+from ee.src.core.organizations.types import OrganizationProviderCreate
 from oss.src.core.secrets.dtos import SecretResponseDTO
 
 
@@ -28,6 +30,40 @@ class _StubVaultService:
         self, *, secret_id, organization_id=None, project_id=None
     ):
         return self._secret
+
+
+class _Session:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+
+class _Engine:
+    def session(self):
+        return _Session()
+
+
+class _ProviderDAO:
+    def __init__(self, session):
+        self.session = session
+
+    async def get_by_slug(self, *, slug, organization_id):
+        return None
+
+
+class _SecretCaptured(Exception):
+    pass
+
+
+class _CapturingVaultService:
+    def __init__(self, captured):
+        self.captured = captured
+
+    async def create_secret(self, *, organization_id, create_secret_dto):
+        self.captured.append(create_secret_dto)
+        raise _SecretCaptured
 
 
 def _sso_secret(write_only: bool) -> SecretResponseDTO:
@@ -55,6 +91,44 @@ def _with_secret(monkeypatch, secret) -> OrganizationProvidersService:
         staticmethod(lambda: _StubVaultService(secret)),
     )
     return OrganizationProvidersService()
+
+
+@pytest.mark.asyncio
+async def test_sso_secret_creation_is_explicitly_readable(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        organization_service_module,
+        "get_transactions_engine",
+        lambda: _Engine(),
+    )
+    monkeypatch.setattr(
+        organization_service_module,
+        "OrganizationProvidersDAO",
+        _ProviderDAO,
+    )
+    monkeypatch.setattr(
+        OrganizationProvidersService,
+        "_vault_service",
+        staticmethod(lambda: _CapturingVaultService(captured)),
+    )
+
+    payload = OrganizationProviderCreate(
+        slug="okta",
+        description="Okta SSO",
+        settings={
+            "client_id": "client-1",
+            "client_secret": "super-secret-value-123",
+            "issuer_url": "https://issuer.example.com",
+        },
+        organization_id=ORGANIZATION_ID,
+    )
+
+    with pytest.raises(_SecretCaptured):
+        await OrganizationProvidersService().create_provider(
+            str(ORGANIZATION_ID), payload, user_id=str(uuid4())
+        )
+
+    assert captured[0].write_only is False
 
 
 @pytest.mark.asyncio
