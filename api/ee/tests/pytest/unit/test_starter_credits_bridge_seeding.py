@@ -1130,20 +1130,12 @@ class TestRefusalLogging:
         assert "carol" not in repr((message, fields))
 
 
-def test_a_bridge_deployment_without_a_runtime_key_is_warned_at_startup(monkeypatch):
+def test_a_bridge_deployment_without_a_runtime_key_fails_at_startup(monkeypatch):
     # The bridge seeds write-only rows, so the deployment needs the dedicated runtime key.
     from oss.src.utils import helpers
 
-    recorded: list = []
-    monkeypatch.setattr(
-        helpers,
-        "log",
-        type("_Log", (), {"warning": staticmethod(lambda msg: recorded.append(msg))})(),
-    )
     monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
     monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
 
-    helpers.warn_unconfigured_platform_runtime_key()
-
-    assert len(recorded) == 1
-    assert "AGENTA_SERVICES_INTERNAL_KEY" in recorded[0]
+    with pytest.raises(RuntimeError, match="AGENTA_SERVICES_INTERNAL_KEY"):
+        helpers.validate_platform_runtime_key()
