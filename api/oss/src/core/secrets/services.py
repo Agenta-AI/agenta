@@ -26,6 +26,11 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
 )
 
+from oss.src.core.secrets.managed import (
+    ManagedSecretReadOnlyError,
+    SecretManagementDTO,
+)
+
 
 _BLANK_CREDENTIAL_VALUE_MESSAGE = (
     "Credential values cannot be blank. Omit an unchanged credential field or provide a new "
@@ -197,6 +202,9 @@ def _resolve_update(
     another kind's or another provider's credential — and that decision reads the same
     stored row, so it belongs under the same lock.
     """
+    if stored_secret_dto.management is not None:
+        raise ManagedSecretReadOnlyError()
+
     resolved_update = requested_update.model_copy(deep=True)
     if resolved_update.secret is None:
         return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
@@ -234,6 +242,11 @@ def _resolve_update(
     return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
 
 
+def _authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
+    if stored_secret_dto.management is not None:
+        raise ManagedSecretReadOnlyError()
+
+
 def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
     """Fill an update payload's omitted ``models``/``harnesses`` from the stored record.
 
@@ -263,6 +276,36 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
     ):
+        return await self._create_secret(
+            project_id=project_id,
+            organization_id=organization_id,
+            create_secret_dto=create_secret_dto,
+            management=None,
+        )
+
+    async def create_managed_secret(
+        self,
+        *,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+        create_secret_dto: CreateSecretDTO,
+        management: SecretManagementDTO,
+    ):
+        return await self._create_secret(
+            project_id=project_id,
+            organization_id=organization_id,
+            create_secret_dto=create_secret_dto,
+            management=management,
+        )
+
+    async def _create_secret(
+        self,
+        *,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+        create_secret_dto: CreateSecretDTO,
+        management: SecretManagementDTO | None,
+    ):
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
         if (
@@ -287,11 +330,19 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            secret_dto = await self.secrets_dao.create(
-                project_id=project_id,
-                organization_id=organization_id,
-                create_secret_dto=create_secret_dto,
-            )
+            if management is None:
+                secret_dto = await self.secrets_dao.create(
+                    project_id=project_id,
+                    organization_id=organization_id,
+                    create_secret_dto=create_secret_dto,
+                )
+            else:
+                secret_dto = await self.secrets_dao.create(
+                    project_id=project_id,
+                    organization_id=organization_id,
+                    create_secret_dto=create_secret_dto,
+                    management=management,
+                )
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
@@ -436,6 +487,7 @@ class VaultService:
                 secret_id=secret_id,
                 project_id=project_id,
                 organization_id=organization_id,
+                authorize_delete=_authorize_delete,
             )
 
         if project_id is not None:

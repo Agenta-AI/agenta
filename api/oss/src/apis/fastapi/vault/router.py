@@ -17,6 +17,7 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     PublicSecretResponseDTO,
 )
+from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import project_secret_response
 
 from oss.src.core.access.permissions.types import Permission
@@ -233,6 +234,12 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
             ) from e
+        except ManagedSecretReadOnlyError as e:
+            # 409, not 400: the payload is well-formed; the stored row's managed state is
+            # what forbids the change.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=e.message
+            ) from e
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
@@ -254,8 +261,13 @@ class VaultRouter:
                 status_code=403,
             )
 
-        await self.service.delete_secret(
-            project_id=UUID(request.state.project_id),
-            secret_id=UUID(secret_id),
-        )
+        try:
+            await self.service.delete_secret(
+                project_id=UUID(request.state.project_id),
+                secret_id=UUID(secret_id),
+            )
+        except ManagedSecretReadOnlyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=e.message
+            ) from e
         return status.HTTP_204_NO_CONTENT

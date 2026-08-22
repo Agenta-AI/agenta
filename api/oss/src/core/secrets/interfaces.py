@@ -6,6 +6,7 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
     SecretResponseDTO,
 )
+from oss.src.core.secrets.managed import SecretManagementDTO
 
 
 class SecretsDAOInterface:
@@ -18,6 +19,7 @@ class SecretsDAOInterface:
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
         create_secret_dto: CreateSecretDTO,
+        management: Optional[SecretManagementDTO] = None,
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
@@ -64,5 +66,6 @@ class SecretsDAOInterface:
         secret_id: UUID,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
+        authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
     ) -> None:
         raise NotImplementedError
