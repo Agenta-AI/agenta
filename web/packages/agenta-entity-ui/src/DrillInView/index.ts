@@ -299,6 +299,8 @@ export {
     allowedProviders,
     buildModelOptionGroups,
     harnessAllowsModel,
+    bareConnectionModelId,
+    modelDisplayName,
     modelLabel,
     providerForModel,
     vaultModelGroups,

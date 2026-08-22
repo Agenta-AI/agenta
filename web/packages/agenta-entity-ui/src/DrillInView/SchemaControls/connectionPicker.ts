@@ -33,13 +33,16 @@ import {
 } from "@agenta/entities/secret"
 
 import {
-    modelLabel,
+    modelDisplayName,
     modelSelectionMode,
     vaultPickedProviderFamily,
     type ConnectionMode,
     type HarnessCapabilitiesMap,
 } from "./connectionUtils"
 import {harnessMetaFor} from "./harnessMeta"
+
+/** The `PROVIDER_ICON_MAP` key that resolves to Agenta's own brand mark. */
+const AGENTA_ICON_KEY = "agenta"
 
 /**
  * The harnesses whose `self_managed` on-ramp is a consumer SUBSCRIPTION, and the provider family
@@ -246,7 +249,7 @@ const modelRow = ({
     connection: {key: string; name: string}
 }): PickerModelRow => ({
     modelId,
-    label: modelLabel(capabilities, harness, modelId) ?? label ?? modelId,
+    label: label ?? modelDisplayName(capabilities, harness, modelId),
     harness,
     harnessLabel: harnessMetaFor(harness).label,
     mode,
@@ -341,7 +344,11 @@ const connectionRows = ({
         rows.push({
             key: connection.id,
             name: connection.name,
-            iconKey: connection.kind,
+            // A connection Agenta provisioned carries Agenta's mark, not the vendor mark of the
+            // deployment behind it — that deployment is an implementation detail of the offer, and
+            // naming it here would credit a vendor the user never chose. The row's NAME still comes
+            // from the record, so what it is called stays the backend's to decide.
+            iconKey: connection.managedBy ? AGENTA_ICON_KEY : connection.kind,
             kind: "connection",
             models,
         })

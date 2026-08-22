@@ -54,19 +54,30 @@ export interface ProbeProviderCredentials {
  * Probe outcomes come back as HTTP 200 with a status inside, so a rejected key is a normal
  * answer, not an exception. Returns `null` only when the payload fails the boundary schema; a
  * transport failure still rejects so the card can tell "provider said no" from "we never asked".
+ *
+ * `secretId` names a stored vault row for the server to resolve credentials from, which is how a
+ * write-only connection is testable at all — see `probeRequestFor`, which decides when to send it.
+ * Anything the caller also puts in `provider` overrides what the server resolved.
  */
 export const probeProvider = async ({
     projectId,
     kind,
     provider,
+    secretId,
 }: {
     projectId: string
-    kind: string
+    /** Omitted when `secretId` is given: the stored row names its own kind. */
+    kind?: string
     provider: ProbeProviderCredentials
+    secretId?: string
 }): Promise<ProbeProviderResponse | null> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/providers/probe`,
-        {kind, provider},
+        {
+            ...(kind ? {kind} : {}),
+            provider,
+            ...(secretId ? {secret_id: secretId} : {}),
+        },
         {params: {project_id: projectId}},
     )
 

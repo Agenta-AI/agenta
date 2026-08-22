@@ -142,6 +142,11 @@ export const standardSecretsAtom = atom((get) => {
             return {
                 ...secret,
                 key: match.key,
+                // A write-only record answers "is it configured" here; its value never arrives.
+                writeOnly: match.writeOnly,
+                hasKey: match.hasKey,
+                keyPreview: match.keyPreview,
+                managedBy: match.managedBy,
                 id: match.id,
                 // The connection's saved policy round-trips: a form seeded from this row
                 // sends it back on update instead of dropping it.

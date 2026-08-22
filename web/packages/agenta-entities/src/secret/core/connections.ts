@@ -11,6 +11,7 @@
  */
 
 import type {LlmProvider} from "@agenta/shared/types"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 
 import {
     carriedCredentialKeys,
@@ -22,7 +23,13 @@ import {
     type CredentialValues,
 } from "./providerCatalog"
 import {PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
-import {PROVIDER_KINDS, SecretKind, VAULT_PERSIST_REDACTED, type CreateSecretDto} from "./types"
+import {
+    PROVIDER_KINDS,
+    SECRET_VALUE_FIELDS,
+    SecretKind,
+    VAULT_PERSIST_REDACTED,
+    type CreateSecretDto,
+} from "./types"
 
 // ---------------------------------------------------------------------------
 // The connection model
@@ -45,6 +52,16 @@ export interface ProviderConnection {
     /** Saved harness policy. `undefined` means "any harness Agenta supports". */
     harnesses?: string[]
     createdAt?: string
+    /**
+     * The vault holds a credential for this connection. On a write-only record this is the ONLY
+     * presence signal there is — the value never comes back — so every "is it configured" check
+     * reads this rather than the credential fields.
+     */
+    hasStoredCredential: boolean
+    /** Masked credential (`sk-****9Qa`), when the record carries one. */
+    keyPreview?: string
+    /** Set when Agenta provisioned and owns this connection; the user may not edit or delete it. */
+    managedBy?: string
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
@@ -89,6 +106,11 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             models: row.models,
             harnesses: row.harnesses,
             createdAt: row.created_at,
+            // A readable record proves it by carrying the value; a write-only one only says so.
+            hasStoredCredential:
+                row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
+            keyPreview: row.keyPreview,
+            managedBy: row.managedBy,
             source: row,
         })
         return acc
@@ -128,15 +150,127 @@ export const credentialValuesFor = (connection: ProviderConnection): CredentialV
 }
 
 /**
+ * The credential fields a saved connection already satisfies without the user retyping them.
+ *
+ * A write-only record returns no values, so its secret fields arrive empty on every edit. Treating
+ * them as unfilled would lock the card: changing only the model list would demand the key again.
+ * Non-secret fields (endpoint, region) still come back and need no exemption.
+ */
+export const storedCredentialFields = (
+    connection: ProviderConnection | null | undefined,
+): string[] => {
+    if (!connection?.hasStoredCredential) return []
+    const keys = [
+        ...credentialFieldsForKind(connection.kind).map((field) => field.key),
+        ...carriedCredentialKeys(connection.kind),
+    ]
+    return keys.filter((key) => (SECRET_VALUE_FIELDS as readonly string[]).includes(key))
+}
+
+/** The probe request body: a credential to spend, or the vault row to spend one from. */
+export interface ProbeRequestBody {
+    /** Omitted alongside `secret_id`: the stored row names its own kind. */
+    kind?: string
+    provider: ReturnType<typeof toProviderCredentials>
+    /** Vault row whose stored credentials the server resolves for this probe. */
+    secret_id?: string
+}
+
+/** Drop every blank value, and any `extras` left empty by dropping them. */
+const withoutBlanks = (
+    provider: ReturnType<typeof toProviderCredentials>,
+): ReturnType<typeof toProviderCredentials> => {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(provider)) {
+        if (key === "extras") {
+            const extras = Object.fromEntries(
+                Object.entries((value ?? {}) as Record<string, string>).filter(([, entry]) =>
+                    (entry ?? "").trim(),
+                ),
+            )
+            if (Object.keys(extras).length) out.extras = extras
+            continue
+        }
+        if (typeof value === "string" && !value.trim()) continue
+        out[key] = value
+    }
+    return out
+}
+
+/**
+ * The probe request for a Test press.
+ *
+ * A write-only connection hands its secret back to nobody, so a card sitting on one has nothing to
+ * put in the credential — testing it used to mean retyping the key. When the user typed no secret
+ * material and the vault holds some, the request names the row (`secret_id`) and the server
+ * resolves the credential itself.
+ *
+ * Typed fields still ride along, and the server overrides the resolved value field by field, so an
+ * edited base URL can be tested against the saved key. Blank fields are dropped rather than sent
+ * empty: an empty `key` alongside a `secret_id` would read as "test with no credential", which is
+ * a different question and, for an OpenAI-compatible endpoint, a legitimate one.
+ *
+ * `kind` is omitted whenever the row is named. The stored kind is authoritative, and the server
+ * rejects (422) a `kind` that disagrees with it unless a key rides along — which is exactly the
+ * request this builds. Sending the card's own kind would put the FE's canonical spelling in a
+ * position to contradict the vault's over nothing.
+ */
+export const probeRequestFor = (
+    kind: string,
+    credential: CredentialValues,
+    connection?: ProviderConnection | null,
+): ProbeRequestBody => {
+    const provider = toProviderCredentials(kind, credential)
+    const typedSecret = SECRET_VALUE_FIELDS.some((field) => (credential[field] ?? "").trim())
+    if (typedSecret || !connection?.hasStoredCredential || !connection.id) {
+        return {kind, provider}
+    }
+    return {provider: withoutBlanks(provider), secret_id: connection.id}
+}
+
+/** The HTTP status of a failed request, when it carried one. */
+const statusOf = (error: unknown): number | null => {
+    const response = (error as {response?: {status?: unknown}})?.response
+    return typeof response?.status === "number" ? response.status : null
+}
+
+/**
+ * Why a Test never produced a verdict.
+ *
+ * A probe OUTCOME is an HTTP 200 with a status inside, so anything that throws here is the request
+ * itself failing. The default reads as "we could not reach the provider", which is true of a
+ * transport failure and false of everything the API rejects on its own — a 404 means the stored
+ * connection is gone, not that the provider is down. So a 4xx speaks with the server's own words
+ * where it gave any, and only a 5xx or a dead connection falls back to the reach-the-provider line.
+ */
+// TODO(copy: owner)
+export const probeFailureMessage = (error: unknown, title: string): string => {
+    const status = statusOf(error)
+    if (status === 404) return "This connection no longer exists. Reload and try again."
+    if (status && status >= 400 && status < 500) {
+        const message = extractApiErrorMessage(error)
+        if (message && message !== String(error)) return message
+    }
+    return `Agenta could not reach ${title} to test this credential.`
+}
+
+/**
  * Whether this kind has enough credential to be worth testing or saving.
  *
  * Two rules, because providers state their requirement two ways: every field marked required must
  * be filled, and a provider with alternative auth sets (Bedrock: a bearer token OR an access-key
  * pair) must satisfy one of them. A kind that declares neither still needs something typed —
  * otherwise Done would happily store an empty connection.
+ *
+ * `stored` names the fields the vault already holds (see `storedCredentialFields`); they count as
+ * filled even though the card shows them empty.
  */
-export const hasRequiredCredential = (kind: string, values: CredentialValues): boolean => {
-    const filled = (key: string) => !!(values[key] ?? "").trim()
+export const hasRequiredCredential = (
+    kind: string,
+    values: CredentialValues,
+    stored: readonly string[] = [],
+): boolean => {
+    const filled = (key: string) => !!(values[key] ?? "").trim() || stored.includes(key)
     const fields = credentialFieldsForKind(kind)
 
     if (!fields.every((field) => !field.required || filled(field.key))) return false
@@ -160,8 +294,12 @@ export const maskSecret = (value: string): string =>
  */
 export const credentialSummary = (connection: ProviderConnection): string => {
     const {source} = connection
+    // A write-only record masks its own key server-side; only a readable one is masked here.
+    if (connection.keyPreview) return connection.keyPreview
     const key = source.key || source.apiKey || source.bearerToken || source.accessKeyId
     if (key) return maskSecret(key)
+    // TODO(copy: owner)
+    if (connection.hasStoredCredential) return "Key configured"
 
     if (source.apiBaseUrl) {
         try {
@@ -519,6 +657,7 @@ export const buildConnectionPayload = (
     fallbackName: string,
 ): CreateSecretDto => {
     const name = draft.name.trim()
+    const key = (draft.credential.apiKey ?? "").trim()
     const policy = {
         ...(draft.models ? {models: draft.models.map((slug) => ({slug}))} : {}),
         ...(draft.harnesses ? {harnesses: draft.harnesses} : {}),
@@ -531,7 +670,8 @@ export const buildConnectionPayload = (
                 kind: SecretKind.ProviderKey,
                 data: {
                     kind: draft.kind,
-                    provider: {key: (draft.credential.apiKey ?? "").trim()},
+                    // An omitted key means "keep the stored value"; `""` would blank it.
+                    provider: key ? {key} : {},
                     ...policy,
                 },
             },
@@ -553,9 +693,7 @@ export const buildConnectionPayload = (
                     // request, where each adapter reads it where its provider expects it.
                     extras: {
                         ...(provider.extras ?? {}),
-                        ...(draft.credential.apiKey?.trim()
-                            ? {api_key: draft.credential.apiKey.trim()}
-                            : {}),
+                        ...(key ? {api_key: key} : {}),
                     },
                 },
                 // A `custom_provider` record always declares `models`; an untouched card sends the
