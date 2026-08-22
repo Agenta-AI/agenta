@@ -123,3 +123,40 @@ describe("getNodeById", () => {
         expect(getNodeById(null, "a")).toBeNull()
     })
 })
+
+describe("groupAnnotationsByReferenceId prototype safety", () => {
+    // CodeQL flagged the grouping assignment as js/prototype-polluting-assignment: both keys come
+    // off an API payload, so a `__proto__` evaluator slug or metric name wrote through to
+    // `Object.prototype`. Such a key never reached the result — `Object.entries` does not
+    // enumerate it — so the guard drops nothing a caller could read.
+    const POLLUTING_KEYS = ["__proto__", "constructor", "prototype"]
+
+    it("does not let a hostile evaluator slug reach Object.prototype", () => {
+        for (const key of POLLUTING_KEYS) {
+            const result = groupAnnotationsByReferenceId([
+                annotation(key, {score: 1}),
+                annotation("clean", {score: 2}),
+            ])
+
+            expect(({} as Record<string, unknown>).score).toBeUndefined()
+            expect(Object.prototype).not.toHaveProperty("score")
+            expect(result.clean).toEqual({
+                score: {average: 2, annotations: [{value: 2, user: "alice"}]},
+            })
+        }
+    })
+
+    it("does not let a hostile metric name reach Object.prototype", () => {
+        for (const key of POLLUTING_KEYS) {
+            const result = groupAnnotationsByReferenceId([
+                annotation("clean", {[key]: 1, score: 2}),
+            ])
+
+            expect(({} as Record<string, unknown>).values).toBeUndefined()
+            expect(Object.prototype).not.toHaveProperty("values")
+            expect(result.clean).toEqual({
+                score: {average: 2, annotations: [{value: 2, user: "alice"}]},
+            })
+        }
+    })
+})
