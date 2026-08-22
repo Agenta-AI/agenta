@@ -137,7 +137,6 @@ ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
 # deploy anyway instead of dying on a missing serviceId; every other service
 # staying absent is still fatal.
 OPTIONAL_SERVICES=(web-mobile)
-REQUIRED_SERVICE_COUNT=$(( ${#ALL_SERVICES[@]} - ${#OPTIONAL_SERVICES[@]} ))
 # Filled in by patch_commit_images / deploy_all for the run summary.
 MISSING_SERVICES=""
 
@@ -281,17 +280,38 @@ skip_absent_service() {
     return 1
 }
 
+# required_missing_services: the required services absent from the clone, as a
+# leading-space-separated list. Empty means the clone is fully materialized.
+required_missing_services() {
+    local svc out=""
+    for svc in "${ALL_SERVICES[@]}"; do
+        if contains_word "${OPTIONAL_SERVICES[*]}" "$svc"; then
+            continue
+        fi
+        if ! clone_has_service "$svc"; then
+            out="$out $svc"
+        fi
+    done
+    printf '%s' "$out"
+}
+
 # Wait until the clone's serviceInstances are fully materialized (reads can
 # lag writes right after environmentCreate).
+#
+# Checks every REQUIRED service by name rather than counting instances. A count
+# is unsound once the set has an optional member: a converged clone that has
+# web-mobile plus 12 of its 13 required services also totals 13, so a count
+# check would return while a required service was still missing and the deploy
+# loop would fail instead of waiting.
 wait_clone_populated() {
-    local waited=0 interval=5 max="${RW_CLONE_POPULATE_SECONDS:-120}" count
+    local waited=0 interval=5 max="${RW_CLONE_POPULATE_SECONDS:-120}" missing
     while :; do
         refresh_clone_services || return 1
-        count="$(jq -r '[.data.environment.serviceInstances.edges[].node] | length' <<<"$CLONE_SERVICES_JSON")"
-        [ "$count" -ge "$REQUIRED_SERVICE_COUNT" ] && return 0
+        missing="$(required_missing_services)"
+        [ -z "$missing" ] && return 0
         waited=$((waited + interval))
         if [ "$waited" -ge "$max" ]; then
-            printf 'Environment has %s/%s service instances after %ss.\n' "$count" "$REQUIRED_SERVICE_COUNT" "$max" >&2
+            printf 'Environment is still missing required service(s) after %ss:%s\n' "$max" "$missing" >&2
             return 1
         fi
         sleep "$interval"
