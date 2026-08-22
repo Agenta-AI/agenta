@@ -42,6 +42,27 @@ def _typed_or_stored(typed, stored):
     return typed
 
 
+def _merged_extras(typed, stored):
+    """Extras merged KEY BY KEY, not replaced wholesale.
+
+    `extras` is a bag of independent fields, some credential and some config: a Bedrock
+    connection keeps its bearer token or key pair next to its region. Replacing the whole
+    dict because the caller typed one of them would drop the credential and probe with
+    nothing, which reads as a broken connection. Each key follows the same rule as every
+    other field: what was typed wins, blank or absent keeps what is stored.
+    """
+    if not typed:
+        return stored
+
+    merged = dict(stored or {})
+    for name, value in typed.items():
+        if value in (None, ""):
+            continue
+        merged[name] = value
+
+    return merged or None
+
+
 def _stored_kind(secret) -> str:
     """The provider family a stored secret was saved for, as the probe registry spells it."""
     kind = getattr(secret.data, "kind", None)
@@ -123,7 +144,7 @@ class ProvidersRouter:
             key=_typed_or_stored(typed.key, stored_key),
             url=_typed_or_stored(typed.url, getattr(settings, "url", None)),
             version=_typed_or_stored(typed.version, getattr(settings, "version", None)),
-            extras=_typed_or_stored(typed.extras, getattr(settings, "extras", None)),
+            extras=_merged_extras(typed.extras, getattr(settings, "extras", None)),
         )
 
         return kind or stored_kind, merged

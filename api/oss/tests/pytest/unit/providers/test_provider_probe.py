@@ -984,3 +984,72 @@ def test_an_omitted_provider_object_probes_exactly_what_is_stored(
     (sent,) = recorder.requests
     assert sent.headers["host"] == "old.example.com"
     assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def _stored_bedrock(token: str = STORED_KEY, region: str = "us-east-1"):
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="bedrock-stored",
+        kind="custom_provider",
+        data={
+            "kind": "bedrock",
+            "provider": {
+                "extras": {
+                    "aws_bearer_token_bedrock": token,
+                    "aws_region_name": region,
+                }
+            },
+            "models": [{"slug": "claude-opus-5"}],
+        },
+        header={"name": "Bedrock"},
+        write_only=True,
+    )
+
+
+def test_typing_one_extra_keeps_the_stored_credential(monkeypatch, public_dns):
+    # The card sends only what the user touched. If extras replaced the stored dict
+    # wholesale, typing a region would drop the credential beside it and the probe would
+    # report a working connection as broken.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"extras": {"aws_region_name": "eu-central-1"}},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["credential"]["status"] == "valid"
+    (sent,) = recorder.requests
+    # The typed region routed the request; the stored token still authenticated it.
+    assert "eu-central-1" in str(sent.url)
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+
+
+def test_a_typed_extra_overrides_the_stored_one_of_the_same_name(
+    monkeypatch, public_dns
+):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_bedrock())
+    recorder = Recorder(json_response({"modelSummaries": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "provider": {"extras": {"aws_bearer_token_bedrock": CANARY}},
+        },
+    )
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {CANARY}"
+    # The stored region survived: only the named key was replaced.
+    assert "us-east-1" in str(sent.url)
