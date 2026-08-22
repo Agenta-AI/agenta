@@ -9,7 +9,7 @@ import {
     type SessionStreamNest,
 } from "@agenta/entities/session"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
