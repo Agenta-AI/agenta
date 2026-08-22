@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from "vitest"
 
-import {projectWatchUrl} from "../../src/features/app/projectWatchRelay"
+import {PROJECT_WATCH_LISTS, projectWatchUrl} from "../../src/features/app/projectWatchRelay"
 import {sessionWatchUrl} from "../../src/features/chat/watchRelay"
 
 const ENV_KEY = "NEXT_PUBLIC_AGENTA_API_URL"
@@ -33,5 +33,30 @@ describe("projectWatchUrl", () => {
         process.env[ENV_KEY] = "http://localhost/api"
         expect(projectWatchUrl("p")).not.toBe(sessionWatchUrl("s", "p"))
         expect(projectWatchUrl("p")).not.toContain("session_id")
+    })
+})
+
+describe("PROJECT_WATCH_LISTS", () => {
+    it("refreshes both lists on ready, because a reconnect has to cover the gap", () => {
+        // `ready` fires on every (re)connect, including the one after the phone wakes up. Anything
+        // it does not refresh stays as stale as it was before the stream died.
+        expect(PROJECT_WATCH_LISTS.ready).toEqual(["sessions", "workflows"])
+    })
+
+    it("refreshes only the list each change event is about", () => {
+        // Narrow on purpose: a busy chat emits session-changed steadily, and refetching the agents
+        // list on every one of those would be pure waste.
+        expect(PROJECT_WATCH_LISTS["session-changed"]).toEqual(["sessions"])
+        expect(PROJECT_WATCH_LISTS["workflow-changed"]).toEqual(["workflows"])
+    })
+
+    it("handles every event the desktop watcher handles", () => {
+        // The desktop maps exactly these three. A missing one here is a list that goes stale on
+        // /m and nowhere else, which is the bug this whole hook exists to fix.
+        expect(Object.keys(PROJECT_WATCH_LISTS).sort()).toEqual([
+            "ready",
+            "session-changed",
+            "workflow-changed",
+        ])
     })
 })

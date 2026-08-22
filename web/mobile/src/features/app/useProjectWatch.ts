@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
 import {invalidateSessionListQueries} from "@agenta/entities/session"
+import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
@@ -8,7 +9,7 @@ import {tryRefreshSession} from "@/lib/auth"
 
 import {watchRetryDelayMs} from "../chat/watchRelay"
 
-import {projectWatchUrl} from "./projectWatchRelay"
+import {PROJECT_WATCH_LISTS, projectWatchUrl, type ProjectWatchList} from "./projectWatchRelay"
 
 /**
  * One project-wide EventSource for the whole app, so the session lists stop showing yesterday's
@@ -20,10 +21,13 @@ import {projectWatchUrl} from "./projectWatchRelay"
  * away — stayed invisible until a remount happened to find the cache older than 30s. That is why
  * navigating away and back "fixed" it.
  *
- * The desktop has had the answer all along: it mounts a project watch in its layout and maps
- * `session-changed` onto `invalidateSessionListQueries`. This is that, for `/m`. The invalidation
- * helper is already shared and already mobile-aware (it matches on the `session-list` token rather
- * than an exact key), and both apps use the same query client, so nothing else has to change.
+ * The desktop has had the answer all along: it mounts a project watch in its layout and maps these
+ * events onto the list invalidations. This is that, for `/m`, with the same handler map. Both
+ * invalidation helpers are shared and already work on this surface — the session one matches on the
+ * `session-list` key token rather than an exact key, and the workflow one invalidates
+ * `["workflows", "apps"]`, which is what backs this app's agents list — and both apps use the same
+ * query client, so nothing else has to change. (The desktop's own agents table has a separate
+ * `agents-workflows` key that exists only there, which is why it invalidates one more thing.)
  *
  * Lifecycle follows `useSessionWatch`: foreground-only, transient errors ride EventSource's own
  * reconnect, and a fatal CLOSED refreshes the session first (the usual cause is a 401 at the
@@ -45,6 +49,11 @@ export const useProjectWatch = (): void => {
         let retryHandle: number | undefined
         let disposed = false
         let attempt = 0
+
+        const refresh = (lists: readonly ProjectWatchList[]) => {
+            if (lists.includes("sessions")) invalidateSessionListQueries()
+            if (lists.includes("workflows")) invalidateWorkflowsListCache()
+        }
 
         const close = () => {
             source?.close()
@@ -73,8 +82,9 @@ export const useProjectWatch = (): void => {
             // Keyed on `ready`, not `onopen`: headers arrive before the server's subscription is
             // live, so a change landing in that window would miss both this refetch and the
             // stream.
-            es.addEventListener("ready", invalidateSessionListQueries)
-            es.addEventListener("session-changed", invalidateSessionListQueries)
+            for (const [event, lists] of Object.entries(PROJECT_WATCH_LISTS)) {
+                es.addEventListener(event, () => refresh(lists))
+            }
             es.onerror = () => {
                 // CONNECTING means the built-in auto-reconnect has it; only a fatal CLOSED
                 // needs us.

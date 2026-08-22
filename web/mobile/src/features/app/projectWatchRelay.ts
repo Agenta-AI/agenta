@@ -8,3 +8,19 @@ import {getApiUrl} from "@/lib/env"
  */
 export const projectWatchUrl = (projectId: string): string =>
     `${getApiUrl()}/sessions/watch?project_id=${encodeURIComponent(projectId)}`
+
+/** The project-scoped lists a watch event can invalidate. */
+export type ProjectWatchList = "sessions" | "workflows"
+
+/**
+ * Which lists each event refreshes, mirroring the desktop watcher's handler map.
+ *
+ * `ready` refreshes both, because it fires on every (re)connect and therefore has to cover
+ * everything that changed while this device was asleep or backgrounded. The two change events
+ * refresh only their own list, so a busy chat does not keep re-fetching the agents list.
+ */
+export const PROJECT_WATCH_LISTS: Record<string, readonly ProjectWatchList[]> = {
+    ready: ["sessions", "workflows"],
+    "session-changed": ["sessions"],
+    "workflow-changed": ["workflows"],
+}
