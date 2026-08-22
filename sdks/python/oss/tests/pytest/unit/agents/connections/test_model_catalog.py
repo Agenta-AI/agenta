@@ -361,6 +361,6 @@ def test_curated_default_models_exist_in_the_pinned_pi_catalog():
     for provider, models in PROVIDER_DEFAULT_MODELS.items():
         for model_id in models:
             assert model_id in catalog_ids, (provider, model_id)
-    # Pending a catalog refresh: the founder-approved Anthropic list also names Opus 5, which
-    # the pinned pi-ai version does not carry yet (see the note in capabilities.py).
-    assert "anthropic/claude-opus-5" not in catalog_ids
+    # Opus 5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
+    # `additions` list rather than the generated file. The loop above is what proves it arrived.
+    assert "anthropic/claude-opus-5" in catalog_ids
