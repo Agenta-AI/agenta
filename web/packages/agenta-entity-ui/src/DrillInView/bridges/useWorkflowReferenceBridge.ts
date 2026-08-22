@@ -43,7 +43,7 @@ import type {
     WorkflowRevisionUI,
 } from "@agenta/ui/drill-in"
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 // A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
