@@ -51,11 +51,17 @@ def _exchange(monkeypatch):
     async def _set_cache(**kwargs):
         return True
 
+    async def _check_resource_access(**kwargs):
+        return True
+
     monkeypatch.setattr(
         access_router_module, "check_action_access", _check_action_access
     )
     monkeypatch.setattr(access_router_module, "get_cache", _get_cache)
     monkeypatch.setattr(access_router_module, "set_cache", _set_cache)
+    monkeypatch.setattr(
+        access_router_module, "_check_resource_access", _check_resource_access
+    )
 
     router = AccessRouter()
 
