@@ -1306,12 +1306,22 @@ export function createSandboxAgentOtel(
   const emitSpans = init.emitSpans !== false;
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
   const configuredAuthorization = init.authorization;
-  const authorization: AuthorizationProvider =
+  const configuredProvider: AuthorizationProvider | undefined =
     typeof configuredAuthorization === "function"
       ? configuredAuthorization
       : configuredAuthorization !== undefined
         ? () => configuredAuthorization
-        : defaultTarget().authorization;
+        : undefined;
+  // A run whose request carries no authorization header resolves to an empty value, not to
+  // `undefined` — the getter reads a header that may not be there. Treat empty as "unconfigured"
+  // so such a run still exports under the runner's own `AGENTA_CREDENTIALS`, and resolve the
+  // fallback at export time (not at construction) so a credential written after the run started
+  // still counts.
+  const fallbackAuthorization = defaultTarget().authorization;
+  const authorization: AuthorizationProvider = () => {
+    const resolved = configuredProvider?.();
+    return resolved?.trim() ? resolved : fallbackAuthorization();
+  };
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();

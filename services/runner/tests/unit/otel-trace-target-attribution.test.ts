@@ -246,6 +246,9 @@ describe("otel traceTargets — per-run target attribution across a shared trace
     const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
     let authorization = "Secret initial";
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // A blank resolved credential falls back to the runner's own `AGENTA_CREDENTIALS`, so drop
+    // that too: the skip needs the run credential AND the env fallback to be empty.
+    vi.stubEnv("AGENTA_CREDENTIALS", "");
     const run = createSandboxAgentOtel({
       harness: "claude",
       model: "anthropic/claude-haiku",
@@ -266,6 +269,54 @@ describe("otel traceTargets — per-run target attribution across a shared trace
         args.join(" ").includes("trace export skipped, no credential"),
       ),
     ).toBe(true);
+  });
+
+  it("falls back to the env credential when the run carries no authorization header, and prefers the run's own header when it has one", async () => {
+    // `runCredential` reads the request's OTLP authorization header and trims it, so a run
+    // without that header hands the tracer a provider that resolves to "". That must still
+    // export under `AGENTA_CREDENTIALS`, exactly as a run that configured no credential at all.
+    const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const headerless = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => "",
+      traceparent: `00-${"a".repeat(32)}-${"7".repeat(16)}-01`,
+    });
+
+    headerless.start({ prompt: "no authorization header on the request" });
+    headerless.finish();
+    await headerless.flush();
+
+    expect(fakeExports.filter((item) => item.url === endpoint)).toEqual([
+      expect.objectContaining({ authorization: "Secret fallback-credential" }),
+    ]);
+    expect(
+      errorSpy.mock.calls.some((args) =>
+        args.join(" ").includes("trace export skipped, no credential"),
+      ),
+    ).toBe(false);
+
+    const withHeader = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => "Secret run-credential",
+      traceparent: `00-${"b".repeat(32)}-${"8".repeat(16)}-01`,
+    });
+
+    withHeader.start({ prompt: "authorization header present" });
+    withHeader.finish();
+    await withHeader.flush();
+
+    expect(
+      fakeExports
+        .filter((item) => item.url === endpoint)
+        .map((item) => item.authorization),
+    ).toEqual(["Secret fallback-credential", "Secret run-credential"]);
   });
 
   it("retires a replaced exporter only after its active export finishes", async () => {
