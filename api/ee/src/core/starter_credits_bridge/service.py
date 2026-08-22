@@ -9,7 +9,7 @@ from uuid import UUID
 import httpx
 
 from oss.src.services import db_manager
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env, StarterCreditsBridgeConfig
 from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
@@ -21,8 +21,14 @@ from oss.src.core.secrets.dtos import (
     CustomProviderSettingsDTO,
     SecretDTO,
     SecretKind,
+    SecretResponseDTO,
 )
 from oss.src.core.secrets.enums import CustomProviderKind
+from oss.src.core.secrets.managed import (
+    SecretManagementDTO,
+    SecretManagementPolicy,
+    SecretManager,
+)
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
@@ -51,10 +57,12 @@ STARTER_CREDITS_SLUG = "starter-credits"
 # organizations, so treat it as settled once seeding runs anywhere real.
 STARTER_CREDITS_NAME = "Agenta"
 
-# Ownership marker carried in the proxy key's metadata (with the org id). Key
-# metadata is master-key-only mutable, so it is the unforgeable side of any
-# later operator-side inspection.
-ORIGIN_MARKER = "starter-credits-bridge"
+# Origin carried in the proxy key's metadata (with the org id). Key metadata is
+# master-key-only mutable, so it supports later operator-side inspection.
+PROXY_ORIGIN = "starter-credits-bridge"
+
+# Human-facing description stored on the connection.
+STARTER_CREDITS_DESCRIPTION = "Provided and managed by Agenta."
 
 # The grant invariant: we mint at most one key per organization, guarded by the
 # alias (one key per org id on the proxy) and by the slug's unique index in the
@@ -251,7 +259,7 @@ async def _mint_key(
                 models=[config.model_id],
                 metadata={
                     "organization_id": organization_id,
-                    "origin": ORIGIN_MARKER,
+                    "origin": PROXY_ORIGIN,
                 },
                 team_id=config.team_id,
                 max_parallel_requests=policy.key_max_parallel_requests,
@@ -294,7 +302,7 @@ async def _create_row(
     project_id: UUID,
     config: StarterCreditsBridgeConfig,
     virtual_key: str,
-) -> Any:
+) -> SecretResponseDTO:
     data = CustomProviderDTO(
         kind=CustomProviderKind.CUSTOM,
         provider=CustomProviderSettingsDTO(
@@ -313,25 +321,25 @@ async def _create_row(
         provider_slug=STARTER_CREDITS_NAME,
     ).model_dump()
 
-    created = await vault_service.create_secret(
+    return await vault_service.create_managed_secret(
         project_id=project_id,
         create_secret_dto=CreateSecretDTO(
             slug=STARTER_CREDITS_SLUG,
-            header=Header(name=STARTER_CREDITS_NAME, description=ORIGIN_MARKER),
+            header=Header(
+                name=STARTER_CREDITS_NAME,
+                description=STARTER_CREDITS_DESCRIPTION,
+            ),
             secret=SecretDTO(
                 kind=SecretKind.CUSTOM_PROVIDER,
                 data=data,
             ),
-            # The row is Agenta's from the moment it exists: `managed_by` refuses
-            # user deletes and re-credentialing, `write_only` makes the proxy virtual
-            # key unreadable. Both are set on CREATE rather than added later, so no
-            # window exists in which the seeded connection is readable or removable.
-            managed_by=ORIGIN_MARKER,
             write_only=True,
         ),
+        management=SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        ),
     )
-    await invalidate_cache(project_id=str(project_id))
-    return created
 
 
 # --- gates -----------------------------------------------------------------

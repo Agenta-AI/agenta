@@ -13,6 +13,11 @@ import pytest
 from oss.src.utils.env import env, PostHogConfig, StarterCreditsBridgeConfig
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import CustomProviderKind
+from oss.src.core.secrets.managed import (
+    SecretManagementDTO,
+    SecretManagementPolicy,
+    SecretManager,
+)
 
 from ee.src.core.starter_credits_bridge import service
 from ee.src.core.starter_credits_bridge.types import (
@@ -69,24 +74,26 @@ class FakeVaultService:
         self.row = None
         self.created_count = 0
         self.create_dto = None
+        self.management = None
         self.create_error = None
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
         return self.row
 
-    async def create_secret(self, *, project_id, create_secret_dto):
+    async def create_managed_secret(self, *, project_id, create_secret_dto, management):
         await asyncio.sleep(0)
         if self.create_error is not None:
             raise self.create_error
         if self.row is not None:
             raise RuntimeError("duplicate slug (unique index)")
         self.create_dto = create_secret_dto
+        self.management = management
         self.row = SimpleNamespace(
             id=uuid4(),
             header=create_secret_dto.header,
             data=create_secret_dto.secret.data,
-            managed_by=create_secret_dto.managed_by,
+            management=management,
             write_only=bool(create_secret_dto.write_only),
         )
         self.created_count += 1
@@ -193,7 +200,6 @@ def seeding_env(monkeypatch):
 
     project = SimpleNamespace(id=uuid4())
     vault = FakeVaultService()
-    invalidated = []
     alerts = []
     released = []
     policy = _policy()
@@ -211,9 +217,6 @@ def seeding_env(monkeypatch):
     async def fake_policy_allows(organization_email, policy):
         return True
 
-    async def fake_invalidate_cache(**kwargs):
-        invalidated.append(kwargs)
-
     def fake_send_alert_background(text):
         alerts.append(text)
 
@@ -229,7 +232,6 @@ def seeding_env(monkeypatch):
     monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve_policy)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
     monkeypatch.setattr(service, "_mint_policy_allows", fake_policy_allows)
-    monkeypatch.setattr(service, "invalidate_cache", fake_invalidate_cache)
     monkeypatch.setattr(service, "_send_alert_background", fake_send_alert_background)
     monkeypatch.setattr(service, "_release_velocity_slots", fake_release)
     monkeypatch.setattr(service, "StarterCreditsProxyClient", FakeProxyClient)
@@ -239,7 +241,6 @@ def seeding_env(monkeypatch):
         policy=policy,
         project=project,
         vault=vault,
-        invalidated=invalidated,
         alerts=alerts,
         released=released,
         monkeypatch=monkeypatch,
@@ -276,7 +277,7 @@ class TestSeeding:
         assert call["tpm_limit"] == 200_000
         assert call["metadata"] == {
             "organization_id": ORGANIZATION_ID,
-            "origin": service.ORIGIN_MARKER,
+            "origin": service.PROXY_ORIGIN,
         }
 
         assert row.data.kind == CustomProviderKind.CUSTOM
@@ -289,7 +290,9 @@ class TestSeeding:
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
         assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
         assert row.header.name == service.STARTER_CREDITS_NAME
-        assert seeding_env.invalidated == [{"project_id": str(seeding_env.project.id)}]
+        assert row.header.description == service.STARTER_CREDITS_DESCRIPTION
+        assert service.PROXY_ORIGIN not in row.header.description
+        assert seeding_env.config.proxy_public_url not in row.header.description
         assert seeding_env.released == []
 
     async def test_the_seeded_row_keys_its_models_under_the_display_name(
@@ -1014,22 +1017,22 @@ class TestMintPolicyAllows:
 
 
 class TestManagedAndWriteOnlyRow:
-    """The seeded connection is Agenta's from creation: unreadable and undeletable.
+    """Management and value visibility are explicit, separate creation policies."""
 
-    `managed_by` refuses user deletes and re-credentialing; `write_only` keeps the proxy
-    virtual key out of every user-facing read. Both ride the CREATE, so the row is never
-    briefly readable or removable.
-    """
-
-    async def test_the_row_is_created_managed_and_write_only(self, seeding_env):
+    async def test_the_row_uses_typed_management_and_explicit_write_only(
+        self, seeding_env
+    ):
         await _seed()
 
         create_dto = seeding_env.vault.create_dto
         assert create_dto is not None
-        assert create_dto.managed_by == service.ORIGIN_MARKER
         assert create_dto.write_only is True
+        assert seeding_env.vault.management == SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        )
 
-        assert seeding_env.vault.row.managed_by == service.ORIGIN_MARKER
+        assert seeding_env.vault.row.management == seeding_env.vault.management
         assert seeding_env.vault.row.write_only is True
 
 
@@ -1128,10 +1131,7 @@ class TestRefusalLogging:
 
 
 def test_a_bridge_deployment_without_a_runtime_key_is_warned_at_startup(monkeypatch):
-    # The bridge seeds write-only rows, so this deployment needs the runtime key even
-    # with the platform-wide write-only default off. The warning lives in the OSS startup
-    # path; the bridge half of its condition can only be exercised where the bridge
-    # config exists, which is here.
+    # The bridge seeds write-only rows, so the deployment needs the dedicated runtime key.
     from oss.src.utils import helpers
 
     recorded: list = []
@@ -1141,7 +1141,6 @@ def test_a_bridge_deployment_without_a_runtime_key_is_warned_at_startup(monkeypa
         type("_Log", (), {"warning": staticmethod(lambda msg: recorded.append(msg))})(),
     )
     monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
-    monkeypatch.setattr(env.agenta.vault, "write_only_default", False)
     monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
 
     helpers.warn_unconfigured_platform_runtime_key()
