@@ -272,6 +272,22 @@ const extractMetricsFromWorkflow = (workflow: any): EvaluatorReferenceMetric[] =
  * Uses the provided projectId directly — no dependency on shared
  * projectIdAtom/sessionAtom, so it works in scoped Jotai stores
  * (e.g., the evaluations page).
+ *
+ * The `areEqual` below is not a micro-optimisation. `atomFamily` keys its cache by
+ * REFERENCE when the comparator is omitted, so an object-literal key never hits the cache
+ * and every read mints a BRAND NEW atom. `evaluatorReferenceAtomFamily` reads this family
+ * from inside its own read function, so each generation mounts its own query observer, the
+ * observer emits, the emit invalidates the reader that created it, and the re-read mints
+ * the next generation.
+ *
+ * Measured on this family, that settles at two atoms rather than running away: the query
+ * carries `staleTime: 5 * 60_000` with no polling and no refetch-on-focus, so generation
+ * two reads settled cached data and emits nothing further. The cost today is therefore one
+ * duplicated atom and one duplicated fetch per call site, not a hang. It becomes unbounded
+ * the moment anything makes this query re-emit — adding a `refetchInterval` would be
+ * enough, which is exactly how the sibling families in `EvalRunDetails` reached React error
+ * #185 (see `EvalRunDetails/atoms/familyKeys.ts`). Keep the comparator on every
+ * object-keyed family in this file.
  */
 export const evaluatorWorkflowQueryAtomFamily = atomFamily(
     ({projectId, revisionId}: {projectId: string; revisionId: string}) =>
@@ -300,12 +316,18 @@ export const evaluatorWorkflowQueryAtomFamily = atomFamily(
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
         })),
+    (a, b) => a.projectId === b.projectId && a.revisionId === b.revisionId,
 )
 
 /**
  * Resolves evaluator reference (name, slug, metrics) from the workflow
  * entity system. Uses a self-contained query that works in any Jotai
  * store — no dependency on shared projectIdAtom/sessionAtom.
+ *
+ * `areEqual` is required here for the same reason as the family above. Callers spell the
+ * absent half of the key both ways — `useEvaluatorHeaderReference` passes `undefined`,
+ * `ReferenceLabels` passes `null` — so the comparator normalises the two, or the same
+ * evaluator would occupy two cache entries and fetch twice.
  */
 export const evaluatorReferenceAtomFamily = atomFamily(
     ({projectId, slug, id}: {projectId: string | null; slug?: string | null; id?: string | null}) =>
@@ -416,6 +438,10 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 isError: false,
             }
         }),
+    (a, b) =>
+        a.projectId === b.projectId &&
+        (a.slug ?? null) === (b.slug ?? null) &&
+        (a.id ?? null) === (b.id ?? null),
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

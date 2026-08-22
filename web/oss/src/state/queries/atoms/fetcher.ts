@@ -21,6 +21,17 @@ import type {
 import {projectIdAtom} from "@/oss/state/project"
 
 /**
+ * Identity for the payload-keyed families below. `atomFamily` keys by REFERENCE without an
+ * `areEqual`, so an object-literal key never hits the cache and every read mints a new atom
+ * and a new fetch. `evaluationRunsQueryOptionsAtom` reads the first family from inside a
+ * derived atom, where that feedback compounds; today it is safe only because that call site
+ * passes hoisted constants, which is one refactor away from breaking. The payload is an
+ * arbitrary filter object, so compare it the same way the query key already does.
+ */
+const samePayload = (a?: QueryQueryRequest, b?: QueryQueryRequest) =>
+    JSON.stringify(a ?? {}) === JSON.stringify(b ?? {})
+
+/**
  * List queries with optional filters (payload) using atom family
  */
 export const queriesQueryAtomFamily = atomFamily(
@@ -38,6 +49,7 @@ export const queriesQueryAtomFamily = atomFamily(
                 enabled: enabled && !!projectId,
             }
         }),
+    (a, b) => (a?.enabled ?? true) === (b?.enabled ?? true) && samePayload(a?.payload, b?.payload),
 )
 
 /**
@@ -115,10 +127,14 @@ export const unarchiveQueryAtom = atom(
 /**
  * Small selectors
  */
-export const queriesListAtomFamily = atomFamily((payload?: QueryQueryRequest) =>
-    selectAtom(queriesQueryAtomFamily({payload}), (q) => q.data?.queries ?? []),
+export const queriesListAtomFamily = atomFamily(
+    (payload?: QueryQueryRequest) =>
+        selectAtom(queriesQueryAtomFamily({payload}), (q) => q.data?.queries ?? []),
+    samePayload,
 )
 
-export const queriesCountAtomFamily = atomFamily((payload?: QueryQueryRequest) =>
-    selectAtom(queriesQueryAtomFamily({payload}), (q) => q.data?.count ?? 0),
+export const queriesCountAtomFamily = atomFamily(
+    (payload?: QueryQueryRequest) =>
+        selectAtom(queriesQueryAtomFamily({payload}), (q) => q.data?.count ?? 0),
+    samePayload,
 )
