@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {invalidateSessionListQueries} from "@agenta/entities/session"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
@@ -7,7 +8,7 @@ import {tryRefreshSession} from "@/lib/auth"
 import {actionableInteractionsQueryKey} from "../sessions/useActionableInteractions"
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
-import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
+import {SESSION_LIST_WATCH_EVENTS, sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 
 /** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
  * into one full records refetch per attempt. */
@@ -108,6 +109,9 @@ export const useSessionWatch = ({
             es.addEventListener("records-changed", () => onRecordsChangedRef.current())
             es.addEventListener("lifecycle", invalidateBadges)
             es.addEventListener("interaction", invalidateBadges)
+            for (const event of SESSION_LIST_WATCH_EVENTS) {
+                es.addEventListener(event, invalidateSessionListQueries)
+            }
             es.onerror = () => {
                 setConnected(false)
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.

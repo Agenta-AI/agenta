@@ -1,6 +1,10 @@
 import {afterEach, describe, expect, it} from "vitest"
 
-import {PROJECT_WATCH_LISTS, projectWatchUrl} from "../../src/features/app/projectWatchRelay"
+import {
+    PROJECT_WATCH_FALLBACK_MS,
+    PROJECT_WATCH_LISTS,
+    projectWatchUrl,
+} from "../../src/features/app/projectWatchRelay"
 import {sessionWatchUrl} from "../../src/features/chat/watchRelay"
 
 const ENV_KEY = "NEXT_PUBLIC_AGENTA_API_URL"
@@ -58,5 +62,11 @@ describe("PROJECT_WATCH_LISTS", () => {
             "session-changed",
             "workflow-changed",
         ])
+    })
+})
+
+describe("PROJECT_WATCH_FALLBACK_MS", () => {
+    it("polls every 30 seconds while the combined stream is unavailable", () => {
+        expect(PROJECT_WATCH_FALLBACK_MS).toBe(30_000)
     })
 })

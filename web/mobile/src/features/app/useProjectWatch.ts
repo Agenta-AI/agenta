@@ -9,31 +9,19 @@ import {tryRefreshSession} from "@/lib/auth"
 
 import {watchRetryDelayMs} from "../chat/watchRelay"
 
-import {PROJECT_WATCH_LISTS, projectWatchUrl, type ProjectWatchList} from "./projectWatchRelay"
+import {
+    PROJECT_WATCH_FALLBACK_MS,
+    PROJECT_WATCH_LISTS,
+    projectWatchUrl,
+    type ProjectWatchList,
+} from "./projectWatchRelay"
 
 /**
- * One project-wide EventSource for the whole app, so the session lists stop showing yesterday's
- * data.
+ * Keeps the mobile session and workflow list caches current.
  *
- * Nothing on this surface used to tell the lists that the server had changed. The list query has
- * a 30s `staleTime`, no `refetchInterval`, and this app turns `refetchOnWindowFocus` off on the
- * shared client, so a session created or finished anywhere — including in the chat screen one tap
- * away — stayed invisible until a remount happened to find the cache older than 30s. That is why
- * navigating away and back "fixed" it.
- *
- * The desktop has had the answer all along: it mounts a project watch in its layout and maps these
- * events onto the list invalidations. This is that, for `/m`, with the same handler map. Both
- * invalidation helpers are shared and already work on this surface — the session one matches on the
- * `session-list` key token rather than an exact key, and the workflow one invalidates
- * `["workflows", "apps"]`, which is what backs this app's agents list — and both apps use the same
- * query client, so nothing else has to change. (The desktop's own agents table has a separate
- * `agents-workflows` key that exists only there, which is why it invalidates one more thing.)
- *
- * Lifecycle follows `useSessionWatch`: foreground-only, transient errors ride EventSource's own
- * reconnect, and a fatal CLOSED refreshes the session first (the usual cause is a 401 at the
- * token-refresh boundary, and a stream has no interceptor to retry for it) before reopening on a
- * jittered backoff. `ready` invalidates as well as `session-changed`, which is what covers
- * everything that changed while the phone was asleep or the tab was in the background.
+ * The combined project stream is preferred. A foreground 30-second fallback remains active until
+ * its `ready` event, so single-domain roles and temporary stream failures still refresh authorized
+ * lists. Per-session record and lifecycle updates are handled by `useSessionWatch`.
  */
 export const useProjectWatch = (): void => {
     const projectId = useAtomValue(projectIdAtom)
@@ -47,12 +35,29 @@ export const useProjectWatch = (): void => {
         const url = projectWatchUrl(projectId)
         let source: EventSource | null = null
         let retryHandle: number | undefined
+        let fallbackHandle: number | undefined
         let disposed = false
         let attempt = 0
 
         const refresh = (lists: readonly ProjectWatchList[]) => {
             if (lists.includes("sessions")) invalidateSessionListQueries()
             if (lists.includes("workflows")) invalidateWorkflowsListCache()
+        }
+
+        const stopFallback = () => {
+            if (fallbackHandle === undefined) return
+            window.clearInterval(fallbackHandle)
+            fallbackHandle = undefined
+        }
+
+        const startFallback = () => {
+            if (disposed || fallbackHandle !== undefined || document.visibilityState !== "visible")
+                return
+            refresh(PROJECT_WATCH_LISTS.ready)
+            fallbackHandle = window.setInterval(
+                () => refresh(PROJECT_WATCH_LISTS.ready),
+                PROJECT_WATCH_FALLBACK_MS,
+            )
         }
 
         const close = () => {
@@ -79,13 +84,14 @@ export const useProjectWatch = (): void => {
             es.onopen = () => {
                 attempt = 0
             }
-            // Keyed on `ready`, not `onopen`: headers arrive before the server's subscription is
-            // live, so a change landing in that window would miss both this refetch and the
-            // stream.
             for (const [event, lists] of Object.entries(PROJECT_WATCH_LISTS)) {
-                es.addEventListener(event, () => refresh(lists))
+                es.addEventListener(event, () => {
+                    if (event === "ready") stopFallback()
+                    refresh(lists)
+                })
             }
             es.onerror = () => {
+                startFallback()
                 // CONNECTING means the built-in auto-reconnect has it; only a fatal CLOSED
                 // needs us.
                 if (es.readyState === EventSource.CLOSED) {
@@ -96,16 +102,23 @@ export const useProjectWatch = (): void => {
         }
 
         const onVisibility = () => {
-            if (document.visibilityState === "visible") open()
-            else close()
+            if (document.visibilityState === "visible") {
+                startFallback()
+                open()
+            } else {
+                stopFallback()
+                close()
+            }
         }
 
         document.addEventListener("visibilitychange", onVisibility)
+        startFallback()
         open()
         return () => {
             disposed = true
             document.removeEventListener("visibilitychange", onVisibility)
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
+            stopFallback()
             close()
         }
     }, [projectId])

@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from "vitest"
 
 import {
+    SESSION_LIST_WATCH_EVENTS,
     WATCH_RETRY_MAX_MS,
     sessionWatchUrl,
     watchAwarePollMs,
@@ -28,6 +29,12 @@ describe("sessionWatchUrl", () => {
         expect(sessionWatchUrl("a&b=c", "p")).toBe(
             "http://localhost/api/sessions/streams/watch?session_id=a%26b%3Dc&project_id=p",
         )
+    })
+})
+
+describe("SESSION_LIST_WATCH_EVENTS", () => {
+    it("refreshes list rows for record previews and lifecycle transitions", () => {
+        expect(SESSION_LIST_WATCH_EVENTS).toEqual(["records-changed", "lifecycle"])
     })
 })
 

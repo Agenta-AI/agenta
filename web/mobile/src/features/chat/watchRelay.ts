@@ -6,6 +6,9 @@ export const sessionWatchUrl = (sessionId: string, projectId: string): string =>
         sessionId,
     )}&project_id=${encodeURIComponent(projectId)}`
 
+/** Per-session events that can change a row in the sessions list. */
+export const SESSION_LIST_WATCH_EVENTS = ["records-changed", "lifecycle"] as const
+
 /**
  * Records-tick cadence under the relay: while the EventSource is open the tick is only a
  * safety net (30s); on error/close the caller's base cadence (today's 4s/7.5s/idle-0)
