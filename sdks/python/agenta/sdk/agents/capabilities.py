@@ -151,10 +151,9 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
     ],
-    # ``anthropic/claude-opus-5`` belongs here too, but the pinned pi-ai catalog predates it;
-    # add it when the ``sync-model-catalog`` skill regenerates ``data/pi_models.generated.json``.
     "anthropic": [
         "anthropic/claude-fable-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
@@ -168,7 +167,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     ],
     "groq": [
         "groq/openai/gpt-oss-120b",
-        "groq/llama-3.1-8b-instant",
+        "groq/openai/gpt-oss-20b",
     ],
     "minimax": [
         "minimax/MiniMax-M3",
@@ -184,7 +183,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openrouter/deepseek/deepseek-v4-pro",
         "openrouter/openai/gpt-5.6-luna",
         "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3",
+        "openrouter/tencent/hy3-preview",
     ],
 }
 
@@ -192,11 +191,15 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 # A harness that selects by alias (Claude) names a TIER, not a model id, so a curated id has to
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
 # across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
-# harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, and opus has
-# no curated default until the catalog refresh adds ``claude-opus-5``.
+# harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, so it needs
+# no entry. Opus maps to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that
+# bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
+# alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
+# actually select, so any other spelling would be dropped instead of offered.
 MODEL_ID_ALIASES: Dict[str, str] = {
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
+    "anthropic/claude-opus-": "opus[1m]",
 }
 
 

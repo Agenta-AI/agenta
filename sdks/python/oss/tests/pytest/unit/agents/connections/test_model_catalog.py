@@ -257,16 +257,17 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert pi_defaults["openai"] == ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
     assert pi_defaults["anthropic"] == [
         "anthropic/claude-fable-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
 
-    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned sonnet and
-    # haiku ids arrive under the tier alias Claude actually accepts. Opus is absent because it
-    # is not curated yet, not because the alias is missing.
+    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned opus, sonnet
+    # and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives as the
+    # bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
     assert catalog["claude"]["capabilities"]["default_models"] == {
-        "anthropic": ["claude-fable-5", "sonnet", "haiku"]
+        "anthropic": ["claude-fable-5", "opus[1m]", "sonnet", "haiku"]
     }
     # Codex reaches openai only, and names its models bare.
     assert catalog["codex"]["capabilities"]["default_models"] == {
