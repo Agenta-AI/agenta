@@ -84,6 +84,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
     maskSecret,
