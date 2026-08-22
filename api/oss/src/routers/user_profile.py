@@ -1,4 +1,5 @@
 from fastapi import Request, HTTPException
+from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
@@ -162,8 +163,21 @@ async def reset_user_password(request: Request, user_id: str):
             status_code=403,
         )
 
-    user_password = await user_service.generate_user_password_reset_link(
-        user_id=user_id,
-        admin_user_id=request.state.user_id,
-    )
+    try:
+        user_password = await user_service.generate_user_password_reset_link(
+            user_id=user_id,
+            admin_user_id=request.state.user_id,
+            project_id=request.state.project_id,
+        )
+    except PermissionError as exc:
+        return JSONResponse(
+            {"detail": str(exc)},
+            status_code=403,
+        )
+    except NoResultFound:
+        return JSONResponse(
+            {"detail": "The specified user was not found."},
+            status_code=404,
+        )
+
     return user_password
