@@ -15,6 +15,7 @@ POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
 REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
+AGENTA_SERVICES_INTERNAL_KEY="${AGENTA_SERVICES_INTERNAL_KEY:-replace-me}"
 AGENTA_RUNNER_TOKEN="${AGENTA_RUNNER_TOKEN:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
@@ -300,8 +301,8 @@ main() {
     require_cmd railway
     require_railway_auth
 
-    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ] || [ "$AGENTA_RUNNER_TOKEN" = "replace-me" ]; then
-        printf "WARNING: Using default placeholder secrets. Set AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY and AGENTA_RUNNER_TOKEN for production deployments.\n" >&2
+    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ] || [ "$AGENTA_SERVICES_INTERNAL_KEY" = "replace-me" ] || [ "$AGENTA_RUNNER_TOKEN" = "replace-me" ]; then
+        printf "WARNING: Using default placeholder secrets. Set AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, AGENTA_SERVICES_INTERNAL_KEY and AGENTA_RUNNER_TOKEN for production deployments.\n" >&2
     fi
 
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
@@ -391,6 +392,7 @@ main() {
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
         AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        AGENTA_SERVICES_INTERNAL_KEY="$AGENTA_SERVICES_INTERNAL_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
@@ -423,6 +425,7 @@ main() {
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
         AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        AGENTA_SERVICES_INTERNAL_KEY="$AGENTA_SERVICES_INTERNAL_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \

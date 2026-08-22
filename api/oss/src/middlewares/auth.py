@@ -97,6 +97,24 @@ _SECRET_LEEWAY = 30  # seconds
 # general-purpose (it authenticates workflows, tools, and vault reads alike), so the
 # vault's plaintext-read capability rides a grant.
 SECRET_RESOLVE_GRANT = "secret-resolve"
+ALLOWED_SECRET_TOKEN_GRANTS = frozenset({SECRET_RESOLVE_GRANT})
+
+
+def _validate_secret_token_grants(grants: object) -> tuple[str, ...]:
+    """Return known grants and reject every unrecognized claim shape or value."""
+    if grants is None:
+        return ()
+
+    if not isinstance(grants, list):
+        raise ValueError("Secret token grants must be a list.")
+
+    if any(
+        not isinstance(grant, str) or grant not in ALLOWED_SECRET_TOKEN_GRANTS
+        for grant in grants
+    ):
+        raise ValueError("Secret token contains an unsupported grant.")
+
+    return tuple(grants)
 
 
 def request_has_grant(request: Request, grant: str) -> bool:
@@ -932,7 +950,18 @@ async def verify_secret_token(
             leeway=_SECRET_LEEWAY,
         )
 
-        request.state.token_grants = tuple(auth_context.get("grants") or ())
+        try:
+            request.state.token_grants = _validate_secret_token_grants(
+                auth_context.get("grants")
+            )
+        except ValueError as exc:
+            log.debug(
+                "[auth] secret token unauthorized",
+                path=request.url.path,
+                method=request.method,
+                reason="invalid_token",
+            )
+            raise UnauthorizedException(reason="invalid_token") from exc
 
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
@@ -1020,6 +1049,8 @@ async def sign_secret_token(
     organization_name: Optional[str] = None,
     grants: Optional[List[str]] = None,
 ):
+    validated_grants = _validate_secret_token_grants(grants)
+
     try:
         if not _SECRET_KEY:
             raise InternalServerErrorException()
@@ -1040,8 +1071,8 @@ async def sign_secret_token(
 
         # A token with no grants carries no `grants` key at all, rather than a null or
         # empty one, so its payload stays the shape every existing holder was issued.
-        if grants:
-            auth_context["grants"] = list(grants)
+        if validated_grants:
+            auth_context["grants"] = list(validated_grants)
 
         secret_token = encode(
             payload=auth_context,

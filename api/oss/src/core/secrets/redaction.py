@@ -1,11 +1,10 @@
 """Redaction of write-only vault secrets for user-facing responses.
 
 A secret with ``write_only=True`` can be created, replaced, and deleted, but its value is
-never returned to a user: every outward route strips the credential material and attaches
-``has_key`` and a ``key_preview`` instead. Only the platform runtime — a caller whose
-verified Secret token carries the ``secret-resolve`` grant — receives the plaintext,
-because the workload it runs needs the real key. In-process readers (`VaultService` and
-below) are untouched: redaction happens strictly at the response boundary.
+never returned to an ordinary user. Every outward route returns a public projection with
+``value_status``; trusted runtime callers receive credential values in that same public
+shape. In-process readers (`VaultService` and below) are untouched: redaction happens
+strictly at the response boundary.
 
 WHAT counts as credential material inside a connection is not decided here: that
 vocabulary lives in the SDK (``agenta.sdk.agents.connections.credentials``) and is
@@ -18,7 +17,11 @@ from typing import Any, Dict, Optional, Tuple
 
 from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import (
+    PublicSecretResponseDTO,
+    SecretResponseDTO,
+    SecretValueStatus,
+)
 
 
 # The primary value field per secret kind, as (container attribute, field name). Lives
@@ -62,38 +65,66 @@ def primary_credential_value(secret: SecretResponseDTO) -> Optional[Any]:
     return getattr(container, field, None) if container is not None else None
 
 
-def redact_secret_response(secret: SecretResponseDTO) -> SecretResponseDTO:
-    """The user-facing shape of ``secret``: credential material stripped when write-only.
+def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
+    """Describe whether credential material exists without exposing it."""
+    value = primary_credential_value(secret)
+    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
+        str(secret.kind.value), (None, None)
+    )
+    container = getattr(secret.data, container_name, None) if container_name else None
+    extras = getattr(container, "extras", None) or {}
+    has_credential_extras = any(
+        extras.get(extras_key) not in (None, "")
+        for extras_key in CREDENTIAL_EXTRAS_KEYS
+    )
 
-    Returns the input unchanged for readable (``write_only=False``) secrets, so legacy
-    records keep their exact response. Never mutates the input.
-    """
-    if not secret.write_only:
-        return secret
+    return SecretValueStatus(
+        configured=value not in (None, "") or has_credential_extras,
+        preview=(
+            mask_secret_value(value)
+            if secret.write_only and isinstance(value, str) and value
+            else None
+        ),
+    )
 
-    redacted = secret.model_copy(deep=True)
+
+def project_secret_response(
+    secret: SecretResponseDTO,
+    *,
+    reveal_write_only: bool,
+) -> PublicSecretResponseDTO:
+    """Build the public response, optionally retaining a write-only value for runtime."""
+    projected = PublicSecretResponseDTO.model_validate(
+        {
+            **secret.model_dump(mode="python"),
+            "value_status": _value_status(secret),
+        }
+    )
+
+    if not secret.write_only or reveal_write_only:
+        return projected
 
     container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
-        str(redacted.kind.value), (None, None)
+        str(projected.kind.value), (None, None)
     )
-    value: Optional[Any] = None
-    has_credential_extras = False
+    if container_name is None:
+        return projected
 
-    if container_name is not None:
-        container = getattr(redacted.data, container_name, None)
-        if container is not None and hasattr(container, field):
-            value = getattr(container, field)
-            setattr(container, field, None)
+    container = getattr(projected.data, container_name, None)
+    if container is None:
+        return projected
 
-        extras = getattr(container, "extras", None) if container is not None else None
-        if extras:
-            for extras_key in CREDENTIAL_EXTRAS_KEYS:
-                if extras.pop(extras_key, None) not in (None, ""):
-                    has_credential_extras = True
+    if hasattr(container, field):
+        setattr(container, field, None)
 
-    redacted.has_key = bool(value) or has_credential_extras
-    redacted.key_preview = (
-        mask_secret_value(value) if isinstance(value, str) and value else None
-    )
+    extras = getattr(container, "extras", None)
+    if extras:
+        for extras_key in CREDENTIAL_EXTRAS_KEYS:
+            extras.pop(extras_key, None)
 
-    return redacted
+    return projected
+
+
+def redact_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
+    """Return the public response with write-only credential material stripped."""
+    return project_secret_response(secret, reveal_write_only=False)

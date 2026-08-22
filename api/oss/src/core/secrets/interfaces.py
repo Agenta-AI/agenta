@@ -53,7 +53,9 @@ class SecretsDAOInterface:
         # applied. Every decision that reads stored state belongs here: a check made
         # against a snapshot read earlier is a check against a row another writer can
         # still have replaced. It may raise to refuse the update.
-        resolve_update: Optional[Callable[[SecretResponseDTO], None]] = None,
+        resolve_update: Optional[
+            Callable[[SecretResponseDTO, UpdateSecretDTO], UpdateSecretDTO]
+        ] = None,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
@@ -62,5 +64,6 @@ class SecretsDAOInterface:
         secret_id: UUID,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
+        authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
     ) -> None:
         raise NotImplementedError

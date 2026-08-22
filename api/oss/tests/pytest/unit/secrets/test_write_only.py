@@ -2,7 +2,7 @@
 
 Covers the three layers below the router: the service (default-on at create, value
 carry-over on update, the one-way flag), the redaction helper (per-kind value stripping,
-has_key/key_preview), and the postgres mappings (the flag rides inside the encrypted data
+value_status), and the postgres mappings (the flag rides inside the encrypted data
 JSON and never leaks into the payload DTOs).
 """
 
@@ -10,19 +10,18 @@ from uuid import uuid4
 
 import pytest
 
+import oss.src.core.secrets.services as secrets_services_module
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretResponseDTO,
     SecretValueRequiredError,
     UpdateSecretDTO,
-    WriteOnlyCannotBeDisabledError,
 )
 from oss.src.core.secrets.redaction import (
     mask_secret_value,
     redact_secret_response,
 )
 from oss.src.core.secrets.services import VaultService
-from oss.src.utils.env import env
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
@@ -73,16 +72,11 @@ class _FakeSecretsDAO:
         # Production resolves the update against the row under the write lock; the fake
         # does the same at the same point, so keep-on-omit is exercised, not skipped.
         if resolve_update is not None:
-            resolve_update(stored)
-
-        write_only = update_secret_dto.write_only
-        if write_only is None:
-            write_only = stored.write_only
+            update_secret_dto = resolve_update(stored, update_secret_dto)
 
         updated = stored.model_copy(
             update={
                 "header": update_secret_dto.header or stored.header,
-                "write_only": write_only,
             }
         )
         if update_secret_dto.secret is not None:
@@ -92,13 +86,21 @@ class _FakeSecretsDAO:
         self.records[secret_id] = updated
         return updated
 
+    async def delete(
+        self, secret_id, project_id, organization_id, authorize_delete=None
+    ):
+        stored = self.records.get(secret_id)
+        if stored is not None and authorize_delete is not None:
+            authorize_delete(stored)
+        self.records.pop(secret_id, None)
+
 
 @pytest.fixture(name="service")
 def _service():
     return VaultService(_FakeSecretsDAO())
 
 
-def _provider_key_create(key="sk-test-openai-key-bc", write_only=None):
+def _provider_key_create(key="sk-test-openai-key-bc", write_only=True):
     return CreateSecretDTO(
         header={"name": "OpenAI"},
         secret={
@@ -112,32 +114,8 @@ def _provider_key_create(key="sk-test-openai-key-bc", write_only=None):
 # --- service: create ------------------------------------------------------------------
 
 
-@pytest.fixture(name="write_only_gate")
-def _write_only_gate(monkeypatch):
-    def set_gate(value: bool):
-        monkeypatch.setattr(env.agenta.vault, "write_only_default", value)
-
-    return set_gate
-
-
 @pytest.mark.asyncio
-async def test_create_defaults_off_while_the_gate_is_off(service, write_only_gate):
-    # Today's behavior until the web UI ships replace-only forms.
-    write_only_gate(False)
-
-    created = await service.create_secret(
-        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
-    )
-
-    assert created.write_only is False
-
-
-@pytest.mark.asyncio
-async def test_create_defaults_to_write_only_when_the_gate_is_on(
-    service, write_only_gate
-):
-    write_only_gate(True)
-
+async def test_create_defaults_to_write_only(service):
     created = await service.create_secret(
         project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
     )
@@ -146,13 +124,8 @@ async def test_create_defaults_to_write_only_when_the_gate_is_on(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("gate", [False, True])
 @pytest.mark.parametrize("explicit", [False, True])
-async def test_an_explicit_request_value_always_wins_over_the_gate(
-    service, write_only_gate, gate, explicit
-):
-    write_only_gate(gate)
-
+async def test_an_explicit_create_value_is_preserved(service, explicit):
     created = await service.create_secret(
         project_id=PROJECT_ID,
         create_secret_dto=_provider_key_create(write_only=explicit),
@@ -164,11 +137,86 @@ async def test_an_explicit_request_value_always_wins_over_the_gate(
 # --- service: keep-stored-on-omit ------------------------------------------------------
 
 
+@pytest.mark.asyncio
+async def test_project_list_cache_stores_the_canonical_plaintext_dto(
+    service, monkeypatch
+):
+    cached = None
+    dao_calls = 0
+
+    original_list = service.secrets_dao.list
+
+    async def counted_list(*args, **kwargs):
+        nonlocal dao_calls
+        dao_calls += 1
+        return await original_list(*args, **kwargs)
+
+    async def fake_get_cache(**kwargs):
+        assert kwargs["namespace"] == "list_secrets"
+        assert kwargs["project_id"] == str(PROJECT_ID)
+        assert kwargs["key"] == {}
+        assert kwargs["model"] is SecretResponseDTO
+        assert kwargs["is_list"] is True
+        return cached
+
+    async def fake_set_cache(**kwargs):
+        nonlocal cached
+        assert kwargs["namespace"] == "list_secrets"
+        assert kwargs["project_id"] == str(PROJECT_ID)
+        assert kwargs["key"] == {}
+        cached = kwargs["value"]
+        return True
+
+    monkeypatch.setattr(service.secrets_dao, "list", counted_list)
+    monkeypatch.setattr(secrets_services_module, "get_cache", fake_get_cache)
+    monkeypatch.setattr(secrets_services_module, "set_cache", fake_set_cache)
+
+    await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_provider_key_create(),
+    )
+    first = await service.list_secrets(project_id=PROJECT_ID)
+    second = await service.list_secrets(project_id=PROJECT_ID)
+
+    assert dao_calls == 1
+    assert first == second
+    assert cached[0].data.provider.key == "sk-test-openai-key-bc"
+
+
+@pytest.mark.asyncio
+async def test_service_mutations_invalidate_the_project_cache(service, monkeypatch):
+    invalidated = []
+
+    async def fake_invalidate_cache(**kwargs):
+        invalidated.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        secrets_services_module,
+        "invalidate_cache",
+        fake_invalidate_cache,
+    )
+
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_provider_key_create(),
+    )
+    await service.update_secret(
+        secret_id=created.id,
+        project_id=PROJECT_ID,
+        update_secret_dto=UpdateSecretDTO(header={"name": "Renamed"}),
+    )
+    await service.delete_secret(secret_id=created.id, project_id=PROJECT_ID)
+
+    assert invalidated == [{"project_id": str(PROJECT_ID)}] * 3
+
+
 class _RotatingDAO(_FakeSecretsDAO):
     """A DAO where another writer commits a rotation while this update waits for the lock.
 
     The real DAO takes ``SELECT ... FOR UPDATE`` and only then resolves the update, so a
     writer that committed while we waited is visible. This fake reproduces that window by
+
     rotating the stored row immediately before it resolves.
     """
 
@@ -220,7 +268,7 @@ async def test_an_omitted_key_keeps_the_value_a_racing_rotation_just_stored():
         update_secret_dto=UpdateSecretDTO(
             secret={
                 "kind": "provider_key",
-                "data": {"kind": "openai", "provider": {"key": ""}},
+                "data": {"kind": "openai", "provider": {}},
             }
         ),
     )
@@ -229,8 +277,7 @@ async def test_an_omitted_key_keeps_the_value_a_racing_rotation_just_stored():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("omitted_key", [None, ""])
-async def test_update_without_provider_key_keeps_the_stored_one(service, omitted_key):
+async def test_update_without_provider_key_keeps_the_stored_one(service):
     created = await service.create_secret(
         project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
     )
@@ -239,7 +286,7 @@ async def test_update_without_provider_key_keeps_the_stored_one(service, omitted
         header={"name": "OpenAI (renamed)"},
         secret={
             "kind": "provider_key",
-            "data": {"kind": "openai", "provider": {"key": omitted_key}},
+            "data": {"kind": "openai", "provider": {}},
         },
     )
     updated = await service.update_secret(
@@ -358,8 +405,56 @@ async def test_update_with_partial_extras_refills_credential_keys_only(service):
     )
 
     # The submitted config wins; only the credential keys refill from storage.
+
     assert updated.data.provider.extras["region"] == "us-east-1"
     assert updated.data.provider.extras["api_key"] == "extra-key-123456"
+
+
+@pytest.mark.asyncio
+async def test_explicit_empty_custom_provider_credential_extra_is_rejected(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=CreateSecretDTO(
+            header={"name": "Bedrock"},
+            secret={
+                "kind": "custom_provider",
+                "data": {
+                    "kind": "bedrock",
+                    "provider": {
+                        "extras": {
+                            "AWS_ACCESS_KEY_ID": "AKIA123",
+                            "AWS_SECRET_ACCESS_KEY": "stored-secret",
+                            "AWS_REGION": "eu-west-1",
+                        }
+                    },
+                    "models": [{"slug": "claude"}],
+                },
+            },
+        ),
+    )
+
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "custom_provider",
+            "data": {
+                "kind": "bedrock",
+                "provider": {
+                    "extras": {
+                        "AWS_SECRET_ACCESS_KEY": "",
+                        "AWS_REGION": "us-east-1",
+                    }
+                },
+                "models": [{"slug": "claude"}],
+            },
+        },
+    )
+
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=created.id,
+            project_id=PROJECT_ID,
+            update_secret_dto=update,
+        )
 
 
 @pytest.mark.asyncio
@@ -391,37 +486,70 @@ async def test_update_without_custom_secret_content_keeps_the_stored_one(service
     assert updated.data.secret.content == "ghp_example_token_xyz"
 
 
-# --- service: the flag is one-way ------------------------------------------------------
+def test_write_only_is_not_an_update_field():
+    with pytest.raises(ValueError, match="cannot be updated"):
+        UpdateSecretDTO.model_validate({"write_only": False})
+
+    with pytest.raises(ValueError, match="cannot be updated"):
+        UpdateSecretDTO.model_validate({"write_only": True})
 
 
-@pytest.mark.asyncio
-async def test_write_only_cannot_be_turned_off(service):
-    created = await service.create_secret(
-        project_id=PROJECT_ID, create_secret_dto=_provider_key_create(write_only=True)
-    )
-
-    with pytest.raises(WriteOnlyCannotBeDisabledError):
-        await service.update_secret(
-            secret_id=created.id,
-            project_id=PROJECT_ID,
-            update_secret_dto=UpdateSecretDTO(write_only=False),
+@pytest.mark.parametrize(
+    ("kind", "data"),
+    [
+        (
+            "provider_key",
+            {"kind": "openai", "provider": {"key": ""}},
+        ),
+        (
+            "webhook_provider",
+            {"provider": {"key": ""}},
+        ),
+        (
+            "sso_provider",
+            {
+                "provider": {
+                    "client_id": "client",
+                    "client_secret": "",
+                    "issuer_url": "https://issuer.example.com",
+                    "scopes": ["openid"],
+                }
+            },
+        ),
+    ],
+)
+def test_create_rejects_empty_credentials(kind, data):
+    with pytest.raises(ValueError):
+        CreateSecretDTO(
+            header={"name": "Connection"},
+            secret={"kind": kind, "data": data},
         )
 
 
 @pytest.mark.asyncio
-async def test_readable_secret_can_be_tightened_to_write_only(service):
-    created = await service.create_secret(
-        project_id=PROJECT_ID,
-        create_secret_dto=_provider_key_create(write_only=False),
+async def test_update_cannot_keep_a_missing_value_from_a_legacy_row(service):
+    legacy = SecretResponseDTO(
+        id=uuid4(),
+        slug="legacy-openai",
+        kind="provider_key",
+        data={"kind": "openai", "provider": {}},
+        header={"name": "Legacy"},
+        write_only=False,
     )
+    service.secrets_dao.records[legacy.id] = legacy
 
-    updated = await service.update_secret(
-        secret_id=created.id,
-        project_id=PROJECT_ID,
-        update_secret_dto=UpdateSecretDTO(write_only=True),
-    )
-
-    assert updated.write_only is True
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=legacy.id,
+            project_id=PROJECT_ID,
+            update_secret_dto=UpdateSecretDTO(
+                header={"name": "Renamed"},
+                secret={
+                    "kind": "provider_key",
+                    "data": {"kind": "openai", "provider": {}},
+                },
+            ),
+        )
 
 
 # --- service: keep-on-omit is identity-local -------------------------------------------
@@ -654,8 +782,8 @@ def test_redacts_provider_key_and_reports_presence():
     redacted = redact_secret_response(secret)
 
     assert redacted.data.provider.key is None
-    assert redacted.has_key is True
-    assert redacted.key_preview == "sk-****bc"
+    assert redacted.value_status.configured is True
+    assert redacted.value_status.preview == "sk-****bc"
     # The input is never mutated: internal readers keep their plaintext DTO.
     assert secret.data.provider.key == "sk-test-openai-key-bc"
 
@@ -680,9 +808,9 @@ def test_redacts_custom_provider_key_and_credential_extras():
     assert "api_key" not in redacted.data.provider.extras
     assert redacted.data.provider.extras["region"] == "eu-west-1"
     assert redacted.data.provider.url == "https://gateway.example.com/v1"
-    assert redacted.has_key is True
+    assert redacted.value_status.configured is True
     # Only the primary value field gets a preview; extras credentials never do.
-    assert redacted.key_preview is None
+    assert redacted.value_status.preview is None
 
 
 def test_redacts_every_sdk_credential_extras_key():
@@ -715,11 +843,11 @@ def test_redacts_every_sdk_credential_extras_key():
         "AWS_REGION": "eu-west-1",
         "vertex_ai_project": "my-project",
     }
-    assert redacted.has_key is True
-    assert redacted.key_preview is None
+    assert redacted.value_status.configured is True
+    assert redacted.value_status.preview is None
 
 
-def test_aws_only_secret_reports_has_key_true():
+def test_aws_only_secret_reports_configured_true():
     secret = _response(
         "custom_provider",
         {
@@ -737,7 +865,7 @@ def test_aws_only_secret_reports_has_key_true():
 
     redacted = redact_secret_response(secret)
 
-    assert redacted.has_key is True
+    assert redacted.value_status.configured is True
     assert "aws_secret_access_key" not in redacted.data.provider.extras
     assert redacted.data.provider.extras["aws_region_name"] == "eu-west-1"
 
@@ -759,7 +887,7 @@ def test_redacts_sso_client_secret():
 
     assert redacted.data.provider.client_secret is None
     assert redacted.data.provider.client_id == "client-1"
-    assert redacted.has_key is True
+    assert redacted.value_status.configured is True
 
 
 def test_redacts_text_custom_secret_content():
@@ -771,8 +899,8 @@ def test_redacts_text_custom_secret_content():
     redacted = redact_secret_response(secret)
 
     assert redacted.data.secret.content is None
-    assert redacted.has_key is True
-    assert redacted.key_preview == "ghp****yz"
+    assert redacted.value_status.configured is True
+    assert redacted.value_status.preview == "ghp****yz"
 
 
 def test_redacts_json_custom_secret_without_a_preview():
@@ -784,9 +912,9 @@ def test_redacts_json_custom_secret_without_a_preview():
     redacted = redact_secret_response(secret)
 
     assert redacted.data.secret.content is None
-    assert redacted.has_key is True
+    assert redacted.value_status.configured is True
     # A structured value has no single previewable string.
-    assert redacted.key_preview is None
+    assert redacted.value_status.preview is None
 
 
 def test_readable_secret_passes_through_unchanged():
@@ -798,13 +926,13 @@ def test_readable_secret_passes_through_unchanged():
 
     redacted = redact_secret_response(secret)
 
-    assert redacted is secret
+    assert redacted is not secret
     assert redacted.data.provider.key == "sk-test-openai-key-bc"
-    assert redacted.has_key is None
-    assert redacted.key_preview is None
+    assert redacted.value_status.configured is True
+    assert redacted.value_status.preview is None
 
 
-def test_write_only_without_a_value_reports_has_key_false():
+def test_write_only_without_a_value_reports_configured_false():
     secret = _response(
         "custom_provider",
         {
@@ -816,8 +944,8 @@ def test_write_only_without_a_value_reports_has_key_false():
 
     redacted = redact_secret_response(secret)
 
-    assert redacted.has_key is False
-    assert redacted.key_preview is None
+    assert redacted.value_status.configured is False
+    assert redacted.value_status.preview is None
 
 
 # --- postgres mappings -----------------------------------------------------------------
@@ -868,55 +996,6 @@ def test_update_mapping_preserves_the_stored_flag_when_unspecified():
     map_secrets_dto_to_dbe_update(
         secrets_dbe=dbe,
         update_secret_dto=UpdateSecretDTO(
-            secret={
-                "kind": "provider_key",
-                "data": {
-                    "kind": "openai",
-                    "provider": {"key": "sk-test-rotated"},
-                },
-            },
-        ),
-    )
-
-    stored = json.loads(dbe.data)
-    assert stored["write_only"] is True
-    assert stored["provider"]["key"] == "sk-test-rotated"
-
-
-def test_update_mapping_applies_a_tightening_flag():
-    import json
-
-    dbe = map_secrets_dto_to_dbe(
-        project_id=PROJECT_ID,
-        organization_id=None,
-        secret_dto=_provider_key_create(write_only=False),
-    )
-
-    map_secrets_dto_to_dbe_update(
-        secrets_dbe=dbe,
-        update_secret_dto=UpdateSecretDTO(write_only=True),
-    )
-
-    stored = json.loads(dbe.data)
-    assert stored["write_only"] is True
-    assert stored["provider"]["key"] == "sk-test-openai-key-bc"
-
-
-def test_update_mapping_never_clears_the_flag_on_a_stale_explicit_false():
-    # Concurrency guard: a racing update that read write_only=False before another
-    # request tightened the secret must not resurrect readability at the mapper.
-    import json
-
-    dbe = map_secrets_dto_to_dbe(
-        project_id=PROJECT_ID,
-        organization_id=None,
-        secret_dto=_provider_key_create(write_only=True),
-    )
-
-    map_secrets_dto_to_dbe_update(
-        secrets_dbe=dbe,
-        update_secret_dto=UpdateSecretDTO(
-            write_only=False,
             secret={
                 "kind": "provider_key",
                 "data": {

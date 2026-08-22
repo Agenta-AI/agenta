@@ -23,14 +23,16 @@ AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 
 # The platform runtime's proof of what it is, for the credential exchange below.
 _RUNTIME_KEY_HEADER = "X-Agenta-Runtime-Key"
-_RUNTIME_KEY = (
-    getenv("AGENTA_SERVICES_INTERNAL_KEY") or getenv("AGENTA_AUTH_KEY") or ""
-).strip()
-# The placeholder a deployment that configured nothing carries — and it is the SHIPPED
-# DEFAULT in the example env files, not a rare mistake. Sending it would be sending a
-# value every reader of the repo knows, so it counts as no key at all.
-if _RUNTIME_KEY == "replace-me":
-    _RUNTIME_KEY = ""
+
+
+def _runtime_key_from_environment() -> str:
+    runtime_key = (getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
+
+    # The placeholder is public repository content, so it counts as no key at all.
+    return "" if runtime_key == "replace-me" else runtime_key
+
+
+_RUNTIME_KEY = _runtime_key_from_environment()
 
 # Said once, at the point of use, because the failure it causes names something else
 # entirely: a run whose connection holds a write-only secret gets the redacted shape and
@@ -49,7 +51,7 @@ def _warn_once_about_the_missing_runtime_key() -> None:
     _RUNTIME_KEY_WARNED = True
     log.warning(
         "agenta: no platform runtime key configured "
-        "(AGENTA_SERVICES_INTERNAL_KEY unset and AGENTA_AUTH_KEY is the placeholder). "
+        "(AGENTA_SERVICES_INTERNAL_KEY is unset or uses the placeholder). "
         "Runs against connections whose secret is write-only will fail to read it. "
         "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and this service."
     )

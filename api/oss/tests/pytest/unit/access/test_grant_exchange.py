@@ -185,6 +185,16 @@ async def test_an_unconfigured_deployment_grants_nobody(exchange, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_the_admin_key_is_not_runtime_proof(exchange, monkeypatch):
+    monkeypatch.setattr(env.agenta, "services_internal_key", None)
+    run, _ = exchange
+
+    body = _body(await run("run_service", runtime_key=env.agenta.auth_key))
+
+    assert "grants" not in _claims(body["credentials"])
+
+
+@pytest.mark.asyncio
 async def test_a_plain_caller_cannot_mint_the_grant_by_asking_for_it(exchange):
     # The escalation this closes: a member who may run a service could call the exchange
     # with their own session or ApiKey — neither of which carries a grant — and spend the

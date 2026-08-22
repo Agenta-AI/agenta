@@ -571,24 +571,18 @@ class SessionsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# agenta.vault — vault (secrets) behavior.
-# ---------------------------------------------------------------------------
-
-
-class VaultConfig(BaseModel):
-    """Vault (secrets) behavior."""
-
-    # Whether NEW secrets default to write-only (value never readable back by users).
-    # Off until the web UI ships replace-only secret forms; an explicit `write_only`
-    # on the create request always wins over this default.
-    write_only_default: bool = _parse_bool_env("AGENTA_VAULT_WRITE_ONLY_DEFAULT", False)
-
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
+
+
+def _services_internal_key_from_environment() -> str | None:
+    """Read the dedicated runtime proof without accepting public placeholders."""
+    runtime_key = (os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
+
+    if not runtime_key or runtime_key == "replace-me":
+        return None
+
+    return runtime_key
 
 
 class AgentaConfig(BaseModel):
@@ -606,15 +600,10 @@ class AgentaConfig(BaseModel):
     # Shared secret that proves a caller IS the platform runtime (the workflow service),
     # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
     # caller holding it can be issued a credential that reads write-only secret values.
-    # Defaults to `auth_key` because the services container already receives it through
-    # the same env file the API uses, so existing deployments keep working; setting a
-    # dedicated value narrows what one leaked secret can do. NEVER sent to the runner or
-    # into a sandbox.
-    services_internal_key: str = (
-        os.getenv("AGENTA_SERVICES_INTERNAL_KEY")
-        or os.getenv("AGENTA_AUTH_KEY")
-        or "replace-me"
-    )
+    # This is deliberately separate from the administrator key: deployments must opt in
+    # by configuring the same dedicated value on the API and platform services. NEVER
+    # sent to the runner or into a sandbox.
+    services_internal_key: str | None = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
@@ -626,7 +615,6 @@ class AgentaConfig(BaseModel):
     redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
-    vault: VaultConfig = VaultConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
     workers: WorkersConfig = WorkersConfig()
 
