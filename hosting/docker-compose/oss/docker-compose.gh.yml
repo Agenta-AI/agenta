@@ -16,7 +16,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
-            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -30,9 +30,9 @@ services:
 
     web-mobile:
         # === ACTIVATION =========================================== #
-        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
-        profiles:
-            - with-web-mobile
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
+        # hand-rolled `docker compose up`.
         # === IMAGE ================================================ #
         # build:
         #     context: ../../../web
@@ -44,7 +44,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
-            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-true}
             - AGENTA_MOBILE_REVERSE_GATE=${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:

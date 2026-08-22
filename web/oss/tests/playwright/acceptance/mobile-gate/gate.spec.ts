@@ -3,10 +3,12 @@ import {expect, test} from "@playwright/test"
 const IPHONE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-// Requires a deployment started with AGENTA_MOBILE_GATE=true; the runner env
-// var is the operator's assertion of that. Skipped otherwise.
-const gateEnabled = process.env.AGENTA_MOBILE_GATE === "true"
-test.skip(!gateEnabled, "mobile gate flag off (set AGENTA_MOBILE_GATE=true to run)")
+// The gate ships default-on, and so does the /m service, so this suite runs
+// against any deployment that did not opt out. A deployment that sets
+// AGENTA_MOBILE_GATE=false has no gate to test, and the runner env var is the
+// operator's assertion of that.
+const gateEnabled = process.env.AGENTA_MOBILE_GATE !== "false"
+test.skip(!gateEnabled, "mobile gate opted out (AGENTA_MOBILE_GATE=false)")
 
 test.describe("mobile gate: forward direction", () => {
     test.use({userAgent: IPHONE_UA, storageState: undefined})
