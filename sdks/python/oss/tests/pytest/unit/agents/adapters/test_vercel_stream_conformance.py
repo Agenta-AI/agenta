@@ -349,8 +349,7 @@ async def test_runner_error_code_reaches_the_data_part() -> None:
     standard `error` frame is pinned to two keys.
     """
     message = (
-        "This organization's starter credits are used up. "
-        "Add your own provider key to keep going."
+        "Your free Agenta credits are used up. Add your own provider key to keep going."
     )
 
     async def _events():
@@ -370,9 +369,7 @@ async def test_runner_error_code_reaches_the_data_part() -> None:
 
 @pytest.mark.asyncio
 async def test_runner_error_code_reaches_the_data_part_dev_twin() -> None:
-    message = (
-        "The starter credits service is temporarily unavailable. Try again in a moment."
-    )
+    message = "Agenta credits are temporarily unavailable. Try again in a moment."
     records = [
         {
             "kind": "event",
