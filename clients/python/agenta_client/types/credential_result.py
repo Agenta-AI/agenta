@@ -4,10 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .credential_status import CredentialStatus
 
 
-class WebhookProviderSettingsDto(UniversalBaseModel):
-    key: typing.Optional[str] = None
+class CredentialResult(UniversalBaseModel):
+    status: CredentialStatus
+    message: str
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

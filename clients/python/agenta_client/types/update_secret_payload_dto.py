@@ -4,10 +4,17 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .secret_kind import SecretKind
+from .update_secret_payload_dto_data import UpdateSecretPayloadDtoData
 
 
-class WebhookProviderSettingsDto(UniversalBaseModel):
-    key: typing.Optional[str] = None
+class UpdateSecretPayloadDto(UniversalBaseModel):
+    """
+    Update-time payload. Omitted credential fields keep their stored values.
+    """
+
+    kind: SecretKind
+    data: UpdateSecretPayloadDtoData
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

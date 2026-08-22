@@ -6,8 +6,9 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
-class WebhookProviderSettingsDto(UniversalBaseModel):
-    key: typing.Optional[str] = None
+class SecretValueStatus(UniversalBaseModel):
+    configured: bool
+    preview: typing.Optional[str] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

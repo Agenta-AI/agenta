@@ -3,14 +3,14 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * Create-time secret payload. Required credential fields must be present.
+ * Update-time payload. Omitted credential fields keep their stored values.
  */
-export interface SecretDto {
+export interface UpdateSecretPayloadDto {
     kind: AgentaApi.SecretKind;
-    data: SecretDto.Data;
+    data: UpdateSecretPayloadDto.Data;
 }
 
-export namespace SecretDto {
+export namespace UpdateSecretPayloadDto {
     export type Data =
         | AgentaApi.StandardProviderDto
         | AgentaApi.CustomProviderDto
