@@ -29,6 +29,12 @@ export const KEYBOARD_INSET_MIN_PX = 120
 /** Touch input, where sending a message should also dismiss the on-screen keyboard. */
 export const COARSE_POINTER_QUERY = "(pointer: coarse)"
 
+/**
+ * How long a keyboard takes to slide away. Some iOS builds close it without emitting a
+ * visual-viewport `resize`, so a blur schedules one more read after this delay.
+ */
+export const KEYBOARD_SETTLE_MS = 400
+
 /** The four numbers the rules below need, so they can be tested without a browser. */
 export interface VisualViewportSample {
     /** The layout viewport height (`window.innerHeight`), which the keyboard does not shrink. */
@@ -75,6 +81,25 @@ export function hasCoarsePointer(): boolean {
     return window.matchMedia(COARSE_POINTER_QUERY).matches
 }
 
+/**
+ * Close the on-screen keyboard after a message is sent. Does nothing on a mouse-driven browser,
+ * where the editor must keep focus so the next message can be typed straight away.
+ *
+ * The blur MUST be deferred, and that is the whole point of this helper. A rich-text editor clears
+ * itself immediately after it hands the message to `onSubmit`, and that update reconciles a fresh
+ * DOM selection with `setBaseAndExtent`. Writing a selection into a `contenteditable` focuses it,
+ * so a blur called inside the submit handler is undone one statement later and the keyboard springs
+ * back up. Two animation frames put the blur after the reconcile and after the re-render it causes.
+ */
+export function dismissSoftKeyboardAfterSend(blur: () => void): void {
+    if (!hasCoarsePointer()) return
+    if (typeof window === "undefined" || !window.requestAnimationFrame) {
+        blur()
+        return
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(blur))
+}
+
 function readVisualViewport(): VisualViewportSample | null {
     if (typeof window === "undefined") return null
     const viewport = window.visualViewport
@@ -115,16 +140,34 @@ export function useVisualViewportHeight(): void {
             frame = window.requestAnimationFrame(apply)
         }
 
+        // Some iOS builds close the keyboard without emitting a visual-viewport `resize`. The page
+        // would then stay pinned to the shrunken height, with dead space where the keyboard was —
+        // which looks exactly like the bug this hook exists to fix. A blur is the reliable signal
+        // that the keyboard is going away, so read the viewport again when focus leaves a field,
+        // and once more after the close animation has finished.
+        let settle: number | null = null
+        const syncAfterBlur = () => {
+            sync()
+            if (settle !== null) window.clearTimeout(settle)
+            settle = window.setTimeout(() => {
+                settle = null
+                apply()
+            }, KEYBOARD_SETTLE_MS)
+        }
+
         apply()
         viewport.addEventListener("resize", sync)
         viewport.addEventListener("scroll", sync)
         window.addEventListener("orientationchange", sync)
+        window.addEventListener("focusout", syncAfterBlur)
 
         return () => {
             if (frame !== null) window.cancelAnimationFrame(frame)
+            if (settle !== null) window.clearTimeout(settle)
             viewport.removeEventListener("resize", sync)
             viewport.removeEventListener("scroll", sync)
             window.removeEventListener("orientationchange", sync)
+            window.removeEventListener("focusout", syncAfterBlur)
             root.style.removeProperty(VIEWPORT_HEIGHT_VAR)
         }
     }, [])
