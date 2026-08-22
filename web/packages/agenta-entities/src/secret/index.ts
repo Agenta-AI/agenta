@@ -68,6 +68,7 @@ export {
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
     SecretKind,
+    SecretManagementPolicy,
     StandardProviderKind,
     getEnvNameMap,
     hasStoredKey,

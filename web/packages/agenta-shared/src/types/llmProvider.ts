@@ -44,8 +44,8 @@ export interface LlmProvider {
     hasKey?: boolean
     /** Masked credential (`sk-****9Qa`) a write-only row carries in place of its value. */
     keyPreview?: string
-    /** The platform component that provisioned this row; user edits and deletes are refused for it. */
-    managedBy?: string
+    /** Public management policy for the row; internal manager identity is never exposed. */
+    managementPolicy?: string
     id?: string
     type?: string
     created_at?: string

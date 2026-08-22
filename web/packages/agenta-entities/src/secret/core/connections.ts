@@ -29,6 +29,7 @@ import {
     SecretKind,
     VAULT_PERSIST_REDACTED,
     type CreateSecretDto,
+    type SecretManagementPolicy,
 } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -60,8 +61,8 @@ export interface ProviderConnection {
     hasStoredCredential: boolean
     /** Masked credential (`sk-****9Qa`), when the record carries one. */
     keyPreview?: string
-    /** Set when Agenta provisioned and owns this connection; the user may not edit or delete it. */
-    managedBy?: string
+    /** Server-enforced management policy. Manager-only rows may not be edited or deleted by users. */
+    managementPolicy?: SecretManagementPolicy
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
@@ -110,7 +111,7 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             hasStoredCredential:
                 row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
             keyPreview: row.keyPreview,
-            managedBy: row.managedBy,
+            managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
             source: row,
         })
         return acc

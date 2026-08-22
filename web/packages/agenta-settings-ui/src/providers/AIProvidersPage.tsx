@@ -4,6 +4,7 @@ import {
     activeModelsSummary,
     credentialSummary,
     deleteSecretAtom,
+    SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
     type ProviderConnection,
@@ -79,7 +80,10 @@ export const AIProvidersPage = ({
     const rows = useMemo<ConnectionRow[]>(
         () =>
             connections
-                .filter((connection) => !connection.managedBy)
+                .filter(
+                    (connection) =>
+                        connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+                )
                 .map((connection) => ({...connection, key: connection.id})),
         [connections],
     )

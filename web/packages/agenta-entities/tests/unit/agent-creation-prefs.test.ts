@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {SecretKind, type ProviderConnection} from "../../src/secret/core"
+import {SecretKind, SecretManagementPolicy, type ProviderConnection} from "../../src/secret/core"
 import {
     applyAgentCreationPrefs,
     applyManagedConnectionDefault,
@@ -105,7 +105,7 @@ describe("applyManagedConnectionDefault", () => {
             title: "Custom",
             secretKind: SecretKind.CustomProvider,
             hasStoredCredential: true,
-            managedBy: "starter-credits-bridge",
+            managementPolicy: SecretManagementPolicy.ManagerOnly,
             source: {
                 modelKeys: ["Starter credits/custom/vertex_ai/gemini-3.6-flash"],
             } as ProviderConnection["source"],

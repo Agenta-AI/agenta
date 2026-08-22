@@ -146,7 +146,7 @@ export const standardSecretsAtom = atom((get) => {
                 writeOnly: match.writeOnly,
                 hasKey: match.hasKey,
                 keyPreview: match.keyPreview,
-                managedBy: match.managedBy,
+                managementPolicy: match.managementPolicy,
                 id: match.id,
                 // The connection's saved policy round-trips: a form seeded from this row
                 // sends it back on update instead of dropping it.

@@ -28,22 +28,7 @@ export type LegacyLifecycleDto = AgentaApi.LegacyLifecycleDto
 
 export type SecretDto = AgentaApi.SecretDto
 
-/**
- * A stored record as the vault returns it, plus the write-only fields.
- *
- * A write-only row is created, replaced, and deleted like any other, but its value never comes
- * back: the response nulls the credential and answers `has_key` / `key_preview` instead.
- * `managed_by` names the platform component that provisioned the row, if any.
- *
- * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping the
- * intersection once Fern declares the fields is a no-op for callers.
- */
-export type SecretResponseDto = AgentaApi.SecretResponseDto & {
-    write_only?: boolean | null
-    managed_by?: string | null
-    has_key?: boolean | null
-    key_preview?: string | null
-}
+export type SecretResponseDto = AgentaApi.PublicSecretResponseDto
 
 export type CreateSecretDto = AgentaApi.CreateSecretDto
 export type UpdateSecretDto = AgentaApi.UpdateSecretDto
@@ -52,28 +37,8 @@ export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
 
-/**
- * The connection policy both stored record shapes carry: the models this connection offers
- * and the harnesses it may drive. A missing `models` means "use Agenta's defaults" and an
- * empty one means "no models from this connection"; a missing `harnesses` means "any harness
- * Agenta supports". The custom-provider record already declares `models`, so it only gains
- * `harnesses` here.
- *
- * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping
- * the intersections once Fern declares the fields is a no-op for callers.
- */
-export type StandardProviderDto = Omit<AgentaApi.StandardProviderDto, "provider"> & {
-    /**
-     * `key` is optional in both directions: a write-only response nulls it, and an update omits it
-     * to mean "keep the stored value". Fern still declares it required.
-     */
-    provider: {key?: string | null}
-    models?: CustomModelSettingsDto[] | null
-    harnesses?: string[] | null
-}
-export type CustomProviderDto = AgentaApi.CustomProviderDto & {
-    harnesses?: string[] | null
-}
+export type StandardProviderDto = AgentaApi.StandardProviderDto
+export type CustomProviderDto = AgentaApi.CustomProviderDto
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
@@ -81,6 +46,8 @@ export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
 export const CustomSecretFormat = AgentaApi.CustomSecretFormat
 export type CustomSecretFormat = AgentaApi.CustomSecretFormat
 
+export const SecretManagementPolicy = AgentaApi.SecretManagementPolicy
+export type SecretManagementPolicy = AgentaApi.SecretManagementPolicy
 /**
  * Flat json content for a `json`-format custom secret: a single-level map of
  * primitives. Mirrors the backend's flat-only validation (no nesting/arrays).

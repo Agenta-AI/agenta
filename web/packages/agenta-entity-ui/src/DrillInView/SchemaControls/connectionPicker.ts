@@ -21,6 +21,7 @@
 
 import {
     SecretKind,
+    SecretManagementPolicy,
     bareModelId,
     connectionSlugFor,
     harnessSupportsProviderKind,
@@ -348,7 +349,10 @@ const connectionRows = ({
             // deployment behind it — that deployment is an implementation detail of the offer, and
             // naming it here would credit a vendor the user never chose. The row's NAME still comes
             // from the record, so what it is called stays the backend's to decide.
-            iconKey: connection.managedBy ? AGENTA_ICON_KEY : connection.kind,
+            iconKey:
+                connection.managementPolicy === SecretManagementPolicy.ManagerOnly
+                    ? AGENTA_ICON_KEY
+                    : connection.kind,
             kind: "connection",
             models,
         })

@@ -8,6 +8,7 @@ import {
 } from "../../src/secret/core/transforms"
 import {
     SecretKind,
+    SecretManagementPolicy,
     StandardProviderKind,
     type SecretResponseDto,
     type StandardProviderDto,
@@ -20,6 +21,7 @@ const standardSecret = (data: Partial<StandardProviderDto>): SecretResponseDto =
         kind: SecretKind.ProviderKey,
         header: {name: "OpenAI 2"},
         data: {kind: StandardProviderKind.Openai, provider: {key: "sk-one"}, ...data},
+        value_status: {configured: true, preview: null},
     }) as unknown as SecretResponseDto
 
 describe("transformSecret", () => {
@@ -63,6 +65,7 @@ describe("transformSecret", () => {
                     models: [{slug: "gpt-4o-mini"}],
                     harnesses: ["pi_core"],
                 },
+                value_status: {configured: true, preview: null},
             } as unknown as SecretResponseDto,
         ])
 
@@ -165,8 +168,7 @@ describe("write-only records", () => {
             header: {name: "OpenAI"},
             data: {kind: StandardProviderKind.Openai, provider: {key: null}},
             write_only: true,
-            has_key: true,
-            key_preview: "sk-****9Qa",
+            value_status: {configured: true, preview: "sk-****9Qa"},
             ...over,
         }) as unknown as SecretResponseDto
 
@@ -180,17 +182,21 @@ describe("write-only records", () => {
     })
 
     it("carries the owner marker of a platform-provisioned record", () => {
-        const [row] = transformSecret([writeOnly({managed_by: "starter-credits-bridge"})])
+        const [row] = transformSecret([
+            writeOnly({
+                management: {policy: SecretManagementPolicy.ManagerOnly},
+            }),
+        ])
 
-        expect(row.managedBy).toBe("starter-credits-bridge")
+        expect(row.managementPolicy).toBe(SecretManagementPolicy.ManagerOnly)
     })
 
     it("leaves every write-only field undefined on a legacy readable record", () => {
         const [row] = transformSecret([standardSecret({})])
 
         expect(row.writeOnly).toBeUndefined()
-        expect(row.hasKey).toBeUndefined()
-        expect(row.managedBy).toBeUndefined()
+        expect(row.hasKey).toBe(true)
+        expect(row.managementPolicy).toBeUndefined()
     })
 })
 

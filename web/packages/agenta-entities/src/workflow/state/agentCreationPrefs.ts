@@ -6,7 +6,12 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {SecretKind, connectionSlugFor, type ProviderConnection} from "../../secret/core"
+import {
+    SecretKind,
+    SecretManagementPolicy,
+    connectionSlugFor,
+    type ProviderConnection,
+} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -90,7 +95,7 @@ const connectionModelIds = (connection: ProviderConnection): string[] =>
  * Default a new agent onto an Agenta-managed connection when its template provider has no key.
  *
  * The backend template hard-codes a provider/model pair, so a project whose only credentials are
- * ones Agenta provisioned (`managedBy` set) mints an agent pointing at a provider the user has
+ * ones protected by the manager-only policy mints an agent pointing at a provider the user has
  * never connected — it paints a "Connect key" warning and cannot run until they configure one.
  * Repoint it at the managed connection's first model, addressed by slug.
  *
@@ -115,7 +120,7 @@ export function applyManagedConnectionDefault(
     const provider = typeof llm.provider === "string" ? llm.provider.trim().toLowerCase() : ""
     const userConnected = connections.some(
         (candidate) =>
-            !candidate.managedBy &&
+            candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
             candidate.hasStoredCredential &&
             !!provider &&
             candidate.kind.toLowerCase() === provider,
@@ -124,7 +129,7 @@ export function applyManagedConnectionDefault(
 
     const managed = connections.find(
         (candidate) =>
-            !!candidate.managedBy &&
+            candidate.managementPolicy === SecretManagementPolicy.ManagerOnly &&
             !!connectionSlugFor(candidate) &&
             connectionModelIds(candidate).length > 0,
     )

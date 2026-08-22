@@ -79,14 +79,14 @@ export const hasStoredKey = (provider: LlmProvider | null | undefined): boolean 
 /**
  * The fields every row carries about its own value, whichever kind it is.
  *
- * A write-only row answers `has_key` where a readable one answers with the value itself, so
- * presence checks read `hasKey` and fall back to the value only for legacy readable rows.
+ * The public API reports value presence and an optional safe preview through `value_status`.
+ * The UI maps those general facts into its provider-specific connection model here.
  */
 const storageFacts = (secret: SecretResponseDto) => ({
     writeOnly: secret.write_only ?? undefined,
-    hasKey: secret.has_key ?? undefined,
-    keyPreview: secret.key_preview ?? undefined,
-    managedBy: secret.managed_by ?? undefined,
+    hasKey: secret.value_status.configured,
+    keyPreview: secret.value_status.preview ?? undefined,
+    managementPolicy: secret.management?.policy,
 })
 
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {

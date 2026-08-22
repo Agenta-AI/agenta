@@ -356,7 +356,7 @@ const ProviderConnectionCard = ({
     const statusLine = credentialMessage
         ? credentialStatusLine(
               credentialMessage,
-              discovered ? (probe?.discovery.models.length ?? 0) : null,
+              discovered ? (probe?.discovery.models?.length ?? 0) : null,
           )
         : null
 

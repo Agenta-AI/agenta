@@ -6,7 +6,11 @@
  * pair only exists when the harness can both drive the connection and spell the model, and a pick
  * persists the exact connection slug. Runs under @agenta/entity-ui's own vitest runner.
  */
-import {SecretKind, type ProviderConnection} from "@agenta/entities/secret"
+import {
+    SecretKind,
+    SecretManagementPolicy,
+    type ProviderConnection,
+} from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
 import {
@@ -679,10 +683,10 @@ describe("buildConnectionPickerRows: a provisioned connection wears Agenta's mar
         showSubscriptions: false,
     })
 
-    it("keys the icon on managedBy, not on the deployment kind", () => {
+    it("keys the icon on the manager-only policy, not on the deployment kind", () => {
         const managed = custom("m1", "bedrock", ["Agenta/custom/anthropic/claude-fable-5"], {
             name: "Agenta",
-            managedBy: "starter-credits-bridge",
+            managementPolicy: SecretManagementPolicy.ManagerOnly,
         })
         const [row] = buildConnectionPickerRows(args(managed))
         expect(row.iconKey).toBe("agenta")

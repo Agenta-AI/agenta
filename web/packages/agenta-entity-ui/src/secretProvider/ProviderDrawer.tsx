@@ -18,10 +18,11 @@
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import type {
-    ProviderCatalogEntry,
-    ProviderConnection,
-    SubscriptionPair,
+import {
+    SecretManagementPolicy,
+    type ProviderCatalogEntry,
+    type ProviderConnection,
+    type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -131,13 +132,16 @@ const ProviderDrawer = ({
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
     /**
-     * The connections the user actually connected. A provisioned one (`managedBy`) is not editable
+     * The connections the user actually connected. A manager-only one is not editable
      * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
      * table applies. It stays in the `connections` prop the card reads, and in the callers' own
      * lists, so the model picker and the "Connect key" gate keep counting it.
      */
     const userConnections = useMemo(
-        () => connections.filter((candidate) => !candidate.managedBy),
+        () =>
+            connections.filter(
+                (candidate) => candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+            ),
         [connections],
     )
     const visibleCount = userConnections.length

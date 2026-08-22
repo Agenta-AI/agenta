@@ -28,13 +28,12 @@ import {
     credentialFieldsForKind,
     secretKindForProviderKind,
 } from "../../src/secret/core/providerCatalog"
-import {SecretKind, VAULT_PERSIST_REDACTED} from "../../src/secret/core/types"
+import {SecretKind, SecretManagementPolicy, VAULT_PERSIST_REDACTED} from "../../src/secret/core/types"
 
-const axiosPost = vi.fn()
+const fernProbeProvider = vi.fn()
 
-vi.mock("@agenta/shared/api", () => ({
-    axios: {post: (...args: unknown[]) => axiosPost(...args)},
-    getAgentaApiUrl: () => "https://agenta.test/api",
+vi.mock("@agenta/sdk/resources", () => ({
+    getSecretsClient: () => ({probeProvider: (...args: unknown[]) => fernProbeProvider(...args)}),
 }))
 
 // Imported after the mock so the module picks it up.
@@ -735,16 +734,14 @@ describe("buildConnectionPayload", () => {
 
 describe("probeProvider", () => {
     beforeEach(() => {
-        axiosPost.mockReset()
+        fernProbeProvider.mockReset()
     })
 
     it("posts the credential and returns the two statuses", async () => {
-        axiosPost.mockResolvedValueOnce({
-            data: {
-                credential: {status: "valid", message: "OpenAI accepted this key."},
-                discovery: {status: "fetched", models: ["gpt-5.5"]},
-                fetched_at: "2026-08-12T10:00:00Z",
-            },
+        fernProbeProvider.mockResolvedValueOnce({
+            credential: {status: "valid", message: "OpenAI accepted this key."},
+            discovery: {status: "fetched", models: ["gpt-5.5"]},
+            fetched_at: "2026-08-12T10:00:00Z",
         })
 
         const result = await probeProvider({
@@ -753,10 +750,9 @@ describe("probeProvider", () => {
             provider: {key: "sk-one"},
         })
 
-        expect(axiosPost).toHaveBeenCalledWith(
-            "https://agenta.test/api/providers/probe",
+        expect(fernProbeProvider).toHaveBeenCalledWith(
             {kind: "openai", provider: {key: "sk-one"}},
-            {params: {project_id: "proj-1"}},
+            {queryParams: {project_id: "proj-1"}},
         )
         expect(result?.credential.status).toBe("valid")
         expect(result?.discovery.models).toEqual(["gpt-5.5"])
@@ -764,40 +760,35 @@ describe("probeProvider", () => {
 
     it("puts the stored row on the wire as `secret_id`, and omits the field otherwise", async () => {
         const answer = {
-            data: {
-                credential: {status: "valid", message: "ok"},
-                discovery: {status: "fetched", models: ["m"]},
-                fetched_at: "2026-08-12T10:00:00Z",
-            },
+            credential: {status: "valid", message: "ok"},
+            discovery: {status: "fetched", models: ["m"]},
+            fetched_at: "2026-08-12T10:00:00Z",
         }
 
-        axiosPost.mockResolvedValueOnce(answer)
+        fernProbeProvider.mockResolvedValueOnce(answer)
         await probeProvider({
             projectId: "proj-1",
             provider: {url: "https://llm.example.com/v1"},
             secretId: "sec-1",
         })
-        expect(axiosPost).toHaveBeenLastCalledWith(
-            "https://agenta.test/api/providers/probe",
+        expect(fernProbeProvider).toHaveBeenLastCalledWith(
             {provider: {url: "https://llm.example.com/v1"}, secret_id: "sec-1"},
-            {params: {project_id: "proj-1"}},
+            {queryParams: {project_id: "proj-1"}},
         )
         // Absent, not empty: the stored row names its own kind, and a disagreeing one is a 422.
-        expect(axiosPost.mock.lastCall?.[1]).not.toHaveProperty("kind")
+        expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("kind")
 
         // Absent, not null: the server reads a present `secret_id` as "resolve the stored row".
-        axiosPost.mockResolvedValueOnce(answer)
+        fernProbeProvider.mockResolvedValueOnce(answer)
         await probeProvider({projectId: "proj-1", kind: "openai", provider: {key: "sk-one"}})
-        expect(axiosPost.mock.lastCall?.[1]).not.toHaveProperty("secret_id")
+        expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("secret_id")
     })
 
     it("defaults a fetched-but-model-less discovery to an empty list", async () => {
-        axiosPost.mockResolvedValueOnce({
-            data: {
-                credential: {status: "unknown", message: "not tested"},
-                discovery: {status: "unsupported"},
-                fetched_at: "2026-08-12T10:00:00Z",
-            },
+        fernProbeProvider.mockResolvedValueOnce({
+            credential: {status: "unknown", message: "not tested"},
+            discovery: {status: "unsupported"},
+            fetched_at: "2026-08-12T10:00:00Z",
         })
 
         const result = await probeProvider({projectId: "p", kind: "minimax", provider: {key: "k"}})
@@ -806,7 +797,7 @@ describe("probeProvider", () => {
     })
 
     it("returns null rather than a half-read answer when the payload does not fit", async () => {
-        axiosPost.mockResolvedValueOnce({data: {credential: {status: "maybe"}}})
+        fernProbeProvider.mockResolvedValueOnce({credential: {status: "maybe"}})
 
         const result = await probeProvider({projectId: "p", kind: "openai", provider: {key: "k"}})
 
@@ -851,10 +842,10 @@ describe("write-only records", () => {
 
     it("carries the managed marker through, so a surface can choose not to list the row", () => {
         const [managed] = toProviderConnections([
-            {...writeOnlyRow, managedBy: "starter-credits-bridge"},
+            {...writeOnlyRow, managementPolicy: SecretManagementPolicy.ManagerOnly},
         ])
 
-        expect(managed.managedBy).toBe("starter-credits-bridge")
+        expect(managed.managementPolicy).toBe(SecretManagementPolicy.ManagerOnly)
     })
 
     it("shows the server's preview as the credential summary", () => {
