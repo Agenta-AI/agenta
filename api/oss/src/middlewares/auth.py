@@ -955,13 +955,7 @@ async def verify_secret_token(
                 auth_context.get("grants")
             )
         except ValueError as exc:
-            log.debug(
-                "[auth] secret token unauthorized",
-                path=request.url.path,
-                method=request.method,
-                reason="invalid_token",
-            )
-            raise UnauthorizedException(reason="invalid_token") from exc
+            raise DecodeError("Secret token contains invalid grants.") from exc
 
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
