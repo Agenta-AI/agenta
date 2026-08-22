@@ -142,7 +142,7 @@ read: no session, ApiKey, or list/get call ever returns the value.
 - Surface `write_only` in the connections/secrets lists.
 - Optional "readable" toggle at creation only (maps to `write_only: false`), if product
   wants the escape hatch exposed.
-- Regenerate the Fern client for the new `write_only`, `has_key`, `key_preview` fields.
+- Regenerate the Fern client for `write_only`, `value_status`, and `management.policy`.
 
 
 ## Who may read a value: the grant
@@ -163,19 +163,16 @@ The vault returns plaintext only to a caller whose verified `Secret` token carri
   re-deciding it. The runner is never given the runtime secret, and it never reaches a
   sandbox.
 
-**A deployment without the dedicated key loses agent runs against write-only connections**,
-and the failure names something else: the run reports "provide the provider key in this run's
-environment", which is right for a standalone run and misleading here. The services
-middleware therefore warns once, at the point of use, naming the variable to set. The
-placeholder is the shipped default in the example env files, so this is the common case,
-not an edge one.
+**A deployment without the dedicated key cannot start the API.** Failing at startup prevents a
+deployment from accepting write-only secrets that its platform runtime can never resolve. The
+error names the variable and rejects the well-known example placeholder.
 
 **Deployment.** Set `AGENTA_SERVICES_INTERNAL_KEY` to the same value on the API and the
-Services container before turning write-only on. It must be independent from
+Services container. It must be independent from
 `AGENTA_AUTH_KEY` and must not be provisioned to web, runner, sandbox, worker, cron, or
-migration containers. The API warns at startup when a deployment uses write-only secrets
-without one, and a component that seeds write-only rows refuses to seed rather than store
-a credential no run can read.
+migration containers. The API fails startup when the key is absent or still uses the
+placeholder, and a component that seeds write-only rows also refuses to seed rather than
+store a credential no run can read.
 
 The exchange never mints the grant from the requested `action` alone. It did once, and
 that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and
