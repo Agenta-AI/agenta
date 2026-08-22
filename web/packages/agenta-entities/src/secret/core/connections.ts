@@ -166,6 +166,61 @@ export const storedCredentialFields = (
     return keys.filter((key) => (SECRET_VALUE_FIELDS as readonly string[]).includes(key))
 }
 
+/** The probe request body: a credential to spend, or the vault row to spend one from. */
+export interface ProbeRequestBody {
+    kind: string
+    provider: ReturnType<typeof toProviderCredentials>
+    /** Vault row whose stored credentials the server resolves for this probe. */
+    secret_id?: string
+}
+
+/** Drop every blank value, and any `extras` left empty by dropping them. */
+const withoutBlanks = (
+    provider: ReturnType<typeof toProviderCredentials>,
+): ReturnType<typeof toProviderCredentials> => {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(provider)) {
+        if (key === "extras") {
+            const extras = Object.fromEntries(
+                Object.entries((value ?? {}) as Record<string, string>).filter(([, entry]) =>
+                    (entry ?? "").trim(),
+                ),
+            )
+            if (Object.keys(extras).length) out.extras = extras
+            continue
+        }
+        if (typeof value === "string" && !value.trim()) continue
+        out[key] = value
+    }
+    return out
+}
+
+/**
+ * The probe request for a Test press.
+ *
+ * A write-only connection hands its secret back to nobody, so a card sitting on one has nothing to
+ * put in the credential — testing it used to mean retyping the key. When the user typed no secret
+ * material and the vault holds some, the request names the row (`secret_id`) and the server
+ * resolves the credential itself.
+ *
+ * Typed fields still ride along, and the server lets them override what it resolved, so an edited
+ * base URL can be tested against the saved key. Blank fields are dropped rather than sent empty:
+ * an empty `key` alongside a `secret_id` would read as "test with no credential", which is a
+ * different question and, for an OpenAI-compatible endpoint, a legitimate one.
+ */
+export const probeRequestFor = (
+    kind: string,
+    credential: CredentialValues,
+    connection?: ProviderConnection | null,
+): ProbeRequestBody => {
+    const provider = toProviderCredentials(kind, credential)
+    const typedSecret = SECRET_VALUE_FIELDS.some((field) => (credential[field] ?? "").trim())
+    if (typedSecret || !connection?.hasStoredCredential || !connection.id) {
+        return {kind, provider}
+    }
+    return {kind, provider: withoutBlanks(provider), secret_id: connection.id}
+}
+
 /**
  * Whether this kind has enough credential to be worth testing or saving.
  *
