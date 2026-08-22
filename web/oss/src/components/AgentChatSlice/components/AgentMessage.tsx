@@ -138,6 +138,12 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
+
+    const isForbidden = text.includes("Permission denied") || text.includes("403");
+    const displayMessage = isForbidden 
+        ? "This agent cannot run right now: permission denied. Check your plan or contact your administrator." 
+        : text;
+        
     const big = isBigError(text)
 
     return (

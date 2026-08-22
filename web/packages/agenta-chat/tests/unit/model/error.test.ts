@@ -18,6 +18,21 @@ describe("parseAgentRunError", () => {
         expect(parseAgentRunError(raw)).toEqual({message: "Top level", code: undefined})
     })
 
+    it("pulls message out of a FastAPI detail string", () => {
+        const raw = JSON.stringify({detail: "Permission denied. Please check your permissions or contact your administrator."})
+        expect(parseAgentRunError(raw)).toEqual({message: "Permission denied. Please check your permissions or contact your administrator."})
+    })
+
+    it("pulls message out of a FastAPI nested detail object", () => {
+        const raw = JSON.stringify({
+            detail: {
+                message: "Agent failed to initialize due to a configuration error.",
+                operation_id: "xyz-123"
+            }
+        })
+        expect(parseAgentRunError(raw)).toEqual({message: "Agent failed to initialize due to a configuration error."})
+    })
+
     it("passes a plain non-JSON string straight through", () => {
         expect(parseAgentRunError("Something broke")).toEqual({message: "Something broke"})
     })

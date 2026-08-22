@@ -20,6 +20,20 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
     const fallback = raw.trim() || "The agent run failed."
     try {
         const obj = JSON.parse(raw) as Record<string, unknown>
+
+        console.error("Agent run failed with raw error:", obj);
+        
+        if(obj?.detail){
+            if(typeof obj?.detail === "string"){
+                return {message : obj.detail}
+            }
+            else if(typeof obj?.detail === "object" && obj.detail !== ""){
+                const detailObj = obj.detail as Record<string, unknown>
+                if (typeof detailObj.message === "string") {
+                    return { message: detailObj.message }
+                }
+            }
+        }
         const status = (obj?.status && typeof obj.status === "object" ? obj.status : obj) as Record<
             string,
             unknown
