@@ -158,8 +158,10 @@ image build and `@agenta/mobile` typecheck needed a new job.
 > **STATUS UPDATE (2026-08-22, v0.113.0):** the gate now ships **DEFAULT ON**, and the
 > `web-mobile` compose service starts with every stack (the `with-web-mobile` profile is
 > gone). Both keys became opt-OUTs: only the exact value `false` turns a gate off, and
-> `AGENTA_MOBILE_ENABLED=false` (or `run.sh --no-mobile`) holds the service back. v0.113.0
-> shipped to production without `/m` because no deployment set the keys — that is what the
+> `AGENTA_MOBILE_ENABLED=false` (or `run.sh --no-mobile`) holds the service back and forces
+> the desktop gate off; `--no-web` implies the same opt-out. The Helm chart deploys `web-mobile`
+> and routes `/m` by default; `webMobile.enabled=false` removes both and disables the desktop gate.
+> v0.113.0 shipped to production without `/m` because no deployment set the keys — that is what the
 > flip fixes. The section below records the original default-off design; read it as history.
 
 Ships the mobile device gate (design.md "Gate and routing") behind a runtime flag,

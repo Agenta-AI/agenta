@@ -43,6 +43,11 @@ global:
 #   image:
 #     tag: latest
 #     pullPolicy: IfNotPresent
+# webMobile:
+#   image:
+#     repository: ghcr.io/agenta-ai/agenta-web-mobile
+#     tag: latest
+#     pullPolicy: IfNotPresent
 # services:
 #   image:
 #     tag: latest
@@ -447,6 +452,16 @@ posthog:
 #       memory: 256Mi
 #     limits:
 #       memory: 512Mi
+# webMobile:
+#   enabled: true
+#   replicas: 1
+#   port: 3000
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
 # services:
 #   enabled: true
 #   replicas: 1
@@ -485,8 +500,9 @@ posthog:
 
 # ================================================================== #
 # === ingress ===
-# Path routing: / → web, /api → api (prefix-stripped), /services → services
-# (prefix-stripped).  When running behind Traefik, attach the StripPrefix
+# Path routing: / → web, /m → web-mobile, /api → api (prefix-stripped),
+# /services → services (prefix-stripped). The /m route is fixed because the mobile
+# image is built with basePath /m.  When running behind Traefik, attach the StripPrefix
 # Middleware defined under extraObjects below.
 # ================================================================== #
 # ingress:

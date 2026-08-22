@@ -56,8 +56,10 @@ proxy has the same two `location` blocks.
 Three opt-outs, from coarse to fine:
 
 - `run.sh --no-mobile`, or `AGENTA_MOBILE_ENABLED=false` in the shell or in the resolved env
-  file: the service starts with 0 replicas. On a hand-rolled `docker compose up`, the
-  equivalent is `--scale web-mobile=0`. `/m` then answers 502 and nothing else changes.
+  file: the service starts with 0 replicas and the desktop redirect gate is forced off, so
+  phones stay on the desktop UI. `--no-web` / `--web-mode none` implies the same mobile
+  opt-out for backend-only runs. On a hand-rolled `docker compose up`, pass both
+  `--scale web-mobile=0` and `AGENTA_MOBILE_GATE=false`.
 - `AGENTA_MOBILE_GATE=false`: `/m` still runs and is reachable, but no redirect happens in
   either direction.
 - `AGENTA_MOBILE_REVERSE_GATE=false`: phones still go to `/m`, and a desktop browser can open

@@ -51,13 +51,13 @@ show_usage() {
     echo "  --no-cache              Build with --no-cache (requires --build)"
     echo ""
     echo "Web:"
-    echo "  --no-web                Alias for --web-mode none"
+    echo "  --no-web                Alias for --web-mode none; disables desktop and mobile web"
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
     echo "  --no-mobile             Do NOT start the mobile web app at /m. It starts by default on"
     echo "                          every stack, incl. --dev, where the extra dev server costs"
-    echo "                          ~0.5-1GB RAM. Same as AGENTA_MOBILE_ENABLED=false."
+    echo "                          ~0.5-1GB RAM. Also disables the desktop redirect gate."
     echo "  --with-mobile           Deprecated no-op: /m starts by default now."
     echo ""
     echo "Environment:"
@@ -434,11 +434,14 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
-# Resolve the mobile opt-out. Precedence: --no-mobile, then AGENTA_MOBILE_ENABLED in the
-# shell, then the same key in the resolved env file. run.sh does not source the env file
-# (compose reads it directly), so this one key is read out of it explicitly — an operator
-# who writes the opt-out where every other setting lives must get the opt-out.
-if $NO_MOBILE_FLAG; then
+# Resolve the mobile opt-out. A backend-only run (--no-web / --web-mode none) disables both
+# web clients. Otherwise precedence is --no-mobile, then AGENTA_MOBILE_ENABLED in the shell,
+# then the same key in the resolved env file. run.sh does not source the env file (compose
+# reads it directly), so this one key is read out of it explicitly — an operator who writes
+# the opt-out where every other setting lives must get the opt-out.
+if [[ "$WEB_MODE" == "none" ]]; then
+    WITH_MOBILE=false
+elif $NO_MOBILE_FLAG; then
     WITH_MOBILE=false
 elif [[ -n "${AGENTA_MOBILE_ENABLED:-}" ]]; then
     # Explicit if, not `[[ ]] && ...`: under `set -e` a trailing false test exits the script.
@@ -451,6 +454,10 @@ fi
 
 if ! $WITH_MOBILE; then
     echo "Mobile web app (/m) disabled: starting web-mobile with 0 replicas."
+    # The desktop middleware defaults its phone gate on. Override compose interpolation when
+    # the target service is absent, so --no-mobile / AGENTA_MOBILE_ENABLED=false can never
+    # redirect phones to a backend that was deliberately scaled to zero.
+    export AGENTA_MOBILE_GATE=false
 fi
 
 # Export the ENV_FILE to the environment
