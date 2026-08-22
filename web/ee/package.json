@@ -43,7 +43,6 @@
         "@reduxjs/toolkit": "^2.8.2",
         "@tanstack/query-core": "^5.90.20",
         "@tanstack/react-query": "^5.90.21",
-        "@tremor/react": "^3.18.7",
         "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.17.23",
         "@types/react": "^19.0.10",
