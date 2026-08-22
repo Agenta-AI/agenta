@@ -13,6 +13,7 @@ import {
   startToolRelay,
 } from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
+import type { PiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
 import { signAgentMountCredentials } from "./agent-mount.ts";
@@ -282,7 +283,6 @@ export interface SessionEnvironment {
   executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
-  otlpAuthFilePath: string | undefined;
   /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
@@ -324,6 +324,8 @@ export interface SessionEnvironment {
   runtimeRemount: Promise<boolean> | undefined;
   closeToolMcp: (() => Promise<void>) | undefined;
   currentTurn?: CurrentTurn;
+  /** Pi's native span spool for the original prompt; survives approval park/resume. */
+  piTraceExport?: PiTraceTurnExport;
   /**
    * The unique ACP tool-call ids the LAST completed turn emitted (reset at each turn start).
    * The keep-alive dispatch folds them into the expected next-history fingerprint at park time,
