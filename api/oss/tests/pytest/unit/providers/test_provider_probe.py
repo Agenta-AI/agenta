@@ -1053,3 +1053,60 @@ def test_a_typed_extra_overrides_the_stored_one_of_the_same_name(
     assert sent.headers["authorization"] == f"Bearer {CANARY}"
     # The stored region survived: only the named key was replaced.
     assert "us-east-1" in str(sent.url)
+
+
+def _stored_custom_with_key_in_extras(url: str, key: str = STORED_KEY):
+    """How the connection form actually saves a custom provider: key inside extras."""
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="gateway-extras",
+        kind="custom_provider",
+        data={
+            "kind": "custom",
+            "provider": {"url": url, "extras": {"api_key": key}},
+            "models": [{"slug": "gpt-5.6-luna"}],
+        },
+        header={"name": "Gateway"},
+        write_only=True,
+    )
+
+
+def test_a_custom_connection_authenticates_with_the_key_stored_in_extras(
+    monkeypatch, public_dns
+):
+    # The connection form writes a custom provider's key to provider.extras.api_key, not
+    # to provider.key. Reading only the latter sent the probe out with no Authorization
+    # header, and against a provider whose catalog is public that reads as a pass.
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(
+        secret_id,
+        PROJECT_ID,
+        _stored_custom_with_key_in_extras(url="https://gateway.example.com/v1"),
+    )
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    assert response.status_code == 200
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    # A key that reaches the provider is a key that was tested.
+    assert response.json()["credential"]["status"] == "valid"
+    assert STORED_KEY not in response.text
+
+
+def test_provider_key_still_wins_over_an_extras_key(monkeypatch, public_dns):
+    vault = _StubVault()
+    secret_id = uuid4()
+    secret = _stored_custom_with_key_in_extras(url="https://gateway.example.com/v1")
+    secret.data.provider.key = "sk-STORED-PRIMARY-abc123"
+    vault.store(secret_id, PROJECT_ID, secret)
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    client.post("/providers/probe", json={"secret_id": str(secret_id)})
+
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == "Bearer sk-STORED-PRIMARY-abc123"

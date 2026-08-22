@@ -42,6 +42,23 @@ def _typed_or_stored(typed, stored):
     return typed
 
 
+def _stored_credential(settings, extras):
+    """The key a stored connection authenticates with, wherever the vault keeps it.
+
+    A standard connection keeps it at `provider.key`; a custom one keeps it at
+    `provider.extras.api_key`, which is what the connection form writes. Reading only the
+    first sends a custom connection's probe out unauthenticated, and against a provider
+    whose catalog is public that looks like a pass rather than a failure. This is the same
+    rule the runtime resolver applies (`platform/connections.py`: `key` or
+    `extras["api_key"]`), so the probe tests the credential a run would actually use.
+    """
+    key = getattr(settings, "key", None) if settings else None
+    if key:
+        return key
+
+    return (extras or {}).get("api_key") or None
+
+
 def _merged_extras(typed, stored):
     """Extras merged KEY BY KEY, not replaced wholesale.
 
@@ -125,7 +142,8 @@ class ProvidersRouter:
 
         stored_kind = _stored_kind(secret)
         settings = getattr(secret.data, "provider", None)
-        stored_key = getattr(settings, "key", None) if settings else None
+        stored_extras = getattr(settings, "extras", None) if settings else None
+        stored_key = _stored_credential(settings, stored_extras)
 
         # A stored credential belongs to the provider it was saved for. Sending it to a
         # different provider family is never part of testing a connection, and it is how
@@ -144,7 +162,7 @@ class ProvidersRouter:
             key=_typed_or_stored(typed.key, stored_key),
             url=_typed_or_stored(typed.url, getattr(settings, "url", None)),
             version=_typed_or_stored(typed.version, getattr(settings, "version", None)),
-            extras=_merged_extras(typed.extras, getattr(settings, "extras", None)),
+            extras=_merged_extras(typed.extras, stored_extras),
         )
 
         return kind or stored_kind, merged
