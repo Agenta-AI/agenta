@@ -39,7 +39,7 @@
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
     "sandbox-agent": "0.4.2",
-    "undici": "8.9.0"
+    "undici": "8.10.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
