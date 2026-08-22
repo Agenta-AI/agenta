@@ -387,6 +387,24 @@ export async function acquireEnvironment(
       session: environment.session,
       alreadyRequested: !!environment.sessionDestroyRequested,
     });
+    // Pi may have retained the original prompt's telemetry channel across an approval park.
+    // The harness is now quiescent and `agent_end` has had a chance to publish its partial trace;
+    // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
+    const piTraceExport = environment.piTraceExport;
+    if (piTraceExport) {
+      let validBatches = 0;
+      try {
+        validBatches = (await piTraceExport.finish()).validBatches;
+      } catch {}
+      if (validBatches === 0) {
+        await piTraceExport
+          .emitMissingBatchFallback(
+            "Pi session ended before publishing a valid trace batch",
+          )
+          .catch(() => {});
+      }
+    }
+    environment.piTraceExport = undefined;
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
     const { parked } = await teardownSandbox({
@@ -438,7 +456,6 @@ export async function acquireEnvironment(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
-      otlpAuthFilePath: environment.otlpAuthFilePath,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).

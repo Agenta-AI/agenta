@@ -23,9 +23,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import factory, {
-  readOtlpAuthFile,
+  readPiTurnTraceControl,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
+import {
+  PI_TRACE_CONTROL_ENV,
+  PI_TRACE_CONTROL_VERSION,
+} from "../../src/tracing/pi-spool-protocol.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 import { refusedAtGateText } from "../../src/tools/denial-text.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
@@ -34,11 +38,8 @@ const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
   PUBLIC_SPECS_FILE_ENV,
   "AGENTA_AGENT_TOOLS_RELAY_DIR",
-  "TRACEPARENT",
-  "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-  "AGENTA_AGENT_OTLP_AUTH_FILE",
+  PI_TRACE_CONTROL_ENV,
   "AGENTA_AGENT_USAGE_CAPTURE_PATH",
-  "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_ACTIVATION",
   "AGENTA_AGENT_BUILTIN_GATING",
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
@@ -487,22 +488,35 @@ describe("agenta extension tool specs delivery", () => {
   });
 });
 
-describe("readOtlpAuthFile", () => {
-  it("reads the bearer once, then deletes the file so it cannot be re-read", () => {
-    const dir = mkdtempSync(join(tmpdir(), "agenta-otlp-auth-test-"));
-    const path = join(dir, "otlp-auth");
-    writeFileSync(path, "Bearer trace-token", "utf-8");
+describe("readPiTurnTraceControl", () => {
+  it("reads one bounded turn control, then deletes it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-trace-control-test-"));
+    const path = join(dir, "current.control.json");
+    const control = {
+      version: PI_TRACE_CONTROL_VERSION,
+      channelId: "a".repeat(32),
+      capture: { content: true },
+      skills: ["weather"],
+      redaction: { knownValues: ["mount-secret"] },
+    };
+    writeFileSync(path, JSON.stringify(control), "utf-8");
 
-    const value = readOtlpAuthFile(path);
-
-    assert.equal(value, "Bearer trace-token");
+    assert.deepEqual(readPiTurnTraceControl(path), {
+      ...control,
+      turnId: undefined,
+      sessionId: undefined,
+      propagation: undefined,
+    });
     assert.equal(existsSync(path), false);
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("returns undefined for a missing path without throwing", () => {
-    assert.equal(readOtlpAuthFile(undefined), undefined);
-    assert.equal(readOtlpAuthFile("/nonexistent/agenta-otlp-auth"), undefined);
+    assert.equal(readPiTurnTraceControl(undefined), undefined);
+    assert.equal(
+      readPiTurnTraceControl("/nonexistent/agenta-trace-control"),
+      undefined,
+    );
   });
 });
 

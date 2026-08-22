@@ -20,7 +20,10 @@ import {
 import * as workspaceManager from "../../src/environment/workspace-manager.ts";
 
 const SRC = (rel: string) =>
-  readFileSync(fileURLToPath(new URL(`../../src/${rel}`, import.meta.url)), "utf-8");
+  readFileSync(
+    fileURLToPath(new URL(`../../src/${rel}`, import.meta.url)),
+    "utf-8",
+  );
 
 /**
  * Every file that may emit an acquire stage. The split moves stages OUT of `environment.ts` and
@@ -119,7 +122,8 @@ describe("timing: the stage names are a public interface", () => {
     // one place that documents the public set.
     const source = ALL_STAGE_SOURCE();
     const emitted = new Set<string>();
-    for (const m of source.matchAll(/timingLog\(\s*"([a-z_]+)"/g)) emitted.add(m[1]);
+    for (const m of source.matchAll(/timingLog\(\s*"([a-z_]+)"/g))
+      emitted.add(m[1]);
     for (const stage of emitted) {
       assert.ok(
         (ACQUIRE_STAGES as readonly string[]).includes(stage),
@@ -184,7 +188,11 @@ describe("workspace manager: the public surface", () => {
     );
     // Step 6: materialize now returns a ManagedWorkspace — the writer's handle PLUS the
     // inventory of what it wrote — so it is no longer reference-equal to the raw result.
-    assert.equal(result.cleanup, fake.cleanup, "the writer's handle is carried through");
+    assert.equal(
+      result.cleanup,
+      fake.cleanup,
+      "the writer's handle is carried through",
+    );
     assert.equal(result.inventory.instructionsFile, "CLAUDE.md");
     assert.equal(seen.length, 1);
     const input = seen[0] as Record<string, unknown>;
@@ -264,7 +272,8 @@ describe("a skipped durable mount is LOUD at both surfaces", () => {
   // `acquireEnvironment`, which no unit test can drive without a live provider. What must not
   // regress is that the skip has a branch at all. It used to have none, and the timing line was
   // the only trace it left.
-  const environment = () => CODE_ONLY(SRC("engines/sandbox_agent/environment.ts"));
+  const environment = () =>
+    CODE_ONLY(SRC("engines/sandbox_agent/environment.ts"));
 
   it("names WHY the mount was refused, because the two causes have different fixes", () => {
     const source = environment();
@@ -306,7 +315,9 @@ describe("a skipped durable mount is LOUD at both surfaces", () => {
   });
 
   it("advertises the resolved path and never the variable name", () => {
-    const guidance = CODE_ONLY(SRC("engines/sandbox_agent/agent-mount-guidance.ts"));
+    const guidance = CODE_ONLY(
+      SRC("engines/sandbox_agent/agent-mount-guidance.ts"),
+    );
     assert.doesNotMatch(
       guidance,
       /also.{0,20}AGENTA_AGENT_MOUNT_DIR/,
@@ -399,7 +410,9 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     // the skills temp root leaked; and a `destroy()` between the two points raised a
     // ReferenceError instead of tearing down.
     const source = CODE_ONLY(SRC("engines/sandbox_agent/environment.ts"));
-    const ctxAt = source.indexOf("const { context: ctx } = createAcquireContext");
+    const ctxAt = source.indexOf(
+      "const { context: ctx } = createAcquireContext",
+    );
     const destroyAt = source.indexOf("environment.destroy = async (opts");
     assert.ok(ctxAt > 0 && destroyAt > 0, "both sites still exist");
     assert.ok(
@@ -432,7 +445,10 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
       "reSignAndRemountLocalCwd()",
       "remountLocalCwdAfterRuntimeEnotconn",
     ]) {
-      assert.ok(source.includes(call), `the composer lost its '${call}' call site`);
+      assert.ok(
+        source.includes(call),
+        `the composer lost its '${call}' call site`,
+      );
     }
   });
 
@@ -471,7 +487,9 @@ describe("harness-session unit: the seam", () => {
     // The comparison proves the adapter accepted the id, not that it replayed the turns. The
     // caveat is in the type's doc comment so a reader cannot mistake one for the other.
     const source = SRC("environment/harness-session-lifecycle.ts");
-    assert.ok(source.includes("It does NOT prove the adapter replayed the turns"));
+    assert.ok(
+      source.includes("It does NOT prove the adapter replayed the turns"),
+    );
   });
 
   it("the composer delegates both stages", () => {
@@ -515,12 +533,11 @@ describe("runtime unit: the seam", () => {
 });
 
 describe("environment-setup is a planner again", () => {
-  it("no longer builds the daemon environment or writes the OTLP bearer", () => {
-    // The purification. These were never planning: they build two env maps and write a file.
+  it("no longer builds the daemon environment", () => {
+    // The purification: these operations build runtime env maps and are not planning.
     const source = CODE_ONLY(SRC("engines/sandbox_agent/environment-setup.ts"));
     for (const marker of [
       "buildDaemonEnv)(",
-      "writeOtlpAuthFile(",
       "buildPiExtensionEnv(",
       "configureDaytonaCodexEnv(",
     ]) {

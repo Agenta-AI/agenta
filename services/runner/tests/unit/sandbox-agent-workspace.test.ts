@@ -47,6 +47,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -79,6 +80,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -119,6 +121,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir,
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -135,14 +138,22 @@ describe("prepareWorkspace", () => {
       false,
       "the stale request file from the prior turn must not survive into the next turn",
     );
-    assert.equal(existsSync(relayDir), true, "the relay dir itself is recreated");
+    assert.equal(
+      existsSync(relayDir),
+      true,
+      "the relay dir itself is recreated",
+    );
 
     await workspace.cleanup();
   });
 
   it("clears the Daytona relay dir via runProcess before recreating it", async () => {
-    const calls: Array<{ op: string; path?: string; command?: string; args?: string[] }> =
-      [];
+    const calls: Array<{
+      op: string;
+      path?: string;
+      command?: string;
+      args?: string[];
+    }> = [];
     const sandbox = {
       mkdirFs: async ({ path }: { path: string }) =>
         calls.push({ op: "mkdir", path }),
@@ -161,6 +172,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -174,7 +186,9 @@ describe("prepareWorkspace", () => {
 
     const runIndex = calls.findIndex((c) => c.op === "run");
     const mkdirRelayIndex = calls.findIndex(
-      (c) => c.op === "mkdir" && c.path === "/home/sandbox/agenta-fixed/.agenta-tools",
+      (c) =>
+        c.op === "mkdir" &&
+        c.path === "/home/sandbox/agenta-fixed/.agenta-tools",
     );
     assert.ok(runIndex !== -1, "the relay dir is cleared via runProcess");
     assert.equal(
@@ -207,6 +221,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -253,6 +268,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           harnessFiles: [{ path: ".claude/settings.json", content }],
           skillDirs: [],
         },
@@ -285,6 +301,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -318,6 +335,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -333,6 +351,7 @@ describe("prepareWorkspace", () => {
     assert.deepEqual(calls, [
       { op: "mkdir", path: "/home/sandbox/agenta-fixed" },
       { op: "mkdir", path: "/home/sandbox/agenta-fixed/.agenta-tools" },
+      { op: "mkdir", path: "/tmp/agenta-telemetry-test" },
       {
         op: "write",
         path: "/home/sandbox/agenta-fixed/AGENTS.md",
@@ -360,6 +379,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -411,6 +431,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           harnessFiles: [{ path: ".claude/settings.json", content }],
           skillDirs: [],
         },
@@ -458,6 +479,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [],
         },
         tools: {
@@ -490,6 +512,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd,
           relayDir: join(cwd, ".agenta-tools"),
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [{ name: "release-notes", dir: skillDir }],
         },
         tools: {
@@ -529,6 +552,7 @@ describe("prepareWorkspace", () => {
         workspace: {
           cwd: "/home/sandbox/agenta-fixed",
           relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
           skillDirs: [{ name: "release-notes", dir: skillDir }],
         },
         tools: {
