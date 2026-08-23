@@ -102,12 +102,11 @@ describe("a Pi transcript inside a remote sandbox", () => {
     );
 
     assert.equal(result.ok, false);
-    // Asserting on the substance of THIS failure, not on wording: only a recovery that actually
-    // read the remote transcript can produce it. A generic "the agent produced no output"
-    // cannot satisfy this, which is the point.
+    // The recovered provider error is classified before it reaches the user. A generic "the
+    // agent produced no output" cannot satisfy this, which is the point.
     assert.ok(
-      result.error?.toLowerCase().includes("rate limit"),
-      `expected the transcript's failure, got: ${result.error}`,
+      result.error?.toLowerCase().includes("too many requests"),
+      `expected the classified transcript failure, got: ${result.error}`,
     );
     // The playground renders the event stream, not the result envelope: the error has to be IN
     // the stream, and ahead of the terminal `done`, or the turn still renders as a silent blank.
@@ -115,9 +114,10 @@ describe("a Pi transcript inside a remote sandbox", () => {
     const errorEvent = events.find((event) => event.type === "error");
     assert.ok(errorEvent, `no error event in stream: ${order}`);
     assert.ok(
-      errorEvent.message.toLowerCase().includes("rate limit"),
-      `expected recovered rate-limit error in stream, got: ${errorEvent.message}`,
+      errorEvent.message.toLowerCase().includes("too many requests"),
+      `expected classified rate-limit error in stream, got: ${errorEvent.message}`,
     );
+    assert.equal(errorEvent.code, "rate_limited");
     assert.ok(
       order.indexOf("error") < order.lastIndexOf("done"),
       `the error event must precede the terminal done: ${order}`,

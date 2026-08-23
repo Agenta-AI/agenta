@@ -61,9 +61,13 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { capturePiTranscriptCursor, findSwallowedPiError } from "./pi-error.ts";
+import {
+  capturePiTranscriptCursor,
+  findSwallowedPiError,
+  isOnlyHarnessRetryNotices,
+} from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -1182,11 +1186,16 @@ export async function runTurn(
       stopReason !== "paused" ? await harnessTrace.finish() : undefined;
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
+    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
+    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
+    // with chatter alone — which used to skip the recovery below and ship that chatter as the
+    // turn's answer. See `isOnlyHarnessRetryNotices`.
+    const visibleOutput = run.output().trim();
     const swallowedPiError =
       plan.isPi &&
       stopReason === "end_turn" &&
       piTranscriptCursor &&
-      !run.output().trim() &&
+      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
@@ -1201,13 +1210,18 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      swallowedError = conciseError(
+      const classified = classifyRunError(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
       );
+      swallowedError = classified.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent({ type: "error", message: swallowedError });
+      run.emitEvent({
+        type: "error",
+        message: classified.message,
+        code: classified.code,
+      });
     }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
@@ -1277,12 +1291,13 @@ export async function runTurn(
       traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(
+    const classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    const error = classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
@@ -1293,7 +1308,11 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent({ type: "error", message: error });
+    otel?.emitEvent({
+      type: "error",
+      message: error,
+      code: classified.code,
+    });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
