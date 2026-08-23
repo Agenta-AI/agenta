@@ -104,6 +104,45 @@ describe("prepareWorkspace", () => {
     assert.equal(existsSync(cwd), false);
   });
 
+  it("creates Pi telemetry without creating an unused local tool relay", async () => {
+    const root = tempDir();
+    const cwd = join(root, "cwd");
+    const relayDir = join(root, "relay");
+    const telemetryDir = join(root, "telemetry");
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        acpAgent: "pi",
+        isPi: true,
+        workspace: {
+          cwd,
+          relayDir,
+          telemetryDir,
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {},
+      },
+    });
+
+    assert.equal(
+      existsSync(telemetryDir),
+      true,
+      "Pi always has a directory for trace and usage publication",
+    );
+    assert.equal(
+      existsSync(relayDir),
+      false,
+      "a chat with no executable tools does not need a relay directory",
+    );
+
+    await workspace.cleanup();
+  });
+
   it("clears a stale .req.json left from a prior turn before the next turn starts", async () => {
     const cwd = tempDir();
     const relayDir = join(cwd, ".agenta-tools");

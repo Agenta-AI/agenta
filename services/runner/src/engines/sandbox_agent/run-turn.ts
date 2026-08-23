@@ -1174,6 +1174,14 @@ export async function runTurn(
     }
     logger(`prompt stopReason=${stopReason}`);
 
+    // Pi publishes the usage sidecar immediately before its native trace batch. Draining that
+    // batch first is therefore the cross-filesystem publication barrier for both local and
+    // Daytona runs. Runner-traced harnesses still need usage before trace finalization so the
+    // runner can stamp it on its own span.
+    let traceFinish =
+      plan.isPi && stopReason !== "paused"
+        ? await harnessTrace.finish()
+        : undefined;
     const usage = await resolveRunUsage({
       sandbox: env.sandbox,
       usageOutPath: plan.workspace.usageOutPath,
@@ -1182,8 +1190,9 @@ export async function runTurn(
       streamUsage: run.usage(),
     });
     run.setUsage(usage);
-    const traceFinish =
-      stopReason !== "paused" ? await harnessTrace.finish() : undefined;
+    if (!plan.isPi && stopReason !== "paused") {
+      traceFinish = await harnessTrace.finish();
+    }
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
     // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an

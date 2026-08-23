@@ -520,6 +520,69 @@ describe("readPiTurnTraceControl", () => {
   });
 });
 
+describe("agenta extension usage publication", () => {
+  it("writes usage before waiting for the native trace flush", async () => {
+    clearEnv();
+    const dir = mkdtempSync(join(tmpdir(), "agenta-usage-order-test-"));
+    const controlPath = join(dir, "current.control.json");
+    const usagePath = join(dir, "usage.json");
+    writeFileSync(
+      controlPath,
+      JSON.stringify({
+        version: PI_TRACE_CONTROL_VERSION,
+        channelId: "a".repeat(32),
+        capture: { content: true },
+        skills: [],
+        redaction: { knownValues: [] },
+      }),
+      "utf-8",
+    );
+    process.env[PI_TRACE_CONTROL_ENV] = controlPath;
+    process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH = usagePath;
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    for (const handler of pi.handlers.before_agent_start)
+      await handler({ prompt: "hello" });
+    for (const handler of pi.handlers.agent_start) await handler({});
+    for (const handler of pi.handlers.message_end) {
+      await handler({
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "hello" }],
+          usage: {
+            input: 3,
+            output: 2,
+            totalTokens: 5,
+            cost: { total: 0.01 },
+          },
+        },
+      });
+    }
+
+    await pi.handlers.agent_end[0]({
+      messages: [{ role: "assistant", content: "hello" }],
+    });
+    const flush = pi.handlers.agent_end[1]({});
+
+    assert.equal(
+      existsSync(usagePath),
+      true,
+      "the usage sidecar is visible before trace flush yields",
+    );
+    assert.deepEqual(JSON.parse(readFileSync(usagePath, "utf-8")), {
+      input: 3,
+      output: 2,
+      total: 5,
+      cost: 0.01,
+    });
+
+    await flush;
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe("agenta extension: Pi dialog gate (approval parking)", () => {
   function builtinEvent(toolName: string, input: unknown) {
     return { type: "tool_call", toolName, toolCallId: "tc-b", input };
