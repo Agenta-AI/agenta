@@ -25,7 +25,7 @@ import {
 } from "../helpers/entityInputContract"
 
 import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
-import {handleExecutionResultAtom} from "./executionItems"
+import {extractLogicalRowId, handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
     startRunAtom,
@@ -179,10 +179,10 @@ export const triggerExecutionAtom = atom(
         // Multi-entity fan-out: when no specific revision is requested and
         // multiple entities are shown side-by-side, trigger each one.
         if (!requestedRevisionId && Array.isArray(entityIds) && entityIds.length > 1) {
-            const sessionMatch = /^turn-([^-]+)-(lt-.+)$/.exec(String(rowId))
-            const logicalIdFromRow =
-                sessionMatch?.[2] || (String(rowId).startsWith("lt-") ? String(rowId) : "")
-            const lid = logicalIdFromRow || String(rowId)
+            // Extract the logical row ID from a possibly-compound turn-ID.
+            // Use the same sentinel search as extractLogicalRowId so that
+            // both "msg-<uuid>" (current) and "lt-<id>" (legacy) are handled.
+            const lid = extractLogicalRowId(String(rowId))
             for (const revId of entityIds) {
                 if (!revId) continue
                 const rid = `turn-${revId}-${lid}`
@@ -803,16 +803,4 @@ export const handleExecutionResultFromWorkerAtom = atom(
     },
 )
 
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Extract the logical row ID from a turn-style row ID.
- * Turn IDs have format: `turn-<entityId>-<logicalId>`.
- * If it's already a logical ID (starts with "lt-"), return as-is.
- */
-function extractLogicalRowId(rowId: string): string {
-    const match = /^turn-([^-]+)-(lt-.+)$/.exec(rowId)
-    return match?.[2] || rowId
-}
+// extractLogicalRowId is imported above from executionItems (single source of truth).
