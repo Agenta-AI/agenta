@@ -60,7 +60,7 @@ import {
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { findSwallowedPiError } from "./pi-error.ts";
+import { capturePiTranscriptCursor, findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -927,6 +927,18 @@ export async function runTurn(
       await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
+    // Capture the append-only transcript boundary before this turn can write into it. Recovery
+    // must never attribute an error already present here to the prompt below.
+    const piSessionId = env.session?.agentSessionId;
+    const piTranscriptCursor =
+      plan.isPi && piSessionId
+        ? await (plan.isDaytona
+            ? capturePiTranscriptCursor(plan.workspace.cwd, piSessionId, {
+                sandbox: env.sandbox,
+              })
+            : capturePiTranscriptCursor(plan.workspace.cwd, piSessionId))
+        : undefined;
+
     // The prompt promise this turn races against the pause signal. A normal/continuation turn
     // sends a fresh prompt; a live approval resume answers the parked gate on the SAME session and
     // continues the ORIGINAL, still-pending prompt promise (the tool then runs with its original
@@ -1016,9 +1028,7 @@ export async function runTurn(
         pause.pause();
       }
     } else {
-      promptPromise = Promise.resolve(
-        env.session.prompt(promptBlocks),
-      );
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
     // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
@@ -1143,6 +1153,8 @@ export async function runTurn(
 
     const swallowedPiError =
       plan.isPi &&
+      stopReason === "end_turn" &&
+      piTranscriptCursor &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
@@ -1151,8 +1163,10 @@ export async function runTurn(
           // transcript lives inside the remote sandbox, so it is read through the
           // sandbox's file API here, before teardown takes the only copy with it.
           await (plan.isDaytona
-            ? findSwallowedPiError(plan.workspace.cwd, { sandbox: env.sandbox })
-            : findSwallowedPiError(plan.workspace.cwd))
+            ? findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor, {
+                sandbox: env.sandbox,
+              })
+            : findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor))
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {

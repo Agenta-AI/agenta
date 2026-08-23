@@ -21,10 +21,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { findSwallowedPiError } from "../../src/engines/sandbox_agent/pi-error.ts";
+import {
+  capturePiTranscriptCursor,
+  findSwallowedPiError,
+  type PiTranscriptCursor,
+} from "../../src/engines/sandbox_agent/pi-error.ts";
 import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import {
   enableDaytonaProvider,
+  AGENT_SESSION_ID,
+  piTranscriptFileName,
   piTranscript,
   piTranscriptWithError,
   runSilentTurn,
@@ -63,9 +69,11 @@ describe("a Pi transcript inside a remote sandbox", () => {
     // silence in the expectations below.
     const cwd = mkdtempSync(join(tmpdir(), "agenta-daytona-transcript-"));
     dirs.push(cwd);
+    const cursor = capturePiTranscriptCursor(cwd, AGENT_SESSION_ID);
+    assert.ok(cursor);
     seedFailedTranscript(cwd, RATE_LIMIT_ERROR);
 
-    assert.equal(findSwallowedPiError(cwd), RATE_LIMIT_ERROR);
+    assert.equal(findSwallowedPiError(cwd, cursor), RATE_LIMIT_ERROR);
   });
 
   it("does not disturb a Daytona turn that produced an answer", async () => {
@@ -116,6 +124,107 @@ describe("a Pi transcript inside a remote sandbox", () => {
     );
   });
 
+  it("does not resurrect a previous turn's error when the transcript is unchanged", async () => {
+    const { result, events } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        initialSandboxTranscript: piTranscriptWithError(
+          REMOTE_CWD,
+          RATE_LIMIT_ERROR,
+        ),
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "end_turn");
+    assert.ok(
+      !events.some((event) => event.type === "error"),
+      "an unchanged transcript cannot supply this turn's error",
+    );
+  });
+
+  it("recovers only the error appended to an existing transcript by this turn", async () => {
+    const previousError = piTranscriptWithError(
+      REMOTE_CWD,
+      "previous turn failed",
+    );
+    const currentError = "Current turn model call failed.";
+    const currentRecords =
+      [
+        {
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "again" }] },
+        },
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            content: [],
+            stopReason: "error",
+            errorMessage: currentError,
+          },
+        },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n") + "\n";
+
+    const { result } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        initialSandboxTranscript: previousError,
+        sandboxTranscript: previousError + currentRecords,
+      },
+    );
+
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.error?.includes("Current turn"),
+      `expected only the appended error, got: ${result.error}`,
+    );
+    assert.ok(!result.error?.includes("previous turn"));
+  });
+
+  it("does not resurrect a previous turn's error when the turn is cancelled", async () => {
+    const { result, events } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        cancel: true,
+        initialSandboxTranscript: piTranscriptWithError(
+          REMOTE_CWD,
+          RATE_LIMIT_ERROR,
+        ),
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "cancelled");
+    assert.ok(
+      !events.some((event) => event.type === "error"),
+      "a cancelled turn cannot inherit a previous turn's error",
+    );
+  });
+
+  it("does not resurrect a previous turn's error when the turn is paused", async () => {
+    const { result, events } = await runSilentTurn(
+      { harness: "pi_core", sandbox: "daytona" },
+      {
+        cwd: REMOTE_CWD,
+        park: true,
+        initialSandboxTranscript: piTranscriptWithError(
+          REMOTE_CWD,
+          RATE_LIMIT_ERROR,
+        ),
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "paused");
+    assert.ok(!events.some((event) => event.type === "error"));
+  });
+
   it("reads the transcript out of the sandbox before teardown", async () => {
     const { readFsFilePaths } = await runSilentTurn(
       { harness: "pi_core", sandbox: "daytona" },
@@ -141,6 +250,8 @@ interface FakeRemoteFile {
   unreadable?: boolean;
   /** Never settle the read, like a stalled daemon response. */
   hang?: boolean;
+  /** Override the metadata returned by `stat`, including malformed output. */
+  statOutput?: string;
 }
 
 /**
@@ -154,6 +265,20 @@ function fakeRemoteSandbox(files: Array<[name: string, file: FakeRemoteFile]>) {
   const sandbox = {
     async runProcess(input?: RecordedRunProcessCall) {
       runProcessCalls.push({ ...input });
+      if (input?.command === "stat") {
+        const path = input.args?.at(-1);
+        const transcriptDir = piSessionWorkspaceDir(REMOTE_CWD);
+        const file = files.find(
+          ([name]) => path === join(transcriptDir, name),
+        )?.[1];
+        if (!file || file.unreadable) return { exitCode: 1, stdout: "" };
+        return {
+          exitCode: 0,
+          stdout:
+            file.statOutput ??
+            `${new TextEncoder().encode(file.content ?? "").length}\n`,
+        };
+      }
       return {
         exitCode: 0,
         stdout: files.map(([name]) => name).join("\n") + "\n",
@@ -211,16 +336,23 @@ function errorTranscript(
 }
 
 describe("the remote reader, driven directly", () => {
+  const newTurnCursor = (sessionId: string): PiTranscriptCursor => ({
+    sessionId,
+    offset: 0,
+  });
+
   it("asks the daemon for a bounded ls of the run's transcript directory", async () => {
     const { sandbox, runProcessCalls } = fakeRemoteSandbox([
       [
-        "sess-a.jsonl",
+        piTranscriptFileName("sess-a"),
         { content: errorTranscript(REMOTE_CWD, "sess-a", RATE_LIMIT_ERROR) },
       ],
     ]);
 
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-a"), {
+        sandbox,
+      }),
       RATE_LIMIT_ERROR,
     );
 
@@ -233,22 +365,59 @@ describe("the remote reader, driven directly", () => {
     );
   });
 
+  it("captures the existing boundary with metadata and no transcript download", async () => {
+    const content = errorTranscript(REMOTE_CWD, "sess-a", RATE_LIMIT_ERROR);
+    const { sandbox, runProcessCalls, readPaths } = fakeRemoteSandbox([
+      [piTranscriptFileName("sess-a"), { content }],
+    ]);
+
+    assert.deepEqual(
+      await capturePiTranscriptCursor(REMOTE_CWD, "sess-a", { sandbox }),
+      {
+        sessionId: "sess-a",
+        fileName: piTranscriptFileName("sess-a"),
+        offset: new TextEncoder().encode(content).length,
+      },
+    );
+    assert.ok(runProcessCalls.some((call) => call.command === "stat"));
+    assert.deepEqual(readPaths, []);
+  });
+
+  it("rejects an empty stat result instead of treating the transcript as new", async () => {
+    const { sandbox } = fakeRemoteSandbox([
+      [
+        piTranscriptFileName("sess-a"),
+        {
+          content: errorTranscript(REMOTE_CWD, "sess-a", RATE_LIMIT_ERROR),
+          statOutput: "",
+        },
+      ],
+    ]);
+
+    assert.equal(
+      await capturePiTranscriptCursor(REMOTE_CWD, "sess-a", { sandbox }),
+      undefined,
+    );
+  });
+
   it("lets the newest owning transcript decide even when an older one holds an error", async () => {
     // The current session ended cleanly; only a PREVIOUS session of the same workspace failed.
     // Surfacing that older error would invent a failure this turn did not have.
     const { sandbox } = fakeRemoteSandbox([
       [
-        "sess-new.jsonl",
+        piTranscriptFileName("sess-new"),
         { content: successTranscript(REMOTE_CWD, "sess-new") },
       ],
       [
-        "sess-old.jsonl",
+        piTranscriptFileName("sess-old"),
         { content: errorTranscript(REMOTE_CWD, "sess-old", RATE_LIMIT_ERROR) },
       ],
     ]);
 
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-new"), {
+        sandbox,
+      }),
       undefined,
     );
   });
@@ -258,7 +427,7 @@ describe("the remote reader, driven directly", () => {
     // stepping past it to this run's own newest transcript is not a stale fallback.
     const { sandbox } = fakeRemoteSandbox([
       [
-        "sess-foreign.jsonl",
+        piTranscriptFileName("sess-foreign"),
         {
           content: errorTranscript(
             REMOTE_CWD,
@@ -269,13 +438,15 @@ describe("the remote reader, driven directly", () => {
         },
       ],
       [
-        "sess-mine.jsonl",
+        piTranscriptFileName("sess-mine"),
         { content: errorTranscript(REMOTE_CWD, "sess-mine", RATE_LIMIT_ERROR) },
       ],
     ]);
 
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-mine"), {
+        sandbox,
+      }),
       RATE_LIMIT_ERROR,
     );
   });
@@ -284,15 +455,17 @@ describe("the remote reader, driven directly", () => {
     // With the newest candidate unreadable, which transcript is "the newest this run owns"
     // cannot be established — an older sibling must not supply this turn's error.
     const { sandbox } = fakeRemoteSandbox([
-      ["sess-new.jsonl", { unreadable: true }],
+      [piTranscriptFileName("sess-new"), { unreadable: true }],
       [
-        "sess-old.jsonl",
+        piTranscriptFileName("sess-old"),
         { content: errorTranscript(REMOTE_CWD, "sess-old", RATE_LIMIT_ERROR) },
       ],
     ]);
 
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-new"), {
+        sandbox,
+      }),
       undefined,
     );
   });
@@ -304,23 +477,28 @@ describe("the remote reader, driven directly", () => {
       errorTranscript(REMOTE_CWD, "sess-partial", RATE_LIMIT_ERROR) +
       '{"type":"message","message":{"role":"assistant"';
     const { sandbox } = fakeRemoteSandbox([
-      ["sess-partial.jsonl", { content: partial }],
+      [piTranscriptFileName("sess-partial"), { content: partial }],
     ]);
 
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-partial"), {
+        sandbox,
+      }),
       undefined,
     );
   });
 
   it("resolves within its deadline when a read hangs", async () => {
     const { sandbox } = fakeRemoteSandbox([
-      ["sess-hang.jsonl", { hang: true }],
+      [piTranscriptFileName("sess-hang"), { hang: true }],
     ]);
 
     const startedAt = Date.now();
     assert.equal(
-      await findSwallowedPiError(REMOTE_CWD, { sandbox, timeoutMs: 50 }),
+      await findSwallowedPiError(REMOTE_CWD, newTurnCursor("sess-hang"), {
+        sandbox,
+        timeoutMs: 50,
+      }),
       undefined,
     );
     // Generous ceiling for a slow CI box; the point is that a stalled daemon response cannot

@@ -31,8 +31,8 @@ import {
   AGENT_SESSION_ID,
   SESSION_ID,
   enableDaytonaProvider,
+  piTranscriptWithError,
   runSilentTurn,
-  seedFailedTranscript,
   textChunk,
   toolCallChunk,
 } from "../utils/silent-turn.ts";
@@ -47,11 +47,10 @@ const BANNER = [
 
 const dirs: string[] = [];
 
-/** A run cwd holding a Pi transcript whose last turn failed, where the reader looks for it. */
-function cwdWithFailedTranscript(): string {
+/** A private local run cwd, cleaned up after each test. */
+function localRunCwd(): string {
   const cwd = mkdtempSync(join(tmpdir(), "agenta-silent-turn-"));
   dirs.push(cwd);
-  seedFailedTranscript(cwd, QUOTA_ERROR);
   return cwd;
 }
 
@@ -68,11 +67,11 @@ afterEach(() => {
 
 describe("a turn whose model call failed", () => {
   it("fails loud with the provider's own message (local Pi)", async () => {
-    const cwd = cwdWithFailedTranscript();
+    const cwd = localRunCwd();
 
     const { result, events, store } = await runSilentTurn(
       { harness: "pi_core" },
-      { cwd },
+      { cwd, localTranscript: piTranscriptWithError(cwd, QUOTA_ERROR) },
     );
 
     assert.equal(result.ok, false);

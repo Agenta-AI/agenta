@@ -8,9 +8,10 @@
  * then returns an `ok: true` run with empty output, and the user sees a silent "No response"
  * instead of the real failure.
  *
- * This reader closes that gap. After a Pi turn that produced no output, the engine asks this
- * helper for the transcript's last assistant `errorMessage`; when present, the run is failed
- * loud with that message instead of returning an empty turn. On a local run the transcript is
+ * This reader closes that gap. Before prompting, the engine captures the current transcript's
+ * file and offset. After a Pi turn that produced no output, it asks this helper for an assistant
+ * `errorMessage` appended after that cursor; when present, the run is failed loud with that
+ * message instead of returning an empty turn. On a local run the transcript is
  * on this filesystem; on a Daytona run it lives inside the remote sandbox and is read through
  * the sandbox's daemon file API (the same API `usage.ts` and `pi-assets.ts` read through),
  * which must happen while the sandbox is still alive — the transcript dies with it.
@@ -61,6 +62,23 @@ interface PiMessageRecord {
   };
 }
 
+/** The current Pi session's transcript and length immediately before one turn starts. */
+export interface PiTranscriptCursor {
+  sessionId: string;
+  fileName?: string;
+  offset: number;
+}
+
+function transcriptFileForSession(
+  names: string[],
+  sessionId: string,
+): string | undefined {
+  const suffix = `_${sessionId}.jsonl`;
+  return names.find(
+    (name) => name === `${sessionId}.jsonl` || name.endsWith(suffix),
+  );
+}
+
 /**
  * The trailing assistant error in one transcript's content, or undefined if none.
  *
@@ -102,24 +120,80 @@ function sessionRecordOf(raw: string): PiSessionRecord | undefined {
   }
 }
 
-function readLocalFile(path: string): string | undefined {
+function readLocalFile(path: string): Uint8Array | undefined {
   try {
-    return readFileSync(path, "utf8");
+    return readFileSync(path);
   } catch {
     return undefined;
   }
 }
 
+function listLocalTranscripts(
+  sessionWorkspaceCwd: string,
+): string[] | undefined {
+  const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
+  try {
+    return readdirSync(transcriptDir).filter((name) => name.endsWith(".jsonl"));
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : undefined;
+  }
+}
+
 /**
- * Find the Pi transcript for a run (identified by its unique `sessionWorkspaceCwd`) and
+ * Capture the transcript boundary before a Pi turn starts. An undefined cursor means the
+ * boundary could not be established, so the caller must skip recovery for that turn.
+ */
+export function capturePiTranscriptCursor(
+  sessionWorkspaceCwd: string,
+  sessionId: string,
+): PiTranscriptCursor | undefined;
+export function capturePiTranscriptCursor(
+  sessionWorkspaceCwd: string,
+  sessionId: string,
+  remote: { sandbox: any; timeoutMs?: number },
+): Promise<PiTranscriptCursor | undefined>;
+export function capturePiTranscriptCursor(
+  sessionWorkspaceCwd: string,
+  sessionId: string,
+  remote?: { sandbox: any; timeoutMs?: number },
+): PiTranscriptCursor | undefined | Promise<PiTranscriptCursor | undefined> {
+  if (remote)
+    return withDeadline(
+      captureRemotePiTranscriptCursor(
+        remote.sandbox,
+        sessionWorkspaceCwd,
+        sessionId,
+      ),
+      remote.timeoutMs ?? REMOTE_PROBE_TIMEOUT_MS,
+    );
+  const names = listLocalTranscripts(sessionWorkspaceCwd);
+  if (!names) return undefined;
+  const fileName = transcriptFileForSession(names, sessionId);
+  if (!fileName) return { sessionId, offset: 0 };
+  try {
+    return {
+      sessionId,
+      fileName,
+      offset: statSync(
+        join(piSessionWorkspaceDir(sessionWorkspaceCwd), fileName),
+      ).size,
+    };
+  } catch {
+    // The file existed in the listing but vanished or became unreadable before stat. That is an
+    // unknown boundary, not an empty transcript; skip recovery rather than scan an older error.
+    return undefined;
+  }
+}
+
+/**
+ * Find the Pi transcript for a run (identified by its Pi session id and workspace cwd) and
  * return the last assistant turn's `errorMessage`, or undefined when there is none.
  *
  * The transcript location is derived from the same shared helper (`piSessionWorkspaceDir`)
  * that `configurePiSessionWorkspace` uses to point Pi at it, so the two can never disagree.
  * Because that directory is passed to Pi explicitly (PI_CODING_AGENT_SESSION_DIR), Pi writes
- * transcripts flat into it, one `.jsonl` per session. Pi also stamps the cwd on every
- * transcript's `session` record; matching on it guards against stale or copied transcripts.
- * Among matches (a resumed session can have several), the newest file wins.
+ * transcripts flat into it, one `.jsonl` per session, with the session id in the filename and
+ * header. Matching both that id and the stamped cwd guards against stale or copied transcripts.
  *
  * Without `remote`, the transcript is read from this process's filesystem (a local run) and
  * the answer is synchronous. With `remote`, it is read out of the given sandbox (a Daytona
@@ -128,62 +202,55 @@ function readLocalFile(path: string): string | undefined {
  */
 export function findSwallowedPiError(
   sessionWorkspaceCwd: string,
+  cursor: PiTranscriptCursor,
 ): string | undefined;
 export function findSwallowedPiError(
   sessionWorkspaceCwd: string,
+  cursor: PiTranscriptCursor,
   remote: { sandbox: any; timeoutMs?: number },
 ): Promise<string | undefined>;
 export function findSwallowedPiError(
   sessionWorkspaceCwd: string,
+  cursor: PiTranscriptCursor,
   remote?: { sandbox: any; timeoutMs?: number },
 ): string | undefined | Promise<string | undefined> {
   if (remote)
     return withDeadline(
-      findRemoteSwallowedPiError(remote.sandbox, sessionWorkspaceCwd),
+      findRemoteSwallowedPiError(remote.sandbox, sessionWorkspaceCwd, cursor),
       remote.timeoutMs ?? REMOTE_PROBE_TIMEOUT_MS,
     );
-  return findLocalSwallowedPiError(sessionWorkspaceCwd);
+  return findLocalSwallowedPiError(sessionWorkspaceCwd, cursor);
 }
 
 function findLocalSwallowedPiError(
   sessionWorkspaceCwd: string,
+  cursor: PiTranscriptCursor,
 ): string | undefined {
-  const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
-  let files: string[];
-  try {
-    files = readdirSync(transcriptDir);
-  } catch {
+  const names = listLocalTranscripts(sessionWorkspaceCwd);
+  if (!names) return undefined;
+  const fileName =
+    cursor.fileName ?? transcriptFileForSession(names, cursor.sessionId);
+  if (!fileName || !names.includes(fileName)) return undefined;
+  const data = readLocalFile(
+    join(piSessionWorkspaceDir(sessionWorkspaceCwd), fileName),
+  );
+  if (data === undefined) return undefined;
+  const session = sessionRecordOf(
+    decodeWindow(data, "head", SESSION_RECORD_HEAD_BYTES),
+  );
+  if (session?.id !== cursor.sessionId || session.cwd !== sessionWorkspaceCwd)
     return undefined;
-  }
-
-  let newestRaw: string | undefined;
-  let newestMtime = -1;
-  for (const file of files) {
-    if (!file.endsWith(".jsonl")) continue;
-    const filePath = join(transcriptDir, file);
-    const raw = readLocalFile(filePath);
-    if (raw === undefined) continue;
-    if (sessionRecordOf(raw)?.cwd !== sessionWorkspaceCwd) continue;
-    let mtime: number;
-    try {
-      mtime = statSync(filePath).mtimeMs;
-    } catch {
-      continue;
-    }
-    if (mtime > newestMtime) {
-      newestMtime = mtime;
-      newestRaw = raw;
-    }
-  }
-
-  return newestRaw ? lastAssistantError(newestRaw) : undefined;
+  if (data.length <= cursor.offset) return undefined;
+  return lastAssistantError(
+    decodeWindow(data.subarray(cursor.offset), "tail", ERROR_SCAN_TAIL_BYTES),
+  );
 }
 
 /** Resolve undefined when `promise` has not settled within `timeoutMs`; never rejects. */
-function withDeadline(
-  promise: Promise<string | undefined>,
+function withDeadline<T>(
+  promise: Promise<T | undefined>,
   timeoutMs: number,
-): Promise<string | undefined> {
+): Promise<T | undefined> {
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => resolve(undefined), timeoutMs);
@@ -192,6 +259,13 @@ function withDeadline(
   return Promise.race([promise.catch(() => undefined), deadline]).finally(() =>
     clearTimeout(timer),
   );
+}
+
+function asBytes(data: unknown): Uint8Array {
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  return data instanceof Uint8Array
+    ? data
+    : new Uint8Array(data as ArrayBuffer);
 }
 
 /** Decode a bounded byte window of a daemon file read (which may arrive as string or bytes). */
@@ -213,51 +287,84 @@ function decodeWindow(
   return new TextDecoder().decode(slice);
 }
 
-async function findRemoteSwallowedPiError(
+async function listRemoteTranscripts(
   sandbox: any,
   sessionWorkspaceCwd: string,
-): Promise<string | undefined> {
+): Promise<string[] | undefined> {
   const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
-  let names: string[];
   try {
-    // `-t` sorts newest-first, standing in for the local reader's mtime comparison (the
-    // remote listing carries no timestamps to compare).
     const ls = await sandbox.runProcess({
       command: "ls",
-      args: ["-1t", transcriptDir],
+      args: ["-1", transcriptDir],
       timeoutMs: REMOTE_LS_TIMEOUT_MS,
     });
     if (ls?.exitCode !== 0) return undefined;
-    names = String(ls?.stdout ?? "")
+    return String(ls?.stdout ?? "")
       .split("\n")
       .map((s) => s.trim())
-      .filter(Boolean);
+      .filter((name) => name.endsWith(".jsonl"));
   } catch {
     return undefined;
   }
+}
 
-  for (const name of names) {
-    if (!name.endsWith(".jsonl")) continue;
-    let data: unknown;
-    try {
-      data = await sandbox.readFsFile({ path: `${transcriptDir}/${name}` });
-    } catch {
-      // The newest candidate could not be read, so which transcript is "the newest this
-      // run owns" cannot be established. Stop rather than fall through to an older file:
-      // a stale sibling must never supply this turn's error.
-      return undefined;
-    }
-    const session = sessionRecordOf(
-      decodeWindow(data, "head", SESSION_RECORD_HEAD_BYTES),
-    );
-    // An unreadable/partial header is disqualifying for the same reason as a failed read.
-    if (!session) return undefined;
-    // A transcript stamped with another workspace's cwd is foreign (stale or copied), not
-    // a candidate at all — skipping it to the next-newest is not a stale fallback.
-    if (session.cwd !== sessionWorkspaceCwd) continue;
-    return lastAssistantError(
-      decodeWindow(data, "tail", ERROR_SCAN_TAIL_BYTES),
-    );
+async function captureRemotePiTranscriptCursor(
+  sandbox: any,
+  sessionWorkspaceCwd: string,
+  sessionId: string,
+): Promise<PiTranscriptCursor | undefined> {
+  const names = await listRemoteTranscripts(sandbox, sessionWorkspaceCwd);
+  if (!names) return undefined;
+  const fileName = transcriptFileForSession(names, sessionId);
+  if (!fileName) return { sessionId, offset: 0 };
+  try {
+    const stat = await sandbox.runProcess({
+      command: "stat",
+      args: [
+        "-c",
+        "%s",
+        "--",
+        `${piSessionWorkspaceDir(sessionWorkspaceCwd)}/${fileName}`,
+      ],
+      timeoutMs: REMOTE_LS_TIMEOUT_MS,
+    });
+    const rawOffset = String(stat?.stdout ?? "").trim();
+    if (!/^\d+$/.test(rawOffset)) return undefined;
+    const offset = Number(rawOffset);
+    if (stat?.exitCode !== 0 || !Number.isSafeInteger(offset)) return undefined;
+    return { sessionId, fileName, offset };
+  } catch {
+    return undefined;
   }
-  return undefined;
+}
+
+async function findRemoteSwallowedPiError(
+  sandbox: any,
+  sessionWorkspaceCwd: string,
+  cursor: PiTranscriptCursor,
+): Promise<string | undefined> {
+  const names = await listRemoteTranscripts(sandbox, sessionWorkspaceCwd);
+  if (!names) return undefined;
+  const fileName =
+    cursor.fileName ?? transcriptFileForSession(names, cursor.sessionId);
+  if (!fileName || !names.includes(fileName)) return undefined;
+  let data: Uint8Array;
+  try {
+    data = asBytes(
+      await sandbox.readFsFile({
+        path: `${piSessionWorkspaceDir(sessionWorkspaceCwd)}/${fileName}`,
+      }),
+    );
+  } catch {
+    return undefined;
+  }
+  const session = sessionRecordOf(
+    decodeWindow(data, "head", SESSION_RECORD_HEAD_BYTES),
+  );
+  if (session?.id !== cursor.sessionId || session.cwd !== sessionWorkspaceCwd)
+    return undefined;
+  if (data.length <= cursor.offset) return undefined;
+  return lastAssistantError(
+    decodeWindow(data.subarray(cursor.offset), "tail", ERROR_SCAN_TAIL_BYTES),
+  );
 }

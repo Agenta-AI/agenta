@@ -97,6 +97,8 @@ export interface SilentTurnOptions {
   promptError?: Error;
   /** Raise a permission gate mid-prompt, then hang — the shape a parked turn has. */
   park?: boolean;
+  /** Abort a still-pending prompt, the shape a user-cancelled turn has. */
+  cancel?: boolean;
   /**
    * The run's working directory. On a local run a Pi transcript is read from under it; on a
    * Daytona run it is the workspace path INSIDE the sandbox, which is the cwd Pi stamps on the
@@ -105,7 +107,8 @@ export interface SilentTurnOptions {
    */
   cwd?: string;
   /**
-   * A Pi transcript the sandbox serves at the reader's contractual location: the file
+   * A Pi transcript the sandbox writes while the prompt runs, then serves at the reader's
+   * contractual location: the file
    * `TRANSCRIPT_FILENAME` inside `piSessionWorkspaceDir(cwd)`. The fake honors the daemon
    * contract rather than answering promiscuously — `ls` lists only that directory (any other
    * directory fails the way a real `ls` does) and `readFsFile` serves only that exact path —
@@ -113,6 +116,10 @@ export interface SilentTurnOptions {
    * passing against a fake that serves everything.
    */
   sandboxTranscript?: string;
+  /** A stale Pi transcript that already exists before this turn starts. */
+  initialSandboxTranscript?: string;
+  /** A Pi transcript written to the local workspace while the prompt runs. */
+  localTranscript?: string;
 }
 
 /** One `runProcess` invocation the fake sandbox received, for pinning the daemon contract. */
@@ -162,6 +169,13 @@ export async function runSilentTurn(
   // what the sandbox-agent package does on `destroySession` (the same model `fakeHarness` in
   // `tests/unit/sandbox-agent-orchestration.test.ts` carries — keep the two in step).
   let resolveHungPrompt: ((value: unknown) => void) | undefined;
+  const abortController = new AbortController();
+
+  // Where the seeded transcript lives inside the fake sandbox: the same location the reader
+  // derives from the run's cwd, so path agreement is part of what these runs pin.
+  const remoteTranscriptDir = piSessionWorkspaceDir(cwd);
+  const remoteTranscriptPath = join(remoteTranscriptDir, TRANSCRIPT_FILENAME);
+  let remoteTranscript = options.initialSandboxTranscript;
 
   const session = {
     id: "session-1",
@@ -174,8 +188,20 @@ export async function runSilentTurn(
     },
     async respondPermission() {},
     async prompt() {
+      if (options.sandboxTranscript !== undefined)
+        remoteTranscript = options.sandboxTranscript;
+      if (options.localTranscript !== undefined) {
+        mkdirSync(remoteTranscriptDir, { recursive: true });
+        writeFileSync(remoteTranscriptPath, options.localTranscript);
+      }
       for (const event of options.promptEvents ?? []) eventHandler?.(event);
       if (options.promptError) throw options.promptError;
+      if (options.cancel) {
+        queueMicrotask(() => abortController.abort());
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
       if (options.park) {
         permissionHandler?.({
           id: "perm-1",
@@ -190,11 +216,6 @@ export async function runSilentTurn(
     },
   };
 
-  // Where the seeded transcript lives inside the fake sandbox: the same location the reader
-  // derives from the run's cwd, so path agreement is part of what these runs pin.
-  const remoteTranscriptDir = piSessionWorkspaceDir(cwd);
-  const remoteTranscriptPath = join(remoteTranscriptDir, TRANSCRIPT_FILENAME);
-
   const sandbox = {
     async mkdirFs() {},
     // Matches the real daemon contract, not a promiscuous fake:
@@ -207,6 +228,15 @@ export async function runSilentTurn(
     //    recorded (command, args, timeoutMs) so tests can pin what the daemon was asked.
     async runProcess(input?: RecordedRunProcessCall) {
       runProcessCalls.push({ ...input });
+      if (input?.command === "stat") {
+        const path = input.args?.at(-1);
+        if (path !== remoteTranscriptPath || remoteTranscript === undefined)
+          return { exitCode: 1, stdout: "" };
+        return {
+          exitCode: 0,
+          stdout: `${new TextEncoder().encode(remoteTranscript).length}\n`,
+        };
+      }
       if (input?.command !== "ls") return { exitCode: 0, stdout: "" };
       const dir = input.args?.at(-1);
       if (dir !== remoteTranscriptDir)
@@ -215,9 +245,7 @@ export async function runSilentTurn(
           stdout: "",
           stderr: `ls: cannot access '${dir}'`,
         };
-      const listing = options.sandboxTranscript
-        ? `${TRANSCRIPT_FILENAME}\n`
-        : "";
+      const listing = remoteTranscript ? `${TRANSCRIPT_FILENAME}\n` : "";
       return { exitCode: 0, stdout: listing };
     },
     async writeFsFile() {},
@@ -234,7 +262,7 @@ export async function runSilentTurn(
     async readFsFile({ path }: { path: string }) {
       readFsFilePaths.push(path);
       const content =
-        path === remoteTranscriptPath ? options.sandboxTranscript : undefined;
+        path === remoteTranscriptPath ? remoteTranscript : undefined;
       if (content === undefined) throw new Error(`ENOENT: ${path}`);
       return new TextEncoder().encode(content);
     },
@@ -288,7 +316,7 @@ export async function runSilentTurn(
         ...request,
       } as AgentRunRequest,
       (event) => events.push(event),
-      undefined,
+      options.cancel ? abortController.signal : undefined,
       deps,
     );
 
@@ -332,14 +360,19 @@ export function writePiTranscript(
   const dir = piSessionWorkspaceDir(cwd);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(dir, `${name}.jsonl`),
+    join(dir, piTranscriptFileName(name)),
     piTranscript(cwd, name, messages, recordCwd),
   );
 }
 
+/** Pi's persisted filename shape: timestamp followed by the session id. */
+export function piTranscriptFileName(sessionId: string): string {
+  return `2026-08-23T00-00-00-000Z_${sessionId}.jsonl`;
+}
+
 /** The one transcript these suites stand up; also what the fake sandbox's `ls` reports. */
-const TRANSCRIPT_NAME = "sess-failed";
-export const TRANSCRIPT_FILENAME = `${TRANSCRIPT_NAME}.jsonl`;
+const TRANSCRIPT_NAME = AGENT_SESSION_ID;
+export const TRANSCRIPT_FILENAME = piTranscriptFileName(TRANSCRIPT_NAME);
 
 /** The messages of a session whose last assistant turn failed with `message`. */
 function failedTurnMessages(message: string): Array<Record<string, unknown>> {
