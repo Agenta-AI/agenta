@@ -27,4 +27,4 @@ Ship the approved review decisions without a database migration or feature flag.
 
 ## Pull request order
 
-The dependency chain is `release/v0.114.0` to #6164 to #6165 to #6138 to #6195. #6174 is a separate frontend consumer based on `release/v0.114.0`. Each dependent PR keeps the branch below it as its immediate GitHub base so its diff remains reviewable.
+The dependency chain is `release/v0.114.0` to #6164 to #6165 to #6138 to #6195 to #6174. Each PR uses the preceding branch as its immediate GitHub base so every diff remains reviewable. The backend and frontend deploy together in one release.
