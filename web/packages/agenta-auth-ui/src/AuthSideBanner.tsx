@@ -19,7 +19,7 @@ const FEATURES = [
 const AuthSideBanner = () => {
     return (
         <section className="auth-panel hidden lg:flex flex-1 h-full flex-col justify-center p-24">
-            <div className="flex flex-col gap-[26px] max-w-[520px]">
+            <div className="flex flex-col gap-[26px] max-w-[520px] mx-auto">
                 <a
                     href="https://github.com/Agenta-AI/agenta"
                     target="_blank"
