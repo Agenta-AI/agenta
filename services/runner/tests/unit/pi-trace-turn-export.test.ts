@@ -165,11 +165,13 @@ describe("createPiTraceTurnExport", () => {
     expect(logs.join("\n")).toContain("bytes=3");
   });
 
-  it("counts a valid pickup separately from a rejected HTTP export", async () => {
+  it("counts a canonical malformed body as picked up when ingest rejects it", async () => {
     const memory = memoryHost();
+    const logs: string[] = [];
+    const fallback: string[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(null, { status: 401 })),
+      vi.fn(async () => new Response(null, { status: 400 })),
     );
     const turn = createPiTraceTurnExport({
       host: memory.host,
@@ -181,7 +183,11 @@ describe("createPiTraceTurnExport", () => {
         authorizationSource: "platform",
         placement: "local",
         redactor: new Redactor({ mode: "known" }),
+        onMissingBatch: async (message) => {
+          fallback.push(message);
+        },
       },
+      log: (message) => logs.push(message),
     });
     await turn.publishControl({
       version: PI_TRACE_CONTROL_VERSION,
@@ -193,13 +199,20 @@ describe("createPiTraceTurnExport", () => {
     await memory.host.remove(join(DIR, PI_TRACE_CONTROL_FILE));
     memory.files.set(
       join(DIR, piTraceFileName(CHANNEL, 0)),
-      Uint8Array.from([1]),
+      // A length-delimited protobuf field with no length byte is intentionally malformed.
+      Uint8Array.from([0x0a]),
     );
 
-    await expect(turn.finish()).resolves.toEqual({
+    const result = await turn.finish();
+    expect(result).toEqual({
       pickedUpBatches: 1,
       exportedBatches: 0,
     });
+    if (result.pickedUpBatches === 0) {
+      await turn.emitMissingBatchFallback("missing");
+    }
+    expect(fallback).toEqual([]);
+    expect(logs.join("\n")).toContain("outcome=failed status=400");
   });
 
   it("exposes the original trace id and emits a missing-batch fallback once", async () => {
