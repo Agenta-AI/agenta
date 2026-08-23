@@ -2,16 +2,17 @@
 
 ## Field classification
 
-| Value                          | Semantic role          | Owner               | Changes               | Destination                       |
-| ------------------------------ | ---------------------- | ------------------- | --------------------- | --------------------------------- |
-| `traceparent`                  | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
-| `baggage`                      | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
-| content capture                | Policy                 | Operator or service | May change every turn | Pi control file and runner tracer |
-| OTLP endpoint                  | Exporter configuration | Operator or SDK     | May change every turn | Runner only                       |
-| general platform authorization | Credential             | Access system       | Rotates during a turn | Runner credential lease only      |
-| channel ID                     | Transport correlation  | Runner              | Every turn            | Runner and Pi spool filenames     |
-| OTLP protobuf body             | Telemetry data         | Pi tracer           | Once per turn         | Pi spool to runner export sink    |
-| session ID and turn ID         | Runtime metadata       | Runner request      | Per session and turn  | Control file and diagnostics      |
+| Value                               | Semantic role          | Owner               | Changes               | Destination                       |
+| ----------------------------------- | ---------------------- | ------------------- | --------------------- | --------------------------------- |
+| `traceparent`                       | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
+| `baggage`                           | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
+| content capture                     | Policy                 | Operator or service | May change every turn | Pi control file and runner tracer |
+| OTLP endpoint                       | Exporter configuration | Operator or SDK     | May change every turn | Runner only                       |
+| general platform authorization      | Credential             | Access system       | Rotates during a turn | Agenta platform calls only        |
+| third-party collector authorization | Exporter credential    | Operator or SDK     | Static for the run    | That collector's requests only    |
+| channel ID                          | Transport correlation  | Runner              | Every turn            | Runner and Pi spool filenames     |
+| OTLP protobuf body                  | Telemetry data         | Pi tracer           | Every completed flush | Pi spool to runner export sink    |
+| session ID and turn ID              | Runtime metadata       | Runner request      | Per session and turn  | Control file and diagnostics      |
 
 This classification is the reason `exportAuthorization` is unnecessary. The runner already owns a
 renewable general platform credential. Pi needs telemetry data and protocol context, not a
@@ -171,9 +172,13 @@ Payload:
 
 - raw OTLP `ExportTraceServiceRequest` protobuf bytes;
 - content type fixed by the runner to `application/x-protobuf`;
-- one complete OTLP export request per file; a turn may publish several processor flushes;
+- one complete OTLP export request per completed processor flush;
 - zero-based canonical decimal sequence numbers, bounded to four files in version 1;
 - no JSON envelope, base64 encoding, header map, endpoint, or credential.
+
+Pi publishes at most four files per turn. If a fifth or later processor flush completes, Pi drops
+that body, logs `reason=file_limit`, leaves the four published files unchanged, and does not advance
+the sequence.
 
 Consumer rules:
 
@@ -184,6 +189,12 @@ Consumer rules:
 - Delete on pickup and keep bytes in memory for the bounded export attempt.
 - Remember accepted sequence numbers so a repeated listing cannot forward one file twice.
 - Collect all bounded files available in the drain window before starting network sends.
+- Count a non-empty canonical file within the size limit as structurally accepted after pickup. The
+  runner does not decode its protobuf body.
+- Count a batch as exported only after the collector returns success.
+- Trigger the runner fallback only when the turn has zero structurally accepted batches. A
+  canonical malformed protobuf can therefore be picked up, rejected by ingest, and diagnosed
+  without producing a fallback span.
 - Sweep final and temporary telemetry files before publishing the next control file.
 
 ## Internal credential interface

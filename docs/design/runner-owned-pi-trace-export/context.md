@@ -46,7 +46,9 @@ For every turn:
 2. Pi creates its native span tree.
 3. Each completed processor flush is serialized as a standard OTLP protobuf request.
 4. Pi publishes a bounded sequence of those requests through one cross-placement spool protocol.
-5. The runner sends each request to the configured OTLP endpoint with its current credential.
+5. For Agenta ingest, the runner sends each request with the current renewable platform
+   credential. For a third-party collector, it sends the configured static exporter header. The
+   runner never sends either credential to the other target.
 
 The control data contains no endpoint or export credential. The channel and runtime metadata
 attribute and transport the batches; the redaction values grant no authority.

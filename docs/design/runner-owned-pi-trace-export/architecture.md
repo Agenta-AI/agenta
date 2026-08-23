@@ -87,6 +87,10 @@ For every completed processor flush it:
 5. renames it atomically to `<channelId>.<sequence>.otlp.pb`;
 6. advances the zero-based sequence only after publication succeeds.
 
+`PiFileSpanExporter` publishes at most four files per turn. It drops a fifth or later completed
+flush, logs `reason=file_limit`, preserves the four published files, and does not advance the
+sequence.
+
 `agent_end` ends the remaining Pi spans and triggers the final flush.
 
 There is no custom span DTO and no JSON or base64 wrapping.
@@ -105,9 +109,10 @@ It:
   maximum for its growth-safe read;
 - deletes the final file immediately after pickup;
 - retains the bytes in runner memory while export is in flight;
-- forwards the exact protobuf bytes to the runner trace export sink;
-- accepts at most four complete batches, deletes each on pickup, and stops at that limit or the
-  bounded post-prompt drain timeout.
+- accepts at most four non-empty batches within the size limit, deletes each on pickup, and stops
+  collecting at that limit or the bounded post-prompt drain timeout;
+- waits until collection closes before it starts any network request;
+- forwards the collected protobuf bodies to the runner trace export sink in parallel.
 
 The channel ID prevents a stale warm-turn file from being attributed to the next turn. It is a
 correlation value, not a secret or an authorization mechanism.
@@ -163,16 +168,22 @@ sequenceDiagram
     Runner->>Pi: prompt
     Pi->>Host: read and delete control file
     Pi->>Pi: create native spans from Pi events
-    Pi->>Host: write temp OTLP protobuf
-    Pi->>Host: rename to channelId.otlp.pb
-    Runner->>Host: read and delete final file
-    Runner->>Runner: resolve current authorization
-    Runner->>API: POST exact protobuf bytes
-    API-->>Runner: 200 or error
-    Runner->>Runner: bounded drain, diagnostics, finish turn export
+    loop Up to four completed processor flushes
+        Pi->>Host: write temporary OTLP protobuf
+        Pi->>Host: rename to channelId.sequence.otlp.pb
+    end
+    Runner->>Host: bounded drain: list, read, and delete final files
+    Runner->>Runner: finish collection before network sends
+    Runner->>Runner: select authorization for the configured target
+    Runner->>API: POST collected protobuf bodies in parallel
+    API-->>Runner: success or error for each body
+    Runner->>Runner: record pickup and export results, then finish
 ```
 
 The sequence is identical for local and Daytona. Only the `RuntimeFileHost` implementation changes.
+For Agenta ingest, target authorization comes from the live platform credential lease. For a
+third-party collector, it comes from the static exporter header. Neither credential crosses to the
+other target.
 
 ## Runner tracer behavior
 

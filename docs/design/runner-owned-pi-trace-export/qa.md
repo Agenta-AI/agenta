@@ -132,13 +132,26 @@ Additional assertions:
 
 ## Failure injection
 
-For cancellation, prompt failure, missing publication, a truncated final file, and an oversized
-final file, assert exactly one of two outcomes: one or more valid complete Pi batches, or one
-idempotent runner fallback span when none was accepted. Never accept a temporary or partial file.
+The consumer treats acceptance and export as separate results. A structurally accepted batch has a
+canonical current-channel filename, a non-empty body, and a size within the configured limit. The
+runner does not parse the protobuf body. Export succeeds only when the configured collector accepts
+the request.
+
+The runner emits one idempotent fallback span only when it picks up zero structurally accepted
+batches. A canonical malformed protobuf still counts as picked up. If ingest rejects it, the runner
+records an export failure and does not emit the missing-batch fallback.
+
+For cancellation, prompt failure, missing publication, malformed publication, and oversized
+publication, assert the pickup, export, fallback, and diagnostic results independently. Never pick
+up a temporary or partial filename.
 
 - Prevent control-file write.
 - Crash Pi before `agent_end`.
-- Publish a truncated protobuf file under a temporary name.
+- Publish a truncated protobuf under a temporary name; assert the consumer ignores it and emits the
+  fallback if no canonical batch arrives.
+- Atomically publish a truncated protobuf under the canonical final name; assert the consumer picks
+  it up, ingest rejects it, exported count remains zero, diagnostics record the rejection, and no
+  fallback is emitted.
 - Publish an oversized final file.
 - Make Daytona list or read fail transiently.
 - Make the OTLP request return 401; assert exactly one request and bounded diagnostics.

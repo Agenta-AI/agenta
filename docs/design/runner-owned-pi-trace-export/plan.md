@@ -70,9 +70,10 @@ Runner turn ordering:
 3. Send or resume the Pi prompt.
 4. Stop tool relay after prompt as today.
 5. Resolve Pi usage as today.
-6. Drain the expected bounded telemetry sequence with a short deadline.
-7. Finish runner event handling and return the agent result.
-8. Stop the consumer in `finally` on every path.
+6. Collect and delete up to four expected telemetry files within a short drain window.
+7. After collection closes, export the collected bodies in parallel.
+8. Finish runner event handling and return the agent result.
+9. Stop the consumer in `finally` on every path.
 
 Pi changes:
 
@@ -89,10 +90,15 @@ Tests:
 - Control parsing, unknown version, missing file, malformed channel, and read-once deletion.
 - Atomic publication never exposes a temporary or partial file.
 - Exact binary round trip through local and fake-Daytona hosts.
+- One file per completed processor flush, with a maximum of four; a fifth flush is dropped without
+  overwriting an earlier sequence.
 - Stale previous-turn file is swept and cannot satisfy the next turn.
 - Wrong channel is ignored.
 - Oversized and duplicate files are rejected and removed.
 - Missing batch times out without failing the agent result.
+- A canonical malformed protobuf file is structurally accepted and sent. If ingest rejects it,
+  exported count stays zero, diagnostics record the rejection, and no missing-batch fallback is
+  emitted.
 - Warm turn two uses its own traceparent and capture policy, not turn one's.
 - Pi spans preserve native provider, model, tool, usage, cost, parent IDs, and content-capture rules.
 

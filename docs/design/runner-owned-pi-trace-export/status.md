@@ -46,8 +46,12 @@ the shared standalone/session credential lease, and target isolation.
 - The access router re-mints renewable short-lived credentials.
 - The runner shares one proactive platform lease across session-owned and standalone turn paths.
 - Pi creates the native span tree and publishes a bounded sequence of raw protobuf requests.
+- Each completed processor flush publishes one file, up to four per turn. A fifth flush is dropped
+  without overwriting any published sequence.
 - Local and Daytona use the same consumer with atomic files, stale sweep, bounded reads, and
   delete-on-pickup.
+- The consumer finishes bounded pickup before it sends any network request. Pickup acceptance,
+  collector success, and missing-batch fallback remain separate outcomes.
 - OTLP ingest accepts the standard protobuf body and recomputes cumulative metrics over stored
   split batches.
 - Focused credential, session, Pi export, fallback, and orchestration tests are green.
