@@ -104,7 +104,12 @@ describe("a Pi transcript inside a remote sandbox", () => {
     // The playground renders the event stream, not the result envelope: the error has to be IN
     // the stream, and ahead of the terminal `done`, or the turn still renders as a silent blank.
     const order = events.map((e) => e.type);
-    assert.ok(order.includes("error"), `no error event in stream: ${order}`);
+    const errorEvent = events.find((event) => event.type === "error");
+    assert.ok(errorEvent, `no error event in stream: ${order}`);
+    assert.ok(
+      errorEvent.message.toLowerCase().includes("rate limit"),
+      `expected recovered rate-limit error in stream, got: ${errorEvent.message}`,
+    );
     assert.ok(
       order.indexOf("error") < order.lastIndexOf("done"),
       `the error event must precede the terminal done: ${order}`,
@@ -156,7 +161,10 @@ function fakeRemoteSandbox(files: Array<[name: string, file: FakeRemoteFile]>) {
     },
     async readFsFile({ path }: { path: string }) {
       readPaths.push(path);
-      const file = files.find(([name]) => path.endsWith(`/${name}`))?.[1];
+      const transcriptDir = piSessionWorkspaceDir(REMOTE_CWD);
+      const file = files.find(
+        ([name]) => path === join(transcriptDir, name),
+      )?.[1];
       if (!file || file.unreadable) throw new Error(`ENOENT: ${path}`);
       if (file.hang) return new Promise<never>(() => {});
       return new TextEncoder().encode(file.content ?? "");
