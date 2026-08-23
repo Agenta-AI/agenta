@@ -3,15 +3,16 @@ import {expect, test} from "@playwright/test"
 const IPHONE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-// The gate ships default-on, and so does the /m service, so this suite runs
-// against any deployment that did not opt out. A deployment that sets
-// AGENTA_MOBILE_GATE=false has no gate to test, and the runner env var is the
-// operator's assertion of that.
 const gateEnabled = process.env.AGENTA_MOBILE_GATE !== "false"
-test.skip(!gateEnabled, "mobile gate opted out (AGENTA_MOBILE_GATE=false)")
+const reverseGateEnabled = process.env.AGENTA_MOBILE_REVERSE_GATE !== "false"
 
 test.describe("mobile gate: forward direction", () => {
-    test.use({userAgent: IPHONE_UA, storageState: undefined})
+    test.skip(!gateEnabled, "mobile gate opted out (AGENTA_MOBILE_GATE=false)")
+    test.use({
+        userAgent: IPHONE_UA,
+        extraHTTPHeaders: {"sec-ch-ua-mobile": "?1"},
+        storageState: undefined,
+    })
 
     test("mobile UA on a desktop route lands in /m", async ({page}) => {
         await page.goto("/w")
@@ -24,10 +25,9 @@ test.describe("mobile gate: forward direction", () => {
         await expect(page).toHaveURL(/\/m\/w\/ws1\/p\/pr1\/sessions\/abc$/)
     })
 
-    test("auth stays on desktop (documented exception)", async ({page}) => {
+    test("auth maps to the mobile sign-in", async ({page}) => {
         await page.goto("/auth")
-        await expect(page).toHaveURL(/\/auth/)
-        expect(page.url()).not.toContain("/m/")
+        await expect(page).toHaveURL(/\/m\/auth$/)
     })
 
     test("?view=desktop sets the opt-out and pins the desktop site", async ({page, context}) => {
@@ -41,6 +41,10 @@ test.describe("mobile gate: forward direction", () => {
 })
 
 test.describe("mobile gate: reverse direction", () => {
+    test.skip(
+        !reverseGateEnabled,
+        "reverse mobile gate opted out (AGENTA_MOBILE_REVERSE_GATE=false)",
+    )
     test.use({storageState: undefined})
 
     test("desktop UA on /m is sent to the desktop app", async ({page}) => {

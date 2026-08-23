@@ -102,20 +102,21 @@ describe("a Pi transcript inside a remote sandbox", () => {
     );
 
     assert.equal(result.ok, false);
-    // The recovered provider error is classified before it reaches the user. A generic "the
-    // agent produced no output" cannot satisfy this, which is the point.
-    assert.ok(
-      result.error?.toLowerCase().includes("too many requests"),
-      `expected the classified transcript failure, got: ${result.error}`,
+    // The combined contract classifies the transcript's raw provider refusal before exposing it.
+    // Only a recovery that read RATE_LIMIT_ERROR can produce this stable user-facing message; a
+    // generic "the agent produced no output" cannot satisfy it.
+    assert.equal(
+      result.error,
+      "Too many requests right now. Try again in a moment.",
     );
     // The playground renders the event stream, not the result envelope: the error has to be IN
     // the stream, and ahead of the terminal `done`, or the turn still renders as a silent blank.
     const order = events.map((e) => e.type);
     const errorEvent = events.find((event) => event.type === "error");
     assert.ok(errorEvent, `no error event in stream: ${order}`);
-    assert.ok(
-      errorEvent.message.toLowerCase().includes("too many requests"),
-      `expected classified rate-limit error in stream, got: ${errorEvent.message}`,
+    assert.equal(
+      errorEvent.message,
+      "Too many requests right now. Try again in a moment.",
     );
     assert.equal(errorEvent.code, "rate_limited");
     assert.ok(
