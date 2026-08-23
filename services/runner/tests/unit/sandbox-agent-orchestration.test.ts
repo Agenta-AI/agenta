@@ -2330,7 +2330,14 @@ describe("runSandboxAgent orchestration", () => {
 
   it("preserves a failed Pi turn's agent error when no native trace batch arrives", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "pi-failed-trace-"));
-    const fixture = fakeHarness({ cwd, promptError: new Error("boom") });
+    const fixture = fakeHarness({
+      cwd,
+      promptError: new Error(
+        '429: {"message":"Budget has been exceeded! Key=organization-id (sk-...suffix) Current cost: 5.1, Max budget: 5.0","type":"budget_exceeded","code":"429"}',
+      ),
+    });
+    const message =
+      "Your free Agenta credits are used up. Add your own provider key to keep going.";
 
     try {
       const result = await runSandboxAgent(
@@ -2343,10 +2350,14 @@ describe("runSandboxAgent orchestration", () => {
         fixture.deps,
       );
 
-      assert.deepEqual(result, { ok: false, error: "boom" });
+      assert.deepEqual(result, { ok: false, error: message });
       assert.deepEqual(fixture.calls.recordedErrors, [
-        { message: "boom", provider: undefined },
+        { message, provider: undefined },
       ]);
+      assert.deepEqual(
+        fixture.events.find((event) => event.type === "error"),
+        { type: "error", message, code: "starter_credits_exhausted" },
+      );
       assert.match(
         fixture.logs.join("\n"),
         /stage=pi_trace_missing_batch diagnostic=true/,

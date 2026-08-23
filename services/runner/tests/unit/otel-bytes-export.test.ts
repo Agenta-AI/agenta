@@ -113,6 +113,7 @@ describe("raw OTLP byte export", () => {
   });
 
   it("keeps credential-provider and fetch throws best effort", async () => {
+    const credential = "Bearer trace-export-secret";
     const fetchMock = vi.fn(async () => {
       throw new Error("connection refused");
     });
@@ -129,12 +130,12 @@ describe("raw OTLP byte export", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     await expect(
-      exportOtlpBytes(request(THIRD_PARTY_ENDPOINT, () => "Bearer current")),
+      exportOtlpBytes(request(THIRD_PARTY_ENDPOINT, () => credential)),
     ).resolves.toMatchObject({ outcome: "failed" });
     expect(fetchMock).toHaveBeenCalledOnce();
     const lines = log.mock.calls.flat().join(" ");
     expect(lines).toContain("credential store unavailable");
     expect(lines).toContain("connection refused");
-    expect(lines).not.toContain("current");
+    expect(lines).not.toContain("trace-export-secret");
   });
 });
