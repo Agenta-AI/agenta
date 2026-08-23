@@ -533,7 +533,7 @@ def parse_query_revision_query_request_from_body(
         )
 
     except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
+        log.warning(e)
 
         query_revision_query_request = QueryRevisionQueryRequest()
 

@@ -207,7 +207,7 @@ async def renew_lock(
                 )
             return True
         else:
-            log.warn(
+            log.warning(
                 f"[lock] RENEW FAILED (expired or lost ownership): namespace={namespace} key={key}"
             )
             return False

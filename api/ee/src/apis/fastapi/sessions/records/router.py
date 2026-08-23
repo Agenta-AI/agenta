@@ -87,7 +87,7 @@ class RecordsRetentionRouter:
                 if released:
                     log.info("[flush-records] [endpoint] Lock released")
                 else:
-                    log.warn(
+                    log.warning(
                         "[flush-records] [endpoint] Lock release skipped (expired/lost)"
                     )
 

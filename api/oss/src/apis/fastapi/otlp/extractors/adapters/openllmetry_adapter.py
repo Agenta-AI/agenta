@@ -103,7 +103,7 @@ class OpenLLMmetryAdapter(BaseAdapter):
                             transformed_attributes[ag_key] = transformed_value
                             has_openllmetry_data = True
                     except Exception as e:
-                        log.warn(
+                        log.warning(
                             f"OpenLLMmetryAdapter: Error in dynamic transform for {key}: {e}"
                         )
 

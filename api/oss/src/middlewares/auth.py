@@ -166,7 +166,7 @@ async def auth_middleware(request: Request, call_next):
         return response
 
     except TryRefreshTokenError:
-        log.warn("Unauthorized: Refresh Token")
+        log.warning("Unauthorized: Refresh Token")
 
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
@@ -188,7 +188,7 @@ async def auth_middleware(request: Request, call_next):
             if exc.status_code in [401]:
                 log.debug("%s: %s", exc.status_code, exc.detail)
             else:
-                log.warn("%s: %s", exc.status_code, exc.detail)
+                log.warning("%s: %s", exc.status_code, exc.detail)
 
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 

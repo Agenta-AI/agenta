@@ -155,7 +155,7 @@ class AccessRouter:
 
         try:
             if not action or not resource_type:
-                log.warn("Missing required parameters: action, resource_type")
+                log.warning("Missing required parameters: action, resource_type")
                 raise Deny()
 
             allow = await get_cache(
@@ -168,7 +168,7 @@ class AccessRouter:
             if allow == "allow":
                 return Allow(credentials_header)
             if allow == "deny":
-                log.warn("Permission denied")
+                log.warning("Permission denied")
                 raise Deny()
 
             # CHECK PERMISSION 1/3: SCOPE
@@ -178,7 +178,7 @@ class AccessRouter:
             )
 
             if not allow_scope:
-                log.warn("Scope access denied")
+                log.warning("Scope access denied")
                 await set_cache(
                     project_id=project_id,
                     user_id=user_id,
@@ -196,7 +196,7 @@ class AccessRouter:
             )
 
             if not allow_action:
-                log.warn("Action access denied")
+                log.warning("Action access denied")
                 await set_cache(
                     project_id=project_id,
                     user_id=user_id,
@@ -213,7 +213,7 @@ class AccessRouter:
 
             if isinstance(allow_resource, bool):
                 if allow_resource is False:
-                    log.warn("Resource access denied")
+                    log.warning("Resource access denied")
                     await set_cache(
                         project_id=project_id,
                         user_id=user_id,
@@ -235,7 +235,7 @@ class AccessRouter:
 
             elif isinstance(allow_resource, int):
                 if allow_resource <= 0:
-                    log.warn("Resource access denied")
+                    log.warning("Resource access denied")
                     await set_cache(
                         project_id=project_id,
                         user_id=user_id,
@@ -247,7 +247,7 @@ class AccessRouter:
                 else:
                     return Allow(credentials_header)
 
-            log.warn("Resource access denied")
+            log.warning("Resource access denied")
             await set_cache(
                 project_id=project_id,
                 user_id=user_id,
@@ -258,7 +258,7 @@ class AccessRouter:
             raise Deny()
 
         except Exception as exc:  # pylint: disable=broad-except
-            log.warn(exc)
+            log.warning(exc)
             await set_cache(
                 project_id=project_id,
                 user_id=user_id,

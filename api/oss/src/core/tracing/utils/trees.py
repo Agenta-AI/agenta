@@ -641,7 +641,7 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                 }
 
             except Exception:  # pylint: disable=bare-except
-                log.warn(
+                log.warning(
                     "Failed to calculate costs",
                     model=model,
                     prompt_tokens=prompt_tokens,
