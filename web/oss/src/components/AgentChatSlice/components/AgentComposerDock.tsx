@@ -18,6 +18,7 @@ import {
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {Button, LoadingButton} from "@agenta/ui/ui"
@@ -160,6 +161,24 @@ const AgentComposerDock = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    // Sending on a touch device dismisses the on-screen keyboard, which returns the page to its
+    // full height and puts the transcript back in view — the message you just sent is the thing
+    // you want to read next. On desktop the editor keeps focus after Enter so the next message can
+    // be typed straight away, so the helper checks the pointer type.
+    //
+    // It also DEFERS the blur, which is the part that matters: `submitEditorAsMarkdown` clears the
+    // editor on the statement after this handler returns, and that reconcile writes a fresh DOM
+    // selection, which re-focuses the editor and pops the keyboard straight back up. A blur called
+    // inline here is undone before the user sees it.
+    const submitMessage = useCallback(
+        (text: string) => {
+            const result = onSubmit(text)
+            dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
+            return result
+        },
+        [onSubmit, richInputRef],
+    )
+
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
     // undone when the still-focused panel (or Radix popover) leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -370,7 +389,7 @@ const AgentComposerDock = ({
                         fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
                         // Onboarding: submit = commit the ephemeral — Enter creates the agent
                         // (matching the composer's "↵ Send" hint).
-                        onSubmit={onboardingActive ? () => handleCreateAgent() : onSubmit}
+                        onSubmit={onboardingActive ? () => handleCreateAgent() : submitMessage}
                         disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                         hideSendButton={onboardingActive}
                         placeholder={

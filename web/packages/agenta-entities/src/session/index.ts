@@ -93,7 +93,7 @@ export {
     type SessionListCursor,
     type SessionListFilters,
 } from "./state/listOptions"
-export {invalidateSessionListQueries} from "./state/invalidate"
+export {invalidateSessionListQueries, invalidateSessionLivenessQueries} from "./state/invalidate"
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"

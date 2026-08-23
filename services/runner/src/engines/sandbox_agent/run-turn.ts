@@ -1,3 +1,4 @@
+import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
   permissionsFromRequest,
@@ -10,7 +11,8 @@ import {
   type EmitEvent,
   type ToolCallbackContext,
 } from "../../protocol.ts";
-import { seedForRun } from "../../redaction.ts";
+import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -48,6 +50,7 @@ import {
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
+import { createHarnessTracePort } from "./harness-trace-port.ts";
 import {
   attachmentCapabilityGate,
   buildPromptBlocks,
@@ -77,6 +80,7 @@ import {
   type SessionEnvironment,
 } from "./runtime-contracts.ts";
 import {
+  resolveRunOtlpTarget,
   runCredential,
   serverPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
@@ -104,7 +108,18 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
-  const credential = opts.credential ?? (() => runCredential(request));
+  const initialCredential = opts.credential ?? (() => runCredential(request));
+  const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
+  // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
+  // Agenta run owns the same reusable lease here so even a single 12-hour turn exports with a
+  // current credential. External collector headers stay static and never enter this exchange.
+  const platformCredentialLease =
+    !opts.credential && initialOtlpTarget.authorizationSource === "platform"
+      ? startPlatformCredentialLease(apiBase(), runCredential(request))
+      : undefined;
+  const credential =
+    opts.credential ?? platformCredentialLease?.credential ?? initialCredential;
+  const otlpTarget = resolveRunOtlpTarget(request, credential);
   const sessionId = env.sessionId;
   const toolRunContext = env.sessionId
     ? { ...request.runContext, session: { id: env.sessionId } }
@@ -144,6 +159,12 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  const harnessTrace = createHarnessTracePort({
+    env,
+    request: () => request,
+    target: otlpTarget,
+    resume: !!opts.resume,
+  });
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
   // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
@@ -258,25 +279,24 @@ export async function runTurn(
         ? buildTurnText(request, logger)
         : plan.prompt.turnText;
 
+    const runRedactor = seedForRun(request, sandboxVisibleSecretValues(env));
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
       skills: plan.workspace.skillDirs.map((s) => s.name),
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
-      endpoint: request.telemetry?.exporters?.otlp?.endpoint,
-      authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
+      endpoint: otlpTarget.endpoint,
+      // The session keepalive owns this getter and refreshes its value while a long turn runs.
+      // Resolve it only when the trace batch leaves the runner, not when the turn starts.
+      authorization: otlpTarget.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
       // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
       // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan
       // but still transit runner memory) plus the mount's STS pair — none of which lives in the
       // sidecar's process env.
-      redactor: seedForRun(request, [
-        env.mountCreds?.accessKey,
-        env.mountCreds?.secretKey,
-        env.mountCreds?.sessionToken,
-      ]),
-      emitSpans: !plan.isPi || plan.isDaytona,
+      redactor: runRedactor,
+      emitSpans: harnessTrace.runnerEmitsSpans,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
@@ -292,6 +312,8 @@ export async function runTurn(
         { role: "user", content: promptText },
       ],
     });
+    await harnessTrace.start(run, runRedactor);
+    const resultTraceId = harnessTrace.traceId(run);
 
     let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
     if (!opts.resume) {
@@ -382,7 +404,7 @@ export async function runTurn(
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
           references: workflowRefs,
-          traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
+          traceId: resultTraceId ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
@@ -1128,6 +1150,12 @@ export async function runTurn(
       }
     }
     await turn.toolRelay?.stop();
+    if (stopReason === "cancelled") {
+      // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
+      // before draining; the outer environment teardown would otherwise cancel Pi only after the
+      // spool had already timed out and then sweep the late batch.
+      await harnessTrace.cancelBeforeDrain();
+    }
     logger(`prompt stopReason=${stopReason}`);
 
     const usage = await resolveRunUsage({
@@ -1138,6 +1166,9 @@ export async function runTurn(
       streamUsage: run.usage(),
     });
     run.setUsage(usage);
+    const traceFinish =
+      stopReason !== "paused" ? await harnessTrace.finish() : undefined;
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
     // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
     // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
@@ -1168,6 +1199,9 @@ export async function runTurn(
         message: classified.message,
         code: classified.code,
       });
+    }
+    if (nativeTraceBatches === 0 && !swallowedError) {
+      await harnessTrace.emitMissingBatchFallback(run);
     }
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
@@ -1231,7 +1265,7 @@ export async function runTurn(
       },
       sessionId,
       model: env.model ?? request.model,
-      traceId: run.traceId(),
+      traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
     const classified = classifyRunError(
@@ -1241,7 +1275,16 @@ export async function runTurn(
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
     const error = classified.message;
-    otel?.recordError(error, request.modelConnection?.provider);
+    await harnessTrace.cancelBeforeDrain();
+    const traceFinish = await harnessTrace.finish();
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
+    // A valid native Pi batch already carries the harness failure. Otherwise preserve the
+    // runner-owned error and usage fallback under the caller trace context.
+    if (harnessTrace.runnerEmitsSpans) {
+      otel?.recordError(error, request.modelConnection?.provider);
+    } else if (nativeTraceBatches === 0) {
+      await harnessTrace.emitMissingBatchFallback(otel, error);
+    }
     otel?.emitEvent({
       type: "error",
       message: error,
@@ -1258,6 +1301,7 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

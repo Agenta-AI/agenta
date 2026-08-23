@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.113.0",
+    "version": "0.114.0",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -24,6 +24,8 @@
         "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
+        "@agenta/navigation": "workspace:../packages/agenta-navigation",
+        "@agenta/navigation-ui": "workspace:../packages/agenta-navigation-ui",
         "@agenta/observability-ui": "workspace:../packages/agenta-observability-ui",
         "@agenta/oss": "workspace:../oss",
         "@agenta/playground": "workspace:../packages/agenta-playground",
@@ -41,7 +43,6 @@
         "@reduxjs/toolkit": "^2.8.2",
         "@tanstack/query-core": "^5.90.20",
         "@tanstack/react-query": "^5.90.21",
-        "@tremor/react": "^3.18.7",
         "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.17.23",
         "@types/react": "^19.0.10",

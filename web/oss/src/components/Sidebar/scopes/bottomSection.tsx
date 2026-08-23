@@ -22,7 +22,7 @@ import useURL from "@/oss/hooks/useURL"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
-import {useOrgData} from "@/oss/state/org"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 
 interface SidebarBottomSectionOptions {
     includeSettingsLink?: boolean
@@ -38,7 +38,10 @@ export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
     const {doesSessionExist} = useSession()
-    const {selectedOrg} = useOrgData()
+    // Route-derived and synchronous, so it survives the org switch's cache eviction:
+    // `changeSelectedOrg` removes the ["selectedOrg", id] query BEFORE navigating, which left
+    // this row hidden for a whole GET /organizations/{id} round-trip on every switch.
+    const selectedOrgId = useAtomValue(selectedOrgIdAtom)
     const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL} = useURL()
@@ -80,9 +83,9 @@ export const useSidebarBottomSection = ({
             buildInviteTeammateNavItem({
                 projectURL: hasProjectURL ? projectURL : "",
                 icon: <PaperPlaneIcon size={14} />,
-                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+                isHidden: !doesSessionExist || !selectedOrgId || !canInviteMembers,
             }),
-        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
+        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrgId],
     )
 
     const sharedItems = useMemo<SidebarConfig[]>(

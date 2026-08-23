@@ -286,14 +286,31 @@ class _ConnectionCandidate:
         )
 
     def selected_model_id(self, model: ModelRef) -> str:
-        full = model.to_model_string()
-        for key in self.model_keys:
-            if key == full:
+        """The model id to send upstream, with the vault's storage namespace stripped.
+
+        Matches the SAME lookup values as ``matches_model``: a stored key is namespaced
+        ``<connection-name>/<kind>/<model>`` and never carries a provider prefix, so comparing it
+        only against ``to_model_string()`` misses whenever the request also names a provider
+        (``openai/<name>/custom/<model>``) and the namespaced id would then be sent upstream as
+        the model name. Matching and stripping must agree, or a connection matches but resolves
+        to a model the upstream does not know.
+        """
+        values = _ordered_model_lookup_values(model, self.deployment)
+        prefix = f"{self.deployment}/"
+        for key in values:
+            if key in self.model_keys:
+                matching_slugs = [
+                    slug
+                    for slug in self.model_slugs
+                    if key == slug or key.endswith(f"/{slug}")
+                ]
+                if matching_slugs:
+                    return max(matching_slugs, key=len)
+                # Persisted legacy records may carry model_keys without the saved model list.
                 parts = key.split("/", 2)
                 return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
             return model.model
-        prefix = f"{self.deployment}/"
         if model.model.startswith(prefix):
             return model.model[len(prefix) :]
         return model.model
@@ -353,14 +370,18 @@ class _ConnectionCandidate:
         return env
 
 
-def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
-    values = {model.model, model.to_model_string()}
+def _ordered_model_lookup_values(model: ModelRef, deployment: str) -> List[str]:
+    values = [model.model, model.to_model_string()]
     if model.provider:
-        values.add(f"{model.provider}/{model.model}")
+        values.append(f"{model.provider}/{model.model}")
     prefix = f"{deployment}/"
     if model.model.startswith(prefix):
-        values.add(model.model[len(prefix) :])
-    return {value for value in values if value}
+        values.append(model.model[len(prefix) :])
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
+    return set(_ordered_model_lookup_values(model, deployment))
 
 
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:

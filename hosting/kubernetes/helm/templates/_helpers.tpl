@@ -57,6 +57,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.web).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.webMobile.enabled" -}}
+{{- $v := (default dict .Values.webMobile).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.services.enabled" -}}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -126,6 +130,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
+{{- define "agenta.webMobile.replicas" -}}{{ default 1 (default dict .Values.webMobile).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
 {{- define "agenta.agentRunner.replicas" -}}{{ default 1 (default dict .Values.agentRunner).replicas }}{{- end }}
 {{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
@@ -147,6 +152,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
 {{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
+{{- define "agenta.webMobile.port" -}}{{ default 3000 (default dict .Values.webMobile).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
 {{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
@@ -158,6 +164,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
 {{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
+{{- define "agenta.webMobile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.webMobile).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
 {{- define "agenta.agentRunner.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.agentRunner).image).pullPolicy }}{{- end }}
 {{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (include "agenta.values" . | fromYaml).supertokens).image).pullPolicy }}{{- end }}
@@ -275,6 +282,16 @@ ghcr.io/agenta-ai/agenta-web
 {{- define "agenta.webImage" -}}
 {{- $img := default dict (default dict .Values.web).image -}}
 {{ include "agenta.webImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.webMobileImageRepository" -}}
+{{- $img := default dict (default dict .Values.webMobile).image -}}
+{{- default "ghcr.io/agenta-ai/agenta-web-mobile" $img.repository -}}
+{{- end }}
+
+{{- define "agenta.webMobileImage" -}}
+{{- $img := default dict (default dict .Values.webMobile).image -}}
+{{ include "agenta.webMobileImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
 {{- end }}
 
 {{- define "agenta.servicesImageRepository" -}}
@@ -414,6 +431,8 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $svc := default dict $paths.services -}}
 {{- default "Prefix" $svc.pathType -}}
 {{- end }}
+{{- define "agenta.ingress.paths.webMobile.path" -}}/m{{- end }}
+{{- define "agenta.ingress.paths.webMobile.pathType" -}}Prefix{{- end }}
 {{- define "agenta.ingress.paths.web.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
 {{- $w := default dict $paths.web -}}

@@ -68,7 +68,9 @@ export const ScreenScaffold = ({
 }: ScreenScaffoldProps) => (
     <div
         className={`bg-background text-foreground flex min-h-0 flex-col ${
-            embedded ? "h-full" : "h-dvh pt-[env(safe-area-inset-top)]"
+            embedded
+                ? "h-full"
+                : "h-[var(--ag-viewport-height,100dvh)] pt-[env(safe-area-inset-top)]"
         }`}
     >
         {header}

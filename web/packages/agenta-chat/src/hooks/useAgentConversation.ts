@@ -17,6 +17,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    invalidateSessionListQueries,
+    invalidateSessionLivenessQueries,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -33,6 +35,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
+import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
@@ -207,14 +210,15 @@ export const useAgentConversation = ({
             new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityIdRef.current, messages, {
-                        sessionId: id ?? sessionId,
-                    })
-                    if (!req) {
-                        throw new Error(
-                            "This agent workflow has no invocation URL — it can’t be run yet.",
-                        )
-                    }
+                    // Bounded, not instant. A null build means the workflow entity has not loaded
+                    // its invocation URL YET — the first send to a freshly created agent races
+                    // that fetch, and failing on the first null made a new user's first message
+                    // fail (#6042 on the desktop; the same race reached /m through this hook).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                        }),
+                    )
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             }),
@@ -264,6 +268,15 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            // The first turn is what creates the durable session row; every later one changes its
+            // title, preview and activity. Nothing else tells the session lists, so a brand-new
+            // session surfaced only on their next remount past the stale time.
+            invalidateSessionListQueries()
+            // Nothing else invalidates liveness at turn end either, so the project-wide poll's
+            // cached `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch
+            // immediately — the runner awaits its `is_running: false` heartbeat BEFORE closing
+            // this stream (services/runner/src/server.ts `aliveWatchdog.release()`).
+            invalidateSessionLivenessQueries()
         },
         onError: (err) => {
             // A failed stream never dispatches the pending resume, so drop the marker: leaving it

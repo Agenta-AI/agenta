@@ -12,7 +12,7 @@ import {
     buildRequestWithinDeadline,
     PREPARE_HUNG_MESSAGE,
     PREPARE_NOT_READY_MESSAGE,
-} from "./boundedRequest"
+} from "../../../src/assets/boundedRequest"
 
 describe("buildRequestWithinDeadline", () => {
     beforeEach(() => {

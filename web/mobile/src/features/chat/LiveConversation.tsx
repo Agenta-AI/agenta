@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     BOTTOM_FADE_HOVER_HIDE,
@@ -6,7 +6,7 @@ import {
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
 import {RunningElsewhereStrip} from "@agenta/chat/components"
-import {useAgentConversation} from "@agenta/chat/hooks"
+import {useAgentConversation, useAgentModelKeyStatus} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
@@ -22,6 +22,12 @@ import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
+import {ConnectModelStrip} from "./ConnectModelStrip"
+import {
+    MODEL_KEY_WAIT_LIMIT_MS,
+    PENDING_TASK_NOT_SENT_MESSAGE,
+    pendingTaskDecision,
+} from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -64,22 +70,81 @@ export const LiveConversation = ({
 }) => {
     const conversation = useAgentConversation({entityId, sessionId})
 
+    // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
+    // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
+    // send, not shown a raw 422 after it. Blocks the composer, holds the parked task, and raises
+    // the strip below.
+    const modelKey = useAgentModelKeyStatus(entityId)
+    const modelBlocked = modelKey.gateActive
+    // The strip stays hidden until the vault answers (`gateActive` is false while it loads), but
+    // the parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
+    const modelKeyLoading = modelKey.loading
+
+    // The vault wait is bounded (`pendingTaskPolicy`). This stays 0 while the wait is on and
+    // becomes the elapsed time when the deadline fires, which is the render that releases the task.
+    const modelKeyWaitStartRef = useRef<number | null>(null)
+    const [modelKeyWaitedMs, setModelKeyWaitedMs] = useState(0)
+    useEffect(() => {
+        if (!modelKeyLoading) {
+            modelKeyWaitStartRef.current = null
+            setModelKeyWaitedMs(0)
+            return
+        }
+        const startedAt = modelKeyWaitStartRef.current ?? Date.now()
+        modelKeyWaitStartRef.current = startedAt
+        const remaining = Math.max(0, MODEL_KEY_WAIT_LIMIT_MS - (Date.now() - startedAt))
+        const timer = setTimeout(() => setModelKeyWaitedMs(Date.now() - startedAt), remaining)
+        return () => clearTimeout(timer)
+    }, [modelKeyLoading])
+
+    // The composer's input handle. Declared here because the released task puts its text back in
+    // the composer, and rewind (far below) refills it the same way.
+    const composerRef = useRef<RichChatInputHandle | null>(null)
+
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
-    // until hydration settles, or the engine would send into a transcript it is still filling.
-    // The guard holds the SESSION it fired for, not a bare flag: this component survives a
-    // session switch, and a flag would swallow the next session's stashed task.
+    // until hydration settles, or the engine would send into a transcript it is still filling,
+    // and held while the vault is unresolved or the model gate is up, so the first message is not
+    // spent on a run that cannot succeed — it goes out on its own the moment a key lands (or the
+    // vault says one already exists). The guard holds the SESSION it
+    // fired for, not a bare flag: this component survives a session switch, and a flag would
+    // swallow the next session's stashed task.
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
+    const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
     const {isHydrating, send} = conversation
     useEffect(() => {
-        if (sentPendingTaskFor.current === sessionId || isHydrating) return
+        const decision = pendingTaskDecision({
+            sessionId,
+            sentFor: sentPendingTaskFor.current,
+            hydrating: isHydrating,
+            modelKeyLoading,
+            modelKeyWaitedMs,
+            modelBlocked,
+        })
+        if (decision === "hold") return
         const task = takePendingTask(sessionId)
         if (!task) return
+        // Consumed either way — a released task must not replay on the next render.
         sentPendingTaskFor.current = sessionId
+        if (decision === "abandon") {
+            setPendingTaskError(PENDING_TASK_NOT_SENT_MESSAGE)
+            // Hand the text back so "try again" is one tap. The composer is usable here: the gate
+            // is not up, because an unresolved vault never raises it.
+            if (task.text) composerRef.current?.setMarkdown(task.text)
+            return
+        }
         void send({text: task.text, parts: task.parts})
-    }, [isHydrating, send, sessionId, takePendingTask])
+    }, [
+        isHydrating,
+        modelKeyLoading,
+        modelKeyWaitedMs,
+        modelBlocked,
+        send,
+        sessionId,
+        takePendingTask,
+    ])
 
     // Push-invalidation: a records change (another device's turn, a steer resume) folds into
     // the engine's transcript under its adopt guards.
@@ -136,8 +201,8 @@ export const LiveConversation = ({
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
-    // the composer, are this surface's job — same division the desktop uses.
-    const composerRef = useRef<RichChatInputHandle | null>(null)
+    // the composer, are this surface's job — same division the desktop uses. `composerRef` is
+    // declared above, with the parked task that also refills the input.
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
             const plan = conversation.rewind(turn.message)
@@ -248,10 +313,25 @@ export const LiveConversation = ({
                             bottomMost={false}
                         />
                     ) : null}
+                    {/* Docked with the other strips, directly above the composer it disables —
+                        the same place the desktop banner sits. */}
+                    <ContentRail>
+                        <ConnectModelStrip
+                            providerEntry={modelKey.providerEntry}
+                            gateActive={modelBlocked}
+                        />
+                    </ContentRail>
+                    {/* The parked task gave up waiting for the vault. Its text is back in the
+                        composer, so this says what happened and the send is one tap away. */}
+                    {pendingTaskError ? (
+                        <ContentRail>
+                            <p className="text-destructive m-0 mb-2 text-xs">{pendingTaskError}</p>
+                        </ContentRail>
+                    ) : null}
                     <Composer
                         sessionId={sessionId}
                         onSend={({text, parts}) => conversation.send({text, parts})}
-                        disabled={conversation.isHydrating}
+                        disabled={conversation.isHydrating || modelBlocked}
                         waitingOnUser={conversation.hitlPending}
                         streaming={streamingHere}
                         onStop={conversation.stop}

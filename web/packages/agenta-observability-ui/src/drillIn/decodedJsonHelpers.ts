@@ -47,6 +47,24 @@ export const normalizeEscapedLineBreaks = (value: string): string =>
     value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
 
 /**
+ * The body of a ```` ```json ```` fence, trimmed, or null when the value is not one fence.
+ *
+ * It replaces `/^```(?:json)?\s*([\s\S]*?)\s*```$/i`, which accepts the same strings but scans
+ * them in quadratic time: the lazy body and the two `\s*` runs overlap, so a fence padded with
+ * spaces makes the engine retry every split point. The closing fence is always the last three
+ * characters, because the pattern was anchored to the end of the string, so a slice is exact.
+ *
+ * Exported for the regression test that compares it against the pattern it replaced.
+ */
+export const stripJsonFence = (input: string): string | null => {
+    if (input.length < 6 || !input.startsWith("```") || !input.endsWith("```")) return null
+    let body = input.slice(3, -3)
+    // The optional `json` info string, matched case-insensitively as before.
+    if (body.slice(0, 4).toLowerCase() === "json") body = body.slice(4)
+    return body.trim() || null
+}
+
+/**
  * Try to parse a string as structured JSON, tolerating:
  * - whitespace
  * - markdown fenced code blocks (```json ... ```)
@@ -76,9 +94,9 @@ export const parseStructuredJson = (value: string): unknown | null => {
     let candidate = value.trim()
     if (!candidate) return null
 
-    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
-    if (fencedMatch?.[1]) {
-        candidate = fencedMatch[1].trim()
+    const fenced = stripJsonFence(candidate)
+    if (fenced) {
+        candidate = fenced
     }
 
     const strictParsed = toStructured(tryParseJson(candidate))

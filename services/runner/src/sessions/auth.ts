@@ -29,7 +29,70 @@ export async function refreshCredential(
     const body = (await res.json()) as { credentials?: string };
     return body.credentials ?? null;
   } catch (err) {
-    log(`refresh failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`);
+    log(
+      `refresh failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+    );
     return null;
   }
+}
+
+export const DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
+export interface PlatformCredentialLease {
+  credential: () => string;
+  release: () => void;
+}
+
+/**
+ * Keep one Agenta platform credential fresh for the lifetime of a runner-owned operation.
+ *
+ * The lease is deliberately target-agnostic: callers create it only after classifying the
+ * destination as Agenta ingest. External collector credentials must never enter this exchange.
+ * Refresh is proactive, bounded to one in-flight request, and fail-open: a failed refresh keeps
+ * the last credential so tracing or session cleanup never changes agent-result semantics.
+ */
+export function startPlatformCredentialLease(
+  baseUrl: string,
+  authorization: string,
+  options: {
+    intervalMs?: number;
+    refresh?: typeof refreshCredential;
+  } = {},
+): PlatformCredentialLease {
+  let credential = authorization;
+  let released = false;
+  let refreshInFlight = false;
+  const refresh = options.refresh ?? refreshCredential;
+  const intervalMs =
+    options.intervalMs ?? DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS;
+
+  if (!credential) {
+    return { credential: () => credential, release: () => {} };
+  }
+
+  const interval = setInterval(() => {
+    if (released || refreshInFlight) return;
+    refreshInFlight = true;
+    void refresh(baseUrl, credential)
+      .then((fresh) => {
+        if (!released && fresh) credential = fresh;
+      })
+      .catch((err) => {
+        log(
+          `refresh failed: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+        );
+      })
+      .finally(() => {
+        refreshInFlight = false;
+      });
+  }, intervalMs);
+  interval.unref?.();
+
+  return {
+    credential: () => credential,
+    release: () => {
+      released = true;
+      clearInterval(interval);
+    },
+  };
 }

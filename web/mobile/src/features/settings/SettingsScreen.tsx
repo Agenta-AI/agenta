@@ -13,6 +13,7 @@ import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {
     getSettingsTabDescription,
+    getSettingsTabDocs,
     getSettingsTabLabel,
     getSettingsTabVariant,
     type SettingsTabKey,
@@ -369,6 +370,7 @@ export const SettingsScreen = ({
                 variant={getSettingsTabVariant(active)}
                 title={getSettingsTabLabel(active, access)}
                 description={getSettingsTabDescription(active, access)}
+                docs={getSettingsTabDocs(active)}
             >
                 <TabBody
                     tab={active}

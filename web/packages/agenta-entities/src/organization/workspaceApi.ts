@@ -2,6 +2,7 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
+import {toSafeIdSegment} from "./idSegments"
 import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
 
 /** The scoping project id — the app layer's `getProjectValues()` is unreachable from a package. */
@@ -134,8 +135,16 @@ export const acceptWorkspaceInvite = async (
     },
     ignoreAxiosError = false,
 ) => {
+    // The three ids come off the invite link, so they are checked before they reach the URL.
+    const orgSegment = toSafeIdSegment(organizationId)
+    const workspaceSegment = toSafeIdSegment(workspaceId)
+    const projectSegment = toSafeIdSegment(projectId)
+    if (orgSegment === null) throw new Error("Invalid organization id in the invite")
+    if (workspaceSegment === null) throw new Error("Invalid workspace id in the invite")
+    if (projectSegment === null) throw new Error("Invalid project id in the invite")
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/invite/accept?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${orgSegment}/workspaces/${workspaceSegment}/invite/accept?project_id=${projectSegment}`,
         {token, ...(email ? {email} : {})},
         {
             _ignoreError: ignoreAxiosError,

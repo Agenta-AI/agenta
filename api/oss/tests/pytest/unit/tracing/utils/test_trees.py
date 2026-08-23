@@ -120,6 +120,40 @@ def test_parse_span_dtos_to_span_idx_and_tree_hierarchy():
     assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
 
 
+@pytest.mark.parametrize("reported_cost", [0.0, 0.0042])
+def test_workflow_root_uses_its_reported_usage_as_cumulative(reported_cost):
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="_agent",
+        span_type=SpanType.WORKFLOW,
+        prompt_tokens=100,
+        completion_tokens=20,
+    )
+    root.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": reported_cost}
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        prompt_cost=0.003,
+        completion_cost=0.0012,
+        start_offset_s=1,
+    )
+
+    result, _ = calculate_and_propagate_metrics([root, child])
+    metrics = result.attributes["ag"]["metrics"]
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 100,
+        "completion": 20,
+        "total": 120,
+    }
+    assert metrics["costs"]["cumulative"] == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "total": reported_cost,
+    }
+
+
 def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     root = _span(
         span_id=ROOT_UUID,
@@ -233,6 +267,27 @@ def test_calculate_costs_sets_incremental_values_for_cost_supported_types(monkey
 
     costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
     assert costs == {"prompt": 0.12, "completion": 0.34, "total": 0.46}
+
+
+def test_calculate_costs_preserves_instrumentation_reported_total(monkeypatch):
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        span_type=SpanType.CHAT,
+    )
+    span.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": 0.0042}
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        lambda **_: (0.12, 0.34),
+    )
+
+    calculate_costs({span.span_id: span})
+
+    costs = span.attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs == {"total": 0.0042}
 
 
 def test_calculate_costs_swallows_calculation_errors(monkeypatch):

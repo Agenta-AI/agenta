@@ -1,8 +1,8 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-import changelogData from "../data/changelog.json"
-import {BannerConfig, BannerType} from "../types"
+import changelogData from "./changelog.json"
+import {BannerConfig, BannerType} from "./types"
 
 /**
  * Priority order for banner types.
