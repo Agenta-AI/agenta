@@ -731,8 +731,11 @@ export function buildRunPlan(
         telemetryDir,
         toolMcpDir,
         // Usage capture is ephemeral runner output, not durable session data — keep it off the
-        // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
-        usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
+        // geesefs mount in Pi's always-created telemetry dir. A plain chat has no tool relay, so
+        // the relay dir may not exist at all.
+        usageOutPath: isPi
+          ? join(telemetryDir, ".agenta-usage.json")
+          : undefined,
         skillDirs,
         skillsCleanup,
         sourcePiAgentDir:
