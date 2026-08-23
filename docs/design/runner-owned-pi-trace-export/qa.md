@@ -40,16 +40,16 @@ The release claim is stronger than "the export returned 200." It is:
 - Ignores stale, temporary, wrong-channel, and duplicate files.
 - Deletes on pickup.
 - Stops cleanly after success, timeout, cancel, pause, and thrown prompt error.
-- A missing batch produces diagnostics and a successful agent result.
+- A missing or invalid batch produces exactly one runner-owned fallback error-and-usage span,
+  no partial Pi batch, bounded diagnostics, and unchanged agent-result semantics.
 - Local and Daytona hosts execute the same consumer code.
 
-### Credential lease and export sink
+### Live authorization and export
 
-- Fake time crosses 15 minutes, two hours, and 12 hours without using an expired credential.
-- Refresh is proactive and single-flight.
+- Fake credential rotations cross 15 minutes, two hours, and 12 hours without reusing the
+  captured initial credential.
 - Export reads the credential immediately before each attempt.
-- One 401 triggers one refresh and one retry.
-- Repeated 401 stops and logs without failing the turn.
+- Existing bounded retry classifications stay unchanged; this work adds no 401 refresh protocol.
 - Third-party collector auth is not sent to `/permissions/check`.
 - Logs contain credential age and status but no secret value or OTLP content.
 
@@ -122,6 +122,10 @@ Additional assertions:
 - no ACP-reconstructed duplicate tree appears.
 
 ## Failure injection
+
+For cancellation, prompt failure, missing publication, a truncated final file, and an oversized
+final file, assert exactly one of two outcomes: one valid complete Pi batch, or one idempotent
+runner fallback span. Never accept a periodic or partial Pi batch.
 
 - Prevent control-file write.
 - Crash Pi before `agent_end`.

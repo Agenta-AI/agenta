@@ -10,7 +10,9 @@ The invariant is simple:
 - Pi still creates the Pi-native agent, turn, LLM, and tool spans.
 - The runner is the only component that sends spans over the network.
 - Local and Daytona Pi runs use the same file-spool protocol and lifecycle.
-- Credentials and export routing never enter the Pi process or sandbox.
+- Export credentials and export routing never enter the Pi process or sandbox. The runner may put
+  sandbox-visible mount credential values in the per-turn control file only so Pi can redact them;
+  those values do not authorize telemetry export.
 
 The runner does not reconstruct Pi spans from ACP events. Pi keeps its richer in-process view of
 provider calls, messages, tools, token counts, and cost. It serializes that span tree as a standard

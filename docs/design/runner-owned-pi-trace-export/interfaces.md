@@ -49,8 +49,8 @@ The runner needs these logical inputs:
 
 No new field is needed to ship runner-owned export. The existing `headers.authorization` remains
 the compatibility source for the runner's general credential during the first implementation.
-The runner must resolve it once into a `PlatformCredentialLease`; tracing code and session code
-must consume the lease instead of repeatedly reading the telemetry DTO.
+The runner must resolve it once into its shared current-authorization provider; tracing and
+session code consume that provider instead of repeatedly reading the telemetry DTO.
 
 Do not add:
 
@@ -179,53 +179,41 @@ Consumer rules:
 ## Internal credential interface
 
 ```ts
-interface PlatformCredentialLease {
-  current(): string;
-  refreshNow(): Promise<string | null>;
-  dispose(): void;
-}
+type AuthorizationProvider = () => string | undefined;
 ```
 
 Properties:
 
-- created per active `/run`, not stored in a warm `SessionEnvironment`;
 - initialized from the credential on the current request;
-- proactive refresh before expiry with a bounded safety margin;
-- single-flight refresh;
-- last known valid value retained on transient refresh failure;
-- disposed on every run exit;
+- refreshed by the existing session alive watchdog while a session-owned turn is active;
+- read immediately before every runner or Pi-spool export;
+- kept static for third-party collector authorization;
 - value and raw JWT claims never logged.
 
-The session watchdog should receive this lease. It should not create a second mutable credential.
+Do not create a second trace-specific lease or refresh channel.
 
 ## Internal export interface
 
 ```ts
-interface OtlpExportRequest {
+interface OtlpBytesExportRequest {
   body: Uint8Array;
-  endpoint: string;
-  authorization: () => string | undefined;
-  refreshAuthorization?: () => Promise<string | null>;
-  traceId?: string;
-  turnId?: string;
-  source: "runner" | "pi-spool";
-}
-
-interface RunnerTraceExportSink {
-  export(request: OtlpExportRequest): Promise<void>;
+  target: {
+    endpoint: string;
+    authorization: AuthorizationProvider;
+  };
+  diagnostics: PiSpoolDiagnostics;
 }
 ```
 
-`export()` is best-effort and resolves after success, final failure, or timeout. It does not throw
-into agent execution.
+`exportOtlpBytes()` is best-effort and resolves after success, final failure, or timeout. It
+preserves existing retry and diagnostics behavior and does not throw into agent execution.
 
 ## Compatibility rules
 
 - A runner without the new spool path continues current behavior.
-- A new runner enables the spool only when the installed Pi extension advertises protocol version
-  1 or the deployment ships the runner and extension atomically.
-- Do not run direct Pi export and spool export at the same time. The activation flag is exclusive.
-- During rollout, runner logs must identify `source=pi-direct`, `source=pi-spool`, or
-  `source=runner-acp` so duplicate paths are visible.
-- After rollout, Pi uses spool export for local and Daytona. `source=pi-direct` is removed.
+- The runner bundles and installs its matching Pi extension in both placements, so the runner,
+  extension, and control protocol cut over atomically in one image release.
+- Do not add a feature flag or support a mixed new-runner/old-extension mode.
+- Direct Pi network export and runner spool export never run together.
+- Runner logs identify `source=pi-spool` or `source=runner-acp` so duplicate paths are visible.
 

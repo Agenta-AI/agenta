@@ -6,8 +6,8 @@ contracts and prove long-session behavior.
 
 ## Immediate prerequisite PRs
 
-1. Runner export-time authorization (own PR): replace the captured authorization value with a provider backed by the credential getter that the alive watchdog already refreshes. Resolve it at flush time, and rebuild the endpoint cache entry when the resolved credential changes without interrupting an export already in flight. Acceptance: a credential rotated after tracing starts is used by export; short and non-session runs preserve current behavior; third-party unauthenticated collectors, diagnostics, and per-run target isolation remain correct.
-2. API Secret-token correctness (own small PR): add issued-at to every Secret JWT and re-raise HTTPException before the verify_secret_token catch-all. Acceptance: issued-at and expiry describe the configured lifetime; intentional, expired, and malformed authentication failures remain 401; unexpected failures remain 500. This adds no telemetry scope, export-only token, or longer TTL.
+1. Complete: PR #6217 resolves authorization from the alive watchdog's current credential getter at export time. Short and non-session runs, third-party collectors, diagnostics, and per-run target isolation keep their existing behavior.
+2. Complete: PR #6218 adds issued-at to Secret JWTs and preserves intentional authentication failures as 401. It adds no telemetry scope, export-only token, or longer TTL.
 
 These prerequisites do not change Pi span production. The Pi-owned span and runner-owned export cutover follows below.
 
@@ -142,9 +142,9 @@ comments that describe local Pi as a direct exporter.
 Treat this as a separate compatibility slice after runner-owned export is stable.
 
 1. Add `platform.headers.authorization` to Python wire models and runner protocol types.
-2. Resolve it into `PlatformCredentialLease` at the server boundary.
+2. Resolve it into the runner's shared current-authorization provider at the server boundary.
 3. Dual-read in the runner and dual-write in the SDK for the supported version window.
-4. Move all runner platform callers to the lease.
+4. Move all runner platform callers to that provider.
 5. Remove the legacy general credential from `telemetry.exporters.otlp.headers` after compatibility
    is proven.
 

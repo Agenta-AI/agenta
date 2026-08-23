@@ -50,10 +50,12 @@ For every turn:
 ## Goals
 
 - Preserve Pi-native agent, turn, LLM, and tool spans in both placements.
-- Preserve Pi's exact provider, token, cost, message, and tool data.
+- Preserve Pi's exact provider, token, cost, message, and tool structure after mandatory
+  known-secret redaction inside Pi.
 - Make the runner the only external trace exporter.
 - Use one protocol and one state machine for local and Daytona.
-- Keep export credentials and endpoints out of Pi and the sandbox.
+- Keep export credentials and endpoints out of Pi and the sandbox. Mount credential values may
+  enter the per-turn control only as redaction deny-set data; they carry no export authority.
 - Refresh the full per-turn tracing context, not only authorization.
 - Support sessions and individual turns that outlive any one short-lived credential.
 - Reuse the existing atomic-file, host-adapter, watch, poll, stale-sweep, and bounded-drain patterns.

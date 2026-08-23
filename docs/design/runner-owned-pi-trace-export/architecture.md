@@ -18,27 +18,28 @@ not a network client of Agenta.
 
 ## Components to add
 
-### RuntimeFileHost
+### TelemetryFileHost
 
-Extract a byte-oriented host interface from the filesystem operations already embedded in tool
-relay:
+Add a byte-oriented host dedicated to telemetry. Do not refactor the tool relay:
 
 ```ts
-interface RuntimeFileHost {
-  list(dir: string): Promise<string[]>;
-  readBytes(path: string): Promise<Uint8Array>;
+interface TelemetryFileHost {
+  list(dir: string, maxEntries: number): Promise<string[]>;
+  statSize(path: string): Promise<number | undefined>;
+  readBytes(path: string, maxBytes: number): Promise<Uint8Array>;
   writeBytes(path: string, contents: Uint8Array | string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   remove(path: string): Promise<void>;
   mkdir(path: string): Promise<void>;
-  statMtimeMs?(path: string): Promise<number | undefined>;
-  createActivitySource?(dir: string): RuntimeActivitySource | undefined;
 }
 ```
 
-Provide local and Daytona implementations. Keep JSON decoding, tool execution, and tool-specific
-authorization in the tool-relay layer. The shared host is a transport primitive, not a generic
-message bus.
+Provide local and Daytona implementations. The consumer rejects an oversized stat before reading,
+then passes the same byte cap into `readBytes` to close the growth-after-stat race. The local host
+opens without following symlinks, checks the opened file, and allocates at most the cap plus one
+byte. The Daytona host bounds the sandbox command output before base64 decoding and checks the
+decoded length again. A sandbox-controlled file therefore cannot force an unbounded runner
+allocation.
 
 ### Runtime IPC directories
 
@@ -95,7 +96,8 @@ It:
 
 - sweeps stale telemetry files before the control file becomes visible;
 - accepts only the current random channel filename;
-- checks file count and byte limits before reading;
+- bounds directory entries, checks the stat size before reading, and gives the host the same
+  maximum for its growth-safe read;
 - deletes the final file immediately after pickup;
 - retains the bytes in runner memory while export is in flight;
 - forwards the exact protobuf bytes to the runner trace export sink;
@@ -104,50 +106,36 @@ It:
 The channel ID prevents a stale warm-turn file from being attributed to the next turn. It is a
 correlation value, not a secret or an authorization mechanism.
 
-### PlatformCredentialLease
+### Live platform authorization
 
-Refactor the existing session refresh behavior into a per-active-run lease:
-
-```ts
-interface PlatformCredentialLease {
-  current(): string;
-  refreshNow(): Promise<string | null>;
-  dispose(): void;
-}
-```
-
-The lease starts from the fresh credential on the incoming `/run` request. It refreshes before
-expiry, deduplicates concurrent refreshes, and keeps the last valid value if refresh fails. The
-session alive watchdog and trace exporter read the same lease instead of maintaining independent
-copies.
-
-The exporter reads `lease.current()` immediately before each HTTP attempt. On an Agenta HTTP 401,
-it calls `refreshNow()` and retries once. Proactive refresh remains required because an already
-expired credential may be unable to refresh itself.
+The runner already owns a mutable credential getter refreshed by the session alive watchdog.
+PR #6217 makes trace export call that getter immediately before export instead of capturing its
+initial value. The Pi spool uses the same getter. This fixes long turns without adding a second
+lease, a new refresh protocol, or a 401-specific retry path.
 
 For a third-party OTLP endpoint, use the configured static exporter header and do not call Agenta's
 permission exchange. This preserves current collector support.
 
-### RunnerTraceExportSink
+### Raw-byte export path
 
-Centralize external OTLP sending behind one runner-owned sink. It accepts already serialized OTLP
-bytes plus a runner-owned target:
+Keep the existing runner span exporter. Add a thin `exportOtlpBytes` path for already serialized
+Pi batches. It accepts raw bytes plus the same runner-owned target and diagnostics context:
 
 ```ts
-interface OtlpExportRequest {
+interface OtlpBytesExportRequest {
   body: Uint8Array;
-  endpoint: string;
-  authorization: () => string | undefined;
-  refreshAuthorization?: () => Promise<string | null>;
+  target: {
+    endpoint: string;
+    authorization: () => string | undefined;
+  };
   traceId?: string;
   turnId?: string;
-  source: "runner" | "pi-spool";
 }
 ```
 
-Both Pi spool batches and runner-generated batches use this sink for HTTP, timeout, retry,
-diagnostics, and credential lookup. Runner-native spans still avoid the filesystem because they are
-already in the trusted runner process.
+It preserves the existing timeout, retry classification, missing-credential behavior, target
+isolation, and bounded diagnostics. Runner-native spans keep their current exporter and avoid the
+filesystem.
 
 ## Per-turn sequence
 
@@ -160,7 +148,7 @@ sequenceDiagram
     participant API as OTLP ingest
 
     SDK->>Runner: /run with propagation, policy, endpoint, general credential
-    Runner->>Runner: create credential lease and export target
+    Runner->>Runner: retain live authorization getter and export target
     Runner->>Host: start consumer and sweep stale files
     Runner->>Host: atomically publish current.control.json
     Runner->>Pi: prompt
@@ -169,10 +157,10 @@ sequenceDiagram
     Pi->>Host: write temp OTLP protobuf
     Pi->>Host: rename to channelId.otlp.pb
     Runner->>Host: read and delete final file
-    Runner->>Runner: read current credential from lease
+    Runner->>Runner: resolve current authorization
     Runner->>API: POST exact protobuf bytes
     API-->>Runner: 200 or error
-    Runner->>Runner: bounded drain, diagnostics, dispose lease
+    Runner->>Runner: bounded drain, diagnostics, finish turn export
 ```
 
 The sequence is identical for local and Daytona. Only the `RuntimeFileHost` implementation changes.
@@ -184,6 +172,10 @@ Change Pi handling from placement-dependent to harness-dependent:
 ```ts
 emitSpans: !plan.isPi
 ```
+
+The runner and Pi extension are one versioned artifact: the runner bundles and installs its own
+extension into both local and Daytona environments. The cutover is therefore atomic; there is no
+supported new-runner/old-extension pairing to negotiate and no feature flag.
 
 For Pi, `createSandboxAgentOtel` continues to collect streamed output, events, stop reason, and
 fallback error information, but it does not synthesize agent, turn, LLM, or tool spans from ACP.
@@ -218,16 +210,21 @@ the original bytes for forwarding. Do not build a second semantic span validator
 
 | Failure | Behavior |
 |---|---|
-| Control file cannot be published | Log `stage=pi_trace_control`; run Pi without trace export; do not fail the turn. |
-| Pi cannot serialize or publish | Log in Pi; runner drain times out with `stage=pi_trace_spool_missing`; do not fail the turn. |
+| Control file cannot be published | Log `stage=pi_trace_control`; Pi tracing stays disabled; emit one runner fallback span; do not fail the turn. |
+| Pi cannot serialize or publish | Log in Pi; the drain reports `stage=pi_trace_spool_missing`; emit one runner fallback span; do not fail the turn. |
+| Prompt is cancelled or throws | End Pi's lifecycle first so `agent_end` can publish the complete trace it currently holds, then drain. If no valid batch arrives, emit one runner fallback span carrying the run error and resolved usage. |
 | File is too large | Reject and delete it; log bounded metadata; do not send it. |
 | Stale or wrong channel file | Ignore or sweep it; never associate it with the current turn. |
 | Filesystem watch fails | Fall back to bounded polling. |
 | Daytona filesystem call fails transiently | Retry within the existing bounded poll/drain rules. |
-| Credential approaches expiry | Lease refreshes before export. |
-| Agenta returns 401 | Single-flight refresh, one retry, then log failure. |
+| Credential rotates during a turn | The session watchdog refreshes it; export resolves the current getter value. |
+| Agenta returns 401 | Record the failed export through existing bounded diagnostics; this change adds no 401 refresh-and-retry protocol. |
 | OTLP endpoint times out or returns non-success | Log export diagnostics; return the successful agent result. |
 | Runner stops after pickup | Batch is lost in the first release because the queue is not durable. This is explicit and measurable. |
+
+Do not add periodic partial batches. Pi publishes one complete lifecycle batch when `agent_end`
+runs. The fallback callback is idempotent, so teardown cannot create a second fallback. Splitting a
+turn into checkpoints would break ingest-time cumulative usage rollups.
 
 Diagnostics must include stage, placement, source, turn ID, trace ID suffix, batch bytes, pickup
 latency, export latency, HTTP status, and credential age. They must not include the token, protobuf
