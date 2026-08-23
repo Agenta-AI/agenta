@@ -295,12 +295,18 @@ class _ConnectionCandidate:
         the model name. Matching and stripping must agree, or a connection matches but resolves
         to a model the upstream does not know.
         """
-        values = [model.model, model.to_model_string()]
+        values = _ordered_model_lookup_values(model, self.deployment)
         prefix = f"{self.deployment}/"
-        if model.model.startswith(prefix):
-            values.append(model.model[len(prefix) :])
         for key in values:
             if key in self.model_keys:
+                matching_slugs = [
+                    slug
+                    for slug in self.model_slugs
+                    if key == slug or key.endswith(f"/{slug}")
+                ]
+                if matching_slugs:
+                    return max(matching_slugs, key=len)
+                # Persisted legacy records may carry model_keys without the saved model list.
                 parts = key.split("/", 2)
                 return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
@@ -364,14 +370,18 @@ class _ConnectionCandidate:
         return env
 
 
-def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
-    values = {model.model, model.to_model_string()}
+def _ordered_model_lookup_values(model: ModelRef, deployment: str) -> List[str]:
+    values = [model.model, model.to_model_string()]
     if model.provider:
-        values.add(f"{model.provider}/{model.model}")
+        values.append(f"{model.provider}/{model.model}")
     prefix = f"{deployment}/"
     if model.model.startswith(prefix):
-        values.add(model.model[len(prefix) :])
-    return {value for value in values if value}
+        values.append(model.model[len(prefix) :])
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
+    return set(_ordered_model_lookup_values(model, deployment))
 
 
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:

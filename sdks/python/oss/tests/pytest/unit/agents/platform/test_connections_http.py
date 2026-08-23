@@ -783,6 +783,28 @@ async def test_namespaced_custom_model_key_strips_without_a_provider(
     assert resolved.provider == "openai"
 
 
+async def test_namespaced_custom_model_key_strips_when_name_contains_slash(
+    fake_http, connection
+):
+    name = "Starter/credits"
+    model_key = f"{name}/custom/{_BACKEND_MODEL}"
+    fake_http(
+        connections,
+        payload=[_starter_credits(name=name, model_keys=[model_key])],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=model_key,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
 async def test_legacy_none_namespaced_custom_model_key_strips(fake_http, connection):
     # Rows written before the connection carried a name are namespaced with the literal
     # "None"; they must strip the same way.

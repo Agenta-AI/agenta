@@ -47,9 +47,9 @@ display name rather than the stable slug. Custom-provider cells skip the credent
 journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
 additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4, P3, X2) additionally need the runner's Daytona API key to
-have permission to manage Secrets, because credential hiding is on by default; without it those
-cells fail at sandbox creation with an error naming the permission.
+each cell requires. The Daytona cells (C2, C4, P3, X2) additionally run the `secret_opaque`
+journey and need the runner's Daytona API key to manage Secrets, because credential hiding is on
+by default; without it those cells fail at sandbox creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object

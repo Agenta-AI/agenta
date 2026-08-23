@@ -1532,7 +1532,7 @@ def j6_park(cell: dict) -> dict:
             "why": (
                 "parking stops a REMOTE sandbox and reconnects to it; a local sandbox lives "
                 f"inside the runner process and has no such cycle (cell sandbox={cell['sandbox']}). "
-                "Run --cell C2, C4 or X2."
+                "Run --cell C2, C4, P3 or X2."
             ),
         }
     return _continuity(cell, "park")
@@ -2018,8 +2018,8 @@ def j_secret_opaque(cell: dict) -> dict:
             "skip": True,
             "why": (
                 "credential hiding applies to remote sandboxes only; on local the harness runs "
-                f"inside the runner container (cell sandbox={cell['sandbox']}). Run --cell C2 "
-                "or C4."
+                f"inside the runner container (cell sandbox={cell['sandbox']}). Run --cell C2, "
+                "C4, P3 or X2."
             ),
         }
 
