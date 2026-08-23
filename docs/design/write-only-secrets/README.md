@@ -1,189 +1,149 @@
 # Write-only vault secrets
 
-A vault secret's value can be created, replaced, and deleted — but never read back by a
-user. The platform runtime keeps reading it through a granted internal path so runs still
-work. This is the GitHub-secrets model.
+A write-only Vault secret can be created, replaced, and deleted, but an ordinary API or
+frontend caller cannot read its value back. A trusted platform runtime can resolve the value
+through a short-lived granted token so the credential remains usable for runs.
 
-Status: backend landed (API + Python SDK), inert by default behind
-`AGENTA_VAULT_WRITE_ONLY_DEFAULT=false`. Two PR numbers appear around this work and mean
-different things: **#6065** is the frontend package-extraction refactor (merged) that the
-web half of this feature builds on, and **#6135** is the branch this backend PR is
-stacked on (the per-turn trace-export credential fix), which is a stacking base only and
-has nothing to do with secrets. The web half (replace-only forms plus Fern client
-regeneration) follows in a second PR, after which the gate flips on. Until then, an
-explicitly created `write_only: true` secret shows cosmetically as "not configured" in
-today's Settings (the UI does not read `has_key` yet) — accepted; the run path is
-unaffected either way.
+Status: implementation complete across #6164, #6165, #6138, #6195, and #6174. The backend
+and frontend ship in the same release. The feature has no environment gate or compatibility
+mode.
 
-## The contract
+## Value visibility
 
-### The flag
+`write_only` is a creation-time policy:
 
-- `write_only: bool` on every secret. The default for NEW secrets is env-gated:
-  **`AGENTA_VAULT_WRITE_ONLY_DEFAULT` (bool, default `false`)**. While off, flag-less
-  creates behave exactly as today (`write_only: false`); once the web UI ships
-  replace-only forms, the gate flips to `true` and new secrets default to write-only.
-  An explicit `write_only` on the create request always wins over the gate, in both
-  directions — so a caller can opt in to write-only immediately regardless of the
-  default, and `write_only: false` remains the escape hatch after the flip.
-- Existing rows carry no flag and read as `write_only: false`; their behavior is unchanged.
-- The flag is **one-way**: an update may tighten `false → true`, but `true → false` is
-  rejected with HTTP 400 (`WriteOnlyCannotBeDisabledError`). Making a value readable again
-  would defeat the guarantee; delete and recreate instead. The transition is enforced
-  atomically: the DAO checks under a `SELECT ... FOR UPDATE` row lock, and the mapper
-  never clears a stored flag even when handed a stale explicit `false` — concurrent
-  updates cannot resurrect readability.
-- Storage: the flag rides inside the existing encrypted `data` JSON as a sibling key
-  (`"write_only": true`), popped out at the mapping layer. **No schema migration.**
+- New ordinary Vault secrets default to `write_only=True`.
+- A create request may explicitly select `write_only=False`.
+- Existing rows without the stored field resolve as `write_only=False`.
+- Update requests cannot set or change `write_only`.
+- Changing the policy requires deleting and recreating the secret.
 
-### Redaction (user-facing responses)
+The policy remains in the existing encrypted `data` JSON. This implementation requires no
+database migration.
 
-For `write_only: true`, every user-facing vault response (create echo, list, get, update
-echo) strips the value and adds:
+SSO and webhook secrets explicitly use `write_only=False`. Their existing settings, login,
+test, signing, and verification flows continue to receive the readable value.
 
-- `has_key: bool` — whether any credential material is stored (the primary value OR a
-  credential extra: an AWS-only secret reports `true`).
-- `key_preview: str | null` — masked preview of the PRIMARY value only. Policy: values
-  under 20 characters mask entirely (`****`); from 20 on, at most first 3 + last 3
-  characters and never more than 25% of the value (a 20-character value shows 5).
-  Extras credentials and JSON content never get a preview. One helper:
-  `oss/src/core/secrets/redaction.py`.
+## Public and trusted responses
 
-**One credential classifier.** What counts as credential material is defined once, in the
-SDK (`agenta.sdk.agents.connections.credentials`): the primary value field per kind
-(`provider.key`; `provider.client_secret` for sso_provider; `secret.content` for
-custom_secret) plus the full credential-extras set the SDK resolver consumes (`api_key`,
-the `aws_*`/`AWS_*` credential trio and bearer tokens, `ANTHROPIC_AUTH_TOKEN` and the
-other provider tokens, `AZURE_OPENAI_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, ...).
-The API imports that module for redaction, `has_key`, and update carry-over; a parity
-test fails if a resolver-accepted extras key is ever left unclassified. Non-credential
-config (URL, region, api_version, project, models, harnesses) stays readable.
+The trusted `SecretResponseDTO` contains the stored credential. The caller-facing
+`PublicSecretResponseDTO` adds general value status:
 
-Redaction happens at the response boundary, in every outward surface:
+```json
+{
+  "write_only": true,
+  "value_status": {
+    "configured": true,
+    "preview": "sk-****9Qa"
+  }
+}
+```
 
-- the vault routes (`VaultRouter`), for all five endpoints;
-- webhook subscription responses (create echo, fetch, edit echo) — the signing value
-  disappears from responses once its vault record is write-only, while the delivery
-  signers (the service-internal resolver and the dispatcher's own) keep plaintext;
-- the EE organization-provider serialization drops `client_secret`; the SuperTokens
-  login-time reader keeps plaintext.
+`value_status.configured` reports whether the secret contains credential material.
+`value_status.preview` is optional and does not determine whether a value is configured.
+The model applies to provider keys, custom secrets, compound provider credentials, SSO,
+webhooks, and later secret kinds.
 
-In-process runtime readers (`VaultService` and below) are untouched.
+For an ordinary caller, the response projection removes the primary credential and every
+credential-bearing provider extra when `write_only=True`. Non-secret configuration such as
+URLs, regions, versions, models, and harnesses remains readable. A verified runtime token
+carrying the `secret-resolve` grant receives the plaintext projection.
 
-**No cache.** The list route reads the database on every request. The list is small and
-only the settings page reads it, and the runtime path already bypassed the cache, so
-caching bought little while making the redaction guarantee depend on what a shared Redis
-entry holds and on how a stale reader is kept from repopulating it. Removing the cache
-removes that whole class of question: what a caller sees is what the row says, redacted
-at the response boundary for every principal without the grant.
+The credential-extra vocabulary is shared by the API redaction layer and Python SDK resolver
+through `agenta.sdk.agents.connections.credentials`. The same module exposes the SDK helper
+that reads `value_status.configured`, so runtime consumers use the public API contract rather
+than a key-specific field.
 
-### Updates: keep-stored-on-omit
+## Vault list cache
 
-On update, an omitted value field means "keep the stored value" (extends the existing
-`_carry_over_saved_policy` pattern for `models`/`harnesses`). This covers the standard
-provider key, the custom provider key and its credential `extras`, and custom secret
-content. **An empty string counts as omitted — this is mandatory, not a convenience**: the
-CURRENT frontend's edit form re-sends `key: ""` when it cannot prefill a value, so if `""`
-cleared the credential, every edit of a write-only secret through today's UI would wipe
-it. An empty credential is never a meaningful value anyway. Values are therefore
-replace-only — they cannot be cleared in place.
+The Vault service caches canonical trusted DTOs in Redis with the existing namespace, TTL,
+invalidation, and shortened project UUID packing. Create, update, and delete invalidate the
+project list namespace.
 
-This applies to all secrets, not only write-only ones, so update semantics do not fork on
-the flag.
+Caller-specific projection always happens after a cache read:
 
-**Keep-on-omit is identity-local.** An update that changes the secret's kind or its
-provider family (`data.kind`) must carry an explicit new credential value; omitted or
-empty values are rejected with HTTP 400 (`SecretValueRequiredError`), and the old
-identity's credential extras never carry over. A stored OpenAI key can never silently
-become an Anthropic key, and a kind change can never silently erase the stored value.
-(Consequence: a credential-less record — for example an endpoint-only custom provider —
-cannot be the target of a kind/family change; delete and recreate it.)
+```text
+list request
+  -> read canonical SecretResponseDTO values from Redis or the DAO
+  -> inspect the verified caller grant
+  -> return plaintext to a granted runtime or redact for an ordinary caller
+```
 
-### The runtime plaintext path: the `secret-resolve` grant
+Redis is part of the trusted backend boundary. A redacted response is never stored in the
+shared list cache.
 
-- Constant: `SECRET_RESOLVE_GRANT = "secret-resolve"` (`oss/src/middlewares/auth.py`).
-- It is a **grant**: an additive claim, not a restriction. The runtime's credential is
-  general-purpose — it authenticates workflows, tools, session coordination, and vault
-  reads alike — so the plaintext capability rides a `grants` claim that adds one ability
-  and never narrows what the token can otherwise do.
-- Minted in two places:
-  - `GET /access/permissions/check` attaches the grant to the re-minted `credentials` for
-    `action=run_service` exchanges — the credential every workflow service and sandbox run
-    actually uses for its vault reads.
-  - The workflow invoke/inspect prelude (`sign_secret_token` in
-    `core/workflows/service.py`) — covers services running with auth middleware disabled,
-    which use that token directly.
-- A verified Secret token carrying the grant receives plaintext from all vault read routes
-  (write_only is ignored for it). Everyone else — session, ApiKey, unscoped Secret token —
-  gets the redacted shape. **Strict stance: no transition period for ApiKey callers.**
+## Updates
 
-Trust line (same as GitHub's): anyone who can run a workload can reach the values through a
-run, so the `run_service` exchange hands out the grant. What the flag removes is the casual
-read: no session, ApiKey, or list/get call ever returns the value.
+Credential updates use one strict contract:
 
-## Consumer impact
+- An omitted credential field means keep the stored value.
+- A non-empty credential replaces the stored value.
+- An explicitly supplied empty provider credential is invalid and is rejected.
+- An empty JSON object remains an explicitly supplied JSON value and follows the custom-secret
+  validation rules.
 
-| Consumer | Path | Impact |
-| --- | --- | --- |
-| Frontend forms | vault routes, session auth | Redacted for write-only secrets; needs replace-only forms (follow-up) |
-| Direct API users (ApiKey) | vault routes | Redacted for write-only secrets; no escape hatch besides `write_only: false` at creation |
-| Platform runs (playground, deployments, agents) | granted credential via `permissions/check` | Unchanged — plaintext |
-| Standalone SDK runs (ApiKey) | `VaultConnectionResolver` | Fail loud: `WriteOnlySecretError`, raised even when config extras survive; remediation = switch the connection to `self_managed` AND set the env variable |
-| Standalone SDK legacy services | `VaultMiddleware.get_secrets` | Redacted entries dropped with a clear `log.error`; env-var keys are not shadowed by them |
-| Named tool secrets | `resolve_named_secrets` | Redacted entries skipped with a clear `log.error` (no secret names in logs) |
-| Webhook subscribers (UI/API responses) | webhook routes | Signing secret disappears from create/fetch/edit responses once its record is write-only; deliveries keep signing |
-| EE SSO provider settings | organization-provider routes | `client_secret` dropped once write-only; login flow unaffected |
-| In-process runtime readers (SuperTokens login, delivery signing, EE orgs internals) | `VaultService` direct | Unchanged — plaintext |
+The frontend ships with the backend and follows the same contract. When a user edits a
+write-only connection without typing a replacement credential, the frontend omits the
+credential field. It never sends an empty value as the keep signal.
 
-## Frontend follow-up (second PR)
+Carry-over is identity-local. Changing the secret kind, provider family, or custom-secret
+format requires an explicit new credential. The service resolves the update against the row
+loaded under `SELECT ... FOR UPDATE`, so a concurrent rotation cannot be overwritten by a
+stale carried value.
 
-- Replace-only secret forms: no value prefill; show `key_preview`/`has_key`; a "Replace
-  key" action instead of an editable field.
-- Surface `write_only` in the connections/secrets lists.
-- Optional "readable" toggle at creation only (maps to `write_only: false`), if product
-  wants the escape hatch exposed.
-- Regenerate the Fern client for `write_only`, `value_status`, and `management.policy`.
+## Runtime resolution
 
+The platform uses the `secret-resolve` grant for plaintext runtime access. The grant is
+project-scoped and allowlisted on the Vault read routes.
 
-## Who may read a value: the grant
+`AGENTA_SERVICES_INTERNAL_KEY` proves the trusted API-to-Services exchange. It is independent
+from `AGENTA_AUTH_KEY`, has no administrator-key fallback, and must contain a non-placeholder
+value. The API fails startup when it is missing or invalid.
 
-The vault returns plaintext only to a caller whose verified `Secret` token carries the
-`secret-resolve` grant. Two callers can hold it, and there is no third:
+Configure the same `AGENTA_SERVICES_INTERNAL_KEY` value on the API and trusted Services
+container. Do not provide it to the web app, runner, sandbox, worker, cron, or migration
+containers. The runner receives only the signed, short-lived runtime token needed to execute
+the authorized workload.
 
-- **The platform runtime**, on the hop that starts a run. The workflow service exchanges
-  the END USER's credential at `/access/permissions/check` on their behalf, so nothing
-  about the presented token says a run is starting — and that route is reachable by a
-  browser. The runtime therefore proves what it is with a secret only the backend holds
-  (`AGENTA_SERVICES_INTERNAL_KEY`), sent as `X-Agenta-Runtime-Key` on the internal
-  hop and compared in constant time. This key has no fallback to
-  `AGENTA_AUTH_KEY`. If it is missing or remains the well-known placeholder, the API
-  issues no grant instead of accepting a string anyone could send.
-- **A caller refreshing a grant it already holds.** The runner re-exchanges its run
-  credential every few heartbeats; the exchange carries the grant forward rather than
-  re-deciding it. The runner is never given the runtime secret, and it never reaches a
-  sandbox.
+A caller refreshing an already granted Secret token may carry the grant forward. The exchange
+does not create the grant from a requested action alone.
 
-**A deployment without the dedicated key cannot start the API.** Failing at startup prevents a
-deployment from accepting write-only secrets that its platform runtime can never resolve. The
-error names the variable and rejects the well-known example placeholder.
+## Consumer behavior
 
-**Deployment.** Set `AGENTA_SERVICES_INTERNAL_KEY` to the same value on the API and the
-Services container. It must be independent from
-`AGENTA_AUTH_KEY` and must not be provisioned to web, runner, sandbox, worker, cron, or
-migration containers. The API fails startup when the key is absent or still uses the
-placeholder, and a component that seeds write-only rows also refuses to seed rather than
-store a credential no run can read.
+| Consumer | Behavior |
+| --- | --- |
+| Frontend Settings and connection forms | Read `value_status`, display configured state, and omit untouched credential fields on update. |
+| Direct API callers | Receive redacted write-only values and general value status. |
+| Platform runs | Resolve plaintext through the granted runtime token. |
+| Standalone Python SDK | Reads `value_status`; a redacted provider connection uses only the matching provider environment credential or fails with `WriteOnlySecretError`. |
+| Legacy SDK Vault middleware | Drops configured redacted entries so they cannot shadow local environment credentials. |
+| Named tool secrets | Skip configured redacted values and log an error without the secret name or value. |
+| SSO and webhooks | Remain explicitly readable and otherwise unchanged. |
+| In-process trusted readers | Continue using the trusted DTO with plaintext. |
 
-The exchange never mints the grant from the requested `action` alone. It did once, and
-that made the grant self-serve: `VIEWER_PERMISSIONS` includes both `run_service` and
-`view_secret`, so any member could ask for a credential and spend it on the vault routes.
+## Managed secrets
 
+Managed lifecycle and value visibility are independent. A managed row stores typed internal
+manager identity and policy in the encrypted JSON payload. The public response exposes only
+`management.policy`.
 
-## Known gap: cache-key tenancy (elsewhere)
+The starter-credit bridge explicitly creates its connection with
+`management.policy=manager_only` and `write_only=True`. General update, delete, and provider
+probe operations reject manager-only rows against the current locked record. The frontend
+hides these rows from Settings and edit surfaces but keeps them available for model selection,
+agent defaults, key gating, and execution.
 
-The platform cache truncates a project id to its last 12 characters, so two projects whose
-UUIDs end the same way share an entry in every namespace that caches per project,
-including `check_permissions` and `check_action_access`. Server-generated UUID4s make that
-remote, and unreachable by a caller who cannot pick their own project id, but it is a
-default worth removing. Nothing here depends on it — the vault caches nothing — and the
-platform-wide fix is tracked in issue #6166.
+## Pull request order
+
+The release chain is:
+
+```text
+release/v0.114.0
+  -> #6164 write-only contract
+  -> #6165 managed-secret model
+  -> #6138 starter-credit seeding
+  -> #6195 stored provider probe
+  -> #6174 generated clients and frontend consumer
+```
+
+The five pull requests merge in this order and deploy together in the same release.

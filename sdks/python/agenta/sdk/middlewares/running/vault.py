@@ -10,7 +10,10 @@ from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.providers import normalize_provider_kind
 
-from agenta.sdk.agents.connections.credentials import credential_extras
+from agenta.sdk.agents.connections.credentials import (
+    credential_extras,
+    secret_value_configured,
+)
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
 
@@ -437,7 +440,7 @@ def _split_write_only_redacted(
         if (
             isinstance(secret, dict)
             and secret.get("write_only")
-            and secret.get("has_key")
+            and secret_value_configured(secret)
         ):
             data = secret.get("data") or {}
             kind = secret.get("kind")

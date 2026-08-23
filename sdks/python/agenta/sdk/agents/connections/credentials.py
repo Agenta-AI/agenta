@@ -18,6 +18,7 @@ without classifying it here fails the build.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Dict, FrozenSet
 
 # Extras keys (as stored: the UI's snake_case aliases plus raw env-style names) that hold
@@ -71,6 +72,15 @@ CONFIG_EXTRAS_KEYS: FrozenSet[str] = frozenset(
         "GOOGLE_CLOUD_LOCATION",
     }
 )
+
+
+def secret_value_configured(secret: object) -> bool:
+    """Whether the public Vault response says credential material is stored."""
+    if not isinstance(secret, Mapping):
+        return False
+
+    value_status = secret.get("value_status")
+    return isinstance(value_status, Mapping) and value_status.get("configured") is True
 
 
 def credential_extras(extras: Dict[str, object]) -> Dict[str, object]:

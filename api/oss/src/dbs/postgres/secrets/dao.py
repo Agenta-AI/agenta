@@ -131,9 +131,8 @@ class SecretsDAO(SecretsDAOInterface):
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            # FOR UPDATE serializes concurrent updates so the one-way write_only check
-            # below always sees the latest committed flag — two racing updates cannot
-            # both observe False and let a stale explicit False win.
+            # FOR UPDATE lets the domain resolver apply immutable policy and carry-over
+            # against the latest committed row before this transaction persists the update.
             stmt = (
                 select(SecretsDBE)
                 .filter_by(

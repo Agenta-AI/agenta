@@ -49,8 +49,7 @@ def _redacted_provider_key(name: str = "OpenAI", provider: str = "openai") -> di
         "header": {"name": name},
         "data": {"kind": provider, "provider": {}},
         "write_only": True,
-        "has_key": True,
-        "key_preview": "sk-****abc",
+        "value_status": {"configured": True, "preview": "sk-****abc"},
     }
 
 
@@ -138,7 +137,7 @@ def test_redacted_aws_only_secret_fails_loud_despite_surviving_config_extras():
             "provider_slug": "bedrock-conn",
         },
         "write_only": True,
-        "has_key": True,
+        "value_status": {"configured": True},
     }
 
     with pytest.raises(WriteOnlySecretError):
@@ -168,7 +167,7 @@ def test_a_bedrock_connection_never_falls_back_to_the_family_api_key(monkeypatch
             "provider_slug": "bedrock-conn",
         },
         "write_only": True,
-        "has_key": True,
+        "value_status": {"configured": True},
     }
     model = ModelRef(
         provider="anthropic",
@@ -202,7 +201,7 @@ def _redacted_custom(kind: str, slug: str, extras: dict | None = None) -> dict:
             "provider_slug": slug,
         },
         "write_only": True,
-        "has_key": True,
+        "value_status": {"configured": True},
     }
 
 
@@ -295,7 +294,7 @@ def test_redacted_custom_provider_fails_loud_too():
             "provider_slug": "my-gateway",
         },
         "write_only": True,
-        "has_key": True,
+        "value_status": {"configured": True},
     }
 
     model = ModelRef(
@@ -323,7 +322,7 @@ def test_a_redacted_gateway_resolves_with_this_runs_key(monkeypatch):
             "provider_slug": "my-gateway",
         },
         "write_only": True,
-        "has_key": True,
+        "value_status": {"configured": True},
     }
 
     resolved = connections._resolve_from_secrets(
@@ -376,7 +375,7 @@ def test_partition_drops_redacted_custom_secret_content():
                 "header": {"name": "gh-token"},
                 "data": {"secret": {"format": "text"}},
                 "write_only": True,
-                "has_key": True,
+                "value_status": {"configured": True},
             }
         ]
     )
@@ -390,10 +389,24 @@ def test_partition_drops_redacted_custom_secret_content():
 
 def test_named_secret_redaction_is_detected():
     assert _is_write_only_redacted(
-        {"kind": "custom_secret", "write_only": True, "has_key": True}
+        {
+            "kind": "custom_secret",
+            "write_only": True,
+            "value_status": {"configured": True},
+        }
     )
     assert not _is_write_only_redacted(
-        {"kind": "custom_secret", "write_only": True, "has_key": False}
+        {
+            "kind": "custom_secret",
+            "write_only": True,
+            "value_status": {"configured": False},
+        }
     )
     assert not _is_write_only_redacted({"kind": "custom_secret"})
     assert not _is_write_only_redacted(None)
+
+
+def test_legacy_has_key_is_not_a_supported_response_contract():
+    assert not _is_write_only_redacted(
+        {"kind": "custom_secret", "write_only": True, "has_key": True}
+    )

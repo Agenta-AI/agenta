@@ -25,7 +25,7 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
-from ..connections.credentials import credential_extras
+from ..connections.credentials import credential_extras, secret_value_configured
 from ..connections.endpoints import build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
@@ -308,7 +308,7 @@ class _ConnectionCandidate:
     # harness intersection). Neither field filters resolution here yet.
     models: Optional[List[str]] = None
     harnesses: Optional[List[str]] = None
-    # True when the vault says a key exists (write_only + has_key) but this caller's
+    # True when value_status says a credential exists but this caller's
     # credential received the redacted, value-less shape.
     write_only_redacted: bool = False
 
@@ -423,7 +423,7 @@ def _write_only_redacted(secret: Dict[str, Any], has_credential: bool) -> bool:
     """
     return (
         bool(secret.get("write_only"))
-        and bool(secret.get("has_key"))
+        and secret_value_configured(secret)
         and not has_credential
     )
 

@@ -23,6 +23,7 @@ import httpx
 from agenta.sdk.utils.logging import get_module_logger
 
 from ..capabilities import PROVIDER_ENV_VARS
+from ..connections.credentials import secret_value_configured
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
@@ -87,7 +88,7 @@ def _is_write_only_redacted(payload: Any) -> bool:
     return (
         isinstance(payload, dict)
         and bool(payload.get("write_only"))
-        and bool(payload.get("has_key"))
+        and secret_value_configured(payload)
     )
 
 

@@ -1,14 +1,16 @@
 """Write-only secrets: the value can be set and replaced, never read back by a user.
 
 Covers the three layers below the router: the service (default-on at create, value
-carry-over on update, the one-way flag), the redaction helper (per-kind value stripping,
-value_status), and the postgres mappings (the flag rides inside the encrypted data
+carry-over on update, the immutable creation policy), the redaction helper (per-kind
+value stripping and value_status), and the postgres mappings (the flag rides inside the encrypted data
 JSON and never leaks into the payload DTOs).
 """
 
 from uuid import uuid4
 
 import pytest
+
+from agenta.sdk.agents.connections.credentials import secret_value_configured
 
 import oss.src.core.secrets.services as secrets_services_module
 from oss.src.core.secrets.dtos import (
@@ -295,6 +297,25 @@ async def test_update_without_provider_key_keeps_the_stored_one(service):
 
     assert updated.data.provider.key == "sk-test-openai-key-bc"
     assert updated.header.name == "OpenAI (renamed)"
+
+
+@pytest.mark.asyncio
+async def test_update_with_an_explicit_blank_provider_key_is_rejected(service):
+    created = await service.create_secret(
+        project_id=PROJECT_ID, create_secret_dto=_provider_key_create()
+    )
+
+    update = UpdateSecretDTO(
+        secret={
+            "kind": "provider_key",
+            "data": {"kind": "openai", "provider": {"key": ""}},
+        },
+    )
+
+    with pytest.raises(SecretValueRequiredError):
+        await service.update_secret(
+            secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
+        )
 
 
 @pytest.mark.asyncio
@@ -784,6 +805,9 @@ def test_redacts_provider_key_and_reports_presence():
     assert redacted.data.provider.key is None
     assert redacted.value_status.configured is True
     assert redacted.value_status.preview == "sk-****bc"
+    payload = redacted.model_dump(mode="json", exclude_none=True)
+    assert secret_value_configured(payload) is True
+    assert "has_key" not in payload
     # The input is never mutated: internal readers keep their plaintext DTO.
     assert secret.data.provider.key == "sk-test-openai-key-bc"
 
