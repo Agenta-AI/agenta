@@ -294,6 +294,27 @@ def test_kind_or_family_change_without_a_new_value_is_400(harness):
     assert "credential value" in response.json()["detail"]
 
 
+def test_explicit_blank_credential_has_a_clear_400(harness):
+    client = harness
+    created = _create(client, write_only=True)
+
+    response = client.put(
+        f"/secrets/{created['id']}",
+        json={
+            "secret": {
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {"key": ""}},
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Credential values cannot be blank. Omit an unchanged credential field or provide a "
+        "new value."
+    )
+
+
 # --- real signed tokens through the real verifier --------------------------------------
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"

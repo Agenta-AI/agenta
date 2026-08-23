@@ -312,7 +312,13 @@ async def test_update_with_an_explicit_blank_provider_key_is_rejected(service):
         },
     )
 
-    with pytest.raises(SecretValueRequiredError):
+    with pytest.raises(
+        SecretValueRequiredError,
+        match=(
+            "Credential values cannot be blank. Omit an unchanged credential field or provide "
+            "a new value."
+        ),
+    ):
         await service.update_secret(
             secret_id=created.id, project_id=PROJECT_ID, update_secret_dto=update
         )

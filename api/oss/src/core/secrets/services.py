@@ -27,6 +27,12 @@ from oss.src.core.secrets.dtos import (
 )
 
 
+_BLANK_CREDENTIAL_VALUE_MESSAGE = (
+    "Credential values cannot be blank. Omit an unchanged credential field or provide a new "
+    "value."
+)
+
+
 def next_provider_key_name(
     *,
     kind: StandardProviderKind,
@@ -95,7 +101,7 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
         ):
             current_value = getattr(update_container, field)
             if current_value == "":
-                raise SecretValueRequiredError()
+                raise SecretValueRequiredError(message=_BLANK_CREDENTIAL_VALUE_MESSAGE)
             if current_value is None:
                 stored_value = getattr(stored_container, field, None)
                 if stored_value is not None:
@@ -169,7 +175,7 @@ def _carry_over_saved_extras(*, stored_data: Any, update_data: Any) -> None:
         stored_value = stored_extras.get(extras_key)
         requested_value = update_extras.get(extras_key)
         if requested_value == "":
-            raise SecretValueRequiredError()
+            raise SecretValueRequiredError(message=_BLANK_CREDENTIAL_VALUE_MESSAGE)
         if stored_value is not None and (
             extras_key not in update_extras or requested_value is None
         ):
