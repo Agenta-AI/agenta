@@ -1,7 +1,11 @@
+import {useEffect} from "react"
+
 import {RevealCollapse} from "@agenta/chat/components"
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
+import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
+import {useAtom} from "jotai"
 import {Lock} from "lucide-react"
 
 import {useOnboardingProviderSetup} from "../hooks/useOnboardingProviderSetup"
@@ -27,8 +31,18 @@ const ConnectModelBanner = ({
     suppressed = false,
 }: AgentModelKeyStatus & {entityId: string; suppressed?: boolean}) => {
     const setup = useOnboardingProviderSetup(entityId, {gateActive})
+    const [drawerRequested, setDrawerRequested] = useAtom(openProviderDrawerRequestAtom)
 
     const open = !suppressed && gateActive
+
+    // A remote trigger (the failed-run callout) asks for the drawer. This component owns it, so it
+    // opens here — the banner above stays closed unless its own gate is active.
+    const {openDrawer} = setup
+    useEffect(() => {
+        if (!drawerRequested) return
+        setDrawerRequested(false)
+        openDrawer()
+    }, [drawerRequested, setDrawerRequested, openDrawer])
 
     return (
         <>

@@ -437,11 +437,7 @@ def _split_write_only_redacted(
     redacted_names: List[str] = []
 
     for secret in vault_secrets or []:
-        if (
-            isinstance(secret, dict)
-            and secret.get("write_only")
-            and secret_value_configured(secret)
-        ):
+        if isinstance(secret, dict) and secret.get("write_only"):
             data = secret.get("data") or {}
             kind = secret.get("kind")
             value = None
@@ -454,8 +450,11 @@ def _split_write_only_redacted(
                 value = (data.get("secret") or {}).get("content")
 
             if not value:
-                header = secret.get("header") or {}
-                redacted_names.append(header.get("name") or secret.get("slug") or kind)
+                if secret_value_configured(secret):
+                    header = secret.get("header") or {}
+                    redacted_names.append(
+                        header.get("name") or secret.get("slug") or kind
+                    )
                 continue
 
         usable.append(secret)

@@ -123,7 +123,8 @@ class ProvidersRouter:
         stored_extras = getattr(settings, "extras", None) if settings else None
         stored_key = _stored_credential(secret, settings, stored_extras)
 
-        if kind is not None and kind != stored_kind and typed.key is None:
+        typed_key = _typed_or_stored(typed.key, None)
+        if kind is not None and kind != stored_kind and typed_key is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
@@ -133,7 +134,7 @@ class ProvidersRouter:
             )
 
         merged = ProviderCredentials(
-            key=_typed_or_stored(typed.key, stored_key),
+            key=_typed_or_stored(typed_key, stored_key),
             url=_typed_or_stored(typed.url, getattr(settings, "url", None)),
             version=_typed_or_stored(typed.version, getattr(settings, "version", None)),
             extras=_merged_extras(typed.extras, stored_extras),
