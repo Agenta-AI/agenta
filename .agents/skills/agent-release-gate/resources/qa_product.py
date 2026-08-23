@@ -248,6 +248,7 @@ CELLS = {
         # (sdks/python/agenta/sdk/agents/platform/connections.py, resolved-provider rule).
         # The old placeholder "custom" now fails the post-resolve pair check outright.
         "provider": None,
+        "credential_kind": "custom_provider",
         # Mode MUST be `agenta`, not `self_managed`: the slug names a vault connection, and
         # `self_managed` injects nothing, so the API rejects the pair outright (Connection
         # validator, sdks/python/agenta/sdk/agents/connections/models.py).
@@ -267,6 +268,7 @@ CELLS = {
         "sandbox": "local",
         "model": "deepseek/deepseek-v4-flash",
         "provider": "openai",
+        "credential_kind": "custom_provider",
         "connection": {
             "mode": "agenta",
             "slug": None,
@@ -288,6 +290,7 @@ CELLS = {
         "sandbox": "daytona",
         "model": "deepseek/deepseek-v4-flash",
         "provider": None,
+        "credential_kind": "custom_provider",
         "connection": {
             "mode": "agenta",
             "slug": None,
@@ -1375,6 +1378,14 @@ def j_rotate(cell: dict) -> dict:
                 "key to rotate."
             ),
         }
+    if cell.get("credential_kind") == "custom_provider":
+        return {
+            "skip": True,
+            "why": (
+                "this cell uses a custom connection whose credential is write-only in the vault "
+                "response; rotation cannot safely restore the original value."
+            ),
+        }
     provider = cell.get("provider")
     secret = _vault_provider_secret(provider) if provider else None
     if not secret:
@@ -2191,9 +2202,8 @@ def main() -> int:
     p.add_argument(
         "--custom-name",
         help=(
-            "display NAME of that connection, when it differs from the slug. `model_keys` is "
-            "built from the name, not the slug, so the namespaced model key only matches when "
-            "this is right (defaults to --custom-slug, which is the common case)."
+            "display NAME of the custom connection. `model_keys` is built from the name, not "
+            "the stable slug, so this is required for P2/P2b/P3."
         ),
     )
     p.add_argument(
@@ -2269,7 +2279,8 @@ def main() -> int:
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
-    if ({"P2", "P2b", "P3"} & set(cells)) and not args.custom_slug:
+    selected_custom_cells = [cell for cell in ("P2", "P2b", "P3") if cell in cells]
+    if selected_custom_cells and not args.custom_slug:
         # Fail fast, before creating a run directory or spending any journeys: P2 (OpenRouter as
         # a custom OpenAI-compatible provider) has no vault slug until --custom-slug is set, so
         # every P2 journey would otherwise just fail downstream and waste the rest of the matrix.
@@ -2280,11 +2291,16 @@ def main() -> int:
     if args.model:
         for cid in cells:
             CELLS[cid]["model"] = args.model
-    if args.custom_slug:
+    if selected_custom_cells:
+        if not args.custom_name:
+            raise SystemExit(
+                "Cells P2/P2b/P3 also require --custom-name <display name of the custom "
+                "connection>, because model_keys use the display name rather than the stable slug."
+            )
         # Both custom-provider cells take the same slug and the same model-key rewrite; P3 is
         # P2 on Daytona, so keeping them in one loop stops the two drifting apart.
-        namespace = args.custom_name or args.custom_slug
-        for custom_cell in ("P2", "P2b", "P3"):
+        namespace = args.custom_name
+        for custom_cell in selected_custom_cells:
             CELLS[custom_cell]["connection"]["slug"] = args.custom_slug
             # Send the FULL custom model key, not the bare model id: a bare id that also exists
             # in the shared catalog gets its provider inferred (F-017) before the named custom
@@ -2292,7 +2308,7 @@ def main() -> int:
             # rejects the run. The `<slug>/custom/<model>` key is opaque to the catalog, matches
             # the secret's model_keys, and resolves to the `openai` family as designed.
             custom_model = CELLS[custom_cell]["model"]
-            if not custom_model.startswith(f"{namespace}/"):
+            if not custom_model.startswith(f"{namespace}/custom/"):
                 CELLS[custom_cell]["model"] = f"{namespace}/custom/{custom_model}"
     if args.mcp_url:
         global MCP_URL

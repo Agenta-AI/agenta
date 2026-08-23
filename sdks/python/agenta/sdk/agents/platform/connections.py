@@ -295,14 +295,16 @@ class _ConnectionCandidate:
         the model name. Matching and stripping must agree, or a connection matches but resolves
         to a model the upstream does not know.
         """
-        values = _model_lookup_values(model, self.deployment)
-        for key in self.model_keys:
-            if key in values:
+        values = [model.model, model.to_model_string()]
+        prefix = f"{self.deployment}/"
+        if model.model.startswith(prefix):
+            values.append(model.model[len(prefix) :])
+        for key in values:
+            if key in self.model_keys:
                 parts = key.split("/", 2)
                 return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
             return model.model
-        prefix = f"{self.deployment}/"
         if model.model.startswith(prefix):
             return model.model[len(prefix) :]
         return model.model

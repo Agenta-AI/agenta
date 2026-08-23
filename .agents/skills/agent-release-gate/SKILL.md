@@ -31,7 +31,7 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug> --require-store  # everything
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name <display-name> --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
@@ -42,11 +42,12 @@ the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
 `--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
 running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver fails
-fast if it's missing. Add `--custom-name` when that connection's display name differs from
-its slug — `model_keys` is built from the name, so the namespaced model key only matches
-when the name is right. Cells S1, S2 and C1 additionally need
+fast if it's missing. `--custom-name` is also required because `model_keys` is built from the
+display name rather than the stable slug. Custom-provider cells skip the credential-rotation
+journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
+additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
+each cell requires. The Daytona cells (C2, C4, P3, X2) additionally need the runner's Daytona API key to
 have permission to manage Secrets, because credential hiding is on by default; without it those
 cells fail at sandbox creation with an error naming the permission.
 
@@ -122,15 +123,11 @@ proves nothing about the durable working directory (LESSONS #16).
   approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys). **Currently broken**: two
-  unresolved git merge conflicts sit inside the `CELLS` dict (P2/P3 definitions), a SyntaxError
-  that fails the whole file on import, not just those cells. Needs a human to pick the correct
-  side per cell before this driver runs again; do not resolve it blind.
+- `resources/qa_product.py` — the gate driver (cells × journeys).
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`, so it still runs
-  while that file is broken.
+  round trip (see above). Self-contained; does not import `qa_product.py`.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
   only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its

@@ -833,6 +833,34 @@ async def test_provider_key_model_id_is_unaffected(fake_http, connection):
     assert resolved.deployment == "direct"
 
 
+def test_exact_namespaced_model_key_wins_over_an_alias():
+    # A model id can also be a valid deployment-stripped alias. The exact committed key must win
+    # so selection does not depend on set iteration order.
+    exact_key = "bedrock/bedrock/bedrock/foo"
+    alias_key = "bedrock/bedrock/foo"
+
+    class _AliasFirstSet(set):
+        def __iter__(self):
+            return iter((alias_key, exact_key))
+
+    candidate = connections._catalog(
+        [
+            _custom_provider(
+                "bedrock",
+                "bedrock",
+                key="bedrock-token",
+                extras={"aws_region_name": "us-east-1"},
+                models=["foo", "bedrock/foo"],
+                slug="bedrock",
+                model_keys=[exact_key, alias_key],
+            )
+        ]
+    )[0]
+    candidate.model_keys = _AliasFirstSet({exact_key, alias_key})
+
+    assert candidate.selected_model_id(ModelRef(model=exact_key)) == "bedrock/foo"
+
+
 async def test_resolve_fails_loud_on_http_error(fake_http, connection):
     fake_http(connections, status=404)
     with pytest.raises(ConnectionResolutionError):
