@@ -183,9 +183,9 @@ pnpm run test:unit
 pnpm run build:extension
 ```
 
-The implementation run passed 138 unit files: 2,282 tests passed and 7 existing
-tests remained marked as expected failures. Typecheck and the extension build
-also passed.
+The focused review-fix suite passed 152 tests. The full implementation run passed
+138 unit files: 2,282 tests passed and 7 existing tests remained marked as
+expected failures. Typecheck and the extension build also passed.
 
 ## Live acceptance
 
@@ -197,15 +197,21 @@ once with `pi_core` and `sandbox=daytona`. For each run:
    suffix, the expected placement, `outcome=exported`, and `status=200`.
 3. Fetch `/api/tracing/traces/{trace_id}` with a key for the same project.
 4. Confirm the stored trace contains Pi-native span names such as `pi`, `chat`,
-   and `turn 0`.
+   `invoke_agent`, and `turn 0`, with parent IDs forming one connected tree.
 
-The implementation run persisted both paths:
+The final local run persisted the native tree at:
 
-- Local: `89ce156bd188780fb61b8f7853ffc350`.
-- Daytona: `d7cc51df721601b355e02af617b2f583`.
+- `b88610d6d07d49db6a41bc3ab505096e`
 
-The shared OpenAI test secret did not produce a successful model response in
-that run. This does not invalidate the export evidence because both Pi native
-batches were exported and fetched back from storage. Repeat the model-response
-portion with a working project credential before treating the broader Pi run as
-a release-gate pass.
+The final Daytona run persisted native trees at:
+
+- `6f7ab273e8e0a22ff8c04d1e5c67ff5f`
+- `ee9acd9a22bb1f3f9b73b9029f2ac92c`
+
+A funded OpenAI run also completed at
+`f9728271e297986eb805b8bcd67f2388`. Its root, `invoke_agent`, turn, and chat
+spans each carry the same `$0.0023065` cumulative total, while only the actual
+model-bearing spans carry it incrementally. This proves the runner export and
+the stored cost roll-up agree without double-counting.
+
+The release gate passed P2 and P2b on the local sandbox and P3 on Daytona. The
