@@ -31,7 +31,7 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name <display-name> --require-store  # everything
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name "<display-name>" --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
