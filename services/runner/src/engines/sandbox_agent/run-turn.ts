@@ -63,7 +63,7 @@ import {
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { findSwallowedPiError } from "./pi-error.ts";
+import { capturePiTranscriptCursor, findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -949,6 +949,18 @@ export async function runTurn(
       await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
+    // Capture the append-only transcript boundary before this turn can write into it. Recovery
+    // must never attribute an error already present here to the prompt below.
+    const piSessionId = env.session?.agentSessionId;
+    const piTranscriptCursor =
+      plan.isPi && piSessionId
+        ? await (plan.isDaytona
+            ? capturePiTranscriptCursor(plan.workspace.cwd, piSessionId, {
+                sandbox: env.sandbox,
+              })
+            : capturePiTranscriptCursor(plan.workspace.cwd, piSessionId))
+        : undefined;
+
     // The prompt promise this turn races against the pause signal. A normal/continuation turn
     // sends a fresh prompt; a live approval resume answers the parked gate on the SAME session and
     // continues the ORIGINAL, still-pending prompt promise (the tool then runs with its original
@@ -1172,13 +1184,20 @@ export async function runTurn(
 
     const swallowedPiError =
       plan.isPi &&
-      !plan.isDaytona &&
+      stopReason === "end_turn" &&
+      piTranscriptCursor &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
-          // `configurePiSessionWorkspace` used to point Pi at it.
-          findSwallowedPiError(plan.workspace.cwd)
+          // `configurePiSessionWorkspace` used to point Pi at it. On Daytona the
+          // transcript lives inside the remote sandbox, so it is read through the
+          // sandbox's file API here, before teardown takes the only copy with it.
+          await (plan.isDaytona
+            ? findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor, {
+                sandbox: env.sandbox,
+              })
+            : findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor))
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {

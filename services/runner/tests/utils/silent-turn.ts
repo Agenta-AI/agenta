@@ -81,8 +81,8 @@ export function toolCallChunk(
 
 /**
  * Enable the Daytona provider for a test, and drop the memoized config so the run plan reads the
- * enabled set. Daytona placement is under test (it is the cloud path, and the one where the
- * swallowed-error reader is switched off), so both suites need this in `beforeEach`.
+ * enabled set. Daytona placement is under test (it is the cloud path, where the swallowed-error
+ * reader goes through the sandbox's file API), so both suites need this in `beforeEach`.
  */
 export function enableDaytonaProvider(): void {
   process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
@@ -97,6 +97,8 @@ export interface SilentTurnOptions {
   promptError?: Error;
   /** Raise a permission gate mid-prompt, then hang — the shape a parked turn has. */
   park?: boolean;
+  /** Abort a still-pending prompt, the shape a user-cancelled turn has. */
+  cancel?: boolean;
   /**
    * The run's working directory. On a local run a Pi transcript is read from under it; on a
    * Daytona run it is the workspace path INSIDE the sandbox, which is the cwd Pi stamps on the
@@ -105,11 +107,26 @@ export interface SilentTurnOptions {
    */
   cwd?: string;
   /**
-   * A Pi transcript the sandbox serves for ANY `.jsonl` path. The in-sandbox transcript
-   * directory is the reader's to choose, so a test pins that a transcript is read at all rather
-   * than hard-coding a path the fix has not picked yet.
+   * A Pi transcript the sandbox writes while the prompt runs, then serves at the reader's
+   * contractual location: the file
+   * `TRANSCRIPT_FILENAME` inside `piSessionWorkspaceDir(cwd)`. The fake honors the daemon
+   * contract rather than answering promiscuously — `ls` lists only that directory (any other
+   * directory fails the way a real `ls` does) and `readFsFile` serves only that exact path —
+   * so a reader that lists the wrong directory or joins the path wrong fails here instead of
+   * passing against a fake that serves everything.
    */
   sandboxTranscript?: string;
+  /** A stale Pi transcript that already exists before this turn starts. */
+  initialSandboxTranscript?: string;
+  /** A Pi transcript written to the local workspace while the prompt runs. */
+  localTranscript?: string;
+}
+
+/** One `runProcess` invocation the fake sandbox received, for pinning the daemon contract. */
+export interface RecordedRunProcessCall {
+  command?: string;
+  args?: string[];
+  timeoutMs?: number;
 }
 
 export interface SilentTurnRun {
@@ -118,6 +135,8 @@ export interface SilentTurnRun {
   events: AgentEvent[];
   /** Every path read through the sandbox's daemon file API, in order. */
   readFsFilePaths: string[];
+  /** Every process the sandbox was asked to run, in order (command, args, timeoutMs). */
+  runProcessCalls: RecordedRunProcessCall[];
   store: SessionContinuityStore;
 }
 
@@ -132,6 +151,7 @@ export async function runSilentTurn(
   options: SilentTurnOptions = {},
 ): Promise<SilentTurnRun> {
   const readFsFilePaths: string[] = [];
+  const runProcessCalls: RecordedRunProcessCall[] = [];
   const store = new SessionContinuityStore();
   const events: AgentEvent[] = [];
   // A run without an explicit cwd still gets a private one. A fixed shared /tmp path would let a
@@ -149,6 +169,13 @@ export async function runSilentTurn(
   // what the sandbox-agent package does on `destroySession` (the same model `fakeHarness` in
   // `tests/unit/sandbox-agent-orchestration.test.ts` carries — keep the two in step).
   let resolveHungPrompt: ((value: unknown) => void) | undefined;
+  const abortController = new AbortController();
+
+  // Where the seeded transcript lives inside the fake sandbox: the same location the reader
+  // derives from the run's cwd, so path agreement is part of what these runs pin.
+  const remoteTranscriptDir = piSessionWorkspaceDir(cwd);
+  const remoteTranscriptPath = join(remoteTranscriptDir, TRANSCRIPT_FILENAME);
+  let remoteTranscript = options.initialSandboxTranscript;
 
   const session = {
     id: "session-1",
@@ -161,8 +188,20 @@ export async function runSilentTurn(
     },
     async respondPermission() {},
     async prompt() {
+      if (options.sandboxTranscript !== undefined)
+        remoteTranscript = options.sandboxTranscript;
+      if (options.localTranscript !== undefined) {
+        mkdirSync(remoteTranscriptDir, { recursive: true });
+        writeFileSync(remoteTranscriptPath, options.localTranscript);
+      }
       for (const event of options.promptEvents ?? []) eventHandler?.(event);
       if (options.promptError) throw options.promptError;
+      if (options.cancel) {
+        queueMicrotask(() => abortController.abort());
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
       if (options.park) {
         permissionHandler?.({
           id: "perm-1",
@@ -179,19 +218,34 @@ export async function runSilentTurn(
 
   const sandbox = {
     async mkdirFs() {},
-    // Two jobs, both matching the real contract:
-    //  - `exitCode: 0` makes the Daytona bootstrap's `test -x <pinned pi>` succeed, i.e. the
-    //    image already has Pi baked in — otherwise the run dies during setup and never reaches
-    //    a turn.
+    // Matches the real daemon contract, not a promiscuous fake:
+    //  - Non-`ls` commands answer `exitCode: 0` so the Daytona bootstrap's `test -x <pinned pi>`
+    //    succeeds (the image already has Pi baked in) — otherwise the run dies during setup and
+    //    never reaches a turn.
     //  - `ls` answers on STDOUT, the way `sandboxRelayHost.list` reads it in `src/tools/relay.ts`
-    //    (`String(ls?.stdout ?? "").split("\n")`). A reader that finds the transcript by LISTING
-    //    the directory has to see the file; returning a bare exit code would hand it an empty
-    //    listing, and the Daytona expectations would stay green through the fix that closes them.
-    async runProcess(input?: { command?: string }) {
-      const listing =
-        input?.command === "ls" && options.sandboxTranscript
-          ? `${TRANSCRIPT_FILENAME}\n`
-          : "";
+    //    (`String(ls?.stdout ?? "").split("\n")`), and honors its `args`: only the transcript
+    //    directory exists, any other directory fails the way a real `ls` fails. Every call is
+    //    recorded (command, args, timeoutMs) so tests can pin what the daemon was asked.
+    async runProcess(input?: RecordedRunProcessCall) {
+      runProcessCalls.push({ ...input });
+      if (input?.command === "stat") {
+        const path = input.args?.at(-1);
+        if (path !== remoteTranscriptPath || remoteTranscript === undefined)
+          return { exitCode: 1, stdout: "" };
+        return {
+          exitCode: 0,
+          stdout: `${new TextEncoder().encode(remoteTranscript).length}\n`,
+        };
+      }
+      if (input?.command !== "ls") return { exitCode: 0, stdout: "" };
+      const dir = input.args?.at(-1);
+      if (dir !== remoteTranscriptDir)
+        return {
+          exitCode: 2,
+          stdout: "",
+          stderr: `ls: cannot access '${dir}'`,
+        };
+      const listing = remoteTranscript ? `${TRANSCRIPT_FILENAME}\n` : "";
       return { exitCode: 0, stdout: listing };
     },
     async writeFsFile() {},
@@ -204,11 +258,11 @@ export async function runSilentTurn(
     },
     async destroySandbox() {},
     async dispose() {},
+    // Serves ONLY the seeded transcript at its exact path, like a real filesystem would.
     async readFsFile({ path }: { path: string }) {
       readFsFilePaths.push(path);
-      const content = path.endsWith(".jsonl")
-        ? options.sandboxTranscript
-        : undefined;
+      const content =
+        path === remoteTranscriptPath ? remoteTranscript : undefined;
       if (content === undefined) throw new Error(`ENOENT: ${path}`);
       return new TextEncoder().encode(content);
     },
@@ -262,11 +316,11 @@ export async function runSilentTurn(
         ...request,
       } as AgentRunRequest,
       (event) => events.push(event),
-      undefined,
+      options.cancel ? abortController.signal : undefined,
       deps,
     );
 
-    return { result, events, readFsFilePaths, store };
+    return { result, events, readFsFilePaths, runProcessCalls, store };
   } finally {
     if (ownedCwd) rmSync(ownedCwd, { recursive: true, force: true });
   }
@@ -306,14 +360,19 @@ export function writePiTranscript(
   const dir = piSessionWorkspaceDir(cwd);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(dir, `${name}.jsonl`),
+    join(dir, piTranscriptFileName(name)),
     piTranscript(cwd, name, messages, recordCwd),
   );
 }
 
+/** Pi's persisted filename shape: timestamp followed by the session id. */
+export function piTranscriptFileName(sessionId: string): string {
+  return `2026-08-23T00-00-00-000Z_${sessionId}.jsonl`;
+}
+
 /** The one transcript these suites stand up; also what the fake sandbox's `ls` reports. */
-const TRANSCRIPT_NAME = "sess-failed";
-export const TRANSCRIPT_FILENAME = `${TRANSCRIPT_NAME}.jsonl`;
+const TRANSCRIPT_NAME = AGENT_SESSION_ID;
+export const TRANSCRIPT_FILENAME = piTranscriptFileName(TRANSCRIPT_NAME);
 
 /** The messages of a session whose last assistant turn failed with `message`. */
 function failedTurnMessages(message: string): Array<Record<string, unknown>> {
