@@ -58,6 +58,7 @@ import {
   type KeepaliveConfig,
   type KeepaliveProviderName,
 } from "./engines/sandbox_agent/session-identity.ts";
+import { platformCredentialForRequest } from "./engines/sandbox_agent/runtime-policy.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { subscriptionStatusResponse } from "./subscription-status.ts";
@@ -180,16 +181,6 @@ function isSessionOwned(request: AgentRunRequest): boolean {
  */
 function resolveTurnId(request: AgentRunRequest): string {
   return request.turnId?.trim() || randomUUID();
-}
-
-/**
- * The invoke caller's Agenta credential, used to authenticate session coordination calls AS
- * the caller. It rides the telemetry exporter headers (where the run's Agenta secret already
- * lives, kept verbatim). Empty string if absent.
- */
-function runCredential(request: AgentRunRequest): string {
-  const headers = request.telemetry?.exporters?.otlp?.headers ?? {};
-  return (headers.authorization ?? headers.Authorization ?? "").trim();
 }
 
 function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
@@ -419,7 +410,7 @@ async function runAndStreamWithApiBaseResolved(
   // Diagnostic: surface whether the session-owned persist/alive path is entered and
   // whether the invoke credential arrived. Empty cred => heartbeat/persist would 401.
   process.stderr.write(
-    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${runCredential(request) ? "present" : "MISSING"}\n`,
+    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${platformCredentialForRequest(request) ? "present" : "MISSING"}\n`,
   );
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
@@ -492,7 +483,7 @@ async function runAndStreamWithApiBaseResolved(
     const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
-      runCredential(request),
+      platformCredentialForRequest(request),
       () => controller.abort(),
       {
         name: proposeSessionName(request),
