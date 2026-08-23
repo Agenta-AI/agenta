@@ -253,16 +253,14 @@ apply_ci_auth_key() {
 # A write-only vault connection can be resolved only by the trusted platform
 # runtime. Give API and Services one ephemeral shared proof before deploy; do
 # not reuse the admin key and do not expose this proof to any other service.
-# CI may provide a stable value, but disposable previews need no stored secret.
+# Disposable previews need no stored secret, so always generate a fresh proof.
 apply_ci_runtime_key() {
-    local runtime_key="${AGENTA_SERVICES_INTERNAL_KEY:-}"
-    if [ -z "$runtime_key" ]; then
-        command -v openssl >/dev/null 2>&1 || {
-            printf "missing required command: openssl\n" >&2
-            return 1
-        }
-        runtime_key="$(openssl rand -hex 32)" || return 1
-    fi
+    command -v openssl >/dev/null 2>&1 || {
+        printf "missing required command: openssl\n" >&2
+        return 1
+    }
+    local runtime_key
+    runtime_key="$(openssl rand -hex 32)" || return 1
 
     local svc svc_id
     for svc in api services; do
