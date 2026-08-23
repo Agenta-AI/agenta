@@ -8,15 +8,22 @@
  * alone. Nothing covered that before, and a drop here reproduces the "agent has no tools" symptom
  * with every Python test still green.
  */
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {fetchWorkflowCatalogTemplatesMock, inspectWorkflowMock} = vi.hoisted(() => ({
-    fetchWorkflowCatalogTemplatesMock: vi.fn(),
-    inspectWorkflowMock: vi.fn(),
+const {fetchVaultSecretMock, fetchWorkflowCatalogTemplatesMock, inspectWorkflowMock} = vi.hoisted(
+    () => ({
+        fetchVaultSecretMock: vi.fn(),
+        fetchWorkflowCatalogTemplatesMock: vi.fn(),
+        inspectWorkflowMock: vi.fn(),
+    }),
+)
+
+vi.mock("../../src/secret/api", () => ({
+    fetchVaultSecret: fetchVaultSecretMock,
 }))
 
 vi.mock("../../src/workflow/api", async (importOriginal) => {
@@ -74,7 +81,10 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         const store = getDefaultStore()
         store.set(queryClientAtom, new QueryClient())
         store.set(projectIdAtom, PROJECT_ID)
+        store.set(userAtom, null)
         store.set(agentCreationPrefsAtom, {version: 1})
+        fetchVaultSecretMock.mockReset()
+        fetchVaultSecretMock.mockResolvedValue([])
         fetchWorkflowCatalogTemplatesMock.mockReset()
         fetchWorkflowCatalogTemplatesMock.mockResolvedValue({
             count: 1,
@@ -120,5 +130,30 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
     it("preserves the tools on the deferred-inspect path (playground onboarding)", async () => {
         const localId = await createEphemeralAppFromTemplate({type: "agent", deferInspect: true})
         expect(readAgentConfig(localId!).tools).toEqual(PI_DEFAULT_BUILTINS)
+    })
+
+    it("does not query the vault before the user is hydrated", async () => {
+        await createEphemeralAppFromTemplate({type: "agent"})
+
+        expect(fetchVaultSecretMock).not.toHaveBeenCalled()
+    })
+
+    it("does not retry a failed vault lookup during agent creation", async () => {
+        const store = getDefaultStore()
+        store.set(userAtom, {
+            id: "user-1",
+            uid: "user-1",
+            username: "tester",
+            email: "tester@example.com",
+        })
+        store.set(
+            queryClientAtom,
+            new QueryClient({defaultOptions: {queries: {retry: 3, retryDelay: 0}}}),
+        )
+        fetchVaultSecretMock.mockRejectedValue(new Error("vault unavailable"))
+
+        await createEphemeralAppFromTemplate({type: "agent"})
+
+        expect(fetchVaultSecretMock).toHaveBeenCalledTimes(1)
     })
 })

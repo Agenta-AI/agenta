@@ -31,6 +31,7 @@ def _no_ambient_provider_keys(monkeypatch):
         "AWS_BEARER_TOKEN_BEDROCK",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
         "AZURE_OPENAI_API_KEY",
         "GOOGLE_APPLICATION_CREDENTIALS",
     }:
@@ -230,6 +231,22 @@ def test_a_bedrock_connection_accepts_an_aws_key_pair_from_the_environment(monke
     assert env["AWS_SECRET_ACCESS_KEY"] == "aws-secret-from-env"
 
 
+def test_a_bedrock_connection_keeps_the_aws_session_token(monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret-from-env")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "aws-session-token")
+    redacted = _redacted_custom("bedrock", "bedrock-conn")
+
+    resolved = connections._resolve_from_secrets(
+        secrets=[redacted], model=_claude_model("bedrock-conn"), harness="claude_code"
+    )
+
+    env = {item.binding.name: item.value for item in resolved.credentials}
+    assert env["AWS_ACCESS_KEY_ID"] == "AKIAEXAMPLE"
+    assert env["AWS_SECRET_ACCESS_KEY"] == "aws-secret-from-env"
+    assert env["AWS_SESSION_TOKEN"] == "aws-session-token"
+
+
 def test_half_an_aws_key_pair_is_not_a_credential(monkeypatch):
     # An access key id with no secret authenticates nothing; failing here names the
     # problem, where passing it on would fail at the provider with an auth error.
@@ -358,6 +375,24 @@ def test_partition_drops_redacted_entries_and_names_them():
 
     assert redacted_names == ["Prod OpenAI"]
     assert [s["data"]["kind"] for s in usable] == ["anthropic", "mistral"]
+
+
+def test_partition_drops_an_unconfigured_write_only_entry_without_naming_it():
+    usable, redacted_names = _split_write_only_redacted(
+        [
+            {
+                "kind": "provider_key",
+                "slug": "empty-openai",
+                "header": {"name": "Empty OpenAI"},
+                "data": {"kind": "openai", "provider": {}},
+                "write_only": True,
+                "value_status": {"configured": False},
+            }
+        ]
+    )
+
+    assert usable == []
+    assert redacted_names == []
 
 
 def test_partition_keeps_write_only_entries_whose_value_came_through():

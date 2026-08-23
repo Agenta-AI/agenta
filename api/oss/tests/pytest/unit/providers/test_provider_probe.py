@@ -28,6 +28,8 @@ from oss.src.core.providers.exceptions import (
 )
 from oss.src.core.providers.service import ProviderProbeService
 from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
+from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
 
 
 CANARY = "sk-CANARY-DO-NOT-LEAK-abc123"
@@ -916,6 +918,27 @@ def test_the_stored_key_is_not_lent_to_another_provider(monkeypatch):
     assert STORED_KEY not in response.text
 
 
+def test_a_blank_key_does_not_lend_the_stored_key_to_another_provider(monkeypatch):
+    vault = _StubVault()
+    secret_id = uuid4()
+    vault.store(secret_id, PROJECT_ID, _stored_provider_key(kind="openai"))
+    recorder = Recorder(json_response({"data": []}))
+    client = build_client(monkeypatch, recorder, vault=vault)
+
+    response = client.post(
+        "/providers/probe",
+        json={
+            "secret_id": str(secret_id),
+            "kind": "anthropic",
+            "provider": {"key": ""},
+        },
+    )
+
+    assert response.status_code == 422
+    assert recorder.requests == []
+    assert STORED_KEY not in response.text
+
+
 def test_a_kind_change_is_allowed_when_the_caller_brings_the_credential(monkeypatch):
     vault = _StubVault()
     secret_id = uuid4()
@@ -1134,13 +1157,8 @@ def test_a_bedrock_connection_probes_with_its_stored_extras_credential(
     assert STORED_KEY not in response.text
 
 
-def test_every_secret_kind_the_classifier_knows_has_a_credential_location():
-    # The probe asks the classifier where a kind keeps its credential. If a kind is ever
-    # added to the vault without an entry there, this probe would silently send nothing.
-    from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
-
-    assert PRIMARY_CREDENTIAL_FIELDS["provider_key"] == ("provider", "key")
-    assert PRIMARY_CREDENTIAL_FIELDS["custom_provider"] == ("provider", "key")
+def test_every_secret_kind_has_a_credential_location():
+    assert set(PRIMARY_CREDENTIAL_FIELDS) == {kind.value for kind in SecretKind}
 
 
 @pytest.mark.parametrize("path", ["/providers/probe", "/vault/v1/providers/probe"])

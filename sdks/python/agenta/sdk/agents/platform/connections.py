@@ -196,6 +196,7 @@ def _credential_channels(
     if candidate.deployment == "bedrock":
         return [
             ("AWS_BEARER_TOKEN_BEDROCK",),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
             ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
         ]
     if candidate.deployment in ("vertex_ai", "vertex"):
