@@ -41,11 +41,17 @@ The implementation must behave identically for local and Daytona placement.
 
 For every turn:
 
-1. The runner gives Pi only the current trace context and capture policy.
+1. The runner gives Pi the current trace context, capture policy, channel ID, turn and session
+   identifiers, loaded skills, and redaction-only values already visible inside the sandbox.
 2. Pi creates its native span tree.
-3. Pi serializes the complete tree as standard OTLP protobuf.
-4. Pi publishes the bytes through one cross-placement spool protocol.
-5. The runner sends those bytes to the configured OTLP endpoint with its current credential.
+3. Each completed processor flush is serialized as a standard OTLP protobuf request.
+4. Pi publishes a bounded sequence of those requests through one cross-placement spool protocol.
+5. For Agenta ingest, the runner sends each request with the current renewable platform
+   credential. For a third-party collector, it sends the configured static exporter header. The
+   runner never sends either credential to the other target.
+
+The control data contains no endpoint or export credential. The channel and runtime metadata
+attribute and transport the batches; the redaction values grant no authority.
 
 ## Goals
 
@@ -75,8 +81,9 @@ For every turn:
 - The Daytona sandbox cannot rely on direct network access to Agenta OTLP ingest.
 - The spool directory is writable by the harness and must be treated as untrusted input.
 - Agenta OTLP ingest accepts binary protobuf and enforces a configured maximum batch size.
-- The existing trace processor intentionally sends one run as one batch because ingest computes
-  cumulative usage rollups per batch.
+- A turn may produce several complete OTLP requests through root-end and explicit flush paths.
+  The consumer bounds that sequence, and ingest recomputes cumulative usage over the stored trace
+  after every batch.
 - A trace-export failure must be observable but must not fail the agent turn.
 - Warm-session state cannot own a fixed per-turn `traceparent` or credential.
 
@@ -92,4 +99,3 @@ The custom part is only the runtime handoff. The payload is standard OTLP, and t
 the same local/Daytona boundary already used by tool relay and Pi usage writeback. A future
 self-instrumenting harness can implement the same producer interface without learning Agenta auth
 or networking.
-

@@ -6,7 +6,8 @@ contracts and prove long-session behavior.
 
 ## Immediate prerequisite PRs
 
-1. Complete: PR #6217 resolves authorization from the alive watchdog's current credential getter at export time. Short and non-session runs, third-party collectors, diagnostics, and per-run target isolation keep their existing behavior.
+1. Complete: PR #6217 resolves authorization from a current credential getter at export time.
+   PR #6223 finishes the reusable lease for standalone turns and excludes third-party headers.
 2. Complete: PR #6218 adds issued-at to Secret JWTs and preserves intentional authentication failures as 401. It adds no telemetry scope, export-only token, or longer TTL.
 
 These prerequisites do not change Pi span production. The Pi-owned span and runner-owned export cutover follows below.
@@ -18,7 +19,8 @@ The decisions in review.md supersede conflicting details in the older phase text
 1. Pin the public ProtobufTraceSerializer seam and prove parent-first raw-byte round trip in a fixture test. This replaces the serializer spike.
 2. Add a telemetry-only binary file host in a sibling of the relay directory. Do not refactor the tool relay.
 3. Add the per-turn control file and bounded multi-file spool. Include both mount credential pairs, one shared sandbox-visible redaction builder, explicit always-on Pi redaction, a runner size limit below the API 10 MB default, atomic sibling rename, start and teardown sweeps, and an unread-control diagnostic.
-4. Preserve cancellation traces: Pi publishes what it has and the runner emits a minimal error and usage fallback when no batch arrives. Keep one complete batch rather than periodic checkpoints.
+4. Preserve cancellation traces: Pi publishes complete processor flushes and the runner emits a
+   minimal error and usage fallback only when no valid batch arrives. Do not add periodic snapshots.
 5. Cut local and Daytona Pi over together without a feature flag. Add the spool consumer to the bundle leak gate and reset per-turn Pi usage for warm sessions.
 6. Remove rejected token-scope and export-only DTO surfaces if any remain, then add release-gate trace and trace-long journeys for local Pi, Daytona Pi, and local Claude.
 
@@ -34,9 +36,12 @@ Add only the local and Daytona byte operations the telemetry spool needs. Use a 
 
 ## Phase 2: reuse runner export behavior for spooled bytes
 
-PR #6217 already resolves the live platform credential at export time and keeps exporter rotation safe. For spooled batches, retain the existing timeout, missing-credential rule, diagnostics, target attribution, and best-effort failure behavior. Add one thin raw-bytes post path that resolves the same current authorization. Do not create a second lease, a general export-sink rewrite, a 401 retry protocol, or a third-party collector refresh path.
-
-Tests cover current-credential use, missing Agenta credentials, unauthenticated third-party collectors, failed sends, and independent run attribution.
+PR #6217 resolves the live platform credential at export time. One shared platform lease owns the
+getter: the alive watchdog for session-owned turns and `runTurn` for standalone turns. Classify
+the target first so third-party collector headers stay static and never enter the platform
+permission exchange. For spooled batches, retain the existing timeout, missing-credential rule,
+diagnostics, target attribution, and best-effort failure behavior. Add one thin raw-bytes post path;
+do not add a trace-specific lease, general export-sink rewrite, or 401 retry.
 
 ## Phase 3: add the Pi per-turn control and OTLP spool
 
@@ -65,9 +70,10 @@ Runner turn ordering:
 3. Send or resume the Pi prompt.
 4. Stop tool relay after prompt as today.
 5. Resolve Pi usage as today.
-6. Drain the expected telemetry batch with a short bound.
-7. Finish runner event handling and return the agent result.
-8. Stop the consumer in `finally` on every path.
+6. Collect and delete up to four expected telemetry files within a short drain window.
+7. After collection closes, export the collected bodies in parallel.
+8. Finish runner event handling and return the agent result.
+9. Stop the consumer in `finally` on every path.
 
 Pi changes:
 
@@ -76,17 +82,23 @@ Pi changes:
   channel state from the current control file.
 - Per-turn usage counters reset at the same boundary. Session-wide totals, if needed elsewhere,
   remain separate.
-- `agent_end` publishes one complete standard OTLP protobuf batch and then writes usage output.
+- Each processor flush publishes one complete standard OTLP protobuf batch under a bounded sequence;
+  `agent_end` publishes the final remaining batch and then writes usage output.
 
 Tests:
 
 - Control parsing, unknown version, missing file, malformed channel, and read-once deletion.
 - Atomic publication never exposes a temporary or partial file.
 - Exact binary round trip through local and fake-Daytona hosts.
+- One file per completed processor flush, with a maximum of four; a fifth flush is dropped without
+  overwriting an earlier sequence.
 - Stale previous-turn file is swept and cannot satisfy the next turn.
 - Wrong channel is ignored.
 - Oversized and duplicate files are rejected and removed.
 - Missing batch times out without failing the agent result.
+- A canonical malformed protobuf file is structurally accepted and sent. If ingest rejects it,
+  exported count stays zero, diagnostics record the rejection, and no missing-batch fallback is
+  emitted.
 - Warm turn two uses its own traceparent and capture policy, not turn one's.
 - Pi spans preserve native provider, model, tool, usage, cost, parent IDs, and content-capture rules.
 
@@ -95,17 +107,17 @@ Tests:
 In `run-turn.ts` change Pi span ownership to:
 
 ```ts
-emitSpans: !plan.isPi
+emitSpans: !plan.isPi;
 ```
 
 Enable the Pi spool in both local and Daytona environment plans. Remove the Daytona statement that
 the extension is usage-only. The resulting behavior is:
 
-| Harness | Placement | Span producer | External exporter |
-|---|---|---|---|
-| Pi | Local | Pi extension | Runner |
-| Pi | Daytona | Pi extension | Runner |
-| Claude, Codex, Agenta | Local or Daytona | Runner ACP tracer | Runner |
+| Harness               | Placement        | Span producer     | External exporter |
+| --------------------- | ---------------- | ----------------- | ----------------- |
+| Pi                    | Local            | Pi extension      | Runner            |
+| Pi                    | Daytona          | Pi extension      | Runner            |
+| Claude, Codex, Agenta | Local or Daytona | Runner ACP tracer | Runner            |
 
 Never enable direct Pi export and spool export together. Local and Daytona cut over atomically through the same runner and image release; do not add a feature flag or a second long-lived mode.
 
@@ -172,4 +184,3 @@ Use a linear GitButler stack and set each GitHub PR base to the branch below it:
 
 The first four branches are the functional path. Branch five depends on whether PR #6135 merged.
 Branch six is cleanup and should not delay the cutover.
-
