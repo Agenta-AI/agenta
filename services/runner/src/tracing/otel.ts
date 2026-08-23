@@ -80,8 +80,16 @@ export const INTERRUPTED_BY_USER =
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
 
-/** Where a trace's spans are shipped: an OTLP endpoint and an Authorization header. */
+type AuthorizationProvider = () => string | undefined;
+
+/** Where a trace's spans are shipped. The credential is read only when the batch is sent. */
 interface ExportTarget {
+  endpoint: string;
+  authorization: AuthorizationProvider;
+}
+
+/** The target material resolved for one concrete export attempt. */
+interface ResolvedExportTarget {
   endpoint: string;
   authorization?: string;
 }
@@ -205,27 +213,59 @@ function redactAttributes(
   }
 }
 
-/** Cache one exporter per distinct endpoint+auth so we do not rebuild per export. */
-const exporterCache = new Map<string, OTLPTraceExporter>();
-
-function targetKey(target: ExportTarget): string {
-  return `${target.endpoint}\n${target.authorization ?? ""}`;
+interface ExporterCacheEntry {
+  authorization?: string;
+  exporter: OTLPTraceExporter;
+  activeExports: number;
+  retired: boolean;
+  shutdown?: Promise<void>;
 }
 
-function getExporter(target: ExportTarget): OTLPTraceExporter {
-  const key = targetKey(target);
-  let exporter = exporterCache.get(key);
-  if (!exporter) {
-    exporter = new OTLPTraceExporter({
+/** Cache the current exporter per endpoint and retire it safely when the credential rotates. */
+const exporterCache = new Map<string, ExporterCacheEntry>();
+/** Only retired exporters with an active request remain here, so rotation cannot grow it unbounded. */
+const retiringExporters = new Set<ExporterCacheEntry>();
+
+function shutdownExporter(entry: ExporterCacheEntry): Promise<void> {
+  entry.shutdown ??= entry.exporter.shutdown();
+  return entry.shutdown;
+}
+
+function retireExporter(entry: ExporterCacheEntry): void {
+  entry.retired = true;
+  if (entry.activeExports === 0) {
+    void shutdownExporter(entry).catch(() => {});
+    return;
+  }
+  retiringExporters.add(entry);
+}
+
+function completeExport(entry: ExporterCacheEntry): void {
+  entry.activeExports -= 1;
+  if (!entry.retired || entry.activeExports !== 0) return;
+  retiringExporters.delete(entry);
+  void shutdownExporter(entry).catch(() => {});
+}
+
+function getExporter(target: ResolvedExportTarget): ExporterCacheEntry {
+  const cached = exporterCache.get(target.endpoint);
+  if (cached && cached.authorization === target.authorization) return cached;
+
+  const entry: ExporterCacheEntry = {
+    authorization: target.authorization,
+    exporter: new OTLPTraceExporter({
       url: target.endpoint,
       headers: target.authorization
         ? { Authorization: target.authorization }
         : {},
       timeoutMillis: 10_000,
-    });
-    exporterCache.set(key, exporter);
-  }
-  return exporter;
+    }),
+    activeExports: 0,
+    retired: false,
+  };
+  if (cached) retireExporter(cached);
+  exporterCache.set(target.endpoint, entry);
+  return entry;
 }
 
 const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
@@ -243,10 +283,9 @@ function defaultTarget(): ExportTarget {
   // reuse (interface.md section 2). The scheme-tagged ephemeral `AGENTA_CREDENTIALS` (a
   // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, `flush` skips
   // the export rather than sending Agenta an unauthenticated one (see `isAgentaIngest`).
-  const credentials = process.env.AGENTA_CREDENTIALS || "";
   return {
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: credentials || undefined,
+    authorization: () => process.env.AGENTA_CREDENTIALS || undefined,
   };
 }
 
@@ -351,14 +390,35 @@ class TraceBatchProcessor implements SpanProcessor {
         // batch could still land on an unintended endpoint/auth.
         const target =
           (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        let resolvedTarget: ResolvedExportTarget;
+        try {
+          resolvedTarget = {
+            endpoint: target.endpoint,
+            authorization: target.authorization(),
+          };
+        } catch (error) {
+          logExportProblem({
+            traceId,
+            endpoint: target.endpoint,
+            authorization: undefined,
+            spans: group.length,
+            redactors,
+            outcome: "threw",
+            error,
+          });
+          return Promise.resolve();
+        }
         const problem = {
           traceId,
-          endpoint: target.endpoint,
-          authorization: target.authorization,
+          endpoint: resolvedTarget.endpoint,
+          authorization: resolvedTarget.authorization,
           spans: group.length,
           redactors,
         };
-        if (!target.authorization?.trim() && isAgentaIngest(target.endpoint)) {
+        if (
+          !resolvedTarget.authorization?.trim() &&
+          isAgentaIngest(resolvedTarget.endpoint)
+        ) {
           // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
           // reports as a 401 that reads like a BAD credential. Say the credential is missing
           // instead, and drop the batch here.
@@ -366,21 +426,35 @@ class TraceBatchProcessor implements SpanProcessor {
           return Promise.resolve();
         }
         return new Promise<void>((resolve) => {
+          let entry: ExporterCacheEntry | undefined;
+          let exportSettled = false;
+          const settleExport = (): void => {
+            if (!exportSettled && entry) {
+              exportSettled = true;
+              completeExport(entry);
+            }
+            resolve();
+          };
           try {
-            getExporter(target).export(orderParentFirst(group), (result) => {
-              if (result.code === ExportResultCode.FAILED)
-                logExportProblem({
-                  ...problem,
-                  outcome: "failed",
-                  error: result.error,
-                });
-              resolve();
+            entry = getExporter(resolvedTarget);
+            entry.activeExports += 1;
+            entry.exporter.export(orderParentFirst(group), (result) => {
+              try {
+                if (result.code === ExportResultCode.FAILED)
+                  logExportProblem({
+                    ...problem,
+                    outcome: "failed",
+                    error: result.error,
+                  });
+              } finally {
+                settleExport();
+              }
             });
           } catch (err) {
             // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
             // flush() is awaited without a catch, so a reject here would break the run.
+            settleExport();
             logExportProblem({ ...problem, outcome: "threw", error: err });
-            resolve();
           }
         });
       }),
@@ -396,7 +470,9 @@ class TraceBatchProcessor implements SpanProcessor {
   shutdown(): Promise<void> {
     return this.forceFlush().then(async () => {
       await Promise.all(
-        [...exporterCache.values()].map((exporter) => exporter.shutdown()),
+        [...exporterCache.values(), ...retiringExporters].map((entry) =>
+          shutdownExporter(entry),
+        ),
       );
     });
   }
@@ -776,7 +852,8 @@ export function createAgentaOtel(
       config.traceId = traceId;
       registerRunTarget(traceId, runId, {
         endpoint: config.endpoint ?? defaultTarget().endpoint,
-        authorization: config.authorization ?? defaultTarget().authorization,
+        authorization: () =>
+          config.authorization ?? defaultTarget().authorization(),
       });
       if (config.redactor) registerRunRedactor(traceId, config.redactor);
       agentCtx = trace.setSpan(parent, agentSpan);
@@ -1133,7 +1210,14 @@ function splitModel(model?: string): { provider?: string; id?: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-export interface SandboxAgentOtelInit extends Partial<RunConfig> {
+export interface SandboxAgentOtelInit
+  extends Omit<Partial<RunConfig>, "authorization"> {
+  /**
+   * Authorization for the OTLP exporter. The runner supplies a provider so a long-lived turn
+   * uses the latest session credential when it exports. A string remains accepted for local
+   * callers and focused tests.
+   */
+  authorization?: string | AuthorizationProvider;
   captureContent?: boolean;
   /** Harness id ("pi" / "claude"); becomes gen_ai.agent.name. */
   harness?: string;
@@ -1221,7 +1305,23 @@ export function createSandboxAgentOtel(
   const capture = init.captureContent !== false;
   const emitSpans = init.emitSpans !== false;
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
-  const authorization = init.authorization ?? defaultTarget().authorization;
+  const configuredAuthorization = init.authorization;
+  const configuredProvider: AuthorizationProvider | undefined =
+    typeof configuredAuthorization === "function"
+      ? configuredAuthorization
+      : configuredAuthorization !== undefined
+        ? () => configuredAuthorization
+        : undefined;
+  // A run whose request carries no authorization header resolves to an empty value, not to
+  // `undefined` — the getter reads a header that may not be there. Treat empty as "unconfigured"
+  // so such a run still exports under the runner's own `AGENTA_CREDENTIALS`, and resolve the
+  // fallback at export time (not at construction) so a credential written after the run started
+  // still counts.
+  const fallbackAuthorization = defaultTarget().authorization;
+  const authorization: AuthorizationProvider = () => {
+    const resolved = configuredProvider?.();
+    return resolved?.trim() ? resolved : fallbackAuthorization();
+  };
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
