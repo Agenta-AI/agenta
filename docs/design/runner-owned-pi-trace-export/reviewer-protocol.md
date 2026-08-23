@@ -129,7 +129,9 @@ Read:
 Trace finalization must cover normal completion, cancellation, an approval
 pause, approval resume, and parked-environment eviction. A resumed approval must
 keep the original Pi trace ID. The runner may emit its fallback span only when
-Pi produced no valid batch, and the fallback callback must be idempotent.
+Pi produced no structurally accepted batch, and the fallback callback must be
+idempotent. A canonical non-empty file within the size limit is structurally
+accepted even when ingest later rejects its protobuf body.
 
 Run:
 
@@ -154,16 +156,18 @@ Use these checks for the follow-up commit that addresses the first review round:
 
 - Call `finish()` twice and then call `teardown()`. The runner must perform one pickup,
   one HTTP request, and return the same counts to every caller.
-- Read `pickedUpBatches` as the number of non-empty, size-bounded files accepted for
-  export. Read `exportedBatches` as the subset accepted by the collector. A 401 can reduce
-  the second count, but it must not create a missing-Pi fallback.
+- Read `pickedUpBatches` as the number of canonical, non-empty, size-bounded files picked
+  up for export. The runner does not decode their protobuf bodies. Read
+  `exportedBatches` as the subset accepted by the collector. A canonical malformed body
+  can therefore produce one picked-up batch, zero exported batches, and no missing-Pi
+  fallback.
 - Confirm the control-file deny set includes `modelConnection.environment` values that
   already enter the Pi process. It must still exclude the runner OTLP authorization.
 - For Agenta ingest, resolve a blank request authorization through the same live
   `AGENTA_CREDENTIALS` fallback used by ordinary runner spans. Do not apply that
   fallback to a third-party collector.
-- During finalization, drain the current channel before the bounded sweep. A valid late
-  batch must reach the export callback instead of being deleted as residue.
+- During finalization, drain the current channel before the bounded sweep. A structurally
+  accepted late batch must reach the export callback instead of being deleted as residue.
 - Treat a missing Daytona telemetry directory as an empty list. Reject a missing,
   truncated, or zero-byte Daytona read before building an HTTP request.
 - Increment the Pi file sequence only after the atomic rename succeeds. Reject
