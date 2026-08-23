@@ -1,13 +1,6 @@
-"""Webhook responses are write-only-aware; internal signing keeps plaintext.
+"""Webhook signing secrets explicitly remain readable."""
 
-The signing secret lives in the vault, but it is a SHARED secret: the subscriber verifies
-our signature with the same value, so webhook records explicitly opt out of write-only.
-Once a legacy record IS write-only, no
-USER-facing webhook response — create echo, fetch, edit echo — may carry the value again,
-while the internal resolver the signer uses stays plaintext.
-"""
-
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -125,16 +118,9 @@ def _subscription_create():
     )
 
 
-def _mark_write_only(vault_service, secret_id):
-    stored = vault_service.secrets_dao.records[secret_id]
-    vault_service.secrets_dao.records[secret_id] = stored.model_copy(
-        update={"write_only": True}
-    )
-
-
 @pytest.mark.asyncio
 async def test_webhook_signing_secret_is_explicitly_readable(services):
-    webhooks_service, _ = services
+    webhooks_service, vault_service = services
 
     created = await webhooks_service.create_subscription(
         project_id=PROJECT_ID,
@@ -142,6 +128,16 @@ async def test_webhook_signing_secret_is_explicitly_readable(services):
         subscription=_subscription_create(),
     )
     assert created.secret == "whsec_provided_by_user_12345"
+
+    stored = await webhooks_service.dao.fetch_subscription(
+        project_id=PROJECT_ID,
+        subscription_id=created.id,
+    )
+    secret_dto = await vault_service.get_secret_by_id(
+        project_id=PROJECT_ID,
+        secret_id=stored.secret_id,
+    )
+    assert secret_dto.write_only is False
 
     fetched = await webhooks_service.fetch_subscription(
         project_id=PROJECT_ID,
@@ -180,73 +176,6 @@ async def test_generated_secret_is_returned_on_the_create_echo(services):
 
 
 @pytest.mark.asyncio
-async def test_explicit_readable_secret_keeps_existing_responses(services):
-    webhooks_service, _ = services
-
-    created = await webhooks_service.create_subscription(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        subscription=_subscription_create(),
-    )
-    assert created.secret == "whsec_provided_by_user_12345"
-
-    fetched = await webhooks_service.fetch_subscription(
-        project_id=PROJECT_ID,
-        subscription_id=created.id,
-    )
-    assert fetched.secret == "whsec_provided_by_user_12345"
-
-
-@pytest.mark.asyncio
-async def test_legacy_write_only_secret_stops_appearing_in_fetches(services):
-    webhooks_service, vault_service = services
-
-    created = await webhooks_service.create_subscription(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        subscription=_subscription_create(),
-    )
-    assert created.secret is not None
-
-    stored = await webhooks_service.fetch_subscription(
-        project_id=PROJECT_ID, subscription_id=created.id
-    )
-    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
-
-    fetched = await webhooks_service.fetch_subscription(
-        project_id=PROJECT_ID,
-        subscription_id=created.id,
-    )
-    assert fetched.secret is None
-
-
-@pytest.mark.asyncio
-async def test_internal_resolver_keeps_plaintext_for_signing(services):
-    webhooks_service, vault_service = services
-
-    created = await webhooks_service.create_subscription(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        subscription=_subscription_create(),
-    )
-
-    stored = await webhooks_service.dao.fetch_subscription(
-        project_id=PROJECT_ID, subscription_id=created.id
-    )
-    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
-
-    stored = await webhooks_service.dao.fetch_subscription(
-        project_id=PROJECT_ID, subscription_id=created.id
-    )
-    signing_value = await webhooks_service._resolve_secret(
-        project_id=PROJECT_ID,
-        secret_id=stored.secret_id,
-    )
-
-    assert signing_value == "whsec_provided_by_user_12345"
-
-
-@pytest.mark.asyncio
 async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_value(
     services,
 ):
@@ -282,32 +211,4 @@ async def test_rotating_the_signing_secret_through_edit_replaces_the_stored_valu
     )
 
     assert signing_value == "whsec_test_rotated"
-
-
-@pytest.mark.asyncio
-async def test_rotation_echo_stays_redacted_for_a_write_only_secret(services):
-    webhooks_service, vault_service = services
-
-    created = await webhooks_service.create_subscription(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        subscription=_subscription_create(),
-    )
-
-    stored = await webhooks_service.dao.fetch_subscription(
-        project_id=PROJECT_ID, subscription_id=created.id
-    )
-    _mark_write_only(vault_service, UUID(str(stored.secret_id)))
-
-    edited = await webhooks_service.edit_subscription(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        subscription=WebhookSubscriptionEdit(
-            id=created.id,
-            name="notify",
-            data=WebhookSubscriptionData(url="https://example.com/hook"),
-            secret="whsec_test_rotated",
-        ),
-    )
-
-    assert edited.secret is None
+    assert edited.secret == "whsec_test_rotated"
