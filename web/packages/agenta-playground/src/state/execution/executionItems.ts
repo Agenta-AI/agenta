@@ -291,11 +291,6 @@ function readWrappedString(value: unknown): string | undefined {
     return readString(value) ?? readString(unwrapValue(value))
 }
 
-function extractLogicalRowId(rowId: string): string {
-    const sessionMatch = /^turn-([^-]+)-(lt-.+)$/.exec(String(rowId))
-    return sessionMatch?.[2] || rowId
-}
-
 function normalizeTransformContent(content: unknown): string | unknown[] {
     const unwrapped = unwrapValue(content)
     if (Array.isArray(unwrapped)) return unwrapped
