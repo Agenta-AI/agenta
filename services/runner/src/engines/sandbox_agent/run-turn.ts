@@ -185,14 +185,8 @@ export async function runTurn(
       return 0;
     }
   };
-  const emitPiMissingBatchFallback = async (
-    message: string,
-    options: { runFailed?: boolean } = {},
-  ): Promise<void> => {
-    if (options.runFailed) {
-      otel?.recordError(message, request.modelConnection?.provider);
-      await otel?.flush();
-    }
+  let piMissingBatchFallbackEmitted = false;
+  const emitPiMissingBatchFallback = async (message: string): Promise<void> => {
     const traceExport = env.piTraceExport;
     if (traceExport) {
       try {
@@ -205,6 +199,10 @@ export async function runTurn(
       }
       return;
     }
+    if (piMissingBatchFallbackEmitted) return;
+    piMissingBatchFallbackEmitted = true;
+    otel?.recordError(message, request.modelConnection?.provider);
+    await otel?.flush();
     logger("stage=pi_trace_missing_batch diagnostic=true");
   };
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
@@ -364,7 +362,9 @@ export async function runTurn(
         traceId: run.traceId(),
         placement: plan.isDaytona ? ("daytona" as const) : ("local" as const),
         turnId: request.turnId?.trim() || undefined,
-        onMissingBatch: async () => {
+        onMissingBatch: async (message: string) => {
+          run.recordError(message, request.modelConnection?.provider);
+          await run.flush();
           logger("stage=pi_trace_missing_batch diagnostic=true");
         },
       };
@@ -1385,7 +1385,7 @@ export async function runTurn(
     if (!plan.isPi) {
       otel?.recordError(error, request.modelConnection?.provider);
     } else if (piPickedUpTraceBatches === 0) {
-      await emitPiMissingBatchFallback(error, { runFailed: true });
+      await emitPiMissingBatchFallback(error);
     }
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.

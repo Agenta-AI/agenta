@@ -1475,6 +1475,7 @@ export function createSandboxAgentOtel(
   let turnCtx: Context | undefined;
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
+  let standaloneErrorRecorded = false;
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
@@ -1868,7 +1869,8 @@ export function createSandboxAgentOtel(
    *  - The harness self-instruments (emitSpans=false: Pi emits its own spans in another process)
    *    and no valid native batch was received — emit a standalone error
    *    span as a child of the caller's traceparent, so the error still reaches the /invoke trace.
-   * Idempotent and best-effort: a second call or a tracing failure must never break the run.
+   * The standalone fallback is idempotent and best-effort: a second call or a tracing failure
+   * must never break the run.
    */
   function recordError(message: string, errorProvider?: string): void {
     const text = message || "agent run failed";
@@ -1888,10 +1890,12 @@ export function createSandboxAgentOtel(
         stamp(agentSpan);
         return;
       }
-      // No owned span (harness self-instruments). Emit a standalone error span under the
-      // caller's traceparent so the failure is visible in the /invoke trace. Tag the run id
-      // onto the start context first, same as the emitSpans=true root, so onStart attributes
-      // this span to THIS run (concurrent runs sharing the trace id may have different targets).
+      // No owned span (harness self-instruments). Emit one standalone error span under the
+      // caller's traceparent so the failure is visible in the /invoke trace.
+      if (standaloneErrorRecorded) return;
+      standaloneErrorRecorded = true;
+      // Tag the run id onto the start context first, same as the emitSpans=true root, so onStart
+      // attributes this span to THIS run (concurrent runs may have different targets).
       const parent = withRunId(
         parentContext(init.traceparent) ?? context.active(),
         runId,

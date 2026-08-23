@@ -2232,7 +2232,13 @@ describe("runSandboxAgent orchestration", () => {
       );
 
       assert.equal(result.ok, true);
-      assert.deepEqual(fixture.calls.recordedErrors, []);
+      assert.deepEqual(fixture.calls.recordedErrors, [
+        {
+          message: "Pi did not publish a valid trace batch before the turn ended",
+          provider: undefined,
+        },
+      ]);
+      assert.equal(fixture.calls.runFlushed, 2);
       assert.match(
         fixture.logs.join("\n"),
         /stage=pi_trace_missing_batch diagnostic=true/,
