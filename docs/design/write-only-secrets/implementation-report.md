@@ -121,8 +121,9 @@ Local automated verification passed:
 
 - 2,635 OSS API unit tests from an isolated #6164 checkout (73 Postgres/live-key tests skipped).
 - 3,005 combined OSS and EE API unit tests from an isolated final-stack checkout (73 Postgres/live-key tests skipped).
-- 233 focused API tests covering secrets, grants, middleware, provider probe, SSO/webhook
-  behavior, and starter-credit seeding/client behavior.
+- 229 focused API tests after the webhook contract cleanup, covering secrets, grants,
+  middleware, provider probe, SSO/webhook behavior, and starter-credit seeding/client behavior.
+- 109 webhook and write-only-secret tests passed against the final webhook behavior.
 - Standalone boundary checks after the split: 55 write-only tests on #6164 alone, 65
   write-only plus managed tests on #6165, 77 starter-credit tests on #6138, and 93
   provider-probe tests on #6195.
