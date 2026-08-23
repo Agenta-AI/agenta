@@ -115,7 +115,7 @@ export function sandboxTelemetryFileHost(
         command: "sh",
         args: [
           "-c",
-          'if [ ! -d "$1" ]; then exit 0; fi; LC_ALL=C ls -1A -- "$1" | head -n "$2"',
+          'if [ ! -d "$1" ]; then exit 44; fi; LC_ALL=C ls -1A -- "$1" | head -n "$2"',
           "agenta-telemetry-list",
           dir,
           String(limit),
@@ -123,6 +123,7 @@ export function sandboxTelemetryFileHost(
         maxOutputBytes: (limit + 1) * 512,
         timeoutMs: 10_000,
       });
+      if (result.exitCode === 44) return [];
       if (
         result.exitCode !== 0 ||
         result.stdoutTruncated ||
@@ -152,13 +153,18 @@ export function sandboxTelemetryFileHost(
         command: "sh",
         args: [
           "-c",
-          'if [ ! -f "$1" ]; then exit 44; fi; base64 "$1"',
+          'if [ ! -f "$1" ]; then exit 44; fi; base64 "$1" | tr -d \'\\n\'',
           "agenta-telemetry-read",
           path,
         ],
         maxOutputBytes: encodedLimit,
         timeoutMs: 10_000,
       });
+      if (result.exitCode === 44) {
+        throw Object.assign(new Error("Telemetry file is missing"), {
+          code: "ENOENT",
+        });
+      }
       if (
         result.exitCode !== 0 ||
         result.stdoutTruncated ||

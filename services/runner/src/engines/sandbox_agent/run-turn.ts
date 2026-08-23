@@ -185,7 +185,14 @@ export async function runTurn(
       return 0;
     }
   };
-  const emitPiMissingBatchFallback = async (message: string): Promise<void> => {
+  const emitPiMissingBatchFallback = async (
+    message: string,
+    options: { runFailed?: boolean } = {},
+  ): Promise<void> => {
+    if (options.runFailed) {
+      otel?.recordError(message, request.modelConnection?.provider);
+      await otel?.flush();
+    }
     const traceExport = env.piTraceExport;
     if (traceExport) {
       try {
@@ -198,7 +205,7 @@ export async function runTurn(
       }
       return;
     }
-    otel?.recordError(message, request.modelConnection?.provider);
+    logger("stage=pi_trace_missing_batch diagnostic=true");
   };
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
@@ -357,15 +364,16 @@ export async function runTurn(
         traceId: run.traceId(),
         placement: plan.isDaytona ? ("daytona" as const) : ("local" as const),
         turnId: request.turnId?.trim() || undefined,
-        onMissingBatch: async (message: string) => {
-          run.recordError(message, request.modelConnection?.provider);
-          await run.flush();
+        onMissingBatch: async () => {
+          logger("stage=pi_trace_missing_batch diagnostic=true");
         },
       };
       if (opts.resume) {
         // This is still the original Pi prompt. Keep its channel and target. Only the platform
         // credential may rotate; an external collector keeps the original exporter header.
-        env.piTraceExport?.updatePlatformAuthorization(otlpTarget.authorization);
+        env.piTraceExport?.updatePlatformAuthorization(
+          otlpTarget.authorization,
+        );
       } else {
         await env.piTraceExport?.teardown().catch(() => {});
         const host = plan.isDaytona
@@ -406,9 +414,7 @@ export async function runTurn(
                 [
                   ...Object.values(request.modelConnection?.environment ?? {}),
                   ...sandboxVisibleSecretValues(env),
-                ].filter(
-                  (value): value is string => !!value,
-                ),
+                ].filter((value): value is string => !!value),
               ),
             ],
           },
@@ -1379,7 +1385,7 @@ export async function runTurn(
     if (!plan.isPi) {
       otel?.recordError(error, request.modelConnection?.provider);
     } else if (piPickedUpTraceBatches === 0) {
-      await emitPiMissingBatchFallback(error);
+      await emitPiMissingBatchFallback(error, { runFailed: true });
     }
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.

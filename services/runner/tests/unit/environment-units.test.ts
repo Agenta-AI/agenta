@@ -538,6 +538,7 @@ describe("environment-setup is a planner again", () => {
     const source = CODE_ONLY(SRC("engines/sandbox_agent/environment-setup.ts"));
     for (const marker of [
       "buildDaemonEnv)(",
+      "writeOtlpAuthFile(",
       "buildPiExtensionEnv(",
       "configureDaytonaCodexEnv(",
     ]) {

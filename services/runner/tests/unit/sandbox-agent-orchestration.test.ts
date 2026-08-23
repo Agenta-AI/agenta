@@ -2216,6 +2216,60 @@ describe("runSandboxAgent orchestration", () => {
     }
   });
 
+  it("keeps a successful Pi turn successful when no native trace batch arrives", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "pi-missing-trace-"));
+    const fixture = fakeHarness({ cwd });
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "hello" }],
+        },
+        undefined,
+        undefined,
+        fixture.deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(fixture.calls.recordedErrors, []);
+      assert.match(
+        fixture.logs.join("\n"),
+        /stage=pi_trace_missing_batch diagnostic=true/,
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves a failed Pi turn's agent error when no native trace batch arrives", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "pi-failed-trace-"));
+    const fixture = fakeHarness({ cwd, promptError: new Error("boom") });
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "fail" }],
+        },
+        undefined,
+        undefined,
+        fixture.deps,
+      );
+
+      assert.deepEqual(result, { ok: false, error: "boom" });
+      assert.deepEqual(fixture.calls.recordedErrors, [
+        { message: "boom", provider: undefined },
+      ]);
+      assert.match(
+        fixture.logs.join("\n"),
+        /stage=pi_trace_missing_batch diagnostic=true/,
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("clears inherited provider env on a managed run and applies ANTHROPIC_BASE_URL for claude", async () => {
     const { calls, deps } = fakeHarness();
 
