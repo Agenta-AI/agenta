@@ -247,3 +247,16 @@ after every batch, so split delivery does not lose root aggregation.
 Diagnostics must include stage, placement, source, turn ID, trace ID suffix, batch bytes, pickup
 latency, export latency, HTTP status, and credential age. They must not include the token, protobuf
 body, prompt, or captured span content.
+
+### HarnessTracePort
+
+Generic turn orchestration depends on one narrow harness tracing port:
+
+- the default adapter keeps runner-created spans for ordinary harnesses;
+- the Pi adapter owns native-span control publication, spool finalization, cancellation, trace ID,
+  and missing-batch fallback;
+- `runTurn` invokes the same `start`, `finish`, and cancellation lifecycle without knowing
+  channel filenames, file hosts, or Pi control fields.
+
+This is a trace-ownership port, not a general harness plugin framework. A future harness that owns
+native spans can add an adapter without adding another harness branch to generic turn orchestration.
