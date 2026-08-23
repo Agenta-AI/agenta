@@ -111,6 +111,14 @@ is included because the backend, SDK, generated clients, and frontend ship toget
 
 Local automated verification passed:
 
+- Final working-tree gate after the SDK contract audit: 2,668 API unit tests passed (73
+  Postgres/live-key tests skipped) and 2,241 SDK unit tests passed (4 skipped, 16 expected
+  failures). The SDK gate excluded one cross-package streaming assertion owned by the parallel
+  pi-traces work; it now observes that lane and its transient `environment_starting` event.
+- Final focused contract gate: 56 API write-only/Vault route tests, 31 SDK write-only/HTTP/parity
+  tests, and 100 frontend entity connection/transform tests passed.
+- The `@agenta/entities` package build and TypeScript type-check passed.
+
 - 2,635 OSS API unit tests from an isolated #6164 checkout (73 Postgres/live-key tests skipped).
 - 3,005 combined OSS and EE API unit tests from an isolated final-stack checkout (73 Postgres/live-key tests skipped).
 - 233 focused API tests covering secrets, grants, middleware, provider probe, SSO/webhook
@@ -132,6 +140,10 @@ Local automated verification passed:
   existing invalid-token handler and remain HTTP 401 instead of being wrapped as HTTP 500.
 
 Railway live checks were not run because Railway is unavailable. They remain a release-QA item.
+
+The complete acceptance runners were also invoked without a deployed local stack. Their deployed
+tests stopped at setup because `AGENTA_API_URL` and `AGENTA_AUTH_KEY` were absent; the API run had
+no assertion failures. This is an environment limit, not a green deployed-acceptance claim.
 
 ## Accepted boundary and follow-up
 

@@ -120,3 +120,20 @@ Expected:
 Railway-dependent deployment and end-to-end checks are blocked while Railway is unavailable.
 Run the same release-blocking flows on the Railway preview before merge or release, and record the
 preview URL, build SHA, and result in the PR QA comment.
+
+## Local verification record
+
+Passed on 2026-08-23:
+
+- 2,668 API unit tests (73 Postgres/live-key tests skipped).
+- 2,241 SDK unit tests after excluding the cross-package runner streaming assertion owned by
+  the parallel pi-traces lane (4 skipped, 16 expected failures).
+- 56 focused API write-only and Vault-route tests.
+- 31 focused SDK write-only, HTTP, and credential-parity tests.
+- 100 frontend entity connection and secret-transform tests.
+- `@agenta/entities` build and TypeScript type-check.
+- Scoped Ruff formatting and linting, plus `git diff --check`.
+
+The full acceptance commands were attempted without a deployed local stack. Tests that require
+`AGENTA_API_URL` and `AGENTA_AUTH_KEY` stopped during setup, so deployed acceptance remains part
+of the release QA above.
