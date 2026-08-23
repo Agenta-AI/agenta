@@ -2277,6 +2277,9 @@ def main() -> int:
             "Cells P2/P2b/P3 require --custom-slug <vault slug of the custom OpenAI-compatible "
             "provider>. Pass it explicitly, or drop them with --cell (omit --all)."
         )
+    if args.model:
+        for cid in cells:
+            CELLS[cid]["model"] = args.model
     if args.custom_slug:
         # Both custom-provider cells take the same slug and the same model-key rewrite; P3 is
         # P2 on Daytona, so keeping them in one loop stops the two drifting apart.
@@ -2294,10 +2297,6 @@ def main() -> int:
     if args.mcp_url:
         global MCP_URL
         MCP_URL = args.mcp_url
-    if args.model:
-        for cid in cells:
-            CELLS[cid]["model"] = args.model
-
     stamp = time.strftime("%Y%m%d-%H%M%S")
     outdir = RUNS / stamp
     outdir.mkdir(parents=True, exist_ok=True)
