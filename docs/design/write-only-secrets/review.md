@@ -2,11 +2,7 @@
 
 This review covers the write-only and managed-secret stack: [#6164](https://github.com/Agenta-AI/agenta/pull/6164) defines write-only secrets, [#6165](https://github.com/Agenta-AI/agenta/pull/6165) defines managed secrets, [#6138](https://github.com/Agenta-AI/agenta/pull/6138) creates the first managed secret, [#6174](https://github.com/Agenta-AI/agenta/pull/6174) is the frontend consumer, and [#6195](https://github.com/Agenta-AI/agenta/pull/6195) is the provider-probe consumer.
 
-The backend stack is rooted in `release/v0.114.0`; managed secrets, seeded credits, and
-provider probe use the preceding backend branch as their immediate GitHub base. The frontend PR
-is based directly on `release/v0.114.0` and must merge after the backend stack. References to
-`main`, removed PR #6135, a later gate flip, or another root base are stale and must be
-removed from PR descriptions and design documentation.
+Status: resolved. Every required change in this review is implemented. The five PRs form one release chain rooted in `release/v0.114.0`: #6164, #6165, #6138, #6195, then #6174. Each PR uses the preceding branch as its immediate GitHub base, and backend plus frontend deploy together.
 
 ## Owner decisions
 
@@ -31,17 +27,17 @@ These are settled decisions for this review:
 
 ### 1. Finalize the API model and regenerate Fern
 
-The backend contract is currently represented manually in #6174. Its frontend type intersects the generated `SecretResponseDto` with handwritten `write_only`, `managed_by`, `has_key`, and `key_preview` fields, and separately makes provider keys optional. That proves the generated client does not yet contain the contract the frontend consumes.
+At review time, the backend contract was represented manually in #6174. Its frontend type intersected the generated `SecretResponseDto` with handwritten `write_only`, `managed_by`, `has_key`, and `key_preview` fields, and separately made provider keys optional. That proved the generated client does not yet contain the contract the frontend consumes.
 
 Requested change:
 
 1. Finalize the backend DTO names and shapes described below.
-2. Regenerate the Fern client in #6164 and commit the generated files.
-3. Update #6174 to consume those generated types directly.
+2. Generate the final Fern clients from the combined OpenAPI contract in #6174.
+3. Consume those generated types directly in #6174.
 4. Remove the handwritten response intersection, key-optional intersection, and related casts from #6174.
 5. Update backend OpenAPI/contract tests so a later generation cannot silently lose these fields.
 
-The backend PR must define the wire contract. The frontend PR should consume it, not maintain a second copy of it.
+The backend DTOs and OpenAPI define the wire contract. #6174 generates the final Python and TypeScript clients from the combined stack and consumes those generated types without a handwritten copy.
 
 ### 2. Restore the Vault list cache without changing its key scheme
 
@@ -68,7 +64,7 @@ That uncertainty is not a reason to change a platform-wide cache convention insi
 
 ### 3. Make `write_only` a creation-time policy
 
-The current false-to-true update path should be removed. It is surprising for a normal secret update to change whether an existing value can ever be read again, and it creates a security-sensitive cache transition that would need stronger invalidation coordination.
+The reviewed false-to-true update path had to be removed. It is surprising for a normal secret update to change whether an existing value can ever be read again, and it creates a security-sensitive cache transition that would need stronger invalidation coordination.
 
 Requested behavior:
 
@@ -83,7 +79,7 @@ This also means a late cache refill cannot convert a newly write-only record bac
 
 Webhook creation already explicitly sets `write_only=False`. Keep that behavior.
 
-SSO currently relies on the default rather than stating the policy. Set `write_only=False` explicitly on every SSO `CreateSecretDTO` call path, including create-on-edit paths if present.
+At review time, SSO relied on the default rather than stating the policy. Set `write_only=False` explicitly on every SSO `CreateSecretDTO` call path, including create-on-edit paths if present.
 
 This is important because the current SSO settings form reads the stored `client_secret` to prefill and validate edits. If SSO became write-only, the outward response would omit `client_secret`, and editing unrelated SSO fields would require the administrator to re-enter it. That would be a regression introduced by applying write-only behavior to SSO, not an existing SSO bug.
 
@@ -134,7 +130,7 @@ For future per-secret permissions, extend the same concept with an action and re
 }
 ```
 
-The current implementation does not need `secret_scope`. This shape records the direction so the project-wide grant does not become an accidental permanent contract.
+This release does not need `secret_scope`. This shape records the direction so the project-wide grant does not become an accidental permanent contract.
 
 ### 7. Keep the standalone environment fallback
 
@@ -217,7 +213,7 @@ This keeps the transaction safe without coupling persistence code to one secret 
 
 ### 10. Close the provider-probe managed-secret hole in #6195
 
-#6195 allows `/providers/probe` to load plaintext by `secret_id` and combine it with caller-supplied provider configuration. #6165 prevents users from editing or deleting `managed_by` secrets, but the probe path does not currently apply that managed-secret guard.
+At review time, #6195 allowed `/providers/probe` to load plaintext by `secret_id` and combine it with caller-supplied provider configuration, while the probe path did not apply the managed-secret guard.
 
 As a result, a caller could ask the backend to send a managed credential to a caller-selected endpoint. The credential is not returned in the HTTP response, but it leaves the intended provider boundary. That defeats the purpose of making the managed record immutable.
 
@@ -225,7 +221,7 @@ Requested short fix: reject `secret_id` probing when the loaded internal secret 
 
 ### 11. Split internal ownership from the public managed-secret contract
 
-#6165 currently puts `managed_by: str | None` on `CreateSecretDTO`, `UpdateSecretDTO`, and `SecretResponseDTO`. The public routes then accept the field structurally and reject it at runtime. #6174 copies the same internal component string into `LlmProvider.managedBy` and uses its truthiness to decide whether the row appears in Settings.
+At review time, #6165 put `managed_by: str | None` on `CreateSecretDTO`, `UpdateSecretDTO`, and `SecretResponseDTO`. The public routes then accepted the field structurally and rejected it at runtime. #6174 copied the same internal component string into `LlmProvider.managedBy` and used its truthiness to decide whether the row appears in Settings.
 
 This mixes three different concerns:
 
@@ -336,9 +332,9 @@ When a real owner operation is needed later, take a typed `manager: SecretManage
 
 ### 14. Enforce the managed guard against the locked row
 
-The current update flow reads the row in `VaultService`, checks `managed_by`, and only afterward asks the DAO to acquire `SELECT ... FOR UPDATE`. The resolver executed under the DAO lock handles credential carry-over but does not repeat the managed check. A row can therefore change between the ownership check and the write.
+At review time, the update flow read the row in `VaultService`, checked `managed_by`, and only afterward asked the DAO to acquire `SELECT ... FOR UPDATE`. The resolver executed under the DAO lock handled credential carry-over but did not repeat the managed check. A row could therefore change between the ownership check and the write.
 
-Delete has the same check-then-act shape: the service reads and checks, then the DAO opens a separate transaction and deletes without locking and rechecking the policy.
+Delete had the same check-then-act shape: the service read and checked, then the DAO opened a separate transaction and deleted without locking and rechecking the policy.
 
 Even if the first bridge never changes its marker, the implementation and tests claim a general ownership invariant. That invariant must be true at the persistence boundary.
 
@@ -353,7 +349,7 @@ The same locked-row structure can later compare a typed owner for an explicit in
 
 ### 15. Update #6138 to use the managed-secret boundary, not its storage DTO
 
-#6138 currently constructs the general `CreateSecretDTO` with both `managed_by=ORIGIN_MARKER` and `write_only=True`. It also uses the same `ORIGIN_MARKER` value for three semantic roles: proxy audit metadata, Vault manager identity, and the user-facing header description.
+#6138 initially constructed the general `CreateSecretDTO` with both `managed_by=ORIGIN_MARKER` and `write_only=True`. It also used the same `ORIGIN_MARKER` value for three semantic roles: proxy audit metadata, Vault manager identity, and the user-facing header description.
 
 Requested change:
 
@@ -369,7 +365,7 @@ The Vault list cache also has an internal writer now. Cache invalidation should 
 
 ### 16. Make the managed-secret UX decision explicit
 
-#6138's live PR description says the seeded connection remains visible in Settings, while #6174 currently filters every `managedBy` row out of the Settings table. The code still keeps it in the shared connection atom so model selection and run gating can use it.
+At review time, #6138 described the seeded connection as visible in Settings while #6174 filtered every `managedBy` row out of the Settings table. The final code keeps it in the shared connection atom so model selection and run gating can use it.
 
 This is a documentation/UX inconsistency, not a reason to expose the internal manager string. Pick the intended presentation and make the PR description, design document, and frontend test agree:
 
@@ -384,12 +380,11 @@ The runtime grant, not `AGENTA_SERVICES_INTERNAL_KEY`, can reach the runner. The
 
 That means a runner trusted to execute a workload can resolve the project's secrets. This is accepted for the first version and matches the feature's stated trust model: write-only prevents casual API/UI reads; it does not claim to protect a secret from the workload authorized to use it. Per-secret runner scope is a future tightening, not a blocker for this PR.
 
-## Documentation and test updates required before merge
+## Final documentation and test contract
 
-Update `docs/design/write-only-secrets/README.md` and the PR descriptions so they describe the final production behavior:
+The README and PR descriptions describe this final production behavior:
 
 - base is `release/v0.114.0`;
-- no reference to removed PR #6135;
 - no feature flag or later gate flip;
 - Vault list cache is restored and redaction happens after canonical cache retrieval;
 - `write_only` is creation-time and immutable;
@@ -404,7 +399,7 @@ Update `docs/design/write-only-secrets/README.md` and the PR descriptions so the
 - Fern is regenerated and the frontend consumes generated types;
 - runtime trust and future per-secret scope are documented accurately.
 
-At minimum, tests must cover:
+The final stack tests cover:
 
 - cached plaintext returned to a granted runtime and redacted to a normal caller from the same cache entry;
 - cache miss and cache hit produce the same public response;
@@ -425,6 +420,6 @@ At minimum, tests must cover:
 
 ## Merge assessment
 
-The overall direction is sound, but the stack should not merge until the required changes above are incorporated. The main blockers are the uncached high-frequency list path, the duplicated frontend contract, the mutable `write_only` policy, the generic-key fallback for internal-service proof, the key-specific public model/DAO coupling, the public/internal `managed_by` coupling, the universal `allow_managed` bypass, the pre-lock managed mutation checks, and the managed-secret probe escape in the companion PR.
+The required architecture changes are incorporated. The later contract audit also found and fixed the Python SDK consumers that still read `has_key`. The SDK now reads `value_status` exclusively, and the co-released frontend omits untouched credential fields while the backend continues to reject explicit blanks.
 
 No database migration, cache-generation scheme, full-UUID cache-key rewrite, general token-claims framework, removal of standalone fallback, or SSO frontend rewrite is requested in this review.

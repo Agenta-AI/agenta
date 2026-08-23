@@ -28,14 +28,17 @@ Expected:
 1. Create an OpenAI provider connection.
 2. Inspect the create and list responses.
 3. Reload Settings and edit only its models or display name without re-entering the key.
-4. Try to submit an update that changes `write_only`.
-5. Delete and recreate it if a different visibility policy is required.
+4. Send a direct update that explicitly supplies `key: ""`.
+5. Try to submit an update that changes `write_only`.
+6. Delete and recreate it if a different visibility policy is required.
 
 Expected:
 
 - The value is never returned to the browser.
 - `value_status.configured=true`; preview is optional and safe.
 - The unrelated edit keeps the stored key.
+- The frontend omits the untouched key, and the stored value is retained.
+- A direct explicit blank is rejected; it is never interpreted as the keep signal.
 - The API refuses a visibility-policy change.
 
 ### 3. Cache and invalidation
@@ -60,13 +63,16 @@ Expected:
 3. Verify the runner receives a short-lived granted token, not the internal key.
 4. Run the standalone SDK with the Vault value redacted and the matching provider environment
    credential set.
-5. Repeat without the matching environment credential and with an unrelated provider credential.
+5. Inspect the redacted response and confirm it contains `value_status.configured=true` and no
+   `has_key`.
+6. Repeat without the matching environment credential and with an unrelated provider credential.
 
 Expected:
 
 - The platform run succeeds.
 - The internal key never reaches the runner or sandbox.
 - The matching standalone fallback succeeds.
+- The SDK recognizes redaction through `value_status` and contains no legacy-field fallback.
 - Missing or unrelated credentials fail clearly and are never borrowed across providers.
 
 ### 5. SSO and webhook regression

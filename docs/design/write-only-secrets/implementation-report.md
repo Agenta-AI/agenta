@@ -1,6 +1,6 @@
 # Write-only and managed secrets implementation report
 
-Date: 2026-08-22
+Date: 2026-08-23
 
 ## Outcome
 
@@ -16,6 +16,12 @@ Each PR was also rebuilt and validated as an independent layer. A late standalon
 caught managed-secret imports that had accidentally landed below #6165. The six shared Vault files
 were split at the real ownership boundary: #6164 now has no managed-secret import, field, storage,
 or guard, and #6165 introduces that complete contract. The final combined behavior is unchanged.
+
+A final consumer-contract audit found that three Python SDK paths still read the removed
+`has_key` field. #6164 now centralizes `value_status.configured` parsing in the shared
+credential module, uses it in connection resolution, named-secret resolution, and legacy Vault
+middleware, and tests the SDK helper against a serialized public API DTO. No legacy field fallback
+is included because the backend, SDK, generated clients, and frontend ship together.
 
 ## Changes by PR
 
@@ -33,6 +39,9 @@ or guard, and #6165 introduces that complete contract. The final combined behavi
   DAO's locked current row.
 - Centralized and allowlisted the `secret-resolve` grant.
 - Preserved the provider-specific standalone environment fallback.
+- Updated every Python SDK redaction consumer to use `value_status.configured` and removed all
+  production reads of `has_key`.
+- Added a serialized public-DTO contract test so SDK fixtures cannot drift from the API response.
 - Kept SSO and webhook secrets explicitly readable with `write_only=False`.
 - Removed the admin-key fallback. `AGENTA_SERVICES_INTERNAL_KEY` is the only accepted internal
   proof, and the API now fails startup when it is missing or still `replace-me`.
@@ -82,9 +91,15 @@ or guard, and #6165 introduces that complete contract. The final combined behavi
   at the frontend boundary.
 - Hides manager-only connections from Settings and edit drawers, while retaining them in the
   shared connection atom, agent defaults, key gating, and model picker.
+- Omits untouched credentials on update. The backend keeps omitted values and rejects explicit
+  blank provider credentials.
 
 ## Data and compatibility
 
+- The backend, Python SDK, generated clients, and frontend use one `value_status` contract. No
+  `has_key` compatibility path is retained.
+- Backend and frontend deploy together, so strict omit-to-keep semantics do not create an
+  intermediate release state.
 - No database migration is introduced.
 - Existing rows without `write_only` resolve as readable.
 - Existing rows without `management` resolve as unmanaged.

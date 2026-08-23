@@ -1,32 +1,60 @@
 # Research
 
-## Current implementation
+## Review baseline
 
-- #6164 currently removes the Vault list cache, supports changing `write_only` during update, returns `has_key` and `key_preview`, and uses one DTO inheritance tree for create, update, trusted reads, and public responses.
-- The current update resolver mutates the caller's DTO. The Postgres DAO owns part of the `write_only` policy while it also owns the row lock.
-- The runtime proof uses `X-Agenta-Runtime-Key`. The dedicated configuration exists, but documentation and failure behavior still need a complete source walk.
-- SSO and webhook paths have dedicated readable-secret behavior. Every creation path still needs an explicit-policy audit.
-- #6165 stores a free-form `managed_by` string in encrypted JSON. Public request DTOs structurally accept it, routes reject it, and `allow_managed=True` bypasses ownership checks.
-- #6165 derives `write_only=True` from management, although the two policies have different owners and lifecycles.
-- #6138 uses one string marker for bridge identity and creates the starter-credit row with both management and write-only behavior.
-- #6174 hand-maintains backend response fields around the generated Fern type.
-- #6195 can load a stored plaintext credential and merge it with caller-supplied provider configuration. It needs a managed-secret guard before outbound probing.
+The initial review found these problems across the five-PR stack:
+
+- #6164 removed the Vault list cache, allowed `write_only` changes during update, returned
+  key-specific `has_key` and `key_preview` fields, and reused one DTO hierarchy for incompatible
+  create, update, trusted-read, and public-response roles.
+- The update resolver mutated its caller DTO, while the DAO mixed row-lock mechanics with
+  write-only policy.
+- Runtime proof could inherit the administrator key and deployment failure behavior was incomplete.
+- SSO depended on an implicit visibility default, and every readable SSO/webhook creation path
+  needed an explicit audit.
+- #6165 stored a free-form public `managed_by` string and exposed a universal
+  `allow_managed=True` bypass.
+- #6138 reused one marker for proxy metadata, Vault ownership, and user-facing copy.
+- #6174 hand-maintained backend response fields around a generated Fern type.
+- #6195 could spend a managed plaintext credential through a caller-configured provider probe.
+- Python SDK consumers still read the removed `has_key` field after the API moved to
+  `value_status`.
+
+## Final implementation
+
+- Vault list reads cache canonical trusted DTOs and apply caller projection after retrieval.
+- `write_only` is selected at creation and cannot change through update.
+- Public responses use `value_status`; all Python SDK consumers read that same structure.
+- Omitted update credentials keep the locked-row value. Explicit blank provider credentials are
+  invalid. The co-released frontend omits untouched credentials.
+- `AGENTA_SERVICES_INTERNAL_KEY` is the only internal proof and is mandatory at API startup.
+- SSO and webhooks explicitly remain readable.
+- Managed storage uses typed internal manager identity and public mutation policy. General
+  mutations have no ownership bypass.
+- The starter-credit bridge creates one explicitly managed and explicitly write-only row.
+- Managed credentials cannot be spent through the provider-probe path.
+- Fern Python and TypeScript clients are generated from the final combined OpenAPI contract in
+  #6174, which also contains the frontend consumers.
 
 ## Storage compatibility
 
-`write_only` already lives inside encrypted JSON. Structured management can also live there under `management`. Rows without either field map to readable and unmanaged defaults. This keeps the production change compatible without a schema migration.
+`write_only` and structured `management` live inside the existing encrypted JSON payload. Rows
+without those fields map to readable and unmanaged defaults. No database migration is required.
 
 ## Interface classification
 
 - Secret value fields are credential data.
 - `write_only` is value-visibility policy selected at resource creation.
 - `management.manager` is internal lifecycle ownership metadata.
-- `management.policy` is user-mutation policy.
+- `management.policy` is public user-mutation policy.
 - `value_status` is public response metadata derived from the trusted value.
 - Runtime grants are authorization policy carried in signed protocol context.
 
-These roles remain separate in the final models. The frontend receives public policy and status, not the internal manager identifier.
+The final models keep these roles separate. The frontend receives public policy and status, not
+the internal manager identifier.
 
-## Workspace state
+## Workspace boundary
 
-The secrets lanes were rebased locally by another agent after the last push. Their local tips differ from the remote PR heads and require force-with-lease updates after implementation. The shared workspace also contains unrelated pi-traces work, website work, hooks, and other lanes. Only secrets-owned changes may enter these PRs.
+The secrets stack shares a GitButler workspace with unrelated Pi-traces, website, hooks, and other
+work. Only secrets-owned changes belong in these five PRs. The Pi branches and runner files remain
+out of scope.

@@ -12,6 +12,7 @@ Acceptance checks:
 - Omitted update credentials are carried from the locked row without crossing secret identity.
 - SSO and webhook creation remain readable even when the default is write-only.
 - Generated OpenAPI and Fern types include the final public contract.
+- Python SDK consumers read `value_status.configured`; no production consumer reads `has_key`.
 - Focused API, SDK, services, configuration, and generated-client checks pass.
 
 ## Slice 2: structured management (#6165)
@@ -45,6 +46,8 @@ Regenerate Fern after the backend contract is final. Remove handwritten response
 Acceptance checks:
 
 - Frontend packages compile against generated types without manual backend-field extensions.
+- Untouched frontend credentials are omitted on update; explicit blanks are never used as a
+  keep signal.
 - Managed connection visibility and editing behavior match the approved UX.
 - A managed stored secret cannot be probed.
 - User-managed stored-secret probe behavior and credential-free responses remain unchanged.
