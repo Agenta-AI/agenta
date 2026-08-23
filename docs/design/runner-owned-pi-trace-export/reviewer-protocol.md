@@ -140,9 +140,9 @@ Use these checks for the follow-up commit that addresses the first review round:
 
 - Call `finish()` twice and then call `teardown()`. The runner must perform one pickup,
   one HTTP request, and return the same counts to every caller.
-- Read `pickedUpBatches` as the number of valid protobuf files accepted by the runner.
-  Read `exportedBatches` as the subset accepted by the collector. A 401 can reduce the
-  second count, but it must not create a missing-Pi fallback.
+- Read `pickedUpBatches` as the number of non-empty, size-bounded files accepted for
+  export. Read `exportedBatches` as the subset accepted by the collector. A 401 can reduce
+  the second count, but it must not create a missing-Pi fallback.
 - Confirm the control-file deny set includes `modelConnection.environment` values that
   already enter the Pi process. It must still exclude the runner OTLP authorization.
 - For Agenta ingest, resolve a blank request authorization through the same live
