@@ -124,7 +124,7 @@ def _is_platform_runtime(request: Request) -> bool:
     if not expected or expected == _UNCONFIGURED_KEY:
         return False
 
-    return compare_digest(presented, expected)
+    return compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _run_credential_grants(request: Request, *, action: Optional[str]) -> List[str]:

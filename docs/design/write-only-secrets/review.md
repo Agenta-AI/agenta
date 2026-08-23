@@ -282,7 +282,7 @@ The frontend can now act on the supported policy without knowing who implements 
 
 ```typescript
 if (secret.management?.policy === "manager_only") {
-    // render the chosen managed-row UX
+  // render the chosen managed-row UX
 }
 ```
 
@@ -317,7 +317,7 @@ There is no current consumer that needs to add, change, clear, update, or delete
 
 ### 13. Remove the universal `allow_managed` bypass
 
-#6165 adds `allow_managed: bool = False` to update and delete. Passing `True` permits full access to every managed row, regardless of which component owns it. It therefore means "bypass all management," not "the owning component is acting." The name and documentation overstate the security property.
+PR #6165 adds `allow_managed: bool = False` to update and delete. Passing `True` permits full access to every managed row, regardless of which component owns it. It therefore means "bypass all management," not "the owning component is acting." The name and documentation overstate the security property.
 
 The starter-credits bridge in #6138 creates its row once and never updates, releases, or deletes it. The bypass has no production consumer in this release.
 
@@ -349,7 +349,7 @@ The same locked-row structure can later compare a typed owner for an explicit in
 
 ### 15. Update #6138 to use the managed-secret boundary, not its storage DTO
 
-#6138 initially constructed the general `CreateSecretDTO` with both `managed_by=ORIGIN_MARKER` and `write_only=True`. It also used the same `ORIGIN_MARKER` value for three semantic roles: proxy audit metadata, Vault manager identity, and the user-facing header description.
+PR #6138 initially constructed the general `CreateSecretDTO` with both `managed_by=ORIGIN_MARKER` and `write_only=True`. It also used the same `ORIGIN_MARKER` value for three semantic roles: proxy audit metadata, Vault manager identity, and the user-facing header description.
 
 Requested change:
 

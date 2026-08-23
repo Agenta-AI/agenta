@@ -402,9 +402,11 @@ const ProviderConnectionCard = ({
                             {replaceOnly ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
-                                    {connection?.keyPreview
-                                        ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                                        : "Key configured. Leave blank to keep it."}
+                                    {field.key === "apiKey"
+                                        ? connection?.keyPreview
+                                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                                            : "Key configured. Leave blank to keep it."
+                                        : "Saved value. Leave blank to keep it."}
                                 </span>
                             ) : null}
                             <div className="flex items-start gap-2">

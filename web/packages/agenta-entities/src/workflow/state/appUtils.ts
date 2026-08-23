@@ -132,11 +132,14 @@ async function vaultConnectionsForNewAgent(
     projectId: string,
     userId?: string,
 ): Promise<ProviderConnection[]> {
+    if (!userId) return []
+
     try {
         const rows = await getHostQueryClient().ensureQueryData<LlmProvider[]>({
             queryKey: ["vault", "secrets", userId, projectId],
             queryFn: () => fetchVaultSecret({projectId}),
             staleTime: 5 * 60_000,
+            retry: false,
         })
         return toProviderConnections(rows ?? [])
     } catch {

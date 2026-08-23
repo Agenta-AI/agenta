@@ -170,6 +170,15 @@ async def test_a_wrong_runtime_key_is_not_the_runtime(exchange):
 
 
 @pytest.mark.asyncio
+async def test_a_non_ascii_runtime_key_is_not_the_runtime(exchange):
+    run, _ = exchange
+
+    body = _body(await run("run_service", runtime_key="not-the-key-ÿ"))
+
+    assert "grants" not in _claims(body["credentials"])
+
+
+@pytest.mark.asyncio
 async def test_the_runtime_key_only_grants_a_run_exchange(exchange):
     run, _ = exchange
 

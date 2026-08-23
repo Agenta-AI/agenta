@@ -1,13 +1,4 @@
-/**
- * The failed-run callout's one conditional affordance: the "Add your key" button.
- *
- * It appears only for the starter-credit failure classes the user can clear themselves. Every
- * other failure (including a run that carried no code at all) shows the message and nothing more,
- * so a plain crash never nags the user to go buy a provider key.
- *
- * Rendered with `renderToStaticMarkup` rather than a testing library: the repo has no
- * `@testing-library/react`, and these are static presentational assertions that do not need one.
- */
+/** The Add your key action appears only for starter-credit failures the user can clear. */
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
 
