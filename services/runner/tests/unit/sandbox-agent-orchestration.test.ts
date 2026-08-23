@@ -31,6 +31,7 @@ import {
 } from "../../src/tracing/pi-spool-protocol.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import {
+  platformCredentialForRequest,
   resolveRunOtlpTarget,
   shouldSuppressPausedToolCallUpdate,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
@@ -439,6 +440,84 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(typeof calls.otelOptions.authorization, "function");
     authorization = "Secret refreshed";
     assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
+  });
+
+  it("refreshes a standalone Agenta credential while a long turn is active", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubEnv("AGENTA_API_URL", "https://api.agenta.test/api");
+      vi.stubEnv("AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS", "900000");
+      vi.stubEnv("AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS", "900000");
+      vi.stubEnv("AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS", "900000");
+      resetRunnerConfigCache();
+      const refreshRequests: Array<{ url: string; authorization: string }> = [];
+      vi.stubGlobal(
+        "fetch",
+        async (url: string | URL | Request, init?: RequestInit) => {
+          const renderedUrl = String(url);
+          refreshRequests.push({
+            url: renderedUrl,
+            authorization: String(
+              (init?.headers as Record<string, string> | undefined)
+                ?.authorization ?? "",
+            ),
+          });
+          return new Response(
+            JSON.stringify({ credentials: "Secret refreshed" }),
+            { status: 200 },
+          );
+        },
+      );
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://api.agenta.test/api/otlp/v1/traces",
+              headers: { authorization: "Secret initial" },
+            },
+          },
+        },
+      };
+      const { calls, deps } = fakeHarness({
+        afterPromptEvents: async () => {
+          await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+        },
+      });
+
+      const result = await runSandboxAgent(request, undefined, undefined, deps);
+
+      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(platformCredentialForRequest(request), "Secret initial");
+      assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
+      assert.deepEqual(refreshRequests, [
+        {
+          url: "https://api.agenta.test/api/access/permissions/check?action=run_service&resource_type=service",
+          authorization: "Secret initial",
+        },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never treats a third-party collector header as a platform credential", () => {
+    assert.equal(
+      platformCredentialForRequest({
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://collector.example.test/v1/traces",
+              headers: { authorization: "Bearer collector-secret" },
+            },
+          },
+        },
+      }),
+      "",
+    );
   });
 
   it("keeps platform rotation away from third-party collector credentials", () => {
@@ -2234,7 +2313,8 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(result.ok, true);
       assert.deepEqual(fixture.calls.recordedErrors, [
         {
-          message: "Pi did not publish a valid trace batch before the turn ended",
+          message:
+            "Pi did not publish a valid trace batch before the turn ended",
           provider: undefined,
         },
       ]);

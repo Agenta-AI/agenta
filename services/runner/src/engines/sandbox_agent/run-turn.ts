@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 
+import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
   permissionsFromRequest,
@@ -13,6 +14,7 @@ import {
   type ToolCallbackContext,
 } from "../../protocol.ts";
 import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -116,7 +118,17 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
-  const credential = opts.credential ?? (() => runCredential(request));
+  const initialCredential = opts.credential ?? (() => runCredential(request));
+  const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
+  // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
+  // Agenta run owns the same reusable lease here so even a single 12-hour turn exports with a
+  // current credential. External collector headers stay static and never enter this exchange.
+  const platformCredentialLease =
+    !opts.credential && initialOtlpTarget.authorizationSource === "platform"
+      ? startPlatformCredentialLease(apiBase(), runCredential(request))
+      : undefined;
+  const credential =
+    opts.credential ?? platformCredentialLease?.credential ?? initialCredential;
   const otlpTarget = resolveRunOtlpTarget(request, credential);
   const sessionId = env.sessionId;
   const toolRunContext = env.sessionId
@@ -1399,6 +1411,7 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

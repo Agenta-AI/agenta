@@ -19,6 +19,18 @@ export function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
+/**
+ * The legacy wire has one authorization header for two possible owners. Treat it as an Agenta
+ * platform credential only when the configured destination is Agenta ingest; for an external
+ * collector it belongs exclusively to that collector and must never enter platform calls.
+ */
+export function platformCredentialForRequest(request: AgentRunRequest): string {
+  const endpoint = resolveOtlpTraceEndpoint(
+    request.telemetry?.exporters?.otlp?.endpoint,
+  );
+  return isAgentaIngest(endpoint) ? runCredential(request) : "";
+}
+
 export interface RunOtlpTarget {
   endpoint: string;
   authorization: AuthorizationProvider;
