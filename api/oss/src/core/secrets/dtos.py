@@ -1,6 +1,11 @@
 from typing import Optional, Union, List, Dict, Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from oss.src.core.secrets.managed import (
+    PublicSecretManagementDTO,
+    SecretManagementDTO,
+)
 
 from oss.src.core.secrets.enums import (
     SecretKind,
@@ -258,6 +263,8 @@ class SecretDTO(BaseModel):
 
 
 class CreateSecretDTO(Slug, BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     header: Header
     secret: SecretDTO
     write_only: bool = True
@@ -319,6 +326,8 @@ class UpdateSecretPayloadDTO(BaseModel):
 
 
 class UpdateSecretDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     header: Optional[Header] = None
     secret: Optional[UpdateSecretPayloadDTO] = None
 
@@ -375,8 +384,11 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
 class SecretResponseDTO(_SecretResponseBaseDTO):
     """Trusted internal representation. Credential material remains available."""
 
+    management: Optional[SecretManagementDTO] = None
+
 
 class PublicSecretResponseDTO(_SecretResponseBaseDTO):
     """Caller-facing representation after grant-aware value projection."""
 
+    management: Optional[PublicSecretManagementDTO] = None
     value_status: SecretValueStatus
