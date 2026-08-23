@@ -134,6 +134,8 @@ def test_workflow_root_uses_its_reported_usage_as_cumulative(reported_cost):
         span_id=CHILD_A_UUID,
         parent_id=ROOT_UUID,
         span_name="chat",
+        prompt_tokens=40,
+        completion_tokens=10,
         prompt_cost=0.003,
         completion_cost=0.0012,
         start_offset_s=1,

@@ -11,6 +11,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    SpanType,
     TraceType,
 )
 
@@ -453,8 +454,25 @@ def cumulate_tokens(
         if span.attributes is None:
             span.attributes = {}
 
+        incremental = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("tokens", {})
+            .get("incremental", {})
+        )
+        has_workflow_total = (
+            span.span_type == SpanType.WORKFLOW
+            and isinstance(incremental, dict)
+            and "total" in incremental
+        )
+        if has_workflow_total:
+            # record_usage stamps the runner's whole-run total on the workflow
+            # root. Its child model spans describe the same usage, not more usage.
+            tokens = _get_incremental(span)
+
         if (
-            tokens.get("prompt", 0.0) != 0.0
+            has_workflow_total
+            or tokens.get("prompt", 0.0) != 0.0
             or tokens.get("completion", 0.0) != 0.0
             or tokens.get("total", 0.0) != 0.0
         ):
