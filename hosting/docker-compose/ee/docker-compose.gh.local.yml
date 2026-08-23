@@ -323,6 +323,7 @@ services:
             # a random id would orphan them for the owner TTL. A fixed default is safe because
             # compose runs a single runner. Override only if you scale to multiple runners.
             AGENTA_RUNNER_REPLICA_ID: ${AGENTA_RUNNER_REPLICA_ID:-local-runner-1}
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}

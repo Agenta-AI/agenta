@@ -488,10 +488,9 @@ services:
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             PI_CODING_AGENT_DIR: /pi-agent
-            # The API as reached FROM this container — by its compose service name, over the
-            # network (the same `http://api:8000` the workers use), NOT the public
-            # `http://localhost/api` (which doesn't resolve inside a container). Used by the
-            # OTLP tracing-export fallback AND the session heartbeat/record-persist calls.
+            # Keep both canonical API bases. The public URL identifies caller-provided OTLP
+            # credentials as Agenta-owned; the internal URL is the route the runner actually uses.
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}

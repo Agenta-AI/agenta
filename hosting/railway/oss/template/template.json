@@ -268,6 +268,8 @@
       "variables": {
         "AGENTA_RUNNER_HOST": "0.0.0.0",
         "AGENTA_RUNNER_PORT": "8765",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
         "AGENTA_RUNNER_TOKEN": {
           "secret": "AGENTA_RUNNER_TOKEN"
         },
@@ -286,7 +288,6 @@
         }
       },
       "optionalVariables": [
-        "AGENTA_API_URL",
         "AGENTA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_URL",

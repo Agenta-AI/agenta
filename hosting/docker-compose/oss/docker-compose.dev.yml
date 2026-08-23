@@ -452,10 +452,9 @@ services:
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
-            # API as reached FROM this container: the compose service name over the network
-            # (http://api:8000, as the workers use), NOT the public http://localhost/api
-            # which does not resolve inside a container. Used by the OTLP tracing-export
-            # fallback AND the session heartbeat/record-persist calls.
+            # Keep both canonical API bases. The public URL identifies caller-provided OTLP
+            # credentials as Agenta-owned; the internal URL is the route the runner actually uses.
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
