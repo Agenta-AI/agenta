@@ -309,8 +309,9 @@ def test_redacted_custom_provider_fails_loud_too():
         )
 
 
-def test_a_redacted_gateway_resolves_with_this_runs_key(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-gateway-env")
+def test_a_redacted_gateway_never_uses_this_runs_provider_key(monkeypatch):
+    ambient_key = "sk-gateway-env"
+    monkeypatch.setenv("OPENAI_API_KEY", ambient_key)
     redacted = {
         "kind": "custom_provider",
         "slug": "my-gateway",
@@ -325,18 +326,18 @@ def test_a_redacted_gateway_resolves_with_this_runs_key(monkeypatch):
         "value_status": {"configured": True},
     }
 
-    resolved = connections._resolve_from_secrets(
-        secrets=[redacted],
-        model=ModelRef(
-            provider="openai",
-            model="gpt-5.5",
-            connection={"mode": "agenta", "slug": "my-gateway"},
-        ),
-        harness="pi_core",
-    )
+    with pytest.raises(WriteOnlySecretError) as raised:
+        connections._resolve_from_secrets(
+            secrets=[redacted],
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={"mode": "agenta", "slug": "my-gateway"},
+            ),
+            harness="pi_core",
+        )
 
-    env = {item.binding.name: item.value for item in resolved.credentials}
-    assert env["OPENAI_API_KEY"] == "sk-gateway-env"
+    assert ambient_key not in str(raised.value)
 
 
 # --- the vault middleware's list partition ---------------------------------------------

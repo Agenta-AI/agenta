@@ -202,6 +202,13 @@ def _credential_channels(
         return [("GOOGLE_APPLICATION_CREDENTIALS",)]
     if candidate.deployment == "azure":
         return [("AZURE_OPENAI_API_KEY",)]
+    # A caller-selected endpoint owns its stored credential. An ambient family key must
+    # never be sent to that endpoint when the vault value is hidden.
+    if candidate.kind == "custom_provider" and (
+        (candidate.endpoint and candidate.endpoint.base_url)
+        or candidate.endpoint_blocked
+    ):
+        return []
 
     env_var = _provider_env_var(provider) or _provider_env_var(candidate.provider)
     return [(env_var,)] if env_var else []

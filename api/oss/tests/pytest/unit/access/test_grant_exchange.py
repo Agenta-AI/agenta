@@ -40,10 +40,10 @@ def _exchange(monkeypatch):
     monkeypatch.setattr(auth_module, "_SECRET_KEY", SECRET_KEY)
     monkeypatch.setattr(env.agenta, "services_internal_key", RUNTIME_KEY)
 
-    verdict = {"allow": True}
+    verdict = {"action": True, "resource": True}
 
     async def _check_action_access(**kwargs):
-        return verdict["allow"]
+        return verdict["action"]
 
     async def _get_cache(**kwargs):
         return None
@@ -52,7 +52,7 @@ def _exchange(monkeypatch):
         return True
 
     async def _check_resource_access(**kwargs):
-        return True
+        return verdict["resource"]
 
     monkeypatch.setattr(
         access_router_module, "check_action_access", _check_action_access
@@ -237,12 +237,25 @@ async def test_non_run_actions_never_receive_the_grant(exchange):
 @pytest.mark.asyncio
 async def test_denied_exchange_returns_no_credential_at_all(exchange):
     run, verdict = exchange
-    verdict["allow"] = False
+    verdict["action"] = False
 
     from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as raised:
         await run("run_service")
+
+    assert raised.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_resource_denial_returns_no_runtime_credential(exchange):
+    run, verdict = exchange
+    verdict["resource"] = False
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as raised:
+        await run("run_service", runtime_key=RUNTIME_KEY)
 
     assert raised.value.status_code == 403
 
