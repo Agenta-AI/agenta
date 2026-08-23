@@ -2,16 +2,16 @@
 
 ## Field classification
 
-| Value | Semantic role | Owner | Changes | Destination |
-|---|---|---|---|---|
-| `traceparent` | Protocol context | Calling trace | Every turn | Pi control file and runner tracer |
-| `baggage` | Protocol context | Calling trace | Every turn | Pi control file and runner tracer |
-| content capture | Policy | Operator or service | May change every turn | Pi control file and runner tracer |
-| OTLP endpoint | Exporter configuration | Operator or SDK | May change every turn | Runner only |
-| general platform authorization | Credential | Access system | Rotates during a turn | Runner credential lease only |
-| channel ID | Transport correlation | Runner | Every turn | Runner and Pi spool filenames |
-| OTLP protobuf body | Telemetry data | Pi tracer | Once per turn | Pi spool to runner export sink |
-| session ID and turn ID | Runtime metadata | Runner request | Per session and turn | Control file and diagnostics |
+| Value                          | Semantic role          | Owner               | Changes               | Destination                       |
+| ------------------------------ | ---------------------- | ------------------- | --------------------- | --------------------------------- |
+| `traceparent`                  | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
+| `baggage`                      | Protocol context       | Calling trace       | Every turn            | Pi control file and runner tracer |
+| content capture                | Policy                 | Operator or service | May change every turn | Pi control file and runner tracer |
+| OTLP endpoint                  | Exporter configuration | Operator or SDK     | May change every turn | Runner only                       |
+| general platform authorization | Credential             | Access system       | Rotates during a turn | Runner credential lease only      |
+| channel ID                     | Transport correlation  | Runner              | Every turn            | Runner and Pi spool filenames     |
+| OTLP protobuf body             | Telemetry data         | Pi tracer           | Once per turn         | Pi spool to runner export sink    |
+| session ID and turn ID         | Runtime metadata       | Runner request      | Per session and turn  | Control file and diagnostics      |
 
 This classification is the reason `exportAuthorization` is unnecessary. The runner already owns a
 renewable general platform credential. Pi needs telemetry data and protocol context, not a
@@ -132,7 +132,10 @@ Version 1 body:
   "capture": {
     "content": true
   },
-  "skills": ["_agenta.default"]
+  "skills": ["_agenta.default"],
+  "redaction": {
+    "knownValues": ["<sandbox-visible secret value>"]
+  }
 }
 ```
 
@@ -143,6 +146,10 @@ Rules:
 - Pi rejects unknown versions and malformed channel IDs.
 - Missing optional fields mean the same defaults as today.
 - The file contains no endpoint or credential.
+- `redaction.knownValues` contains only model environment values and both mount credential triples
+  that are already visible to the sandbox. Pi reads them once to build its mandatory per-turn
+  deny-set; they are never interpreted as export authorization.
+- The collection is bounded and malformed or excess values are discarded by the parser.
 - The runner keeps its authoritative copy in memory. It never trusts the file on return.
 
 ## Pi OTLP spool
@@ -150,30 +157,33 @@ Rules:
 Final filename:
 
 ```text
-<runtimeIpcDir>/telemetry/<channelId>.otlp.pb
+<runtimeIpcDir>/telemetry/<channelId>.<sequence>.otlp.pb
 ```
 
 Publication:
 
 ```text
-write <channelId>.otlp.pb.tmp.<nonce>
-rename to <channelId>.otlp.pb
+write <channelId>.<sequence>.otlp.pb.tmp.<nonce>
+rename to <channelId>.<sequence>.otlp.pb
 ```
 
 Payload:
 
 - raw OTLP `ExportTraceServiceRequest` protobuf bytes;
 - content type fixed by the runner to `application/x-protobuf`;
-- one complete Pi run per file;
+- one complete OTLP export request per file; a turn may publish several processor flushes;
+- zero-based canonical decimal sequence numbers, bounded to four files in version 1;
 - no JSON envelope, base64 encoding, header map, endpoint, or credential.
 
 Consumer rules:
 
 - Start and finish are scoped to one turn.
-- Accept only the expected final filename.
-- One accepted file per turn in version 1.
+- Accept only canonical final filenames for the expected channel and sequence.
+- Sort unseen sequences before pickup and accept at most four files per turn.
 - Mirror the API's configured maximum batch size, with an absolute runner safety ceiling.
 - Delete on pickup and keep bytes in memory for the bounded export attempt.
+- Remember accepted sequence numbers so a repeated listing cannot forward one file twice.
+- Collect all bounded files available in the drain window before starting network sends.
 - Sweep final and temporary telemetry files before publishing the next control file.
 
 ## Internal credential interface
@@ -185,9 +195,12 @@ type AuthorizationProvider = () => string | undefined;
 Properties:
 
 - initialized from the credential on the current request;
-- refreshed by the existing session alive watchdog while a session-owned turn is active;
+- refreshed by one reusable platform credential lease while any Agenta turn is active;
+- owned by the alive watchdog for session-owned turns and by `runTurn` for standalone turns;
 - read immediately before every runner or Pi-spool export;
-- kept static for third-party collector authorization;
+- created only after target classification;
+- kept static for third-party collector authorization, which never enters Agenta's permission
+  exchange;
 - value and raw JWT claims never logged.
 
 Do not create a second trace-specific lease or refresh channel.
@@ -201,12 +214,15 @@ interface OtlpBytesExportRequest {
     endpoint: string;
     authorization: AuthorizationProvider;
   };
-  diagnostics: PiSpoolDiagnostics;
+  diagnostics: OtlpBytesExportDiagnostics;
 }
 ```
 
-`exportOtlpBytes()` is best-effort and resolves after success, final failure, or timeout. It
-preserves existing retry and diagnostics behavior and does not throw into agent execution.
+`OtlpBytesExportDiagnostics` owns `traceId`, optional `turnId`, source, placement, byte count,
+and redactors; those identifiers are diagnostic attribution, not separate top-level request
+fields. `exportOtlpBytes()` makes one best-effort request and resolves after success, failure, or
+timeout. It preserves existing classification and diagnostics behavior and does not throw into
+agent execution.
 
 ## Compatibility rules
 
@@ -216,4 +232,3 @@ preserves existing retry and diagnostics behavior and does not throw into agent 
 - Do not add a feature flag or support a mixed new-runner/old-extension mode.
 - Direct Pi network export and runner spool export never run together.
 - Runner logs identify `source=pi-spool` or `source=runner-acp` so duplicate paths are visible.
-

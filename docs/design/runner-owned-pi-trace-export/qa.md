@@ -22,6 +22,9 @@ The release claim is stronger than "the export returned 200." It is:
 - Unknown version rejected.
 - Channel IDs sanitized and bounded.
 - No endpoint or authorization field accepted or emitted.
+- Redaction values accept only bounded strings, are read once, and contain no export authorization.
+- Both mount credential triples and model environment values reach the redactor when already
+  sandbox-visible.
 - Missing propagation and baggage preserve standalone-trace defaults.
 - Capture false applies to messages and tool inputs/outputs on the current turn.
 
@@ -31,40 +34,45 @@ The release claim is stronger than "the export returned 200." It is:
 - Agent, turn, LLM, and tool spans retain parent-child relationships.
 - Provider, request model, response model, usage, cost, events, status, session ID, and skill
   attributes survive serialization.
-- One turn produces one final batch.
+- Root-end and explicit flushes produce a zero-based sequence of complete batches, bounded to four
+  files; `agent_end` produces the final remaining batch.
 - Oversized batches fail closed at the spool boundary without failing the run.
 
 ### Spool consumer
 
-- Accepts exactly the expected current channel.
-- Ignores stale, temporary, wrong-channel, and duplicate files.
-- Deletes on pickup.
+- Accepts only canonical files for the expected current channel and sorts sequences numerically.
+- Ignores stale, temporary, wrong-channel, non-canonical, and duplicate sequence files.
+- Accepts at most four files and deletes each on pickup.
+- Collects the bounded sequence before network sends, so a slow first export cannot hide a later
+  published file.
 - Stops cleanly after success, timeout, cancel, pause, and thrown prompt error.
-- A missing or invalid batch produces exactly one runner-owned fallback error-and-usage span,
-  no partial Pi batch, bounded diagnostics, and unchanged agent-result semantics.
+- Zero accepted valid batches produce exactly one runner-owned fallback error-and-usage span,
+  no partial file, bounded diagnostics, and unchanged agent-result semantics.
+- Split batches retain coherent cumulative root usage after ingest recomputes the stored trace.
 - Local and Daytona hosts execute the same consumer code.
 
 ### Live authorization and export
 
-- Fake credential rotations cross 15 minutes, two hours, and 12 hours without reusing the
-  captured initial credential.
+- Session-owned and standalone fake turns cross 15 minutes, two hours, and 12 hours without
+  reusing the captured initial credential.
 - Export reads the credential immediately before each attempt.
-- Existing bounded retry classifications stay unchanged; this work adds no 401 refresh protocol.
-- Third-party collector auth is not sent to `/permissions/check`.
+- A non-success response, including 401, is diagnosed after one request; there is no 401 retry.
+- Third-party collector auth stays static, is not sent to `/permissions/check` or session APIs,
+  and never creates a platform lease.
 - Logs contain credential age and status but no secret value or OTLP content.
 
 ## Orchestration matrix
 
 Run one table-driven suite for these cells:
 
-| Placement | Session state | Turn | Expected producer | Expected network sender |
-|---|---|---:|---|---|
-| Local | Cold | 1 | Pi | Runner |
-| Local | Warm | 2 | Pi | Runner |
-| Local | Warm after credential rotation | N | Pi | Runner |
-| Daytona | Cold | 1 | Pi | Runner |
-| Daytona | Warm | 2 | Pi | Runner |
-| Daytona | Warm after credential rotation | N | Pi | Runner |
+| Placement | Session state                  | Turn | Expected producer | Expected network sender |
+| --------- | ------------------------------ | ---: | ----------------- | ----------------------- |
+| Local     | Cold                           |    1 | Pi                | Runner                  |
+| Local     | Warm                           |    2 | Pi                | Runner                  |
+| Local     | Warm after credential rotation |    N | Pi                | Runner                  |
+| Daytona   | Cold                           |    1 | Pi                | Runner                  |
+| Daytona   | Warm                           |    2 | Pi                | Runner                  |
+| Daytona   | Warm after credential rotation |    N | Pi                | Runner                  |
 
 For each cell assert:
 
@@ -75,7 +83,8 @@ For each cell assert:
 - an LLM call has Pi's provider/model and exact token/cost data;
 - content is absent when capture is false;
 - the HTTP sender runs in the runner test process;
-- Pi receives no endpoint or credential environment variable or control-file field.
+- Pi receives no endpoint or export credential environment variable or control-file field.
+  Redaction-only known values are permitted and must grant no export authority.
 
 ## Long-session tests without waiting 12 hours
 
@@ -124,15 +133,15 @@ Additional assertions:
 ## Failure injection
 
 For cancellation, prompt failure, missing publication, a truncated final file, and an oversized
-final file, assert exactly one of two outcomes: one valid complete Pi batch, or one idempotent
-runner fallback span. Never accept a periodic or partial Pi batch.
+final file, assert exactly one of two outcomes: one or more valid complete Pi batches, or one
+idempotent runner fallback span when none was accepted. Never accept a temporary or partial file.
 
 - Prevent control-file write.
 - Crash Pi before `agent_end`.
 - Publish a truncated protobuf file under a temporary name.
 - Publish an oversized final file.
 - Make Daytona list or read fail transiently.
-- Make the first OTLP request return 401 and the second return 200.
+- Make the OTLP request return 401; assert exactly one request and bounded diagnostics.
 - Make credential refresh fail.
 - Make OTLP time out.
 - Cancel and pause a turn while the consumer is active.
@@ -151,4 +160,3 @@ Before release:
 - the agent release gate against local and Daytona deployments;
 - a persisted trace inspection for both placements, because a green HTTP export alone does not
   prove span fidelity or parentage.
-
