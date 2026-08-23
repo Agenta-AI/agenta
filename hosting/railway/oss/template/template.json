@@ -64,6 +64,10 @@
       "from_env": "AGENTA_CRYPT_KEY",
       "generate": "openssl-rand-hex-32"
     },
+    "AGENTA_SERVICES_INTERNAL_KEY": {
+      "from_env": "AGENTA_SERVICES_INTERNAL_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
     "AGENTA_RUNNER_TOKEN": {
       "from_env": "AGENTA_RUNNER_TOKEN",
       "generate": "openssl-rand-hex-32"
@@ -171,6 +175,9 @@
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
         },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
+        },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
@@ -218,6 +225,9 @@
         },
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
+        },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
         },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",

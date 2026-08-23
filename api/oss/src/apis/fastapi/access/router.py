@@ -1,10 +1,15 @@
+from hmac import compare_digest
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import (
+    SECRET_RESOLVE_GRANT,
+    sign_secret_token,
+)
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
@@ -93,6 +98,55 @@ async def _check_resource_access(
     return allow_resource
 
 
+_RUNTIME_KEY_HEADER = "x-agenta-runtime-key"
+# The placeholder `env.py` falls back to when nothing is configured.
+_UNCONFIGURED_KEY = "replace-me"
+
+
+def _is_platform_runtime(request: Request) -> bool:
+    """Whether this caller proved it is the platform runtime, not a user agent.
+
+    The workflow service exchanges the END USER's credential on the user's behalf, so
+    nothing about the presented token distinguishes a real run from a browser calling the
+    same public route. What distinguishes them is a secret only the runtime holds, sent
+    on this internal hop and compared in constant time. It is never logged, never
+    returned, and never reaches the runner or a sandbox.
+    """
+    presented = request.headers.get(_RUNTIME_KEY_HEADER)
+    if not presented:
+        return False
+
+    expected = env.agenta.services_internal_key
+    # A deployment that configured nothing keeps the well-known placeholder, which anyone
+    # could send. Treat it as "no runtime configured" rather than as a secret: such a
+    # deployment issues no grant at all, which costs it only the ability to run against
+    # write-only secrets — off by default — and never hands the ability to a stranger.
+    if not expected or expected == _UNCONFIGURED_KEY:
+        return False
+
+    return compare_digest(presented, expected)
+
+
+def _run_credential_grants(request: Request, *, action: Optional[str]) -> List[str]:
+    """The grants the credential this exchange returns may carry.
+
+    Two ways to hold the secret-resolve grant, and no third: the platform runtime asks
+    for a run credential and proves what it is (the workflow service, on the hop that
+    starts a run), or the caller already holds the grant on a verified Secret token and
+    is refreshing it (the runner, every few heartbeats). A session or ApiKey principal
+    reaching this route directly gets neither, which is what keeps a member who may run a
+    service from reading write-only values by asking for a credential.
+    """
+    if action == "run_service" and _is_platform_runtime(request):
+        return [SECRET_RESOLVE_GRANT]
+
+    return [
+        grant
+        for grant in getattr(request.state, "token_grants", ()) or ()
+        if grant == SECRET_RESOLVE_GRANT
+    ]
+
+
 class AccessRouter:
     def __init__(self) -> None:
         self.router = APIRouter()
@@ -135,6 +189,12 @@ class AccessRouter:
         # Always re-mint a fresh ephemeral Secret token (same scope, new expiry) so the
         # returned credential is uniformly short-lived and renewable — never echoing an
         # ApiKey/Bearer. Callers (services, the runner) re-check periodically to refresh.
+        #
+        # Who may receive a credential that reads write-only secret values: see
+        # `_run_credential_grants`. Minting on `action` alone made the grant self-serve —
+        # a member who may run a service could ask for it with their own session or
+        # ApiKey and spend it on the vault routes, which is the write-only guarantee gone.
+        grants = _run_credential_grants(request, action=action)
         secret_token = await sign_secret_token(
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
@@ -142,6 +202,7 @@ class AccessRouter:
             workspace_id=str(ctx.scope.workspace_id),
             organization_id=str(ctx.scope.organization_id),
             organization_name=getattr(request.state, "organization_name", None),
+            grants=grants or None,
         )
         credentials_header = f"Secret {secret_token}"
 

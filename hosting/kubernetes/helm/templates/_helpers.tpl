@@ -825,6 +825,19 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Credential used only by the API and Services for trusted grant
+   exchange. Keep it separate from commonEnv, which is also rendered
+   into workers, cron, and alembic.
+   ================================================================ */}}
+{{- define "agenta.servicesInternalEnv" -}}
+- name: AGENTA_SERVICES_INTERNAL_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_SERVICES_INTERNAL_KEY
+{{- end }}
+
+{{/* ================================================================
    Common environment variables shared by api, workers, cron, alembic.
    Inlines the legacy `backendOptionalEnv` block.
    ================================================================ */}}

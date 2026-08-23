@@ -13,6 +13,26 @@ from oss.src.core.secrets.dtos import (
 )
 
 
+# The server-controlled write_only attribute rides inside the encrypted `data` JSON,
+# as a sibling of the payload fields, so no schema migration is needed. It is popped back
+# out in `map_secrets_dbe_to_dto`, so payload DTOs never see it; rows without the key
+# read as write_only=False (legacy rows).
+_WRITE_ONLY_KEY = "write_only"
+
+
+def _data_payload(
+    data_json: dict,
+    *,
+    write_only: bool,
+) -> str:
+    if write_only:
+        data_json[_WRITE_ONLY_KEY] = True
+    else:
+        data_json.pop(_WRITE_ONLY_KEY, None)
+
+    return json.dumps(data_json)
+
+
 def map_secrets_dto_to_dbe(
     *,
     project_id: uuid.UUID | None,
@@ -26,7 +46,10 @@ def map_secrets_dto_to_dbe(
         project_id=project_id,
         organization_id=organization_id,
         kind=secret_dto.secret.kind.value,
-        data=json.dumps(secret_dto.secret.data.model_dump(exclude_none=True)),
+        data=_data_payload(
+            secret_dto.secret.data.model_dump(exclude_none=True),
+            write_only=bool(secret_dto.write_only),
+        ),
     )
     return vault_secret_dbe
 
@@ -46,27 +69,37 @@ def map_secrets_dto_to_dbe_update(
             if hasattr(secrets_dbe, key):
                 setattr(secrets_dbe, key, value)
 
+    stored_data = json.loads(secrets_dbe.data)
+
+    write_only = bool(stored_data.get(_WRITE_ONLY_KEY))
     if update_secret_dto.secret:
         for key, value in update_secret_dto.secret.model_dump(
             exclude_none=True
         ).items():
             if key == "data" and hasattr(secrets_dbe, key):
-                secrets_dbe.data = update_secret_dto.secret.data.model_dump_json()
+                secrets_dbe.data = _data_payload(
+                    update_secret_dto.secret.data.model_dump(),
+                    write_only=write_only,
+                )
             elif hasattr(secrets_dbe, key):
                 setattr(secrets_dbe, key, value)
 
 
 def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
+    data = json.loads(secrets_dbe.data)  # type: ignore
+    write_only = bool(data.pop(_WRITE_ONLY_KEY, False))
+
     vault_secret_dto = SecretResponseDTO(
         id=secrets_dbe.id,  # type: ignore
         slug=secrets_dbe.slug,
         kind=SecretKind(secrets_dbe.kind).value,
-        data=json.loads(secrets_dbe.data),  # type: ignore
+        data=data,
         header=Header(name=secrets_dbe.name, description=secrets_dbe.description),
         lifecycle=LegacyLifecycleDTO(
             created_at=str(secrets_dbe.created_at),
             updated_at=str(secrets_dbe.updated_at),
         ),
+        write_only=write_only,
     )
 
     return vault_secret_dto
