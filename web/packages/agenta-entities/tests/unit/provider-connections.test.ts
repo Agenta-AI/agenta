@@ -941,15 +941,32 @@ describe("Test on a write-only connection: the enable rule and the request shape
         const httpError = (status: number, detail?: string) => ({
             response: {status, data: detail ? {detail} : undefined},
         })
+        const fernError = (statusCode: number, detail?: string) => ({
+            statusCode,
+            body: detail ? {detail} : undefined,
+        })
 
         it("says the connection is gone on a 404, not that the provider is unreachable", () => {
             expect(probeFailureMessage(httpError(404), "OpenAI")).toContain("no longer exists")
         })
 
         it("speaks the server's own words for a 4xx that carried a message", () => {
-            expect(probeFailureMessage(httpError(422, "Stored key is for another provider."))).toBe(
-                "Stored key is for another provider.",
-            )
+            expect(
+                probeFailureMessage(
+                    httpError(422, "Stored key is for another provider."),
+                    "OpenAI",
+                ),
+            ).toBe("Stored key is for another provider.")
+            expect(
+                probeFailureMessage(
+                    fernError(422, "Stored key is for another provider."),
+                    "OpenAI",
+                ),
+            ).toBe("Stored key is for another provider.")
+        })
+
+        it("recognizes Fern 404 errors as missing stored connections", () => {
+            expect(probeFailureMessage(fernError(404), "OpenAI")).toContain("no longer exists")
         })
 
         it("falls back to the reach-the-provider line for a transport failure or a 5xx", () => {

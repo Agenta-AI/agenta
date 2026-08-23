@@ -231,8 +231,18 @@ export const probeRequestFor = (
 
 /** The HTTP status of a failed request, when it carried one. */
 const statusOf = (error: unknown): number | null => {
+    const statusCode = (error as {statusCode?: unknown})?.statusCode
+    if (typeof statusCode === "number") return statusCode
+
     const response = (error as {response?: {status?: unknown}})?.response
     return typeof response?.status === "number" ? response.status : null
+}
+
+/** The structured error body from Fern or Axios, when either supplied one. */
+const bodyOf = (error: unknown): unknown => {
+    const body = (error as {body?: unknown})?.body
+    if (body !== undefined) return body
+    return (error as {response?: {data?: unknown}})?.response?.data
 }
 
 /**
@@ -249,7 +259,7 @@ export const probeFailureMessage = (error: unknown, title: string): string => {
     const status = statusOf(error)
     if (status === 404) return "This connection no longer exists. Reload and try again."
     if (status && status >= 400 && status < 500) {
-        const message = extractApiErrorMessage(error)
+        const message = extractApiErrorMessage(bodyOf(error) ?? error)
         if (message && message !== String(error)) return message
     }
     return `Agenta could not reach ${title} to test this credential.`

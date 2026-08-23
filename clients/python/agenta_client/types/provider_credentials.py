@@ -8,17 +8,18 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 class ProviderCredentials(UniversalBaseModel):
     """
-    Credentials in transit only. Never persisted here, never logged, never echoed.
+    Credentials sent to provider probe endpoints.
 
-    `key` is a `SecretStr` and `extras` is kept out of `repr`, so an accidental log line
-    or traceback that carries this object cannot print the credential. Unwrap the key with
-    `.get_secret_value()` at the point it is put on the wire, never earlier.
+    ``key`` and ``extras`` remain plain wire values so Fern can serialize them. Both fields
+    are excluded from this model's display representation to reduce accidental disclosure.
     """
 
-    key: typing.Optional[str] = None
+    key: typing.Optional[str] = pydantic.Field(default=None, repr=False)
     url: typing.Optional[str] = None
     version: typing.Optional[str] = None
-    extras: typing.Optional[typing.Dict[str, typing.Any]] = None
+    extras: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(
+        default=None, repr=False
+    )
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

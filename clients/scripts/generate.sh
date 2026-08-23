@@ -458,7 +458,14 @@ generate_python() {
     find "${types_dir}" -name "*.py.bak" -delete
   }
 
+  protect_provider_credentials_repr() {
+    local credentials_file="$1"
+    log "excluding provider credentials from generated model display"
+    python3 "${SCRIPT_DIR}/protect_provider_credentials.py" "${credentials_file}"
+  }
+
   fix_recursive_types_in_dir "${target_dir}"
+  protect_provider_credentials_repr "${target_dir}/types/provider_credentials.py"
 
   log "generated Python client in ${target_dir}"
 }
