@@ -20,7 +20,8 @@
         "./state": "./src/state/index.ts",
         "./react": "./src/react/index.ts",
         "./snapshot": "./src/snapshot/index.ts",
-        "./utils": "./src/utils/index.ts"
+        "./utils": "./src/utils/index.ts",
+        "./agent-chat": "./src/agentChat.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -30,7 +31,7 @@
         "uuid": "^11.1.1"
     },
     "peerDependencies": {
-        "jotai": ">=2.0.0",
+        "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
         "jotai-tanstack-query": ">=0.9.0",
         "react": ">=18.0.0"

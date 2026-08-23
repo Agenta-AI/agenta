@@ -1,9 +1,9 @@
+import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {IStepResponse} from "@/oss/lib/evaluations"
-import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
@@ -17,6 +17,7 @@ import {
 } from "../utils/valueAccess"
 
 import {evaluationAnnotationQueryAtomFamily} from "./annotations"
+import {sameFamilyKey} from "./familyKeys"
 import {scenarioMetricMetaAtomFamily, scenarioMetricValueAtomFamily} from "./metrics"
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
@@ -1184,11 +1185,13 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
 
             return defaultResult
         }),
+    sameFamilyKey,
 )
 
 export const scenarioColumnValueAtomFamily = atomFamily(
     ({scenarioId, runId, column}: ScenarioColumnValueAtomParams) =>
         atom((get) => get(scenarioColumnValueBaseAtomFamily({scenarioId, runId, column}))),
+    sameFamilyKey,
 )
 
 export interface ScenarioColumnValueSelection {
@@ -1229,4 +1232,5 @@ export const scenarioColumnValueSelectionAtomFamily = atomFamily(
                 prev.isLoading === next.isLoading &&
                 prev.stepError === next.stepError,
         ),
+    sameFamilyKey,
 )

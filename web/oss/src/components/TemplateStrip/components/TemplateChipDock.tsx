@@ -1,11 +1,10 @@
+import {type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
-
-import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 
 import TemplateChip from "./TemplateChip"
 
 interface TemplateChipDockProps {
-    template: AgentTemplate
+    template: AgentStarterTemplate
     /** Whether a template is currently selected — drives the fade/rise in and out. */
     visible: boolean
     onClear: () => void

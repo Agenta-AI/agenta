@@ -17,7 +17,11 @@
  *                                     the OTLP Authorization bearer (never a plain env
  *                                     var — read once here, then deleted, see readOtlpAuthFile)
  *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
- *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   JSON [{ name, description, inputSchema }]
+ *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE  path to a runner-written JSON file holding
+ *                                     [{ name, description, inputSchema }] — a FILE because a
+ *                                     large tool set exceeds the per-string execve limit and the
+ *                                     harness spawn then fails with E2BIG (see loadPublicToolSpecs)
+ *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   the same JSON inline; the pre-file fallback, one release only
  *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
  *   AGENTA_AGENT_SKILLS_LOADED        JSON [skillName] of skills that loaded this run (F-029)
  *
@@ -47,6 +51,7 @@ import {
   requiredFields,
   specInputSchema,
 } from "../tools/spec-schema.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../tools/tool-mcp-env.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -79,6 +84,13 @@ import { runResolvedTool } from "../tools/dispatch.ts";
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
+
+/**
+ * The pre-file inline delivery of the public tool specs. Kept readable for ONE release so a
+ * harness whose env was built by an older runner still sees its tools; the runner itself only
+ * writes `PUBLIC_SPECS_FILE_ENV` now.
+ */
+const LEGACY_PUBLIC_SPECS_ENV = "AGENTA_AGENT_TOOLS_PUBLIC_SPECS";
 
 /** The bundle cannot import the runner's identity table, so this copy is pinned against the
  *  shared golden in `tests/unit/pi-builtin-tools-parity.test.ts`. */
@@ -270,19 +282,60 @@ function parseSkillsLoaded(raw: string | undefined): string[] {
   }
 }
 
+/**
+ * Load the run's public tool specs, preferring the runner-written FILE.
+ *
+ * The file is the delivery route: one env var holding every hydrated spec overflows Linux's
+ * per-string `execve` limit (131,072 bytes) and kills the harness spawn with `E2BIG` before any
+ * tool can be registered. The inline var remains a fallback for ONE release so a harness started
+ * by an older runner — or a warm session whose env predates this deploy — still finds its tools;
+ * remove it once no such process can be live.
+ *
+ * Returns `undefined` on any defect (unreadable file, bad JSON, non-array) after logging it: the
+ * caller then registers nothing, which is the same outcome as before, but the reason is on stderr.
+ */
+function loadPublicToolSpecs():
+  { specs: ResolvedToolSpec[]; route: string } | undefined {
+  const path = process.env[PUBLIC_SPECS_FILE_ENV];
+  const raw = process.env[LEGACY_PUBLIC_SPECS_ENV];
+  let json: string;
+  let route: string;
+  if (path) {
+    route = `file ${path}`;
+    try {
+      json = readFileSync(path, "utf-8");
+    } catch (err) {
+      log(`cannot read tool specs ${route}: ${(err as Error).message}`);
+      return undefined;
+    }
+  } else if (raw) {
+    route = `env ${LEGACY_PUBLIC_SPECS_ENV}`;
+    json = raw;
+  } else {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (err) {
+    log(`bad tool specs in ${route}: ${(err as Error).message}`);
+    return undefined;
+  }
+  if (!Array.isArray(parsed)) {
+    log(`tool specs in ${route} must be a JSON array`);
+    return undefined;
+  }
+  return { specs: parsed as ResolvedToolSpec[], route };
+}
+
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
 function registerTools(pi: ExtensionAPI): void {
-  const raw = process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS;
   const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
-  if (!raw || !relayDir) return;
-
-  let specs: ResolvedToolSpec[] = [];
-  try {
-    specs = JSON.parse(raw);
-  } catch (err) {
-    log(`bad AGENTA_AGENT_TOOLS_PUBLIC_SPECS: ${(err as Error).message}`);
-    return;
-  }
+  if (!relayDir) return;
+  const loaded = loadPublicToolSpecs();
+  if (!loaded) return;
+  const specs = loaded.specs;
 
   let registered = 0;
   for (const spec of specs) {
@@ -352,13 +405,14 @@ function registerTools(pi: ExtensionAPI): void {
     } as any);
     registered += 1;
   }
-  log(`registered ${registered} tool(s) -> relay ${relayDir}`);
+  log(
+    `registered ${registered} tool(s) from ${loaded.route} -> relay ${relayDir}`,
+  );
 }
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
 const factory = (pi: ExtensionAPI): void => {
-  const modelProviderOverrideRaw =
-    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+  const modelProviderOverrideRaw = process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
   const modelProviderOverride =
     modelProviderOverrideRaw === undefined
       ? undefined
@@ -369,7 +423,11 @@ const factory = (pi: ExtensionAPI): void => {
     process.env.TRACEPARENT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
   );
   const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
-  const hasTools = !!(process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS && relayDir);
+  const hasTools = !!(
+    (process.env[PUBLIC_SPECS_FILE_ENV] ||
+      process.env[LEGACY_PUBLIC_SPECS_ENV]) &&
+    relayDir
+  );
   const hasBuiltinActivation = isTruthyFlag(
     process.env.AGENTA_AGENT_BUILTIN_ACTIVATION,
   );

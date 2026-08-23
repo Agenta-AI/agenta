@@ -1,11 +1,10 @@
+import {analyticsToDashboard} from "@agenta/observability"
 import {describe, expect, it} from "vitest"
-
-import {analyticsToGeneration} from "./helpers"
 
 const TRACE_TYPE_PATH = "attributes.ag.type.trace"
 const ERRORS_PATH = "attributes.ag.metrics.errors.cumulative"
 
-describe("analyticsToGeneration", () => {
+describe("analyticsToDashboard", () => {
     it("reports the failure rate as a percentage", () => {
         const analytics = {
             buckets: [
@@ -19,7 +18,7 @@ describe("analyticsToGeneration", () => {
             ],
         }
 
-        const result = analyticsToGeneration(analytics, "24_hours")
+        const result = analyticsToDashboard(analytics, "24_hours")
 
         expect(result.failure_rate).toBeCloseTo(16.67, 2)
     })

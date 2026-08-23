@@ -1,17 +1,21 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
-import {SearchInput, Segmented, Switch} from "@agenta/ui/ui"
+import {
+    SearchInput,
+    Segmented,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Switch,
+} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {Tip} from "../assets/Tip"
 
-/**
- * The session filter CONTROLS — each binds to `useSessionFilters`, so every surface narrows the
- * same set. Shells stay per-surface: a toolbar row and a mobile filter sheet are two shells over
- * these same controls, which is why no shell markup lives here. The agent picker is not among
- * them — it stays an app-injected slot (`EntityPicker`/antd `Select` are out of scope).
- */
+/** The session filter CONTROLS, each bound to `useSessionFilters`; shells stay per-surface. */
 
 /** Applied filter writes are debounced; every keystroke would otherwise refetch both lists. */
 const SEARCH_DEBOUNCE_MS = 300
@@ -91,6 +95,112 @@ export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) =>
                 {value: "waiting", label: waitingCount ? `Waiting ${waitingCount}` : "Waiting"},
             ]}
         />
+    )
+}
+
+const STATUSES: {value: SessionStatusFilter; label: string}[] = [
+    {value: "all", label: "All sessions"},
+    {value: "live", label: "Live"},
+    {value: "waiting", label: "Waiting on you"},
+]
+
+/** The status choice as a list, for a rail or a mobile sheet; the toolbar uses
+ * {@link SessionStatusControl}. */
+export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}) => {
+    const {status, setStatus} = useSessionFilters()
+    return (
+        // Styling alone doesn't reach AT: the group is named, and each option states its state.
+        <div className="flex flex-col gap-0.5" role="group" aria-label="Filter sessions by status">
+            {STATUSES.map((option) => (
+                <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={option.value === status}
+                    onClick={() => setStatus(option.value)}
+                    className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
+                        option.value === status
+                            ? "bg-colorFillSecondary text-colorText"
+                            : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                    }`}
+                >
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {option.value === "waiting" && waitingCount ? (
+                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                            {waitingCount}
+                        </span>
+                    ) : null}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/**
+ * The same status choice as one horizontal strip — for a bar shell, where a stacked list would
+ * cost the results their screen. Scrolls sideways rather than wrapping, so the row keeps its height.
+ */
+export const SessionStatusChipsControl = ({
+    waitingCount,
+    className,
+}: {
+    waitingCount?: number
+    className?: string
+}) => {
+    const {status, setStatus} = useSessionFilters()
+    return (
+        <div
+            role="group"
+            aria-label="Filter sessions by status"
+            className={`flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                className ?? ""
+            }`}
+        >
+            {STATUSES.map((option) => (
+                <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStatus(option.value)}
+                    aria-pressed={option.value === status}
+                    className={`box-border flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border-0 px-3 py-1.5 text-sm leading-tight transition-colors ${
+                        option.value === status
+                            ? "bg-colorFillSecondary text-colorText"
+                            : "bg-colorFillQuaternary text-colorTextSecondary"
+                    }`}
+                >
+                    {option.label}
+                    {option.value === "waiting" && waitingCount ? (
+                        <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                            {waitingCount}
+                        </span>
+                    ) : null}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+const ALL_AGENTS = "__all__"
+
+/** The agent picker on the kit Select; the roster comes from the host (each app resolves it). */
+export const SessionAgentControl = ({agents}: {agents: {id: string; name: string}[]}) => {
+    const {agentId, setAgentId} = useSessionFilters()
+    return (
+        <Select
+            value={agentId ?? ALL_AGENTS}
+            onValueChange={(value) => setAgentId(value === ALL_AGENTS ? null : value)}
+        >
+            <SelectTrigger className="w-full">
+                <SelectValue placeholder="All agents" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value={ALL_AGENTS}>All agents</SelectItem>
+                {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }
 

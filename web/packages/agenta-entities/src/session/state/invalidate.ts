@@ -1,4 +1,4 @@
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 /**
  * Refetch every session-list query, wherever it is nested.
@@ -11,7 +11,20 @@ import {queryClient} from "@agenta/shared/api"
  * sidebar/mobile queries (session-stream, liveness, pins, …) that don't carry the token.
  */
 export function invalidateSessionListQueries(): void {
-    void queryClient.invalidateQueries({
+    void getHostQueryClient().invalidateQueries({
         predicate: (query) => query.queryKey.includes("session-list"),
+    })
+}
+
+/**
+ * Refetch every session-liveness query, wherever it is nested.
+ *
+ * Same nesting problem as the lists: the desktop keys `["session-liveness", "alive", projectId]`
+ * and `/m` keys `["mobile", "session-liveness", projectId]`, so a prefix match on
+ * `["session-liveness"]` reaches the desktop ONLY. A token match reaches both.
+ */
+export function invalidateSessionLivenessQueries(): void {
+    void getHostQueryClient().invalidateQueries({
+        predicate: (query) => query.queryKey.includes("session-liveness"),
     })
 }

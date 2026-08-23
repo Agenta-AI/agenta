@@ -2,6 +2,7 @@ import {useMemo, useRef, type RefObject} from "react"
 
 import type {TableProps} from "antd/es/table"
 
+import {DOM_SELECTOR} from "../tableDom"
 import {shallowEqual} from "../utils/columnUtils"
 
 interface UseScrollConfigOptions<RecordType> {
@@ -50,7 +51,7 @@ const useScrollConfig = <RecordType>({
         const headerHeight =
             (typeof tableHeaderHeight === "number" && Number.isFinite(tableHeaderHeight)
                 ? tableHeaderHeight
-                : (containerRef.current?.querySelector(".ant-table-thead") as HTMLElement | null)
+                : (containerRef.current?.querySelector(DOM_SELECTOR.header) as HTMLElement | null)
                       ?.offsetHeight) ?? null
 
         const computedY = Math.max((containerHeight ?? 0) - (headerHeight ?? 0), 0)

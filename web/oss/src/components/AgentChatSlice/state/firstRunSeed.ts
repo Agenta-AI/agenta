@@ -1,15 +1,16 @@
 import {atom} from "jotai"
 
 /**
- * First-run seed for a freshly-created agent: the composer text (or a template's seed message) set at
- * create time and consumed once by the agent chat on the new app's playground — pre-fills the composer
- * so the user lands ready to send. A single slot (only one create→navigate is in flight at a time);
- * both ids are carried so the chat can match whether it mounts on the revision id or the app id.
+ * First-run seeds: composer text (or a template's seed message) set at create time and consumed by
+ * the agent chat on the target playground — surfaced in the empty state and auto-sent when armed.
+ * A LIST, not a single slot: rapid back-to-back creates used to overwrite the previous seed before
+ * its playground consumed it, silently losing the earlier message (#6042). Each entry stays parked
+ * until the conversation that owns it actually dispatches (or claims) it.
  */
 export interface AgentFirstRunSeed {
     appId: string
     /** The session this message belongs to, minted by the composer alongside
-     * `pendingSessionOpenAtom.newSessionId`. Without it the seed goes to whichever session is active
+     * `PendingSessionOpen.newSessionId`. Without it the seed goes to whichever session is active
      * and looks empty on arrival — the PREVIOUS one, if it mounts before the new one is created. */
     sessionId?: string
     /** Known only when the agent was just created. Starting a conversation with an EXISTING agent
@@ -30,4 +31,22 @@ export interface AgentFirstRunSeed {
     seedFiles?: File[]
 }
 
-export const agentFirstRunSeedAtom = atom<AgentFirstRunSeed | null>(null)
+export const agentFirstRunSeedsAtom = atom<AgentFirstRunSeed[]>([])
+
+/** Park a seed. Replaces an existing entry for the same session (a re-send of the same handoff),
+ * never an entry for a DIFFERENT session — that overwrite was the message-loss bug. */
+export const addFirstRunSeedAtom = atom(null, (get, set, seed: AgentFirstRunSeed) => {
+    const rest = seed.sessionId
+        ? get(agentFirstRunSeedsAtom).filter((s) => s.sessionId !== seed.sessionId)
+        : get(agentFirstRunSeedsAtom)
+    set(agentFirstRunSeedsAtom, [...rest, seed])
+})
+
+/** Drop one parked seed (dispatched, claimed, or its navigation failed). Identity-based so two
+ * seeds with equal text can't shadow each other. */
+export const removeFirstRunSeedAtom = atom(null, (get, set, seed: AgentFirstRunSeed) => {
+    set(
+        agentFirstRunSeedsAtom,
+        get(agentFirstRunSeedsAtom).filter((s) => s !== seed),
+    )
+})

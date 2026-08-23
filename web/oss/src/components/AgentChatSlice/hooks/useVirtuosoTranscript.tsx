@@ -93,6 +93,11 @@ export const useVirtuosoTranscript = ({
     // reserve it explicitly on the active-turn Footer — that's what lets a sent question pin to the top.
     const virtRoRef = useRef<ResizeObserver | null>(null)
     const [virtViewportH, setVirtViewportH] = useState(0)
+    // One-shot restore clamp: `restoreStateFrom` puts back the PREVIOUS scrollTop verbatim, so a
+    // session that was left with its last message hugging the bottom edge restores exactly there —
+    // and any end-of-conversation clearance added below is off-screen by construction. If the
+    // restored position is near the end, settle to TRUE bottom so the clearance is actually shown.
+    const restoreClampedRef = useRef(false)
     const setVirtScroller = useCallback((el: HTMLElement | Window | null) => {
         virtRoRef.current?.disconnect()
         const node = el instanceof HTMLElement ? el : null
@@ -101,6 +106,18 @@ export const useVirtuosoTranscript = ({
         const ro = new ResizeObserver(() => setVirtViewportH(node.clientHeight))
         ro.observe(node)
         virtRoRef.current = ro
+        if (!restoreClampedRef.current) {
+            restoreClampedRef.current = true
+            // Two frames: let Virtuoso apply the restored state / first measurement first.
+            requestAnimationFrame(() =>
+                requestAnimationFrame(() => {
+                    const gap = node.scrollHeight - node.scrollTop - node.clientHeight
+                    if (gap > 0 && gap < 320) {
+                        virtuosoRef.current?.scrollTo({top: 1e9, behavior: "auto"})
+                    }
+                }),
+            )
+        }
     }, [])
     useEffect(
         () => () => {

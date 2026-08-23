@@ -8,14 +8,14 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
-import {buildAgentRequest} from "@agenta/playground"
+import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-vi.mock("@agenta/playground", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@agenta/playground")>()
+vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
     return {
         ...actual,
         buildAgentRequest: vi.fn(
@@ -28,9 +28,13 @@ vi.mock("@agenta/playground", async (importOriginal) => {
     }
 })
 
-vi.mock("@agenta/entities/session", async () => {
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
+    // Spread the real module: the fresh-session registry lives here now and these tests drive it
+    // directly (`markSessionFresh`), so a mock that only lists the atoms below would drop it.
+    const actual = await importOriginal<typeof import("@agenta/entities/session")>()
     return {
+        ...actual,
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
         // The hydration seam's records fetch: "no server history" for these tests.
@@ -86,6 +90,13 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
 beforeEach(() => {
     fetchMock.mockReset()
     vi.mocked(buildAgentRequest).mockClear()
+    // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
+    // `mockClear` keeps the implementation.
+    vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+        invocationUrl: "https://agent.test/invoke",
+        headers: {Accept: "text/event-stream", "content-type": "application/json"},
+        requestBody: {session_id: opts?.sessionId},
+    }))
 })
 
 describe("useAgentConversation", () => {
@@ -222,6 +233,50 @@ describe("useAgentConversation", () => {
         await waitFor(() => expect(result.current.isHydrating).toBe(false), {timeout: 5000})
         expect(result.current.historyUnavailable).toBe(true)
         expect(result.current.isEmpty).toBe(true)
+    })
+
+    // M3: the first message to a NEWLY created agent failed with "no invocation URL". The
+    // workflow entity carrying that URL is still being fetched when the hand-off fires the
+    // stashed first message, and this builder returns null until it lands. Failing on the first
+    // null made a new user's first action fail; the desktop bounded the same build in #6042.
+    it("waits out a workflow whose invocation URL has not loaded yet, instead of failing the send", async () => {
+        fetchMock.mockResolvedValue(streamResponse("Hello back"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+
+        // Null twice — the entity fetch lands on the third build, ~600ms in.
+        let builds = 0
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => {
+            builds += 1
+            if (builds < 3) return null
+            return {
+                invocationUrl: "https://agent.test/invoke",
+                headers: {Accept: "text/event-stream", "content-type": "application/json"},
+                requestBody: {session_id: opts?.sessionId},
+            }
+        })
+
+        const {result} = mount(store, "rev-1", sessionId)
+        await act(async () => {
+            await result.current.send({text: "my first message"})
+        })
+
+        await waitFor(
+            () => {
+                expect(result.current.status).toBe("ready")
+                expect(result.current.messages).toHaveLength(2)
+            },
+            {timeout: 5000},
+        )
+        // The build was retried rather than failed on the first null.
+        expect(builds).toBeGreaterThanOrEqual(3)
+        // The turn answered rather than carrying the missing-URL error.
+        await waitFor(() => {
+            expect(result.current.turns[1].status.hasAnswer).toBe(true)
+            expect(result.current.turns[1].status.isError).toBe(false)
+        })
+        expect(result.current.runStatus).toBe("idle")
     })
 
     it("stamps a stream failure onto the turn and reports the parsed error", async () => {

@@ -11,7 +11,7 @@ import Image from "@theme/IdealImage";
 On a self-hosted deployment, an agent can use your existing harness login instead of a model API key. Mount the login in the runner, then select it on the agent.
 
 :::warning This needs a self-hosted deployment
-In Agenta Cloud the `Self-managed` credential card is marked `Unavailable in the cloud`, and the option cannot be used. A subscription authenticates the harness through a login file mounted into your runner, which only exists on a deployment you run yourself. See the [self-hosting quick start](/self-host/quick-start).
+Agenta Cloud cannot use a subscription. A subscription authenticates the harness through a login file mounted into your runner, which only exists on a deployment you run yourself. See the [self-hosting quick start](/self-host/quick-start).
 :::
 
 ## 1. Mount your login into the runner
@@ -26,24 +26,22 @@ Which login you need depends on the harness the agent uses:
 | `Pi` | Your Pi login, which also covers signing in with ChatGPT |
 | `Codex` | Your ChatGPT/Codex login. The runner reads it from `CODEX_HOME`, pointed at a read-write mount of your `~/.codex` |
 
-## 2. Match the harness on the agent
+## 2. Select the subscription on the agent
 
-In the agent, set `Playground mode` to `Build`, open `Model & harness` in the `Configuration` column, and click `Detailed configuration`. In the `Harness` section, select the harness whose login you mounted, and pick a model it supports in the `Model` section. See [Choose a harness and model](/guides/choose-a-harness-and-model).
+A subscription is picked the same way as any other model, so there is no separate credential step.
 
-## 3. Switch the credential to Subscription
-
-In the same dialog, open `Provider credentials` and select `Subscription`. Choose `Self-managed`. The harness reads the credential from its environment, and Agenta does not store or inject a key.
+Open the `Model` section in the agent's `Configuration` column and click the model combobox. Mounted subscriptions appear in the picker's left column alongside your API-key connections, each tagged `Subscription`. Click the one whose login you mounted, then click a model row under the harness that login belongs to. That sets the model, the harness, and the subscription in one go.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/credentials-subscription.png")}
-  alt="The Subscription credential mode showing the Self-managed card and its Unavailable in the cloud pill"
+  img={require("/images/agents/agenta-model-picker-wide.png")}
+  alt="The model picker with a Claude subscription connection selected and tagged Subscription, and its Sonnet, Haiku and Fable models listed under the Claude Code harness heading"
   loading="lazy"
 />
 
-Click `Save`.
+If the subscription is not listed, open `Manage model providers` at the foot of the picker and look under `Subscriptions`. See [Choose a harness and model](/guides/choose-a-harness-and-model).
 
-## 4. Keep the run local
+## 3. Keep the run local
 
 The login lives in the runner container, so the agent has to run there. Open `Advanced`, then `Execution environment`, and set `Sandbox` to `Local`. A Daytona sandbox never receives the login and cannot authenticate with it.
 
@@ -51,6 +49,6 @@ The login lives in the runner container, so the agent has to run there. Open `Ad
 Every local run can read the files mounted into the runner, including this login. Use a subscription only on a deployment you run for yourself. See [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 :::
 
-## 5. Commit
+## 4. Commit
 
 Click `Commit` in the `Configuration` header so deployments and triggers run the version that uses the subscription.

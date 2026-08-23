@@ -64,6 +64,7 @@ services:
             - ../../../web/ee/public:/app/ee/public
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
+            - ../../../web/oss/scripts:/app/oss/scripts
             - ../../../web/packages:/app/packages
             - nextjs-ee-cache:/app/ee/.next/cache
             - nextjs-oss-cache:/app/oss/.next/cache
@@ -94,7 +95,7 @@ services:
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
         # Same dev-sandbox env mirroring as the web service (see comment there).
-        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-false}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -109,6 +110,7 @@ services:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
             AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
+            AGENTA_MOBILE_REVERSE_GATE: ${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network

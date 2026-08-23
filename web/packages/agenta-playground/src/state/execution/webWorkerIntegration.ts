@@ -25,6 +25,7 @@ import {
 } from "../helpers/entityInputContract"
 
 import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
+import {executionHeadersAtom} from "./executionHeaders"
 import {handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
@@ -84,22 +85,9 @@ function getSharedConcurrencyLimiter(concurrency: number): <T>(fn: () => Promise
 // INJECTABLE AUTH HEADERS
 // ============================================================================
 
-/**
- * Injectable function that returns auth headers for worker HTTP requests.
- *
- * OSS sets this once in AppGlobalWrappers with a function
- * that calls `getJWT()` and returns `{Authorization: \`Bearer ${jwt}\`}`.
- *
- * @example
- * ```ts
- * import { getJWT } from "@/oss/services/api"
- * store.set(executionHeadersAtom, async () => {
- *     const jwt = await getJWT()
- *     return jwt ? { Authorization: `Bearer ${jwt}` } : {}
- * })
- * ```
- */
-export const executionHeadersAtom = atom<(() => Promise<Record<string, string>>) | null>(null)
+// The atom lives in its own leaf module (see executionHeaders.ts) so the lean agent-chat
+// entry can read it without dragging this runner graph; re-exported here for existing callers.
+export {executionHeadersAtom} from "./executionHeaders"
 
 interface ExecutionWorkerBridge {
     postMessageToWorker: (message: unknown) => void

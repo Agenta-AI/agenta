@@ -47,6 +47,10 @@ from oss.src.dbs.postgres.triggers.mappings import (
     map_subscription_dto_to_dbe_create,
     map_subscription_dto_to_dbe_edit,
 )
+from oss.src.dbs.postgres.triggers.upsert_utils import (
+    build_trigger_delivery_conflict,
+    build_trigger_delivery_values,
+)
 
 log = get_module_logger(__name__)
 
@@ -396,27 +400,10 @@ class TriggersDAO(TriggersDAOInterface):
         )
 
         by_schedule = delivery.subscription_id is None
-
-        index_elements = (
-            ["project_id", "schedule_id", "event_id"]
-            if by_schedule
-            else ["project_id", "subscription_id", "event_id"]
-        )
-        index_where = (
-            TriggerDeliveryDBE.schedule_id.isnot(None)
-            if by_schedule
-            else TriggerDeliveryDBE.subscription_id.isnot(None)
-        )
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
 
         async with self.engine.session() as session:
-            values = {
-                c.name: getattr(delivery_dbe, c.name)
-                for c in TriggerDeliveryDBE.__table__.columns
-                if not (
-                    c.name in ("id", "created_at", "updated_at", "deleted_at")
-                    and getattr(delivery_dbe, c.name) is None
-                )
-            }
+            values = build_trigger_delivery_values(delivery_dbe)
 
             stmt = insert(TriggerDeliveryDBE).values(**values)
             stmt = stmt.on_conflict_do_update(
@@ -461,14 +448,8 @@ class TriggersDAO(TriggersDAOInterface):
             user_id=user_id,
             delivery=delivery,
         )
-        values = {
-            column.name: getattr(delivery_dbe, column.name)
-            for column in TriggerDeliveryDBE.__table__.columns
-            if not (
-                column.name in ("id", "created_at", "updated_at", "deleted_at")
-                and getattr(delivery_dbe, column.name) is None
-            )
-        }
+        values = build_trigger_delivery_values(delivery_dbe)
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule=False)
         live_subscription = (
             select(TriggerSubscriptionDBE.id)
             .where(
@@ -500,8 +481,8 @@ class TriggersDAO(TriggersDAOInterface):
             ).select_from(live_subscription),
         )
         stmt = stmt.on_conflict_do_update(
-            index_elements=["project_id", "subscription_id", "event_id"],
-            index_where=TriggerDeliveryDBE.subscription_id.isnot(None),
+            index_elements=index_elements,
+            index_where=index_where,
             set_={
                 "status": stmt.excluded.status,
                 # Merge, not replace (P2-4): two redeliveries racing `dedup_seen` can

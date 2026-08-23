@@ -1213,11 +1213,16 @@ class MountsConfig(BaseModel):
     """Mounts-domain config. Store credentials live in StoreConfig."""
 
     # Lifetime of signed mount credentials, in seconds. The store backends clamp it to their
-    # own STS bounds.
+    # own STS bounds. The default is 43200 (12h) because that is SeaweedFS's maxSessionLength
+    # ceiling (AWS GetFederationToken accepts up to 129600), and because it must stay ABOVE the
+    # runner's default total run deadline (11h, DEFAULT_TOTAL_DEADLINE_MS in run-limits.ts) plus
+    # its 60s lease skew: the runner only reuses a warm sandbox when the lease covers
+    # `now + deadline + skew`, so a TTL at or below the deadline forces every mount-backed
+    # session to rebuild cold.
     credentials_ttl_seconds: int = Field(
         default_factory=lambda: (
             _parse_optional_positive_int_env("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS")
-            or 3600
+            or 43200
         )
     )
 

@@ -84,3 +84,17 @@ export const revalidateSessionInteractionsAtom = atom(null, (get, _set, sessionI
         {cancelRefetch: false},
     )
 })
+
+/** A row whose lifecycle has ended; `pending` is the only other value the API returns. */
+const isTerminalRow = (row: SessionInteractionRowState): boolean =>
+    row.status === "responded" || row.status === "resolved" || row.status === "cancelled"
+
+/**
+ * Is any interaction still waiting on the user? Feeds `shouldAdoptServerTranscript`'s
+ * `awaitingUser` guard (#5942) — positive evidence of a parked card, rather than the client
+ * failing to recognise one.
+ */
+export const hasWaitingInteraction = (rows: SessionInteractionRowStates | undefined): boolean => {
+    for (const row of rows?.values() ?? []) if (!isTerminalRow(row)) return true
+    return false
+}

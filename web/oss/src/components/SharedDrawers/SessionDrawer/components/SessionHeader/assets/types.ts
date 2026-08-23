@@ -1,11 +1,11 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {SortResult} from "@/oss/components/Filters/Sort"
+import {SortResult, TraceTabTypes} from "@agenta/observability"
+import {_AgentaRootsResponse, TracesWithAnnotations} from "@agenta/observability/dto"
+
 import {Filter} from "@/oss/lib/Types"
-import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {QueryValue} from "@/oss/state/appState/types"
-import {TraceTabTypes} from "@/oss/state/newObservability/atoms/controls"
 
 export interface SessionHeaderProps {
     // Original props (ObservabilityDashboard)

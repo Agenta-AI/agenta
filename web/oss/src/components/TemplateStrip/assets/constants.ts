@@ -13,5 +13,14 @@ export const STRIP_COPY = {
         "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything.",
 } as const
 
-/** Owner-specified key (matches the design prototype; intentionally not "agenta:"-prefixed). */
-export const STRIP_HIDDEN_STORAGE_KEY = "agenta-tpl-strip-hidden"
+/** Owner-specified install command (differs from the flag-off IDE_INSTALL_COMMAND on purpose). */
+export const CODING_AGENT_INSTALL = "npx skills add Agenta-AI/agenta-skills"
+
+/**
+ * `agenta:`-prefixed, like every other key this app writes. The prototype's unprefixed name was
+ * not a reason to opt out of the convention; the cost of the change is that anyone who had
+ * hidden the strip sees it once more.
+ */
+export const STRIP_HIDDEN_STORAGE_KEY = "agenta:templates:strip-hidden"
+
+export const TOAST_DISMISS_MS = 2600

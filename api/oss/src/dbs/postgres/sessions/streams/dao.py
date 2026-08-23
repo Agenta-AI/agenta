@@ -72,7 +72,10 @@ from oss.src.dbs.postgres.triggers.dbes import (
     TriggerScheduleDBE,
     TriggerSubscriptionDBE,
 )
-
+from oss.src.dbs.postgres.triggers.upsert_utils import (
+    build_trigger_delivery_conflict,
+    build_trigger_delivery_values,
+)
 
 _UUID_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
@@ -137,16 +140,10 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "status": claim_status.model_dump(mode="json", exclude_none=True),
             "data": {"session_id": session_id},
         }
-        index_elements = (
-            ["project_id", "schedule_id", "event_id"]
-            if by_schedule
-            else ["project_id", "subscription_id", "event_id"]
-        )
-        index_where = (
-            TriggerDeliveryDBE.schedule_id.isnot(None)
-            if by_schedule
-            else TriggerDeliveryDBE.subscription_id.isnot(None)
-        )
+        # Normalize/filter columns to the real table and reuse the shared conflict
+        # target builder so all call sites stay in parity.
+        delivery_values = build_trigger_delivery_values(delivery_values)
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
         parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
         active_flags = (
             {"is_active": True}

@@ -17,13 +17,24 @@
  */
 import { describe, it, afterEach } from "vitest";
 import assert from "node:assert/strict";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import { acquireEnvironment } from "../../src/engines/sandbox_agent.ts";
-import { PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import {
+  PI_AGENT_DIR_UNWRITABLE_MESSAGE,
+  PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
+  PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
+} from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const MISSING_BUNDLE = join(tmpdir(), "agenta-missing-extension-bundle.js");
@@ -81,6 +92,65 @@ describe("acquireEnvironment fail-closed on a missing Pi permission extension", 
     // install was correctly treated as harmless under an allow-everything policy.
     assert.match(result.error, new RegExp(SENTINEL));
     assert.notEqual(result.error, PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+  });
+
+  it("surfaces mount writability before a custom-endpoint extension failure", async () => {
+    forceFailedInstall();
+
+    const mount = mkdtempSync(join(tmpdir(), "agenta-pi-subscription-mount-"));
+    const authFile = join(mount, "auth.json");
+    const sessionsDir = join(mount, "sessions");
+    writeFileSync(authFile, "{\"token\":\"live\"}", "utf-8");
+    mkdirSync(sessionsDir);
+    chmodSync(sessionsDir, 0o755);
+    chmodSync(authFile, 0o444);
+    chmodSync(mount, 0o555);
+
+    const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = mount;
+    resetRunnerConfigCache();
+
+    try {
+      const result = await acquireEnvironment(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "hello" }],
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            endpoint: { baseUrl: "https://proxy.example.test/v1" },
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+          permissions: { default: "allow" },
+        } as AgentRunRequest,
+        {},
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      if (typeof process.getuid === "function" && process.getuid() === 0) {
+        // root bypasses the mount mode bits, so only the forced extension failure is observable.
+        assert.equal(
+          result.error,
+          PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
+        );
+        return;
+      }
+      assert.equal(result.error, PI_AGENT_DIR_UNWRITABLE_MESSAGE);
+      assert.notEqual(
+        result.error,
+        PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
+      );
+    } finally {
+      if (previousPiAgentDir === undefined)
+        delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previousPiAgentDir;
+      resetRunnerConfigCache();
+      chmodSync(mount, 0o755);
+      chmodSync(authFile, 0o644);
+      rmSync(mount, { recursive: true, force: true });
+    }
   });
 });
 

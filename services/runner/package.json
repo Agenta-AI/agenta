@@ -39,7 +39,7 @@
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
     "sandbox-agent": "0.4.2",
-    "undici": "8.3.0"
+    "undici": "8.9.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -61,6 +61,17 @@
       "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
       "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
       "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
+    },
+    "overrides": {
+      "@hono/node-server": "1.19.15",
+      "brace-expansion": "5.0.9",
+      "fast-uri": "3.1.5",
+      "hono": "4.12.34",
+      "ip-address": "10.3.1",
+      "postcss": "8.5.23",
+      "protobufjs": "7.6.5",
+      "shell-quote": "1.9.0",
+      "tar": "7.5.21"
     }
   }
 }

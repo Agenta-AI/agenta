@@ -1,6 +1,6 @@
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-import {isEE} from "@/oss/lib/helpers/isEE"
+import {isEE} from "@agenta/shared/api"
 
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 const TURNSTILE_AUTH_PATHS = new Set([
     "/api/auth/signin",
     "/api/auth/signup",
