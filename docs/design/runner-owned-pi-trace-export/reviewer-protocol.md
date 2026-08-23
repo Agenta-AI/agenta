@@ -1,7 +1,7 @@
 # Reviewer protocol: runner-owned Pi trace export
 
 Use this protocol to review the implementation PR. The PR targets
-`release/v0.114.0` and depends on:
+`release/v0.114.0`. Its merged prerequisites are:
 
 - #6217 for refreshed platform credentials at the runner export boundary.
 - #6218 for preserving Secret token timing and authentication errors.
@@ -70,6 +70,7 @@ Read:
 
 - `src/engines/sandbox_agent/run-turn.ts`
 - `src/engines/sandbox_agent/pi-assets.ts`
+- `src/engines/sandbox_agent/harness-trace-port.ts`
 - `src/redaction.ts`
 
 Verify these invariants:
@@ -77,9 +78,14 @@ Verify these invariants:
 - The Pi control file contains capture policy, propagation, skills, known
   redaction values, and a random channel ID.
 - It contains no OTLP endpoint and no authorization value.
-- Runner and mount credentials are included in known-value redaction.
+- Model environment values and mount credentials already visible inside the sandbox are included
+  in known-value redaction. The runner OTLP authorization is excluded.
 - The control file is published atomically and consumed once per turn.
 - A warm Pi session resets its tracer and usage state before the next turn.
+- Generic `runTurn` calls only the harness tracing port lifecycle. It must not know about
+  channel filenames, telemetry hosts, or Pi control payloads.
+- The default adapter keeps runner-created spans for ordinary harnesses. The Pi adapter owns
+  native-span spool setup, finalization, cancellation, and fallback.
 
 ### 3. Local and Daytona adapters
 
@@ -114,9 +120,11 @@ Read:
 - `src/engines/sandbox_agent/environment.ts`
 - `src/engines/sandbox_agent/run-turn.ts`
 
-Verify that Agenta ingest reads the current platform authorization immediately
-before export. A third-party collector must keep its configured exporter
-authorization and must never receive the platform token.
+- `src/engines/sandbox_agent/harness-trace-port.ts`
+- `src/sessions/auth.ts`
+  Verify that Agenta ingest reads the current platform authorization immediately
+  before export. A third-party collector must keep its configured exporter
+  authorization and must never receive the platform token.
 
 Trace finalization must cover normal completion, cancellation, an approval
 pause, approval resume, and parked-environment eviction. A resumed approval must
@@ -125,13 +133,19 @@ Pi produced no valid batch, and the fallback callback must be idempotent.
 
 Run:
 
+Session-owned and standalone turns must use the same proactive platform credential lease. A
+failed refresh keeps the last usable value. A third-party collector header must never create a
+platform lease or enter permission and session API calls.
+
 ```bash
 cd services/runner
 pnpm exec vitest run --project unit \
   tests/unit/otel-bytes-export.test.ts \
   tests/unit/pi-trace-turn-export.test.ts \
   tests/unit/sandbox-agent-orchestration.test.ts \
-  tests/unit/session-keepalive-approval.test.ts
+  tests/unit/session-keepalive-approval.test.ts \
+  tests/unit/credential-refresh.test.ts \
+  tests/unit/server.test.ts
 ```
 
 ### 5. Review-fix invariants
@@ -183,11 +197,15 @@ pnpm run test:unit
 pnpm run build:extension
 ```
 
-The focused review-fix suite passed 152 tests. The full implementation run passed
-138 unit files: 2,282 tests passed and 7 existing tests remained marked as
-expected failures. Typecheck and the extension build also passed.
+The final full implementation run passed 139 unit files and all 2,300 tests. Typecheck and the
+extension build also passed. The focused credential, session, trace, orchestration, and server
+suite passed 137 tests.
 
-## Live acceptance
+## Pre-merge live acceptance
+
+The live evidence below was captured before the final port extraction. That extraction is
+behavior-preserving and covered by the full unit suite, but the release claim remains provisional
+until the same gate is rerun against the combined post-merge release SHA.
 
 Drive `/services/agent/v0/invoke` once with `pi_core` and `sandbox=local`, then
 once with `pi_core` and `sandbox=daytona`. For each run:
@@ -214,4 +232,24 @@ spans each carry the same `$0.0023065` cumulative total, while only the actual
 model-bearing spans carry it incrementally. This proves the runner export and
 the stored cost roll-up agree without double-counting.
 
-The release gate passed P2 and P2b on the local sandbox and P3 on Daytona. The
+The release gate passed P2 and P2b on the local sandbox and P3 on Daytona. The post-merge gate
+must repeat those cells before preview deployment.
+
+## Rollback protocol
+
+No database migration or persisted custom trace format is involved. Raw spool files are standard
+OTLP protobuf and are swept on turn teardown.
+
+Before merge, undo layers in reverse dependency order:
+
+1. Revert `1f78090822` to remove only the harness tracing port extraction.
+2. Revert `da83e2b80b` to remove the shared standalone credential lease and third-party-header
+   isolation.
+3. Revert the remaining #6223 commits to restore ACP/runner tracing for Pi.
+
+After merge, prefer reverting the #6223 merge commit as one unit. The runner and its bundled Pi
+extension cut over atomically; do not deploy a new runner with an old extension or the reverse.
+#6217 and #6218 are independent correctness fixes and do not need to be rolled back with #6223.
+
+After any rollback or redeploy, rerun P2, P2b, and P3. Confirm that non-Pi runner traces still
+export and that no stale Pi spool file is attributed to the next turn.
