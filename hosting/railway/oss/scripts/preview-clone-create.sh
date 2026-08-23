@@ -250,6 +250,33 @@ apply_ci_auth_key() {
     printf "CI auth key applied to every service that consumes it.\n"
 }
 
+# A write-only vault connection can be resolved only by the trusted platform
+# runtime. Give API and Services one ephemeral shared proof before deploy; do
+# not reuse the admin key and do not expose this proof to any other service.
+# CI may provide a stable value, but disposable previews need no stored secret.
+apply_ci_runtime_key() {
+    local runtime_key="${AGENTA_SERVICES_INTERNAL_KEY:-}"
+    if [ -z "$runtime_key" ]; then
+        command -v openssl >/dev/null 2>&1 || {
+            printf "missing required command: openssl\n" >&2
+            return 1
+        }
+        runtime_key="$(openssl rand -hex 32)" || return 1
+    fi
+
+    local svc svc_id
+    for svc in api services; do
+        svc_id="$(clone_service_id "$svc")"
+        [ -n "$svc_id" ] || return 1
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$runtime_key" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_SERVICES_INTERNAL_KEY: $v}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI runtime key applied to API and Services.\n"
+}
+
 clone_service_id() {
     jq -r --arg n "$1" \
         '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .serviceId' \
@@ -572,6 +599,7 @@ main() {
         fi
         wait_clone_populated || die "environment '$ENV_NAME' never fully materialized"
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
+        apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render
