@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import {
     describeCron,
@@ -7,11 +7,14 @@ import {
     useTriggerSchedules,
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
+import {nowTickAtom} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {PanelSection} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {LightningIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
+import {SectionLoadError} from "./SectionLoadError"
 import {Tip} from "./Tip"
 
 const LIST_SIZE = 5
@@ -69,13 +72,9 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
         error: subscriptionsError,
         refetch: refetchSubscriptions,
     } = useTriggerSubscriptions()
-
-    // A minute clock: the queries don't poll, so without it a passed run keeps showing as "next".
-    const [now, setNow] = useState(() => new Date())
-    useEffect(() => {
-        const interval = setInterval(() => setNow(new Date()), 60_000)
-        return () => clearInterval(interval)
-    }, [])
+    // The shared minute clock: a projected next-run time that never re-computes freezes and ends
+    // up in the past.
+    const nowTick = useAtomValue(nowTickAtom)
 
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
@@ -94,7 +93,7 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
             )
             .map((schedule, index) => {
                 const expression = schedule.data?.schedule ?? ""
-                const [next] = nextCronRuns(expression, 1, now)
+                const [next] = nextCronRuns(expression, 1)
                 const cadence = describeCron(expression)
                 const agent = describeAgent(schedule.data?.references)
                 return {
@@ -149,10 +148,15 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                 return 0
             })
             .slice(0, LIST_SIZE)
-    }, [schedules, subscriptions, agentNames, agentId, now])
+        // nowTick is a dep on purpose: it is what re-projects the next runs each minute.
+    }, [schedules, subscriptions, agentNames, agentId, nowTick])
 
     const isLoading = schedulesLoading || subscriptionsLoading
-    const error = schedulesError ?? subscriptionsError
+    const hasError = Boolean(schedulesError || subscriptionsError)
+    const retry = useCallback(() => {
+        if (schedulesError) void refetchSchedules()
+        if (subscriptionsError) void refetchSubscriptions()
+    }, [schedulesError, subscriptionsError, refetchSchedules, refetchSubscriptions])
 
     return (
         <PanelSection title="Next triggers">
@@ -161,21 +165,8 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                     <SkeletonBlock active className="h-4 w-3/4" />
                     <SkeletonBlock active className="h-4 w-1/2" />
                 </div>
-            ) : error && rows.length === 0 ? (
-                // A failed fetch must not read as "nothing scheduled" — that claim is false.
-                <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
-                    Couldn't load triggers.{" "}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void refetchSchedules()
-                            void refetchSubscriptions()
-                        }}
-                        className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextSecondary underline"
-                    >
-                        Retry
-                    </button>
-                </p>
+            ) : hasError ? (
+                <SectionLoadError message="Couldn't load triggers." onRetry={retry} />
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {agentId

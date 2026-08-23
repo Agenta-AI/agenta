@@ -1,6 +1,6 @@
 import React from "react"
 
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TracesWithAnnotations} from "@agenta/observability/dto"
 
 export interface SessionTreeProps {
     activeTrace?: TracesWithAnnotations

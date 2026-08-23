@@ -1,24 +1,23 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {RailField} from "@agenta/entity-ui/drawers/shared"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {FileText, Lightning, PlugsConnected, Wrench} from "@phosphor-icons/react"
 import {Button, Input, Tag, Typography} from "antd"
 
-import type {AgentTemplate} from "../../assets/templates"
-
 import IntegrationRow from "./IntegrationRow"
 import ModelRow from "./ModelRow"
 import ToolsPreview from "./ToolsPreview"
 
 export interface TemplateSetupResult {
-    template: AgentTemplate
+    template: AgentStarterTemplate
     name: string
 }
 
 interface TemplateSetupDrawerProps {
-    template: AgentTemplate | null
+    template: AgentStarterTemplate | null
     open: boolean
     onClose: () => void
     /** Persist + open the playground. Model is Agenta-managed (Ready); integrations may be skipped. */

@@ -1,7 +1,4 @@
-import {
-    templateProviderSlugs,
-    type AgentTemplate,
-} from "@/oss/components/pages/agent-home/assets/templates"
+import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 
 import IntegrationBadges from "./IntegrationBadges"
 
@@ -17,9 +14,9 @@ const StripRow = ({
     selected,
     onPick,
 }: {
-    template: AgentTemplate
+    template: AgentStarterTemplate
     selected: boolean
-    onPick: (template: AgentTemplate) => void
+    onPick: (template: AgentStarterTemplate) => void
 }) => (
     <button
         type="button"

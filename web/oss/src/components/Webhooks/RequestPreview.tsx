@@ -1,13 +1,13 @@
 import {type FC, ReactNode, useMemo, useState} from "react"
 
+import {editingWebhookAtom} from "@agenta/entities/webhook"
+import {WebhookFormValues} from "@agenta/entities/webhook"
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, Form, FormInstance, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
-import {WebhookFormValues} from "@/oss/services/webhooks/types"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
-import {editingWebhookAtom} from "@/oss/state/webhooks/state"
 
 import {buildPreviewRequest} from "./utils/buildPreviewRequest"
 

@@ -54,3 +54,18 @@ export const partToolName = (part: ToolUIPart): string => {
     }
     return type.replace(/^tool-/, "")
 }
+
+/** Assistant message id → its 1-based turn number (records/turns align 1:1 with the assistant
+ * messages — one per `done`). Built once per message set: the per-message scan it replaces was
+ * O(n) inside a render loop, so the transcript paid O(n²) on every streamed commit. */
+export const assistantTurnNumbers = (messages: UIMessage[]): Map<string, number> => {
+    const turns = new Map<string, number>()
+    let n = 0
+    for (const m of messages) {
+        if (m.role === "assistant") {
+            n += 1
+            turns.set(m.id, n)
+        }
+    }
+    return turns
+}

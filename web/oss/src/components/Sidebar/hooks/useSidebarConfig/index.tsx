@@ -1,6 +1,14 @@
 import {useMemo} from "react"
 
 import {
+    AGENTS_SIDEBAR_KEY,
+    EVALUATORS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    TESTSETS_SIDEBAR_KEY,
+} from "@agenta/navigation"
+import {SidebarConfig} from "@agenta/navigation"
+import {HOME_SIDEBAR_KEY, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {
     ChartLineUpIcon,
     DesktopIcon,
     FlaskIcon,
@@ -26,17 +34,9 @@ import {
 } from "@/oss/state/onboarding"
 
 import {
-    AGENTS_SIDEBAR_KEY,
-    EVALUATORS_SIDEBAR_KEY,
-    PROMPTS_SIDEBAR_KEY,
-    TESTSETS_SIDEBAR_KEY,
-} from "../../dynamic/registry"
-import {
     injectDynamicChildren,
     useSidebarDynamicChildren,
 } from "../../dynamic/useSidebarDynamicChildren"
-import {SidebarConfig} from "../../engine/types"
-import {HOME_SIDEBAR_KEY, SESSIONS_SIDEBAR_KEY} from "../../scopes/constants"
 
 export interface MainSidebarItems {
     projectItems: SidebarConfig[]

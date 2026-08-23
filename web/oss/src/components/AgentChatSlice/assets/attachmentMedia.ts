@@ -1,16 +1,11 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {attachmentContentUrl} from "@agenta/chat/assets"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-
-export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
-    const params = new URLSearchParams({session_id: sessionId})
-    return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
-}
 
 export async function fetchAttachmentBlob({
     sessionId,

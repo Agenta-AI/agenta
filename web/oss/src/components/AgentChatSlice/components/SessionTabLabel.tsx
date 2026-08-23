@@ -1,6 +1,6 @@
 import {useCallback, useImperativeHandle, useState, type Ref} from "react"
 
-import {Input} from "antd"
+import {Input} from "@agenta/ui/ui"
 
 export interface SessionTabLabelHandle {
     /** Enter rename mode programmatically (e.g. from a tab's pencil action). */
@@ -58,15 +58,15 @@ const SessionTabLabel = ({
         return (
             <Input
                 autoFocus
-                variant="borderless"
+                variant="ghost"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                onPressEnter={commit}
                 onBlur={commit}
                 onFocus={(e) => e.target.select()}
                 onClick={(e) => e.stopPropagation()}
                 // Keep typing (Space/Enter) inside the rename input; don't let it reach the tab.
                 onKeyDown={(e) => {
+                    if (e.key === "Enter") commit()
                     if (e.key === "Escape") {
                         setDraft(label)
                         setEditing(false)
@@ -77,7 +77,7 @@ const SessionTabLabel = ({
                 // width overflowing the chip), same 12px type, subtle inset well instead of
                 // antd's bordered box + primary focus ring. h-6 is the tallest that still fits
                 // inside the h-7 tab chip.
-                className="!h-6 !w-full !min-w-0 flex-1 !rounded !border !border-solid !border-[var(--ag-surface-inset-border)] !bg-[var(--ag-surface-inset)] !px-1.5 !py-0 !text-xs !text-colorText !shadow-none"
+                className="h-6 w-full min-w-0 flex-1 rounded border border-solid border-[var(--ag-surface-inset-border)] bg-[var(--ag-surface-inset)] px-1.5 py-0 text-xs text-colorText shadow-none"
             />
         )
     }

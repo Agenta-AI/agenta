@@ -1,21 +1,21 @@
 import {useCallback, useMemo} from "react"
 
+import {clearLastSsoOrgSlug, readLastSsoOrgSlug, writeLastAuthMethod} from "@agenta/auth"
+import {fetchAllOrgsList} from "@agenta/entities/organization"
+import {isEE} from "@agenta/shared/api"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
-import {isEE} from "@/oss/lib/helpers/isEE"
 import {
     isNewUserAtom,
     navSimplifiedDefaultAtom,
     onboardingStorageUserIdAtom,
 } from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -56,7 +56,6 @@ const usePostAuthRedirect = () => {
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
-    const lastSsoOrgSlugKey = "lastSsoOrgSlug"
     const setIsNewUser = useSetAtom(isNewUserAtom)
     const setNavSimplifiedDefault = useSetAtom(navSimplifiedDefaultAtom)
     const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
@@ -218,10 +217,7 @@ const usePostAuthRedirect = () => {
 
                 // Get session identities to filter orgs by auth method compatibility
                 let sessionIdentities: string[] = []
-                let lastSsoSlug =
-                    typeof window !== "undefined"
-                        ? window.localStorage.getItem(lastSsoOrgSlugKey)
-                        : null
+                let lastSsoSlug = readLastSsoOrgSlug()
 
                 try {
                     const payload = await Session.getAccessTokenPayloadSecurely()
@@ -232,9 +228,7 @@ const usePostAuthRedirect = () => {
                         : null
                     if (!ssoIdentity) {
                         // Social/email logins should not reuse a stale SSO target from storage.
-                        if (typeof window !== "undefined") {
-                            window.localStorage.removeItem(lastSsoOrgSlugKey)
-                        }
+                        clearLastSsoOrgSlug()
                         lastSsoSlug = null
                     } else if (!lastSsoSlug) {
                         const [, orgSlug] = ssoIdentity.split(":")
@@ -266,13 +260,13 @@ const usePostAuthRedirect = () => {
                         // If we just completed an SSO flow, prefer the SSO org over Personal.
                         // This avoids a brief redirect to Personal that can trigger
                         // "requires email/social" when the session only has sso:*.
-                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        clearLastSsoOrgSlug()
                         await router.replace(await orgWorkspacePath(match.id))
                         return
                     }
                     if (match?.id && !match.flags?.allow_sso) {
                         // SSO succeeded but the org is not SSO-enabled: sign out and return to /auth.
-                        window.localStorage.removeItem(lastSsoOrgSlugKey)
+                        clearLastSsoOrgSlug()
                         const query = new URLSearchParams({
                             auth_error: "sso_denied",
                             auth_message:

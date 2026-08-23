@@ -8,12 +8,12 @@
  */
 import {act, createElement, useRef} from "react"
 
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import type {SessionTabLabelHandle} from "../components/SessionTabLabel"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {AgentChatScopeProvider} from "../state/scope"
 import {renameSessionRequestAtom} from "../state/uiRequests"
 

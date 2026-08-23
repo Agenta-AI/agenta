@@ -1,14 +1,11 @@
 import {useMemo} from "react"
 
+import {fieldConfigByOptionKey, type FieldConfig} from "@agenta/observability"
+import {getOperator} from "@agenta/observability"
+import {getFilterColumns} from "@agenta/observability"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {
-    fieldConfigByOptionKey,
-    type FieldConfig,
-} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
-import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
-import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import type {Filter, FilterConditions, FilterValue} from "@/oss/lib/Types"
 
 import type {QueryFilteringPayload} from "../../../../../services/onlineEvaluations/api"

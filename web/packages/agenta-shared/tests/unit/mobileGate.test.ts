@@ -347,6 +347,45 @@ describe("decideMobileGate", () => {
             decideMobileGate(input({pathname: "/auth", headers: docHeaders(DESKTOP_UA)})),
         ).toEqual({kind: "redirect", location: "/auth"})
     })
+    it("passes desktop UAs when only the reverse gate is disabled", () => {
+        expect(
+            decideMobileGate(
+                input({
+                    reverseGateEnabled: false,
+                    pathname: "/w/ws1/p/pr1/sessions",
+                    headers: docHeaders(DESKTOP_UA),
+                }),
+            ),
+        ).toEqual({kind: "pass"})
+    })
+    it("reverse gate off does not touch the forward gate", () => {
+        expect(
+            decideDesktopGate(
+                input({
+                    reverseGateEnabled: false,
+                    pathname: "/w/ws1/p/pr1/observability",
+                    headers: docHeaders(MOBILE_UA),
+                }),
+            ),
+        ).toEqual({kind: "redirect", location: "/m/w/ws1/p/pr1/sessions"})
+    })
+    it("still sets the opt-in cookie with the reverse gate off", () => {
+        expect(
+            decideMobileGate(
+                input({
+                    reverseGateEnabled: false,
+                    pathname: "/",
+                    search: "?view=mobile",
+                    headers: docHeaders(DESKTOP_UA),
+                }),
+            ),
+        ).toEqual({
+            kind: "set-cookie-redirect",
+            cookie: MOBILE_OPTIN_COOKIE,
+            clearCookie: MOBILE_OPTOUT_COOKIE,
+            location: "/",
+        })
+    })
     it("sets the opt-in cookie and strips the reserved param on ?view=mobile", () => {
         expect(
             decideMobileGate(

@@ -1,5 +1,8 @@
 import {memo, useState} from "react"
 
+import {fileKind, filePartName} from "@agenta/chat/assets"
+import type {QueuedMessage} from "@agenta/chat/hooks"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {
     CaretDown,
     CaretUp,
@@ -10,12 +13,6 @@ import {
     X,
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
-import {Popover, Typography} from "antd"
-
-import {fileKind, filePartName} from "../assets/files"
-import type {QueuedMessage} from "../hooks/useAgentChatQueue"
-
-const {Text} = Typography
 
 /** One attachment tile: image thumbnail, else a type icon. */
 const Attachment = ({part}: {part: FileUIPart}) => {
@@ -58,9 +55,9 @@ const QueuedList = ({
 }) => (
     <div className="w-[300px] max-w-[80vw]">
         <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5">
-            <Text type="secondary" className="!text-xs uppercase tracking-wide">
+            <span className="text-xs uppercase tracking-wide text-colorTextSecondary">
                 {held ? "Held until you answer the agent" : "Queued — sent one by one"}
-            </Text>
+            </span>
             <button
                 type="button"
                 onClick={onClear}
@@ -135,29 +132,24 @@ const QueuedMessages = ({
     const [open, setOpen] = useState(false)
     if (queued.length === 0) return null
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger="click"
-            placement="topLeft"
-            arrow={false}
-            styles={{content: {padding: 0}}}
-            content={
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}${
+                        held ? ", held until you respond to the agent" : ""
+                    }`}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
+                >
+                    <Stack size={13} />
+                    {queued.length} queued
+                    {held ? <span className="text-colorTextTertiary">· waiting on you</span> : null}
+                    {open ? <CaretDown size={10} /> : <CaretUp size={10} />}
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" side="top" className="p-0">
                 <QueuedList queued={queued} held={held} onRemove={onRemove} onClear={onClear} />
-            }
-        >
-            <button
-                type="button"
-                aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}${
-                    held ? ", held until you respond to the agent" : ""
-                }`}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
-            >
-                <Stack size={13} />
-                {queued.length} queued
-                {held ? <span className="text-colorTextTertiary">· waiting on you</span> : null}
-                {open ? <CaretDown size={10} /> : <CaretUp size={10} />}
-            </button>
+            </PopoverContent>
         </Popover>
     )
 }

@@ -45,6 +45,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+            - AGENTA_MOBILE_REVERSE_GATE=${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

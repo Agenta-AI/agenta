@@ -10,6 +10,7 @@ import {
     useState,
 } from "react"
 
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
 import {
     hasPendingHydrationAtomFamily,
@@ -25,7 +26,6 @@ import {
     activeSessionIdAtomFamily,
     adoptScopeSessionsAtom,
     resetScopeAtomFamily,
-    sessionStatusAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 import {ONBOARDING_SESSION_DEFAULT, onboardingSessionAtom} from "@/oss/state/onboarding"
 import {urlAtom} from "@/oss/state/url"
