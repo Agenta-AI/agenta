@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
@@ -42,15 +40,6 @@ import {
   INTERRUPTED_BY_USER,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../tracing/otel.ts";
-import { createPiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
-import {
-  PI_TRACE_CONTROL_VERSION,
-  type PiTurnTraceControl,
-} from "../../tracing/pi-spool-protocol.ts";
-import {
-  localTelemetryFileHost,
-  sandboxTelemetryFileHost,
-} from "../../tracing/telemetry-file-host.ts";
 import {
   attachPermissionResponder,
   buildGateDescriptor,
@@ -61,6 +50,7 @@ import {
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
+import { createHarnessTracePort } from "./harness-trace-port.ts";
 import {
   attachmentCapabilityGate,
   buildPromptBlocks,
@@ -169,54 +159,12 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
-  const cancelPiHarnessBeforeTraceDrain = async (): Promise<void> => {
-    if (!plan.isPi || env.sessionDestroyRequested) return;
-    env.mcpAbort.abort();
-    env.sessionDestroyRequested = true;
-    try {
-      await env.sandbox.destroySession?.(env.session.id);
-    } catch (error) {
-      logger(
-        "stage=pi_trace_cancel failed=true error=" +
-          (error instanceof Error ? error.message : String(error)),
-      );
-    }
-  };
-  const finishPiTrace = async (): Promise<number> => {
-    if (!plan.isPi) return 0;
-    const traceExport = env.piTraceExport;
-    if (!traceExport) return 0;
-    traceExport.updatePlatformAuthorization(otlpTarget.authorization);
-    try {
-      return (await traceExport.finish()).pickedUpBatches;
-    } catch (error) {
-      logger(
-        "stage=pi_trace_spool_finish failed=true error=" +
-          (error instanceof Error ? error.message : String(error)),
-      );
-      return 0;
-    }
-  };
-  let piMissingBatchFallbackEmitted = false;
-  const emitPiMissingBatchFallback = async (message: string): Promise<void> => {
-    const traceExport = env.piTraceExport;
-    if (traceExport) {
-      try {
-        await traceExport.emitMissingBatchFallback(message);
-      } catch (error) {
-        logger(
-          "stage=pi_trace_fallback failed=true error=" +
-            (error instanceof Error ? error.message : String(error)),
-        );
-      }
-      return;
-    }
-    if (piMissingBatchFallbackEmitted) return;
-    piMissingBatchFallbackEmitted = true;
-    otel?.recordError(message, request.modelConnection?.provider);
-    await otel?.flush();
-    logger("stage=pi_trace_missing_batch diagnostic=true");
-  };
+  const harnessTrace = createHarnessTracePort({
+    env,
+    request: () => request,
+    target: otlpTarget,
+    resume: !!opts.resume,
+  });
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
   // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
@@ -348,7 +296,7 @@ export async function runTurn(
       // but still transit runner memory) plus the mount's STS pair — none of which lives in the
       // sidecar's process env.
       redactor: runRedactor,
-      emitSpans: !plan.isPi,
+      emitSpans: harnessTrace.runnerEmitsSpans,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
@@ -364,81 +312,8 @@ export async function runTurn(
         { role: "user", content: promptText },
       ],
     });
-
-    if (plan.isPi) {
-      const exportContext = {
-        endpoint: otlpTarget.endpoint,
-        authorization: otlpTarget.authorization,
-        authorizationSource: otlpTarget.authorizationSource,
-        redactor: runRedactor,
-        traceId: run.traceId(),
-        placement: plan.isDaytona ? ("daytona" as const) : ("local" as const),
-        turnId: request.turnId?.trim() || undefined,
-        onMissingBatch: async (message: string) => {
-          run.recordError(message, request.modelConnection?.provider);
-          await run.flush();
-          logger("stage=pi_trace_missing_batch diagnostic=true");
-        },
-      };
-      if (opts.resume) {
-        // This is still the original Pi prompt. Keep its channel and target. Only the platform
-        // credential may rotate; an external collector keeps the original exporter header.
-        env.piTraceExport?.updatePlatformAuthorization(
-          otlpTarget.authorization,
-        );
-      } else {
-        await env.piTraceExport?.teardown().catch(() => {});
-        const host = plan.isDaytona
-          ? sandboxTelemetryFileHost(env.sandbox)
-          : localTelemetryFileHost();
-        // The usage path is stable across warm turns. Remove the preceding turn value before
-        // Pi starts, so a missing write can never be mistaken for current usage.
-        if (plan.workspace.usageOutPath) {
-          await host.remove(plan.workspace.usageOutPath).catch(() => {});
-        }
-        const channelId = randomBytes(16).toString("hex");
-        const traceExport = createPiTraceTurnExport({
-          host,
-          dir: plan.workspace.telemetryDir,
-          channelId,
-          context: exportContext,
-          log: logger,
-        });
-        env.piTraceExport = traceExport;
-        const control: PiTurnTraceControl = {
-          version: PI_TRACE_CONTROL_VERSION,
-          channelId,
-          turnId: request.turnId?.trim() || undefined,
-          sessionId: sessionId || undefined,
-          propagation: {
-            traceparent: request.context?.propagation?.traceparent,
-            baggage: request.context?.propagation?.baggage,
-          },
-          capture: {
-            content: request.telemetry?.capture?.content?.enabled !== false,
-          },
-          skills: plan.workspace.skillDirs.map((skill) => skill.name),
-          // Only values visible inside the sandbox cross this boundary. In particular, the
-          // runner OTLP authorization never enters the control file.
-          redaction: {
-            knownValues: [
-              ...new Set(
-                [
-                  ...Object.values(request.modelConnection?.environment ?? {}),
-                  ...sandboxVisibleSecretValues(env),
-                ].filter((value): value is string => !!value),
-              ),
-            ],
-          },
-        };
-        if (!(await traceExport.publishControl(control))) {
-          logger("stage=pi_trace_control tracing_disabled=true");
-        }
-      }
-    }
-    const resultTraceId = plan.isPi
-      ? (env.piTraceExport?.traceId() ?? run.traceId())
-      : run.traceId();
+    await harnessTrace.start(run, runRedactor);
+    const resultTraceId = harnessTrace.traceId(run);
 
     let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
     if (!opts.resume) {
@@ -1279,7 +1154,7 @@ export async function runTurn(
       // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
       // before draining; the outer environment teardown would otherwise cancel Pi only after the
       // spool had already timed out and then sweep the late batch.
-      await cancelPiHarnessBeforeTraceDrain();
+      await harnessTrace.cancelBeforeDrain();
     }
     logger(`prompt stopReason=${stopReason}`);
 
@@ -1291,8 +1166,9 @@ export async function runTurn(
       streamUsage: run.usage(),
     });
     run.setUsage(usage);
-    const piPickedUpTraceBatches =
-      plan.isPi && stopReason !== "paused" ? await finishPiTrace() : undefined;
+    const traceFinish =
+      stopReason !== "paused" ? await harnessTrace.finish() : undefined;
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
     const swallowedPiError =
       plan.isPi &&
@@ -1314,10 +1190,8 @@ export async function runTurn(
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
-    if (piPickedUpTraceBatches === 0 && !swallowedError) {
-      await emitPiMissingBatchFallback(
-        "Pi did not publish a valid trace batch before the turn ended",
-      );
+    if (nativeTraceBatches === 0 && !swallowedError) {
+      await harnessTrace.emitMissingBatchFallback(run);
     }
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
@@ -1390,14 +1264,15 @@ export async function runTurn(
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
-    await cancelPiHarnessBeforeTraceDrain();
-    const piPickedUpTraceBatches = plan.isPi ? await finishPiTrace() : 0;
+    await harnessTrace.cancelBeforeDrain();
+    const traceFinish = await harnessTrace.finish();
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
     // A valid native Pi batch already carries the harness failure. Otherwise preserve the
     // runner-owned error and usage fallback under the caller trace context.
-    if (!plan.isPi) {
+    if (harnessTrace.runnerEmitsSpans) {
       otel?.recordError(error, request.modelConnection?.provider);
-    } else if (piPickedUpTraceBatches === 0) {
-      await emitPiMissingBatchFallback(error);
+    } else if (nativeTraceBatches === 0) {
+      await harnessTrace.emitMissingBatchFallback(otel, error);
     }
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
