@@ -19,12 +19,17 @@ interface ExportContext {
   onMissingBatch?: (message: string) => void | Promise<void>;
 }
 
+export interface PiTraceTurnExportResult {
+  pickedUpBatches: number;
+  exportedBatches: number;
+}
+
 export interface PiTraceTurnExport {
   publishControl(control: PiTurnTraceControl): Promise<boolean>;
   updatePlatformAuthorization(authorization: AuthorizationProvider): void;
   traceId(): string | undefined;
   emitMissingBatchFallback(message: string): Promise<void>;
-  finish(): Promise<{ validBatches: number }>;
+  finish(): Promise<PiTraceTurnExportResult>;
   teardown(): Promise<void>;
 }
 
@@ -39,6 +44,7 @@ export function createPiTraceTurnExport(options: {
   let authorization = context.authorization;
   let closed = false;
   let fallbackEmitted = false;
+  let finalization: Promise<PiTraceTurnExportResult> | undefined;
   let consumer: PiTraceSpoolConsumer;
   const createdAtMs = Date.now();
 
@@ -82,13 +88,23 @@ export function createPiTraceTurnExport(options: {
           " status=" +
           (outcome.status || "<none>"),
       );
+      return outcome.outcome === "exported";
     },
   });
 
+  const finalize = (): Promise<PiTraceTurnExportResult> => {
+    if (!finalization) {
+      closed = true;
+      finalization = consumer.teardown().then((result) => ({
+        pickedUpBatches: result.accepted,
+        exportedBatches: result.exported,
+      }));
+    }
+    return finalization;
+  };
+
   const teardown = async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    await consumer.teardown();
+    await finalize();
   };
 
   return {
@@ -105,15 +121,7 @@ export function createPiTraceTurnExport(options: {
       fallbackEmitted = true;
       await context.onMissingBatch?.(message);
     },
-    finish: async () => {
-      if (closed) return { validBatches: 0 };
-      try {
-        const result = await consumer.drain();
-        return { validBatches: result.forwarded };
-      } finally {
-        await teardown();
-      }
-    },
+    finish: finalize,
     teardown,
   };
 }

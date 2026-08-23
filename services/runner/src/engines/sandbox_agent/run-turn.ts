@@ -174,18 +174,31 @@ export async function runTurn(
     if (!plan.isPi) return 0;
     const traceExport = env.piTraceExport;
     if (!traceExport) return 0;
-    traceExport.updatePlatformAuthorization(credential);
+    traceExport.updatePlatformAuthorization(otlpTarget.authorization);
     try {
-      return (await traceExport.finish()).validBatches;
+      return (await traceExport.finish()).pickedUpBatches;
     } catch (error) {
       logger(
         "stage=pi_trace_spool_finish failed=true error=" +
           (error instanceof Error ? error.message : String(error)),
       );
       return 0;
-    } finally {
-      if (env.piTraceExport === traceExport) env.piTraceExport = undefined;
     }
+  };
+  const emitPiMissingBatchFallback = async (message: string): Promise<void> => {
+    const traceExport = env.piTraceExport;
+    if (traceExport) {
+      try {
+        await traceExport.emitMissingBatchFallback(message);
+      } catch (error) {
+        logger(
+          "stage=pi_trace_fallback failed=true error=" +
+            (error instanceof Error ? error.message : String(error)),
+        );
+      }
+      return;
+    }
+    otel?.recordError(message, request.modelConnection?.provider);
   };
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
@@ -352,7 +365,7 @@ export async function runTurn(
       if (opts.resume) {
         // This is still the original Pi prompt. Keep its channel and target. Only the platform
         // credential may rotate; an external collector keeps the original exporter header.
-        env.piTraceExport?.updatePlatformAuthorization(credential);
+        env.piTraceExport?.updatePlatformAuthorization(otlpTarget.authorization);
       } else {
         await env.piTraceExport?.teardown().catch(() => {});
         const host = plan.isDaytona
@@ -390,7 +403,10 @@ export async function runTurn(
           redaction: {
             knownValues: [
               ...new Set(
-                sandboxVisibleSecretValues(env).filter(
+                [
+                  ...Object.values(request.modelConnection?.environment ?? {}),
+                  ...sandboxVisibleSecretValues(env),
+                ].filter(
                   (value): value is string => !!value,
                 ),
               ),
@@ -1257,7 +1273,7 @@ export async function runTurn(
       streamUsage: run.usage(),
     });
     run.setUsage(usage);
-    const piValidTraceBatches =
+    const piPickedUpTraceBatches =
       plan.isPi && stopReason !== "paused" ? await finishPiTrace() : undefined;
 
     const swallowedPiError =
@@ -1280,10 +1296,9 @@ export async function runTurn(
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
-    if (piValidTraceBatches === 0 && !swallowedError) {
-      run.recordError(
+    if (piPickedUpTraceBatches === 0 && !swallowedError) {
+      await emitPiMissingBatchFallback(
         "Pi did not publish a valid trace batch before the turn ended",
-        request.modelConnection?.provider,
       );
     }
 
@@ -1358,11 +1373,13 @@ export async function runTurn(
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
     await cancelPiHarnessBeforeTraceDrain();
-    const piValidTraceBatches = plan.isPi ? await finishPiTrace() : 0;
+    const piPickedUpTraceBatches = plan.isPi ? await finishPiTrace() : 0;
     // A valid native Pi batch already carries the harness failure. Otherwise preserve the
     // runner-owned error and usage fallback under the caller trace context.
-    if (!plan.isPi || piValidTraceBatches === 0) {
+    if (!plan.isPi) {
       otel?.recordError(error, request.modelConnection?.provider);
+    } else if (piPickedUpTraceBatches === 0) {
+      await emitPiMissingBatchFallback(error);
     }
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.

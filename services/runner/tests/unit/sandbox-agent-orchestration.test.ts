@@ -436,7 +436,7 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(calls.otelOptions.authorization, credential);
+    assert.equal(typeof calls.otelOptions.authorization, "function");
     authorization = "Secret refreshed";
     assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
   });
@@ -480,6 +480,22 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(platform.authorization(), "Secret refreshed");
     assert.equal(collector.authorizationSource, "exporter");
     assert.equal(collector.authorization(), "Bearer collector-secret");
+
+    vi.stubEnv("AGENTA_CREDENTIALS", "Secret runner-fallback");
+    const headerless = resolveRunOtlpTarget(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: { endpoint: "https://api.agenta.test/api/otlp/v1/traces" },
+          },
+        },
+      },
+      () => "",
+    );
+    assert.equal(headerless.authorizationSource, "platform");
+    assert.equal(headerless.authorization(), "Secret runner-fallback");
   });
 
   it("delivers the current legacy inline image before one text block", async () => {
@@ -2135,7 +2151,18 @@ describe("runSandboxAgent orchestration", () => {
         assert.equal(typeof telemetryDir, "string");
         const control = JSON.parse(
           readFileSync(join(telemetryDir, PI_TRACE_CONTROL_FILE), "utf8"),
-        ) as { channelId: string };
+        ) as {
+          channelId: string;
+          redaction: { knownValues: string[] };
+        };
+        assert.equal(
+          control.redaction.knownValues.includes("model-env-visible-to-pi"),
+          true,
+        );
+        assert.equal(
+          control.redaction.knownValues.includes("Secret current"),
+          false,
+        );
         writeFileSync(
           join(telemetryDir, piTraceFileName(control.channelId, 0)),
           Buffer.from([10, 0, 255]),
@@ -2157,6 +2184,13 @@ describe("runSandboxAgent orchestration", () => {
         {
           harness: "pi_core",
           messages: [{ role: "user", content: "keep working" }],
+          modelConnection: {
+            provider: "openai",
+            deployment: "custom",
+            credentialMode: "none",
+            environment: { GATEWAY_AUTH: "model-env-visible-to-pi" },
+            credentials: [],
+          },
           telemetry: {
             exporters: {
               otlp: { headers: { authorization: "Secret current" } },

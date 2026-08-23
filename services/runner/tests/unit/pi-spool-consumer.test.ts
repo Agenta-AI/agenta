@@ -175,7 +175,12 @@ describe("createPiTraceSpoolConsumer", () => {
       { sequence: 10, bytes: [10] },
     ]);
     expect(maxActive).toBe(3);
-    expect(result).toMatchObject({ pickedUp: 3, forwarded: 2, oversized: 0 });
+    expect(result).toMatchObject({
+      pickedUp: 3,
+      accepted: 3,
+      exported: 2,
+      oversized: 0,
+    });
     expect(
       logs.some((line) =>
         line.includes("stage=pi_trace_spool_export sequence=2"),
@@ -191,13 +196,11 @@ describe("createPiTraceSpoolConsumer", () => {
     }
     expect(memory.files.has(spoolPath(OTHER_CHANNEL, 0))).toBe(true);
     expect(memory.files.has(`${spoolPath(CHANNEL, 3)}.tmp.partial`)).toBe(true);
-    expect(memory.files.has(join(DIR, `${CHANNEL}.02.otlp.pb`))).toBe(false);
-    expect(
-      logs.some(
-        (line) =>
-          line.includes("sequence=2") && line.includes("duplicate=true"),
-      ),
-    ).toBe(true);
+    const nonCanonical = join(DIR, `${CHANNEL}.02.otlp.pb`);
+    expect(memory.files.has(nonCanonical)).toBe(true);
+    expect(logs.some((line) => line.includes("duplicate=true"))).toBe(false);
+    await consumer.teardown();
+    expect(memory.files.has(nonCanonical)).toBe(false);
   });
 
   it("rejects an oversized stat without reading and rechecks the bytes after reading", async () => {
@@ -223,12 +226,43 @@ describe("createPiTraceSpoolConsumer", () => {
 
     const result = await consumer.drain();
 
-    expect(result).toMatchObject({ pickedUp: 2, forwarded: 0, oversized: 2 });
+    expect(result).toMatchObject({
+      pickedUp: 2,
+      accepted: 0,
+      exported: 0,
+      oversized: 2,
+    });
     expect(memory.operations).not.toContain(`read:${statOversized}`);
     expect(memory.operations).toContain(`read:${grewAfterStat}`);
     expect(forwarded).toEqual([]);
     expect(memory.files.has(statOversized)).toBe(false);
     expect(memory.files.has(grewAfterStat)).toBe(false);
+  });
+
+  it("rejects an empty file before export", async () => {
+    const memory = memoryHost();
+    const forwarded: PiTraceSpoolBatch[] = [];
+    const consumer = createPiTraceSpoolConsumer({
+      host: memory.host,
+      dir: DIR,
+      channelId: CHANNEL,
+      drainTimeoutMs: 0,
+      onBatch: async (batch) => {
+        forwarded.push(batch);
+      },
+    });
+    await consumer.ready;
+    memory.files.set(spoolPath(CHANNEL, 0), bytes());
+
+    const result = await consumer.teardown();
+
+    expect(result).toMatchObject({
+      pickedUp: 1,
+      accepted: 0,
+      exported: 0,
+      empty: 1,
+    });
+    expect(forwarded).toEqual([]);
   });
 
   it("bounds accepted files and leaves later files for teardown", async () => {
@@ -254,7 +288,8 @@ describe("createPiTraceSpoolConsumer", () => {
     expect(sequences).toEqual([0, 1]);
     expect(result).toMatchObject({
       pickedUp: 2,
-      forwarded: 2,
+      accepted: 2,
+      exported: 2,
       limitReached: true,
     });
     expect(memory.files.has(spoolPath(CHANNEL, 2))).toBe(true);
@@ -302,11 +337,15 @@ describe("createPiTraceSpoolConsumer", () => {
   it("teardown sweeps late telemetry residue, preserves unrelated files, and logs leftovers", async () => {
     const memory = memoryHost();
     const logs: string[] = [];
+    const sequences: number[] = [];
     const consumer = createPiTraceSpoolConsumer({
       host: memory.host,
       dir: DIR,
       channelId: CHANNEL,
-      onBatch: async () => {},
+      drainTimeoutMs: 0,
+      onBatch: async (batch) => {
+        sequences.push(batch.sequence);
+      },
       log: (message) => logs.push(message),
     });
     await consumer.ready;
@@ -314,7 +353,9 @@ describe("createPiTraceSpoolConsumer", () => {
     memory.files.set(join(DIR, PI_TRACE_CONTROL_FILE), bytes(2));
     memory.files.set(join(DIR, "keep.me"), bytes(3));
 
-    await consumer.teardown();
+    const result = await consumer.teardown();
+    expect(result).toMatchObject({ accepted: 1, exported: 1 });
+    expect(sequences).toEqual([0]);
 
     expect(memory.files.has(spoolPath(CHANNEL, 0))).toBe(false);
     expect(memory.files.has(join(DIR, PI_TRACE_CONTROL_FILE))).toBe(false);
@@ -323,7 +364,7 @@ describe("createPiTraceSpoolConsumer", () => {
       logs.some(
         (line) =>
           line.includes("phase=teardown") &&
-          line.includes("found=2") &&
+          line.includes("found=1") &&
           line.includes("leftovers=0"),
       ),
     ).toBe(true);

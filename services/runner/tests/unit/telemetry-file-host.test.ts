@@ -201,6 +201,62 @@ describe("sandboxTelemetryFileHost", () => {
     expect(processCalls.every((call) => call.timeoutMs === 10_000)).toBe(true);
   });
 
+  it("treats a missing Daytona telemetry directory as empty", async () => {
+    const calls: any[] = [];
+    const host = sandboxTelemetryFileHost({
+      mkdirFs: async () => ({ path: "/telemetry" }),
+      statFs: async () => {
+        throw new Error("missing");
+      },
+      runProcess: async (value: any) => {
+        calls.push(value);
+        return {
+          durationMs: 1,
+          exitCode: 0,
+          stderr: "",
+          stderrTruncated: false,
+          stdout: "",
+          stdoutTruncated: false,
+          timedOut: false,
+        };
+      },
+      writeFsFile: async () => ({ path: "/telemetry/file" }),
+      moveFs: async () => ({}),
+      deleteFsEntry: async () => ({}),
+    } as never);
+
+    await expect(host.list("/telemetry/missing", 10)).resolves.toEqual([]);
+    expect(calls[0].args[1]).toContain("if [ ! -d");
+  });
+
+  it("rejects an empty Daytona file instead of exporting an empty OTLP body", async () => {
+    const host = sandboxTelemetryFileHost({
+      mkdirFs: async () => ({ path: "/telemetry" }),
+      statFs: async () => ({
+        entryType: "file",
+        modified: null,
+        path: "/telemetry/batch.otlp.pb",
+        size: 1,
+      }),
+      runProcess: async () => ({
+        durationMs: 1,
+        exitCode: 0,
+        stderr: "",
+        stderrTruncated: false,
+        stdout: "",
+        stdoutTruncated: false,
+        timedOut: false,
+      }),
+      writeFsFile: async () => ({ path: "/telemetry/file" }),
+      moveFs: async () => ({}),
+      deleteFsEntry: async () => ({}),
+    } as never);
+
+    await expect(host.readBytes("/telemetry/batch.otlp.pb", 4)).rejects.toThrow(
+      "Telemetry file read returned no bytes",
+    );
+  });
+
   it("rejects a truncated Daytona process response", async () => {
     const host = sandboxTelemetryFileHost({
       mkdirFs: async () => ({ path: "/telemetry" }),

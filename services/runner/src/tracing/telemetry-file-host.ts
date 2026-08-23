@@ -115,7 +115,7 @@ export function sandboxTelemetryFileHost(
         command: "sh",
         args: [
           "-c",
-          'test -d "$1" && LC_ALL=C ls -1A -- "$1" | head -n "$2"',
+          'if [ ! -d "$1" ]; then exit 0; fi; LC_ALL=C ls -1A -- "$1" | head -n "$2"',
           "agenta-telemetry-list",
           dir,
           String(limit),
@@ -146,16 +146,15 @@ export function sandboxTelemetryFileHost(
     readBytes: async (path, maxBytes) => {
       const rawLimit = Math.max(1, Math.floor(maxBytes)) + 1;
       const encodedLimit = 4 * Math.ceil(rawLimit / 3) + 1024;
-      // sandbox-agent v0.4.2 readFsFile materializes the full remote file before returning.
-      // Limit the bytes inside the sandbox, then cap the process response as a second bound.
+      // The consumer checks stat size before this call. Cap the encoded process response too,
+      // so a file that grows between stat and read fails closed.
       const result = await sandbox.runProcess({
         command: "sh",
         args: [
           "-c",
-          'test -f "$1" && head -c "$2" -- "$1" | base64 | tr -d "\n"',
+          'if [ ! -f "$1" ]; then exit 44; fi; base64 "$1"',
           "agenta-telemetry-read",
           path,
-          String(rawLimit),
         ],
         maxOutputBytes: encodedLimit,
         timeoutMs: 10_000,
@@ -169,6 +168,9 @@ export function sandboxTelemetryFileHost(
         throw new Error("Telemetry file read exceeded its bound");
       }
       const bytes = Buffer.from(result.stdout, "base64");
+      if (bytes.byteLength === 0) {
+        throw new Error("Telemetry file read returned no bytes");
+      }
       if (bytes.byteLength > rawLimit) {
         throw new Error("Telemetry file read exceeded its bound");
       }

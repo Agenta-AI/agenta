@@ -55,11 +55,11 @@ export function createPiFileSpanExporter(
         piTraceFileName(options.channelId, sequence),
       );
       const temporaryPath = `${finalPath}.tmp.${randomBytes(8).toString("hex")}`;
-      sequence += 1;
       try {
         mkdirSync(options.directory, { recursive: true });
         writeFileSync(temporaryPath, batch.body, { mode: 0o600 });
         renameSync(temporaryPath, finalPath);
+        sequence += 1;
         log(
           `stage=pi_trace_publish sequence=${sequence - 1} bytes=${batch.body.byteLength} spans=${batch.spanCount}`,
         );
@@ -70,7 +70,7 @@ export function createPiFileSpanExporter(
           // best-effort temporary-file cleanup
         }
         log(
-          `stage=pi_trace_publish failed=true sequence=${sequence - 1} error=${
+          `stage=pi_trace_publish failed=true sequence=${sequence} error=${
             error instanceof Error ? error.message : String(error)
           }`,
         );

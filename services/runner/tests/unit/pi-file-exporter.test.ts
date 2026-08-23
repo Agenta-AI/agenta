@@ -1,10 +1,12 @@
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +40,41 @@ describe("createPiFileSpanExporter", () => {
     expect([...readFileSync(path)]).toEqual([0, 255, 7]);
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(readdirSync(directory)).toEqual([piTraceFileName(channelId, 0)]);
+  });
+
+  it("reuses the same sequence after a failed publication", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agenta-pi-traces-retry-"));
+    dirs.push(root);
+    const directory = join(root, "telemetry");
+    writeFileSync(directory, "blocks mkdir");
+    const logs: string[] = [];
+    const channelId = "e".repeat(32);
+    const exporter = createPiFileSpanExporter({
+      directory,
+      channelId,
+      maxFiles: 1,
+      log: (message) => logs.push(message),
+    });
+
+    await exporter.export({
+      body: Uint8Array.from([1]),
+      traceId: "f".repeat(32),
+      spanCount: 1,
+    });
+    rmSync(directory, { force: true });
+    mkdirSync(directory);
+    await exporter.export({
+      body: Uint8Array.from([2]),
+      traceId: "f".repeat(32),
+      spanCount: 1,
+    });
+
+    expect(readdirSync(directory)).toEqual([piTraceFileName(channelId, 0)]);
+    expect([
+      ...readFileSync(join(directory, piTraceFileName(channelId, 0))),
+    ]).toEqual([2]);
+    expect(logs.filter((line) => line.includes("sequence=0"))).toHaveLength(2);
+    expect(logs.some((line) => line.includes("reason=file_limit"))).toBe(false);
   });
 
   it("drops oversized and over-limit batches without exposing partial files", async () => {

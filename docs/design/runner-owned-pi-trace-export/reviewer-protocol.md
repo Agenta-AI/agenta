@@ -134,6 +134,45 @@ pnpm exec vitest run --project unit \
   tests/unit/session-keepalive-approval.test.ts
 ```
 
+### 5. Review-fix invariants
+
+Use these checks for the follow-up commit that addresses the first review round:
+
+- Call `finish()` twice and then call `teardown()`. The runner must perform one pickup,
+  one HTTP request, and return the same counts to every caller.
+- Read `pickedUpBatches` as the number of valid protobuf files accepted by the runner.
+  Read `exportedBatches` as the subset accepted by the collector. A 401 can reduce the
+  second count, but it must not create a missing-Pi fallback.
+- Confirm the control-file deny set includes `modelConnection.environment` values that
+  already enter the Pi process. It must still exclude the runner OTLP authorization.
+- For Agenta ingest, resolve a blank request authorization through the same live
+  `AGENTA_CREDENTIALS` fallback used by ordinary runner spans. Do not apply that
+  fallback to a third-party collector.
+- During finalization, drain the current channel before the bounded sweep. A valid late
+  batch must reach the export callback instead of being deleted as residue.
+- Treat a missing Daytona telemetry directory as an empty list. Reject a missing,
+  truncated, or zero-byte Daytona read before building an HTTP request.
+- Increment the Pi file sequence only after the atomic rename succeeds. Reject
+  non-canonical sequence spellings such as `02`; cleanup may remove them, but the
+  consumer must never forward them.
+- Keep parent-first ordering inside `serializeTraceBatch` for Pi. Apply the separate
+  ordering pass only to the ordinary HTTP exporter.
+
+Run the focused review-fix suite:
+
+```bash
+cd services/runner
+pnpm exec vitest run --project unit \
+  tests/unit/pi-file-exporter.test.ts \
+  tests/unit/pi-spool-consumer.test.ts \
+  tests/unit/pi-trace-turn-export.test.ts \
+  tests/unit/telemetry-file-host.test.ts \
+  tests/unit/sandbox-agent-orchestration.test.ts \
+  tests/unit/session-keepalive-approval.test.ts \
+  tests/unit/otel-trace-serialization.test.ts \
+  tests/unit/otel-trace-target-attribution.test.ts
+```
+
 ## Full validation
 
 Run from `services/runner`:
@@ -144,7 +183,7 @@ pnpm run test:unit
 pnpm run build:extension
 ```
 
-The implementation run passed 138 unit files: 2,276 tests passed and 7 existing
+The implementation run passed 138 unit files: 2,282 tests passed and 7 existing
 tests remained marked as expected failures. Typecheck and the extension build
 also passed.
 

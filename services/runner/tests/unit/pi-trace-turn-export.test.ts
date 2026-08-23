@@ -99,7 +99,17 @@ describe("createPiTraceTurnExport", () => {
     );
     credential = "ApiKey rotated";
 
-    await expect(turn.finish()).resolves.toEqual({ validBatches: 1 });
+    const firstFinish = turn.finish();
+    const secondFinish = turn.finish();
+    await expect(firstFinish).resolves.toEqual({
+      pickedUpBatches: 1,
+      exportedBatches: 1,
+    });
+    await expect(secondFinish).resolves.toEqual({
+      pickedUpBatches: 1,
+      exportedBatches: 1,
+    });
+    await turn.teardown();
     expect(requests).toEqual([
       { body: [10, 0, 255], authorization: "ApiKey rotated" },
     ]);
@@ -153,6 +163,43 @@ describe("createPiTraceTurnExport", () => {
     expect(authorizations).toEqual(["Bearer collector"]);
     expect(logs.join("\n")).toContain("source=pi-spool placement=daytona");
     expect(logs.join("\n")).toContain("bytes=3");
+  });
+
+  it("counts a valid pickup separately from a rejected HTTP export", async () => {
+    const memory = memoryHost();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 401 })),
+    );
+    const turn = createPiTraceTurnExport({
+      host: memory.host,
+      dir: DIR,
+      channelId: CHANNEL,
+      context: {
+        endpoint: "https://cloud.agenta.ai/api/otlp/v1/traces",
+        authorization: () => "Secret current",
+        authorizationSource: "platform",
+        placement: "local",
+        redactor: new Redactor({ mode: "known" }),
+      },
+    });
+    await turn.publishControl({
+      version: PI_TRACE_CONTROL_VERSION,
+      channelId: CHANNEL,
+      capture: { content: true },
+      skills: [],
+      redaction: { knownValues: [] },
+    });
+    await memory.host.remove(join(DIR, PI_TRACE_CONTROL_FILE));
+    memory.files.set(
+      join(DIR, piTraceFileName(CHANNEL, 0)),
+      Uint8Array.from([1]),
+    );
+
+    await expect(turn.finish()).resolves.toEqual({
+      pickedUpBatches: 1,
+      exportedBatches: 0,
+    });
   });
 
   it("exposes the original trace id and emits a missing-batch fallback once", async () => {

@@ -1844,7 +1844,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       updatePlatformAuthorization() {},
       traceId: () => "11111111111111111111111111111111",
       emitMissingBatchFallback: async () => {},
-      finish: async () => ({ validBatches: 1 }),
+      finish: async () => ({ pickedUpBatches: 1, exportedBatches: 1 }),
       teardown: async () => {},
     };
 
@@ -1890,7 +1890,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       },
       finish: async () => {
         journal.push("finish");
-        return { validBatches: 0 };
+        return { pickedUpBatches: 0, exportedBatches: 0 };
       },
       teardown: async () => {},
     };

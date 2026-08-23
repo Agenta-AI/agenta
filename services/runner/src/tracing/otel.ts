@@ -311,6 +311,19 @@ function defaultTarget(): HttpExportTarget {
   };
 }
 
+/** Add the runner's live platform credential as the fallback for a blank request credential. */
+export function platformAuthorizationProvider(
+  configured?: string | AuthorizationProvider,
+): AuthorizationProvider {
+  const configuredProvider =
+    typeof configured === "function" ? configured : () => configured;
+  const fallbackAuthorization = defaultTarget().authorization;
+  return () => {
+    const resolved = configuredProvider();
+    return resolved?.trim() ? resolved : fallbackAuthorization();
+  };
+}
+
 /** Resolve the trace endpoint exactly as the runner's ordinary span exporter does. */
 export function resolveOtlpTraceEndpoint(endpoint?: string): string {
   return endpoint?.trim() || defaultTarget().endpoint;
@@ -417,7 +430,6 @@ class TraceBatchProcessor implements SpanProcessor {
         // batch could still land on an unintended endpoint/auth.
         const target =
           (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
-        const ordered = orderParentFirst(group);
         if (target.kind === "serialized") {
           try {
             const body = serializeTraceBatch(group);
@@ -447,6 +459,7 @@ class TraceBatchProcessor implements SpanProcessor {
             return Promise.resolve();
           }
         }
+        const ordered = orderParentFirst(group);
         let resolvedTarget: ResolvedExportTarget;
         try {
           resolvedTarget = {
@@ -1449,23 +1462,9 @@ export function createSandboxAgentOtel(
   const capture = init.captureContent !== false;
   const emitSpans = init.emitSpans !== false;
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
-  const configuredAuthorization = init.authorization;
-  const configuredProvider: AuthorizationProvider | undefined =
-    typeof configuredAuthorization === "function"
-      ? configuredAuthorization
-      : configuredAuthorization !== undefined
-        ? () => configuredAuthorization
-        : undefined;
   // A run whose request carries no authorization header resolves to an empty value, not to
-  // `undefined` — the getter reads a header that may not be there. Treat empty as "unconfigured"
-  // so such a run still exports under the runner's own `AGENTA_CREDENTIALS`, and resolve the
-  // fallback at export time (not at construction) so a credential written after the run started
-  // still counts.
-  const fallbackAuthorization = defaultTarget().authorization;
-  const authorization: AuthorizationProvider = () => {
-    const resolved = configuredProvider?.();
-    return resolved?.trim() ? resolved : fallbackAuthorization();
-  };
+  // undefined. The shared provider keeps runner and Pi export behavior identical.
+  const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();

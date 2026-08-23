@@ -2,6 +2,7 @@ import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import {
   isAgentaIngest,
+  platformAuthorizationProvider,
   resolveOtlpTraceEndpoint,
   type AuthorizationProvider,
 } from "../../tracing/otel.ts";
@@ -39,7 +40,7 @@ export function resolveRunOtlpTarget(
   if (isAgentaIngest(endpoint)) {
     return {
       endpoint,
-      authorization: platformAuthorization,
+      authorization: platformAuthorizationProvider(platformAuthorization),
       authorizationSource: "platform",
     };
   }

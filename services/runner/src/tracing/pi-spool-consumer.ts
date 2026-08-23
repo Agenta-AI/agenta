@@ -28,8 +28,10 @@ export interface PiTraceSpoolBatch {
 
 export interface PiTraceSpoolDrainResult {
   pickedUp: number;
-  forwarded: number;
+  accepted: number;
+  exported: number;
   oversized: number;
+  empty: number;
   unreadControl: boolean;
   limitReached: boolean;
 }
@@ -42,14 +44,16 @@ export interface PiTraceSpoolConsumer {
   /** Pick up and forward every bounded current-channel batch available by the deadline. */
   drain: () => Promise<PiTraceSpoolDrainResult>;
   /** Remove telemetry-owned residue and report what was found. Never rejects. */
-  teardown: () => Promise<void>;
+  teardown: () => Promise<PiTraceSpoolDrainResult>;
 }
 
 export interface PiTraceSpoolConsumerOptions {
   host: TelemetryFileHost;
   dir: string;
   channelId: string;
-  onBatch: (batch: PiTraceSpoolBatch) => Promise<void> | void;
+  onBatch: (
+    batch: PiTraceSpoolBatch,
+  ) => Promise<boolean | void> | boolean | void;
   maxBatchBytes?: number;
   maxFiles?: number;
   drainTimeoutMs?: number;
@@ -165,7 +169,11 @@ function currentChannelSequence(
   const raw = name.slice(prefix.length, -PI_TRACE_FILE_SUFFIX.length);
   if (!/^\d+$/.test(raw)) return undefined;
   const sequence = Number(raw);
-  return Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : undefined;
+  return Number.isSafeInteger(sequence) &&
+    sequence >= 0 &&
+    raw === String(sequence)
+    ? sequence
+    : undefined;
 }
 
 function boundedInteger(
@@ -228,8 +236,10 @@ export function createPiTraceSpoolConsumer(
     await ready;
     const result: PiTraceSpoolDrainResult = {
       pickedUp: 0,
-      forwarded: 0,
+      accepted: 0,
+      exported: 0,
       oversized: 0,
+      empty: 0,
       unreadControl: false,
       limitReached: false,
     };
@@ -270,13 +280,6 @@ export function createPiTraceSpoolConsumer(
             break;
           }
           const path = join(options.dir, candidate.name);
-          if (seenSequences.has(candidate.sequence)) {
-            await options.host.remove(path).catch(() => {});
-            log(
-              `stage=pi_trace_spool_pickup sequence=${candidate.sequence} duplicate=true`,
-            );
-            continue;
-          }
           const size = await options.host.statSize(path);
           if (size === undefined) {
             log(
@@ -315,6 +318,16 @@ export function createPiTraceSpoolConsumer(
             continue;
           }
 
+          if (bytes.byteLength === 0) {
+            result.empty += 1;
+            await options.host.remove(path).catch(() => {});
+            log(
+              `stage=pi_trace_spool_pickup sequence=${candidate.sequence} empty=true`,
+            );
+            continue;
+          }
+          result.accepted += 1;
+
           // Delete-on-pickup prevents a later poll from forwarding the same batch. Collect every
           // bounded file before starting network I/O, so one slow collector cannot hide a later
           // file that Pi publishes within the pickup window.
@@ -342,8 +355,7 @@ export function createPiTraceSpoolConsumer(
     await Promise.all(
       pickedUpBatches.map(async (batch) => {
         try {
-          await options.onBatch(batch);
-          result.forwarded += 1;
+          if ((await options.onBatch(batch)) !== false) result.exported += 1;
         } catch (err) {
           log(
             `stage=pi_trace_spool_export sequence=${batch.sequence} failed=true error=${conciseError(err)}`,
@@ -370,7 +382,7 @@ export function createPiTraceSpoolConsumer(
     },
     drain,
     teardown: async () => {
-      await ready;
+      const result = await drain();
       await sweepPiTraceSpoolFiles({
         host: options.host,
         dir: options.dir,
@@ -382,6 +394,7 @@ export function createPiTraceSpoolConsumer(
           `stage=pi_trace_spool_teardown failed=true error=${conciseError(err)}`,
         );
       });
+      return result;
     },
   };
 }

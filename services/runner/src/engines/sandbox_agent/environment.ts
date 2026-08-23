@@ -392,11 +392,11 @@ export async function acquireEnvironment(
     // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
     const piTraceExport = environment.piTraceExport;
     if (piTraceExport) {
-      let validBatches = 0;
+      let pickedUpBatches = 0;
       try {
-        validBatches = (await piTraceExport.finish()).validBatches;
+        pickedUpBatches = (await piTraceExport.finish()).pickedUpBatches;
       } catch {}
-      if (validBatches === 0) {
+      if (pickedUpBatches === 0) {
         await piTraceExport
           .emitMissingBatchFallback(
             "Pi session ended before publishing a valid trace batch",
