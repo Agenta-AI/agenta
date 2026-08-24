@@ -1,5 +1,4 @@
 import {
-    isLatestRevisionAtomFamily,
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -7,8 +6,8 @@ import {
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitStatusAtomFamily,
+    flushAgentAutoCommitAtom,
 } from "@agenta/playground/state"
-import {agentAutoCommitHeldAtomFamily} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     DropdownMenu,
@@ -19,7 +18,7 @@ import {
     SimpleTooltip,
 } from "@agenta/ui/ui"
 import {CaretDown, Check, WarningCircle} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 export interface AgentRevisionStatusProps {
     /** The revision whose version and dirty state this reads. */
@@ -100,9 +99,9 @@ const RevisionPicker = ({
  * A revision's committed identity: the `vN` chip (its commit message on hover) and a save-status
  * dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
  *
- * On the latest revision the dot reports auto-commit — Saving… / Saved — because saving happens
- * on its own (#6126). It is status only: the Save that a stale, failed, or stranded draft needs
- * lives in the config header (`AgentSaveButton`), next to what it acts on.
+ * The dot reports auto-commit — Saving… / Saved — because saving happens on its own (#6126).
+ * There is no Save button anywhere on this surface; the only case that needs a human is a save
+ * that failed twice, and the dot itself becomes that retry.
  *
  * Rendered by every surface that shows an agent's header — the desktop playground's revision
  * selector and the mobile session workspace's top bar — so the two can never disagree about
@@ -119,38 +118,25 @@ export const AgentRevisionStatus = ({
     const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(revisionId || ""))
     const autoCommitStatus = useAtomValue(agentAutoCommitStatusAtomFamily(revisionId || ""))
     const autoCommitError = useAtomValue(agentAutoCommitErrorAtomFamily(revisionId || ""))
-    const autoCommitHeld = useAtomValue(agentAutoCommitHeldAtomFamily(revisionId || ""))
-
-    // Shared with the flush predicate, so the Save button and auto-commit can't disagree.
-    const isLatest = useAtomValue(isLatestRevisionAtomFamily(revisionId || ""))
+    const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
 
     const failed = autoCommitStatus === "error"
-    const saving = autoCommitStatus === "saving" || autoCommitStatus === "pending"
-    // Auto-commit owns the dot only where it actually runs.
-    const autoSaves = isAgent && isLatest && !failed && saving
+    // A dirty draft IS the pending state — it is either inside the debounce window or in the
+    // request — so the engine needs no separate status for it and the dot reads the draft.
+    const saving = isAgent && !failed && (isDirty || autoCommitStatus === "saving")
 
-    // "Saving…" must mean a request is actually in flight. A save parked behind a live run can
-    // wait minutes, and labelling that "Saving…" reads as a hang.
     const dot = failed
         ? {
               tone: "bg-colorError",
               label: "Not saved",
-              tip: autoCommitError ?? "Couldn't save changes",
+              tip: `${autoCommitError ?? "Couldn't save changes"} — click to retry`,
           }
-        : autoSaves
-          ? autoCommitHeld
-              ? {
-                    tone: "bg-colorWarning",
-                    label: "Save pending",
-                    tip: "Saving when this run finishes",
-                }
-              : {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
-          : isDirty
-            ? {tone: "bg-colorWarning", label: "Draft", tip: "Draft — unsaved changes"}
-            : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
+        : saving
+          ? {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
+          : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
@@ -186,7 +172,24 @@ export const AgentRevisionStatus = ({
                     </SimpleTooltip>
                 ))}
             <SimpleTooltip title={dot.tip}>
-                <span className="flex items-center gap-1.5 text-xs text-colorTextTertiary">
+                <span
+                    role={failed ? "button" : undefined}
+                    tabIndex={failed ? 0 : undefined}
+                    aria-label={failed ? "Retry saving changes" : undefined}
+                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                    onKeyDown={
+                        failed
+                            ? (event) => {
+                                  if (event.key !== "Enter" && event.key !== " ") return
+                                  event.preventDefault()
+                                  void retrySave({revisionId})
+                              }
+                            : undefined
+                    }
+                    className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
+                        failed ? "cursor-pointer" : ""
+                    }`}
+                >
                     {failed ? (
                         <WarningCircle size={12} className="shrink-0 text-colorError" />
                     ) : (

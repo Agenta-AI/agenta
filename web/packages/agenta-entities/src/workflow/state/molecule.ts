@@ -35,7 +35,6 @@
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
-import {queryClientAtom} from "jotai-tanstack-query"
 
 import {
     nestEvaluatorConfiguration,
@@ -105,7 +104,6 @@ import {
     invalidateWorkflowVariantsCache,
     invalidateWorkflowRevisionsByWorkflowCache,
     agTypeSchemaAtomFamily,
-    workflowLatestRevisionIdAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -141,44 +139,6 @@ function invalidateWorkflowLifecycleCaches(workflowId: string, options?: StoreOp
  */
 const dataAtomFamily = atomFamily((workflowId: string) =>
     atom<Workflow | null>((get) => get(workflowBaseEntityAtomFamily(workflowId))),
-)
-
-/**
- * Whether a revision is its workflow's head.
- *
- * Callers use it to decide whether an edit rewrites history. Answers "latest" until the
- * latest-revision query resolves, so the common path is never withheld on a pending query.
- */
-export const isLatestRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom((get) => {
-        const data = get(dataAtomFamily(revisionId))
-        const workflowId = data?.workflow_id ?? ""
-        if (!workflowId) return true
-
-        const latestId = get(workflowLatestRevisionIdAtomFamily(workflowId))
-        if (!latestId || latestId === revisionId) return true
-
-        // Only a STRICTLY newer head means this revision is behind. The latest-revision query
-        // has a 30s staleTime and a disk persister, so its cached head is regularly OLDER than
-        // what the user is looking at; treating any mismatch as "behind" made callers believe a
-        // fresh revision was historical.
-        //
-        // The head's version comes from a PASSIVE peek at the revisions-list cache, the same one
-        // `workflowLatestRevisionIdAtomFamily` falls back to: `dataAtomFamily(latestId)` is null
-        // for a revision the user isn't viewing, and get() on the list query would mount it and
-        // fire a full-list fetch. When neither version is known, assume latest.
-        const version = data?.version
-        if (typeof version !== "number") return true
-
-        const projectId = get(workflowProjectIdAtom)
-        const refs = get(queryClientAtom).getQueryData<{
-            refs?: {id?: string; version?: number}[]
-        }>(["workflows", "revisionsByWorkflow", workflowId, projectId])?.refs
-        const latestVersion =
-            refs?.find((r) => r.id === latestId)?.version ?? get(dataAtomFamily(latestId))?.version
-        if (typeof latestVersion !== "number") return true
-        return latestVersion <= version
-    }),
 )
 
 /**

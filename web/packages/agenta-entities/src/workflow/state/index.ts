@@ -92,6 +92,9 @@ export {
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
+    type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,

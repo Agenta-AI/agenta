@@ -2268,13 +2268,51 @@ export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
 // ============================================================================
 
 /**
+ * Reactions to a draft write, registered by the layer above.
+ *
+ * Same single-slot shape as {@link registerWorkflowCommitCallbacks}. This exists so a behaviour
+ * that belongs to "the config changed" can hang off the WRITE rather than off a mounted view:
+ * the agent playground's auto-commit (#6126) subscribed from a component instead, and silently
+ * did nothing whenever that component was off screen.
+ */
+export interface WorkflowDraftCallbacks {
+    /** Fires after a write that actually changed the draft. Never for a hydrating restore. */
+    onDraftChange?: (workflowId: string) => void
+}
+
+let _draftCallbacks: WorkflowDraftCallbacks = {}
+
+export function registerWorkflowDraftCallbacks(callbacks: WorkflowDraftCallbacks): void {
+    _draftCallbacks = {..._draftCallbacks, ...callbacks}
+}
+
+export function clearWorkflowDraftCallbacks(): void {
+    _draftCallbacks = {}
+}
+
+/** A write that is restoring state rather than expressing an edit. */
+export interface UpdateWorkflowDraftOptions {
+    /**
+     * Replaying a stored draft (the localStorage snapshot) rather than editing. Suppresses
+     * `onDraftChange`, so reopening a tab does not read as a fresh edit and commit itself.
+     */
+    hydrating?: boolean
+}
+
+/**
  * Update workflow draft state.
  * Deep-merges the `data` field so nested properties (parameters, schemas, etc.)
  * are preserved across incremental updates.
  */
 export const updateWorkflowDraftAtom = atom(
     null,
-    (_get, set, workflowId: string, updates: Partial<Workflow>) => {
+    (
+        _get,
+        set,
+        workflowId: string,
+        updates: Partial<Workflow>,
+        options?: UpdateWorkflowDraftOptions,
+    ) => {
         const current = _get(workflowDraftAtomFamily(workflowId))
         const serverData = _get(workflowServerDataSelectorFamily(workflowId))
         // Accept both workflow payload shape (`{data: {parameters}}`) and
@@ -2367,6 +2405,10 @@ export const updateWorkflowDraftAtom = atom(
             ...restUpdates,
             ...(mergedData !== undefined ? {data: mergedData} : {}),
         })
+
+        // Every early return above is a write that did NOT happen, so notifying here (and only
+        // here) means a listener hears about real edits and nothing else.
+        if (!options?.hydrating) _draftCallbacks.onDraftChange?.(workflowId)
     },
 )
 

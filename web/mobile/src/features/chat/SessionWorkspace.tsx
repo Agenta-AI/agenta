@@ -1,14 +1,16 @@
-import {useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {AppShell} from "../nav/AppShell"
 
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
@@ -57,6 +59,25 @@ export const SessionWorkspace = ({
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
+    // Follow the revision an auto-commit produced. Pin it rather than unpinning: unpinning falls
+    // back to the latest-revision query, which is stale for a beat, so a commit made FROM an
+    // older revision would land the pane on whatever that query last cached. The desktop gets
+    // this switch from the workflow bridge's onNewRevision; mobile registers none.
+    //
+    // It lives HERE and not in `ConfigPane` because a commit can land while the config pane is
+    // off screen — the pane is swapped out on a phone whenever the conversation has the width.
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    useEffect(
+        () =>
+            registerAgentAutoCommitHandler(
+                `session-workspace:${sessionId}`,
+                (revisionId, newRevisionId) => {
+                    if (revisionId === entityId) pinRevision(newRevisionId)
+                },
+            ),
+        [entityId, pinRevision, sessionId],
+    )
+
     const configCollapsed = useAtomValue(configPanelCollapsedAtom)
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session

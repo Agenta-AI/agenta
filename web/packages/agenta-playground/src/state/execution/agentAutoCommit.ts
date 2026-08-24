@@ -1,23 +1,24 @@
 /**
- * Agent playground auto-commit (#6126): flushes the config draft to a revision on its own.
+ * Agent playground auto-commit (#6126): the config saves itself, with no button and no modal.
  *
- * One subscription on the entity draft covers every write path, because the drawers buffer in
- * their own scoped draft and only touch the entity draft on Save. Keyed per revision, not per
- * selection, so `web/oss` and `web/mobile` can each mount it their own way.
+ * Driven by the WRITE, not by a view. `registerWorkflowDraftCallbacks` fires on every real edit
+ * to a workflow draft, wherever it came from — a drawer, a slash command, an approval card, the
+ * agent itself — so there is nothing to mount and nothing to keep on screen. The first cut
+ * subscribed from a component, which meant an edit made while the config pane was hidden was
+ * never saved at all, and a save parked mid-run could strand its status with no way to resume.
+ *
+ * Three states, and no fourth: `idle`, `saving`, `error`. "About to save" is not a state — a
+ * dirty draft already says that, and the header reads it directly.
  */
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     workflowMolecule,
-    isLatestRevisionAtomFamily,
+    registerWorkflowDraftCallbacks,
     commitWorkflowRevisionAtom,
     invalidateAgentCommittedRevisionCache,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
-import {
-    agentAutoCommitHeldAtomFamily,
-    agentSelfCommitSignalAtom,
-    projectIdAtom,
-} from "@agenta/shared/state"
+import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -28,7 +29,7 @@ const RETRY_MS = 3000
 /** Skip a flush this soon after the agent committed itself, so the two writers never overlap. */
 const SELF_COMMIT_QUIET_MS = 2000
 
-export type AgentAutoCommitStatus = "idle" | "pending" | "saving" | "error"
+export type AgentAutoCommitStatus = "idle" | "saving" | "error"
 
 export const agentAutoCommitStatusAtomFamily = atomFamily((_revisionId: string) =>
     atom<AgentAutoCommitStatus>("idle"),
@@ -44,8 +45,8 @@ const inFlight = new Set<string>()
 /**
  * Host reactions to an auto-commit. Distinct from `registerWorkflowCommitCallbacks` in
  * `@agenta/entities`, which is single-slot and fires for EVERY commit: this one is
- * multi-subscriber, unsubscribable, and agent-auto-commit only — which is what lets a mobile
- * pane register per mount and an app register once.
+ * multi-subscriber, unsubscribable, and agent-auto-commit only — which is what lets each app
+ * add its own follow-up work.
  *
  * Keyed so a module re-evaluation (HMR) replaces its handler instead of stacking a second one.
  */
@@ -62,12 +63,17 @@ export const registerAgentAutoCommitHandler = (
     }
 }
 
-/** `skip` not ours · `clean` nothing to save · `held` a run owns it · `busy` transient. */
-const flushBlocker = (
-    store: Store,
-    revisionId: string,
-    force: boolean,
-): "skip" | "clean" | "held" | "busy" | null => {
+type Store = ReturnType<typeof getDefaultStore>
+
+/**
+ * `skip` not ours · `clean` nothing to save · `busy` transient, try again shortly.
+ *
+ * There is deliberately no "held" any more. A run used to block the commit, because the agent's
+ * own `commit_revision` sends a `base_revision_id` the server checks against HEAD — but that
+ * conflict is a designed, recoverable error (the server's `next_step` tells the agent to re-read
+ * and re-anchor), while holding produced a "Save pending" that could outlive its own wake-up.
+ */
+const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "busy" | null => {
     if (!revisionId) return "skip"
     if (!store.get(projectIdAtom)) return "skip"
     if (!store.get(workflowMolecule.selectors.isAgent(revisionId))) return "skip"
@@ -76,12 +82,6 @@ const flushBlocker = (
     if (store.get(workflowMolecule.selectors.isEphemeral(revisionId))) return "skip"
     if (isLocalDraftId(revisionId)) return "skip"
     if (!store.get(workflowMolecule.selectors.isDirty(revisionId))) return "clean"
-
-    // An older revision stays manual: it is editable with no visual distinction, so an
-    // accidental keystroke there must not silently rewrite history. An explicit Save forces.
-    if (!force && !store.get(isLatestRevisionAtomFamily(revisionId))) return "skip"
-
-    if (store.get(agentAutoCommitHeldAtomFamily(revisionId))) return "held"
 
     if (inFlight.has(revisionId)) return "busy"
 
@@ -99,8 +99,6 @@ const buildMessage = (store: Store, revisionId: string): string | undefined => {
     return sections.length ? buildCommitSummaryMessage(sections) : undefined
 }
 
-type Store = ReturnType<typeof getDefaultStore>
-
 /** Timers per revision: the idle debounce, and the single post-failure retry. */
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -112,26 +110,20 @@ const clearTimer = (revisionId: string) => {
     }
 }
 
-const schedule = (
-    store: Store,
-    revisionId: string,
-    delay: number,
-    force: boolean,
-    isRetry: boolean,
-) => {
+const schedule = (store: Store, revisionId: string, delay: number, isRetry: boolean) => {
     clearTimer(revisionId)
     timers.set(
         revisionId,
         setTimeout(() => {
             timers.delete(revisionId)
-            void runFlush(store, revisionId, force, isRetry)
+            void runFlush(store, revisionId, isRetry)
         }, delay),
     )
 }
 
 /**
  * Stand down. A failed save keeps its error while the draft is still unsaved; once clean the
- * warning is stale and would strand the entity on "Not saved" with a dead button.
+ * warning is stale and would strand the header on "Not saved" with nothing left to retry.
  */
 const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean") => {
     clearTimer(revisionId)
@@ -143,31 +135,22 @@ const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean")
     }
 }
 
-/** `canReschedule` is false on unmount: a timer armed there orphans itself and re-arms forever. */
-const runFlush = async (
-    store: Store,
-    revisionId: string,
-    force: boolean,
-    isRetry: boolean,
-    canReschedule = true,
-) => {
-    const blocker = flushBlocker(store, revisionId, force)
+/** Drop a superseded revision's atoms; `atomFamily` holds a strong map and never evicts. */
+const forgetRevision = (revisionId: string) => {
+    agentAutoCommitStatusAtomFamily.remove(revisionId)
+    agentAutoCommitErrorAtomFamily.remove(revisionId)
+}
+
+const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
+    const blocker = flushBlocker(store, revisionId)
 
     if (blocker === "skip" || blocker === "clean") {
         settleIdle(store, revisionId, blocker)
         return
     }
 
-    // Park; the hold subscription re-arms on release. Polling spins for the whole turn.
-    if (blocker === "held") {
-        clearTimer(revisionId)
-        store.set(agentAutoCommitStatusAtomFamily(revisionId), "pending")
-        return
-    }
-
     if (blocker === "busy") {
-        store.set(agentAutoCommitStatusAtomFamily(revisionId), "pending")
-        if (canReschedule) schedule(store, revisionId, DEBOUNCE_MS, force, isRetry)
+        schedule(store, revisionId, DEBOUNCE_MS, isRetry)
         return
     }
 
@@ -182,23 +165,22 @@ const runFlush = async (
             store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
             store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
             // The commit atom invalidates everything BUT the latest-revision query, which an
-            // unattended writer notices: `isLatest` keeps answering with the superseded id.
+            // unattended writer notices: the next read keeps answering with the superseded id.
             invalidateAgentCommittedRevisionCache()
             const newRevisionId = result.newRevisionId
             if (newRevisionId) {
                 afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))
-                // Every commit mints a new revision id and `atomFamily` keeps a STRONG map, so
-                // each one would otherwise leak a set of per-revision atoms for the session.
-                // Safe: this revision is superseded. Deferred a tick so subscribers reading it
-                // during the switch finish first.
+                // Deferred a tick so subscribers reading this revision during the switch
+                // finish first. Safe: it is superseded.
                 setTimeout(() => forgetRevision(revisionId), 0)
             }
             return
         }
 
-        if (!isRetry && canReschedule) {
-            store.set(agentAutoCommitStatusAtomFamily(revisionId), "pending")
-            schedule(store, revisionId, RETRY_MS, force, true)
+        if (!isRetry) {
+            // Still working, so the header keeps saying so rather than flashing a failure the
+            // retry is about to clear.
+            schedule(store, revisionId, RETRY_MS, true)
             return
         }
 
@@ -212,76 +194,49 @@ const runFlush = async (
     }
 }
 
-/** Drop a superseded revision's per-revision atoms; `atomFamily` never evicts on its own. */
-const forgetRevision = (revisionId: string) => {
-    agentAutoCommitStatusAtomFamily.remove(revisionId)
-    agentAutoCommitErrorAtomFamily.remove(revisionId)
-    agentAutoCommitEngineAtomFamily.remove(revisionId)
+/** Arm the debounce for a revision that just changed. */
+const scheduleAgentAutoCommit = (revisionId: string) => {
+    const store = getDefaultStore()
+    const blocker = flushBlocker(store, revisionId)
+    if (blocker === "skip" || blocker === "clean") {
+        settleIdle(store, revisionId, blocker)
+        return
+    }
+    // A fresh edit supersedes a standing failure — re-arm the normal timer.
+    store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
+    if (store.get(agentAutoCommitStatusAtomFamily(revisionId)) === "error") {
+        store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
+    }
+    schedule(store, revisionId, DEBOUNCE_MS, false)
 }
 
-/** Commit now. `force` bypasses the not-latest skip; the hold and in-flight guards still apply. */
+/**
+ * Save now, skipping the debounce. The header's failure notice uses it to retry; the timer path
+ * needs nothing else.
+ */
 export const flushAgentAutoCommitAtom = atom(
     null,
-    async (_get, _set, {revisionId, force = false}: {revisionId: string; force?: boolean}) => {
+    async (_get, _set, {revisionId}: {revisionId: string}) => {
         clearTimer(revisionId)
-        // A manual Save is the user's second attempt; don't spend the automatic retry on it.
-        await runFlush(getDefaultStore(), revisionId, force, force)
+        // A manual retry is the user's second attempt; don't spend the automatic one on it.
+        await runFlush(getDefaultStore(), revisionId, true)
     },
 )
 
 /**
- * Mount per revision to arm auto-commit; subscribing is what starts it.
+ * Armed on import, for the whole session. The apps do not opt in and cannot forget to: the
+ * predicate above is what decides whether a given write is one of ours, and it is evaluated
+ * per write against live state.
  *
- * It commits EDITS only — mounting never flushes a draft it did not witness, or every remount
- * would commit. A stranded draft surfaces in the header as Draft + Save instead.
+ * Module-scope registration follows `workflowEntityBridge`, which wires the commit callbacks
+ * the same way.
  */
-export const agentAutoCommitEngineAtomFamily = atomFamily((revisionId: string) => {
-    const engineAtom = atom(0)
+registerWorkflowDraftCallbacks({onDraftChange: scheduleAgentAutoCommit})
 
-    engineAtom.onMount = () => {
-        // No SSR guard needed: subscribing is inert until a user edit schedules a timer.
-        const store = getDefaultStore()
-        const draftAtom = workflowMolecule.atoms.draft(revisionId)
-
-        const unsub = store.sub(draftAtom, () => {
-            const blocker = flushBlocker(store, revisionId, false)
-            if (blocker === "skip" || blocker === "clean") {
-                settleIdle(store, revisionId, blocker)
-                return
-            }
-
-            // A fresh edit supersedes a standing failure — re-arm the normal timer.
-            store.set(agentAutoCommitStatusAtomFamily(revisionId), "pending")
-            store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
-            schedule(store, revisionId, DEBOUNCE_MS, false, false)
-        })
-
-        // A hold releasing must wake a parked flush: a held flush deliberately arms no timer.
-        const unsubHold = store.sub(agentAutoCommitHeldAtomFamily(revisionId), () => {
-            if (store.get(agentAutoCommitHeldAtomFamily(revisionId))) return
-            if (store.get(agentAutoCommitStatusAtomFamily(revisionId)) !== "pending") return
-            schedule(store, revisionId, DEBOUNCE_MS, false, false)
-        })
-
-        return () => {
-            unsub()
-            unsubHold()
-            const hadPendingWork = timers.has(revisionId)
-            clearTimer(revisionId)
-            if (!hadPendingWork) return
-
-            // Stand down rather than strand "pending": both wake-up subscriptions are gone.
-            if (flushBlocker(store, revisionId, false) !== null) {
-                if (store.get(agentAutoCommitStatusAtomFamily(revisionId)) !== "error") {
-                    store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
-                }
-                return
-            }
-
-            // Last chance to land a pending edit, as SUB 9 flushes its snapshot on unmount.
-            void runFlush(store, revisionId, false, true, false)
-        }
-    }
-
-    return engineAtom
-})
+/** Test seam: drop every timer and status between cases. */
+export const __resetAgentAutoCommit = () => {
+    timers.forEach((timer) => clearTimeout(timer))
+    timers.clear()
+    inFlight.clear()
+    afterCommitHandlers.clear()
+}

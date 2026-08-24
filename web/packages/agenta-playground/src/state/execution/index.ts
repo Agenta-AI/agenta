@@ -382,7 +382,6 @@ export {
 } from "./turnCapture"
 // Agent playground auto-commit: flushes the config draft to a revision on its own (#6126).
 export {
-    agentAutoCommitEngineAtomFamily,
     agentAutoCommitStatusAtomFamily,
     agentAutoCommitErrorAtomFamily,
     flushAgentAutoCommitAtom,

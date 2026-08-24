@@ -9,7 +9,6 @@
 import {createElement, type ReactNode} from "react"
 
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
-import {agentAutoCommitHeldAtomFamily} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
@@ -146,55 +145,6 @@ describe("useAgentConversation", () => {
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
         expect(result.current.runStatus).toBe("idle")
         expect(result.current.isEmpty).toBe(false)
-    })
-
-    it("holds auto-commit while a turn is live, and releases it when the turn settles", async () => {
-        // Auto-commit must not land mid-run: the agent's own `commit_revision` checks HEAD, so a
-        // concurrent unattended commit would fail it. Hold the response open so the assertion
-        // lands while the turn is genuinely in flight.
-        let releaseStream: () => void = () => {}
-        const streamOpen = new Promise<void>((resolve) => {
-            releaseStream = resolve
-        })
-        fetchMock.mockImplementation(
-            async () =>
-                new Response(
-                    new ReadableStream({
-                        async start(controller) {
-                            controller.enqueue(new TextEncoder().encode(sseBody("done")))
-                            await streamOpen
-                            controller.close()
-                        },
-                    }),
-                    {status: 200, headers: {"content-type": "text/event-stream"}},
-                ),
-        )
-
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result, unmount} = mount(store, "rev-hold", sessionId)
-
-        expect(store.get(agentAutoCommitHeldAtomFamily("rev-hold"))).toBe(false)
-
-        act(() => {
-            void result.current.send({text: "go"})
-        })
-
-        await waitFor(() => expect(store.get(agentAutoCommitHeldAtomFamily("rev-hold"))).toBe(true))
-
-        await act(async () => {
-            releaseStream()
-            await streamOpen
-        })
-        await waitFor(() => expect(result.current.runStatus).toBe("idle"), {timeout: 5000})
-
-        // Settled turn: the hold is off, so a queued flush can proceed.
-        expect(store.get(agentAutoCommitHeldAtomFamily("rev-hold"))).toBe(false)
-
-        unmount()
-        // A closed session must never leave its revision pinned.
-        expect(store.get(agentAutoCommitHeldAtomFamily("rev-hold"))).toBe(false)
     })
 
     it("rewinding a user message truncates the conversation and hands back its text", async () => {

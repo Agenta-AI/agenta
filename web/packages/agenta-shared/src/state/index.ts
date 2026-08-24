@@ -20,7 +20,6 @@ export {draftConfigChangeSignalAtom} from "./draftConfigChangeSignal"
 export type {DraftConfigChangeSignal} from "./draftConfigChangeSignal"
 export {providerKeyAddedSignalAtom} from "./providerKeyAddedSignal"
 export type {ProviderKeyAddedSignal} from "./providerKeyAddedSignal"
-export {setAgentAutoCommitHoldAtom, agentAutoCommitHeldAtomFamily} from "./agentAutoCommitHold"
 export {atomWithRefresh} from "jotai/utils"
 export {
     atomWithCompare,

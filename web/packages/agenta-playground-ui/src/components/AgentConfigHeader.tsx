@@ -1,6 +1,5 @@
 import type {ReactNode} from "react"
 
-import {AgentSaveButton} from "./AgentSaveButton"
 import {CommitVariantChangesButton} from "./CommitVariantChanges"
 
 export interface AgentConfigHeaderProps {
@@ -21,9 +20,9 @@ export interface AgentConfigHeaderProps {
      */
     trailing?: ReactNode
     /**
-     * Swap Commit for the auto-commit Save (#6126). Only `/m` sets this: it mounts the
-     * auto-commit engine, so its config saves itself and Save is the manual fallback. The
-     * desktop playground does not, and keeps the Commit button and its modal.
+     * The agent surface saves itself (#6126), so this bar carries no commit control at all —
+     * the page header's status dot reports saving, and a failure offers the retry. Set by the
+     * agent playgrounds; other surfaces keep the Commit button and its modal.
      */
     autoSave?: boolean
     /** `grow` instead of sticky, for an embedded drawer or a pane that scrolls with its content. */
@@ -64,9 +63,7 @@ export const AgentConfigHeader = ({
             <span className="text-[13px] font-semibold text-colorText">Configuration</span>
         </div>
         <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
-            {autoSave ? (
-                <AgentSaveButton revisionId={revisionId} />
-            ) : (
+            {autoSave ? null : (
                 <CommitVariantChangesButton
                     variantId={revisionId}
                     label="Commit"
