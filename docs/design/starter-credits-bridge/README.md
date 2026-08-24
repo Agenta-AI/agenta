@@ -79,6 +79,7 @@ here. Those arrive in the policy payload. See
 
 | File | Answers |
 | --- | --- |
-| [design.md](design.md) | Every decision, the options it was chosen against, and why |
+| [design.md](design.md) | Every decision, the options it was chosen against, and why. Includes the plus-tag eligibility rule and what a refused signup sees |
+| [anti-abuse-research.md](anti-abuse-research.md) | Libraries and hosted services that can own disposable-email and mailbox-canonicalization instead of homemade rules |
 | [write-only-secrets.md](write-only-secrets.md) | The vault contract the seeded row depends on: write-only values and managed rows |
 | [proxy-and-deployment.md](proxy-and-deployment.md) | What the proxy must look like, how it is routed, and what that constrains |

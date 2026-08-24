@@ -125,7 +125,8 @@ connection is Agenta's") beats a per-field verdict that always says no.
 
 The mint policy is nine values: the grant, three per-key limits (concurrency, requests per
 minute, tokens per minute), three velocity caps, the free-mail domain list, and one
-eligibility rule. None of them lives in this repository. They arrive as the payload of a
+eligibility rule (digit locals). The plus-tag rule is hardcoded, like the free-mail list,
+and is not in the payload. None of the money values lives in this repository. They arrive as the payload of a
 PostHog feature flag whose name is the only configurable part
 (`AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG`).
 
@@ -195,18 +196,75 @@ Velocity caps then bound the population that does qualify. They are counted in R
 against expiring keys: a global daily count, a global hourly count, and a per-domain daily
 count that applies only to domains that are not free mail. A cap on the world's most
 common mailbox provider would treat every personal address as one company and would start
-refusing real people immediately. One eligibility rule rides alongside them: on a
-non-free-mail domain, a digit in the local part of the address is refused, which is the
-throwaway-address pattern. On free mail, digits are ordinary and stay allowed.
+refusing real people immediately.
+
+Two eligibility rules ride alongside the caps. On a non-free-mail domain, a digit in the
+local part of the address is refused (`john99@acme.com`). That is the throwaway-address
+pattern on a company mailbox. On free mail, digits are ordinary and stay allowed. A plus
+sign in the local part is refused on every domain (`jane+1@gmail.com`,
+`jane+trial@acme.com`), except `agenta.ai`. That is the mailbox-alias pattern: one inbox,
+many strings, one grant each. The plus check is hardcoded, like the free-mail list. It is
+not a PostHog field. Adding a required field to `MintPolicy` would stop every mint until
+the live payload was edited, and plus-tagging is an industry abuse pattern, not an
+operator money knob. Internal testers who need a plus tag use `@agenta.ai`.
+
+The plus check applies to free mail as well as work mail. Plus-farming is a Gmail habit.
+The digit rule stays work-only, because `john99@gmail.com` is a normal personal address.
 
 Two properties of the counting are worth stating. If Redis is unreachable, seeding is
 skipped, because a mint nobody can count is a mint nobody can bound. And when an attempt
 consumes a counter slot but funds no key, the slot is handed back, so a proxy outage does
-not quietly eat the day's allowance.
+not quietly eat the day's allowance. Eligibility refusals (digit, plus) run before the
+counters, so a refused address never consumes a slot.
 
-The known gap: there is no per-address cap, because the signup hook never sees the
-caller's network address. The domain rules and whatever bot resistance fronts signup carry
-that load.
+### What a refused signup sees
+
+A failed eligibility rule does not fail signup. The account is created. No virtual key is
+minted. No vault row is written. The organization meets the same connect-your-key wall
+every organization met before the bridge existed. A warning is logged with `rule` and
+`domain` only. The local part is never logged. There is no operator alert. Alerts are for
+outages (a missing policy, an unverifiable team, a seed that raised), not for a person
+who did not qualify.
+
+That silence is deliberate. The grant is a gift, not a signup gate. Telling the person
+"your plus tag blocked the free model" teaches the farm how the filter works and still
+leaves them without a key they can use.
+
+### Mailbox tricks the plus rule does not catch
+
+A plus tag is the cheapest farm. It is not the only one.
+
+| Trick | Example | What we do |
+| --- | --- | --- |
+| Plus tags | `jane+1@gmail.com` | Refuse, except `agenta.ai` |
+| Gmail dots | `j.ane@gmail.com` is the same inbox as `jane@gmail.com` | Not yet. Next homemade rule if we stay homemade |
+| `googlemail.com` | same inbox as `gmail.com` | Already classified as free mail. Not folded into one mailbox |
+| Disposable domains | mailinator, guerrilla, rotating MX farms | Not in the free-mail list. A maintained blocklist owns this better than we do |
+| Yahoo hyphen tags | `jane-tag@yahoo.com` | Not yet. Real hyphens exist, so a blunt ban has more false positives |
+| Catch-all company domains | `bot1@acme.com` | Bounded by `work_domain_daily` and the digit rule |
+| Many orgs from one account | loop `POST /organizations/` | Already blocked. Only the signup path seeds |
+| Unicode lookalikes | homoglyphs in the local part | Not yet. Rare, more false positives |
+
+The known gap that none of those close: there is no per-address cap, because the signup
+hook never sees the caller's network address. The domain rules and whatever bot
+resistance fronts signup carry that load.
+
+A homemade plus ban is a stopgap. It punishes a real work habit
+(`billing+agenta@acme.com`) and misses Gmail-dot twins. The longer-lived owner is a
+normalizer plus a disposable-domain list, or a vendor that already maintains both. That
+survey is in [anti-abuse-research.md](anti-abuse-research.md). The plus rule still ships
+first: it is one check, it closes the hole we can see today, and it does not send signup
+addresses to anyone.
+
+### How the plus rule is implemented
+
+The check lives in `_mint_policy_allows`, next to the digit rule, before Redis counters.
+The allowlist is a constant (`agenta.ai`, compared case-insensitively on the domain).
+Tests cover: refuse `a+b@gmail.com`, refuse `a+b@acme.com`, allow `a@gmail.com`, allow
+`a+b@agenta.ai`, no counter bump on refuse, log `rule=plus_local_part` and the domain
+only. No PostHog payload change. The development policy does not need a new field.
+
+This is a follow-up on `release/v0.114.0`. It does not reopen the seeding PR.
 
 ## The always-on ceiling: the program team
 
