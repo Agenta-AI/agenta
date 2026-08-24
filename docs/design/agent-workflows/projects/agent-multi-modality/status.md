@@ -7,8 +7,9 @@ This file records the project's current state.
 The design is complete. Every decision, D1 through D14, is taken; the last four (D11 durable agent
 input from day one, D12 mention-first cold replay, D13 two upload surfaces, D14 first-release audio
 is browser dictation only) were decided on 2026-07-31. What remains open are implementation-time
-questions, not product questions; see [decisions.md](decisions.md) for the list. The next step is
-implementation, starting with Stage 0 or Stage 1 of [plan.md](plan.md).
+questions, not product questions; see [decisions.md](decisions.md) for the list. Implementation is
+under way: Stages 0 and 1 are in review, and Stage 2 has started with the voice half. See the stage
+tracker below.
 
 The one-line problem: agent workflows are text-only at the model. A file travels intact from the
 chat box to the runner and is dropped at the one call that hands a turn to the harness
@@ -81,7 +82,9 @@ in [plan.md](plan.md) Stage 2.
 - Follow-ups recorded in [protocols/stage-1.md](protocols/stage-1.md): the CI report glob line
   (needs a workflow-scoped push), the Fern client regeneration, and the zip-container
   classifier refinement.
-- Then Stage 2 of [plan.md](plan.md).
+- Finish Stage 2 of [plan.md](plan.md): its voice half has landed, so what remains is the
+  recording delivery on the D6 workspace-only path, plus the capability-alias rollout and the
+  derived front-end limits.
 
 ## Artifacts
 
