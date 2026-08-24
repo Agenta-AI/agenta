@@ -11,6 +11,7 @@ import {
     SecretManagementPolicy,
     connectionSlugFor,
     type ProviderConnection,
+    type AgentModelSelection,
 } from "../../secret/core"
 
 export interface AgentCreationPrefs {
@@ -19,6 +20,7 @@ export interface AgentCreationPrefs {
     model?: string
     provider?: string
     connectionMode?: string
+    connectionSlug?: string
 }
 
 const DEFAULT_PREFS: AgentCreationPrefs = {version: 1}
@@ -29,6 +31,53 @@ export const agentCreationPrefsAtom = atomWithStorage<AgentCreationPrefs>(
     undefined,
     {getOnInit: true},
 )
+
+/** Read only a complete last-used route; partial legacy preferences are not guessed. */
+export function selectionFromAgentCreationPrefs(
+    prefs: AgentCreationPrefs,
+): AgentModelSelection | null {
+    if (!prefs.model || !prefs.harness) return null
+    const mode =
+        prefs.connectionMode === "self_managed"
+            ? "self_managed"
+            : prefs.connectionMode === "agenta"
+              ? "agenta"
+              : null
+    if (!mode) return null
+    if (mode === "agenta" && !prefs.connectionSlug) return null
+    if (mode === "self_managed" && !prefs.provider) return null
+    return {
+        modelId: prefs.model,
+        provider: prefs.provider ?? null,
+        mode,
+        slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        harness: prefs.harness,
+    }
+}
+
+/** Apply one resolved candidate without dropping unrelated harness or model settings. */
+export function applyAgentModelSelection(
+    agentConfig: Record<string, unknown>,
+    selection: AgentModelSelection,
+): Record<string, unknown> {
+    const harness = objectAt(agentConfig, "harness")
+    const llm = objectAt(agentConfig, "llm")
+    const nextLlm: Record<string, unknown> = {
+        ...llm,
+        model: selection.modelId,
+        connection: {
+            mode: selection.mode,
+            ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
+        },
+    }
+    if (selection.provider) nextLlm.provider = selection.provider
+    else delete nextLlm.provider
+    return {
+        ...agentConfig,
+        harness: {...harness, kind: selection.harness},
+        llm: nextLlm,
+    }
+}
 
 /**
  * Overlay saved prefs onto a fresh agent template's config (`parameters.agent`). Only sets fields
@@ -50,7 +99,7 @@ export function applyAgentCreationPrefs(
         next.harness = {...harness, kind: prefs.harness}
     }
 
-    if (prefs.model || prefs.provider || prefs.connectionMode) {
+    if (prefs.model || prefs.provider || prefs.connectionMode || prefs.connectionSlug) {
         const llm =
             next.llm && typeof next.llm === "object" && !Array.isArray(next.llm)
                 ? (next.llm as Record<string, unknown>)
@@ -58,14 +107,18 @@ export function applyAgentCreationPrefs(
         const nextLlm: Record<string, unknown> = {...llm}
         if (prefs.model) nextLlm.model = prefs.model
         if (prefs.provider) nextLlm.provider = prefs.provider
-        if (prefs.connectionMode) {
+        if (prefs.connectionMode || prefs.connectionSlug) {
             const connection =
                 llm.connection &&
                 typeof llm.connection === "object" &&
                 !Array.isArray(llm.connection)
                     ? (llm.connection as Record<string, unknown>)
                     : {}
-            nextLlm.connection = {...connection, mode: prefs.connectionMode}
+            nextLlm.connection = {
+                ...connection,
+                ...(prefs.connectionMode ? {mode: prefs.connectionMode} : {}),
+                ...(prefs.connectionSlug ? {slug: prefs.connectionSlug} : {}),
+            }
         }
         next.llm = nextLlm
     }
@@ -117,16 +170,6 @@ export function applyManagedConnectionDefault(
     const slug = typeof connection.slug === "string" ? connection.slug.trim() : ""
     if (mode !== "agenta" || slug) return agentConfig
 
-    const provider = typeof llm.provider === "string" ? llm.provider.trim().toLowerCase() : ""
-    const userConnected = connections.some(
-        (candidate) =>
-            candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-            candidate.hasStoredCredential &&
-            !!provider &&
-            candidate.kind.toLowerCase() === provider,
-    )
-    if (userConnected) return agentConfig
-
     const managed = connections.find(
         (candidate) =>
             candidate.managementPolicy === SecretManagementPolicy.ManagerOnly &&
@@ -141,6 +184,13 @@ export function applyManagedConnectionDefault(
         connection: {...connection, mode: "agenta", slug: connectionSlugFor(managed)},
     }
     delete nextLlm.provider
+    if (managed.harnesses?.length === 1) {
+        return {
+            ...agentConfig,
+            harness: {...objectAt(agentConfig, "harness"), kind: managed.harnesses[0]},
+            llm: nextLlm,
+        }
+    }
     return {...agentConfig, llm: nextLlm}
 }
 

@@ -87,6 +87,7 @@ const storageFacts = (secret: SecretResponseDto) => ({
     hasKey: secret.value_status.configured,
     keyPreview: secret.value_status.preview ?? undefined,
     managementPolicy: secret.management?.policy,
+    recommendedForNewAgents: secret.management?.recommended_for_new_agents ?? false,
 })
 
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {

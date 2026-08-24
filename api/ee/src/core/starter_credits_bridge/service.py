@@ -312,6 +312,7 @@ async def _create_row(
             key=virtual_key,
         ),
         models=[CustomModelSettingsDTO(slug=config.model_id)],
+        harnesses=["pi_core"],
         # The namespace half of every model key this connection publishes
         # (`<provider_slug>/<kind>/<model>`), and it must equal the display name:
         # that is the namespace the resolver rebuilds keys under, and a model key is
@@ -338,6 +339,7 @@ async def _create_row(
         management=SecretManagementDTO(
             manager=SecretManager.STARTER_CREDITS_BRIDGE,
             policy=SecretManagementPolicy.MANAGER_ONLY,
+            recommended_for_new_agents=True,
         ),
     )
 

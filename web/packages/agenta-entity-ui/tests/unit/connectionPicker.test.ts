@@ -56,6 +56,7 @@ const standard = (
     kind,
     title: kind,
     secretKind: SecretKind.ProviderKey,
+    hasStoredCredential: true,
     source: {name: `${kind}_api_key`, title: kind, key: "sk-test"} as ProviderConnection["source"],
     ...overrides,
 })
@@ -72,6 +73,7 @@ const custom = (
     kind,
     title: kind,
     secretKind: SecretKind.CustomProvider,
+    hasStoredCredential: true,
     source: {name: `my-${kind}`, provider: kind, modelKeys} as ProviderConnection["source"],
     ...overrides,
 })

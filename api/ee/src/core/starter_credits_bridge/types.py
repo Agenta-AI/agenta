@@ -107,6 +107,8 @@ class MintPolicy(BaseModel):
     work_domain_daily: int
     freemail_domains: list[str] = []
     block_digit_locals: bool
+    # Opt-in because plus aliases are legitimate addresses as well as a way to repeat grants.
+    block_plus_aliases: bool = False
     grant_usd: float
     key_max_parallel_requests: int
     key_rpm_limit: int
@@ -187,6 +189,7 @@ DEVELOPMENT_POLICY_VALUES: dict = {
     "work_domain_daily": 1000,
     "freemail_domains": [],
     "block_digit_locals": False,
+    "block_plus_aliases": False,
     "grant_usd": 5.0,
     "key_max_parallel_requests": 2,
     "key_rpm_limit": 30,

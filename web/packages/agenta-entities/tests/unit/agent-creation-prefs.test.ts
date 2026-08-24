@@ -50,6 +50,23 @@ describe("applyAgentCreationPrefs", () => {
         })
     })
 
+    it("restores the complete saved connection identity", () => {
+        const result = applyAgentCreationPrefs(
+            {llm: {model: "gpt-5.6-luna"}},
+            {
+                version: 1,
+                model: "Agenta/custom/vertex_ai/gemini-3.6-flash",
+                connectionMode: "agenta",
+                connectionSlug: "starter-credits",
+            },
+        )
+
+        expect(result.llm).toEqual({
+            model: "Agenta/custom/vertex_ai/gemini-3.6-flash",
+            connection: {mode: "agenta", slug: "starter-credits"},
+        })
+    })
+
     it("builds harness/llm objects from scratch when the template has none", () => {
         const result = applyAgentCreationPrefs(
             {},
@@ -106,6 +123,7 @@ describe("applyManagedConnectionDefault", () => {
             secretKind: SecretKind.CustomProvider,
             hasStoredCredential: true,
             managementPolicy: SecretManagementPolicy.ManagerOnly,
+            harnesses: ["pi_core"],
             source: {
                 modelKeys: ["Starter credits/custom/vertex_ai/gemini-3.6-flash"],
             } as ProviderConnection["source"],
@@ -132,6 +150,7 @@ describe("applyManagedConnectionDefault", () => {
             connection: {mode: "agenta", slug: "starter-credits"},
         })
         expect(result.tools).toBe(TEMPLATE.tools)
+        expect(result.harness).toEqual({kind: "pi_core"})
     })
 
     it("writes no provider — the slug is the whole routing identity", () => {
@@ -139,9 +158,12 @@ describe("applyManagedConnectionDefault", () => {
         expect(result.llm).not.toHaveProperty("provider")
     })
 
-    it("leaves the template alone when the user has their own key for its provider", () => {
+    it("prefers the managed recommendation over the replaceable static template default", () => {
         const connections = [ownKey("openai"), managed()]
-        expect(applyManagedConnectionDefault(TEMPLATE, connections)).toBe(TEMPLATE)
+        expect(
+            (applyManagedConnectionDefault(TEMPLATE, connections).llm as Record<string, unknown>)
+                .model,
+        ).toBe("Starter credits/custom/vertex_ai/gemini-3.6-flash")
     })
 
     it("still repoints when the user's own key is for a different provider", () => {
@@ -175,5 +197,21 @@ describe("applyManagedConnectionDefault", () => {
         const config = {llm: {provider: "openai", model: "gpt-5.6-luna", temperature: 0.3}}
         const result = applyManagedConnectionDefault(config, [managed()])
         expect((result.llm as Record<string, unknown>).temperature).toBe(0.3)
+    })
+
+    it("keeps sibling harness keys when the managed connection allows one harness", () => {
+        const config = {harness: {kind: "codex", max_iterations: 12}, llm: TEMPLATE.llm}
+        const result = applyManagedConnectionDefault(config, [managed()])
+
+        expect(result.harness).toEqual({kind: "pi_core", max_iterations: 12})
+    })
+
+    it("does not guess a harness when the managed connection allows several", () => {
+        const config = {harness: {kind: "codex"}, llm: TEMPLATE.llm}
+        const result = applyManagedConnectionDefault(config, [
+            managed({harnesses: ["pi_core", "codex"]}),
+        ])
+
+        expect(result.harness).toEqual({kind: "codex"})
     })
 })
