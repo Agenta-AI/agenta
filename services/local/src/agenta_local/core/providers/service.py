@@ -37,6 +37,10 @@ class ProvidersService:
         validate_provider_name(provider)
         await self._store.delete(provider=provider)
 
+    async def get_for_execution(self, *, provider: str) -> ProviderCredential:
+        """Contracts name; execution adapter seam only."""
+        return await self.resolve_credential(provider=provider)
+
     async def resolve_credential(self, *, provider: str) -> ProviderCredential:
         """Execution-only path; raises ProviderNotConfigured when unset."""
         validate_provider_name(provider)
