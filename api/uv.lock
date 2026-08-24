@@ -350,7 +350,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "jsonschema", specifier = ">=4,<5" },
     { name = "litellm", specifier = ">=1.92,<2" },
-    { name = "mcp", specifier = ">=1.21,<2" },
+    { name = "mcp", specifier = "==1.29.0" },
     { name = "miniopy-async", specifier = ">=1,<2" },
     { name = "newrelic", specifier = ">=13,<14" },
     { name = "openai", specifier = ">=2,<3" },

@@ -65,10 +65,8 @@ def _pin_to_resolved_ip(url: str, resolved_ip: str) -> Tuple[str, str]:
 def _authorization_header(auth: MCPDirectAuth) -> Optional[str]:
     """Derive `Authorization` from a resolved OAuth grant, when present.
 
-    `OAuthGrantSettingsDTO` (entities.md §4.5) doesn't exist in this codebase yet — it
-    is WP16 seed, wave 3 — so its future `.grant.access_token` / `.grant.token_type`
-    shape is read defensively via `getattr` rather than imported, and this needs no
-    change once it lands. Unreachable in Checkpoint A (D23): no OAuth targets exist yet.
+    OAuth grants live only in the vault. The endpoint carries their opaque `secret_id`,
+    so neither its DTO nor its route can expose token material.
     """
     if auth.secret is None:
         return None

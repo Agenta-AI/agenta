@@ -14,7 +14,9 @@ dependencies = [
     "uvicorn[standard]>=0.51,<0.52",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
-    "mcp>=1.21,<2",
+    # MCP OAuth uses the SDK's TokenStorage protocol and OAuth wire contracts directly.
+    # Keep this exact: a range would silently change those contracts underneath us.
+    "mcp==1.29.0",
     "structlog>=26,<27",
     "python-dotenv>=1,<2",
     "python-multipart>=0.0.32,<0.0.33",
