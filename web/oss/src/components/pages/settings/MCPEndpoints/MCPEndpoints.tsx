@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -7,7 +8,6 @@ import {
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {useStaticTable} from "@agenta/settings"
 import {PencilSimpleLine, Plug, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"

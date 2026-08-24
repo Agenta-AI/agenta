@@ -25,12 +25,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolCatalogDrawerOpenAtom} from "@agenta/entities/gatewayTool"
+import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 import {useAtom, useAtomValue} from "jotai"
 
 import type {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
 import {mcpEndpointsAtom} from "@/oss/state/mcpEndpoints/atoms"
-
-import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 
 export type GatewayPlane = "llm" | "mcp"
 
