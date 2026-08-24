@@ -989,6 +989,28 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows("john99@acme.test", policy) is True
 
+    @pytest.mark.parametrize(
+        "address",
+        ["person+trial@freemail.test", "person+trial@acme.test"],
+    )
+    async def test_plus_local_part_refuses_before_any_counter(self, address):
+        assert await service._mint_policy_allows(address, _policy()) is False
+        assert self.engine.counts == {}
+
+    async def test_plus_local_part_allows_an_address_without_a_plus(self):
+        assert (
+            await service._mint_policy_allows("person@freemail.test", _policy()) is True
+        )
+
+    @pytest.mark.parametrize(
+        "address",
+        ["person+trial@agenta.ai", "person+1@Agenta.AI"],
+    )
+    async def test_plus_local_part_allows_the_agenta_domain(self, address):
+        policy = _policy(work_domain_daily=10)
+
+        assert await service._mint_policy_allows(address, policy) is True
+
     async def test_global_hourly_cap_blocks(self):
         policy = _policy(global_hourly=2)
 
@@ -1107,6 +1129,20 @@ class TestRefusalLogging:
         assert fields["rule"] == "digit_local_part"
         assert fields["domain"] == "acme.test"
         assert "john99" not in repr((message, fields))
+
+    async def test_a_plus_local_refusal_names_only_the_rule_and_domain(self):
+        assert (
+            await service._mint_policy_allows(
+                "person+private@freemail.test",
+                _policy(),
+            )
+            is False
+        )
+
+        message, fields = self.records[-1]
+        assert fields == {"rule": "plus_local_part", "domain": "freemail.test"}
+        assert "person" not in repr((message, fields))
+        assert "private" not in repr((message, fields))
 
     async def test_a_velocity_refusal_names_the_rule_and_the_domain(self):
         policy = _policy(work_domain_daily=1)
