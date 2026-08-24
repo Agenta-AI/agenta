@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-08-22-agenta-on-mobile",
+        "title": "Agenta on Mobile",
+        "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",
+        "link": "https://agenta.ai/docs/changelog/agenta-on-mobile"
+    },
+    {
         "id": "changelog-2026-08-04-api-keys-hidden-from-agent-sandboxes",
         "title": "API Keys Hidden from Sandboxes",
         "description": "Agents in a cloud sandbox now see a placeholder instead of your provider API keys.",
