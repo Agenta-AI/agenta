@@ -70,6 +70,9 @@ export const ConfigPane = ({entityId, sessionId}: {entityId: string; sessionId: 
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}
+                            // `/m` mounts the auto-commit engine, so this header shows Save
+                            // rather than Commit. The desktop playground keeps Commit.
+                            autoSave
                             // The desktop's collapse: the header owns "«", the top bar owns the
                             // "»" that brings the panel back. Without a way OUT, the restore
                             // control in the bar could never be reached.

@@ -30,7 +30,7 @@ import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
-import {setAgentAutoCommitHoldAtom, simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -390,29 +390,16 @@ const AgentConversation = ({
             }),
         [messages],
     )
-    const runStatus: SessionRunStatus = error
-        ? "error"
-        : hitlPending || anyPendingInteraction
-          ? "awaiting"
-          : busy
-            ? "running"
-            : "idle"
     useEffect(() => {
-        setSessionStatus({id: sessionId, status: runStatus})
-    }, [runStatus, sessionId, setSessionStatus])
-
-    // Hold auto-commit while this session is busy. The agent's own `commit_revision` checks HEAD,
-    // so a concurrent unattended commit would fail it. `awaiting` covers the HITL pause, where the
-    // turn is live but nothing is streaming. The cleanup keys on `entityId` so a self-commit's
-    // revision switch moves the hold instead of leaking it on the old id.
-    // The package twin of this lives in `useAgentConversation` (mobile); both must publish, or the
-    // surface that doesn't races the agent.
-    const autoCommitHeld = runStatus === "running" || runStatus === "awaiting"
-    const setAutoCommitHold = useSetAtom(setAgentAutoCommitHoldAtom)
-    useEffect(() => {
-        setAutoCommitHold({revisionId: entityId, key: sessionId, held: autoCommitHeld})
-        return () => setAutoCommitHold({revisionId: entityId, key: sessionId, held: false})
-    }, [autoCommitHeld, entityId, sessionId, setAutoCommitHold])
+        const status: SessionRunStatus = error
+            ? "error"
+            : hitlPending || anyPendingInteraction
+              ? "awaiting"
+              : busy
+                ? "running"
+                : "idle"
+        setSessionStatus({id: sessionId, status})
+    }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
     useEffect(
         () => () => setSessionStatus({id: sessionId, status: "idle"}),
         [sessionId, setSessionStatus],
