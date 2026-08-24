@@ -13,7 +13,7 @@ import {
     agentIconChipStyle,
     type AgentIconSelection,
 } from "./AgentIcon"
-import type {PhosphorCatalogEntry} from "./catalog.generated"
+import {loadAgentIconCatalog, type PhosphorCatalogEntry} from "./catalog"
 import {
     AGENT_ICON_COLORS,
     DEFAULT_AGENT_ICON,
@@ -57,19 +57,6 @@ const selectedRing = (color: string): CSSProperties => ({
     outline: `2px solid ${color}`,
     outlineOffset: 2,
 })
-
-/** Cached across opens; the contents never change. A REJECTION is not cached — a chunk that 404s
- * after a deploy would otherwise leave the picker spinning for the rest of the session. */
-let catalogPromise: Promise<PhosphorCatalogEntry[]> | null = null
-const loadCatalog = () => {
-    catalogPromise ??= import("./catalog.generated")
-        .then((mod) => mod.phosphorCatalog)
-        .catch((error: unknown) => {
-            catalogPromise = null
-            throw error
-        })
-    return catalogPromise
-}
 
 /**
  * Track a pointer across an element, reporting position as 0..1 fractions. The rect is read once at
@@ -350,7 +337,7 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
     useEffect(() => {
         let alive = true
         setFailed(false)
-        loadCatalog().then(
+        loadAgentIconCatalog().then(
             (entries) => {
                 if (alive) setCatalog(entries)
             },
