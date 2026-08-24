@@ -54,6 +54,9 @@ export type {
     TypedPathInfo,
 } from "./pathUtils"
 
+// The query param a session is addressed by, on either app
+export {SESSION_QUERY_PARAM} from "./sessionParam"
+
 // Template variable validation (envelope-slot aware)
 export {
     KNOWN_ENVELOPE_SLOTS,

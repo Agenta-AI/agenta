@@ -10,6 +10,12 @@ export {
     agentVoiceInputEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "./featureFlags"
+export {
+    advancedNavHiddenAtom,
+    classicModeEnabledAtom,
+    navSimplifiedDefaultAtom,
+    navSimplifiedOverrideAtom,
+} from "./classicMode"
 export {simulatedAgentRunAtomFamily} from "./simulatedAgentRun"
 export type {SimulatedAgentRunRequest} from "./simulatedAgentRun"
 export {openAgentConfigSectionAtom} from "./openConfigSection"
