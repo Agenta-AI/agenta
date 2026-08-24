@@ -11,6 +11,14 @@ EE_DIR="${SCRIPT_DIR}/ee"
 error() { echo "Error: $*" >&2; exit 1; }
 require_value() { [[ -n "${2:-}" ]] || error "Missing value for $1."; }
 absolute_path() { local dir; dir="$(cd "$(dirname "$1")" && pwd)"; printf '%s/%s\n' "$dir" "$(basename "$1")"; }
+display_path() {
+    local path="$1"
+    if [[ "$path" == "${SCRIPT_DIR}/"* ]]; then
+        printf '%s\n' "${path#"${SCRIPT_DIR}/"}"
+    else
+        printf '%s\n' "$path"
+    fi
+}
 is_port() { [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 65535 )); }
 
 read_env_value() {
@@ -36,10 +44,10 @@ default_source_env() {
     primary_root="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / { sub(/^worktree /, ""); print; exit }')"
     [[ -n "$primary_root" ]] || error "No source env file was provided and the primary worktree could not be found."
     for candidate in \
-        "${SCRIPT_DIR}/${license}/${env_name}" \
         "${primary_root}/hosting/docker-compose/${license}/${env_name}" \
-        "${SCRIPT_DIR}/${license}/${fallback_env_name}" \
-        "${primary_root}/hosting/docker-compose/${license}/${fallback_env_name}"; do
+        "${primary_root}/hosting/docker-compose/${license}/${fallback_env_name}" \
+        "${SCRIPT_DIR}/${license}/${env_name}" \
+        "${SCRIPT_DIR}/${license}/${fallback_env_name}"; do
         if [[ -f "$candidate" ]]; then
             printf '%s\n' "$candidate"
             return
@@ -152,6 +160,14 @@ allocate() {
     local range_start="${BASH_REMATCH[1]}" range_end="${BASH_REMATCH[2]}"
     is_port "$range_start" && is_port "$range_end" && (( range_start <= range_end )) || error "Invalid --port-range: $port_range"
     base_env="$(absolute_path "$base_env")"; output_file="$(absolute_path "$output_file")"; env_file="$(absolute_path "$env_file")"
+    if [[ -e "$output_file" && "$force" != true ]]; then
+        if [[ "$dry_run" == true ]]; then
+            printf 'Would reuse allocation: %s\n' "$(display_path "$output_file")"
+        else
+            printf 'Using allocation: %s\n' "$(display_path "$output_file")"
+        fi
+        return
+    fi
     if [[ -n "$port_offset" ]]; then
         postgres_port="${postgres_port:-$(( $(read_env_value "$base_env" POSTGRES_PORT 5432) + port_offset ))}"
         http_port="${http_port:-$(( $(read_env_value "$base_env" TRAEFIK_PORT 80) + port_offset ))}"
@@ -174,9 +190,8 @@ allocate() {
     [[ "$public_host" =~ ^[A-Za-z0-9._-]+$ ]] || error "--public-host must be a hostname without a scheme or port."
     [[ "$public_scheme" =~ ^https?$ ]] || error "--public-scheme must be http or https."
     if [[ "$check_ports" == true ]]; then check_port_available "$postgres_port"; check_port_available "$http_port"; check_port_available "$traefik_ui_port"; fi
-    if [[ -e "$output_file" && "$force" != true && "$dry_run" != true ]]; then error "Output already exists: $output_file (pass --force to replace it)."; fi
     if [[ "$dry_run" == true ]]; then
-        printf 'Would create allocation: %s\n' "$output_file"
+        printf 'Would create allocation: %s\n' "$(display_path "$output_file")"
     else
         mkdir -p "$(dirname "$output_file")"
         umask 077
@@ -187,9 +202,9 @@ allocate() {
             printf 'AGENTA_WEB_URL=%s://%s:%s\nAGENTA_API_URL=%s://%s:%s/api\nAGENTA_SERVICES_URL=%s://%s:%s/services\nENV_FILE=%s\n' "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$env_file"
         } > "$output_file"
         chmod 600 "$output_file"
-        printf 'Created allocation: %s\n' "$output_file"
+        printf 'Created allocation: %s\n' "$(display_path "$output_file")"
     fi
-    printf '  COMPOSE_PROJECT_NAME=%s\n  POSTGRES_PORT=%s\n  TRAEFIK_PORT=%s\n  TRAEFIK_UI_PORT=%s\n  AGENTA_WEB_URL=%s://%s:%s\n  AGENTA_API_URL=%s://%s:%s/api\n  AGENTA_SERVICES_URL=%s://%s:%s/services\n  ENV_FILE=%s\n' "$project_name" "$postgres_port" "$http_port" "$traefik_ui_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$env_file"
+    printf '  COMPOSE_PROJECT_NAME=%s\n  POSTGRES_PORT=%s\n  TRAEFIK_PORT=%s\n  TRAEFIK_UI_PORT=%s\n  AGENTA_WEB_URL=%s://%s:%s\n  AGENTA_API_URL=%s://%s:%s/api\n  AGENTA_SERVICES_URL=%s://%s:%s/services\n' "$project_name" "$postgres_port" "$http_port" "$traefik_ui_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port"
     [[ "$with_store_port" != true ]] || printf '  AGENTA_STORE_PORT=%s\n' "$store_port"
 }
 
@@ -222,13 +237,13 @@ merge() {
         temporary_file="$(mktemp "${output_file}.tmp.XXXXXX")"
         awk -v key="${keys[$index]}" -v value="${values[$index]}" '
             BEGIN { replaced = 0 }
-            $0 ~ "^[[:space:]]*" key "=" { if (!replaced) { print key "=" value; replaced = 1 }; next }
+            $0 ~ "^[[:space:]]*#?[[:space:]]*" key "=" { if (!replaced) { print key "=" value; replaced = 1 }; next }
             { print }
             END { if (!replaced) print key "=" value }
         ' "$output_file" > "$temporary_file"
         mv "$temporary_file" "$output_file"
     done
-    printf 'Created merged environment: %s\n' "$output_file"
+    printf 'Created environment: %s\n' "$(display_path "$output_file")"
 }
 
 prepare() {
@@ -291,11 +306,13 @@ prepare() {
     [[ "$dry_run" == true ]] && allocation_args+=(--dry-run)
     [[ "$force" == true ]] && allocation_args+=(--force)
     allocate "${allocation_args[@]}"
-    if [[ "$dry_run" == true ]]; then printf 'Would merge %s and %s into %s\n' "$source_file" "$overrides_file" "$output_file"; return; fi
-    local -a merge_args=(--base "$source_file" --overrides "$overrides_file" --output "$output_file")
-    [[ "$force" == true ]] && merge_args+=(--force)
+    if [[ "$dry_run" == true ]]; then
+        printf 'Would merge %s and %s into %s\n' "$(display_path "$source_file")" "$(display_path "$overrides_file")" "$(display_path "$output_file")"
+        return
+    fi
+    local -a merge_args=(--base "$source_file" --overrides "$overrides_file" --output "$output_file" --force)
     merge "${merge_args[@]}"
-    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --ee --dev --env-file %s\n' "$output_file"
+    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --%s --%s\n' "$license" "$image_mode"
 }
 
 command="prepare"
