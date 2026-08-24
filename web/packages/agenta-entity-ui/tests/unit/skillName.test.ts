@@ -54,6 +54,28 @@ describe("skillNameError", () => {
         expect(slugifySkillName("Café Notes")).toBe("cafe-notes")
     })
 
+    it("rejects non-string values instead of coercing them", () => {
+        // pydantic's `name: str` refuses 123 outright, but String(123) is "123", a valid slug.
+        for (const value of [123, 1.2, true, {}, []])
+            expect(skillNameError(value), JSON.stringify(value)).toBe("Must be text.")
+        expect(isValidSkillName(123)).toBe(false)
+        expect(skillDraftError({name: 123, description: "d", body: "b"})).toBe("Must be text.")
+        expect(skillDraftError({name: "ok", description: 5, body: "b"})).toBe(
+            "Description must be text.",
+        )
+        expect(skillDraftError({name: "ok", description: "d", body: 5})).toBe(
+            "SKILL.md content must be text.",
+        )
+        // A digit string is still a legal slug, and pydantic accepts it.
+        expect(skillNameError("123")).toBeUndefined()
+    })
+
+    it("treats null and undefined as the required case, not as bad text", () => {
+        expect(skillNameError(null)).toBe("Required.")
+        expect(skillNameError(undefined)).toBe("Required.")
+        expect(skillNameError(null, {touched: false})).toBeUndefined()
+    })
+
     it("stays quiet on an untouched empty field but still reports it as invalid", () => {
         expect(skillNameError("", {touched: false})).toBeUndefined()
         expect(skillNameError("")).toBe("Required.")

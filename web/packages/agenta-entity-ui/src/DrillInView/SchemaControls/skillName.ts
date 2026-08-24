@@ -12,6 +12,9 @@ export const SKILL_NAME_MAX = 64
 export const SKILL_DESCRIPTION_MAX = 1024
 export const SKILL_BODY_MAX = 50_000
 
+/** Shown for a non-string value, which pydantic rejects rather than coerces. */
+export const NOT_TEXT = "Must be text."
+
 /** Best-effort slug for a human-written name, offered as a one-click fix. */
 export function slugifySkillName(name: string): string {
     return name
@@ -30,9 +33,13 @@ export function slugifySkillName(name: string): string {
  * message so a new skill drawer does not open shouting at the user — Save stays blocked either way.
  */
 export function skillNameError(rawName: unknown, {touched = true} = {}): string | undefined {
+    if (rawName === undefined || rawName === null) return touched ? "Required." : undefined
+    // Rejected, not coerced: `name` is a pydantic `str`, which refuses 123 outright, while
+    // String(123) would sail through the slug pattern below.
+    if (typeof rawName !== "string") return NOT_TEXT
     // Checked UNTRIMMED: the form stores what was typed, so trimming here would pass a value the
     // SDK's pattern later rejects.
-    const name = String(rawName ?? "")
+    const name = rawName
     if (!name.trim()) return touched ? "Required." : undefined
     if ([...name].length > SKILL_NAME_MAX) return `Max ${SKILL_NAME_MAX} characters.`
     if (SKILL_NAME_PATTERN.test(name)) return undefined
@@ -52,14 +59,18 @@ export function isValidSkillName(name: unknown): boolean {
  * model, so an empty one fails the run exactly like a bad name does.
  */
 export function skillDraftError(draft: Record<string, unknown>): string | undefined {
-    const nameError = skillNameError(draft.name)
-    if (nameError) return nameError
-    const description = String(draft.description ?? "").trim()
-    if (!description) return "Description is required."
-    if ([...description].length > SKILL_DESCRIPTION_MAX)
-        return `Description: max ${SKILL_DESCRIPTION_MAX} characters.`
-    const body = String(draft.body ?? "").trim()
-    if (!body) return "SKILL.md content is required."
-    if ([...body].length > SKILL_BODY_MAX) return `SKILL.md: max ${SKILL_BODY_MAX} characters.`
+    return (
+        skillNameError(draft.name) ??
+        textFieldError(draft.description, "Description", SKILL_DESCRIPTION_MAX) ??
+        textFieldError(draft.body, "SKILL.md content", SKILL_BODY_MAX)
+    )
+}
+
+/** Required, string-typed and within `max`, matching the pydantic field it mirrors. */
+function textFieldError(value: unknown, label: string, max: number): string | undefined {
+    if (value === undefined || value === null || value === "") return `${label} is required.`
+    if (typeof value !== "string") return `${label} must be text.`
+    if (!value.trim()) return `${label} is required.`
+    if ([...value].length > max) return `${label}: max ${max} characters.`
     return undefined
 }

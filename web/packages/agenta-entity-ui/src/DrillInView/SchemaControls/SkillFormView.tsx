@@ -31,6 +31,7 @@ import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
 import {
+    NOT_TEXT,
     SKILL_BODY_MAX,
     SKILL_DESCRIPTION_MAX,
     SKILL_NAME_MAX,
@@ -164,23 +165,29 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     )
     const [bodyTouched, setBodyTouched] = useState(() => Boolean(String(skill.body ?? "").trim()))
 
-    const name = (skill.name as string | undefined) ?? ""
-    const description = (skill.description as string | undefined) ?? ""
-    const nameError = skillNameError(name, {touched: nameTouched})
+    // The JSON view can put any type here, and a cast alone would let `.trim()` / spread throw.
+    const asText = (value: unknown) => (typeof value === "string" ? value : "")
+    const notText = (value: unknown) => value != null && typeof value !== "string"
+    const name = asText(skill.name)
+    const description = asText(skill.description)
+    const body = asText(skill.body)
+    const nameError = skillNameError(skill.name, {touched: nameTouched})
     const nameSuggestion = nameError && name.trim() ? slugifySkillName(name) : ""
     const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
-    const descriptionError =
-        descriptionTouched && !description.trim()
-            ? "Required."
-            : [...description].length > SKILL_DESCRIPTION_MAX
-              ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
-              : undefined
-    const bodyError =
-        bodyTouched && !String(skill.body ?? "").trim()
-            ? "Required."
-            : [...String(skill.body ?? "")].length > SKILL_BODY_MAX
-              ? `Max ${SKILL_BODY_MAX} characters.`
-              : undefined
+    const descriptionError = notText(skill.description)
+        ? NOT_TEXT
+        : descriptionTouched && !description.trim()
+          ? "Required."
+          : [...description].length > SKILL_DESCRIPTION_MAX
+            ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
+            : undefined
+    const bodyError = notText(skill.body)
+        ? NOT_TEXT
+        : bodyTouched && !body.trim()
+          ? "Required."
+          : [...body].length > SKILL_BODY_MAX
+            ? `Max ${SKILL_BODY_MAX} characters.`
+            : undefined
 
     const set = (key: string, fieldValue: unknown) => {
         const next = {...skill}
@@ -398,7 +405,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                         error={bodyError}
                     >
                         <MarkdownEditor
-                            value={(skill.body as string | undefined) ?? ""}
+                            value={body}
                             onChange={(v) => {
                                 setBodyTouched(true)
                                 set("body", v)
