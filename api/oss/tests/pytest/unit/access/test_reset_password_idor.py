@@ -123,7 +123,7 @@ class TestCrossOrgResetBlocked:
                 AsyncMock(side_effect=AssertionError("Should not look up user")),
             ),
             patch(
-                "supertokens_python.recipe.emailpassword.asyncio.create_reset_password_link",
+                "oss.src.services.user_service.create_reset_password_link",
                 AsyncMock(side_effect=AssertionError("Should not create reset link")),
             ),
         ):
@@ -188,7 +188,7 @@ class TestSameOrgResetAllowed:
                 ),
             ),
             patch(
-                "supertokens_python.recipe.emailpassword.asyncio.create_reset_password_link",
+                "oss.src.services.user_service.create_reset_password_link",
                 AsyncMock(return_value=fake_reset_link),
             ),
             patch(
