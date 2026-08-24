@@ -2,6 +2,43 @@
 
 This guide walks you through deploying Agenta EE with Docker Compose. It covers two paths: using pre-built images or building your own from source.
 
+## Running EE dev stacks side by side
+
+Use `hosting/docker-compose/env.sh` to create a worktree-specific EE environment. It writes
+`hosting/docker-compose/ee/.env.ee.worktree`, a small non-secret allocation file containing the
+Compose project name and every host-bound port in `docker-compose.dev.yml`: Postgres, Traefik
+HTTP, and the Traefik dashboard. It then copies the source environment file and merges that
+allocation into `hosting/docker-compose/ee/.env.ee.dev`. The allocation also updates the public
+web, API, and services URLs to use the worktree's Traefik port.
+
+Choose a unique worktree name. The script automatically finds three free host ports in the
+`10000:19999` range; use `--port-offset` or explicit ports when you need a fixed allocation.
+For example, from a new worktree:
+
+```bash
+bash hosting/docker-compose/env.sh --ee --dev
+```
+
+From a linked worktree this takes the worktree name from its directory and copies the primary
+checkout's `.env.ee.dev`. Pass `--source` or `--worktree` to override either inference. The
+smaller allocation is reusable and inspectable; the generated `.env.ee.dev` remains ignored
+because it contains the copied credentials. Start the stack with:
+
+```bash
+bash hosting/docker-compose/run.sh --ee --dev \
+  --env-file hosting/docker-compose/ee/.env.ee.dev
+```
+
+`env.sh` follows `run.sh`'s target selectors: `--ee|--oss`, `--dev|--gh`, `--local`, and
+`--ssl`. Use the same selectors for both commands. GH-derived stages also receive a unique
+loopback object-store port in addition to Postgres, Traefik HTTP, and the Traefik dashboard.
+
+Use `--port-range START:END` to change the automatic range. Use `--port-offset`, or
+`--postgres-port`, `--http-port`, and `--traefik-ui-port`, when the ports must be fixed. Use
+`--public-host` or `--public-scheme` when the generated URLs should not use the source's
+`TRAEFIK_DOMAIN`/`TRAEFIK_PROTOCOL` (or `localhost`/`http`). Use `env.sh allocate` and `env.sh
+merge` when allocation and merging need to run independently.
+
 ## Prerequisites
 
 - Docker Engine 24+ with Compose V2
