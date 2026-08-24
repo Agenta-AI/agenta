@@ -45,6 +45,7 @@ export const SessionTopBar = ({
             // list is the drawer's Sessions entry, or the tab rail above the conversation.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             name={name || "Agent"}
+            workflowId={agentId}
             revision={
                 entityId ? (
                     <AgentRevisionStatus

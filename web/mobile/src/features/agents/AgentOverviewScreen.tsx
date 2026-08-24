@@ -1,7 +1,12 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {AgentActionsMenu, AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
+import {
+    AgentActionsMenu,
+    AgentOverviewBody,
+    agentAvatar,
+    useAgentIconChrome,
+} from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
@@ -39,6 +44,11 @@ export const AgentOverviewScreen = ({
     const agent = agents.find((candidate) => candidate.id === agentId)
     const name = agent?.name || agent?.slug || "Agent"
     const avatar = agentAvatar(name, agentId)
+    const chrome = useAgentIconChrome(agentId, {
+        size: 16,
+        fallbackGlyph: avatar.initials,
+        fallbackClassName: "text-white",
+    })
     const agentNames = useMemo(
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
@@ -69,10 +79,10 @@ export const AgentOverviewScreen = ({
                                     back button. Home is one drawer entry away. */}
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <span
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-white"
-                                    style={{backgroundColor: avatar.color}}
+                                    className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${chrome.className}`}
+                                    style={chrome.style ?? {backgroundColor: avatar.color}}
                                 >
-                                    {avatar.initials}
+                                    {chrome.glyph}
                                 </span>
                                 {/* No `flex-1`: the title sizes to its text so the kebab sits
                                     beside it, as on the desktop, instead of being pushed to the
