@@ -1,8 +1,8 @@
 # Review findings
 
-**Only OR17 is active for the gateway work.** MCP OAuth and its `TokenStorage` implementation
-are scheduled as WP30/WP31. All other non-goals are in `out-of-scope.md`; the entries below are
-the closed review record.
+**No gateway review findings are active.** MCP OAuth and its `TokenStorage` implementation
+landed through WP30/WP31, and Bedrock/Vertex endpoint base-URL coverage landed through WP32.
+All remaining non-goals are in `out-of-scope.md`; the entries below are the closed review record.
 
 ---
 
@@ -65,19 +65,32 @@ the migration header names its actual parent revision, and adapter/mock exceptio
 returned to callers. The generated `mock` provider is explicitly development-only and excluded
 from the user-facing provider-catalogue parity claim.
 
-## Active review
-
-### OR17. Bedrock/Vertex `base_url` registration and coverage
+### OR17. Bedrock/Vertex `base_url` registration and coverage — CLOSED by WP32
 
 OD19 settled the meaning of `base_url`: Bedrock stores a host and Vertex stores a host plus their
 shared project/location prefix; each protocol door appends only its own tail. The implementation
-still accepts that field without a registered Bedrock or Vertex row, fixture, or end-to-end test.
+now validates that shape and uses registered Bedrock/Vertex fixtures with explicit endpoint
+values.
 
-**Open implementation review.** Add representative endpoint registrations with explicit
-`base_url` values and cover every supported door. Verify that the field is rejected when it is
-not a valid host (or, for Vertex, host plus its permitted common prefix), and that routing never
-silently switches an endpoint or capability. Keep this review here until those fixtures and tests
-prove the contract; it is not an unresolved design decision.
+**Verified closed.** Unit coverage in
+`test_gateways_llm_deployment_base_urls.py` rejects malformed hosts, paths, query strings, and
+fragments. The registered-fixture integration suite
+`test_gateways_cloud_endpoint_url_fixtures.py` covers each supported door and static rewrite.
+The OSS/EE acceptance suite `test_cloud_endpoint_base_urls_acceptance.py` proves a configured
+endpoint is used without a fallback to a different endpoint or capability.
+
+### OR1 / OR12. MCP OAuth client and SDK contract — CLOSED by WP30/WP31
+
+The original review left two connected questions open: use the official MCP OAuth client rather
+than a bespoke implementation, and prove its secret-backed `TokenStorage` contract through the
+dashboard connection flow.
+
+**Verified closed.** WP30 pins the official MCP SDK and implements its token storage over secret
+handles only. Its unit suites cover storage, state, registration fallback, and no-token
+serialization; `test_mcp_oauth_connect.py` covers the local-provider integration flow; and
+`test_mcp_gateway_oauth_acceptance.py` proves authorization followed by a real gateway tool call.
+WP31 adds the OSS/EE settings consent, callback, reconnect, and scope-step-up coverage in
+`web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts`.
 
 ---
 
