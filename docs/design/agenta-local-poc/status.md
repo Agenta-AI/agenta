@@ -98,15 +98,38 @@ Also verified: wire request carries `sessionId: null`; Pi built-in tools are den
 the effective policy (adversarial prompts could not read `/etc/passwd`, `/etc/hostname`,
 or run shell commands); process teardown after SIGTERM left no owned children.
 
+Slices 3 and 4 code is complete (2026-08-24):
+
+- Slice 3 renderer at web/agenta-local (@agenta/local): Next 15 static export,
+  provider -> agent -> session -> streamed-turn journey, same-origin fetch + Zod +
+  SSE parser over the Vercel vocabulary, shared QueryClient host contract, URL-only
+  selection, theme-only persistence; 32 vitest tests; lint/types/build green.
+- Cross-slice acceptance: FastAPI serves the real export at / with direct
+  /agents/, /sessions/, /providers/ refresh while /health and /api/* keep priority.
+- Slice 4 launcher: cwd-independent paths (darwin uses ~/Library/Application Support),
+  0600 flock before migrations/children with inherited fd, explicit child env
+  allowlists, EADDRINUSE retry, readiness gates, SIGTERM/SIGTERM/UI-quit ordering
+  with per-layer deadlines, public ExecutionService.shutdown() for interruption
+  commits; 38+ unit tests with fakes.
+- Bundle packaging parameterized by platform: linux-x64 pins verified upstream;
+  darwin-arm64/x64 supported with build-time hash recording (marked unverified);
+  wrong-platform runner stages fail fast naming the native packages. A macOS bundle
+  must be built on the Mac (recipe in services/local/packaging/linux/BUILDING.md).
+
 ## Current blocker
 
-None. Slices 1 and 2 are complete. The clean-VM strace rerun is a Slice 4 gate.
+None for code. Operational gates remain: assemble the real linux-x64 bundle and run
+the clean-VM journey; build + verify a darwin-arm64 bundle on the Mac.
 
-## Next actions
+## Known deferred items
 
-1. Slice 3: static renderer at web/agenta-local consuming the local contract.
-2. Slice 4: Linux bundle + launcher (Python runtime pin still open), then the clean-VM
-   strace gate and AppImage evaluation.
+1. pyproject does not package migration assets into the wheel (bundle copies them to
+   app/migrations and the launcher sets AGENTA_LOCAL_MIGRATIONS_DIR; only a bare
+   pip-installed wheel lacks the fallback path).
+2. Agent rename has no server route yet (renderer disables the field); contracts.md's
+   minimal HTTP surface omits DELETE /api/agents/{id} although it exists.
+3. /api/runtime does not yet return the launcher-safe log path the plan wants for
+   runtime error links.
 
 ## Deferred product work
 
