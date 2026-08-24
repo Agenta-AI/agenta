@@ -14,9 +14,10 @@ are fixed or verified. The following are explicit notes, not deferred requiremen
 file: wallet-owned entitlement/metering enforcement; subscription pass-through; future MCP
 provider adapters (rather than a curated direct-server catalogue); user-owned secrets; embeddings
 and the remaining services conversion; provider-specific OAuth compatibility checks; and advanced
-Bedrock capability fallback. They are all out of scope for this gateway increment. Claude Code is
-different: its observed harness behaviour is an active live-web QA item in [qa.md](qa.md), not a
-source-inspection limitation. Any old use of “deferred”, “later”, or “unverified” below is
+Bedrock capability fallback. Their authoritative record is now
+[`out-of-scope.md`](out-of-scope.md); they are all out of scope for this gateway increment. Claude
+Code is different: its observed harness behaviour is an active live-web QA item in [qa.md](qa.md),
+not a source-inspection limitation. Any old use of “deferred”, “later”, or “unverified” below is
 historical rationale for one of those dispositions, not an open action.
 
 ---
@@ -268,8 +269,8 @@ subscription session entirely, and the symptom is an auth error from the vendor,
 **Conclusion: no harness fails the matrix for wave 2's own need.** All three carry a custom
 header alongside a base-URL override, which is all `credentialMode: "none"` (the gateway route)
 needs. None of the three lets a base-URL override coexist with a preserved subscription login.
-**Won't fix in this increment:** subscription pass-through (D32) is not part of this gateway
-scope, so no harness is asked to combine those modes.
+**Out of scope:** subscription pass-through (D32) is recorded in
+[`out-of-scope.md`](out-of-scope.md), so no harness is asked to combine those modes.
 
 **The fallback if a harness fails the matrix** is the local-agent shape: a small local process
 between harness and gateway that holds the gateway identity and leaves the harness's own vendor
@@ -624,9 +625,10 @@ prompt routing; the separate Messages API reference page lists structured output
 with no endpoint carve-out. Both pages are AWS's own and they disagree; this design does not pick
 a side. What is settled regardless: `bedrock-runtime` remains the endpoint for the other three
 capabilities, and no fallback between the two Bedrock endpoints is built — an endpoint is fixed
-by `deployment_kind` and door, never switched per request. **Won't fix in this increment:** use
-that general deterministic behaviour rather than special-casing capabilities per request. A later
-provider capability contract may choose a different behaviour explicitly.
+by `deployment_kind` and door, never switched per request. **Out of scope:** the advanced
+capability-fallback question is recorded in [`out-of-scope.md`](out-of-scope.md); this increment
+uses deterministic behaviour rather than special-casing capabilities per request. A later provider
+capability contract may choose a different behaviour explicitly.
 
 **An override has real uses, so the field is not decoration.** Both vendors publish private-access
 addresses that replace the host and nothing else: Bedrock through VPC interface endpoints
@@ -705,9 +707,9 @@ The objection that rejecting "breaks a harness that did nothing wrong" is real a
 the error rather than by silence: the denial names the ceiling, the value asked for and the value
 allowed, so the caller can retry correctly on the first attempt.
 
-**Won't fix in this increment:** actual ceilings and the corresponding north-port envelope belong
-to the later policy/metering work. The design decision is complete: when that work exists it must
-reject visibly, never silently clamp.
+**Out of scope:** actual ceilings and the corresponding north-port envelope belong to the
+wallets/policy work recorded in [`out-of-scope.md`](out-of-scope.md). The design decision is
+complete: when that work exists it must reject visibly, never silently clamp.
 
 ### OD21. OAuth discovery guesses a well-known path instead of reading the 401 that names it — CLOSED
 
@@ -737,8 +739,8 @@ only, as no comparable header exists at that step.
   one (D14). No static MCP kind in this scope, and no kind at all for the inbound credentials.
 - **The inbound credentials** — minted, ephemeral, never stored, using the signer that already
   exists (D13).
-- **Embeddings in the model registry, and the remaining services conversion** — noted but
-  won't-fix here; they move together with the evaluator/services work (D15).
+- **Embeddings in the model registry, and the remaining services conversion** — recorded in
+  [`out-of-scope.md`](out-of-scope.md); they move together with the evaluator/services work (D15).
 
 ## Closed earlier
 

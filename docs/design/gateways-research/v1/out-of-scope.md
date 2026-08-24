@@ -123,3 +123,36 @@ direct secret resolution belongs in the same bucket.
 **Why not `cleanups.md`.** That file is repo debt this work touches and can finish. These are not
 finishable here: each one ends when its own path is migrated, on its own schedule, and listing them
 as pending cleanups invites re-auditing them every wave.
+
+## Recorded non-goals for this increment
+
+These are review findings retained as context, not packages in the gateway increment.
+
+- **Wallet-owned entitlement, metering, and ceilings:** the gateway establishes the point where
+  such policy can eventually be enforced; the product and accounting contract belongs to the
+  wallets workstream. When implemented, a ceiling rejects visibly rather than silently clamping.
+- **User-owned secrets and grants (OR2, OR5, OR14):** endpoints remain project-owned. The
+  future additive grant-table design is documented above; no DAO owner dimension, per-user lookup,
+  or plaintext-read closure is built here.
+- **Remaining model-call conversion and its policy inventory (OR3, OR11):** the gateway owns the
+  paths converted in this increment. Legacy settings builders, evaluators, embeddings, and their
+  existing authorization/metering behaviour move only with their owning services workstream.
+- **Wire redaction simplification and provider-enum consolidation (OR7, OR8):** keep the proven
+  current deny-set and explicit cross-language provider tables. Refactoring either without the
+  next provider/conversion change creates churn without reducing a present gateway risk.
+- **Subscription pass-through (OR10):** a harness base-URL override is not combined with its
+  vendor subscription login here. This needs a dedicated subscription contract and billing model.
+- **Curated MCP-server catalogue and provider-specific OAuth compatibility:** the gateway has no
+  direct-server catalogue in this increment. Future MCP providers are onboarded as provider
+  adapters, and each provider's OAuth quirks are verified during that onboarding rather than made
+  a generic gateway contract.
+- **Advanced Bedrock capability fallback:** routing stays deterministic: a deployment and protocol
+  door select one upstream, never a request-specific fallback chosen from advertised capabilities.
+- **Audit durability (OR15):** compliance-grade non-droppable events belong to the events domain,
+  not a second gateway audit store.
+
+## Scheduled follow-on work, not scope for this increment
+
+**MCP OAuth is deliberately not implemented here.** Its work packages own the direct MCP SDK
+dependency decision, the secrets-backed `TokenStorage` adapter, dashboard consent/callback flow,
+and registration fallback together. See WP30 and WP31 in `workstreams/`.

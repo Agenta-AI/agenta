@@ -261,6 +261,26 @@ through its own catalogue and auth path, while the entries are absent outside de
 coverage for the generated and custom mock cases.
 *Depends on:* WP28. *Done when:* every case in `mocks.md` passes on both development stacks.
 
+**Supersession.** The historical WP17, WP18, and WP20 descriptions below are superseded by
+WP30/WP31. They remain in this research record to preserve the original dependency narrative;
+they are not a second OAuth backlog and must not be scheduled separately.
+
+**WP30 — MCP OAuth foundation and secrets-backed token storage.** Add the pinned official MCP
+SDK as a direct dependency only for this package; implement its `TokenStorage` protocol as a thin
+adapter over the existing secrets service; and wire discovery, client metadata, redirect and
+callback handling without ever serializing token material from a gateway route. *Closes:* OR1 and
+the MCP-SDK decision in OR12. *Depends on:* the MCP gateway.
+
+**WP31 — MCP OAuth consent and registration flow.** Build the dashboard/API connect flow over
+WP30: scope selection, callback completion, endpoint state, typed needs-auth/needs-input
+responses, and client-registration fallback. *Depends on:* WP30. *Blocks:* OAuth-backed MCP
+endpoint acceptance.
+
+**WP32 — Bedrock/Vertex endpoint base URL validation and coverage.** Define the accepted
+per-deployment `base_url` grammar, reject invalid hosts/prefixes, register representative endpoint
+fixtures, and cover each supported Bedrock and Vertex protocol door without endpoint fallback.
+*Closes:* OR17. *Depends on:* the existing translated-provider routing.
+
 **Merge IM2 → C1.** Deploy. Acceptance tests above.
 
 ---
