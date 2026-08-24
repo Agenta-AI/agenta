@@ -82,4 +82,4 @@ here. Those arrive in the policy payload. See
 | [design.md](design.md) | Every decision, the options it was chosen against, and why |
 | [write-only-secrets.md](write-only-secrets.md) | The vault contract the seeded row depends on: write-only values and managed rows |
 | [proxy-and-deployment.md](proxy-and-deployment.md) | What the proxy must look like, how it is routed, and what that constrains |
-| [operations-audit.md](operations-audit.md) | The per-environment configuration, external prerequisites, rollout order, current readiness, and QA evidence required to operate the bridge |
+| [operations-audit.md](operations-audit.md) | What an environment owner must configure, where each value comes from, and the two-step bootstrap sequence |
