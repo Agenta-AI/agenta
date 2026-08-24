@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {clearPersistedQueryCache} from "@agenta/shared/api/persist"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
@@ -16,11 +17,11 @@ import {
 } from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
-import {orgsAtom, useOrgData} from "@/oss/state/org"
+import {orgsAtom, resetOrganizationData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
-import {useProfileData} from "@/oss/state/profile"
+import {resetProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
-import {useProjectData} from "@/oss/state/project"
+import {resetProjectData} from "@/oss/state/project"
 import {authFlowAtom} from "@/oss/state/session"
 import {writePostSignupPending} from "@/oss/state/url/auth"
 import {
@@ -50,9 +51,6 @@ interface HandleAuthSuccessOptions {
 
 const usePostAuthRedirect = () => {
     const router = useRouter()
-    const {refetch: resetProfileData} = useProfileData()
-    const {refetch: resetOrganizationData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
     const authUpgradeOrgKey = "authUpgradeOrgId"
@@ -77,6 +75,7 @@ const usePostAuthRedirect = () => {
     const derivedIsInvitedUser = hasInviteFromQuery || hasInviteFromStorage
 
     const resetAuthState = useCallback(async () => {
+        await clearPersistedQueryCache()
         await resetProfileData()
         await resetOrganizationData()
         await resetProjectData()

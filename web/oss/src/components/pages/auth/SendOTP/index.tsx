@@ -1,5 +1,7 @@
 import {useRef, useState} from "react"
 
+import {clearPersistedQueryCache} from "@agenta/shared/api/persist"
+
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
@@ -82,6 +84,7 @@ const SendOTP = ({
 
             if (response.status === "OK") {
                 await clearLoginAttemptInfo()
+                await clearPersistedQueryCache()
                 setMessage({message: "Verification successful", type: "success"})
                 // Clear selected org via atom to keep storage in sync
                 const {createdNewRecipeUser: _createdNewRecipeUser, user} = response
@@ -122,6 +125,7 @@ const SendOTP = ({
 
     const backToLogin = async () => {
         await clearLoginAttemptInfo()
+        await clearPersistedQueryCache()
         setIsLoginCodeVisible(false)
     }
 
