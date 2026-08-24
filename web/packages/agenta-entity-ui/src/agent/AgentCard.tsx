@@ -11,6 +11,7 @@ import {
 } from "@agenta/ui/ui"
 import {DotsThreeIcon, Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
 
+import {useAgentIconChrome} from "./agentIcon"
 import {Tip} from "./Tip"
 
 /** Deterministic so an agent keeps its colour across surfaces and reloads — index into a fixed
@@ -86,20 +87,27 @@ export const AgentCard = ({
 }: AgentCardProps) => {
     const {initials, color} = agentAvatar(agent.name, agent.id)
     const isGrid = variant === "grid"
+    // Never `text-white` AND the icon's colour utility: equal specificity leaves the winner to
+    // stylesheet order, so the fallback owns the white and the custom icon owns its own.
+    const chrome = useAgentIconChrome(agent.id, {
+        size: 20,
+        fallbackGlyph: initials,
+        fallbackClassName: "text-white",
+    })
 
     const avatar = (
         <span
             aria-hidden
-            className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${
+            className={`flex shrink-0 items-center justify-center rounded-full font-semibold ${
                 isGrid
                     ? // Straddling the top edge, as in the design: it reads as the agent's mark on
                       // the card rather than as the first cell of a row.
                       "absolute -top-5 left-4 size-10 border-2 border-solid border-colorBgContainer text-sm"
                     : "size-10 text-sm"
-            }`}
-            style={{background: color}}
+            } ${chrome.className}`}
+            style={chrome.style ?? {background: color}}
         >
-            {initials}
+            {chrome.glyph}
         </span>
     )
 
