@@ -237,7 +237,7 @@ export const ApprovalCard = ({
                             </Button>
                         ) : null}
                         <LoadingButton
-                            variant="outline"
+                            variant="ghost"
                             disabled={responding}
                             loading={responding && firedAction === "deny"}
                             className={touchCls}
