@@ -1,0 +1,13 @@
+{"kind": "event", "event": {"type": "data", "name": "agent-status", "data": {"phase": "environment_starting"}, "transient": true}}
+{"kind": "event", "event": {"type": "data", "name": "agent-status", "data": {"phase": "environment_ready"}, "transient": true}}
+{"kind": "event", "event": {"type": "message_start", "id": "msg-0"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": "Hello"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": "!"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": " How"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": " are"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": " you"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": " today"}}
+{"kind": "event", "event": {"type": "message_delta", "id": "msg-0", "delta": "?"}}
+{"kind": "event", "event": {"type": "message_end", "id": "msg-0"}}
+{"kind": "event", "event": {"type": "done"}}
+{"kind": "result", "result": {"ok": true, "output": "Hello! How are you today?", "messages": [{"role": "assistant", "content": "Hello! How are you today?"}], "events": [], "stopReason": "end_turn", "capabilities": {"textMessages": true, "images": true, "fileAttachments": false, "mcpTools": false, "toolCalls": true, "reasoning": false, "planMode": false, "permissions": false, "streamingDeltas": true, "sessionLifecycle": true, "usage": true}, "sessionId": "47cfc6b7-09b4-43e0-8ac1-5135bbb045d1", "model": "openai/gpt-4o-mini"}}

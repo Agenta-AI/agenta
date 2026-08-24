@@ -1,0 +1,56 @@
+[project]
+name = "agenta-local"
+version = "0.0.1"
+description = "Agenta Local: a single-user, offline local runtime for Agenta agents."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [
+    { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
+    { name = "Juan Vega", email = "jp@agenta.ai" },
+]
+dependencies = [
+    "agenta",
+    "agenta-client",
+    "fastapi>=0.139,<0.140",
+    "pydantic>=2,<3",
+    "uvicorn[standard]>=0.51,<0.52",
+    "httpx>=0.28,<0.29",
+    "sqlalchemy>=2,<3",
+    "aiosqlite>=0.20,<1",
+    "alembic>=1,<2",
+    "orjson>=3,<4",
+    "structlog>=26,<27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-asyncio>=1,<2",
+    "pytest-mock>=3,<4",
+    "pytest-xdist>=3,<4",
+]
+
+[tool.uv.sources]
+agenta = { path = "../../sdks/python", editable = true }
+agenta-client = { path = "../../clients/python", editable = true }
+
+[tool.uv.build-backend]
+module-name = "agenta_local"
+module-root = "src"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[project.scripts]
+agenta-local-server = "agenta_local.entrypoints.server:main"
+agenta-local = "agenta_local.entrypoints.launcher:main"
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+asyncio_mode = "auto"
+testpaths = ["tests/pytest"]
+markers = [
+    "integration: needs a live runner or captured replay fixtures; skips cleanly offline",
+]

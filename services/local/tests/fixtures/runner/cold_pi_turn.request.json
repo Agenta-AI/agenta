@@ -1,0 +1,53 @@
+{
+  "harness": "pi_core",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a terse assistant. Reply with exactly one short sentence.",
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello in exactly five words."
+    }
+  ],
+  "context": null,
+  "telemetry": null,
+  "tools": [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "customTools": [],
+  "toolCallback": null,
+  "permissions": {
+    "default": "deny"
+  },
+  "modelCapabilities": {
+    "inputModalities": [
+      "text",
+      "image"
+    ]
+  },
+  "modelConnection": {
+    "provider": "openai",
+    "deployment": "direct",
+    "credentialMode": "env",
+    "credentials": [
+      {
+        "binding": {
+          "kind": "environment",
+          "name": "OPENAI_API_KEY"
+        },
+        "value": "sk-redacted",
+        "usage": "opaque_http"
+      }
+    ],
+    "endpoint": {
+      "baseUrl": "https://api.openai.com/v1"
+    }
+  }
+}
