@@ -52,8 +52,9 @@ dependency, no OAuth and no converted caller. Everything it proves is proved aga
 mocks, which is what makes it a clean acceptance-test surface.
 
 **Acceptance tests:** the local mock matrix exercises every namespace: LLM builtin Agenta, LLM
-builtin mock, LLM standard mock, LLM custom mock; MCP builtin Agenta, MCP builtin Composio fake,
-MCP builtin mock, MCP standard mock, and MCP custom mock. A request with no token is refused; a
+builtin mock, LLM standard mock, LLM custom mock; MCP builtin Agenta, MCP builtin mock, MCP
+standard mock, and MCP custom mock. Composio remains a real brokered integration; there is no
+Composio fake route. A request with no token is refused; a
 request for an endpoint the caller may not use is refused; a permitted request reaches the
 expected mock with the caller's token replaced by the upstream secret; a streamed response arrives
 byte for byte on **both** gateways, tool names, schemas and errors included; a tool call outside
@@ -251,7 +252,8 @@ both gateways. Creation and deletion only — per-endpoint configuration is WP21
 one cannot be edited.
 
 **WP28 — Generated development mock catalogue and provider routing.** The development-only
-generated entries, all six namespace route families, and the local Composio fake boundary.
+generated entries, all six namespace route families, and the explicit absence of a Composio fake
+boundary.
 *Depends on:* WP5–WP10. *Blocks:* WP29. *Done when:* every namespace resolves to its local mock
 through its own catalogue and auth path, while the entries are absent outside development.
 

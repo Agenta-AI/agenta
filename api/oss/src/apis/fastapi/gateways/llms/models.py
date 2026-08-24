@@ -9,6 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from oss.src.core.gateways.llms.dtos import (
+    LLMGatewayConnectionResolution,
     LLMEndpoint,
     LLMEndpointCreate,
     LLMEndpointEdit,
@@ -38,3 +39,13 @@ class LLMEndpointResponse(BaseModel):
 class LLMEndpointsResponse(BaseModel):
     count: int = 0
     endpoints: List[LLMEndpoint] = Field(default_factory=list)
+
+
+class LLMGatewayConnectionResolveRequest(BaseModel):
+    model: str
+    provider_key: Optional[str] = None
+    connection_slug: Optional[str] = None
+
+
+class LLMGatewayConnectionResolveResponse(BaseModel):
+    connection: LLMGatewayConnectionResolution

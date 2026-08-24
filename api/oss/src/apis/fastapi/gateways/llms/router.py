@@ -25,6 +25,8 @@ from oss.src.apis.fastapi.gateways.llms.models import (
     LLMEndpointQueryRequest,
     LLMEndpointResponse,
     LLMEndpointsResponse,
+    LLMGatewayConnectionResolveRequest,
+    LLMGatewayConnectionResolveResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
@@ -59,6 +61,13 @@ class LLMGatewayRouter:
         self.service = llm_gateway_service
         self.router = APIRouter()
 
+        self.router.add_api_route(
+            "/resolve",
+            self.resolve_agent_connection,
+            methods=["POST"],
+            operation_id="resolve_llm_gateway_connection",
+            response_model=LLMGatewayConnectionResolveResponse,
+        )
         self.router.add_api_route(
             "/endpoints/",
             self.create_endpoint,
@@ -118,6 +127,25 @@ class LLMGatewayRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def resolve_agent_connection(
+        self,
+        request: Request,
+        *,
+        body: LLMGatewayConnectionResolveRequest,
+    ) -> LLMGatewayConnectionResolveResponse:
+        """Resolve an agent's gateway target without exposing a vault secret."""
+        scope = get_auth_scope()
+        await self._check(scope, Permission.USE_LLM_ENDPOINTS)
+        connection = await self.service.resolve_agent_connection(
+            scope=scope,
+            model=body.model,
+            provider_key=body.provider_key,
+            connection_slug=body.connection_slug,
+        )
+        return LLMGatewayConnectionResolveResponse(connection=connection)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()

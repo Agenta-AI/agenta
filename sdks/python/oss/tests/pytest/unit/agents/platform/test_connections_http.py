@@ -27,8 +27,11 @@ def _credential_environment(resolved) -> dict[str, str]:
     return {item.binding.name: item.value for item in resolved.credentials}
 
 
-def _gateway_route(namespace: str, name: str) -> str:
-    return f"{_GATEWAY_BASE}/gateways/llms/{namespace}/{name}"
+def _gateway_route(namespace: str, name: str, provider: str) -> str:
+    route = f"{_GATEWAY_BASE}/gateways/llms/{namespace}/{name}"
+    # The Anthropic SDK owns its `/v1` prefix and appends `/v1/messages` itself.
+    # OpenAI-compatible SDKs expect the versioned base URL from their transport.
+    return route if provider == "anthropic" else f"{route}/v1"
 
 
 def _assert_routed_through_gateway(resolved, *, namespace: str, name: str) -> None:
@@ -43,7 +46,9 @@ def _assert_routed_through_gateway(resolved, *, namespace: str, name: str) -> No
     assert resolved.credential_mode == "none"
     assert resolved.credentials == []
     assert resolved.endpoint is not None
-    assert resolved.endpoint.base_url == _gateway_route(namespace, name)
+    assert resolved.endpoint.base_url == _gateway_route(
+        namespace, name, resolved.provider
+    )
     assert resolved.gateway_credentials is not None
     assert resolved.gateway_credentials.value == "Access tok"
 
@@ -115,14 +120,19 @@ def _custom_provider(
     return secret
 
 
-async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection):
-    # Provider keys are addressed by their PROVIDER; header.name is display-only, never a slug.
+async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
+    # The API core owns vault selection. The SDK receives route metadata only, never a key.
     capture = fake_http(
         connections,
-        payload=[
-            _provider_key("My OpenAI key", "openai", "sk-prod"),
-            _provider_key("My Anthropic key", "anthropic", "sk-ant"),
-        ],
+        payload={
+            "connection": {
+                "namespace": "standard",
+                "name": "openai",
+                "provider_key": "openai",
+                "deployment_kind": "direct",
+                "model": "gpt-5.5",
+            }
+        },
     )
 
     resolved = await VaultConnectionResolver(connection).resolve(
@@ -134,10 +144,14 @@ async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection
     assert resolved.deployment == "direct"
     _assert_routed_through_gateway(resolved, namespace="standard", name="openai")
     assert resolved.input_modalities == ["text", "image"]
-    assert capture["method"] == "GET"
-    assert capture["url"] == "https://api.x/api/secrets/"
+    assert capture["method"] == "POST"
+    assert capture["url"] == "https://api.x/api/gateways/llms/resolve"
     assert capture["headers"]["Authorization"] == "Access tok"
-    assert "json" not in capture
+    assert capture["json"] == {
+        "model": "gpt-5.5",
+        "provider_key": "openai",
+        "connection_slug": "openai",
+    }
 
 
 async def test_self_managed_short_circuits_without_api_base(fake_http):

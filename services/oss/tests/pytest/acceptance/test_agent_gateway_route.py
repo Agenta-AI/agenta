@@ -27,7 +27,15 @@ import pytest
 pytestmark = [pytest.mark.acceptance]
 
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
-_MOCK_MODEL = "mock/echo"
+_HARNESS_CONNECTIONS = {
+    "pi_core": ("openai", "mock/echo"),
+    # Codex validates a model against its built-in selectable set before it makes the request.
+    # The mock accepts this real Codex id and still replies deterministically.
+    "codex": ("openai", "gpt-5.5"),
+    # Current Claude Code normalizes its tier alias to this canonical model id before
+    # sending the Messages request, so the gateway allow-list must use that exact id.
+    "claude": ("anthropic", "claude-sonnet-5"),
+}
 
 
 def _assert_ok(response):
@@ -35,27 +43,28 @@ def _assert_ok(response):
     return response.json()
 
 
-@pytest.fixture(scope="module")
-def mock_custom_connection(mod_api):
+@pytest.fixture
+def mock_custom_connection(harness, mod_api):
     """A `custom_provider` vault secret and a matching gateway endpoint, both pointed at
     WP5's mock upstream and named by the same slug — the pair `resolve_connection` needs to
     route a `mode: agenta` connection through `custom/{slug}` (D30)."""
-    slug = f"wp14-acceptance-{uuid4().hex[:8]}"
+    provider, model = _HARNESS_CONNECTIONS[harness]
+    slug = f"wp14-{harness}-{uuid4().hex[:8]}"
 
     _assert_ok(
         mod_api(
             "POST",
             "/secrets/",
             json={
+                "header": {"name": slug},
                 "secret": {
-                    "slug": slug,
                     "kind": "custom_provider",
                     "data": {
-                        "kind": "openai",
+                        "kind": provider,
                         "provider": {"url": _MOCK_BASE_URL, "key": "sk-mock"},
-                        "models": [{"slug": _MOCK_MODEL}],
+                        "models": [{"slug": model}],
                     },
-                }
+                },
             },
         )
     )
@@ -66,22 +75,40 @@ def mock_custom_connection(mod_api):
             json={
                 "endpoint": {
                     "slug": slug,
-                    "provider_key": "openai",
+                    "provider_key": provider,
                     "deployment_kind": "custom",
                     "secret_id": None,  # the mock needs no upstream secret (D23)
                     "data": {
                         "route": {"base_url": _MOCK_BASE_URL},
-                        "models": {"allowlist": [_MOCK_MODEL]},
+                        "models": {"allowlist": [model]},
                     },
                 }
             },
         )
     )
-    return slug
+    return {"slug": slug, "model": model}
 
 
+@pytest.mark.parametrize(
+    "harness",
+    [
+        "pi_core",
+        "codex",
+        pytest.param(
+            "claude",
+            marks=pytest.mark.xfail(
+                run=False,
+                reason=(
+                    "Claude Code is proprietary and intentionally not baked into the "
+                    "runner image; its gateway route is live-tested only where the "
+                    "locally provisioned Claude runtime is available."
+                ),
+            ),
+        ),
+    ],
+)
 def test_agent_run_completes_through_the_gateway(
-    mock_custom_connection, mod_services_api
+    harness, mock_custom_connection, mod_services_api
 ):
     """POST /agent/v0/invoke with a named connection routes the model call through the
     gateway's `custom/{slug}` route rather than a direct provider socket. Success (and the
@@ -91,24 +118,26 @@ def test_agent_run_completes_through_the_gateway(
         "POST",
         "/agent/v0/invoke",
         json={
-            "messages": [{"role": "user", "content": "hi"}],
-            "parameters": {
-                "agent": {
-                    "harness": {"kind": "pi_core"},
-                    "llm": {
-                        "model": _MOCK_MODEL,
-                        "connection": {
-                            "mode": "agenta",
-                            "slug": mock_custom_connection,
+            "data": {
+                "inputs": {"messages": [{"role": "user", "content": "hi"}]},
+                "parameters": {
+                    "agent": {
+                        "harness": {"kind": harness},
+                        "llm": {
+                            "model": mock_custom_connection["model"],
+                            "connection": {
+                                "mode": "agenta",
+                                "slug": mock_custom_connection["slug"],
+                            },
                         },
-                    },
-                }
+                    }
+                },
             },
         },
     )
 
     body = _assert_ok(resp)
-    messages = body["messages"]
+    messages = body["data"]["outputs"]["messages"]
     assert messages, "expected at least one assistant message"
     assert messages[-1]["role"] == "assistant"
     # WP5's mock echoes the request's last message content back (specs-wp5.md).

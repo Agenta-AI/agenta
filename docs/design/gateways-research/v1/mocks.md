@@ -124,6 +124,18 @@ operations.  The shared assertions then cover, where the protocol supports them:
 The full matrix runs in both `--oss --dev` and `--ee --dev`.  It is deliberately not gated on an
 EE entitlement: these are development test doubles for shared gateway behaviour.
 
+**Host test contract.** The compose API and mock containers receive
+`AGENTA_GATEWAYS_MOCKS_ENABLED=true` in development. `test.sh` exports that same transient,
+development-only setting and its non-secret mock token before starting host pytest; it never
+persists either value to a worktree env file. Without this parity, pytest would skip the matrix
+even while the containers correctly expose its routes.
+
+**Recorded EE evidence (2026-08-24).**
+`bash hosting/docker-compose/test.sh --ee --dev --api -a --
+oss/tests/pytest/acceptance/gateways/test_gateway_mock_matrix_acceptance.py` completed with
+**24 passed**. That is the eight-row development matrix: each row proves its authenticated route,
+while the shared cases prove unauthenticated refusal, LLM streaming, and MCP tool calls.
+
 ## Work packages
 
 - **WP28 — Generated development mock catalogue and provider routing** implements the dev-only

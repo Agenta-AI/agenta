@@ -135,9 +135,10 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
     assert resolved.model == "openai/gpt-oss-20b:free"
     assert resolved.endpoint is not None
     # D36/D30: the gateway holds the provider secret now; the resolved route names the
-    # gateway's `custom/{slug}` target, not the vault record's own upstream URL.
+    # gateway's OpenAI-compatible `custom/{slug}/v1` target, not the vault record's own
+    # upstream URL.
     assert resolved.endpoint.base_url == (
-        f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat"
+        f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat/v1"
     )
     assert resolved.credential_mode == "none"
     assert resolved.credentials == []
@@ -165,7 +166,7 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
     assert connection["deployment"] == "custom"
     assert connection["provider"] == "openai"
     assert connection["endpoint"] == {
-        "baseUrl": f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat"
+        "baseUrl": f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat/v1"
     }
     assert connection["credentialMode"] == "none"
     # No provider secret ever reaches the wire now (D36/D30): the gateway holds it. Our own

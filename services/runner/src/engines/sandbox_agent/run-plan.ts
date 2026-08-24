@@ -212,7 +212,8 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -309,8 +310,8 @@ function defaultDaytonaCwd(durableCwd?: string): string {
 
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
-/** Mirrors `ResolvedConnection._require_effective_https` in the Python SDK: https anywhere, or
- * plain http to a loopback host, which has no remote to leak the value to. */
+/** Mirrors the provider-credential transport rule in the Python SDK: HTTPS anywhere, or
+ * plain HTTP to loopback, which has no remote to leak a provider credential to. */
 function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
   try {
     const endpoint = new URL(baseUrl ?? "");
@@ -330,13 +331,25 @@ function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
  * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
 export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
 
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHttpHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
+
 /** The gateway credentials as the header they belong in. The header counterpart of
  * `materializeModelEnvironment`; validated there, materialized here. */
 export function materializeGatewayHeaders(
   request: AgentRunRequest,
 ): Record<string, string> {
   const credentials = request.modelConnection?.gatewayCredentials;
-  if (!credentials?.header?.trim() || !credentials.value) return {};
+  if (
+    !credentials?.header?.trim() ||
+    !credentials.value ||
+    !isSafeHttpHeader(credentials.header, credentials.value)
+  ) {
+    return {};
+  }
   return { [credentials.header]: credentials.value };
 }
 
@@ -424,18 +437,20 @@ export function materializeModelEnvironment(
 
   const gatewayCredentials = connection.gatewayCredentials;
   if (gatewayCredentials !== undefined) {
-    if (!gatewayCredentials.header?.trim() || !gatewayCredentials.value) {
+    if (
+      !gatewayCredentials.header?.trim() ||
+      !gatewayCredentials.value ||
+      !isSafeHttpHeader(gatewayCredentials.header, gatewayCredentials.value)
+    ) {
       return {
         ok: false,
-        error: "gateway credentials require a non-empty header name and value",
+        error:
+          "gateway credentials require a valid header name and newline-free value",
       };
     }
-    if (!isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)) {
-      return {
-        ok: false,
-        error: "gateway credentials require an effective HTTPS endpoint",
-      };
-    }
+    // This is Agenta's short-lived project-scoped gateway token, not a provider key. The API
+    // core emitted this route and production ingress governs its TLS; dev intentionally uses
+    // the normal HTTP API gateway. Do not apply the provider-key transport rule here.
     // A gateway route carries OUR credentials in place of the provider's; a request naming
     // both is confused about which one authenticates and is rejected rather than guessed at
     // (specs-wp13.md Phase 1).

@@ -56,6 +56,7 @@ describe("buildPiModelConfigPlan (applicable + complete)", () => {
       providerFamily: "openai",
       api: "openai-completions",
       baseUrl: "https://example.test/v1",
+      apiKey: "$OPENAI_API_KEY",
       apiKeyEnv: "OPENAI_API_KEY",
       models: [{ id: "qwen2.5-coder:7b" }],
     });

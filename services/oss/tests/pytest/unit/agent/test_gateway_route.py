@@ -54,9 +54,7 @@ def test_composition_resolve_connection_is_the_gateway_resolver():
 
 
 async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypatch):
-    """End-to-end through the service's own composition against a mocked `/secrets/`: proves
-    the WIRING routes through the gateway with no provider secret, not the resolver's own
-    selection logic (WP12's suite)."""
+    """Service composition uses the core gateway resolver, never a provider secret."""
     monkeypatch.setattr(
         platform_connection, "_derive_base_url", lambda: "https://api.x/api"
     )
@@ -68,15 +66,15 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
         status_code = 200
 
         def json(self):
-            return [
-                {
-                    "kind": "provider_key",
-                    "data": {
-                        "kind": "openai",
-                        "provider": {"key": "sk-should-never-surface"},
-                    },
+            return {
+                "connection": {
+                    "namespace": "standard",
+                    "name": "openai",
+                    "provider_key": "openai",
+                    "deployment_kind": "direct",
+                    "model": "gpt-5.5",
                 }
-            ]
+            }
 
     class _Client:
         def __init__(self, *args, **kwargs) -> None:
@@ -88,7 +86,14 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
         async def __aexit__(self, *args):
             return False
 
-        async def get(self, url, headers=None):
+        async def post(self, url, headers=None, json=None):
+            assert url == "https://api.x/api/gateways/llms/resolve"
+            assert headers["Authorization"] == "Access tok"
+            assert json == {
+                "model": "gpt-5.5",
+                "provider_key": "openai",
+                "connection_slug": None,
+            }
             return _Response()
 
     monkeypatch.setattr(platform_connections.httpx, "AsyncClient", _Client)
@@ -101,10 +106,11 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
     assert resolved.credential_mode == "none"
     assert resolved.credentials == []
     assert (
-        resolved.endpoint.base_url == "https://api.x/api/gateways/llms/standard/openai"
+        resolved.endpoint.base_url
+        == "https://api.x/api/gateways/llms/standard/openai/v1"
     )
-    assert "sk-should-never-surface" not in repr(resolved)
-    assert "sk-should-never-surface" not in repr(resolved.gateway_credentials)
+    assert resolved.gateway_credentials is not None
+    assert resolved.gateway_credentials.value == "Access tok"
 
 
 async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backend):

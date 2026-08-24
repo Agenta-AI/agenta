@@ -144,3 +144,18 @@ class LLMResolvedRoute(BaseModel):
     extras: Optional[Dict[str, Any]] = None
     #
     settings: LLMEndpointSettings = Field(default_factory=LLMEndpointSettings)
+
+
+class LLMGatewayConnectionResolution(BaseModel):
+    """Non-secret result of resolving one agent model connection.
+
+    The API core chooses and validates the endpoint while it has vault access.  The service
+    process receives this route metadata only; provider-key material never crosses that
+    boundary.
+    """
+
+    namespace: GatewayEndpointNamespace
+    name: str
+    provider_key: str
+    deployment_kind: LLMDeploymentKind
+    model: str

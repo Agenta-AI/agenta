@@ -93,7 +93,7 @@ async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
             status_code=exc.status_code or 500,
             content={
                 "error": {
-                    "message": exc.detail or str(exc),
+                    "message": "mock upstream request failed",
                     "type": "server_error",
                     "code": "mock_upstream_error",
                 }

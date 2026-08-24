@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import {
   encodePiModelProviderOverride,
-  PI_GATEWAY_PLACEHOLDER_API_KEY,
+  GATEWAY_PLACEHOLDER_API_KEY,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
 import {
@@ -519,7 +519,7 @@ export function buildPiExtensionEnv(
       ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
       // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the
       // model as unavailable for selection (see PiModelProviderOverride.apiKey).
-      ...(isGatewayRoute ? { apiKey: PI_GATEWAY_PLACEHOLDER_API_KEY } : {}),
+      ...(isGatewayRoute ? { apiKey: GATEWAY_PLACEHOLDER_API_KEY } : {}),
     });
   }
 

@@ -192,9 +192,107 @@ class MockLLMAdapter(LLMUpstreamInterface):
                     "total_tokens": input_tokens + output_tokens,
                 }
                 if context.stream:
-                    yield _sse_event(
+                    sequence_number = 0
+
+                    def _responses_event(event: str, payload: Dict[str, Any]) -> bytes:
+                        nonlocal sequence_number
+                        framed = _sse_event(
+                            event, {"sequence_number": sequence_number, **payload}
+                        )
+                        sequence_number += 1
+                        return framed
+
+                    response = {
+                        "id": completion_id,
+                        "object": "response",
+                        "created_at": created,
+                        "model": model,
+                        "status": "in_progress",
+                        "output": [],
+                    }
+                    item = {
+                        "id": f"msg-mock-{uuid.uuid4().hex}",
+                        "type": "message",
+                        "status": "in_progress",
+                        "role": "assistant",
+                        "content": [],
+                    }
+                    part = {"type": "output_text", "text": "", "annotations": []}
+                    completed_part = {
+                        "type": "output_text",
+                        "text": content,
+                        "annotations": [],
+                    }
+                    completed_item = {
+                        **item,
+                        "status": "completed",
+                        "content": [completed_part],
+                    }
+                    yield _responses_event(
+                        "response.created",
+                        {"type": "response.created", "response": response},
+                    )
+                    yield _responses_event(
+                        "response.in_progress",
+                        {"type": "response.in_progress", "response": response},
+                    )
+                    yield _responses_event(
+                        "response.output_item.added",
+                        {
+                            "type": "response.output_item.added",
+                            "output_index": 0,
+                            "item": item,
+                        },
+                    )
+                    yield _responses_event(
+                        "response.content_part.added",
+                        {
+                            "type": "response.content_part.added",
+                            "item_id": item["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "part": part,
+                        },
+                    )
+                    yield _responses_event(
                         "response.output_text.delta",
-                        {"type": "response.output_text.delta", "delta": content},
+                        {
+                            "type": "response.output_text.delta",
+                            "item_id": item["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "delta": content,
+                            "logprobs": [],
+                        },
+                    )
+                    yield _responses_event(
+                        "response.output_text.done",
+                        {
+                            "type": "response.output_text.done",
+                            "item_id": item["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "text": content,
+                            "logprobs": [],
+                        },
+                    )
+                    yield _responses_event(
+                        "response.content_part.done",
+                        {
+                            "type": "response.content_part.done",
+                            "item_id": item["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "part": completed_part,
+                        },
+                    )
+                    yield _responses_event(
+                        "response.output_item.done",
+                        {
+                            "type": "response.output_item.done",
+                            "output_index": 0,
+                            "item": completed_item,
+                        },
                     )
                     completed = _responses_payload(
                         response_id=completion_id,
@@ -203,7 +301,8 @@ class MockLLMAdapter(LLMUpstreamInterface):
                         content=content,
                     )
                     completed["usage"] = usage
-                    yield _sse_event(
+                    completed["status"] = "completed"
+                    yield _responses_event(
                         "response.completed",
                         {"type": "response.completed", "response": completed},
                     )
@@ -220,12 +319,37 @@ class MockLLMAdapter(LLMUpstreamInterface):
             elif context.protocol == LLMProtocol.MESSAGES:
                 usage = {"input_tokens": input_tokens, "output_tokens": output_tokens}
                 if context.stream:
+                    message = {
+                        "id": completion_id,
+                        "type": "message",
+                        "role": "assistant",
+                        "model": model,
+                        "content": [],
+                        "stop_reason": None,
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": input_tokens, "output_tokens": 0},
+                    }
+                    block = {"type": "text", "text": ""}
+                    yield _sse_event(
+                        "message_start", {"type": "message_start", "message": message}
+                    )
+                    yield _sse_event(
+                        "content_block_start",
+                        {
+                            "type": "content_block_start",
+                            "index": 0,
+                            "content_block": block,
+                        },
+                    )
                     yield _sse_event(
                         "content_block_delta",
                         {
                             "type": "content_block_delta",
                             "delta": {"type": "text_delta", "text": content},
                         },
+                    )
+                    yield _sse_event(
+                        "content_block_stop", {"type": "content_block_stop", "index": 0}
                     )
                     yield _sse_event(
                         "message_delta",

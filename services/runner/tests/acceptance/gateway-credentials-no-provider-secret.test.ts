@@ -49,11 +49,12 @@ describe("gateway route -> no provider secret in the sandbox (local and Daytona 
     assert.ok(materialized.ok && Object.keys(materialized.environment).length === 0);
   });
 
-  it("claude: the daemon env carries the gateway header and no provider key", () => {
+  it("claude: the daemon env carries the gateway header and only a non-secret selector", () => {
     const request: AgentRunRequest = { modelConnection: GOLDEN };
     const env: Record<string, string> = {};
     applyClaudeConnectionEnv(env, request, "claude", () => {});
-    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_API_KEY, "agenta-gateway");
+    assert.notEqual(env.ANTHROPIC_API_KEY, GATEWAY_VALUE);
     assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
     assertNoProviderSecret(JSON.stringify(env));
     assert.ok(env.ANTHROPIC_CUSTOM_HEADERS?.includes(GATEWAY_VALUE));

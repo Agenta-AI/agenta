@@ -25,6 +25,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointEdit,
     LLMEndpointQuery,
     LLMEndpointRoute,
+    LLMGatewayConnectionResolution,
     LLMProtocol,
     LLMResolvedRoute,
 )
@@ -243,6 +244,52 @@ class LLMGatewayService:
         ]
         custom = await self.llm_endpoints_dao.query_endpoints(project_id=project_id)
         return generated + custom
+
+    async def resolve_agent_connection(
+        self,
+        *,
+        scope: AuthScope,
+        model: str,
+        provider_key: Optional[str],
+        connection_slug: Optional[str],
+    ) -> LLMGatewayConnectionResolution:
+        """Resolve an agent connection without returning vault data.
+
+        Named connections select a custom endpoint; an unnamed connection selects the standard
+        endpoint for its explicit provider.  The vault read is intentionally performed here in
+        API core solely to validate that a standard endpoint has a usable provider secret.  Its
+        result is never placed in the DTO sent back to the services process.
+        """
+        if connection_slug:
+            namespace = GatewayEndpointNamespace.CUSTOM
+            name = connection_slug
+        elif provider_key:
+            namespace = GatewayEndpointNamespace.STANDARD
+            name = provider_key
+        else:
+            raise ValueError("an unnamed gateway connection requires a provider")
+
+        target = await self._resolve_target(
+            project_id=scope.project_id, namespace=namespace, name=name
+        )
+        self._check_active(target=target)
+        resolved_provider = target.provider_key or provider_key
+        if not resolved_provider:
+            raise ValueError("gateway endpoint has no provider")
+
+        ref = target.secret_ref()
+        if ref is not None:
+            await self.resolver.resolve(
+                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
+            )
+
+        return LLMGatewayConnectionResolution(
+            namespace=target.namespace,
+            name=target.name,
+            provider_key=resolved_provider,
+            deployment_kind=target.deployment_kind,
+            model=model,
+        )
 
     # --- the data plane (WP6, WP7) ------------------------------------------ #
 

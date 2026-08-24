@@ -1,10 +1,23 @@
-# Open designs
+# Resolved design findings
 
-Design questions still open, with what each hinges on. Settled items move to `decisions.md`;
-things tried and replaced move to `notes.md`.
+This is the historical research record for the gateway design findings. It is **not an active
+backlog**: every finding below is either fixed/verified in the implemented gateway, or explicitly
+won't-fix for this increment. The surrounding text preserves the reasoning that led to each
+outcome; it must not be read as an open task.
 
-Most of this list closed in one pass. What remains needs a product call rather than an
-engineering one.
+The only implementation follow-up that was still latent — explicit Bedrock/Vertex `base_url`
+registration and coverage — is tracked as OR17 in `open-reviews.md`, where it can be verified
+against code and tests. No other design finding in this document remains open.
+
+**Disposition of the historical residuals.** The package/contract findings and relay behaviour
+are fixed or verified. The following are explicit notes, not deferred requirements hidden in this
+file: wallet-owned entitlement/metering enforcement; subscription pass-through; future MCP
+provider adapters (rather than a curated direct-server catalogue); user-owned secrets; embeddings
+and the remaining services conversion; provider-specific OAuth compatibility checks; and advanced
+Bedrock capability fallback. They are all out of scope for this gateway increment. Claude Code is
+different: its observed harness behaviour is an active live-web QA item in [qa.md](qa.md), not a
+source-inspection limitation. Any old use of “deferred”, “later”, or “unverified” below is
+historical rationale for one of those dispositions, not an open action.
 
 ---
 
@@ -67,9 +80,9 @@ be broken by an audit sink that does not exist yet.
 **R5. The gateway's entitlement key does not exist. → It should not. Settled as D29: no entitlement
 gate in wave 1.** Every user has both gateways, so the check would ask a question with one answer.
 What entitlements will express here are *limits*, and a limit cannot be enforced before anything is
-measured — so it ships with usage metering and billing, which `scope-checklist.md` already defers
-together for the same reason. WP3 writes the permission check only; no placeholder key, because a
-placeholder that always permits is something a later reader mistakes for enforcement.
+measured — so it is owned by the **wallets** workstream with usage metering and billing. WP3 writes
+the permission check only; no placeholder key, because a placeholder that always permits is
+something a later reader mistakes for enforcement.
 `EntitlementDeniedError` stays declared and mapped, so the wave that adds limits changes a body
 rather than a signature.
 
@@ -95,10 +108,11 @@ and is set in no deployment configuration in this repo, so today the guard is in
 runs. C1 verifies with it `false`, and setting it `false` on shared deployments is a
 named action.
 
-**R8. The Composio-backed MCP adapter has no owning package in wave 1** — and on inspection it
-should not, because C1's reachable targets are our own servers and the mocks (D23). It
-belongs to whichever wave first makes a brokered server reachable. Worth stating so its absence
-reads as intent rather than omission.
+**R8. No curated direct MCP-server catalogue ships in this increment.** Builtin brokered
+integrations remain Composio-backed; local QA uses Agenta and mock builtins. The next extension is
+more MCP **provider adapters**, each with its own integration contract, rather than an Agenta-run
+catalogue of direct third-party server definitions. This is a note about future provider work, not
+a missing wave-1 package.
 
 **R9. `litellm` is not a direct dependency of the API**, only transitive through the SDK package.
 If routing runs in the API process, that service declares it (`raw/model-call-sites.md` notes the
@@ -144,13 +158,22 @@ state that resolves the moment someone connects a key, and got a different answe
 plane for one failure. The two surfaces still carry different error *bodies*, which is the real
 distinction; the status is now the same.
 
-**R10. Two small resolution behaviours are undefined:** the tie-break when two secrets of the same
-kind match one provider, and whether resolution validates that a grant reference's endpoint is
-actually OAuth-protected.
+**R10. Two small resolution behaviours — DISPOSED.** Provider-key lookup preserves the existing
+compatibility rule: the first matching `provider_key` secret returned by the vault wins, with a
+`custom_provider` match only as fallback. **Won't fix in this increment:** there is no duplicate
+provider-secret UI or uniqueness model here, so adding an invented priority rule would change
+existing resolution without an operator choice. An eventual duplicate-management feature must
+make that choice explicitly.
+
+The resolver also does not validate that a bound grant belongs to an OAuth endpoint. **Fixed at
+the owning boundary:** only an endpoint whose `auth_mode` is `oauth` may enter the connect flow;
+the endpoint itself holds its bound secret id. A `BoundSecretRef` is intentionally generic and
+must remain usable for non-OAuth custom credentials, so repeating endpoint-type validation inside
+secret resolution would be the wrong seam.
 
 ---
 
-## Open
+## Resolved findings
 
 ### OD10. What is in the first increment of each gateway — CLOSED, overtaken
 
@@ -244,11 +267,9 @@ subscription session entirely, and the symptom is an auth error from the vendor,
 
 **Conclusion: no harness fails the matrix for wave 2's own need.** All three carry a custom
 header alongside a base-URL override, which is all `credentialMode: "none"` (the gateway route)
-needs. None of the three lets a base-URL override coexist with a preserved subscription login —
-but wave 2 does not build subscription pass-through (D32, explicitly deferred) and never asks a
-harness to combine the two, so this is not a wave-2 blocker. It IS the exact fact D32's own text
-predicted would be needed before pass-through could be built, and it is now recorded for whoever
-picks that up.
+needs. None of the three lets a base-URL override coexist with a preserved subscription login.
+**Won't fix in this increment:** subscription pass-through (D32) is not part of this gateway
+scope, so no harness is asked to combine those modes.
 
 **The fallback if a harness fails the matrix** is the local-agent shape: a small local process
 between harness and gateway that holds the gateway identity and leaves the harness's own vendor
@@ -519,12 +540,12 @@ never backfilled from `NEXT_STEPS`, so a caller can tell "code only" from "the f
 WP19 must degrade to a generic step-up prompt when `next_step`/`details` are absent rather than
 assume a specific one exists.
 
-**Claude Code's unknown behavior matters less now.** Item 2's limit (the CLI is a closed-source
-compiled binary) still stands and is not resolved here — but since the marker rides inside the
-one field (`message`) every harness examined keeps, `code` survives on Claude Code whether or
-not its SDK also preserves the full JSON body. The unverified question narrows to
-`retryable`/`next_step`/`details`, which were never load-bearing for WP19's own need (a code to
-act on).
+**Claude Code's behavior must be verified by execution, not source inspection.** Item 2's limit
+is only that the CLI is compiled and closed-source. The marker rides inside `message`, the field
+every harness examined keeps, so `code` should survive whether or not Claude Code preserves the
+full body. [qa.md](qa.md) requires a real dashboard-driven Claude Code run that induces a typed gateway
+refusal and records exactly which of `code`, `retryable`, `next_step`, and `details` reach the UI.
+That closes the observation gap without inferring behaviour from an unavailable source tree.
 
 **Consequence for the runner.** `gateway-error.ts` gained the marker fallback described above;
 its body-path parser is otherwise unchanged — already correct for the bodies that do survive.
@@ -603,8 +624,9 @@ prompt routing; the separate Messages API reference page lists structured output
 with no endpoint carve-out. Both pages are AWS's own and they disagree; this design does not pick
 a side. What is settled regardless: `bedrock-runtime` remains the endpoint for the other three
 capabilities, and no fallback between the two Bedrock endpoints is built — an endpoint is fixed
-by `deployment_kind` and door, never switched per request. That is a later decision if a caller
-needs those capabilities on a Messages-shaped Bedrock call.
+by `deployment_kind` and door, never switched per request. **Won't fix in this increment:** use
+that general deterministic behaviour rather than special-casing capabilities per request. A later
+provider capability contract may choose a different behaviour explicitly.
 
 **An override has real uses, so the field is not decoration.** Both vendors publish private-access
 addresses that replace the host and nothing else: Bedrock through VPC interface endpoints
@@ -614,27 +636,23 @@ Connect, which answers on a user-defined internal address or an assigned name su
 door, one stored string makes both vendors usable from a VPC-only deployment on every door at
 once, not only the one a row happened to be tested against.
 
-**Still latent.** Nothing in this codebase registers a Bedrock or Vertex endpoint with an explicit
-`base_url` — no seed, no fixture, no test. `LLMEndpointCreate` accepts the field with no
-per-`deployment_kind` validation, so nothing stops a future caller, but no path does today. What
-was open — whether one field or two — is answered: one, because it is defined as a host (plus, on
-Vertex, a shared prefix) rather than a per-door address. See `workstreams/specs-wp27.md` for the
-full routing-table detail.
+The implementation follow-up — registering explicit Bedrock/Vertex `base_url` rows and proving
+them through fixtures and tests — is deliberately tracked as **OR17** in `open-reviews.md` rather
+than left as a latent design finding. The design question is closed: it is one field, defined as a
+host (plus the Vertex shared prefix), rather than a per-door address. See
+`workstreams/specs-wp27.md` for the full routing-table detail.
 
 
 ### OD2. Is a user's own secret the norm or the exception — CLOSED
 
-**Project-level secrets are the model.** User-level secrets are out of scope and recorded as such
-in [`out-of-scope.md`](out-of-scope.md). Whether a user puts their own personal credential into a
-project-level secret rather than an account one is their choice, not a distinction the platform
-draws.
+**Won't fix in this increment: project-level secrets are the model.** User-level secrets are out
+of scope and recorded as such in [`out-of-scope.md`](out-of-scope.md). Whether a user puts their
+own personal credential into a project-level secret rather than an account one is their choice,
+not a distinction the platform draws.
 
 The original framing, for the record:
 
-User-owned secrets are not implemented, so this waits until they are. The mechanism is designed
-in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed.
-
-Per-endpoint tokens arrive with this, not before.
+User-owned secrets are not implemented and are intentionally not introduced by this workstream.
 
 ### OD6. OAuth callback reachability — CLOSED, and it was never a real problem
 
@@ -653,11 +671,9 @@ Two questions were wrong rather than open, and `notes.md` records both: this was
 as a firewall problem, then as a private-address problem, and the deployment shape both worried
 about — a production web application with no address — does not exist.
 
-To establish at implementation time, neither blocking: whether the servers we care about still
-accept the older outbound registration, and whether any of them reject a redirect target on a
-non-public domain.
-
-Belongs to the OAuth wave, not the first one.
+**Won't fix as a generic gateway assertion.** Individual authorization servers must be checked
+during their real-provider onboarding; this is not a shared implementation gap and does not block
+the gateway contract.
 
 ### OD12. Should a clamped parameter be silent — CLOSED
 
@@ -689,10 +705,9 @@ The objection that rejecting "breaks a harness that did nothing wrong" is real a
 the error rather than by silence: the denial names the ceiling, the value asked for and the value
 allowed, so the caller can retry correctly on the first attempt.
 
-**Consequence for the north ports.** Both surfaces have externally-fixed error shapes, so this
-needs a denial that fits inside them and still carries the three facts above. That is
-`contract.md`'s open item on expressing a policy denial, and this closes half of it — the content
-is settled even where the envelope is not.
+**Won't fix in this increment:** actual ceilings and the corresponding north-port envelope belong
+to the later policy/metering work. The design decision is complete: when that work exists it must
+reject visibly, never silently clamp.
 
 ### OD21. OAuth discovery guesses a well-known path instead of reading the 401 that names it — CLOSED
 
@@ -722,8 +737,8 @@ only, as no comparable header exists at that step.
   one (D14). No static MCP kind in this scope, and no kind at all for the inbound credentials.
 - **The inbound credentials** — minted, ephemeral, never stored, using the signer that already
   exists (D13).
-- **Embeddings in the model registry** — deferred with the whole evaluator path, which is out of
-  the current scope (D15).
+- **Embeddings in the model registry, and the remaining services conversion** — noted but
+  won't-fix here; they move together with the evaluator/services work (D15).
 
 ## Closed earlier
 

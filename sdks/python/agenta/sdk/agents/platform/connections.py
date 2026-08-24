@@ -1,12 +1,8 @@
-"""Agenta-platform-backed connection resolution over the existing secrets API.
+"""Agenta-platform-backed connection resolution through the gateway core API.
 
-``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It fetches
-``GET /secrets/`` with the caller's request auth, builds an in-memory catalog from existing
-``provider_key`` and ``custom_provider`` vault records, selects exactly one connection for the
-``ModelRef``, and returns a least-privilege ``ResolvedConnection`` plan.
-
-There is deliberately no ``/vault/connections`` route here. The vault remains the existing
-``/secrets`` store; connection is only a runtime read view inside the service/SDK agent path.
+``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It asks the
+gateway core API to select and validate a route; that core service owns the vault read. The
+returned DTO contains route metadata only, never a provider secret.
 """
 
 from __future__ import annotations
@@ -686,33 +682,77 @@ class VaultConnectionResolver:
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
-                response = await client.get(
-                    f"{api_base}/secrets/",
+                response = await client.post(
+                    f"{api_base}/gateways/llms/resolve",
                     headers=self._connection.headers(authorization=authorization),
+                    json={
+                        "model": model.model,
+                        "provider_key": model.provider,
+                        "connection_slug": model.connection.slug,
+                    },
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(
-                "agent: secrets fetch for connection resolution failed", exc_info=True
+                "agent: gateway connection resolution request failed", exc_info=True
             )
             raise ConnectionResolutionError(
                 "connection resolution request failed"
             ) from exc
 
         if response.status_code >= 400:
-            log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            log.warning(
+                "agent: gateway connection resolution HTTP %s", response.status_code
+            )
             raise ConnectionResolutionError(
                 f"connection resolution failed (HTTP {response.status_code})"
             )
 
-        data = response.json() or []
-        if not isinstance(data, list):
-            raise ConnectionResolutionError("connection resolution returned a non-list")
-        return _resolve_from_secrets(
-            secrets=data,
-            model=model,
-            harness=context.harness,
-            gateway_base_url=self._connection.gateway_base_url(),
+        data = response.json()
+        if data is None:
+            data = {}
+        # Keep the in-memory/static resolver's list shape as a test/replay compatibility
+        # path. A live API always returns the non-secret ``connection`` object above.
+        if isinstance(data, list):
+            return _resolve_from_secrets(
+                secrets=data,
+                model=model,
+                harness=context.harness,
+                gateway_base_url=self._connection.gateway_base_url(),
+                gateway_credentials_value=authorization,
+            )
+        resolved = data.get("connection") if isinstance(data, dict) else None
+        if not isinstance(resolved, dict):
+            raise ConnectionResolutionError(
+                "connection resolution returned an invalid response"
+            )
+        provider = resolved.get("provider_key")
+        deployment = resolved.get("deployment_kind")
+        namespace = resolved.get("namespace")
+        name = resolved.get("name")
+        resolved_model = resolved.get("model")
+        if not all(
+            isinstance(value, str) and value
+            for value in (provider, deployment, namespace, name, resolved_model)
+        ):
+            raise ConnectionResolutionError(
+                "connection resolution returned incomplete route metadata"
+            )
+        gateway_base_url = self._connection.gateway_base_url()
+        if not gateway_base_url or not authorization:
+            raise ConnectionResolutionError(
+                "no Agenta backend configured for gateway connection resolution"
+            )
+        return build_gateway_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=deployment,
+            namespace=namespace,
+            name=name,
+            gateway_base_url=gateway_base_url,
             gateway_credentials_value=authorization,
+            input_modalities=model_input_modalities(
+                context.harness, resolved_model, provider=provider
+            ),
         )
 
 

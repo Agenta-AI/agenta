@@ -14,6 +14,10 @@ endpoint's configuration (§2.1). Each endpoint names one secret, project-owned 
 user-level grants are out of scope, and reopening them adds tables rather than
 changing these (out-of-scope.md).
 
+`llms_endpoints.provider_key` is nullable. A custom endpoint can point at a
+self-hosted OpenAI-compatible gateway without claiming a provider family that
+does not describe that upstream.
+
 Revision ID: oss000000022
 Revises: oss000000020
 Create Date: 2026-08-13 00:00:00.000000
@@ -40,7 +44,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("description", sa.String(), nullable=True),
-        sa.Column("provider_key", sa.String(), nullable=False),
+        sa.Column("provider_key", sa.String(), nullable=True),
         sa.Column(
             "deployment_kind",
             sa.Enum(

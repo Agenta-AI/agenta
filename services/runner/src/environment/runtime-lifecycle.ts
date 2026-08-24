@@ -43,7 +43,10 @@ import {
   writeOtlpAuthFile,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
-import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import {
+  applyClaudeConnectionEnv,
+  applyCodexGatewayConnectionEnv,
+} from "../engines/sandbox_agent/runtime-policy.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../engines/sandbox_agent/run-plan.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
@@ -210,6 +213,7 @@ export function buildRuntimeEnvironment(
   if (gatewayCredentials?.value) {
     env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
   }
+  applyCodexGatewayConnectionEnv(env, input.request, p.acpAgent as never);
   applyClaudeConnectionEnv(env, input.request, p.acpAgent as never, input.log);
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);

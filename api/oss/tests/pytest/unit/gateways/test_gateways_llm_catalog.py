@@ -8,6 +8,7 @@ from oss.src.core.gateways.llms.catalog import (
     standard_llm_endpoints,
 )
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
+from oss.src.utils.env import env
 
 
 def test_standard_llm_endpoint_openai_matches_the_catalogue_exactly():
@@ -31,9 +32,11 @@ def test_standard_llm_endpoint_none_for_unknown_provider():
     assert standard_llm_endpoint(provider_key="not-a-provider") is None
 
 
-def test_standard_llm_endpoints_returns_exactly_eleven():
+def test_standard_llm_endpoints_reflects_the_development_mock_switch():
     endpoints = standard_llm_endpoints()
-    assert len(endpoints) == 11
-    assert {endpoint.provider_key for endpoint in endpoints} == set(
-        supported_llm_models.keys()
-    )
+    expected_provider_keys = set(supported_llm_models.keys())
+    if env.mock_gateways.enabled:
+        expected_provider_keys.add("mock")
+
+    assert len(endpoints) == len(expected_provider_keys)
+    assert {endpoint.provider_key for endpoint in endpoints} == expected_provider_keys

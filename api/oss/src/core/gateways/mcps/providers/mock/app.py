@@ -89,7 +89,7 @@ async def relay(request: Request) -> Response:
     except MCPUpstreamError as exc:
         return Response(
             status_code=exc.status_code or 502,
-            content=(exc.detail or str(exc)).encode(),
+            content=b"mock upstream request failed",
             media_type="text/plain",
         )
 

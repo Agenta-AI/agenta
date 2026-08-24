@@ -26,7 +26,7 @@ Test selection:
                                       Omit layer flags for all layers. Web defaults
                                       to unit + integration when it is part of the
                                       default all-suite run.
-  --time-profile                       Show slow-test timing information.
+  --time, --time-profile               Show slow-test timing information.
   --time-profile-min MS                Vitest slow-test threshold (default: 1).
   --logs[=FILE]                        Tee suite output to a log. With no FILE,
                                       writes tests.<suite>.logs beside each suite.
@@ -70,7 +70,7 @@ while [[ "$#" -gt 0 ]]; do
             done
             selected_layer=true
             ;;
-        --time-profile) time_profile=true ;;
+        --time|--time-profile) time_profile=true ;;
         --time-profile-min) require_value "$1" "${2:-}"; slow_ms="$2"; shift ;;
         --time-profile-min=*) slow_ms="${1#*=}" ;;
         --logs) want_logs=true ;;
@@ -149,6 +149,11 @@ load_environment() {
     . "$env_path"
     set +a
     export POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+
+    if [[ "$stage" == "dev" ]]; then
+        export AGENTA_GATEWAYS_MOCKS_ENABLED=true
+        export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN="${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}"
+    fi
     echo "Loaded ${env_path} (stage: ${stage})."
 }
 

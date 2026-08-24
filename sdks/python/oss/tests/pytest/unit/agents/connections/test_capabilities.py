@@ -73,11 +73,11 @@ def test_two_modes_supported_on_all_known_harnesses():
     assert harness_allows_mode("pi_core", "bogus") is False
 
 
-def test_pi_consumes_direct_and_custom_deployment_in_v1():
-    # Pi now publishes `custom` (the OpenAI-compatible surface) alongside `direct` so the UI can
-    # surface those connections. The cloud surfaces remain unconsumed in v1. The openai-only
+def test_openai_harnesses_consume_direct_and_custom_deployment_in_v1():
+    # Pi and Codex publish `custom` (the OpenAI-compatible surface) alongside `direct` so the UI
+    # can surface those connections. The cloud surfaces remain unconsumed in v1. The openai-only
     # pairing on `custom` is enforced by `harness_allows_pair`, not this per-axis list.
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core", "pi_agenta", "codex"):
         assert harness_allows_deployment(harness, "direct") is True
         assert harness_allows_deployment(harness, "custom") is True
         for deployment in ("bedrock", "vertex_ai", "azure"):
@@ -86,15 +86,15 @@ def test_pi_consumes_direct_and_custom_deployment_in_v1():
 
 def test_resolved_pair_validation_matches_decision_3_table():
     # Every row of design Decision 3's allowed-pairs table.
-    for harness in ("pi_core", "pi_agenta"):
-        # Pi + openai + direct/custom -> allowed.
+    for harness in ("pi_core", "pi_agenta", "codex"):
+        # OpenAI-compatible harness + openai + direct/custom -> allowed.
         assert harness_allows_pair(harness, "openai", "direct") is True
         assert harness_allows_pair(harness, "openai", "custom") is True
-        # Pi + an arbitrary family + custom -> rejected (custom is openai-only for Pi), even for
+        # An OpenAI-compatible harness + arbitrary family + custom -> rejected, even for
         # a family Pi otherwise reaches directly (anthropic).
         assert harness_allows_pair(harness, "anthropic", "custom") is False
         assert harness_allows_pair(harness, "anything-custom", "custom") is False
-        # A family Pi cannot reach at all is rejected on any deployment.
+        # A family the harness cannot reach at all is rejected on any deployment.
         assert harness_allows_pair(harness, "anything-custom", "direct") is False
 
     # Claude + anthropic + direct/custom -> allowed; the cloud surfaces it consumes too.

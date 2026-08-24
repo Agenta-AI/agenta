@@ -124,6 +124,35 @@ Two of these are worth separating from the rest: the environment-variable map is
 across languages, and the harness deployment map is the one the gateway must satisfy rather than
 merely widen.
 
+### OR16. Gateway credential/header boundary — CLOSED by PR #6049 review
+
+Automated review found that both data-plane proxies were stripping a caller's ordinary
+`Authorization` header while forwarding `X-AG-Credentials`, which is Agenta's own gateway
+credential. That reverses the intended trust boundary for a custom upstream. The same review
+found that runner header names and values could be interpolated into newline-delimited harness
+configuration without HTTP field-name validation.
+
+**Verified and closed.** Both proxies now remove only `X-AG-Credentials` and retain an upstream
+`Authorization` header. The runner accepts only RFC token-style header names and newline-free
+values before materializing Pi or Claude configuration. Regression tests cover the two forwarding
+rules and newline/colon injection attempts. The review also closed adjacent implementation-only
+findings: the `request_connection` schema now requires exactly one of `integration` or `target`,
+the migration header names its actual parent revision, and adapter/mock exception text is not
+returned to callers. The generated `mock` provider is explicitly development-only and excluded
+from the user-facing provider-catalogue parity claim.
+
+### OR17. Bedrock/Vertex `base_url` registration and coverage
+
+OD19 settled the meaning of `base_url`: Bedrock stores a host and Vertex stores a host plus their
+shared project/location prefix; each protocol door appends only its own tail. The implementation
+still accepts that field without a registered Bedrock or Vertex row, fixture, or end-to-end test.
+
+**Open implementation review.** Add representative endpoint registrations with explicit
+`base_url` values and cover every supported door. Verify that the field is rejected when it is
+not a valid host (or, for Vertex, host plus its permitted common prefix), and that routing never
+silently switches an endpoint or capability. Keep this review here until those fixtures and tests
+prove the contract; it is not an unresolved design decision.
+
 ---
 
 ## Claims to re-verify

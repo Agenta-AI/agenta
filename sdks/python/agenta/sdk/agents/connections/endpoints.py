@@ -179,13 +179,17 @@ def gateway_target(*, kind: str, provider: str, slug: str) -> Tuple[str, str]:
     return "custom", slug
 
 
-def gateway_route(*, namespace: str, name: str, gateway_base_url: str) -> str:
-    """The gateway route base URL (D30): ``{gateway_base}/gateways/llms/{namespace}/{name}``.
+def gateway_route(
+    *, namespace: str, name: str, provider: str, gateway_base_url: str
+) -> str:
+    """Return the provider-correct base for a gateway LLM route.
 
-    No protocol suffix (``/v1/chat/completions``) — that is the harness's own append, the
-    same split the endpoint document already makes (entities.md §2.4).
+    OpenAI-compatible harnesses append operations such as ``/responses`` to a ``/v1`` base.
+    Anthropic's SDK, like its direct endpoint, owns the version segment itself and appends
+    ``/v1/messages``. Giving it an already-versioned base produces ``/v1/v1/messages``.
     """
-    return f"{gateway_base_url.rstrip('/')}/gateways/llms/{namespace}/{name}"
+    route = f"{gateway_base_url.rstrip('/')}/gateways/llms/{namespace}/{name}"
+    return route if provider.lower() == "anthropic" else f"{route}/v1"
 
 
 def build_gateway_resolved_connection(
@@ -214,7 +218,10 @@ def build_gateway_resolved_connection(
         credentials=[],
         endpoint=Endpoint(
             base_url=gateway_route(
-                namespace=namespace, name=name, gateway_base_url=gateway_base_url
+                namespace=namespace,
+                name=name,
+                provider=provider,
+                gateway_base_url=gateway_base_url,
             )
         ),
         gateway_credentials=GatewayCredentials(value=gateway_credentials_value),

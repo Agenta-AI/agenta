@@ -16,6 +16,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMDeploymentKind,
     LLMEndpoint,
     LLMEndpointData,
+    LLMGatewayConnectionResolution,
     LLMModelFilter,
 )
 from oss.src.utils.context import AuthScope
@@ -29,6 +30,7 @@ FIXED_SCOPE = AuthScope(
 )
 
 EXPECTED_ROUTES = {
+    ("/resolve", "POST"): "resolve_llm_gateway_connection",
     ("/endpoints/", "POST"): "create_llm_endpoint",
     ("/endpoints/", "GET"): "list_llm_endpoints",
     ("/endpoints/query", "POST"): "query_llm_endpoints",
@@ -57,6 +59,19 @@ class MockLLMGatewayService:
         self.fetch_return = None
         self.edit_return = None
         self.delete_return = True
+        self.resolve_return = LLMGatewayConnectionResolution(
+            namespace="custom",
+            name="acme-openai",
+            provider_key="openai",
+            deployment_kind="custom",
+            model="gpt-4o",
+        )
+
+    async def resolve_agent_connection(
+        self, *, scope, model, provider_key, connection_slug
+    ):
+        self.calls.append("resolve_agent_connection")
+        return self.resolve_return
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
         self.calls.append("create_endpoint")
@@ -145,6 +160,29 @@ def test_route_table_matches_the_design_exactly(router):
 # ---------------------------------------------------------------------------
 # Each route reaches the right handler (happy path)
 # ---------------------------------------------------------------------------
+
+
+def test_resolve_agent_connection_returns_route_metadata_only(client, service, allow):
+    response = client.post(
+        "/resolve",
+        json={
+            "model": "gpt-4o",
+            "provider_key": "openai",
+            "connection_slug": "acme-openai",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "connection": {
+            "namespace": "custom",
+            "name": "acme-openai",
+            "provider_key": "openai",
+            "deployment_kind": "custom",
+            "model": "gpt-4o",
+        }
+    }
+    assert service.calls == ["resolve_agent_connection"]
 
 
 def test_create_endpoint_reaches_the_service(client, service, allow):

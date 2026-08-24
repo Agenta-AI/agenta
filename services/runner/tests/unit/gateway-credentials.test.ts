@@ -15,7 +15,10 @@ import {
   materializeModelEnvironment,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { requestSecretValues } from "../../src/redaction.ts";
-import { applyClaudeConnectionEnv } from "../../src/engines/sandbox_agent/runtime-policy.ts";
+import {
+  applyClaudeConnectionEnv,
+  applyCodexGatewayConnectionEnv,
+} from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { buildPiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
 const GOLDEN = loadGolden("model_connection.gateway.json") as ModelConnection;
@@ -56,10 +59,16 @@ describe("gateway credentials on the wire", () => {
     assert.deepEqual(materializeGatewayHeaders(request(direct)), {});
   });
 
-  it("refuses an empty header name or value", () => {
+  it("refuses malformed header names and newline-bearing values", () => {
     for (const gatewayCredentials of [
       { header: "  ", value: "ApiKey something" },
       { header: "X-AG-Credentials", value: "" },
+      { header: "X-AG-Credentials: injected", value: "ApiKey something" },
+      { header: "X-AG-Credentials\r\nX-Injected", value: "ApiKey something" },
+      {
+        header: "X-AG-Credentials",
+        value: "ApiKey something\r\nX-Injected: yes",
+      },
     ]) {
       const result = materializeModelEnvironment(
         request({ ...GOLDEN, gatewayCredentials }),
@@ -68,19 +77,14 @@ describe("gateway credentials on the wire", () => {
     }
   });
 
-  it("refuses a plaintext hop to a remote host and allows one to loopback", () => {
-    const remote = materializeModelEnvironment(
+  it("allows the normal HTTP API gateway route", () => {
+    const normalApiRoute = materializeModelEnvironment(
       request({
         ...GOLDEN,
         endpoint: { baseUrl: "http://gateway.example.com" },
       }),
     );
-    assert.equal(remote.ok, false);
-
-    const loopback = materializeModelEnvironment(
-      request({ ...GOLDEN, endpoint: { baseUrl: "http://localhost:8000" } }),
-    );
-    assert.equal(loopback.ok, true);
+    assert.equal(normalApiRoute.ok, true);
   });
 
   it("refuses provider credentials riding alongside a gateway credential", () => {
@@ -104,14 +108,14 @@ describe("gateway credentials on the wire", () => {
 describe("gateway credentials, per harness (WP13 Phase 2)", () => {
   const goldenRequest = request(GOLDEN);
 
-  it("claude: carries the header in ANTHROPIC_CUSTOM_HEADERS, and no provider secret", () => {
+  it("claude: carries the header and only the fixed non-secret selector", () => {
     const env: Record<string, string> = {};
     applyClaudeConnectionEnv(env, goldenRequest, "claude", () => {});
     assert.equal(
       env.ANTHROPIC_CUSTOM_HEADERS,
       "X-AG-Credentials: ApiKey mock-gateway-credentials",
     );
-    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_API_KEY, "agenta-gateway");
     assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
   });
 
@@ -127,6 +131,7 @@ describe("gateway credentials, per harness (WP13 Phase 2)", () => {
     assert.deepEqual(plan.headers, {
       "X-AG-Credentials": "$AGENTA_GATEWAY_CREDENTIALS_VALUE",
     });
+    assert.equal(plan.apiKey, "agenta-gateway");
     assert.equal(
       JSON.stringify(plan).includes("ApiKey mock-gateway-credentials"),
       false,
@@ -136,8 +141,16 @@ describe("gateway credentials, per harness (WP13 Phase 2)", () => {
   it("claude never sees a provider API key on a gateway connection", () => {
     const env: Record<string, string> = {};
     applyClaudeConnectionEnv(env, goldenRequest, "claude", () => {});
-    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_API_KEY, "agenta-gateway");
+    assert.notEqual(env.ANTHROPIC_API_KEY, GOLDEN.gatewayCredentials?.value);
     assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
     assert.ok(env.ANTHROPIC_CUSTOM_HEADERS);
+  });
+
+  it("codex receives only the fixed selector placeholder on a gateway connection", () => {
+    const env: Record<string, string> = {};
+    applyCodexGatewayConnectionEnv(env, goldenRequest, "codex");
+    assert.deepEqual(env, { OPENAI_API_KEY: "agenta-gateway" });
+    assert.notEqual(env.OPENAI_API_KEY, GOLDEN.gatewayCredentials?.value);
   });
 });

@@ -154,15 +154,23 @@ def test_relayed_body_and_status_pass_through_untouched(client, mock_service):
     assert response.content == b'{"jsonrpc": "2.0", "id": 1, "result": {}}'
 
 
-def test_authorization_header_is_not_forwarded_to_the_service(client, mock_service):
+def test_gateway_credential_is_not_forwarded_but_upstream_authorization_is(
+    client, mock_service
+):
     client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list", "Authorization": "Secret platform-token"},
+        headers={
+            "MCP-Method": "tools/list",
+            "Authorization": "Bearer upstream-token",
+            "X-AG-Credentials": "ApiKey gateway-token",
+        },
         content=b"{}",
     )
 
     forwarded_headers = mock_service.calls[0]["headers"]
-    assert "authorization" not in {k.lower() for k in forwarded_headers}
+    normalized = {key.lower(): value for key, value in forwarded_headers.items()}
+    assert normalized["authorization"] == "Bearer upstream-token"
+    assert "x-ag-credentials" not in normalized
 
 
 # ---------------------------------------------------------------------------

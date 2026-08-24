@@ -26,7 +26,10 @@ import factory, {
   readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
-import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import {
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+  validatePiModelProviderOverride,
+} from "../../src/extensions/model-provider-override.ts";
 import { refusedAtGateText } from "../../src/tools/denial-text.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 
@@ -99,6 +102,22 @@ function clearEnv() {
 afterEach(clearEnv);
 
 describe("agenta extension model provider override", () => {
+  it("rejects header-injection characters in override headers", () => {
+    for (const headers of [
+      { "X-AG-Credentials: injected": "ApiKey value" },
+      { "X-AG-Credentials\r\nX-Injected": "ApiKey value" },
+      { "X-AG-Credentials": "ApiKey value\nX-Injected: yes" },
+    ]) {
+      assert.throws(() =>
+        validatePiModelProviderOverride({
+          provider: "anthropic",
+          baseUrl: "https://gateway.example.test",
+          headers,
+        }),
+      );
+    }
+  });
+
   it("overrides the built-in provider during extension initialization", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({

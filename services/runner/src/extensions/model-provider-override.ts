@@ -1,8 +1,8 @@
 export const PI_MODEL_PROVIDER_OVERRIDE_ENV =
   "AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE";
 
-/** Never a secret; see `PiModelProviderOverride.apiKey`. */
-export const PI_GATEWAY_PLACEHOLDER_API_KEY = "agenta-gateway";
+/** Never a secret; some harnesses require a non-empty key-shaped value to select a gateway model. */
+export const GATEWAY_PLACEHOLDER_API_KEY = "agenta-gateway";
 
 export interface PiModelProviderOverride {
   provider: string;
@@ -27,6 +27,11 @@ export interface PiModelProviderOverride {
 }
 
 const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
 
 /** Validate the public routing config shared by the runner and the in-Pi extension. */
 export function validatePiModelProviderOverride(
@@ -79,9 +84,14 @@ export function validatePiModelProviderOverride(
     for (const [name, headerValue] of Object.entries(
       rawHeaders as Record<string, unknown>,
     )) {
-      if (!name.trim() || typeof headerValue !== "string" || !headerValue) {
+      if (
+        !name.trim() ||
+        typeof headerValue !== "string" ||
+        !headerValue ||
+        !isSafeHeader(name, headerValue)
+      ) {
         throw new Error(
-          "model provider override headers require non-empty names and values",
+          "model provider override headers require valid names and newline-free values",
         );
       }
       headers[name] = headerValue;
@@ -92,7 +102,9 @@ export function validatePiModelProviderOverride(
   let apiKey: string | undefined;
   if (rawApiKey !== undefined) {
     if (typeof rawApiKey !== "string" || !rawApiKey) {
-      throw new Error("model provider override apiKey must be a non-empty string");
+      throw new Error(
+        "model provider override apiKey must be a non-empty string",
+      );
     }
     apiKey = rawApiKey;
   }

@@ -36,19 +36,35 @@ def test_custom_provider_routes_through_custom_by_slug():
 # ---------------------------------------------------------------------------- gateway_route
 
 
-def test_gateway_route_has_no_protocol_suffix():
+def test_gateway_route_is_an_openai_compatible_v1_base_url():
     route = gateway_route(
-        namespace="standard", name="openai", gateway_base_url="https://gw.example/api"
+        namespace="standard",
+        name="openai",
+        provider="openai",
+        gateway_base_url="https://gw.example/api",
     )
-    assert route == "https://gw.example/api/gateways/llms/standard/openai"
-    assert "/v1/" not in route
+    assert route == "https://gw.example/api/gateways/llms/standard/openai/v1"
+    assert not route.endswith("/chat/completions")
 
 
 def test_gateway_route_strips_a_trailing_slash_on_the_base():
     route = gateway_route(
-        namespace="custom", name="my-gw", gateway_base_url="https://gw.example/api/"
+        namespace="custom",
+        name="my-gw",
+        provider="openai",
+        gateway_base_url="https://gw.example/api/",
     )
-    assert route == "https://gw.example/api/gateways/llms/custom/my-gw"
+    assert route == "https://gw.example/api/gateways/llms/custom/my-gw/v1"
+
+
+def test_gateway_route_leaves_the_anthropic_version_to_its_sdk():
+    route = gateway_route(
+        namespace="custom",
+        name="anthropic",
+        provider="anthropic",
+        gateway_base_url="https://gw.example/api",
+    )
+    assert route == "https://gw.example/api/gateways/llms/custom/anthropic"
 
 
 # --------------------------------------------------------- build_gateway_resolved_connection
@@ -67,7 +83,7 @@ def test_build_gateway_resolved_connection_carries_no_provider_secret():
     assert resolved.credential_mode == "none"
     assert resolved.credentials == []
     assert resolved.endpoint.base_url == (
-        "https://gw.example/api/gateways/llms/standard/openai"
+        "https://gw.example/api/gateways/llms/standard/openai/v1"
     )
     assert resolved.gateway_credentials is not None
     assert resolved.gateway_credentials.value == "Secret token"
@@ -76,8 +92,10 @@ def test_build_gateway_resolved_connection_carries_no_provider_secret():
     assert "sk-" not in resolved.model_dump_json()
 
 
-def test_build_gateway_resolved_connection_requires_an_effective_https_route():
-    with pytest.raises(ValueError):
+def test_build_gateway_resolved_connection_refuses_remote_http_api_route():
+    with pytest.raises(
+        ValueError, match="gateway credentials require an effective HTTPS"
+    ):
         build_gateway_resolved_connection(
             provider="openai",
             model="gpt-5.5",

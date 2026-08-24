@@ -170,6 +170,16 @@ def _client_tool_revision() -> WorkflowRevision:
                             },
                         },
                         "required": [],
+                        "oneOf": [
+                            {
+                                "required": ["integration"],
+                                "not": {"required": ["target"]},
+                            },
+                            {
+                                "required": ["target"],
+                                "not": {"required": ["integration"]},
+                            },
+                        ],
                         "additionalProperties": False,
                     },
                     "render": {"kind": "connect"},

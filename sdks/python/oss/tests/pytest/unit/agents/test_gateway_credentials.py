@@ -91,10 +91,14 @@ def test_plain_http_to_a_remote_host_is_refused():
 
 @pytest.mark.parametrize(
     "base_url",
-    ["http://localhost:8000/gateways", "http://127.0.0.1:8000/gateways"],
+    [
+        "http://localhost:8000/gateways",
+        "http://127.0.0.1:8000/gateways",
+        "http://host.docker.internal:8000/gateways",
+    ],
 )
-def test_loopback_is_exempt_from_https(base_url):
-    """D37: the check exists so a secret cannot cross a plaintext hop to a remote host."""
+def test_local_development_host_is_exempt_from_https(base_url):
+    """D37: a bearer never crosses plaintext to a remote host."""
     assert _connection(endpoint=Endpoint(base_url=base_url)).plaintext_headers()
 
 

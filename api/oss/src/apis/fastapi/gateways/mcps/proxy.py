@@ -87,14 +87,15 @@ _MAPPED_EXCEPTIONS = (
 
 
 def _forwarded_headers(request: Request) -> Dict[str, str]:
-    """The caller's headers, stripped of Agenta's own gateway-token authorization —
+    """The caller's headers, stripped of Agenta's own gateway credential —
     an upstream `custom` server must never see the platform secret that authenticated
     the caller to us (§7.1's pass-through rule stops at the body and status, not our
-    own credentials)."""
+    own credentials). A caller-provided ``Authorization`` header belongs to the
+    configured upstream and is intentionally preserved."""
     return {
         key: value
         for key, value in request.headers.items()
-        if key.lower() != "authorization"
+        if key.lower() != "x-ag-credentials"
     }
 
 

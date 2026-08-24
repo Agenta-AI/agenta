@@ -50,8 +50,9 @@ if TYPE_CHECKING:
     # making this module's import fail before WP7 lands (out of WP6's owned paths).
     from oss.src.core.gateways.llms.service import LLMGatewayService
 
-# The caller's own secret to US — never forwarded to the upstream (§9's pseudocode).
-_STRIPPED_INBOUND_HEADERS = {"authorization"}
+# The caller authenticates to the gateway with this header. A caller-provided
+# Authorization header is an upstream header and must stay intact on custom routes.
+_STRIPPED_INBOUND_HEADERS = {"x-ag-credentials"}
 
 _DOMAIN_EXCEPTIONS = (
     GatewayEndpointInactiveError,
@@ -157,12 +158,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
-    # LLMUpstreamError: the upstream's own detail passes through untouched (D16) —
-    # never replaced with a generic message.
+    # This is a transport/adapter failure, not an upstream protocol response (those
+    # are relayed as LLMRelayResult without reaching this mapper). Do not expose
+    # adapter or provider exception text to the caller.
     status_code = 502 if exc.status_code is not None and exc.status_code >= 500 else 424
     return _openai_error(
         status_code=status_code,
-        message=exc.detail or exc.message,
+        message="upstream request failed",
         error_type="api_error",
         code="upstream_error",
         marked=False,

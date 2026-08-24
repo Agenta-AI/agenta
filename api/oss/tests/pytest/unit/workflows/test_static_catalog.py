@@ -1022,13 +1022,17 @@ def _request_connection_tool() -> dict:
     return revision.data.parameters["tool"]
 
 
-def test_request_connection_schema_accepts_integration_or_target():
-    """Neither `integration` nor `target` is individually required any more — a call may use
-    either path. The `mode`/`slug` fields (integration-only) are unchanged in shape."""
+def test_request_connection_schema_requires_exactly_one_path():
+    """Either `integration` or `target` is required, never both. The `mode`/`slug`
+    fields (integration-only) are unchanged in shape."""
     tool = _request_connection_tool()
     schema = tool["input_schema"]
     assert set(schema["properties"]) == {"integration", "target", "slug", "mode"}
     assert schema["required"] == []
+    assert schema["oneOf"] == [
+        {"required": ["integration"], "not": {"required": ["target"]}},
+        {"required": ["target"], "not": {"required": ["integration"]}},
+    ]
     assert schema["additionalProperties"] is False
     assert schema["properties"]["mode"]["enum"] == ["oauth", "api_key"]
 

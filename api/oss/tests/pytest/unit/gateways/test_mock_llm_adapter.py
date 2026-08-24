@@ -170,6 +170,23 @@ async def test_responses_streaming_ends_with_a_completed_frame_carrying_usage():
     )
 
     chunks = await _drain(result.body)
+    frames = [json.loads(chunk.split(b"data: ", 1)[1]) for chunk in chunks]
+    assert [frame["sequence_number"] for frame in frames] == list(range(len(frames)))
+    assert [frame["type"] for frame in frames] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.delta",
+        "response.output_text.done",
+        "response.content_part.done",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    text_delta = next(
+        frame for frame in frames if frame["type"] == "response.output_text.delta"
+    )
+    assert text_delta["logprobs"] == []
     assert chunks[-1].startswith(b"event: response.completed\n")
     final = json.loads(chunks[-1].split(b"data: ", 1)[1])
     assert final["response"]["usage"]["output_tokens"] == result.usage.output_tokens

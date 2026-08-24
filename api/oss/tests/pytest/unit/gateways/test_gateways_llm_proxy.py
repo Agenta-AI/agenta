@@ -213,7 +213,7 @@ async def test_custom_route_passes_custom_namespace_and_slug_as_name():
 
 
 @pytest.mark.asyncio
-async def test_inbound_authorization_header_is_stripped_before_the_service_call():
+async def test_gateway_credential_is_stripped_but_upstream_authorization_is_preserved():
     service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
@@ -221,11 +221,20 @@ async def test_inbound_authorization_header_is_stripped_before_the_service_call(
 
     with _auth_scope():
         await proxy.chat_completions_custom(
-            _request(body=_body(), headers={"Authorization": "Secret caller-token"}),
+            _request(
+                body=_body(),
+                headers={
+                    "Authorization": "Bearer upstream-token",
+                    "X-AG-Credentials": "ApiKey gateway-token",
+                },
+            ),
             "my-slug",
         )
 
-    assert "authorization" not in {k.lower() for k in service.relay_calls[0]["headers"]}
+    headers = service.relay_calls[0]["headers"]
+    normalized = {key.lower(): value for key, value in headers.items()}
+    assert normalized["authorization"] == "Bearer upstream-token"
+    assert "x-ag-credentials" not in normalized
 
 
 @pytest.mark.asyncio
@@ -346,6 +355,26 @@ async def test_domain_exception_maps_to_openai_shaped_denial(
     assert set(payload.keys()) == {"error"}
     assert payload["error"]["code"] == expected_code
     assert "count" not in payload  # the house envelope never leaks onto this surface
+
+
+@pytest.mark.asyncio
+async def test_upstream_exception_detail_is_not_exposed_to_the_caller():
+    service = _MockLlmGatewayService(
+        relay_exception=LLMUpstreamError(
+            provider_key="openai",
+            status_code=503,
+            detail="traceback: provider internals",
+        )
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body()), "my-slug"
+        )
+
+    assert response.status_code == 502
+    assert json.loads(response.body)["error"]["message"] == "upstream request failed"
 
 
 @pytest.mark.asyncio

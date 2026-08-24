@@ -311,6 +311,48 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
 
 
 @pytest.mark.asyncio
+async def test_resolve_agent_connection_keeps_custom_vault_material_in_core():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    resolver = _MockResolver()
+
+    resolved = await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="acme",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    assert resolved.name == "acme"
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_validates_standard_secret_in_core():
+    resolver = _MockResolver(secret=_secret())
+    scope = _scope()
+
+    resolved = await _service(resolver=resolver).resolve_agent_connection(
+        scope=scope,
+        model="gpt-4o-mini",
+        provider_key="openai",
+        connection_slug=None,
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "openai"
+    assert len(resolver.resolve_calls) == 1
+    resolved_scope, _, mode = resolver.resolve_calls[0]
+    assert resolved_scope == scope
+    assert mode == SecretMode.PROJECT_ONLY
+
+
+@pytest.mark.asyncio
 async def test_list_models_custom_returns_the_allowlist_exactly():
     dao = _MockLlmEndpointsDAO()
     dao.rows_by_slug["acme"] = _custom_row(

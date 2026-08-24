@@ -35,8 +35,8 @@ class StandardProviderKind(str, Enum):
 
 
 # The user-facing name of each standard provider, used to name an unnamed connection on create.
-# Kept in agreement with the frontend provider catalog
-# (`web/packages/agenta-shared/src/utils/llmProviders.ts`).
+# Production entries are kept in agreement with the frontend provider catalogue
+# (`web/packages/agenta-shared/src/utils/llmProviders.ts`); MOCK is development-only.
 STANDARD_PROVIDER_DISPLAY_NAMES = {
     StandardProviderKind.MOCK: "Mock",
     StandardProviderKind.OPENAI: "OpenAI",

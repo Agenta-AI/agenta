@@ -34,7 +34,12 @@ ConnectionMode = Literal["agenta", "self_managed"]
 CredentialMode = Literal["env", "runtime_provided", "none"]
 CredentialUsage = Literal["opaque_http", "local_use"]
 
-_LOOPBACK_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+# Docker Desktop exposes the host loopback to containers under this fixed alias. It is used
+# only for local Compose development; every non-local hostname still requires HTTPS before a
+# bearer credential may be sent.
+_LOOPBACK_HOSTNAMES = frozenset(
+    {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
+)
 
 
 def _is_loopback(hostname: Optional[str]) -> bool:
@@ -290,6 +295,9 @@ class ResolvedConnection(BaseModel):
             raise ValueError("resolved credentials require credential_mode 'env'")
         if any(item.usage == "opaque_http" for item in self.credentials):
             self._require_effective_https("opaque_http model credentials")
+        # Gateway credentials are still bearer credentials. Local development's normal API
+        # gateway is loopback HTTP (which _require_effective_https explicitly permits), but a
+        # remote plaintext route must never receive them.
         if self.gateway_credentials is not None:
             self._require_effective_https("gateway credentials")
         return self
