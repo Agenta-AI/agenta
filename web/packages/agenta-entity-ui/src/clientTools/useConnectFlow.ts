@@ -31,6 +31,8 @@ import {useToolIntegrationDetail, useToolsConnections} from "@agenta/entities/ga
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 
+import {prettyIntegration} from "./useIntegrationIdentity"
+
 /**
  * No terminal signal within this bound settles the call as a timeout so the run can't wait forever.
  * Armed only once the popup is open (the user is mid-flow). 3 minutes covers a real OAuth consent.
@@ -58,10 +60,6 @@ export interface ConnectOutput {
 }
 
 export type ConnectPhase = "idle" | "connecting" | "error"
-
-/** `github` → `GitHub`-ish: a readable label without a provider catalog lookup. */
-const prettyIntegration = (key: string): string =>
-    key ? key.charAt(0).toUpperCase() + key.slice(1) : "the service"
 
 /**
  * Resolve the actual connect mode to use, the same way the settings ConnectModal's
@@ -180,7 +178,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     const modeResolvingRef = useRef(modeResolving)
     modeResolvingRef.current = modeResolving
     const mode = resolveConnectMode(hintedMode, integrationDetail?.auth_schemes)
-    const label = prettyIntegration(integration)
+    // The catalog's own name is the readable one ("Google Calendar", not "Googlecalendar"); the
+    // key-derived guess covers the window before the lookup resolves and toolkits with no entry.
+    const label = integrationDetail?.name || prettyIntegration(integration)
+    // Same lookup, so the surfaces can show the real brand mark instead of a generic plug icon.
+    const logo = integrationDetail?.logo ?? null
     // A window name UNIQUE to this parked call. Several connect flows can be live at once; a shared
     // name makes the second `window.open` reuse the first's popup, so the second flow's
     // `tools:oauth:complete` message never reaches this flow and its popup-closed poll settles it
@@ -404,6 +406,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         integration,
         slug,
         label,
+        logo,
         phase,
         errorText,
         outcome,

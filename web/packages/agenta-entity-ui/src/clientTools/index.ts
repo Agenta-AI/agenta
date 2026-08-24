@@ -10,3 +10,9 @@ export {clientToolWidgets} from "./registry"
 export {default as ElicitationWidget} from "./ElicitationWidget"
 export {default as ConnectToolWidget} from "./ConnectToolWidget"
 export {useConnectFlow} from "./useConnectFlow"
+export {IntegrationTile, type IntegrationTileProps} from "./IntegrationTile"
+export {
+    useIntegrationIdentity,
+    prettyIntegration,
+    connectIntegrationKey,
+} from "./useIntegrationIdentity"

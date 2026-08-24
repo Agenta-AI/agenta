@@ -6,7 +6,7 @@ import {
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
 import {RunningElsewhereStrip} from "@agenta/chat/components"
-import {useAgentConversation, useAgentModelKeyStatus} from "@agenta/chat/hooks"
+import {useAgentConversation, useAgentModelKeyStatus, useConnectDock} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
@@ -22,6 +22,7 @@ import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
+import {ConnectDock} from "./ConnectDock"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {
     MODEL_KEY_WAIT_LIMIT_MS,
@@ -198,6 +199,12 @@ export const LiveConversation = ({
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    // Parked connect interactions → the dock above the composer owns their actions, so a paused
+    // run can't scroll out of reach. Gated the same way desktop gates it.
+    const connects = useConnectDock({
+        messages: conversation.messages,
+        enabled: !streamingHere && !conversation.stopped,
+    })
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
@@ -313,6 +320,7 @@ export const LiveConversation = ({
                             bottomMost={false}
                         />
                     ) : null}
+                    <ConnectDock connects={connects} onOutput={conversation.sendToolOutput} />
                     {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                     <ContentRail>

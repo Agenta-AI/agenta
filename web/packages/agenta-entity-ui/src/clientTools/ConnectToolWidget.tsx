@@ -13,15 +13,9 @@
  */
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shared/clientTools"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowClockwise,
-    CheckCircle,
-    Hourglass,
-    Plugs,
-    Spinner,
-    Warning,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, CheckCircle, Hourglass, Spinner, Warning} from "@phosphor-icons/react"
 
+import {IntegrationTile} from "./IntegrationTile"
 import {useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 /**
@@ -38,8 +32,17 @@ const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
-    const {label, phase, errorText, outcome, manuallyConnected, modeResolving, runConnect, cancel} =
-        useConnectFlow(meta, settle)
+    const {
+        label,
+        logo,
+        phase,
+        errorText,
+        outcome,
+        manuallyConnected,
+        modeResolving,
+        runConnect,
+        cancel,
+    } = useConnectFlow(meta, settle)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
@@ -132,9 +135,10 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         )
     }
 
-    // ── Pending: passive marker — the InteractionDock (above the composer) owns the actions ──────
+    // ── Pending: passive marker — the connect dock (above the composer) owns the actions ─────────
+    // The brand mark, not a generic plug: the dock identifies each queued connection the same way.
     return (
-        <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
+        <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
             <span className="text-xs text-colorText">Connect {label}</span>
             <span className="text-xs text-colorTextTertiary">waiting for your response below</span>
         </ChipRow>

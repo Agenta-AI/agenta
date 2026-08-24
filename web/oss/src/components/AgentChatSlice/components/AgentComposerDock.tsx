@@ -11,6 +11,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
+    type ConnectDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
@@ -42,7 +43,7 @@ import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
+import InteractionDock from "./InteractionDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -66,7 +67,7 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
-    pendingInteraction,
+    connects,
     onClientToolOutput,
     onSubmit,
     onStop,
@@ -98,7 +99,7 @@ const AgentComposerDock = ({
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
-    pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
+    connects: ConnectDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
@@ -283,7 +284,7 @@ const AgentComposerDock = ({
                     is the escape hatch that resumes the run without connecting. */}
                 <InteractionDock
                     className={CHAT_COLUMN}
-                    pending={pendingInteraction}
+                    connects={connects}
                     onOutput={onClientToolOutput}
                 />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here

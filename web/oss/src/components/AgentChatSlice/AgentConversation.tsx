@@ -13,7 +13,7 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useVoiceComposer} from "@agenta/chat/hooks"
+import {useAgentModelKeyStatus, useConnectDock, useVoiceComposer} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -48,7 +48,6 @@ import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import {Inspector} from "./components/Inspector/Inspector"
-import {getPendingConnectInteraction} from "./components/InteractionDock"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
@@ -354,13 +353,10 @@ const AgentConversation = ({
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach).
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
-    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
+    // Parked connect interactions on the paused turn → the InteractionDock owns their actions (the
+    // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
-    const pendingInteraction = useMemo(
-        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
-        [messages, busy, stopped],
-    )
+    const connects = useConnectDock({messages, enabled: !busy && !stopped})
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -712,7 +708,7 @@ const AgentConversation = ({
                                 showTemplateStrip={showTemplateStrip}
                                 pendingApprovals={pendingApprovals}
                                 onApprovalResponse={handleApprovalResponse}
-                                pendingInteraction={pendingInteraction}
+                                connects={connects}
                                 onClientToolOutput={handleClientToolOutput}
                                 onSubmit={handleSubmit}
                                 onStop={handleStop}
