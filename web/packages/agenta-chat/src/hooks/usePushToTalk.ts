@@ -77,6 +77,9 @@ export function usePushToTalk({enabled, onStart, onStop}: UsePushToTalkParams) {
 
             armTimer = setTimeout(() => {
                 armTimer = null
+                // Rechecked: a dialog can open during the arm delay, and the mic must not
+                // open behind it.
+                if (isOverlayOpen()) return
                 active = true
                 onStartRef.current()
             }, PUSH_TO_TALK_ARM_MS)

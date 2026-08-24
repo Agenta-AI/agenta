@@ -137,6 +137,19 @@ describe("usePushToTalk", () => {
         expect(onStart).not.toHaveBeenCalled()
     })
 
+    it("yields to a dialog that opens during the arm delay", () => {
+        const {onStart} = setup()
+        holdChord()
+        act(() => {
+            vi.advanceTimersByTime(PUSH_TO_TALK_ARM_MS - 1)
+        })
+        const modal = document.createElement("div")
+        modal.className = "ant-modal-wrap"
+        document.body.append(modal)
+        waitOutArmDelay()
+        expect(onStart).not.toHaveBeenCalled()
+    })
+
     it("does nothing while disabled", () => {
         const {onStart} = setup(false)
         holdChord()
