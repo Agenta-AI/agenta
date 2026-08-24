@@ -15,7 +15,14 @@ import {atom, getDefaultStore} from "jotai"
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 
 import {withEntityGroups} from "./groups"
-import {sidebarSessionsListAtomFamily, type SessionSidebarRef} from "./sessionsSource"
+import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
+import {
+    sidebarSessionGroupKey,
+    sidebarSessionGroupsAtomFamily,
+    sidebarSessionScopeLimit,
+    sidebarSessionsListAtomFamily,
+    type SessionSidebarRef,
+} from "./sessionsSource"
 import {gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
@@ -102,15 +109,30 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
+        // Amber for a session blocked on you, the same signal the sessions list and the home
+        // panel paint. `--ag-run-status-warning` rather than `colorWarning`: the semantic token's
+        // light step is a muddy #8a6400 that reads as disabled at this size.
         getIcon: (session) =>
             session.pinned
                 ? createElement(PushPinIcon, {size: 14, weight: "fill"})
                 : createElement(CircleIcon, {
                       size: 10,
-                      weight: session.alive ? "fill" : "regular",
+                      weight: session.waiting || session.alive ? "fill" : "regular",
+                      className: session.waiting
+                          ? "text-[var(--ag-run-status-warning)]"
+                          : undefined,
                   }),
         emptyLabel: "No sessions",
-        maxItems: 7,
+        // Grouped by owning agent, with the same headings and filters the mobile rail uses —
+        // one model, two hosts. The row menu stays mobile-only for now.
+        getGroupKey: sidebarSessionGroupKey,
+        groupsAtom: sidebarSessionGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        // An archived row is second-class, not hidden: same row, dimmed.
+        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        // A heading over one row says nothing, so a grouped list needs the window the source
+        // fetches rather than the flat list's seven.
+        maxItems: sidebarSessionScopeLimit(MAIN_SIDEBAR_SCOPE_ID),
         showAllPath: "/sessions",
     }),
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {

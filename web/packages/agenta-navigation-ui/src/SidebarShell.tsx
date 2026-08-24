@@ -3,6 +3,7 @@ import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef
 import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
+    sidebarAlwaysOpenGroupsAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
@@ -171,6 +172,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
     const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
     const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
+    const setAlwaysOpenGroups = useSetAtom(sidebarAlwaysOpenGroupsAtomFamily(scope.id))
     const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
@@ -218,15 +220,19 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     // until localStorage hydrates, so writing there would wipe the real open groups).
     // `alwaysOpen` groups go in for the same reason: they are expanded on screen with nothing
     // persisted and no way to toggle, so the gate has to count them open too.
-    const publishedOpenKeys = useMemo(
-        () => uniqueKeys([...defaultOpenKeys, ...alwaysOpenKeys]),
-        [alwaysOpenKeys, defaultOpenKeys],
-    )
     useEffect(() => {
         setDefaultOpenGroups((current) =>
-            haveSameKeys(current, publishedOpenKeys) ? current : publishedOpenKeys,
+            haveSameKeys(current, defaultOpenKeys) ? current : defaultOpenKeys,
         )
-    }, [publishedOpenKeys, setDefaultOpenGroups])
+    }, [defaultOpenKeys, setDefaultOpenGroups])
+
+    // Published separately from the defaults: the gate falls back to defaults only while a scope
+    // has NO persisted record, and an always-open group has to count as open regardless.
+    useEffect(() => {
+        setAlwaysOpenGroups((current) =>
+            haveSameKeys(current, alwaysOpenKeys) ? current : alwaysOpenKeys,
+        )
+    }, [alwaysOpenKeys, setAlwaysOpenGroups])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return

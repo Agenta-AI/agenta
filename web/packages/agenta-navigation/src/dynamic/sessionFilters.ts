@@ -137,7 +137,8 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
 /**
  * Whether a grouping's headings start folded.
  *
- * Only agent does. It is the one with a heading per entity, which is the wall of rows worth
- * folding; date and status have a handful of buckets whose labels say nothing on their own.
+ * Nothing does. A rail that opens closed is a rail you have to unpack before it tells you
+ * anything, and a heading with its rows hidden carries less than the rows would have. The stored
+ * set flips headings away from this, so anything you fold stays folded.
  */
-export const groupingStartsFolded = (groupBy: SidebarSessionGroupBy) => groupBy === "agent"
+export const groupingStartsFolded = (_groupBy: SidebarSessionGroupBy) => false

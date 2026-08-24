@@ -12,8 +12,6 @@ import {
     type ReactNode,
 } from "react"
 
-import type {SessionSidebarRef} from "@agenta/navigation"
-import {isMenuDivider, SessionRowContextMenu} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -22,10 +20,20 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {MoreVertical} from "lucide-react"
+import {DotsThreeVerticalIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import {isMenuDivider} from "./menu"
+import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import type {SessionRowChrome} from "./useSessionRowChrome"
+
+/** What a row needs from its session — structural, so this stays off `@agenta/navigation`. */
+export interface SessionRowTarget {
+    sessionId: string
+    appId: string | null
+    name?: string | null
+    archived: boolean
+}
 
 const RENAME = "rename"
 
@@ -46,7 +54,7 @@ const SessionRowActions = ({
     chrome,
     children,
 }: {
-    session: SessionSidebarRef
+    session: SessionRowTarget
     /** The verbs, resolved once for the whole rail — see `useSessionRowChrome`. */
     chrome: SessionRowChrome
     children: ReactNode
@@ -229,7 +237,7 @@ const SessionRowActions = ({
                                 // renders Arial while the rows around it render Inter.
                                 className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
                             >
-                                <MoreVertical size={14} />
+                                <DotsThreeVerticalIcon size={16} weight="bold" />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">

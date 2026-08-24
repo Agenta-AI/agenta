@@ -77,6 +77,18 @@ export const sidebarDefaultOpenGroupsAtomFamily = atomFamily((_scopeId: string) 
     atom<string[]>([]),
 )
 
+/**
+ * Groups the shell renders as ALWAYS open, published per scope.
+ *
+ * Separate from the `defaultOpen` set on purpose: the gate reads persisted keys `??` defaults, so
+ * once a scope has any persisted record the defaults stop applying. An `alwaysOpen` group cannot
+ * be collapsed, so its key is never in the persisted set, and it has to be ORed in rather than
+ * fall back to. Without this the desktop rail showed "Open to load" forever.
+ */
+export const sidebarAlwaysOpenGroupsAtomFamily = atomFamily((_scopeId: string) =>
+    atom<string[]>([]),
+)
+
 export const setSidebarPopupGroupOpenAtom = atom(
     null,
     (get, set, {scopeId, key, open}: {scopeId: string; key: string; open: boolean}) => {

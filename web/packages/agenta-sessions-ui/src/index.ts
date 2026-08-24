@@ -59,3 +59,5 @@ export {
     createSessionAutomationActions,
     type SessionAutomationDrawerOpeners,
 } from "./sessionAutomationActions"
+export {default as SessionRowActions, type SessionRowTarget} from "./SessionRowActions"
+export {useSessionRowChrome, type SessionRowChrome} from "./useSessionRowChrome"

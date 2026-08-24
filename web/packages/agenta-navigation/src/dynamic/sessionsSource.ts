@@ -3,12 +3,11 @@ import {agentWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entiti
 import {sessionOpenTarget} from "@agenta/sessions/row"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
-import {keepPreviousData} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {SESSIONS_SIDEBAR_KEY} from "../constants"
+import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../state"
 
 import {
@@ -55,7 +54,10 @@ const SIDEBAR_SESSION_LIMIT = 20
 
 /** Scopes that group and filter fetch a wider window: a heading over one row says nothing, and
  * a filter needs more than the top of the list to narrow. Others keep the original window. */
-const SCOPE_SESSION_LIMIT: Record<string, number> = {"mobile-main": 50}
+const SCOPE_SESSION_LIMIT: Record<string, number> = {
+    "mobile-main": 50,
+    [MAIN_SIDEBAR_SCOPE_ID]: 50,
+}
 
 const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_SESSION_LIMIT
 
@@ -65,7 +67,7 @@ export const sidebarSessionScopeLimit = scopeLimit
 
 /** Scopes whose rail groups and filters. Everything below is gated on this so a scope that does
  * neither issues exactly the request, and takes exactly the subscriptions, it always did. */
-const GROUPED_SCOPES = new Set(["mobile-main"])
+const GROUPED_SCOPES = new Set(["mobile-main", MAIN_SIDEBAR_SCOPE_ID])
 const scopeGroups = (scopeId: string) => GROUPED_SCOPES.has(scopeId)
 
 /** Every filter is a server predicate: narrowing a fetched page would filter the window, not
@@ -117,6 +119,21 @@ const queryByAgents = async (
         new Date(row.updated_at ?? row.created_at ?? 0).getTime()
     return [...byId.values()].sort((a, b) => activity(b) - activity(a))
 }
+
+/**
+ * Carry the previous rows through a key change, but only inside the same project.
+ *
+ * A facet click and a project switch both change the key. The first wants the old rows held so the
+ * group does not blink empty mid-interaction; the second must not, because those rows belong to a
+ * project you just left.
+ */
+const keepPreviousDataWithinProject = (scopeId: string, projectId: string | null) =>
+    scopeGroups(scopeId)
+        ? (
+              previous: SessionStream[] | null | undefined,
+              previousQuery?: {queryKey: readonly unknown[]},
+          ) => (previousQuery?.queryKey[1] === projectId ? previous : undefined)
+        : undefined
 
 /**
  * Sessions with a human interaction waiting on you.
@@ -191,9 +208,9 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             // "Awaiting input" additionally waits for the id set, or it would ask for everything.
             enabled: Boolean(projectId) && !filters.pinnedOnly && (!waiting || waitingIds !== null),
             // Without this every facet click is a cache miss that empties the group
-            // mid-interaction. Only where filters exist: elsewhere the key changes on a PROJECT
-            // switch, where holding the previous project's rows would be wrong.
-            placeholderData: scopeGroups(scopeId) ? keepPreviousData : undefined,
+            // mid-interaction. Held ONLY within a project: the key carries the project id too, so
+            // an unconditional carry-over shows the previous project's sessions in a new one.
+            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
@@ -242,7 +259,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 ),
             enabled:
                 Boolean(projectId) && pinnedIds.length > 0 && (!waiting || waitingIds !== null),
-            placeholderData: scopeGroups(scopeId) ? keepPreviousData : undefined,
+            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,

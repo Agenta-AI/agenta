@@ -291,13 +291,9 @@ describe("withRefsByRecency", () => {
 // A grouping change must not read as "everything collapsed": the stored set flips a heading away
 // from its default rather than listing open ones, so its keys survive a regrouping.
 describe("groupingStartsFolded", () => {
-    it("folds agent headings, which are one per entity", () => {
-        expect(groupingStartsFolded("agent")).toBe(true)
-    })
-
-    it("leaves the handful-of-buckets groupings open", () => {
-        expect(groupingStartsFolded("date")).toBe(false)
-        expect(groupingStartsFolded("status")).toBe(false)
-        expect(groupingStartsFolded("pinned")).toBe(false)
+    it("starts every grouping open", () => {
+        for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
+            expect(groupingStartsFolded(groupBy)).toBe(false)
+        }
     })
 })

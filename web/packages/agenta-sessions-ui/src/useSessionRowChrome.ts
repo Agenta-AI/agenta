@@ -1,10 +1,11 @@
 import {useCallback, useMemo} from "react"
 
 import {setSessionHeader} from "@agenta/entities/session"
-import {useSessionActions} from "@agenta/sessions-ui"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
+
+import type {useSessionActions} from "./useSessionActions"
 
 export interface SessionRowChrome {
     menuItems: ReturnType<typeof useSessionActions>["menuItems"]
@@ -19,9 +20,14 @@ export interface SessionRowChrome {
  * Every row used to call `useSessionActions` itself, so a 41-row rail held 41 copies of the same
  * verbs — each with its own query client, project id and eight callbacks — none of which differ
  * by row. Only the open/renaming/draft state is genuinely per-row, and that stays there.
+ *
+ * The ACTIONS come from the host, not from here: the desktop binding wraps them with its local
+ * tab cache, and a rail must act on a session the same way the surface it sits beside does.
  */
-export const useSessionRowChrome = (): SessionRowChrome => {
-    const {menuItems, onMenuClick} = useSessionActions()
+export const useSessionRowChrome = ({
+    menuItems,
+    onMenuClick,
+}: Pick<ReturnType<typeof useSessionActions>, "menuItems" | "onMenuClick">): SessionRowChrome => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
 

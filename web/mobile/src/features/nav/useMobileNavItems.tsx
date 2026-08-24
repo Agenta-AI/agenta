@@ -20,6 +20,7 @@ import {
     type SidebarEntityRef,
 } from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
 import {atom, useAtomValue} from "jotai"
 import {unwrap} from "jotai/utils"
 import {
@@ -36,9 +37,6 @@ import {
     Settings,
     Slack,
 } from "lucide-react"
-
-import SessionRowActions from "./SessionRowActions"
-import {useSessionRowChrome} from "./useSessionRowChrome"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -125,7 +123,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [agentLastUsed, rawAgentsSource],
     )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
-    const chrome = useSessionRowChrome()
+    const chrome = useSessionRowChrome(useSessionActions())
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
