@@ -80,12 +80,16 @@ export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
     ),
 )
 
+/** What the dot answers: "are rows being HIDDEN?". `groupBy` only rearranges the rows you already
+ * have, so it is a view preference and is deliberately absent. */
+const FILTER_KEYS = (
+    Object.keys(DEFAULT_SIDEBAR_SESSION_FILTERS) as (keyof SidebarSessionFilters)[]
+).filter((key) => key !== "groupBy")
+
 export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        return (
-            Object.keys(DEFAULT_SIDEBAR_SESSION_FILTERS) as (keyof SidebarSessionFilters)[]
-        ).some((key) => {
+        return FILTER_KEYS.some((key) => {
             const value = filters[key]
             // An array default is a fresh [] every read, so identity would report dirty forever.
             if (Array.isArray(value)) return value.length > 0

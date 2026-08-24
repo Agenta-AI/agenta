@@ -216,11 +216,17 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     // sources read the open-groups atoms — unpublished, a visibly expanded group stays "idle"
     // and shows "Open to load" forever. Publish (never persist: the persisted atom is empty
     // until localStorage hydrates, so writing there would wipe the real open groups).
+    // `alwaysOpen` groups go in for the same reason: they are expanded on screen with nothing
+    // persisted and no way to toggle, so the gate has to count them open too.
+    const publishedOpenKeys = useMemo(
+        () => uniqueKeys([...defaultOpenKeys, ...alwaysOpenKeys]),
+        [alwaysOpenKeys, defaultOpenKeys],
+    )
     useEffect(() => {
         setDefaultOpenGroups((current) =>
-            haveSameKeys(current, defaultOpenKeys) ? current : defaultOpenKeys,
+            haveSameKeys(current, publishedOpenKeys) ? current : publishedOpenKeys,
         )
-    }, [defaultOpenKeys, setDefaultOpenGroups])
+    }, [publishedOpenKeys, setDefaultOpenGroups])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return

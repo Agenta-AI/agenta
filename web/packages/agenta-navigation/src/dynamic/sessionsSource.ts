@@ -377,13 +377,34 @@ const UNASSIGNED_GROUP_KEY = "agent:none"
 
 const DAY = 24 * 60 * 60 * 1000
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** Local midnight — the buckets are CALENDAR days, so 11pm last night is Yesterday, not Today. */
+const startOfDay = (time: number) => {
+    const date = new Date(time)
+    date.setHours(0, 0, 0, 0)
+    return date.getTime()
+}
+
+/**
+ * One heading per DAY, named by its date.
+ *
+ * "Previous 7 days" told you a session was somewhere in a week — the one thing a date heading is
+ * supposed to settle. Only today and yesterday keep words, because those are the two dates people
+ * read faster as names. The year is added once it is not the current one.
+ */
 const dateBucket = (activityAt: string | null | undefined, now: number) => {
-    if (!activityAt) return {key: "date:older", label: "Older"}
-    const age = now - new Date(activityAt).getTime()
-    if (age < DAY) return {key: "date:today", label: "Today"}
-    if (age < 2 * DAY) return {key: "date:yesterday", label: "Yesterday"}
-    if (age < 7 * DAY) return {key: "date:week", label: "Previous 7 days"}
-    return {key: "date:older", label: "Older"}
+    if (!activityAt) return {key: "date:unknown", label: "No activity"}
+    const at = new Date(activityAt)
+    const days = Math.round((startOfDay(now) - startOfDay(at.getTime())) / DAY)
+    if (days <= 0) return {key: "date:today", label: "Today"}
+    if (days === 1) return {key: "date:yesterday", label: "Yesterday"}
+    const year = at.getFullYear()
+    const label = `${MONTHS[at.getMonth()]} ${at.getDate()}${
+        year === new Date(now).getFullYear() ? "" : `, ${year}`
+    }`
+    // Keyed by the calendar day, not the label: two Augusts a year apart must not share a heading.
+    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label}
 }
 
 /**

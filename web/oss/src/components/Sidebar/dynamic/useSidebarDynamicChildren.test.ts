@@ -165,7 +165,9 @@ describe("resolveChildren grouping", () => {
 // so a groupBy change would not re-bucket). A silent regression here collapses every row into one
 // heading — which is exactly what shipped once.
 describe("sidebarSessionGroup", () => {
-    const NOW = Date.parse("2026-08-21T12:00:00Z")
+    // LOCAL noon, not UTC: the date buckets are local calendar days, so a UTC anchor would put
+    // "today" on a different date for runners far enough east or west.
+    const NOW = new Date(2026, 7, 21, 12, 0, 0).getTime()
     const row = (over: Partial<SessionSidebarRef> = {}): SessionSidebarRef => ({
         id: "s1",
         sessionId: "s1",
@@ -205,13 +207,25 @@ describe("sidebarSessionGroup", () => {
         }
     })
 
-    it("buckets by age", () => {
+    // Local-noon timestamps: a midnight-adjacent one would land on a different calendar day
+    // depending on the runner's timezone, and the bucket is a LOCAL day by design.
+    const noon = (year: number, month: number, day: number) =>
+        new Date(year, month - 1, day, 12, 0, 0).toISOString()
+
+    it("names each day by its date, keeping words only for today and yesterday", () => {
         const at = (iso: string) => sidebarSessionGroup(row({activityAt: iso}), "date", NOW).label
-        expect(at("2026-08-21T09:00:00Z")).toBe("Today")
-        expect(at("2026-08-20T09:00:00Z")).toBe("Yesterday")
-        expect(at("2026-08-17T09:00:00Z")).toBe("Previous 7 days")
-        expect(at("2026-07-01T09:00:00Z")).toBe("Older")
-        expect(sidebarSessionGroup(row(), "date", NOW).label).toBe("Older")
+        expect(at(noon(2026, 8, 21))).toBe("Today")
+        expect(at(noon(2026, 8, 20))).toBe("Yesterday")
+        expect(at(noon(2026, 8, 17))).toBe("Aug 17")
+        expect(at(noon(2026, 7, 1))).toBe("Jul 1")
+        // Past years say so; this is the only place the year earns its space.
+        expect(at(noon(2025, 12, 24))).toBe("Dec 24, 2025")
+        expect(sidebarSessionGroup(row(), "date", NOW).label).toBe("No activity")
+    })
+
+    it("keeps the same date in different years apart", () => {
+        const key = (iso: string) => sidebarSessionGroup(row({activityAt: iso}), "date", NOW).key
+        expect(key(noon(2026, 3, 4))).not.toBe(key(noon(2025, 3, 4)))
     })
 
     it("buckets by liveness", () => {
