@@ -9,8 +9,6 @@
  * store; until then `registerChatSkin` (./registry.ts) is called by nobody and the store stays
  * empty — skins (mobile shadcn first) populate it.
  */
-import type {ComponentType} from "react"
-
 import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
 /**
