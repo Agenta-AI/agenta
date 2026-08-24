@@ -29,11 +29,8 @@ describe("groupByWorkspace", () => {
         expect(groupByWorkspace([project("orphan", null), project("p1", "w1")])).toHaveLength(1)
     })
 
-    it("falls back to a generic name when the workspace is unnamed", () => {
-        const [group] = groupByWorkspace([
-            {project_id: "p1", project_name: "p1", workspace_id: "w1"} as MobileProject,
-        ])
-        expect(group.workspaceName).toBe("Workspace")
+    it("drops a project whose workspace is an empty string", () => {
+        expect(groupByWorkspace([project("p1", "")])).toHaveLength(0)
     })
 })
 
@@ -84,6 +81,34 @@ describe("groupByOrganization", () => {
     it("keeps an org-less project, keyed by its workspace", () => {
         const groups = groupByOrganization([orgProject("p1", null, null, "w1")])
         expect(groups).toHaveLength(1)
+        expect(groups[0].key).toBe("workspace:w1")
+        expect(groups[0].organizationId).toBeNull()
         expect(groups[0].organizationName).toBe("Default")
+    })
+
+    it("takes the org name from a later row when the first one has none", () => {
+        // Resolution reads the WHOLE group: a nameless first row must not pin the label to a
+        // fallback for the rest of the org's rows.
+        const groups = groupByOrganization([
+            orgProject("p1", "o1", null, "ws-a"),
+            orgProject("p2", "o1", "Acme Robotics", "ws-b"),
+        ])
+
+        expect(groups[0].organizationName).toBe("Acme Robotics")
+    })
+
+    it("treats a blank name as missing, not as a name", () => {
+        const groups = groupByOrganization([
+            orgProject("p1", "o1", "   ", "ws-a"),
+            orgProject("p2", "o1", "Acme Robotics", "ws-b"),
+        ])
+
+        expect(groups[0].organizationName).toBe("Acme Robotics")
+    })
+
+    it("carries the org id when the rows have one", () => {
+        const [group] = groupByOrganization([orgProject("p1", "o1", "Acme", "ws-a")])
+        expect(group.key).toBe("o1")
+        expect(group.organizationId).toBe("o1")
     })
 })

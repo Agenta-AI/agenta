@@ -67,26 +67,26 @@ export const DrawerProjectSwitcher = ({
                 key: project.project_id,
                 name: project.project_name ?? "Project",
                 isActive: project.project_id === projectId,
-                onSelect: () => goTo(project.workspace_id ?? workspaceId, project.project_id),
+                onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [currentGroup?.projects, projectId, workspaceId],
+        [currentGroup?.projects, projectId],
     )
 
     const organizations = useMemo<SwitcherEntry[]>(
         () =>
             groups.map((group) => ({
-                key: group.organizationId,
+                key: group.key,
                 name: group.organizationName,
-                isActive: group.organizationId === currentGroup?.organizationId,
+                isActive: group.key === currentGroup?.key,
                 // Entering an org lands on its first project; the project panel then narrows.
                 onSelect: () => {
                     const first = group.projects[0]
-                    if (first) goTo(first.workspace_id ?? group.workspaceId, first.project_id)
+                    if (first) goTo(group.workspaceId, first.project_id)
                 },
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [groups, currentGroup?.organizationId],
+        [groups, currentGroup?.key],
     )
 
     const [createOpen, setCreateOpen] = useState(false)
