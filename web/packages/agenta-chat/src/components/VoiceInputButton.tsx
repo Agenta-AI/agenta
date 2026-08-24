@@ -1,5 +1,6 @@
-import {useCallback, useEffect, useRef, type RefObject} from "react"
+import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import {pushToTalkLabel} from "@agenta/shared/utils"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {
     Button,
@@ -141,6 +142,10 @@ const VoiceInputButton = ({
         transcribe.start()
     }, [transcribe.recording, transcribe.start, inputRef])
 
+    // Resolved after mount so SSR can't mismatch the glyph.
+    const [holdLabel, setHoldLabel] = useState("Ctrl+Alt")
+    useEffect(() => setHoldLabel(pushToTalkLabel()), [])
+
     // Hold ⌃⌥ / Ctrl+Alt to dictate. Same start/stop the button's own click drives.
     usePushToTalk({
         enabled: effective === "transcribe" && !disabled && !audioPending,
@@ -190,7 +195,9 @@ const VoiceInputButton = ({
           ? "Attachment limit reached — remove a file to record a voice message"
           : dictating
             ? "Stop dictation"
-            : null
+            : effective === "transcribe"
+              ? `Hold ${holdLabel} to dictate`
+              : null
 
     const highlighted = dictating || audioPending
 
