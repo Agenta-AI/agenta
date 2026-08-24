@@ -7,13 +7,12 @@ re-evaluates its invariants against the committed state.
 
 import asyncio
 
-from agenta_local.core.sessions.types import SessionBusy
+from agenta_local.core.sessions.types import SessionBusy, TurnAlreadyExists
 from agenta_local.dbs.sqlite.agents.dao import AgentsDAO
 from agenta_local.dbs.sqlite.sessions.dao import SessionsDAO
 
 MODEL_JSON = '{"provider": "openai", "name": "gpt-5-mini", "parameters": {}}'
 EXECUTION_JSON = '{"harness": "pi_core", "sandbox": "local"}'
-CONTENT = '{"type": "text", "text": "hi"}'
 
 
 async def make_sessions_dao(storage):
@@ -33,8 +32,12 @@ async def test_concurrent_begin_turns_single_winner(storage):
     dao, _, session = await make_sessions_dao(storage)
 
     results = await asyncio.gather(
-        dao.begin_turn(session_id=session.id, client_turn_id="c1", input_hash="h"),
-        dao.begin_turn(session_id=session.id, client_turn_id="c2", input_hash="h"),
+        dao.begin_turn(
+            session_id=session.id, client_turn_id="c1", input="hi", input_hash="h"
+        ),
+        dao.begin_turn(
+            session_id=session.id, client_turn_id="c2", input="hi", input_hash="h"
+        ),
         return_exceptions=True,
     )
 
@@ -45,44 +48,81 @@ async def test_concurrent_begin_turns_single_winner(storage):
     assert turns[0].status == "pending"
 
 
-async def test_concurrent_same_client_id_is_idempotent(storage):
+async def test_concurrent_same_client_id_single_row(storage):
     dao, _, session = await make_sessions_dao(storage)
 
-    first, second = await asyncio.gather(
-        dao.begin_turn(session_id=session.id, client_turn_id="c1", input_hash="h"),
-        dao.begin_turn(session_id=session.id, client_turn_id="c1", input_hash="h"),
+    results = await asyncio.gather(
+        dao.begin_turn(
+            session_id=session.id, client_turn_id="c1", input="hi", input_hash="h"
+        ),
+        dao.begin_turn(
+            session_id=session.id, client_turn_id="c1", input="hi", input_hash="h"
+        ),
+        return_exceptions=True,
     )
 
-    assert first.id == second.id
+    turns = [r for r in results if not isinstance(r, BaseException)]
+    duplicates = [r for r in results if isinstance(r, TurnAlreadyExists)]
+    assert len(turns) == 1
+    assert len(duplicates) == 1
+    assert duplicates[0].details["turn_id"] == turns[0].id
 
 
-async def test_concurrent_appends_to_two_sessions_interleave(storage):
+async def test_concurrent_begins_across_two_sessions_interleave(storage):
     dao, _, first_session = await make_sessions_dao(storage)
     _, _, other_session = await make_sessions_dao(storage)
-    turn_a = await dao.begin_turn(
-        session_id=first_session.id, client_turn_id="a", input_hash="h"
-    )
-    turn_b = await dao.begin_turn(
-        session_id=other_session.id, client_turn_id="b", input_hash="h"
-    )
-
-    async def append_five(session_id, turn_id):
-        for _ in range(5):
-            await dao.append_message(
-                session_id=session_id,
-                turn_id=turn_id,
-                role="user",
-                content_json=CONTENT,
-            )
 
     await asyncio.gather(
-        append_five(first_session.id, turn_a.id),
-        append_five(other_session.id, turn_b.id),
+        dao.begin_turn(
+            session_id=first_session.id,
+            client_turn_id="a",
+            input="one",
+            input_hash="ha",
+        ),
+        dao.begin_turn(
+            session_id=other_session.id,
+            client_turn_id="b",
+            input="two",
+            input_hash="hb",
+        ),
     )
 
-    for session_id in (first_session.id, other_session.id):
+    for session_id, text in ((first_session.id, "one"), (other_session.id, "two")):
         messages = await dao.list_messages(session_id=session_id)
-        assert [m.sequence for m in messages] == list(range(5))
+        assert [(m.sequence, m.content["text"]) for m in messages] == [(0, text)]
+
+
+async def test_concurrent_complete_races_resolve_to_one_terminal_state(storage):
+    dao, _, session = await make_sessions_dao(storage)
+    turn = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h"
+    )
+    await dao.mark_turn_running(turn_id=turn.id)
+
+    results = await asyncio.gather(
+        dao.complete_turn(turn_id=turn.id, assistant_message="first"),
+        dao.cancel_turn(turn_id=turn.id),
+        return_exceptions=True,
+    )
+
+    succeeded = [r for r in results if not isinstance(r, BaseException)]
+    rejected = [
+        r
+        for r in results
+        if isinstance(r, Exception) and not isinstance(r, asyncio.CancelledError)
+    ]
+    assert len(succeeded) == 1
+    assert len(rejected) == 1
+
+    from agenta_local.core.sessions.types import TurnStatus
+
+    final = await dao.get_session(session_id=session.id)
+    assert final is not None
+    messages = await dao.list_messages(session_id=session.id)
+    if isinstance(succeeded[0], object) and succeeded[0].status == TurnStatus.COMPLETED:
+        assert [m.role.value for m in messages] == ["user", "assistant"]
+    else:
+        assert [m.role.value for m in messages] == ["user"]
 
 
 async def test_concurrent_revision_allocation_gets_distinct_versions(storage):

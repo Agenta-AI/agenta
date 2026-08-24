@@ -1,4 +1,4 @@
-"""SessionsDAO integration tests: turns, transitions, messages, recovery."""
+"""SessionsDAO integration tests: turns, transitions, context, recovery."""
 
 import pytest
 from agenta_local.core.agents.types import RevisionNotFound
@@ -7,6 +7,7 @@ from agenta_local.core.sessions.types import (
     IdempotencyConflict,
     SessionBusy,
     SessionNotFound,
+    TurnAlreadyExists,
     TurnNotActive,
     TurnNotFound,
 )
@@ -15,8 +16,6 @@ from agenta_local.dbs.sqlite.sessions.dao import SessionsDAO
 
 MODEL_JSON = '{"provider": "openai", "name": "gpt-5-mini", "parameters": {}}'
 EXECUTION_JSON = '{"harness": "pi_core", "sandbox": "local"}'
-
-CONTENT = '{"type": "text", "text": "hi"}'
 
 
 async def make_session(storage):
@@ -66,52 +65,53 @@ async def test_archive_session_flips_status(storage):
     assert fetched.status == "archived"
 
 
-async def test_begin_turn_inserts_pending_turn(storage):
+async def test_begin_turn_inserts_pending_turn_and_user_message(storage):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
     turn = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="hi there", input_hash="h1"
     )
     assert turn.status == "pending"
     assert turn.started_at is None and turn.finished_at is None
 
+    messages = await dao.list_messages(session_id=session.id)
+    assert [m.sequence for m in messages] == [0]
+    assert messages[0].turn_id == turn.id
+    assert messages[0].role == "user"
+    assert messages[0].content == {"text": "hi there"}
 
-async def test_begin_turn_replays_exact_duplicate(storage):
+
+async def test_begin_turn_exact_duplicate_raises_with_existing_identity(storage):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
     first = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
     )
-    replay = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-    assert replay.id == first.id
-    assert replay.status == first.status
+    with pytest.raises(TurnAlreadyExists) as exc_info:
+        await dao.begin_turn(
+            session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
+        )
+    assert exc_info.value.details["turn_id"] == first.id
+    assert exc_info.value.details["status"] == "pending"
 
-
-async def test_begin_turn_replays_terminal_duplicate_without_new_run(storage):
-    dao = SessionsDAO(storage.factory)
-    _, session = await make_session(storage)
-    turn = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-    await dao.finish_turn(turn_id=turn.id, status="running")
-    await dao.finish_turn(turn_id=turn.id, status="failed", error_json='{"e": 1}')
-
-    replay = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-    assert replay.id == turn.id
-    assert replay.status == "failed"
+    # Terminal duplicates behave identically: never a second run.
+    await dao.cancel_turn(turn_id=first.id)
+    with pytest.raises(TurnAlreadyExists) as exc_info:
+        await dao.begin_turn(
+            session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
+        )
+    assert exc_info.value.details["status"] == "cancelled"
 
 
 async def test_begin_turn_conflicts_on_same_client_id_different_hash(storage):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
-    await dao.begin_turn(session_id=session.id, client_turn_id="c1", input_hash="h1")
+    await dao.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
+    )
     with pytest.raises(IdempotencyConflict):
         await dao.begin_turn(
-            session_id=session.id, client_turn_id="c1", input_hash="h2"
+            session_id=session.id, client_turn_id="c1", input="bye", input_hash="h2"
         )
 
 
@@ -119,17 +119,17 @@ async def test_begin_turn_rejects_second_active_turn(storage):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
     active = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
     )
     with pytest.raises(SessionBusy):
         await dao.begin_turn(
-            session_id=session.id, client_turn_id="c2", input_hash="h2"
+            session_id=session.id, client_turn_id="c2", input="bye", input_hash="h2"
         )
 
     # After the active turn reaches a terminal state a new turn is admitted.
-    await dao.finish_turn(turn_id=active.id, status="cancelled")
+    await dao.cancel_turn(turn_id=active.id)
     next_turn = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c2", input_hash="h2"
+        session_id=session.id, client_turn_id="c2", input="bye", input_hash="h2"
     )
     assert next_turn.status == "pending"
 
@@ -137,7 +137,7 @@ async def test_begin_turn_rejects_second_active_turn(storage):
 async def test_begin_turn_unknown_session_raises(storage):
     with pytest.raises(SessionNotFound):
         await SessionsDAO(storage.factory).begin_turn(
-            session_id="ses_nope", client_turn_id="c1", input_hash="h1"
+            session_id="ses_nope", client_turn_id="c1", input="hi", input_hash="h1"
         )
 
 
@@ -157,6 +157,20 @@ def _seeded_status_cases():
     ]
 
 
+def _apply_target(dao, *, turn_id, to_status):
+    if to_status == "pending":
+        raise TurnNotActive("pending is never a target")
+    if to_status == "running":
+        return dao.mark_turn_running(turn_id=turn_id)
+    if to_status == "completed":
+        return dao.complete_turn(turn_id=turn_id, assistant_message="done")
+    if to_status == "failed":
+        return dao.fail_turn(turn_id=turn_id, error='{"kind": "x"}')
+    if to_status == "cancelled":
+        return dao.cancel_turn(turn_id=turn_id)
+    return dao.interrupt_turn(turn_id=turn_id, error='{"kind": "y"}')
+
+
 @pytest.mark.parametrize(
     ("from_status", "to_status", "allowed"), _seeded_status_cases()
 )
@@ -166,110 +180,103 @@ async def test_transition_matrix(storage, from_status, to_status, allowed):
     turn_id = await _seed_turn(storage, session.id, status=from_status)
 
     if allowed:
-        result = await dao.finish_turn(turn_id=turn_id, status=to_status)
+        result = await _apply_target(dao, turn_id=turn_id, to_status=to_status)
         assert result.status == to_status
         if to_status == "running":
             assert result.started_at is not None
-        if to_status in ("completed", "failed", "cancelled", "interrupted"):
+        if to_status != "running" and to_status != "pending":
             assert result.finished_at is not None
     else:
         with pytest.raises(TurnNotActive):
-            await dao.finish_turn(turn_id=turn_id, status=to_status)
+            await _apply_target(dao, turn_id=turn_id, to_status=to_status)
 
 
-async def test_finish_turn_error_json_is_stored_and_parsed(storage):
+async def test_complete_turn_inserts_assistant_message_atomically(storage):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
     turn = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="q", input_hash="h1"
     )
-    failed = await dao.finish_turn(
-        turn_id=turn.id, status="failed", error_json='{"kind": "provider"}'
+    await dao.mark_turn_running(turn_id=turn.id)
+    completed = await dao.complete_turn(turn_id=turn.id, assistant_message="answer")
+
+    assert completed.status == "completed"
+    messages = await dao.list_messages(session_id=session.id)
+    assert [(m.sequence, m.role, m.content) for m in messages] == [
+        (0, "user", {"text": "q"}),
+        (1, "assistant", {"text": "answer"}),
+    ]
+
+
+async def test_fail_turn_error_json_is_stored_and_parsed(storage):
+    dao = SessionsDAO(storage.factory)
+    _, session = await make_session(storage)
+    turn = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
     )
+    failed = await dao.fail_turn(turn_id=turn.id, error='{"kind": "provider"}')
     assert failed.error == {"kind": "provider"}
-    fetched = await dao.get_session(session_id=session.id)
-    assert fetched is not None
+    assert failed.finished_at is not None
 
 
-async def test_finish_turn_unknown_turn_raises(storage):
-    with pytest.raises(TurnNotFound):
-        await SessionsDAO(storage.factory).finish_turn(
-            turn_id="trn_nope", status="running"
-        )
+async def test_terminal_ops_unknown_turn_raises(storage):
+    dao = SessionsDAO(storage.factory)
+    for operation in (
+        lambda: dao.mark_turn_running(turn_id="trn_nope"),
+        lambda: dao.complete_turn(turn_id="trn_nope", assistant_message="x"),
+        lambda: dao.fail_turn(turn_id="trn_nope", error="{}"),
+        lambda: dao.cancel_turn(turn_id="trn_nope"),
+        lambda: dao.interrupt_turn(turn_id="trn_nope", error="{}"),
+    ):
+        with pytest.raises(TurnNotFound):
+            await operation()
 
 
-async def test_append_message_allocates_sequence_per_session(storage):
+async def test_load_completed_context_excludes_failed_and_includes_current_user(
+    storage,
+):
     dao = SessionsDAO(storage.factory)
     _, session = await make_session(storage)
-    turn = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+
+    done = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="q1", input_hash="h1"
     )
-    m0 = await dao.append_message(
-        session_id=session.id, turn_id=turn.id, role="user", content_json=CONTENT
+    await dao.mark_turn_running(turn_id=done.id)
+    await dao.complete_turn(turn_id=done.id, assistant_message="a1")
+
+    doomed = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c2", input="q2", input_hash="h2"
     )
-    m1 = await dao.append_message(
-        session_id=session.id, turn_id=turn.id, role="assistant", content_json=CONTENT
+    await dao.fail_turn(turn_id=doomed.id, error="{}")
+
+    current = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c3", input="q3", input_hash="h3"
     )
-    assert (m0.sequence, m1.sequence) == (0, 1)
-    assert m0.role == "user"
+
+    context = await dao.load_completed_context(
+        session_id=session.id, current_turn_id=current.id
+    )
+    assert [(m.sequence, m.role.value, m.content["text"]) for m in context] == [
+        (0, "user", "q1"),
+        (1, "assistant", "a1"),
+        (3, "user", "q3"),
+    ]
+
+
+async def test_list_messages_returns_rows_from_all_turn_states(storage):
+    dao = SessionsDAO(storage.factory)
+    _, session = await make_session(storage)
+    ok = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="kept", input_hash="h1"
+    )
+    await dao.cancel_turn(turn_id=ok.id)
+    bad = await dao.begin_turn(
+        session_id=session.id, client_turn_id="c2", input="also kept", input_hash="h2"
+    )
+    await dao.fail_turn(turn_id=bad.id, error="{}")
 
     messages = await dao.list_messages(session_id=session.id)
-    assert [m.sequence for m in messages] == [0, 1]
-
-
-async def test_append_rejected_once_turn_is_terminal(storage):
-    dao = SessionsDAO(storage.factory)
-    _, session = await make_session(storage)
-    completed = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-    await dao.finish_turn(turn_id=completed.id, status="running")
-    await dao.finish_turn(turn_id=completed.id, status="completed")
-
-    with pytest.raises(TurnNotActive):
-        await dao.append_message(
-            session_id=session.id,
-            turn_id=completed.id,
-            role="assistant",
-            content_json=CONTENT,
-        )
-
-
-async def test_failed_append_consumes_no_sequence_number(storage):
-    dao = SessionsDAO(storage.factory)
-    _, session = await make_session(storage)
-    done = await _seed_turn(storage, session.id, status="completed")
-    active = await dao.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-
-    first = await dao.append_message(
-        session_id=session.id, turn_id=active.id, role="user", content_json=CONTENT
-    )
-    with pytest.raises(TurnNotActive):
-        await dao.append_message(
-            session_id=session.id, turn_id=done, role="user", content_json=CONTENT
-        )
-    second = await dao.append_message(
-        session_id=session.id, turn_id=active.id, role="assistant", content_json=CONTENT
-    )
-    assert second.sequence == first.sequence + 1
-
-
-async def test_append_rejects_turn_from_another_session(storage):
-    dao = SessionsDAO(storage.factory)
-    _, session_a = await make_session(storage)
-    _, session_b = await make_session(storage)
-    turn_b = await dao.begin_turn(
-        session_id=session_b.id, client_turn_id="c1", input_hash="h1"
-    )
-    with pytest.raises(TurnNotFound):
-        await dao.append_message(
-            session_id=session_a.id,
-            turn_id=turn_b.id,
-            role="user",
-            content_json=CONTENT,
-        )
+    assert [m.content["text"] for m in messages] == ["kept", "also kept"]
 
 
 async def test_list_messages_unknown_session_raises(storage):

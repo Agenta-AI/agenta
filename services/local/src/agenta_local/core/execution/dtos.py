@@ -30,6 +30,16 @@ class ExecutionResult(BaseModel):
     assistant_text: str
 
 
+class ExecutionRequest(BaseModel):
+    """One user-initiated turn against a session (core shape; the HTTP layer
+    translates the wire `input.content[]` envelope into `text`)."""
+
+    session_id: str
+    text: str
+    client_turn_id: str | None = None
+    timeout_s: float | None = None
+
+
 @dataclass
 class ExecutionStream:
     """The executor's return value: a live event iterator plus its deferred result.

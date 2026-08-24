@@ -1,8 +1,8 @@
-"""Core seam for session/history persistence and turn records."""
+"""Core seam for session/history persistence and turn records (contracts.md)."""
 
 from abc import ABC, abstractmethod
 
-from .dtos import Message, MessageRole, Session, SessionStatus, Turn, TurnStatus
+from .dtos import Message, Session, SessionStatus, Turn
 
 
 class SessionsDAOInterface(ABC):
@@ -30,51 +30,60 @@ class SessionsDAOInterface(ABC):
 
     @abstractmethod
     async def begin_turn(
-        self, *, session_id: str, client_turn_id: str, input_hash: str
+        self, *, session_id: str, client_turn_id: str, input: str, input_hash: str
     ) -> Turn:
-        """Idempotency-first turn admission inside one immediate write transaction.
+        """Idempotency-first admission; inserts turn AND user message in one
+        immediate write transaction.
 
-        Same (session_id, client_turn_id) with the same input_hash returns the
-        existing row (replay); with a different input_hash raises IdempotencyConflict;
-        another pending/running turn raises SessionBusy. Checked in that order.
+        Checked in order: same (session_id, client_turn_id) with identical
+        input_hash raises TurnAlreadyExists carrying the existing turn id/status;
+        different input_hash raises IdempotencyConflict; another pending/running
+        turn raises SessionBusy before anything is inserted.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def finish_turn(
-        self,
-        *,
-        turn_id: str,
-        status: TurnStatus,
-        error_json: str | None = None,
-    ) -> Turn:
-        """Apply one transition from ALLOWED_TURN_TRANSITIONS; terminal targets also
-        stamp finished_at (and running stamps started_at)."""
+    async def mark_turn_running(self, *, turn_id: str) -> Turn:
+        """Apply only pending -> running, stamping started_at."""
         raise NotImplementedError
 
     @abstractmethod
-    async def append_message(
-        self,
-        *,
-        session_id: str,
-        turn_id: str,
-        role: MessageRole,
-        content_json: str,
-    ) -> Message:
-        """Insert one message with sequence = max(sequence)+1 while its turn is
-        still pending/running; allocation and insert share one transaction so a
-        failure consumes no sequence number."""
+    async def load_completed_context(
+        self, *, session_id: str, current_turn_id: str
+    ) -> list[Message]:
+        """Messages from completed turns plus the current turn's user message,
+        sequence ASC; failed/cancelled/interrupted turns are excluded from model
+        context but stay queryable via list_messages."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def complete_turn(self, *, turn_id: str, assistant_message: str) -> Turn:
+        """Insert the final assistant message and apply running -> completed in
+        one transaction."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fail_turn(self, *, turn_id: str, error: str) -> Turn:
+        """Apply pending|running -> failed once with a JSON-object error string."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def cancel_turn(self, *, turn_id: str) -> Turn:
+        """Apply pending|running -> cancelled once."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def interrupt_turn(self, *, turn_id: str, error: str) -> Turn:
+        """Apply pending|running -> interrupted once with a JSON-object error."""
         raise NotImplementedError
 
     @abstractmethod
     async def list_messages(self, *, session_id: str) -> list[Message]:
-        """Messages ordered by sequence ASC."""
+        """All messages ordered by sequence ASC regardless of owning turn state."""
         raise NotImplementedError
 
     @abstractmethod
     async def interrupt_incomplete_turns(self) -> int:
-        """Startup recovery: flip every leftover pending/running turn to interrupted.
-
-        Returns the number of rows changed.
-        """
+        """Startup recovery: flip every leftover pending/running turn to
+        interrupted. Returns the number of rows changed."""
         raise NotImplementedError

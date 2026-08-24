@@ -31,6 +31,14 @@ async def make_agent(agents_service, name="agent"):
     )
 
 
+async def make_session(sessions_service, agents_service):
+    agent = await make_agent(agents_service)
+    session = await sessions_service.create_session(
+        agent_revision_id=agent.current_revision.id
+    )
+    return session
+
+
 async def test_create_agent_trims_name(agents_service):
     agent = await make_agent(agents_service, name="  spaced  ")
     assert agent.name == "spaced"
@@ -72,81 +80,69 @@ async def test_update_revision_is_rejected_as_immutable(agents_service):
 
 
 async def test_begin_turn_requires_client_turn_id(sessions_service, agents_service):
-    agent = await make_agent(agents_service)
-    session = await sessions_service.create_session(
-        agent_revision_id=agent.current_revision.id
-    )
+    session = await make_session(sessions_service, agents_service)
     with pytest.raises(ValueError, match="client_turn_id"):
         await sessions_service.begin_turn(
-            session_id=session.id, client_turn_id="  ", input_hash="h"
+            session_id=session.id, client_turn_id="  ", input="hi", input_hash="h"
         )
 
 
-async def test_append_message_validates_role_and_content(
+async def test_fail_and_interrupt_validate_error_payload(
     sessions_service, agents_service
 ):
-    agent = await make_agent(agents_service)
-    session = await sessions_service.create_session(
-        agent_revision_id=agent.current_revision.id
-    )
+    session = await make_session(sessions_service, agents_service)
     turn = await sessions_service.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
     )
-    with pytest.raises(ValueError):
-        await sessions_service.append_message(
-            session_id=session.id,
-            turn_id=turn.id,
-            role="developer",
-            content_json='{"text": "hi"}',
-        )
-    with pytest.raises(ValueError, match="content_json"):
-        await sessions_service.append_message(
-            session_id=session.id, turn_id=turn.id, role="user", content_json="nope"
-        )
-    message = await sessions_service.append_message(
-        session_id=session.id,
-        turn_id=turn.id,
-        role="user",
-        content_json='{"type": "text", "text": "hi"}',
-    )
-    assert message.role == "user"
-
-
-async def test_finish_turn_validates_status_and_error_payload(
-    sessions_service, agents_service
-):
-    agent = await make_agent(agents_service)
-    session = await sessions_service.create_session(
-        agent_revision_id=agent.current_revision.id
-    )
-    turn = await sessions_service.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
-    )
-    with pytest.raises(ValueError):
-        await sessions_service.finish_turn(turn_id=turn.id, status="exploded")
-    failed = await sessions_service.finish_turn(
-        turn_id=turn.id, status="failed", error_json='{"kind": "provider"}'
+    with pytest.raises(ValueError, match="error"):
+        await sessions_service.fail_turn(turn_id=turn.id, error="nope")
+    failed = await sessions_service.fail_turn(
+        turn_id=turn.id, error='{"kind": "provider"}'
     )
     assert failed.status == "failed"
 
-    with pytest.raises(TurnNotActive):
-        await sessions_service.append_message(
-            session_id=session.id,
-            turn_id=turn.id,
-            role="assistant",
-            content_json='{"text": "late"}',
-        )
+    other = await sessions_service.begin_turn(
+        session_id=session.id, client_turn_id="c2", input="hi", input_hash="h2"
+    )
+    with pytest.raises(ValueError, match="error"):
+        await sessions_service.interrupt_turn(turn_id=other.id, error="[1]")
 
 
-async def test_finish_turn_accepts_plain_string_status(
+async def test_mark_running_accepts_plain_status_flow(sessions_service, agents_service):
+    session = await make_session(sessions_service, agents_service)
+    turn = await sessions_service.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
+    )
+    running = await sessions_service.mark_turn_running(turn_id=turn.id)
+    assert running.status == "running"
+
+
+async def test_messages_attach_only_while_turn_is_active(
     sessions_service, agents_service
 ):
-    agent = await make_agent(agents_service)
-    session = await sessions_service.create_session(
-        agent_revision_id=agent.current_revision.id
-    )
+    """The assistant commit is the only post-begin write; late appends are
+    impossible by construction because append_message no longer exists."""
+    session = await make_session(sessions_service, agents_service)
     turn = await sessions_service.begin_turn(
-        session_id=session.id, client_turn_id="c1", input_hash="h1"
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
     )
-    running = await sessions_service.finish_turn(turn_id=turn.id, status="running")
-    assert running.status == "running"
+    await sessions_service.mark_turn_running(turn_id=turn.id)
+    completed = await sessions_service.complete_turn(
+        turn_id=turn.id, assistant_message="done"
+    )
+    assert completed.status == "completed"
+
+    with pytest.raises(TurnNotActive):
+        await sessions_service.complete_turn(turn_id=turn.id, assistant_message="again")
+
+
+async def test_complete_turn_rejects_empty_assistant_message(
+    sessions_service, agents_service
+):
+    session = await make_session(sessions_service, agents_service)
+    turn = await sessions_service.begin_turn(
+        session_id=session.id, client_turn_id="c1", input="hi", input_hash="h1"
+    )
+    await sessions_service.mark_turn_running(turn_id=turn.id)
+    with pytest.raises(ValueError, match="assistant_message"):
+        await sessions_service.complete_turn(turn_id=turn.id, assistant_message="")

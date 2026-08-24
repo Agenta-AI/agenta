@@ -2,7 +2,7 @@
 
 import json
 
-from .dtos import Message, MessageRole, Session, SessionStatus, Turn, TurnStatus
+from .dtos import Message, Session, SessionStatus, Turn
 from .interfaces import SessionsDAOInterface
 
 
@@ -38,49 +38,49 @@ class SessionsService:
         return await self._sessions.archive_session(session_id=session_id)
 
     async def begin_turn(
-        self, *, session_id: str, client_turn_id: str, input_hash: str
+        self,
+        *,
+        session_id: str,
+        client_turn_id: str,
+        input: str,
+        input_hash: str,
     ) -> Turn:
         if not client_turn_id.strip():
             raise ValueError("client_turn_id must be non-empty")
         return await self._sessions.begin_turn(
             session_id=session_id,
             client_turn_id=client_turn_id,
+            input=input,
             input_hash=input_hash,
         )
 
-    async def finish_turn(
-        self,
-        *,
-        turn_id: str,
-        status: TurnStatus | str,
-        error_json: str | None = None,
-    ) -> Turn:
-        target = TurnStatus(status)
-        if error_json is not None:
-            _require_json_object(error_json, "error_json")
-        return await self._sessions.finish_turn(
-            turn_id=turn_id, status=target, error_json=error_json
+    async def mark_turn_running(self, *, turn_id: str) -> Turn:
+        return await self._sessions.mark_turn_running(turn_id=turn_id)
+
+    async def load_completed_context(
+        self, *, session_id: str, current_turn_id: str
+    ) -> list[Message]:
+        return await self._sessions.load_completed_context(
+            session_id=session_id, current_turn_id=current_turn_id
         )
 
-    async def append_message(
-        self,
-        *,
-        session_id: str,
-        turn_id: str,
-        role: MessageRole | str,
-        content_json: str,
-    ) -> Message:
-        # Messages attach only while their turn is pending/running (contracts.md:
-        # completed turns close atomically with their assistant message; later
-        # appends are rejected). Enforced inside the DAO transaction.
-        checked_role = MessageRole(role)
-        _require_json_object(content_json, "content_json")
-        return await self._sessions.append_message(
-            session_id=session_id,
-            turn_id=turn_id,
-            role=checked_role,
-            content_json=content_json,
+    async def complete_turn(self, *, turn_id: str, assistant_message: str) -> Turn:
+        if not assistant_message:
+            raise ValueError("assistant_message must be non-empty")
+        return await self._sessions.complete_turn(
+            turn_id=turn_id, assistant_message=assistant_message
         )
+
+    async def fail_turn(self, *, turn_id: str, error: str) -> Turn:
+        _require_json_object(error, "error")
+        return await self._sessions.fail_turn(turn_id=turn_id, error=error)
+
+    async def cancel_turn(self, *, turn_id: str) -> Turn:
+        return await self._sessions.cancel_turn(turn_id=turn_id)
+
+    async def interrupt_turn(self, *, turn_id: str, error: str) -> Turn:
+        _require_json_object(error, "error")
+        return await self._sessions.interrupt_turn(turn_id=turn_id, error=error)
 
     async def list_messages(self, *, session_id: str) -> list[Message]:
         return await self._sessions.list_messages(session_id=session_id)
