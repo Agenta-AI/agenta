@@ -2,6 +2,7 @@
     "name": "agenta-web",
     "version": "0.113.0",
     "workspaces": [
+        "agenta-local",
         "ee",
         "mobile",
         "oss",
@@ -47,6 +48,10 @@
     },
     "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
     "scripts": {
+        "build-local": "turbo run build --filter=@agenta/local",
+        "lint-local": "turbo run lint --filter=@agenta/local",
+        "type-check-local": "turbo run types:check --filter=@agenta/local",
+        "test-local": "turbo run test --filter=@agenta/local",
         "build-oss": "turbo run build --filter=@agenta/oss",
         "build-ee": "turbo run build --filter=@agenta/ee",
         "build-mobile": "turbo run build --filter=@agenta/mobile",

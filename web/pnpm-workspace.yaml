@@ -1,4 +1,5 @@
 packages:
+  - 'agenta-local'
   - 'oss'
   - 'ee'
   - 'mobile'

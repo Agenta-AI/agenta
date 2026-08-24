@@ -152,6 +152,31 @@
             "outputs": [".next/**", "!.next/cache/**"],
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
+        "@agenta/local#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/ui#build"],
+            "inputs": [
+                "src/**",
+                "public/**",
+                "next.config.ts",
+                "postcss.config.mjs",
+                "tsconfig.json"
+            ],
+            "outputs": ["out/**"],
+            "env": ["NODE_ENV"]
+        },
+        "@agenta/local#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "eslint.config.*"],
+            "outputs": []
+        },
+        "@agenta/local#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check"],
+            "inputs": ["src/**", "tests/**", "next.config.ts", "tsconfig.json"],
+            "outputs": []
+        },
+        "@agenta/local#test": {
+            "inputs": ["src/**", "tests/**", "vitest.config.ts"],
+            "outputs": []
+        },
         "@agenta/mobile#lint": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "eslint.config.*"],
             "outputs": []
