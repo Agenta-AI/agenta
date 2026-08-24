@@ -381,9 +381,11 @@ a display name. The grammar, per D30:
 ```text
 /gateways/mcps/builtin/agenta/{slug}                        builtin/agenta/tools
 /gateways/mcps/builtin/composio/{integration}/{connection}  builtin/composio/notion/my-notion
+/gateways/mcps/builtin/mock/{slug}                          builtin/mock/tools
+/gateways/mcps/standard/{provider}                          standard/mock
 /gateways/mcps/custom/{slug}                                custom/acme-notion
 
-/gateways/llms/builtin/{provider}/...                       reserved, empty today
+/gateways/llms/builtin/{provider}/...                       builtin/agenta and builtin/mock in dev
 /gateways/llms/standard/{provider}                          standard/openai
 /gateways/llms/custom/{slug}                                custom/acme-azure
 ```
@@ -402,22 +404,25 @@ brokered connection's identity; naming the segments anything else would invent a
 vocabulary for one set of values (D27).
 
 - **`builtin`** — **our account pays**, which is the whole reason it is one namespace
-  (D30). Generated, never a row. Two providers today. **`agenta`**: servers we implement
-  and run, the mocks being its first members (D23), reached with our own minted token
-  (D13); the runner's loopback channel is not in this picture — it is the runner's tool
-  executor, not a transport, and the exclusion recorded in `notes.md` holds, with the
-  slice that could eventually address the gateway directly tracked as `cleanups.md`
-  item 5. **`composio`**: third-party servers backed by the Composio catalog the
-  integrations domain already consumes, the path spelling the brokered connection's
-  identity, the secret living at the broker behind the existing connection state
-  machine. On the LLM plane `builtin` is **reserved with no members today** — it is where
-  a model we supply the key for lands, and where metering will attach. Spelled without a
-  hyphen because the namespace is a path segment.
+  (D30). Generated, never a row. **`agenta`**: servers and models we implement and run,
+  with mock-backed development members on both planes; the LLM catalogue can later add
+  Agenta-provided Gemini and Bedrock models without changing namespace. **`composio`**:
+  third-party MCP servers backed by the Composio catalog the integrations domain already
+  consumes. **`mock`**: a separate development-only builtin provider on both planes, used to
+  prove provider dispatch independently from Agenta. Agenta MCP servers are reached with our own
+  minted token (D13); the runner's loopback channel is not in this picture — it is the runner's
+  tool executor, not a transport, and the exclusion recorded in `notes.md` holds, with the slice
+  that could eventually address the gateway directly tracked as `cleanups.md` item 5. On the MCP
+  plane Composio's path spells the brokered connection identity, the secret living at the broker
+  behind the existing connection state machine. The development Composio case uses a local fake,
+  never a real broker.
 - **`standard`** — a deployment whose wire we already know, **paid for with the user's own
   key** (D30). Generated, never a row. On the LLM plane: the standard-provider set (D20)
   — the provider's own key is the whole identifier (`standard/openai`), the set is the
   static catalogue (`core/gateways/llms/catalog.py`), and an endpoint exists when a
-  provider key exists for it. On the MCP plane: **reserved, empty today**. The word is
+  provider key exists for it. `standard/mock` is its development test entry. On the MCP plane:
+  `standard/mock` is likewise the generated development test entry, visible only when its
+  project-owned mock credential exists. The word is
   the secrets domain's own — a *standard* provider there is a standard target here, one
   word meaning one thing on both sides with no mapping between them.
 - **`custom`** — stored endpoints, the only rows: a customer's own deployment or reseller
@@ -433,10 +438,9 @@ honours with a catch-all parameter, where composio and `custom` take fixed compo
 shared `Slug` validator governs what a *user* may type on a custom row; agenta identifiers
 never pass through it, because nobody types them.
 
-**All three are reserved on both planes, even where one is empty.** LLM's `builtin` and
-MCP's `standard` have no members today; they exist anyway, because taking a keyword costs
-nothing now, while discovering later that something else claimed the segment costs a
-migration of live URLs (D30).
+**All three are reserved on both planes.** The development mock catalogue gives each family a
+real local member; it is gated out of non-development deployments. Taking the keywords still
+avoids a migration when real providers join later (D30).
 
 **The broker is named in the path, and that is deliberate** (D27). Hiding it behind a
 stable name so a provider swap would not change URLs is wrong twice over: the provider is
@@ -1023,9 +1027,9 @@ class GatewayEndpointNamespace(str, Enum):
     (§2.3, D16, D30). The namespace selects the backend and says whose secret
     pays, which is what earns it a place in the path."""
     BUILTIN = "builtin"     # our account, so we bill: a provider segment follows
-                            # (agenta, composio). Generated, never a row (D20, D21)
-    STANDARD = "standard"   # a shape we know, the user's own key: the
-                            # standard-provider set on the LLM plane, empty on MCP
+                            # (agenta, composio, mock). Generated, never a row (D20, D21)
+    STANDARD = "standard"   # a shape we know, the user's own key: generated provider
+                            # sets on both planes; mock is development-only on each
     CUSTOM = "custom"       # a row; configurable, the user's key
 
 
@@ -2764,9 +2768,9 @@ class LLMGatewayProxy:
         # LLMGatewayService.list_models (§8, R3); the handler shapes the
         # OpenAI list body inline, since the data plane has no wire models.
         #
-        # "/builtin/{provider}/{rest:path}/v1/chat/completions"
-        # Reserved, empty today (D30) — declared when the LLM plane gains a
-        # provider we hold the key for, which is also where metering attaches.
+        # "/builtin/{provider}/v1/chat/completions"
+        # Implemented by WP28 for the development agenta and mock providers;
+        # future Agenta-supplied providers extend this same family.
         #
         # "/{namespace}/.../v1/embeddings"
         # Deferred with the evaluator path (D15). The shape is reserved by this

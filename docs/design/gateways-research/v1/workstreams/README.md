@@ -65,21 +65,25 @@ merge point rather than editing.
 | `core/gateways/policy/resolution.py` | **WP2** |
 | `core/gateways/policy/service.py` | **WP3** |
 | `core/gateways/llms/{dtos,types,interfaces}.py` | seed |
-| `core/gateways/llms/service.py` | **WP7** |
-| `core/gateways/llms/{registry,catalog}.py` | **WP7** |
+| `core/gateways/llms/service.py` | **WP7** (base); **WP28** owns the serialized mock-catalogue follow-on |
+| `core/gateways/llms/{registry,catalog}.py` | **WP7** (base); **WP28** owns the serialized mock-catalogue follow-on |
 | `core/gateways/llms/providers/translated/` | **WP7** |
 | `core/gateways/llms/providers/passthrough/` | **WP6** |
 | `core/gateways/llms/providers/mock/` | **WP5** |
 | `core/gateways/mcps/{dtos,types,interfaces}.py` | seed |
-| `core/gateways/mcps/service.py` | **WP9** |
-| `core/gateways/mcps/registry.py` | **WP9** |
+| `core/gateways/mcps/service.py` | **WP9** (base); **WP28** owns the serialized mock-catalogue follow-on |
+| `core/gateways/mcps/registry.py` | **WP9** (base); **WP28** owns the serialized mock-catalogue follow-on |
 | `core/gateways/mcps/providers/http/` | **WP8** |
 | `core/gateways/mcps/providers/mock/` | **WP5** |
+| `core/gateways/llms/{catalog,service,registry}.py` mock-catalogue additions | **WP28** |
+| `core/gateways/mcps/{service,registry}.py` mock-catalogue additions | **WP28** |
+| `apis/fastapi/gateways/{llms,mcps}/{proxy,utils}.py` mock-route additions | **WP28** |
+| `tests/pytest/{unit,integration,acceptance}/gateways/` mock matrix | **WP29** |
 | `dbs/postgres/gateways/llms/`, `dbs/postgres/gateways/mcps/` | **WP1** |
 | the migration | **WP1** |
 | `apis/fastapi/gateways/exceptions.py` | **seed** — three packages need the decorator, so no one package can own it. **Complete, not declared**: it maps exceptions the seed itself defines and depends on no package, so a not-implemented body would leave it unowned |
-| `apis/fastapi/gateways/llms/{proxy,utils}.py` | **WP6** |
-| `apis/fastapi/gateways/mcps/{proxy,utils}.py` | **WP8** |
+| `apis/fastapi/gateways/llms/{proxy,utils}.py` | **WP6** (base); **WP28** owns the serialized mock-route follow-on |
+| `apis/fastapi/gateways/mcps/{proxy,utils}.py` | **WP8** (base); **WP28** owns the serialized mock-route follow-on |
 | `apis/fastapi/gateways/llms/{router,models}.py` | **WP10** |
 | `apis/fastapi/gateways/mcps/{router,models}.py` | **WP10** |
 | `core/access/permissions/types.py` | **WP3** — the six new members, one edit |

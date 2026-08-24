@@ -51,10 +51,13 @@ configurable yet — this checkpoint proves the call path, and only that.
 dependency, no OAuth and no converted caller. Everything it proves is proved against our own
 mocks, which is what makes it a clean acceptance-test surface.
 
-**Acceptance tests:** a request with no token is refused; a request for an endpoint the caller
-may not use is refused; a permitted request reaches the mock with the caller's token replaced by
-the upstream secret; a streamed response arrives byte for byte on **both** gateways, tool names,
-schemas and errors included; a tool call outside the allowlist is refused.
+**Acceptance tests:** the local mock matrix exercises every namespace: LLM builtin Agenta, LLM
+builtin mock, LLM standard mock, LLM custom mock; MCP builtin Agenta, MCP builtin Composio fake,
+MCP builtin mock, MCP standard mock, and MCP custom mock. A request with no token is refused; a
+request for an endpoint the caller may not use is refused; a permitted request reaches the
+expected mock with the caller's token replaced by the upstream secret; a streamed response arrives
+byte for byte on **both** gateways, tool names, schemas and errors included; a tool call outside
+the allowlist is refused. See `mocks.md` for the complete matrix.
 
 ### C2 — the real callers go through the gateways
 
@@ -112,7 +115,9 @@ flowchart LR
     IM1 --> WP8["WP8<br/>MCP ingress"]
     IM1 --> WP9["WP9<br/>MCP registry"]
     IM1 --> WP10["WP10<br/>endpoint CRUD"]
-    WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> CA(["C1<br/>DEPLOY"])
+    WP6 & WP7 & WP8 & WP9 & WP10 & WP5 --> WP28["WP28<br/>mock catalogue + routes"]
+    WP28 --> WP29["WP29<br/>mock acceptance matrix"]
+    WP29 --> CA(["C1<br/>DEPLOY"])
     CA --> WP12["WP12<br/>SDK resolution"]
     CA --> WP4["WP4<br/>audit events"]
     WP12 --> WP13["WP13<br/>runner + harnesses"]
@@ -244,6 +249,15 @@ needs no row.
 both gateways. Creation and deletion only — per-endpoint configuration is WP21, in wave 2.
 *Depends on:* IM1, WP1. *Done when:* a custom endpoint can be created and deleted, and a standard
 one cannot be edited.
+
+**WP28 — Generated development mock catalogue and provider routing.** The development-only
+generated entries, all six namespace route families, and the local Composio fake boundary.
+*Depends on:* WP5–WP10. *Blocks:* WP29. *Done when:* every namespace resolves to its local mock
+through its own catalogue and auth path, while the entries are absent outside development.
+
+**WP29 — Gateway mock acceptance matrix.** Shared fixtures and real-socket OSS/EE acceptance
+coverage for the generated and custom mock cases.
+*Depends on:* WP28. *Done when:* every case in `mocks.md` passes on both development stacks.
 
 **Merge IM2 → C1.** Deploy. Acceptance tests above.
 

@@ -325,9 +325,8 @@ It is removed only once the gateway is the sole mechanism the whole system uses.
 
 ## D27. Three namespaces on both planes — and the namespace picks the backend
 
-**SUPERSEDED IN PART BY D30**, which replaces the set with `builtin` / `standard` / `custom`
-and demotes `agenta` to a provider inside `builtin`. What survives here: the spelling rule,
-the reserve-all-three rule, and the backend-selection table below.
+**SUPERSEDED BY D30.** This retained section explains why all three namespace words were
+reserved; D30 and `mocks.md` define the current provider catalogue and route grammar.
 
 **Spelled without a hyphen.** The namespace is a path segment in every gateway URL, so it stays
 one lowercase word: `builtin`, never `built-in`.
@@ -338,7 +337,7 @@ it costs a migration of live URLs.
 
 | Namespace | LLM plane | MCP plane |
 |---|---|---|
-| `agenta` | **Reserved, empty today.** Where an Agenta-owned or fine-tuned model would live | The Agenta tools. The mocks are its first members (D23) |
+| `agenta` | Historical pre-D30 spelling; current entry is `builtin/agenta` | Historical pre-D30 spelling; current entry is `builtin/agenta` |
 | `builtin` | The generated standard-provider set (D20) | Third-party servers shipped ready to click, backed by the Composio catalog the integrations domain already consumes |
 | `custom` | A stored endpoint row: a customer's own deployment or reseller | A stored endpoint row: a server the user brought by URL |
 
@@ -370,8 +369,8 @@ That is what makes it worth being in the path rather than in a column.
 /gateways/mcps/builtin/{provider}/{integration}/{connection}  builtin/composio/notion/my-notion
 /gateways/mcps/custom/{slug}                                  custom/acme-notion
 
-/gateways/llms/agenta/{slug}                                  reserved, empty today
-/gateways/llms/standard/{provider}                             builtin/openai
+/gateways/llms/builtin/{provider}/...                          builtin/agenta and builtin/mock in dev
+/gateways/llms/standard/{provider}                             standard/openai and standard/mock in dev
 /gateways/llms/custom/{slug}                                  custom/acme-azure
 ```
 
@@ -646,8 +645,8 @@ difference is the one that decides who gets billed.
 
 | Namespace | Whose secret | Who pays the upstream | LLM plane | MCP plane |
 |---|---|---|---|---|
-| `builtin` | **Agenta's.** We hold the account | Us, so we charge the caller | Reserved today; where a model we supply the key for lands | `agenta` tools and `composio` tools |
-| `standard` | **The user's.** We only know the shape | The user, directly | The generated provider set — openai, anthropic, and the rest | Reserved, empty today |
+| `builtin` | **Agenta's.** We hold the account | Us, so we charge the caller | `agenta` and `mock` development entries; future Agenta-supplied models land here | `agenta`, `composio`, and `mock` development entries |
+| `standard` | **The user's.** We only know the shape | The user, directly | The generated provider set — openai, anthropic, and the `mock` development provider | Generated `mock` development target |
 | `custom` | The user's | The user, directly | A stored row: their own deployment or reseller | A stored row: a server they brought by URL |
 
 **`standard` is not `builtin` under another name.** A standard target is one whose wire we already
@@ -666,8 +665,9 @@ builtin path carries a provider segment and the rest is that provider's own gram
 and now so does the URL. The two-line mapping D27 defended is deleted rather than defended.
 
 **Each plane still reserves all three**, for D27's original reason: taking a keyword costs nothing
-now, discovering later that something else took it costs a migration of live URLs. Today LLM's
-`builtin` is empty and MCP's `standard` is empty.
+now, discovering later that something else took it costs a migration of live URLs. The
+development mock catalogue gives every family a local member while remaining disabled outside
+development.
 
 **No migration.** `namespace` was never a column — every stored row is `custom` and the other two
 are derived. The change is the enum, the route grammar and the catalogue's naming.

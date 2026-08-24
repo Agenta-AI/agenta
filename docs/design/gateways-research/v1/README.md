@@ -47,9 +47,11 @@ Six claims anchor the design and constrain everything downstream:
    speaks to adapters.
 7. **`mcp.md`** — everything MCP-specific.
 8. **`models.md`** — everything model-provider-specific.
-9. **`plan.md`** — the work packages and what depends on what. No sizing, no schedule.
-10. **`notes.md`** — replaced designs and open observations.
-11. **`workstreams/`** — one spec and one task list per package, plus the file-ownership
+9. **`mocks.md`** — the local provider topology and the test matrix for every gateway
+   namespace.
+10. **`plan.md`** — the work packages and what depends on what. No sizing, no schedule.
+11. **`notes.md`** — replaced designs and open observations.
+12. **`workstreams/`** — one spec and one task list per package, plus the file-ownership
     table and the parallel-work rules.
 
 Alongside the design, not part of its argument:

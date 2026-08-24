@@ -23,9 +23,10 @@ GET   /{namespace}/{name}/v1/models              (exists, unchanged)
 `/v1/models` is **not** a front door. It answers from the endpoint's allowlist (R3) and has
 no upstream protocol behind it.
 
-`{namespace}` is `standard` or `custom` today; `builtin` is reserved and empty on the LLM
-plane (D30). Adding a door means adding it for every namespace the plane serves, which is
-the reason the handlers are thin and the parsing is not.
+`{namespace}` is `builtin`, `standard`, or `custom`. WP28 adds the development builtin
+providers; future Agenta-supplied providers use the same door. Adding a door means adding it
+for every namespace the plane serves, which is the reason the handlers are thin and the parsing
+is not.
 
 ## What each door owns, and what it does not
 
