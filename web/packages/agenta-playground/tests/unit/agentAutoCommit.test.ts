@@ -182,6 +182,25 @@ describe("predicate — what must never auto-commit", () => {
     })
 })
 
+describe("cleanup", () => {
+    it("forgets a superseded revision's atoms after a commit", async () => {
+        // atomFamily keeps a STRONG map, so without eviction every commit leaks a set of
+        // per-revision atoms for the rest of the session.
+        const id = seed(nextId())
+        const unmount = arm(id)
+        const before = agentAutoCommitStatusAtomFamily(id)
+
+        edit(id)
+        await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
+        expect(commitCalls).toHaveLength(1)
+
+        await vi.advanceTimersByTimeAsync(10)
+        // A fresh atom instance for the same key proves the old entry was dropped.
+        expect(agentAutoCommitStatusAtomFamily(id)).not.toBe(before)
+        unmount()
+    })
+})
+
 describe("coalescing", () => {
     it("collapses a burst of edits into ONE commit", async () => {
         const id = seed(nextId())

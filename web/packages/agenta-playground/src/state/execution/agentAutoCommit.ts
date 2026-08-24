@@ -129,6 +129,20 @@ const schedule = (
     )
 }
 
+/**
+ * Stand down. A failed save keeps its error while the draft is still unsaved; once clean the
+ * warning is stale and would strand the entity on "Not saved" with a dead button.
+ */
+const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean") => {
+    clearTimer(revisionId)
+    if (blocker === "clean") {
+        store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
+        store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
+    } else if (store.get(agentAutoCommitStatusAtomFamily(revisionId)) !== "error") {
+        store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
+    }
+}
+
 /** `canReschedule` is false on unmount: a timer armed there orphans itself and re-arms forever. */
 const runFlush = async (
     store: Store,
@@ -140,15 +154,7 @@ const runFlush = async (
     const blocker = flushBlocker(store, revisionId, force)
 
     if (blocker === "skip" || blocker === "clean") {
-        clearTimer(revisionId)
-        // A failed save keeps its error only while the draft is still unsaved; once clean the
-        // warning is stale and would strand the entity on "Not saved" with a dead button.
-        if (blocker === "clean") {
-            store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
-            store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
-        } else if (store.get(agentAutoCommitStatusAtomFamily(revisionId)) !== "error") {
-            store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
-        }
+        settleIdle(store, revisionId, blocker)
         return
     }
 
@@ -181,6 +187,11 @@ const runFlush = async (
             const newRevisionId = result.newRevisionId
             if (newRevisionId) {
                 afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))
+                // Every commit mints a new revision id and `atomFamily` keeps a STRONG map, so
+                // each one would otherwise leak a set of per-revision atoms for the session.
+                // Safe: this revision is superseded. Deferred a tick so subscribers reading it
+                // during the switch finish first.
+                setTimeout(() => forgetRevision(revisionId), 0)
             }
             return
         }
@@ -199,6 +210,13 @@ const runFlush = async (
     } finally {
         inFlight.delete(revisionId)
     }
+}
+
+/** Drop a superseded revision's per-revision atoms; `atomFamily` never evicts on its own. */
+const forgetRevision = (revisionId: string) => {
+    agentAutoCommitStatusAtomFamily.remove(revisionId)
+    agentAutoCommitErrorAtomFamily.remove(revisionId)
+    agentAutoCommitEngineAtomFamily.remove(revisionId)
 }
 
 /** Commit now. `force` bypasses the not-latest skip; the hold and in-flight guards still apply. */
@@ -228,7 +246,7 @@ export const agentAutoCommitEngineAtomFamily = atomFamily((revisionId: string) =
         const unsub = store.sub(draftAtom, () => {
             const blocker = flushBlocker(store, revisionId, false)
             if (blocker === "skip" || blocker === "clean") {
-                void runFlush(store, revisionId, false, false)
+                settleIdle(store, revisionId, blocker)
                 return
             }
 
