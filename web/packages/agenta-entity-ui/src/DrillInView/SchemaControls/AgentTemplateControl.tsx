@@ -197,10 +197,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionBaseline = useRef<{
         config: Record<string, unknown>
         buildKit: BuildKitUiState
-        // The revision the draft was opened against — Save must write back to THIS one, not to
-        // whatever is active by then (the revision can change under an open drawer).
-        revision: string
     } | null>(null)
+    // The revision the open drawer was snapshotted against. State, not a ref: the drawer BODY reads
+    // it during render, and both its overlay and Save must stay on it even if the active revision
+    // changes underneath. Null whenever no section drawer is open.
+    const [sectionRevision, setSectionRevision] = useState<string | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
     const applyDraftConfig = useCallback(
@@ -231,10 +232,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
+            setSectionRevision(snapshotRevision)
             sectionBaseline.current = {
                 config: snapshotConfig,
                 buildKit: snapshotBuildKit,
-                revision: snapshotRevision,
             }
             setOpenSection(key)
         },
@@ -244,6 +245,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         setOpenSection(null)
         setDraftConfig(null)
         setDraftBuildKit(null)
+        setSectionRevision(null)
         sectionBaseline.current = null
     }, [])
 
@@ -281,12 +283,20 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         }
         if (draftBuildKit !== null) {
-            const revision = sectionBaseline.current?.revision ?? revisionIdRef.current ?? ""
+            const revision = sectionRevision ?? revisionIdRef.current ?? ""
             store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
             store.set(workflowBuildKitDisabledOpsAtomFamily(revision), draftBuildKit.disabledOps)
         }
         closeSectionDraft()
-    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
+    }, [
+        draftConfig,
+        draftBuildKit,
+        openSection,
+        sectionRevision,
+        onChange,
+        store,
+        closeSectionDraft,
+    ])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
@@ -1029,7 +1039,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
+                        revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
@@ -1053,7 +1063,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
+                        revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
