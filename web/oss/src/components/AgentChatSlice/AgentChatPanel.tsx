@@ -13,6 +13,7 @@ import {
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
+import {currentSessionParamForScope, writeSessionParamForScope} from "@agenta/sessions/link"
 import {
     pendingSessionOpensAtom,
     removePendingSessionOpensAtom,
@@ -164,18 +165,33 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         removePendingOpens(fresh)
     }, [pendingOpensForScope, adoptSession, addSession, removePendingOpens])
 
+    // `?session_id=` names the session on screen, so a pasted link and a reload both land on it.
+    // Read once per scope — every in-app open goes through the queue above, which rewrites the
+    // param itself. Adopting is the same verb: the session hydrates from records either way.
+    const [linked, setLinked] = useState(() => ({
+        scope,
+        id: currentSessionParamForScope(scope),
+    }))
+    if (linked.scope !== scope) setLinked({scope, id: currentSessionParamForScope(scope)})
+    const linkedSessionId = linked.scope === scope ? linked.id : ""
+    useEffect(() => {
+        if (!linkedSessionId) return
+        adoptSession({id: linkedSessionId})
+        setLinked({scope, id: ""})
+    }, [linkedSessionId, scope, adoptSession])
+
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
     const seeded = useRef(false)
     useEffect(() => {
-        if (pendingOpensForScope.length > 0) return
+        if (pendingOpensForScope.length > 0 || linkedSessionId) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession, pendingOpensForScope])
+    }, [sessions.length, addSession, pendingOpensForScope, linkedSessionId])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
@@ -186,6 +202,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
 
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
+
+    // Keep the address bar on the session you're looking at, so it stays copyable as you switch
+    // tabs. Held until a pending link is adopted, or this would overwrite the link with whatever
+    // tab the last visit left open.
+    useEffect(() => {
+        if (linkedSessionId || !activeId) return
+        writeSessionParamForScope(scope, activeId)
+    }, [activeId, scope, linkedSessionId])
 
     // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
     // like the config pane on the other side: its divider runs to the top and the session bar

@@ -7,6 +7,7 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
+import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, PushPinIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
@@ -50,6 +51,10 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
+    childMatchLinks: config.childMatchPaths
+        ? (ref, projectURL) =>
+              config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
     emptyLabel: config.emptyLabel,
     maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
     showAllLink: config.showAllPath
@@ -76,9 +81,16 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(ChatsCircleIcon, {size: 14}),
         listAtom: sidebarSessionsListAtom,
         getLabel: (session) => session.name || "Untitled session",
-        // The link navigates to the owning agent; the click hands over WHICH session, since the
-        // playground has no way to read that from the route.
-        childPath: (session) => `/apps/${session.appId}/playground`,
+        // The session's own deep link, so copying it or opening it in a new tab lands here. The
+        // click still hands the target over directly, carrying the title the tab shows before its
+        // records hydrate. A first-turn session has no agent to open on yet (#5974).
+        childPath: (session) =>
+            session.appId
+                ? playgroundSessionPath("/apps", session.appId, session.sessionId)
+                : "/sessions",
+        // Highlight on the agent's playground, whatever session is on the URL: the deep link
+        // above would only match its own session, and only with no other param beside it.
+        childMatchPaths: (session) => (session.appId ? [`/apps/${session.appId}/playground`] : []),
         getOnClick: (session) => () => {
             // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
             // a first-turn session keeps its place (#5974).
