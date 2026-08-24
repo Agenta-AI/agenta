@@ -12,10 +12,8 @@ import {
     type ReactNode,
 } from "react"
 
-import {setSessionHeader} from "@agenta/entities/session"
 import type {SessionSidebarRef} from "@agenta/navigation"
-import {isMenuDivider, SessionRowContextMenu, useSessionActions} from "@agenta/sessions-ui"
-import {projectIdAtom} from "@agenta/shared/state"
+import {isMenuDivider, SessionRowContextMenu} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -24,10 +22,10 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
 import {MoreVertical} from "lucide-react"
 import {useRouter} from "next/router"
+
+import type {SessionRowChrome} from "./useSessionRowChrome"
 
 const RENAME = "rename"
 
@@ -45,15 +43,16 @@ const RENAME = "rename"
  */
 const SessionRowActions = ({
     session,
+    chrome,
     children,
 }: {
     session: SessionSidebarRef
+    /** The verbs, resolved once for the whole rail — see `useSessionRowChrome`. */
+    chrome: SessionRowChrome
     children: ReactNode
 }) => {
-    const {menuItems, onMenuClick} = useSessionActions()
+    const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
-    const queryClient = useQueryClient()
-    const projectId = useAtomValue(projectIdAtom) ?? ""
     const [open, setOpen] = useState(false)
     const [renaming, setRenaming] = useState(false)
     const [draft, setDraft] = useState("")
@@ -124,21 +123,9 @@ const SessionRowActions = ({
         setRenaming(false)
         if (!name || name === (session.name ?? "")) return
 
-        const ok = await setSessionHeader({sessionId: session.sessionId, projectId, name})
-        if (!ok) {
-            message.error("Couldn't rename this session")
-            return
-        }
-        // The same key set the shared verbs invalidate, plus the rail's own two.
-        for (const key of [
-            ["sidebar-sessions"],
-            ["sidebar-sessions-pinned"],
-            ["session-list"],
-            ["sessions-page"],
-        ]) {
-            void queryClient.invalidateQueries({queryKey: key})
-        }
-    }, [draft, projectId, queryClient, session.name, session.sessionId])
+        const ok = await renameSession(session.sessionId, name)
+        if (!ok) message.error("Couldn't rename this session")
+    }, [draft, renameSession, session.name, session.sessionId])
 
     // The row's link stretches a ::before over the whole item — swallow presses on the controls
     // so they don't also navigate into the session.

@@ -4,7 +4,9 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 const SESSION_FILTERS_STORAGE_KEY = "agenta:sidebar:session-filters"
-const SESSION_GROUPS_COLLAPSED_STORAGE_KEY = "agenta:sidebar:session-groups-collapsed"
+// EXPANDED, not collapsed: groups now start folded, so the stored set is what the user opened.
+// A new key on purpose — reading the old collapsed set here would invert every saved choice.
+const SESSION_GROUPS_EXPANDED_STORAGE_KEY = "agenta:sidebar:session-groups-expanded"
 const NO_PROJECT_SCOPE = "__global__"
 
 /** Liveness the server can answer directly — `flags.is_running` / `flags.is_alive`. */
@@ -38,7 +40,9 @@ export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
     groupBy: "agent",
     agentIds: [],
     status: "all",
-    activity: "all",
+    // A WEEK, not everything: the rail is for what you are working on, and the sessions page owns
+    // the archive. It also narrows the fetch, which no render-side cap can do.
+    activity: "7d",
     pinnedOnly: false,
     archivedOnly: false,
 }
@@ -51,8 +55,8 @@ const sessionFiltersStorageAtom = atomWithStorage<Record<string, SidebarSessionF
     {},
 )
 
-const collapsedGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
-    SESSION_GROUPS_COLLAPSED_STORAGE_KEY,
+const expandedGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
+    SESSION_GROUPS_EXPANDED_STORAGE_KEY,
     {},
 )
 
@@ -93,25 +97,30 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
             const value = filters[key]
             // An array default is a fresh [] every read, so identity would report dirty forever.
             if (Array.isArray(value)) return value.length > 0
+            // "All" hides nothing, whichever facet it is on. Now that the activity default is a
+            // week, widening it back to everything is off-DEFAULT but not a filter — and a dot
+            // that lights up for showing MORE rows says the opposite of what it means.
+            if (value === "all") return false
             return value !== DEFAULT_SIDEBAR_SESSION_FILTERS[key]
         })
     }),
 )
 
-export const sidebarSessionCollapsedGroupsAtomFamily = atomFamily((scopeId: string) =>
+/** The groups the user has OPENED. Everything else renders folded. */
+export const sidebarSessionExpandedGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
-            return get(collapsedGroupsStorageAtom)[scope] ?? []
+            return get(expandedGroupsStorageAtom)[scope] ?? []
         },
         (get, set, groupKey: string) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
-            const storage = get(collapsedGroupsStorageAtom)
+            const storage = get(expandedGroupsStorageAtom)
             const current = storage[scope] ?? []
             const next = current.includes(groupKey)
                 ? current.filter((key) => key !== groupKey)
                 : [...current, groupKey]
-            set(collapsedGroupsStorageAtom, {...storage, [scope]: next})
+            set(expandedGroupsStorageAtom, {...storage, [scope]: next})
         },
     ),
 )

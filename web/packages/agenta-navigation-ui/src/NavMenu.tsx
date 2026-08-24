@@ -494,7 +494,10 @@ const NavMenuImpl = ({
                             {(item.submenu ?? []).map(renderItem)}
                         </div>
                     ) : (
-                        <HeightCollapse open={open}>
+                        // `shrink-0`: HeightCollapse's wrapper is `overflow-hidden`, which drops a
+                        // flex item's automatic min-height — so beside a scrolling group it
+                        // shrank and clipped its own rows instead of holding its height.
+                        <HeightCollapse open={open} className="shrink-0">
                             {/* Guide line marks the group's extent, as the old inline menu did. */}
                             <div className={GROUP_CHILDREN}>
                                 {(item.submenu ?? []).map(renderItem)}

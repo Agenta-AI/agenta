@@ -1,4 +1,4 @@
-import {createElement, useMemo, type ReactNode} from "react"
+import {createElement, useCallback, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {
@@ -7,7 +7,7 @@ import {
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
-    sidebarSessionCollapsedGroupsAtomFamily,
+    sidebarSessionExpandedGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionScopeLimit,
@@ -18,7 +18,7 @@ import {
     type SidebarEntityRef,
 } from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {
     Activity,
@@ -34,15 +34,13 @@ import {
     Settings,
     Slack,
 } from "lucide-react"
+import {useRouter} from "next/router"
 
 import SessionRowActions from "./SessionRowActions"
+import {useSessionRowChrome} from "./useSessionRowChrome"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
-
-// Module scope so the identity is stable across renders.
-const wrapSessionRow = (ref: SidebarEntityRef, node: ReactNode) =>
-    createElement(SessionRowActions, {session: ref as SessionSidebarRef, children: node})
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -83,7 +81,7 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
-        toggleGroupAtom: sidebarSessionCollapsedGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
+        toggleGroupAtom: sidebarSessionExpandedGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
         maxItems: sidebarSessionScopeLimit(MOBILE_NAV_SCOPE_ID),
@@ -112,8 +110,40 @@ const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEB
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
-    const source = withEntityGroups(rawSource, groups)
+    // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
+    // call changes identity on every render — which busts the memo below, re-buckets every row,
+    // and hands `NavMenu` a new items array that defeats its own memo.
+    // Opening a session OPENS its group — once. Groups start folded, and landing in one you
+    // cannot see reads as broken. This seeds the expanded set rather than forcing the group open
+    // on every render: forcing it made the caret a no-op, since the next render reopened it.
+    // Keyed on the session id, so collapsing the group of the session you are in stays collapsed.
+    const openSessionId = useRouter().query.session_id
+    const expandGroup = useSetAtom(sidebarSessionExpandedGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const seededForSession = useRef<string | null>(null)
+    useEffect(() => {
+        if (typeof openSessionId !== "string" || !groups) return
+        if (seededForSession.current === openSessionId) return
+        const active = rawSource.refs.find(
+            (ref) => (ref as SessionSidebarRef).sessionId === openSessionId,
+        ) as SessionSidebarRef | undefined
+        if (!active?.groupKey) return
+        seededForSession.current = openSessionId
+        if (groups.collapsedKeys.includes(active.groupKey)) expandGroup(active.groupKey)
+    }, [expandGroup, groups, openSessionId, rawSource.refs])
+
+    const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     const agentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
+    // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
+    const chrome = useSessionRowChrome()
+    const wrapSessionRow = useCallback(
+        (ref: SidebarEntityRef, node: ReactNode) =>
+            createElement(SessionRowActions, {
+                session: ref as SessionSidebarRef,
+                chrome,
+                children: node,
+            }),
+        [chrome],
+    )
 
     return useMemo(
         () => [
@@ -160,7 +190,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/observability`,
             },
         ],
-        [agentsSource, source, projectURL],
+        [agentsSource, source, projectURL, wrapSessionRow],
     )
 }
 

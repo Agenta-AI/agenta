@@ -12,7 +12,7 @@ import {SESSIONS_SIDEBAR_KEY} from "../constants"
 import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../state"
 
 import {
-    sidebarSessionCollapsedGroupsAtomFamily,
+    sidebarSessionExpandedGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
     type SidebarSessionGroupBy,
@@ -458,9 +458,17 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
                     : undefined,
         }))
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
+        // Folded unless opened. A rail with a heading per agent is a wall of rows before it is a
+        // way to find one; Pinned is the exception, because a pin IS the user asking to see it.
+        const expanded = new Set([
+            PINNED_GROUP_KEY,
+            ...get(sidebarSessionExpandedGroupsAtomFamily(scopeId)),
+        ])
         return {
             groups,
-            collapsedKeys: get(sidebarSessionCollapsedGroupsAtomFamily(scopeId)),
+            collapsedKeys: groups
+                .filter((group) => !expanded.has(group.key))
+                .map((group) => group.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,
         }
