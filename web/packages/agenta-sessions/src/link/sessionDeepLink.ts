@@ -1,12 +1,24 @@
 /**
- * Deep links to a session on its agent's playground — the link a session is shared, bookmarked
- * and reloaded as. Pure string work, so every surface that builds or reads one agrees.
+ * The link a session is shared, bookmarked and reloaded as. Pure string work, so every surface
+ * that builds or reads one agrees.
  *
- * The param is `session_id`, not `session`: the desktop app's URL layer owns `?session=` for the
+ * Two host shapes, because the two apps show a session differently: the desktop opens it as a tab
+ * on its agent's playground (`playgroundSessionPath`), the mobile app gives it a page of its own
+ * (`sessionRoutePath`). Both name the session `session_id`.
+ *
+ * `session_id` and not `session`: the desktop app's URL layer owns `?session=` for the
  * observability session drawer and strips it off every route that isn't `/observability` or
- * `/sessions`, the playground included. `session_id` also matches the mobile session route.
+ * `/sessions`, the playground included.
  */
 export const SESSION_QUERY_PARAM = "session_id"
+
+/** `<base>/sessions/<id>` — the session's own page, on a host that routes to one. */
+export const sessionRoutePath = (base: string, sessionId: string): string =>
+    `${base}/sessions/${encodeURIComponent(sessionId)}`
+
+/** A path made absolute, for the clipboard. Empty outside the browser, or with nothing to link. */
+export const shareUrl = (path: string): string =>
+    typeof window === "undefined" || !path ? "" : `${window.location.origin}${path}`
 
 /** `<baseAppURL>/<appId>/playground?session_id=<id>` — the path a session is linked as. */
 export const playgroundSessionPath = (
@@ -18,15 +30,19 @@ export const playgroundSessionPath = (
     return sessionId ? `${path}?${SESSION_QUERY_PARAM}=${encodeURIComponent(sessionId)}` : path
 }
 
-/** The same link, absolute, for the clipboard. Empty outside the browser or without a target. */
+/** The same link, absolute, for the clipboard. Empty without a target to link at. */
 export const playgroundSessionUrl = (
     baseAppURL: string,
     appId: string,
     sessionId: string,
-): string => {
-    if (typeof window === "undefined" || !baseAppURL || !appId || !sessionId) return ""
-    return `${window.location.origin}${playgroundSessionPath(baseAppURL, appId, sessionId)}`
-}
+): string =>
+    baseAppURL && appId && sessionId
+        ? shareUrl(playgroundSessionPath(baseAppURL, appId, sessionId))
+        : ""
+
+/** The session page's link, absolute, for the clipboard. Empty without a target to link at. */
+export const sessionRouteUrl = (base: string, sessionId: string): string =>
+    base && sessionId ? shareUrl(sessionRoutePath(base, sessionId)) : ""
 
 /** The linked session id in a query string, or "" when there is none. */
 export const readSessionParam = (search: string): string =>

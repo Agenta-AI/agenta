@@ -6,6 +6,9 @@ export {
     playgroundSessionUrl,
     readSessionParam,
     sessionParamForScope,
+    sessionRoutePath,
+    sessionRouteUrl,
+    shareUrl,
     withSessionParam,
     writeSessionParamForScope,
 } from "./sessionDeepLink"

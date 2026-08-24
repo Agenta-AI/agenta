@@ -5,6 +5,7 @@ import {
     playgroundSessionPath,
     readSessionParam,
     sessionParamForScope,
+    sessionRoutePath,
     withSessionParam,
 } from "../../src/link/sessionDeepLink"
 
@@ -20,6 +21,14 @@ describe("playgroundSessionPath", () => {
 
     it("falls back to the bare playground with no session", () => {
         expect(playgroundSessionPath(BASE, APP)).toBe(`${BASE}/${APP}/playground`)
+    })
+})
+
+describe("sessionRoutePath", () => {
+    it("gives a session its own page", () => {
+        expect(sessionRoutePath("/w/ws-1/p/proj-1", "sess-1")).toBe(
+            "/w/ws-1/p/proj-1/sessions/sess-1",
+        )
     })
 })
 
