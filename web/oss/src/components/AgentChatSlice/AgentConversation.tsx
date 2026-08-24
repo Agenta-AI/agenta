@@ -28,7 +28,6 @@ import {
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
-import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
@@ -353,9 +352,7 @@ const AgentConversation = ({
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
-    // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
-    // opens the paused turn's own trace drawer.
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    // composer (not inline in the transcript, so a paused run can't scroll out of reach).
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
     // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
     // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
@@ -364,12 +361,6 @@ const AgentConversation = ({
         () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
         [messages, busy, stopped],
     )
-    const openPausedTurnTrace = useMemo(() => {
-        const last = messages[messages.length - 1]
-        const traceId = last ? getMessageTraceId(last) : undefined
-        return traceId ? () => openTraceDrawer({traceId}) : undefined
-    }, [messages, openTraceDrawer])
-
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -721,7 +712,6 @@ const AgentConversation = ({
                                 showTemplateStrip={showTemplateStrip}
                                 pendingApprovals={pendingApprovals}
                                 onApprovalResponse={handleApprovalResponse}
-                                onViewTrace={openPausedTurnTrace}
                                 pendingInteraction={pendingInteraction}
                                 onClientToolOutput={handleClientToolOutput}
                                 onSubmit={handleSubmit}

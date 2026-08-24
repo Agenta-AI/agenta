@@ -9,7 +9,7 @@
  * store; until then `registerChatSkin` (./registry.ts) is called by nobody and the store stays
  * empty — skins (mobile shadcn first) populate it.
  */
-import type {ComponentType, ReactNode} from "react"
+import type {ComponentType} from "react"
 
 import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
@@ -29,31 +29,32 @@ export type {
     SettleClientTool,
 } from "@agenta/shared/clientTools"
 
-/** Props an approval body receives — mirrors OSS `ApprovalBodyProps`. */
-export interface ApprovalBodyProps {
-    /** The exact tool input the user is approving. */
-    input: unknown
-    /** Selected agent revision — specialized bodies diff payloads against its committed config. */
-    entityId: string
-    /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
-    manifest?: unknown
-    /** Build mode: the dock is narrow, so the body stacks in one column instead of two panes. */
-    compact?: boolean
-    /** The dock's generic payload block — render it verbatim when the payload can't be previewed. */
-    fallback: ReactNode
+/** One readable row behind the approval card's "See what changes" toggle. */
+export interface ApprovalPreviewItem {
+    /** Short noun phrase naming the change, e.g. `New skill · deslope`. */
+    title: string
+    /** One sentence saying what it means for the user. */
+    detail?: string
 }
 
 /**
- * One approval registry entry — mirrors OSS `ApprovalRenderer` (`approvals/registry.tsx`) field for
- * field: a `Body` plus the two copy overrides the OSS registry actually has. It has no `summary` or
- * other fields; do not add any without a corresponding OSS field to mirror.
+ * What the approval card renders — plain language, no payload. One shell serves every tool and
+ * every host, so a describer returns DATA, never JSX: there is no mode in which the card shows
+ * raw arguments, a diff, or a digest.
  */
-export interface ApprovalBodyEntry {
-    Body: ComponentType<ApprovalBodyProps>
-    /** Replaces "The agent wants to run this tool before it can keep going."; null = Body owns it. */
-    headline?: string | null
-    approveLabel?: string
+export interface ApprovalPreview {
+    /** One sentence: what happens if you approve, and what it costs. */
+    sentence: string
+    /** The rows behind the toggle. Empty hides the toggle entirely. */
+    items: ApprovalPreviewItem[]
 }
+
+/**
+ * One approval registry entry: a pure function from the gate's payload to what the card says.
+ * Returning `null` falls back to the generic describer, so a describer that cannot read its own
+ * payload degrades instead of guessing.
+ */
+export type ApprovalDescriber = (input: unknown, manifest: unknown) => ApprovalPreview | null
 
 /** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
 export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"
@@ -120,8 +121,8 @@ export interface ChatSkinRegistration {
         /** Checked when no render-kind hint matched (mirrors OSS `BY_TOOL_NAME`). */
         byToolName?: Record<string, ClientToolWidget>
     }
-    /** Tool name → approval body renderer + copy overrides (mirrors OSS `BY_TOOL_NAME`). */
-    approvals?: Record<string, ApprovalBodyEntry>
+    /** Tool name → the describer that turns its payload into the card's plain-English copy. */
+    approvals?: Record<string, ApprovalDescriber>
     /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
     toolDisplay?: Record<string, ToolDisplayEntry>
 }

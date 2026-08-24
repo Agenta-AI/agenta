@@ -66,7 +66,6 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
-    onViewTrace,
     pendingInteraction,
     onClientToolOutput,
     onSubmit,
@@ -99,7 +98,6 @@ const AgentComposerDock = ({
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
-    onViewTrace?: () => void
     pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
@@ -278,7 +276,6 @@ const AgentComposerDock = ({
                     className={CHAT_COLUMN}
                     approvals={pendingApprovals}
                     onApprovalResponse={onApprovalResponse}
-                    onViewTrace={onViewTrace}
                     entityId={entityId}
                 />
                 {/* Parked client-tool interactions (connect): same placement contract as the
