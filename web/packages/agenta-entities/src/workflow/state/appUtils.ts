@@ -94,6 +94,7 @@ export interface CreateEphemeralAppFromTemplateParams {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
+const USER_HYDRATION_TIMEOUT_MS = 10_000
 
 /**
  * Match a template to the requested app type. The catalog returns templates
@@ -128,8 +129,10 @@ async function waitForAgentCreationUserId(signal?: AbortSignal): Promise<string 
 
     return new Promise((resolve) => {
         let unsubscribe: () => void = () => undefined
+        let timeout: ReturnType<typeof setTimeout> | undefined
         const finish = (userId: string | null) => {
             unsubscribe()
+            if (timeout) clearTimeout(timeout)
             signal?.removeEventListener("abort", onAbort)
             resolve(userId)
         }
@@ -142,6 +145,7 @@ async function waitForAgentCreationUserId(signal?: AbortSignal): Promise<string 
         // Close the subscribe/read race if hydration landed between the first read and `sub`.
         const hydrated = store.get(userAtom)?.id
         if (hydrated) finish(hydrated)
+        else timeout = setTimeout(() => finish(null), USER_HYDRATION_TIMEOUT_MS)
     })
 }
 

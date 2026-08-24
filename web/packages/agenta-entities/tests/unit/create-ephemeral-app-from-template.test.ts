@@ -257,6 +257,21 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         expect(fetchVaultSecretMock).toHaveBeenCalledTimes(1)
     })
 
+    it("stops waiting when user hydration never completes", async () => {
+        vi.useFakeTimers()
+        try {
+            getDefaultStore().set(userAtom, null)
+
+            const creation = createEphemeralAppFromTemplate({type: "agent"})
+            await vi.advanceTimersByTimeAsync(10_000)
+
+            expect(await creation).toBeNull()
+            expect(fetchVaultSecretMock).not.toHaveBeenCalled()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("does not mint an agent when a required candidate source fails", async () => {
         fetchHarnessCapabilitiesMock.mockRejectedValue(new Error("catalog unavailable"))
 

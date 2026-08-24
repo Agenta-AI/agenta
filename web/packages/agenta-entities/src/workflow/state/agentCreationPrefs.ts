@@ -93,7 +93,7 @@ export function applyAgentCreationPrefs(
         next.harness = {...harness, kind: prefs.harness}
     }
 
-    if (prefs.model || prefs.provider || prefs.connectionMode || prefs.connectionSlug) {
+    if (prefs.model || prefs.provider || prefs.connectionMode) {
         const llm =
             next.llm && typeof next.llm === "object" && !Array.isArray(next.llm)
                 ? (next.llm as Record<string, unknown>)
@@ -101,18 +101,14 @@ export function applyAgentCreationPrefs(
         const nextLlm: Record<string, unknown> = {...llm}
         if (prefs.model) nextLlm.model = prefs.model
         if (prefs.provider) nextLlm.provider = prefs.provider
-        if (prefs.connectionMode || prefs.connectionSlug) {
+        if (prefs.connectionMode) {
             const connection =
                 llm.connection &&
                 typeof llm.connection === "object" &&
                 !Array.isArray(llm.connection)
                     ? (llm.connection as Record<string, unknown>)
                     : {}
-            nextLlm.connection = {
-                ...connection,
-                ...(prefs.connectionMode ? {mode: prefs.connectionMode} : {}),
-                ...(prefs.connectionSlug ? {slug: prefs.connectionSlug} : {}),
-            }
+            nextLlm.connection = {...connection, mode: prefs.connectionMode}
         }
         next.llm = nextLlm
     }

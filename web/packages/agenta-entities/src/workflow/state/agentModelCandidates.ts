@@ -130,7 +130,7 @@ export async function loadAgentModelCandidates({
     } as const
     const [vault, capabilities, subscription] = await Promise.all([
         (refreshVault
-            ? queryClient.fetchQuery<LlmProvider[]>(vaultQuery)
+            ? queryClient.fetchQuery<LlmProvider[]>({...vaultQuery, staleTime: 0})
             : queryClient.ensureQueryData<LlmProvider[]>(vaultQuery)
         )
             .then((data) => ({data, error: undefined}))

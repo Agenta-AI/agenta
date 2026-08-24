@@ -48,23 +48,6 @@ describe("applyAgentCreationPrefs", () => {
         })
     })
 
-    it("restores the complete saved connection identity", () => {
-        const result = applyAgentCreationPrefs(
-            {llm: {model: "gpt-5.6-luna"}},
-            {
-                version: 1,
-                model: "Agenta/custom/vertex_ai/gemini-3.6-flash",
-                connectionMode: "agenta",
-                connectionSlug: "starter-credits",
-            },
-        )
-
-        expect(result.llm).toEqual({
-            model: "Agenta/custom/vertex_ai/gemini-3.6-flash",
-            connection: {mode: "agenta", slug: "starter-credits"},
-        })
-    })
-
     it("builds harness/llm objects from scratch when the template has none", () => {
         const result = applyAgentCreationPrefs(
             {},
