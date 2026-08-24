@@ -4,6 +4,10 @@ Creates the two tables the gateways domain persists (entities.md §1, §3):
 llms_endpoints and mcps_endpoints. Every row in both is a custom row by
 construction — standard and builtin endpoints are generated, never stored (D20).
 
+The MCP OAuth flow stores its token material in a project-owned `oauth_grant` secret, so this
+unreleased gateway migration also extends the shared `secretkind_enum` before any endpoint can
+reference that handle.
+
 The two new Postgres enum types (llmdeploymentkind_enum, gatewayauthscheme_enum)
 use the enum member NAMES (upper-case), matching this codebase's existing
 SQLAlchemy-enum convention (see secretkind_enum) rather than the lower-case
@@ -37,6 +41,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # This revision has not shipped. Keep the gateway's OAuth secret kind with the endpoint
+    # schema rather than creating a second migration that would be immediately folded back.
+    op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'OAUTH_GRANT'")
+
     op.create_table(
         "llms_endpoints",
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
