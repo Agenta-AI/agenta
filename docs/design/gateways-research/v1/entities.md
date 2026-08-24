@@ -36,19 +36,17 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     service.py        LLMGatewayService: management + the data-plane relay
     providers/
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
-      translated/adapter.py    the routing library in-process (superseded by D34;
-                               see open-designs.md OD16)
       mock/adapter.py          the mock LLM endpoint (D23, WP5)
   mcps/               the tool plane (WP1, WP8, WP9)
     dtos.py
     types.py
     interfaces.py     MCPEndpointsDAOInterface + MCPUpstreamInterface
     registry.py       upstream kind -> MCPUpstreamInterface
-    token_storage.py  the MCP SDK's TokenStorage protocol over the vault (WP17, OR1)
+    oauth/            OAuth discovery, registration, PKCE client, state and
+                      project-owned grant storage (WP30/WP31)
     service.py        MCPGatewayService: management + the transparent proxy
     providers/
       http/adapter.py          remote Streamable HTTP servers (custom)
-      composio/adapter.py      the builtin/composio relay — reuses the brokered connection (D30)
       mock/adapter.py          the mock MCP server (D23, WP5)
 dbs/postgres/gateways/
   llms/               dbas.py, dbes.py, dao.py, mappings.py
@@ -639,7 +637,7 @@ endpoint document can read the other:
 | `route` | `base_url`, `headers`, plus `api_version`, `region`, `extras` | `base_url`, `headers` |
 | the filter | `models` — `{allowlist, denylist}` | `tools` — `{allowlist, denylist}` |
 | `settings` | `timeout_seconds`, `max_output_tokens` | `timeout_seconds` |
-| plane-only | — | `oauth`: discovered authorization facts, cached (wave 3) |
+| plane-only | — | `oauth`: discovered authorization facts and the project-owned grant |
 
 Four rules hold across both, and they are the whole contract:
 
@@ -1200,9 +1198,10 @@ class LLMDeploymentKind(str, Enum):
     BEDROCK = "bedrock"
     SAGEMAKER = "sagemaker"
     VERTEX = "vertex_ai"
+    MOCK = "mock"
 
 
-class LLMEndpointRoute(BaseModel):
+class LLMEndpointRoute(GatewayEndpointRoute):
     """The route, mirroring the runner wire's `endpoint` object field for field
     (services/runner/src/protocol.ts): apiVersion for Azure, region for AWS and
     Vertex, on top of the shared base_url + headers."""
@@ -1244,7 +1243,7 @@ class LLMEndpointFlags(BaseModel):
 
 
 class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
     secret_id: Optional[UUID] = None
@@ -1255,7 +1254,7 @@ class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
 
 
 class LLMEndpointCreate(Slug, Header, Metadata):
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     secret_id: Optional[UUID] = None
     #
@@ -1286,10 +1285,16 @@ class LLMCallContext(BaseModel):
     stream: bool = False
 
 
+class LLMProtocol(str, Enum):
+    CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
+    MESSAGES = "messages"
+
+
 class LLMResolvedRoute(BaseModel):
     """What the south port receives: the route after selection, with the model
     id already in the routing library's form."""
-    provider_key: str
+    provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     model: str
     #
@@ -1297,6 +1302,7 @@ class LLMResolvedRoute(BaseModel):
     api_version: Optional[str] = None
     region: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
+    extras: Optional[Dict[str, Any]] = None
     #
     settings: LLMEndpointSettings = Field(default_factory=LLMEndpointSettings)
 ```
@@ -1838,12 +1844,12 @@ class MCPEndpointsResponse(BaseModel):
     endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
 
-# --- connect: declared now, routed in wave 3 (WP18) -------------------------- #
+# --- OAuth connect and callback: implemented by WP30/WP31 -------------------- #
 
 class MCPConnectRequest(BaseModel):
-    """Scopes the user ticked, chosen at connect time from the server's own
-    published metadata rather than from a stored list (D17)."""
-    scopes: List[str] = Field(default_factory=list)
+    """An optional scope selection following discovery of the server's
+    authorization metadata."""
+    scopes: Optional[List[str]] = None
 
 
 class MCPConnectResponse(BaseModel):
@@ -1851,16 +1857,16 @@ class MCPConnectResponse(BaseModel):
     authorization_url: str
 ```
 
-**The connect pair is declared and unrouted**, which is the shape wave 3 lands into rather
-than a placeholder. What it does when it arrives: the callback writes one `oauth_grant`
-secret and PUTs its id onto the endpoint. There is no
-grant row to create, because the endpoint names its secret directly — the same door
-`edit_endpoint` uses for every other field.
+**The connect pair is routed.** An initial connect request discovers the server's OAuth
+metadata and returns its offered scopes; a scoped request starts browser authorization. The
+callback validates its signed state, exchanges the authorization code and writes one
+`oauth_grant` secret, then updates the endpoint's `secret_id`. There is no grant table: the
+endpoint names its secret directly.
 
 **No create or edit request for a secret.** An OAuth endpoint's `secret_id` is written by
 `edit_endpoint`, the same full PUT every other field on the row goes through — there is no
-separate authorization document to forge, and the consent flow that eventually populates it
-is WP17/WP18's to design against this same shape rather than a document of its own.
+separate authorization document to forge. The router and `mcps/oauth/` service own consent,
+state validation, registration and grant persistence.
 
 ---
 
@@ -2267,16 +2273,16 @@ what keeps this a data change rather than a signature change if user-level secre
 ship: a call site moves to `USER_REQUIRED` or `USER_OPTIONAL` on a signature that already
 accepts them.
 
-### 7.3 The TokenStorage adapter (WP17)
+### 7.3 The OAuth grant storage adapter
 
-The OAuth client is not written here — the official MCP SDK's `OAuthClientProvider` is
-adopted whole (`libraries.md`), persisting through a `TokenStorage` protocol we implement.
-The adapter is `core/gateways/mcps/token_storage.py`, and it is deliberately thin: **it is
-the resolve-and-store glue between the SDK's protocol and the shapes this document already
-defined**, not a fourth place secrets live.
+The official MCP SDK client is adopted through the implementation in
+`core/gateways/mcps/oauth/`. `storage.py` provides the resolve-and-store glue to the
+project-owned `oauth_grant` secret; `client.py`, `registration.py` and `service.py` keep
+discovery, PKCE, registration and refresh out of the router. It is not a fourth place for
+secrets to live.
 
 ```python
-# core/gateways/mcps/token_storage.py
+# core/gateways/mcps/oauth/storage.py
 
 class VaultTokenStorage:
     """Implements the pinned MCP SDK's TokenStorage protocol over the vault.
@@ -2651,12 +2657,12 @@ class LLMGatewayRouter:
         #   GET/PUT    /endpoints/{endpoint_id}    fetch_mcp_endpoint / edit_mcp_endpoint
         #   DELETE     /endpoints/{endpoint_id}    delete_mcp_endpoint
         #
-        #   POST       /endpoints/{endpoint_id}/connect   (WP18, wave 3)
-        #   GET        /connect/callback                  (WP18, wave 3)
+        #   POST       /endpoints/{endpoint_id}/connect   (implemented WP30/WP31)
+        #   GET        /connect/callback                  (implemented WP30/WP31)
         #
-        # Both are declared in §6 and NOT wired here. The callback writes the
-        # oauth_grant secret and PUTs secret_id through edit_endpoint above —
-        # the same door every other field uses.
+        # Both are wired by MCPGatewayRouter. The callback writes the oauth_grant
+        # secret and updates secret_id through the service — the same ownership
+        # model every other endpoint field uses.
 ```
 
 One handler in full, house body — decorators, scope, permission, service, envelope. The
@@ -2742,35 +2748,19 @@ class LLMGatewayProxy:
         # segment (§2.3): the client appends /v1/chat/completions to any base it
         # is handed, so the base we hand out ends /v1 and nothing else about
         # this surface is versioned here.
-        self.router.add_api_route(
-            "/builtin/{provider}/v1/chat/completions",
-            self.chat_completions_builtin, methods=["POST"],
-            operation_id="llm_gateway_chat_completions_builtin",
-        )
-        self.router.add_api_route(
-            "/custom/{slug}/v1/chat/completions",
-            self.chat_completions_custom, methods=["POST"],
-            operation_id="llm_gateway_chat_completions_custom",
-        )
-        self.router.add_api_route(
-            "/builtin/{provider}/v1/models",
-            self.list_models_builtin, methods=["GET"],
-            operation_id="llm_gateway_list_models_builtin",
-        )
-        self.router.add_api_route(
-            "/custom/{slug}/v1/models",
-            self.list_models_custom, methods=["GET"],
-            operation_id="llm_gateway_list_models_custom",
-        )
+        # Each namespace (`builtin/{provider}`, `standard/{provider}`, and
+        # `custom/{slug}`) exposes all four current protocol paths:
+        # POST /v1/chat/completions, POST /v1/responses, POST /v1/messages,
+        # and GET /v1/models. Each handler resolves the namespace-specific
+        # route before relaying without translating the upstream body.
         # /v1/models answers from the allowlist — the static catalogue for
         # standard, the allowlist for custom — so a harness that lists before
         # calling sees exactly what policy will allow. Backed by
         # LLMGatewayService.list_models (§8, R3); the handler shapes the
         # OpenAI list body inline, since the data plane has no wire models.
         #
-        # "/builtin/{provider}/v1/chat/completions"
-        # Implemented by WP28 for the development agenta and mock providers;
-        # future Agenta-supplied providers extend this same family.
+        # Builtin Agenta and mock providers are available in development; the
+        # standard mock and custom mock routes exercise the other two families.
         #
         # "/{namespace}/.../v1/embeddings"
         # Deferred with the evaluator path (D15). The shape is reserved by this

@@ -98,14 +98,10 @@ The gain from statelessness is a cheaper gateway, not less authorization work.
 
 ## The client implementation
 
-Not ours to write. The official Python SDK's OAuth client provider covers the discovery
-chain, both registration mechanisms, PKCE, refresh with expiry tracking, and both the
-unauthorized and insufficient-scope responses — persisting behind a storage protocol we
-implement over the secrets service.
-
-Two things to verify at implementation time, tracked in `open-reviews.md`: no MCP SDK is a
-direct dependency today in either the runner or the Python projects, and refresh-token
-support was still landing across SDKs during 2026, so pin a version that has it.
+The OAuth protocol client is provided by the pinned MCP SDK; Agenta owns the adapter around
+it. `core/gateways/mcps/oauth/` implements discovery, dynamic registration fallback, PKCE,
+state validation, refresh handling and project-owned grant storage. Unit and acceptance tests
+cover client metadata, discovery, callback, refresh and insufficient-scope paths.
 
 ## Endpoint shape — settled
 
@@ -117,10 +113,10 @@ responses.
 The identifier is an id or a slug carrying a namespace, never a display name. A bare name
 identifies nothing once servers arrive from more than one place.
 
-**Three namespaces, settled in D27:** `agenta` for servers we implement and run, whose first
-members are the mocks; `builtin` for third-party servers shipped ready to click, backed by the
-Composio catalog the integrations domain already consumes; `custom` for a server the user brings
-by URL. Written without a hyphen, because the namespace is a path segment.
+**Three namespaces, settled in D27:** `builtin` for Agenta-operated providers (including
+`agenta` and the development mock), `standard` for generated catalogue providers (including the
+development mock), and `custom` for a server the user brings by URL. `agenta` is a provider
+segment under `builtin`, not a namespace. Namespaces are path segments.
 
 **What a catalog entry holds is five fields** — name, icon, description or category, and URL. Not
 the OAuth endpoints and not the scope list: given the URL, both are fetched at configuration time

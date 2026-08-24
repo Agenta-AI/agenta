@@ -1,103 +1,35 @@
 # Gateways: the policy core
 
-The shared plane both gateways evaluate against. This document exists because the sharing is
-the reason the two gateways are one design — if this turns out not to be shared, they should
-be separate systems.
+**Status: implemented baseline.** Both gateway planes use the same policy service
+for authenticated principal handling, fail-closed permission checks and gateway-call
+events. Broader commercial and cache policy is not implemented in this increment.
 
-**Status: skeleton.** The inputs are established; the evaluation and caching are open.
+## Current implementation
 
-**All six are owned here (D12), and arrive incrementally.** Owned is not scheduled: a concern
-may be unimplemented, but none is designed out, and no other system may route around this one
-to get it. The test for each increment is whether it forecloses a later one.
+| Concern | Current behaviour |
+|---|---|
+| Identity | Gateway routes inherit the authenticated organization, workspace, project and user scope. |
+| Authorization | `GatewayPolicyService` calls the normal action-access check before relay and denies on failure. LLM and MCP endpoint-use permissions remain distinct. |
+| Governance | The resolved endpoint model/tool filters and endpoint settings are applied by gateway services; custom outbound hosts are guarded at registration and relay. |
+| Compliance | Each relay publishes a gateway-call event with the resolved principal and outcome. |
+| Routing | The gateway resolves the namespace/provider or custom slug to its generated or persisted endpoint before adapter selection. |
+| Metering | Usage can be attached to the call event, but billing, wallets, entitlement limits and durable audit guarantees are not a gateway increment deliverable. |
 
-## Six concerns, two nouns
+## Failure posture
 
-| Concern | Model plane | Tool plane |
-|---|---|---|
-| Identity | which principal is calling | which principal is calling |
-| Authorization | may they use this model, at this cost | may they use this server, this tool |
-| Governance | model allowlists, spend ceilings | tool allowlists, approval, egress |
-| Compliance | one audit record per call | the same record, different noun |
-| Metering | tokens and cost, per principal and payer | calls, per principal |
-| Routing | provider and deployment selection | which backend owns this target |
+Authorization is fail-closed: an unauthenticated or unauthorized caller never
+reaches an adapter. Secrets remain in the resolved south-port input and must not
+appear in a north-port response or log. There is presently no gateway policy
+decision cache; a control-plane outage is not masked by an undocumented cache.
 
-Only the rightmost columns differ. The claim this document has to make good on is that the
-left column is one implementation.
+## Still deliberately open
 
-## Identity — settled
+- How entitlement limits, wallets and spend/egress ceilings compose with a call.
+- Durable compliance retention versus the gateway-call event/tracing pipeline.
+- Whether routing can be policy-overridden rather than derived from the endpoint.
+- Decision-cache key, invalidation, TTL and the classes of call that must never
+  use it.
+- Policy expiry during a streamed response.
 
-Every authenticated call already resolves an organization, workspace, project and user
-together, and is rejected outright if any is missing. Both gateways inherit that principal
-unchanged.
-
-Nothing to design. What the gateway adds is that the principal must reach the audit record and
-the meter, not merely the authorization check.
-
-## Authorization — inputs established, composition open
-
-Existing pieces: role-based enforcement, and a two-layer entitlement check that runs a cached
-soft check at ingestion and a hard check behind it.
-
-*To establish:* the exact call the gateway makes into each, whether a model or a tool is a new
-permission subject or an existing one, and how a denial is expressed on each north port —
-these have externally-fixed error shapes and cannot simply return our own exception.
-
-**Keep permissions and entitlements distinct.** They answer different questions and
-conflating them in tests or in code is a known trap.
-
-## Governance — open
-
-Allowlists exist in part: per-server tool policy is already on the runner wire as an
-all-or-include list with names, and approval already exists as a per-tool axis with runner
-machinery behind it.
-
-*To establish:* whether allowlists move to the gateway or stay declared per run and are merely
-enforced there; where spend ceilings are evaluated; and how egress policy composes now that
-one host serves all traffic — an allowlist of one becomes coherent where a list of provider
-endpoints never was.
-
-## Compliance — open
-
-*To establish:* one audit record shape covering both planes. It must carry the principal, the
-secret owner, the payer, the upstream target, the decision and its reason, and the
-outcome. The owner and payer are the two fields that cannot be reconstructed later.
-
-Open: whether audit rides the existing tracing pipeline or is a separate durable record. They
-have different guarantees — tracing is sampled and lossy by design, compliance is not.
-
-## Metering and billing — owned, later
-
-Meters and entitlement layers exist. The gateway is the natural place to record model tokens
-and tool calls, since it is the only point that sees all of both. Under D12 it owns billing
-too, and a ledger or a grant is a **caller** rather than a parallel path.
-
-Two things must be true from the first increment, because neither can be added retroactively:
-
-- **Record real usage from day one**, even while charging a simpler price. The data to correct
-  a pricing model later does not exist unless it was written at the time.
-- **Record `secret_origin` and the owner** with every entry, so a call paid for by a customer's
-  own secret is not billed as ours.
-
-*To establish:* the meter keys, and where pricing lives. Parallel work has settled much of
-this already — see `raw/related-work.md`.
-
-## Routing — open
-
-*To establish:* whether routing is pure derivation from the registry or a policy decision that
-can be overridden. This is the difference between a gateway that enforces and a gateway that
-also decides, and it should be chosen deliberately.
-
-## Decision caching
-
-Fail-closed on policy, with the data plane serving cached decisions through a control-plane
-outage.
-
-*To establish:* what is cached, keyed how, for how long, what invalidates it, and which classes
-of call must never be served from cache. The existing soft-check/hard-check split is the
-precedent to follow rather than invent around.
-
-## The test that matters
-
-If this document ends up being two documents — one per plane — with little in common, then
-`decisions.md` D7, which claims one policy core under two protocol surfaces, is wrong and the
-gateways should be separate systems with separate lifecycles. **Watch for that outcome rather than defending against it.**
+Those are design obligations for later increments, not guarantees implied by the
+current relay implementation.

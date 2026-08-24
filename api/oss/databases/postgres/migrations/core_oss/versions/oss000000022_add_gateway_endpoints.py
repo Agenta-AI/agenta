@@ -62,6 +62,7 @@ def upgrade() -> None:
                 "BEDROCK",
                 "SAGEMAKER",
                 "VERTEX",
+                "MOCK",
                 name="llmdeploymentkind_enum",
             ),
             nullable=False,

@@ -11,7 +11,7 @@ decided — and the column stopped carrying information.
 |---|---|
 | `1` | Wave 1 — both gateways working end to end, on the mocks and our own servers |
 | `2` | Wave 2 — every caller converted |
-| `3` | Wave 3 — OAuth end to end |
+| `3` | Wave 3 — OAuth end to end (**complete: WP30/WP31**) |
 | `later` | Real gateway work, after C3 |
 | `—` | Out of this work; a separate effort owns it |
 
@@ -96,9 +96,9 @@ migrate.
 | Wave | Item | Why there |
 |---|---|---|
 | 1 | Tool allowlist | The runner wire already carries it; enforcing it at the boundary is what makes the boundary real |
-| 3 | OAuth client | The single biggest item, and the reason wave 3 exists |
-| 3 | Consent flow | Required by OAuth; ships with it |
-| 3 | Step-up scopes | Asking for more permission mid-run. Same wave as the client that raises it |
+| 3 | OAuth client | Implemented by WP30 over the pinned MCP SDK and project-owned grant storage |
+| 3 | Consent flow | Implemented by WP31: discovery, browser callback, registration fallback and refresh |
+| 3 | Step-up scopes | Implemented as the insufficient-scope/reconnect path; interactive runner handling remains caller work |
 | — | List caching | An optimisation. Correctness first, and nothing is slow yet |
 | — | stdio servers | Remote only. Spawning processes is a large operational surface for no current caller |
 

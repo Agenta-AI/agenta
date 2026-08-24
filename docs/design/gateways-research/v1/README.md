@@ -3,8 +3,9 @@
 Design for an LLM gateway and an MCP gateway, built as one policy core with two protocol
 surfaces.
 
-**Status: skeleton.** `raw/` holds the source research behind these positions. Documents here
-are structured but not complete — each states what it must establish and what is missing.
+**Status: implemented baseline with explicit follow-ons.** `raw/` holds the source research
+behind the decisions; the current documents describe the code as built and identify only the
+remaining design and out-of-scope work.
 
 ## Posture
 

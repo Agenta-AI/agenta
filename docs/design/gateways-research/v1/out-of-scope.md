@@ -153,6 +153,7 @@ These are review findings retained as context, not packages in the gateway incre
 
 ## Scheduled follow-on work, not scope for this increment
 
-**MCP OAuth is deliberately not implemented here.** Its work packages own the direct MCP SDK
-dependency decision, the secrets-backed `TokenStorage` adapter, dashboard consent/callback flow,
-and registration fallback together. See WP30 and WP31 in `workstreams/`.
+**MCP OAuth is implemented in this increment.** WP30/WP31 landed the direct MCP SDK dependency,
+secrets-backed token storage, dashboard consent/callback flow and registration fallback. What
+remains out of scope is static-secret and stdio MCP-provider support, plus provider-specific
+OAuth compatibility work when a new provider is onboarded.

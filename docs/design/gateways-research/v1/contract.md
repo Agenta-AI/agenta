@@ -1,76 +1,66 @@
 # Gateways: the ports
 
-The two ports and what crosses them. Channels needed a wire contract because third parties
-would implement adapters out of process; here the reason is different — **both ports have
-externally-fixed shapes we do not control**, so the contract is mostly about what we add
-rather than what we invent.
+The gateway contracts are intentionally thin: external protocols determine most
+of the wire shape, while Agenta owns authentication, target resolution and secret
+injection.
 
-**Status: skeleton.**
+**Status: as built for this increment.** Future protocol-version policy is open;
+the current routes are documented below.
 
-## North port — what callers speak
-
-Two surfaces, one authentication story.
+## North ports — what callers speak
 
 ### Authentication
 
-Every caller presents a secret we mint plus a gateway URL. The caller never holds an
-upstream secret and never changes shape when an upstream switches auth scheme.
-
-*To establish:* the token's format, lifetime, scope, and what it authorizes beyond identity.
-It must be worthless outside our gateway — that property is the point.
+All gateway routes use the normal Agenta request authentication. Gateway callers
+may send the short-lived Agenta credential in `X-AG-Credentials` (or the accepted
+authorization schemes); the header is deliberately separate from upstream
+authorization so a pass-through request need not overwrite vendor credentials.
 
 ### Model surface
 
-An OpenAI-compatible surface, because every harness and the routing library already speak it.
+The LLM gateway exposes the same namespace for all supported model protocols:
 
-*To establish:* which endpoints, how a policy denial is expressed within a fixed error shape,
-and how a harness that authenticates with its own subscription login is handled given it
-injects no secret today.
+| Namespace | Routes |
+|---|---|
+| `builtin/{provider}` | `v1/chat/completions`, `v1/responses`, `v1/messages`, `v1/models` |
+| `standard/{provider}` | `v1/chat/completions`, `v1/responses`, `v1/messages`, `v1/models` |
+| `custom/{slug}` | `v1/chat/completions`, `v1/responses`, `v1/messages`, `v1/models` |
 
-### Tool surface
+The relay preserves provider protocol/error shapes. A policy denial is produced
+before relay and never invokes the upstream.
 
-MCP over Streamable HTTP, targeting the stateless revision. Routing reads the required method
-and target headers rather than the body.
+### MCP surface
 
-The endpoint shape is settled: **one URL per server**, the identifier in it namespaced, and the
-proxy transparent — same tool names, same schemas, same errors (D19 and D20 on what an endpoint
-is and which ones are stored; D16 on the shape).
+MCP is transparent Streamable HTTP, one URL per server:
 
-*To establish:* how list caching interacts with per-caller tool allowlists, given list results
-now carry a shared-intermediary scope flag.
+- `/v1/gateways/mcps/standard/{provider}`
+- `/v1/gateways/mcps/builtin/{provider}/{path}`
+- `/v1/gateways/mcps/custom/{slug}`
 
-### What the wire looks like from the runner
+Only request methods appropriate to the stateless MCP relay are accepted. Server
+tool names, schemas and upstream errors are not translated.
 
-Nothing new. The runner contract already expresses a gateway route on both consumers, and its
-commentary anticipates a gateway MCP server as an HTTP server whose URL happens to be ours.
+MCP endpoint management includes `POST /endpoints/{id}/connect` and an OAuth
+callback. It discovers the authorization server, performs OAuth with PKCE where
+required, and stores the resulting project-owned OAuth grant. The public client
+metadata document exists for authorization servers that use client registration
+metadata.
 
-**Adoption is a resolver-side change for that caller** — the contract, the golden fixtures
-that pin it on both sides, and the harnesses are untouched. Expect the per-server secret
-arrays and the model secret array to collapse to a single gateway token.
+## South ports — what adapters speak
 
-## South port — what the gateway speaks to adapters
+LLM adapters receive a resolved `LLMEndpointRoute`, including deployment kind,
+base URL, optional provider family, model, region/API version and credentials.
+MCP adapters receive the resolved server URL, auth scheme and credentials. Both
+are in-process adapter boundaries; neither is an external plugin contract.
 
-An adapter turns a resolved route plus a resolved secret into an upstream call. The core
-never imports one; wiring happens at the entrypoint, per the repo's layering rule.
+## Not contracts
 
-*To establish:* the interface itself. It must admit at minimum a model provider by deployment
-kind, and an MCP server by auth mode, without either shape leaking into the core.
+- Provider-specific APIs and the MCP protocol are upstream-owned contracts.
+- There is no out-of-process adapter ABI.
+- Alias/fallback, embeddings and static/stdio MCP support are not silently
+  promised by the current route families.
 
-The existing family already has this pattern — ports, a registry keyed by provider, and
-per-provider adapters — so the precedent is in-tree rather than invented.
+## Still open
 
-## What is deliberately not a contract
-
-- **The adapters' own protocols.** Provider APIs and the MCP wire are someone else's contract;
-  we conform, we do not define. That is why `mcp.md` and `models.md` exist as quarantine.
-- **An out-of-process adapter contract.** Channels needed one because third parties would
-  implement bridges. No equivalent need has been established here, and inventing one would
-  add a compatibility surface with no consumer. Revisit only if a real case appears.
-
-## Open
-
-- Whether the two north surfaces share a router layer or are independent.
-- Whether the south port is one interface with two shapes or two interfaces sharing a
-  secret-resolution helper.
-- Versioning. The MCP surface is pinned to a protocol revision that moves; the model surface
-  is pinned to a de facto standard that also moves. Neither versioning story is designed.
+The public north-port compatibility/versioning policy, policy-decision caching,
+and the semantics of a policy expiry during a stream are future design work.

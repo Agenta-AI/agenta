@@ -1,117 +1,79 @@
 # Gateways: architecture
 
-**Status: skeleton.** Section headings are settled; the content marked *to establish* is the
-remaining work.
+**Status: as built for this increment.** The remaining items are deliberately
+outside its scope, recorded in `out-of-scope.md` or the open-design documents.
 
 ---
 
 ## 1. What the feature is
 
-Two gateways — one for model calls, one for tool and MCP calls — sharing one policy core.
-Every outbound call from every caller transits one of them. Callers name what they want and
-authenticate to us; the gateway binds that name to a real route and a real secret.
+Two gateway planes share a policy service: one proxies model protocols, the other
+proxies MCP Streamable HTTP. Callers authenticate to Agenta; gateway code resolves
+the selected route and its project-owned secret and calls the upstream without
+exposing that upstream secret to the caller.
 
 ## 2. The shape
 
-The system is **one policy core, two protocol surfaces, and a set of adapters**.
-
 ```text
-callers ──▶ protocol surface ──▶ policy core ──▶ adapter ──▶ upstream
-                (north port)                    (south port)
+caller ──> FastAPI gateway router ──> gateway service + policy ──> adapter ──> upstream
+                  north port                    south port
 ```
 
-- **North port** — what a caller speaks. Model plane: an OpenAI-compatible surface. Tool
-  plane: MCP over Streamable HTTP. Both authenticate with a secret we mint.
-- **Policy core** — identity, authorization, governance, secret resolution, audit,
-  metering. Protocol-neutral. Shared by both surfaces; this sharing is the reason the two
-  gateways are one design.
-- **South port** — adapters. Model providers and their deployments on one side, MCP servers
-  on the other.
+- **North ports.** LLM routes expose OpenAI chat-completions and Responses plus
+  Anthropic Messages; MCP routes expose transparent Streamable HTTP.
+- **Policy core.** `GatewayPolicyService` resolves the authenticated principal,
+  fails closed on permission denial, and publishes a gateway-call event.
+- **South ports.** LLM relay adapters receive a resolved deployment route and
+  secret; MCP HTTP adapters receive a resolved server route and credentials.
 
-*To establish:* whether the core and the surfaces ship as one deployable or two, and where
-the boundary sits relative to the main API. See `decisions.md` D1 and D2.
+The implementation is part of the API deployment: routers live in
+`apis/fastapi/gateways/`, the domain in `core/gateways/`, and persistence in the
+normal storage layers. It does not join the older `core/gateway/` integrations
+domain.
 
 ## 3. Boundary rules
 
-*To establish.* Candidates, each of which needs stating as a rule or discarding:
+- A request is authenticated and authorised before any upstream call.
+- Secrets are resolved server-side and injected only into the outbound adapter
+  request; no management or proxy response serializes secret material.
+- Router-to-service-to-storage layering is retained. Concrete adapters are wired
+  at the application boundary rather than imported by policy.
+- Custom outbound URLs pass the existing outbound-target guard when registered and
+  again when relayed.
 
-- No secret material crosses the north port outward.
-- No caller-supplied value reaches an adapter without passing the policy core.
-- The core never imports a protocol surface or a concrete adapter; wiring happens at the
-  entrypoint, per the repo's layering rule.
+## 4. Implemented call paths
 
-## 4. Where this lands relative to the existing layering
+### Models
 
-The repo's required direction is Router → Service → DAO interface → DAO implementation → DB,
-with concrete dependencies wired only at the entrypoint, and DTO/DBE mapping isolated in the
-DB layer.
+The proxy resolves a namespace (`builtin`, `standard`, or `custom`), provider or
+custom endpoint, model and protocol. It authorises the target, resolves the route
+and secret, passes the request through the LLM relay, then emits the gateway-call
+event. Chat-completions, Responses, Messages and model-listing are each available
+where the upstream protocol supports them.
 
-The gateways are a **separate domain that mirrors the existing gateway family's shape without
-joining it**. That family — catalog, connections, tools, triggers — already has ports,
-registries, services and per-provider adapters, so it is the structural precedent to copy. It is
-not a family to enter.
+### MCP
 
-**Why the distinction is not pedantry.** Judged by what it holds rather than by what it is
-called, that family is an *integrations* domain: its contracts are integrations and integration
-keys, its one table is a connections table, and its only provider is Composio. The gateways are
-traffic transiting a boundary — identity, policy, secret injection and metering, per call, on the
-data path. Sharing ports and registries is true of every domain in this repo and proves nothing
-about kinship. `notes.md` records the two drafts that concluded otherwise.
+The proxy resolves a standard provider, builtin provider, or custom endpoint,
+authorises it, resolves the route and secret, and transparently relays the
+Streamable-HTTP request. `POST /endpoints/{id}/connect` discovers an OAuth server
+and starts authorization; the callback completes the exchange and stores its
+project-owned OAuth grant.
 
-Settled in `entities.md`: `core/gateways/` beside the existing `core/gateway/`, holding both
-planes and the shared policy core, with matching folders under the storage and API layers. One
-genuine reference to the older domain survives and is not evidence of kinship — a
-Composio-brokered MCP server points at a connection row.
+## 5. Security and failure posture
 
-## 5. The path of a model call
+Gateway authorization is fail-closed. OAuth state is signed and time-bound, grant
+material is stored in the secrets service, and the client metadata endpoint is
+public only where MCP authorization servers must fetch it. HTTP authentication
+supports the Agenta credentials header so upstream bearer credentials can remain
+pass-through content when necessary.
 
-*To establish.* Must cover: caller authenticates → principal resolved → policy evaluated →
-secret resolved by owner and mode → adapter selected by provider and deployment →
-upstream call → streaming response → usage recorded → audit written.
+Policy decisions are evaluated for each request. There is no decision cache or
+mid-stream reauthorization in this increment; their semantics remain open design
+work rather than an implied guarantee.
 
-Open within this: how streaming interacts with a policy decision that has to be made before
-the first token, and what happens to a decision that expires mid-stream.
+## 6. Deliberately later
 
-## 6. The path of a tool call
-
-*To establish.* Must cover: caller authenticates → principal resolved → target resolved from
-the request headers → policy and allowlist evaluated → secret resolved → upstream MCP
-call → result returned → audit written.
-
-Open within this: the endpoint shape (one merged endpoint with namespaced tools, or one per
-server), and how a list call composes across servers with differing secret health.
-
-## 7. What belongs to the platform, not here
-
-Tracing and metering pipelines, RBAC, entitlement checks, the secrets service, and the
-approval mechanism all exist. The gateways emit into them and call them; they do not
-reimplement any of them.
-
-*To establish:* the exact call into the entitlement check, and whether the gateway's own
-decision caching layers on top of the existing two-layer pattern or replaces it for this
-path.
-
-## 8. Security posture
-
-The gateway's central claim is that provider secrets stop at our boundary.
-
-Established: signing for cloud resellers moves to the gateway, so the secret category
-that today must be held in an agent-controlled sandbox stops existing for gateway-routed
-runs; and the per-run redaction set collapses to one short-lived token.
-
-*To establish:* the token's lifetime and scope, what it authorizes beyond identity, and what
-an attacker holding one can do.
-
-## 9. Failure posture
-
-Fail-closed on policy, with the data plane able to serve cached decisions through a
-control-plane outage.
-
-*To establish:* what "cached decision" means concretely — what is cached, keyed how, for how
-long, and which classes of call are never served from cache.
-
-## 10. Extending to protocols we do not yet speak
-
-*To establish.* The adapter port should admit a new upstream kind without touching the core.
-Whether that generalizes beyond models and MCP is worth stating one way or the other, since
-an over-general port costs more than it returns.
+Model aliases/fallback, embeddings, user-owned secrets, static/stdio MCP
+providers, policy composition and egress ceilings, durable compliance storage,
+metering/billing, routing policy and cache semantics are not implemented here.
+Their status and rationale live in `out-of-scope.md` and `open-designs.md`.

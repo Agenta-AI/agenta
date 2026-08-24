@@ -3,8 +3,8 @@
 Assumes the rest of `v1/`. Packages and their dependencies — no sizing and no schedule beyond
 what the dependencies force.
 
-**Status: draft for review.** The package boundaries are the proposal; the checkpoint structure
-is the part to argue with first, because everything else hangs off it.
+**Status: historical plan with completed follow-on packages.** The package boundaries preserve
+the original dependency narrative; completed work is marked where it landed.
 
 ---
 
@@ -70,10 +70,11 @@ event per call.
 sandbox; the run's model calls and tool calls appear as audit events with the right principal;
 a run naming a model it may not use fails cleanly.
 
-### C3 — OAuth works
+### C3 — OAuth works — implemented
 
-An OAuth-protected MCP server can be connected from the dashboard, used in a run, refreshed
-without a human, and step-up raises an interaction.
+An OAuth-protected MCP server can be connected from the dashboard, used through the gateway,
+refreshed without a human, and returns an actionable reconnect/interaction requirement on an
+insufficient scope.
 
 **Acceptance tests:** connect an OAuth server end to end; run a tool through it; force a refresh
 and confirm the run continues; force a scope challenge and confirm an interaction is raised;
@@ -265,20 +266,19 @@ coverage for the generated and custom mock cases.
 WP30/WP31. They remain in this research record to preserve the original dependency narrative;
 they are not a second OAuth backlog and must not be scheduled separately.
 
-**WP30 — MCP OAuth foundation and secrets-backed token storage.** Add the pinned official MCP
-SDK as a direct dependency only for this package; implement its `TokenStorage` protocol as a thin
-adapter over the existing secrets service; and wire discovery, client metadata, redirect and
+**WP30 — MCP OAuth foundation and secrets-backed token storage — COMPLETE.** Added the pinned official MCP
+SDK dependency, its secrets-backed storage adapter, and discovery, client metadata, redirect and
 callback handling without ever serializing token material from a gateway route. *Closes:* OR1 and
 the MCP-SDK decision in OR12. *Depends on:* the MCP gateway.
 
-**WP31 — MCP OAuth consent and registration flow.** Build the dashboard/API connect flow over
+**WP31 — MCP OAuth consent and registration flow — COMPLETE.** Built the dashboard/API connect flow over
 WP30: scope selection, callback completion, endpoint state, typed needs-auth/needs-input
 responses, and client-registration fallback. *Depends on:* WP30. *Blocks:* OAuth-backed MCP
 endpoint acceptance.
 
-**WP32 — Bedrock/Vertex endpoint base URL validation and coverage.** Define the accepted
-per-deployment `base_url` grammar, reject invalid hosts/prefixes, register representative endpoint
-fixtures, and cover each supported Bedrock and Vertex protocol door without endpoint fallback.
+**WP32 — Bedrock/Vertex endpoint base URL validation and coverage — COMPLETE.** Defined the accepted
+per-deployment `base_url` grammar, reject invalid hosts/prefixes, registered representative endpoint
+fixtures, and covered each supported Bedrock and Vertex protocol door without endpoint fallback.
 *Closes:* OR17. *Depends on:* the existing translated-provider routing.
 
 **Merge IM2 → C1.** Deploy. Acceptance tests above.
