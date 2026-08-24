@@ -47,7 +47,7 @@ async def user_profile(request: Request):
     if user is None:
         raise HTTPException(
             status_code=400,
-            detail="User not found. Please ensure that the user_id is specified correctly."
+            detail="User not found. Please ensure that the user_id is specified correctly.",
         )
 
     # Fall back to created_at if no update has occurred
