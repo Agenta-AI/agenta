@@ -6,8 +6,10 @@ import {
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
     revalidateSessionRecordsAtom,
+    type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
+import {isHitlPending} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
 import {type UIMessage} from "ai"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
@@ -61,6 +63,17 @@ export const shouldSkipRecordsRefresh = ({
  * client-side (aborted mid-prepare, a lost seed handoff) leaves behind (#6042). */
 export const hasStrandedTail = (messages: UIMessage[]): boolean =>
     messages.length > 0 && messages[messages.length - 1]?.role === "user"
+
+/**
+ * Protect local interaction state only when the pending server row already has an actionable card
+ * on screen. A pending row by itself is not enough: the browser may have cached the transcript
+ * before the interaction_request record arrived. Treating that stale copy as user-owned state
+ * prevents hydration from ever delivering the missing approval or form.
+ */
+export const shouldProtectRenderedInteraction = (
+    messages: UIMessage[],
+    interactionRows: SessionInteractionRowStates | undefined,
+): boolean => hasWaitingInteraction(interactionRows) && isHitlPending(messages)
 
 /** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
  * existing red error bubble. */
@@ -152,7 +165,10 @@ export const useSessionHydration = ({
                 busy: busyRef.current,
                 // #5942: a card still parked on the user outranks the log — adopting over it
                 // discards whatever they typed into its form.
-                awaitingUser: hasWaitingInteraction(interactionRows),
+                awaitingUser: shouldProtectRenderedInteraction(
+                    messagesRef.current,
+                    interactionRows,
+                ),
             })
             if (!adopt) return false
             // Restored history renders settled (no live fade-in) and pinned to the bottom.
