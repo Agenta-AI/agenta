@@ -13,6 +13,9 @@ import {
     DropdownMenuTrigger,
 } from "../../ui/dropdown-menu"
 
+/** The menu's rendered width. Exported so an anchor can tell whether it has room to end-align. */
+export const FILTER_MENU_MIN_WIDTH = 212
+
 export interface FilterMenuOption {
     value: string
     label: string
@@ -100,7 +103,7 @@ export const FilterMenu = ({
                 align={align}
                 alignOffset={alignOffset}
                 avoidCollisions={avoidCollisions}
-                className="min-w-[212px]"
+                style={{minWidth: FILTER_MENU_MIN_WIDTH}}
             >
                 {facets?.map((facet) => {
                     const selected = facet.multiple ? (facet.values ?? []) : []

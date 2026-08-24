@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     sidebarSessionAgentOptionsAtomFamily,
@@ -9,6 +9,7 @@ import {
     type SidebarSessionStatusFilter,
 } from "@agenta/navigation"
 import {
+    FILTER_MENU_MIN_WIDTH,
     FilterMenu,
     type FilterMenuFacet,
     type FilterMenuToggle,
@@ -143,6 +144,18 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [setFilters],
     )
 
+    const triggerRef = useRef<HTMLButtonElement>(null)
+    const [align, setAlign] = useState<"start" | "end">("end")
+
+    // The rail is resizable, so an end-aligned menu runs off the left edge once the rail is
+    // narrower than the menu. Flip to start-aligned there and let it overhang the content area
+    // instead, which is empty space. Measured on open rather than on resize: the rail can only
+    // be dragged while the menu is closed.
+    const measureAlign = useCallback(() => {
+        const right = triggerRef.current?.getBoundingClientRect().right ?? 0
+        setAlign(right < FILTER_MENU_MIN_WIDTH ? "start" : "end")
+    }, [])
+
     return (
         <FilterMenu
             facets={facets}
@@ -152,15 +165,20 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             onFacetToggle={onFacetToggle}
             onToggleChange={onToggleChange}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
-            // otherwise move the menu somewhere different depending on scroll position.
-            align="end"
+            // otherwise move the menu somewhere different depending on scroll position. The side
+            // it anchors to comes from `measureAlign` instead.
+            align={align}
             avoidCollisions={false}
         >
             <button
+                ref={triggerRef}
                 type="button"
                 aria-label="Filter sessions"
                 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
                 className="relative mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
+                // Radix opens on pointer down, so the measurement has to land in the same
+                // event — by click the menu is already positioned.
+                onPointerDown={measureAlign}
                 onClick={(event) => {
                     // The group row's link anchor is stretched over the whole row.
                     event.preventDefault()
