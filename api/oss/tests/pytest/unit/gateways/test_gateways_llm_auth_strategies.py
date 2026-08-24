@@ -4,6 +4,7 @@
 stays a unit test (no real Google call, no real LLM call, per the wave's hard rule).
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -153,6 +154,27 @@ async def test_vertex_mints_a_token_via_litellms_credential_helper():
     mocked.assert_awaited_once_with(
         credentials='{"type": "service_account"}', project_id="acme"
     )
+
+
+@pytest.mark.asyncio
+async def test_vertex_dev_mock_credential_uses_only_the_opt_in_mock_token(monkeypatch):
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX, extras={"vertex_project": "acme"}
+    )
+    monkeypatch.setattr(
+        "oss.src.core.gateways.llms.providers.passthrough.auth.env",
+        SimpleNamespace(
+            mock_gateways=SimpleNamespace(
+                enabled=True, upstream_token="local-mock-token"
+            )
+        ),
+    )
+
+    headers = await build_auth_headers(
+        route, _custom_secret(extras={"vertex_ai_credentials": "agenta-gateway-mock"})
+    )
+
+    assert headers == {"Authorization": "Bearer local-mock-token"}
 
 
 @pytest.mark.asyncio

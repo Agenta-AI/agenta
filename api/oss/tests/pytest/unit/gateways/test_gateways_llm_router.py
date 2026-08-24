@@ -240,6 +240,7 @@ def test_fetch_endpoint_reaches_the_service(client, service, allow):
 
 def test_edit_endpoint_reaches_the_service(client, service, allow):
     endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
     service.edit_return = _endpoint(endpoint_id)
 
     response = client.put(
@@ -253,7 +254,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
     )
 
     assert response.status_code == 200
-    assert service.calls == ["edit_endpoint"]
+    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
 
 
 def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):
@@ -267,6 +268,32 @@ def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):
 
     assert response.status_code == 400
     assert service.calls == []
+
+
+def test_edit_endpoint_rejects_an_invalid_url_for_its_stored_deployment(
+    client, service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = LLMEndpoint(
+        id=endpoint_id,
+        slug="acme-bedrock",
+        provider_key="bedrock",
+        deployment_kind=LLMDeploymentKind.BEDROCK,
+        data=LLMEndpointData(models=LLMModelFilter(allowlist=["claude-3-5-sonnet"])),
+    )
+
+    response = client.put(
+        f"/endpoints/{endpoint_id}",
+        json={
+            "endpoint": {
+                "id": str(endpoint_id),
+                "data": {"route": {"base_url": "https://bedrock.example/v1"}},
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    assert service.calls == ["fetch_endpoint"]
 
 
 def test_delete_endpoint_reaches_the_service(client, service, allow):
@@ -328,6 +355,7 @@ def test_fetch_endpoint_none_maps_to_404(client, service, allow):
 
 def test_edit_endpoint_none_maps_to_404(client, service, allow):
     endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
     service.edit_return = None
 
     response = client.put(

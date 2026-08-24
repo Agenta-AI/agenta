@@ -178,12 +178,12 @@ def test_mcp_edit_endpoint_rejects_a_blocked_url(mcp_client):
 # ---------------------------------------------------------------------------
 
 
-def _llm_create_body(base_url) -> dict:
+def _llm_create_body(base_url, *, deployment_kind="custom") -> dict:
     body = {
         "endpoint": {
             "slug": "acme-llm",
             "provider_key": "openai",
-            "deployment_kind": "custom",
+            "deployment_kind": deployment_kind,
             "data": {"route": {}},
         }
     }
@@ -215,6 +215,32 @@ def test_llm_create_endpoint_is_a_noop_when_base_url_absent(llm_client):
 
     # Past the gate; the stub service raises next — proves the gate let it through.
     assert response.status_code == 500
+
+
+@pytest.mark.parametrize(
+    ("deployment_kind", "base_url", "expected"),
+    [
+        ("bedrock", "https://bedrock.example/v1", 400),
+        ("vertex_ai", "https://vertex.example/v1/projects/acme", 400),
+        ("bedrock", "https://bedrock.example", 500),
+        (
+            "vertex_ai",
+            "https://vertex.example/v1/projects/acme/locations/europe-west4",
+            500,
+        ),
+    ],
+)
+def test_llm_registration_enforces_cloud_deployment_url_grammar_before_service(
+    llm_client, deployment_kind, base_url, expected
+):
+    response = llm_client.post(
+        "/endpoints/",
+        json=_llm_create_body(base_url, deployment_kind=deployment_kind),
+    )
+
+    assert response.status_code == expected
+    if expected == 400:
+        assert "endpoint.data.route.base_url" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

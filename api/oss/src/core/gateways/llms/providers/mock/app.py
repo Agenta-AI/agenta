@@ -131,3 +131,43 @@ async def responses(request: Request) -> Response:
 @app.post("/v1/messages")
 async def messages(request: Request) -> Response:
     return await _relay(request, protocol=LLMProtocol.MESSAGES)
+
+
+# WP32's private-cloud fixture surface. These are deliberately explicit rather
+# than a catch-all route: a test proves the real Bedrock/Vertex protocol tails
+# composed by routing.py reached this local socket.
+@app.post("/anthropic/v1/messages")
+async def bedrock_messages(request: Request) -> Response:
+    return await _relay(request, protocol=LLMProtocol.MESSAGES)
+
+
+@app.post(
+    "/v1/projects/{project}/locations/{location}/endpoints/openapi/chat/completions"
+)
+async def vertex_chat_completions(
+    request: Request,
+    project: str,
+    location: str,  # noqa: ARG001
+) -> Response:
+    return await _relay(request, protocol=LLMProtocol.CHAT_COMPLETIONS)
+
+
+@app.post("/v1/projects/{project}/locations/{location}/endpoints/openapi/responses")
+async def vertex_responses(
+    request: Request,
+    project: str,
+    location: str,  # noqa: ARG001
+) -> Response:
+    return await _relay(request, protocol=LLMProtocol.RESPONSES)
+
+
+@app.post(
+    "/v1/projects/{project}/locations/{location}/publishers/anthropic/models/{model_action}"
+)
+async def vertex_messages(
+    request: Request,
+    project: str,
+    location: str,
+    model_action: str,  # noqa: ARG001
+) -> Response:
+    return await _relay(request, protocol=LLMProtocol.MESSAGES)

@@ -533,7 +533,7 @@ async def test_vertex_messages_request_moves_model_from_body_to_url():
         provider_key=None,
         deployment_kind=LLMDeploymentKind.VERTEX,
         model="claude-3-5-sonnet",
-        base_url="https://vertex.example",
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
         extras={"vertex_project": "acme"},
     )
     context = LLMCallContext(
@@ -563,7 +563,8 @@ async def test_vertex_messages_request_moves_model_from_body_to_url():
         )
 
     assert captured["url"] == (
-        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
+        "https://vertex.example/v1/projects/acme/locations/europe-west4/"
+        "publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
     )
     sent = json.loads(captured["content"])
     assert sent["anthropic_version"] == "vertex-2023-10-16"
@@ -584,7 +585,7 @@ async def test_vertex_streaming_messages_request_uses_the_stream_action():
         provider_key=None,
         deployment_kind=LLMDeploymentKind.VERTEX,
         model="claude-3-5-sonnet",
-        base_url="https://vertex.example",
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
         extras={"vertex_project": "acme"},
     )
     context = LLMCallContext(
@@ -614,7 +615,8 @@ async def test_vertex_streaming_messages_request_uses_the_stream_action():
         )
 
     assert captured["url"] == (
-        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:streamRawPredict"
+        "https://vertex.example/v1/projects/acme/locations/europe-west4/"
+        "publishers/anthropic/models/claude-3-5-sonnet:streamRawPredict"
     )
 
 

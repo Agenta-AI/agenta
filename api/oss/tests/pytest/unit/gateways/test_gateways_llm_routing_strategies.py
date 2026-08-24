@@ -188,22 +188,23 @@ def test_bedrock_chat_completions_door_is_unaffected_by_the_messages_door():
 def test_vertex_messages_door_composes_raw_predict_path():
     route = _route(
         deployment_kind=LLMDeploymentKind.VERTEX,
-        base_url="https://vertex.example",
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
         model="claude-3-5-sonnet",
     )
     assert build_url(route, LLMProtocol.MESSAGES) == (
-        "https://vertex.example/publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
+        "https://vertex.example/v1/projects/acme/locations/europe-west4/"
+        "publishers/anthropic/models/claude-3-5-sonnet:rawPredict"
     )
 
 
 def test_vertex_messages_door_streaming_uses_stream_raw_predict():
     route = _route(
         deployment_kind=LLMDeploymentKind.VERTEX,
-        base_url="https://vertex.example",
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
         model="claude-3-5-sonnet",
     )
     assert build_url(route, LLMProtocol.MESSAGES, stream=True) == (
-        "https://vertex.example/publishers/anthropic/models"
+        "https://vertex.example/v1/projects/acme/locations/europe-west4/publishers/anthropic/models"
         "/claude-3-5-sonnet:streamRawPredict"
     )
 
@@ -223,7 +224,8 @@ def test_vertex_messages_door_derives_project_host_from_region_and_project():
 
 def test_vertex_messages_door_with_no_model_raises_naming_vertex():
     route = _route(
-        deployment_kind=LLMDeploymentKind.VERTEX, base_url="https://v.example"
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://v.example/v1/projects/acme/locations/europe-west4",
     )
     route.model = ""
     with pytest.raises(LLMUpstreamError):

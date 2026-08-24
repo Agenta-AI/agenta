@@ -32,6 +32,10 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
+from oss.src.core.gateways.llms.providers.passthrough.validation import (
+    validate_deployment_base_url,
+)
 from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
@@ -41,13 +45,16 @@ if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LLMGatewayService
 
 
-def _guard_custom_endpoint_base_url(*, base_url) -> None:
+def _guard_custom_endpoint_base_url(
+    *, deployment_kind: LLMDeploymentKind, base_url: str | None
+) -> None:
     """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError.
 
     `base_url` is optional on `LLMEndpointRoute`; only some deployments set one."""
     if not base_url:
         return
     try:
+        validate_deployment_base_url(deployment_kind=deployment_kind, base_url=base_url)
         validate_url_format_and_literal_ip(base_url)
     except ValueError as e:
         raise HTTPException(
@@ -158,7 +165,10 @@ class LLMGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_LLM_ENDPOINTS)
 
-        _guard_custom_endpoint_base_url(base_url=body.endpoint.data.route.base_url)
+        _guard_custom_endpoint_base_url(
+            deployment_kind=body.endpoint.deployment_kind,
+            base_url=body.endpoint.data.route.base_url,
+        )
 
         endpoint = await self.service.create_endpoint(
             project_id=scope.project_id,
@@ -245,7 +255,19 @@ class LLMGatewayRouter:
                 detail="Path endpoint_id does not match body id",
             )
 
-        _guard_custom_endpoint_base_url(base_url=body.endpoint.data.route.base_url)
+        existing = await self.service.fetch_endpoint(
+            project_id=scope.project_id, endpoint_id=endpoint_id
+        )
+        if not existing:
+            raise LLMEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM,
+                name=str(endpoint_id),
+            )
+
+        _guard_custom_endpoint_base_url(
+            deployment_kind=existing.deployment_kind,
+            base_url=body.endpoint.data.route.base_url,
+        )
 
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,

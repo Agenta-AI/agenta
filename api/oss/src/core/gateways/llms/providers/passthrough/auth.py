@@ -11,6 +11,7 @@ from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMResolvedRoute
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import ResolvedSecret
 from oss.src.core.secrets.enums import SecretKind
+from oss.src.utils.env import env
 
 # provider_key -> (header name, value prefix) for a DIRECT provider whose auth header is not
 # "Authorization: Bearer " (OD16). Every provider absent from this table uses the default.
@@ -108,6 +109,11 @@ async def _vertex_auth(
             status_code=None,
             detail="vertex endpoint needs a service-account credential and extras.vertex_project",
         )
+    # Dev compose's local gateway mock cannot mint a Google token.  This narrow,
+    # explicitly opt-in sentinel still exercises the real Vertex route and static
+    # rewrite over a socket, without accepting it in a normal deployment.
+    if env.mock_gateways.enabled and credentials == "agenta-gateway-mock":
+        return {"Authorization": f"Bearer {env.mock_gateways.upstream_token}"}
     token, _project = await VertexBase().get_access_token_async(
         credentials=credentials, project_id=project
     )
