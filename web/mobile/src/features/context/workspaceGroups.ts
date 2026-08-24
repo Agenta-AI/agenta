@@ -25,3 +25,36 @@ export const groupByWorkspace = (projects: MobileProject[]): WorkspaceGroup[] =>
     }
     return [...byWorkspace.values()]
 }
+
+export interface OrganizationGroup {
+    organizationId: string
+    organizationName: string
+    /** Workspace to enter when this org is picked — the first one the server listed. */
+    workspaceId: string
+    /** Every project in the org, across all its workspaces, in server order. */
+    projects: MobileProject[]
+}
+
+/**
+ * Group the flat project list by ORGANIZATION — what the switcher offers, matching the desktop
+ * rail. Grouping by workspace instead rendered one indistinguishable "Default" row per org,
+ * because every org's default workspace carries that same name.
+ */
+export const groupByOrganization = (projects: MobileProject[]): OrganizationGroup[] => {
+    const byOrganization = new Map<string, OrganizationGroup>()
+    for (const project of projects) {
+        // A project with no workspace cannot be routed to (`/w/:id/p/:id`), so it is dropped.
+        if (!project.workspace_id) continue
+        // An org-less row still belongs to somebody: key it by workspace rather than drop it.
+        const key = project.organization_id ?? `workspace:${project.workspace_id}`
+        const group = byOrganization.get(key) ?? {
+            organizationId: key,
+            organizationName: project.organization_name ?? project.workspace_name ?? "Organization",
+            workspaceId: project.workspace_id,
+            projects: [],
+        }
+        group.projects.push(project)
+        byOrganization.set(key, group)
+    }
+    return [...byOrganization.values()]
+}

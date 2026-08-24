@@ -13,16 +13,16 @@ import {useRouter} from "next/router"
 import {fetchProjects, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
-import {groupByWorkspace} from "../context/workspaceGroups"
+import {groupByOrganization} from "../context/workspaceGroups"
 
 /**
  * The drawer's header switcher — the same designed component as the desktop rail, bound to
- * mobile's workspace/project data.
+ * mobile's project data.
  *
- * The trigger names the ORGANIZATION, as the desktop does. Labelling it by workspace read
- * "Default" on every account whose projects sit in the one default workspace, which is all of
- * them; the org is the name a person recognises. The second panel still moves between
- * workspaces, which is the routable unit here (`/w/:id/p/:id`).
+ * Both panels speak ORGANIZATIONS, as the desktop does. Listing workspaces instead rendered one
+ * indistinguishable "Default" row per org — every org's default workspace carries that name — so
+ * a multi-org account had no way to tell the rows apart. The workspace stays in the URL
+ * (`/w/:id/p/:id`); each project row routes with its OWN workspace id.
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
@@ -39,11 +39,19 @@ export const DrawerProjectSwitcher = ({
         staleTime: 30_000,
     })
     const groups = useMemo(
-        () => (query.data?.kind === "ok" ? groupByWorkspace(query.data.projects) : []),
+        () => (query.data?.kind === "ok" ? groupByOrganization(query.data.projects) : []),
         [query.data],
     )
 
-    const currentGroup = groups.find((group) => group.workspaceId === workspaceId)
+    // Resolve by the project in the URL: an org can hold several workspaces, and the workspace
+    // alone would not name the org on a route the switcher did not build.
+    const currentGroup =
+        groups.find((group) =>
+            group.projects.some(
+                (project) =>
+                    project.project_id === projectId && project.workspace_id === workspaceId,
+            ),
+        ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
     const currentProject = currentGroup?.projects.find(
         (project) => project.project_id === projectId,
     )
@@ -59,27 +67,26 @@ export const DrawerProjectSwitcher = ({
                 key: project.project_id,
                 name: project.project_name ?? "Project",
                 isActive: project.project_id === projectId,
-                onSelect: () => goTo(workspaceId, project.project_id),
+                onSelect: () => goTo(project.workspace_id ?? workspaceId, project.project_id),
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [currentGroup?.projects, projectId, workspaceId],
     )
 
-    const workspaces = useMemo<SwitcherEntry[]>(
+    const organizations = useMemo<SwitcherEntry[]>(
         () =>
             groups.map((group) => ({
-                key: group.workspaceId,
-                name: group.workspaceName,
-                isActive: group.workspaceId === workspaceId,
-                // Entering a workspace lands on its first project; the drawer's project panel
-                // then narrows within it.
+                key: group.organizationId,
+                name: group.organizationName,
+                isActive: group.organizationId === currentGroup?.organizationId,
+                // Entering an org lands on its first project; the project panel then narrows.
                 onSelect: () => {
                     const first = group.projects[0]
-                    if (first) goTo(group.workspaceId, first.project_id)
+                    if (first) goTo(first.workspace_id ?? group.workspaceId, first.project_id)
                 },
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [groups, workspaceId],
+        [groups, currentGroup?.organizationId],
     )
 
     const [createOpen, setCreateOpen] = useState(false)
@@ -123,8 +130,8 @@ export const DrawerProjectSwitcher = ({
                 projectLabel={currentProject?.project_name ?? "Select project"}
                 orgLabel={currentGroup?.organizationName ?? "Organization"}
                 projects={projects}
-                orgs={workspaces}
-                orgNoun="workspace"
+                orgs={organizations}
+                orgNoun="organization"
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
