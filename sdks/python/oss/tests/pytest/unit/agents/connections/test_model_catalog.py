@@ -116,6 +116,26 @@ def test_uncurated_pi_entry_is_valid_with_absent_curated_fields():
     assert sample.name is not None  # frontend falls back to name
 
 
+def test_gemini_3_7_flash_is_published_with_its_display_name():
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "gemini/gemini-3.7-flash"), None
+    )
+    assert entry is not None, "gemini/gemini-3.7-flash missing from the pi catalog"
+    assert entry["name"] == "Gemini 3.7 Flash"
+    assert entry["provider"] == "gemini"
+    assert entry["source"] == "curated"
+    assert entry["context_window"] == 1048576
+    assert entry["pricing"]["input_per_mtok"] == 0.75
+    assert entry["pricing"]["output_per_mtok"] == 3.75
+
+
+def test_gemini_3_7_flash_is_the_first_default_model():
+    assert PROVIDER_DEFAULT_MODELS["gemini"][0] == "gemini/gemini-3.7-flash"
+    defaults = harness_catalog_document()["pi_core"]["capabilities"]["default_models"]
+    assert defaults["gemini"][0] == "gemini/gemini-3.7-flash"
+
+
 def test_gemini_3_6_flash_is_published_with_its_display_name():
     # The model postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
     # `additions` list. Without an entry the picker can only show the bare id, which is the bug
