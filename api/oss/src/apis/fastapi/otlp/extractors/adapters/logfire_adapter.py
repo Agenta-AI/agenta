@@ -161,6 +161,8 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("gen_ai.usage.input_tokens", "ag.metrics.unit.tokens.prompt"),
     ("gen_ai.usage.output_tokens", "ag.metrics.unit.tokens.completion"),
     ("gen_ai.usage.total_tokens", "ag.metrics.unit.tokens.total"),
+    # See semconv.py: instrumentation-reported cost wins over any estimate.
+    ("gen_ai.usage.cost", "ag.metrics.unit.costs.total"),
     ("gen_ai.system", "ag.meta.system"),
     ("gen_ai.request.base_url", "ag.meta.request.base_url"),
     ("gen_ai.request.endpoint", "ag.meta.request.endpoint"),

@@ -652,6 +652,74 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("never sends a third-party collector credential to session APIs", async () => {
+    let engineCredential: string | undefined;
+    const s = await listen(async (_request, _emit, _signal, options) => {
+      engineCredential = options?.credential?.();
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const platformCalls: Array<{ url: string; authorization: string }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        platformCalls.push({
+          url,
+          authorization: headers.authorization ?? "",
+        });
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-third-party",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: "https://collector.example.test/v1/traces",
+                headers: {
+                  authorization: "Bearer collector-secret",
+                },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      });
+      await res.text();
+
+      assert.equal(engineCredential, "");
+      assert.equal(
+        platformCalls.some((call) =>
+          call.url.endsWith("/sessions/streams/heartbeat"),
+        ),
+        true,
+      );
+      assert.equal(
+        platformCalls.some(
+          (call) => call.authorization === "Bearer collector-secret",
+        ),
+        false,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
   it("persists a legacy image-only tail without attachment references", async () => {
     let runCalls = 0;
     const s = await listen(async () => {

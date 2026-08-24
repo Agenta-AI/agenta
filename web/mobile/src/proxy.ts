@@ -2,18 +2,21 @@ import {NextRequest, NextResponse} from "next/server"
 
 /**
  * Mobile device gate, reverse direction (agenta-mobile WP5): desktop devices
- * navigating /m are redirected to the desktop equivalent. DEFAULT OFF —
- * activates only when the deployment sets AGENTA_MOBILE_GATE=true (read at
- * request time; runtime-flippable on the standalone Node server).
+ * navigating /m are redirected to the desktop equivalent. DEFAULT ON — a
+ * deployment opts OUT with AGENTA_MOBILE_GATE=false (read at request time;
+ * runtime-flippable on the standalone Node server). The reverse direction has
+ * its own opt-out, AGENTA_MOBILE_REVERSE_GATE=false, which keeps the forward
+ * gate but lets a desktop browser open /m.
  *
  * COPY of @agenta/shared/src/utils/mobileGate (reverse-gate subset).
  * web/mobile deliberately has zero workspace deps until WP2 wires @agenta/*
  * into the mobile compose service and Dockerfile (see
  * docs/design/agenta-mobile/README.md "Open items"). When WP2 lands, replace
  * these copies with the @agenta/shared import and delete the twins.
- * Declared adaptations vs the canonical source: none (verbatim functions);
- * this file adds only the NextRequest adapter, basePath handling, and the
- * AGENTA_MOBILE_REVERSE_GATE read (the canonical source takes it as input).
+ * Declared adaptations vs the canonical source: none (verbatim functions,
+ * resolveGateEnabled included); this file adds only the NextRequest adapter,
+ * basePath handling, and the AGENTA_MOBILE_REVERSE_GATE read (the canonical
+ * source takes it as input).
  * Canonical tests: web/packages/agenta-shared/tests/unit/mobileGate.test.ts.
  */
 
@@ -24,6 +27,11 @@ const GATE_COOKIE_MAX_AGE = 60 * 60 * 24 * 180
 
 const MOBILE_UA_RE = /Android|iPhone|iPod|iPad|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i
 const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
+
+/** DEFAULT ON: only the exact string "false" turns a gate off. */
+function resolveGateEnabled(raw: string | undefined): boolean {
+    return raw !== "false"
+}
 
 function isMobileDevice(header: (name: string) => string | null): boolean {
     const hint = header("sec-ch-ua-mobile")
@@ -61,7 +69,7 @@ function stripViewParam(pathname: string, search: string): string {
 
 export function proxy(request: NextRequest) {
     try {
-        if (process.env.AGENTA_MOBILE_GATE !== "true") return NextResponse.next()
+        if (!resolveGateEnabled(process.env.AGENTA_MOBILE_GATE)) return NextResponse.next()
 
         const header = (name: string) => request.headers.get(name)
         if (!isDocumentNavigation(request.method, header)) return NextResponse.next()
@@ -93,7 +101,7 @@ export function proxy(request: NextRequest) {
         // Reverse gate off: keep the forward gate, but let anything reach /m (tablets and
         // desktop-UA browsers read as non-mobile). Checked after ?view=mobile so the opt-in
         // cookie is still set if the bounce is re-enabled.
-        if (process.env.AGENTA_MOBILE_REVERSE_GATE === "false") return NextResponse.next()
+        if (!resolveGateEnabled(process.env.AGENTA_MOBILE_REVERSE_GATE)) return NextResponse.next()
         if (isMobileDevice(header)) return NextResponse.next()
 
         return NextResponse.redirect(new URL(mapMobileToDesktop(pathname), request.url), 307)

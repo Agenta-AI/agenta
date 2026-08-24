@@ -69,6 +69,8 @@ interface DraftMessage {
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
+    /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
+    runErrorCode?: string
 }
 
 interface TranscriptIndex {
@@ -502,7 +504,12 @@ function applyEvent(
             // the same red bubble as a live one. First non-empty wins — a cascading later error
             // must not mask the root cause.
             const message = str(payload.message).trim()
-            if (message && !draft.runError) draft.runError = message
+            if (message && !draft.runError) {
+                draft.runError = message
+                // Code rides the same event; an older runner omits it (protocol.ts `error.code`).
+                if (typeof payload.code === "string" && payload.code.trim())
+                    draft.runErrorCode = payload.code
+            }
             return
         }
         case "usage": {
@@ -612,7 +619,11 @@ export function transcriptToMessages(
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
-            if (d.runError) metadata.runError = {message: d.runError}
+            if (d.runError)
+                metadata.runError = {
+                    message: d.runError,
+                    ...(d.runErrorCode ? {code: d.runErrorCode} : {}),
+                }
             return {
                 id: d.id,
                 role: d.role,

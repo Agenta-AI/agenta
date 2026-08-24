@@ -71,6 +71,8 @@ export function SecretForm({controller}: SecretFormProps) {
         jsonError,
         duplicateKeys,
         duplicateKeyError,
+        valueHidden,
+        keyPreview,
         onChangeName,
         onChangeSlug,
         onChangeFormat,
@@ -130,7 +132,7 @@ export function SecretForm({controller}: SecretFormProps) {
             <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
-                        <FieldLabel>Content</FieldLabel>
+                        <FieldLabel>{valueHidden ? "Replace content" : "Content"}</FieldLabel>
                         {duplicateKeyError && (
                             <span className="text-xs text-error">
                                 Duplicate keys are not allowed.
@@ -146,6 +148,14 @@ export function SecretForm({controller}: SecretFormProps) {
                         />
                     )}
                 </div>
+
+                {valueHidden ? (
+                    <HintText>
+                        {keyPreview
+                            ? `Value configured (${keyPreview}). Leave blank to keep it.`
+                            : "Value configured. Leave blank to keep it."}
+                    </HintText>
+                ) : null}
 
                 {format === CustomSecretFormat.Text ? (
                     <Textarea

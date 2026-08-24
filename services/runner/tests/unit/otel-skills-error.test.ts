@@ -210,7 +210,7 @@ describe("otel skills + error tracing", () => {
     expect(agentSpan?.status?.code).toBe(2);
   });
 
-  it("emits a standalone error span when the harness self-instruments (F-030, local Pi)", () => {
+  it("emits one usage-bearing fallback span when a self-instrumenting harness reports no batch", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "pi",
@@ -220,22 +220,26 @@ describe("otel skills + error tracing", () => {
       traceparent: `00-${"a".repeat(32)}-${"b".repeat(16)}-01`,
     });
     otel.start({ prompt: "hi" });
+    otel.setUsage({ input: 10, output: 5, total: 15, cost: 0.001 });
     // No invoke_agent span exists yet (span-less mode).
     expect(spans.find((s) => s.name === "invoke_agent")).toBeUndefined();
 
-    otel.recordError(
-      "pi_core: model authentication failed — add the project's Anthropic key.",
-      "anthropic",
-    );
+    const message =
+      "pi_core: model authentication failed — add the project's Anthropic key.";
+    otel.recordError(message, "anthropic");
+    otel.recordError(message, "anthropic");
 
-    const errSpan = spans.find((s) => s.name === "agent_error");
-    expect(errSpan).toBeTruthy();
-    expect(errSpan?.attributes["ag.exception.message"]).toContain(
+    const errorSpans = spans.filter((span) => span.name === "agent_error");
+    expect(errorSpans).toHaveLength(1);
+    const errSpan = errorSpans[0];
+    expect(errSpan.attributes["ag.exception.message"]).toContain(
       "model authentication failed",
     );
-    expect(errSpan?.attributes["ag.exception.provider"]).toBe("anthropic");
-    expect(errSpan?.exceptions.length).toBe(1);
-    expect(errSpan?.ended).toBe(true);
+    expect(errSpan.attributes["ag.exception.provider"]).toBe("anthropic");
+    expect(errSpan.attributes["gen_ai.usage.total_tokens"]).toBe(15);
+    expect(errSpan.attributes["gen_ai.usage.cost"]).toBe(0.001);
+    expect(errSpan.exceptions).toHaveLength(1);
+    expect(errSpan.ended).toBe(true);
   });
 
   it("falls back to the init model provider when recordError omits one", () => {

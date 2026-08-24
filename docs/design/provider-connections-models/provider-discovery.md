@@ -51,7 +51,7 @@ The current custom-provider record type already stores those fields today; see
 | Perplexity | API key | No, not through its public model endpoint | Catalog only through `GET /v1/models` | Refresh models. Do not report that the key is valid. |
 | MiniMax | API key | Not confirmed in its public API reference | No confirmed list endpoint | Keep Agenta's catalog and manual IDs. Do not use paid generation as a test. |
 | Anyscale | API key | No current hosted-model endpoint confirmed | No current hosted-model endpoint confirmed | Treat a user endpoint as custom. Keep manual IDs. |
-| OpenAI-compatible endpoint | API key plus base URL | Not guaranteed by the compatibility label | Try `GET {base_url}/models` | A 404 or 405 means discovery is unsupported, not that the key is invalid. |
+| OpenAI-compatible endpoint | Base URL; API key optional | Not guaranteed by the compatibility label, and nothing is proven when no key is sent | Try `GET {base_url}/models` | A 404 or 405 means discovery is unsupported, not that the key is invalid. A keyless endpoint can still list its models; that reaching it succeeded says nothing about a credential, so the probe reports the credential as unknown rather than valid. |
 
 Official references:
 

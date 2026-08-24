@@ -41,7 +41,7 @@ on:
         description: "Pinned app-image tag to patch to (never 'latest'; must differ from the template's app tag)"
         required: false
         type: string
-        default: "pr-5651-a46168f"
+        default: "pr-6235-927b6dc"
 
 permissions:
   contents: read
@@ -65,7 +65,7 @@ jobs:
       - name: Run consecutive clone cycles with the production scripts
         env:
           CYCLES: ${{ inputs.cycles || '3' }}
-          IMAGE_TAG: ${{ inputs.patch_tag || 'pr-5651-a46168f' }}
+          IMAGE_TAG: ${{ inputs.patch_tag || 'pr-6235-927b6dc' }}
           # One shared call-counter file so per-cycle API call deltas can be
           # computed here (every request in lib-graphql.sh appends a line).
           RW_CALLS_FILE: /tmp/rw-calls-48

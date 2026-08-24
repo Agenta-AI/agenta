@@ -21,7 +21,7 @@ import {
     describeSkill,
     describeTool,
     harnessMetaFor,
-    modelLabel,
+    modelDisplayName,
     permissionPolicyLabel,
     permissionPolicyOptionsForSchema,
     permissionPolicySchema,
@@ -120,7 +120,7 @@ export function useChatSlashCommands({
     const currentPermission = readRunnerPermission(config)
     const currentPermissionLabel =
         permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ?? "Allow reads"
-    const currentModelLabel = modelLabel(capabilities, currentHarness, currentModel) ?? currentModel
+    const currentModelLabel = modelDisplayName(capabilities, currentHarness, currentModel)
 
     /**
      * Policies this agent's schema permits, and whether it declares the field at all — the drawer
@@ -219,13 +219,18 @@ export function useChatSlashCommands({
         (modelId: string, option?: {metadata?: Record<string, unknown>}) => {
             const selection = pickerSelectionFrom(modelId, option?.metadata)
             const harness = selection.harness ?? currentHarness
-            const provider =
-                selection.provider ??
-                (selection.slug
-                    ? (vaultPickedProviderFamily(modelId, null, capabilities, harness) ??
-                      providerForModel(capabilities, harness, modelId))
-                    : providerForModel(capabilities, harness, modelId))
-            const label = modelLabel(capabilities, harness, modelId) ?? modelId
+            // A row naming a connection carries what to persist in its own metadata, but the two
+            // sources spell it differently: a connection row the already-resolved family, the
+            // fallback catalog menu the connection's raw KIND. Run a non-empty one through the
+            // drawer's resolver (a deployment kind is never a valid provider); an EMPTY one is the
+            // row saying the slug is the whole route (a custom OpenAI-compatible connection), so
+            // never re-derive a family behind its back.
+            const provider = selection.slug
+                ? selection.provider
+                    ? vaultPickedProviderFamily(modelId, selection.provider, capabilities, harness)
+                    : null
+                : (selection.provider ?? providerForModel(capabilities, harness, modelId))
+            const label = modelDisplayName(capabilities, harness, modelId)
             const base =
                 selection.harness && selection.harness !== currentHarness
                     ? (withHarnessKind(config, selection.harness) ?? config)

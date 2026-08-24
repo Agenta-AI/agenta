@@ -8,6 +8,9 @@ from urllib.parse import urlparse
 import click
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def get_metrics_keys_from_schema(schema=None, path=()) -> List[Dict[str, str]]:
@@ -182,6 +185,29 @@ def warn_deprecated_env_vars():
                 fg="yellow",
             )
         )
+
+
+def validate_platform_runtime_key():
+    """Stop startup when nothing can read a write-only secret.
+
+    A run reads a write-only secret only through a credential the platform runtime is
+    issued, and the runtime is recognized by a dedicated shared key. If that key is unset
+    or still uses the public placeholder from an example env file, platform runs cannot
+    read their write-only connections. The failure surfaces as "provide the provider key
+    in this run's environment", which is true for a standalone run and useless here, so
+    the cause has to be said where an operator will see it.
+    """
+    runtime_key = (env.agenta.services_internal_key or "").strip()
+    if runtime_key and runtime_key != "replace-me":
+        return
+
+    raise RuntimeError(
+        "AGENTA_SERVICES_INTERNAL_KEY is required and must not use the placeholder. "
+        "Without it, platform runs cannot receive the short-lived grant needed to read "
+        "write-only secrets. "
+        "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and the services "
+        "container."
+    )
 
 
 def validate_required_env_vars():

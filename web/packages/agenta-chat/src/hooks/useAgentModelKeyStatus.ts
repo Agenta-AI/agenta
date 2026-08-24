@@ -2,6 +2,7 @@
 import {useMemo} from "react"
 
 import {
+    hasStoredKey,
     providerConnectionsAtom,
     providerKeySetupDoneAtom,
     standardSecretsAtom,
@@ -131,7 +132,7 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             provider,
             model,
             harness,
-            hasKey: !!providerEntry?.key,
+            hasKey: hasStoredKey(providerEntry),
             providerEntry,
             loading,
             gateActive,

@@ -4,10 +4,11 @@
  * The default agent config carries a server-side overlay of playground-only tools, skills, and
  * sandbox permissions that help the assistant build and revise the agent. None of it is part of the
  * published agent (the backend strips it on commit). This hook reads that overlay (keyed by the open
- * revision) plus the user's build-kit on/off toggle, and returns:
+ * revision) plus the user's build-kit state — the master on/off and the platform ops switched off
+ * individually — and returns:
  *   - `hasBuildKitOverlay`: whether to render the build-kit block / extend the Advanced section,
- *   - `buildKitSection`: the read-only drawer block (platform tools, embedded tools/skills, sandbox
- *     permissions) with the enable/disable switch,
+ *   - `buildKitSection`: the drawer block (platform tools with a switch each, read-only embedded
+ *     tools/skills and sandbox permissions) under the master enable/disable switch,
  *   - `permissionOverrideHint`: the inline warning to show above SandboxPermissionControl when the
  *     build kit overrides one of the user's permission values.
  *
@@ -18,7 +19,9 @@ import {useMemo} from "react"
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {Wrench} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
@@ -98,16 +101,13 @@ export function useBuildKit({
     revisionId,
     sandboxPermissions,
     disabled,
-    enabledOverride,
+    stateOverride,
 }: {
     revisionId: string | null
     sandboxPermissions: Record<string, unknown> | null
     disabled?: boolean
-    /**
-     * When set, the enable toggle reads/writes this buffer instead of the persisted atom — so a
-     * section drawer can scope the change to its draft and commit it to the atom only on Save.
-     */
-    enabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    /** When set, the switches read/write this draft buffer instead of the persisted atoms. */
+    stateOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
 }) {
     const agentTemplateOverlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -115,8 +115,19 @@ export function useBuildKit({
     const [atomBuildKitEnabled, setAtomBuildKitEnabled] = useAtom(
         useMemo(() => workflowBuildKitEnabledAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const buildKitEnabled = enabledOverride ? enabledOverride.value : atomBuildKitEnabled
-    const setBuildKitEnabled = enabledOverride ? enabledOverride.onChange : setAtomBuildKitEnabled
+    const [atomDisabledOps, setAtomDisabledOps] = useAtom(
+        useMemo(() => workflowBuildKitDisabledOpsAtomFamily(revisionId ?? ""), [revisionId]),
+    )
+    const buildKitEnabled = stateOverride ? stateOverride.value.enabled : atomBuildKitEnabled
+    const disabledOps = stateOverride ? stateOverride.value.disabledOps : atomDisabledOps
+    const write = (next: BuildKitUiState) => {
+        if (stateOverride) stateOverride.onChange(next)
+        else {
+            setAtomBuildKitEnabled(next.enabled)
+            setAtomDisabledOps(next.disabledOps)
+        }
+    }
+    const setDisabledOps = (next: string[]) => write({enabled: buildKitEnabled, disabledOps: next})
 
     const overlayTools = useMemo(
         () => (Array.isArray(agentTemplateOverlay?.tools) ? agentTemplateOverlay.tools : []),
@@ -156,12 +167,31 @@ export function useBuildKit({
         [buildKitEnabled, sandboxPermissions, overlayPermissions],
     )
 
+    const platformToolRows = useMemo(
+        () =>
+            platformOverlayTools.map((tool) => {
+                const op = typeof tool.op === "string" ? tool.op : "platform tool"
+                return {
+                    op,
+                    enabled: !disabledOps.includes(op),
+                    descriptor: describeBuildKitPlatformTool(tool),
+                }
+            }),
+        [platformOverlayTools, disabledOps],
+    )
+    const toggleTool = (op: string, next: boolean) =>
+        setDisabledOps(next ? disabledOps.filter((entry) => entry !== op) : [...disabledOps, op])
+    const setAllTools = (next: boolean) =>
+        setDisabledOps(next ? [] : platformToolRows.map((tool) => tool.op))
+
     const buildKitSection = hasBuildKitOverlay ? (
         <BuildKitSection
             enabled={buildKitEnabled}
-            onEnabledChange={setBuildKitEnabled}
+            onEnabledChange={(next) => write({enabled: next, disabledOps})}
             disabled={disabled}
-            platformTools={platformOverlayTools.map(describeBuildKitPlatformTool)}
+            platformTools={platformToolRows}
+            onToggleTool={toggleTool}
+            onSetAllTools={setAllTools}
             embeddedTools={embeddedOverlayTools.map((tool) => describeBuildKitEmbed(tool, "tool"))}
             embeddedSkills={embeddedOverlaySkills.map((skill) =>
                 describeBuildKitEmbed(skill, "skill"),

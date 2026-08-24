@@ -16,14 +16,22 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { findSwallowedPiError } from "../../src/engines/sandbox_agent/pi-error.ts";
+import {
+  capturePiTranscriptCursor,
+  findSwallowedPiError,
+  isOnlyHarnessRetryNotices,
+} from "../../src/engines/sandbox_agent/pi-error.ts";
+import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
 // The transcript encoder is shared with the silent-turn suites, so the format lives in one
 // place: two hand-rolled copies could drift together and both stop matching what Pi writes.
-import { writePiTranscript as writeTranscript } from "../utils/silent-turn.ts";
+import {
+  piTranscriptFileName,
+  writePiTranscript as writeTranscript,
+} from "../utils/silent-turn.ts";
 
 const dirs: string[] = [];
 
@@ -41,6 +49,8 @@ afterEach(() => {
 describe("findSwallowedPiError", () => {
   it("returns the last assistant errorMessage from the session-workspace transcript", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-quota");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-quota", [
       {
         type: "message",
@@ -58,7 +68,7 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    const error = findSwallowedPiError(cwd);
+    const error = findSwallowedPiError(cwd, cursor);
     assert.equal(
       error,
       "You exceeded your current quota, please check your plan.",
@@ -67,6 +77,8 @@ describe("findSwallowedPiError", () => {
 
   it("returns undefined for a successful turn", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-ok");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-ok", [
       {
         type: "message",
@@ -78,11 +90,13 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
   });
 
   it("does not surface an error cleared by a later successful turn", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-recovered");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-recovered", [
       {
         type: "message",
@@ -103,11 +117,44 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
+  });
+
+  it("reads only the records appended after an existing transcript cursor", () => {
+    const cwd = tempDir();
+    writeTranscript(cwd, "sess-continued", [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "古いエラー",
+        },
+      },
+    ]);
+    const cursor = capturePiTranscriptCursor(cwd, "sess-continued");
+    assert.ok(cursor);
+    appendFileSync(
+      join(piSessionWorkspaceDir(cwd), piTranscriptFileName("sess-continued")),
+      `${JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "current error",
+        },
+      })}\n`,
+    );
+
+    assert.equal(findSwallowedPiError(cwd, cursor), "current error");
   });
 
   it("ignores transcripts whose session record was stamped with a different cwd", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-stale");
+    assert.ok(cursor);
     writeTranscript(
       cwd,
       "sess-stale",
@@ -125,10 +172,58 @@ describe("findSwallowedPiError", () => {
       "/tmp/some-other-cwd",
     );
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
   });
 
   it("returns undefined when the transcript dir is absent", () => {
-    assert.equal(findSwallowedPiError(tempDir()), undefined);
+    const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-missing");
+    assert.ok(cursor);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
+  });
+});
+
+/**
+ * The recovery above only runs on a turn with no model output. pi-acp renders Pi's auto-retry
+ * events as assistant message chunks, so a retried provider refusal leaves the turn holding
+ * chatter and nothing else — which used to look like a real answer and skip the recovery, with
+ * the user seeing "Retrying (attempt 1/3, waiting 2s)..." as the agent's entire reply.
+ */
+describe("isOnlyHarnessRetryNotices", () => {
+  it("recognizes the notices pi-acp renders, alone or in sequence", () => {
+    // Verbatim from pi-acp's `formatAutoRetryMessage` / `auto_retry_end` handling.
+    assert.equal(
+      isOnlyHarnessRetryNotices("Retrying (attempt 1/3, waiting 2s)..."),
+      true,
+    );
+    assert.equal(isOnlyHarnessRetryNotices("Retrying..."), true);
+    assert.equal(isOnlyHarnessRetryNotices("Retry finished, resuming."), true);
+    assert.equal(
+      isOnlyHarnessRetryNotices(
+        "Retrying (attempt 1/3, waiting 2s)...\nRetry finished, resuming.\nRetrying (attempt 2/3, waiting 4s)...",
+      ),
+      true,
+    );
+  });
+
+  it("never discards a turn that produced real text", () => {
+    // The whole risk of this predicate: a turn with a genuine answer must stay a success, even
+    // when the answer sits next to retry chatter or happens to talk about retrying.
+    assert.equal(
+      isOnlyHarnessRetryNotices(
+        "Retrying (attempt 1/3, waiting 2s)...\nHere is the summary you asked for.",
+      ),
+      false,
+    );
+    assert.equal(
+      isOnlyHarnessRetryNotices("I will keep retrying the failed request..."),
+      false,
+    );
+    assert.equal(isOnlyHarnessRetryNotices("Retrying the deploy now."), false);
+  });
+
+  it("answers false for an empty turn, which the plain emptiness check already covers", () => {
+    assert.equal(isOnlyHarnessRetryNotices(""), false);
+    assert.equal(isOnlyHarnessRetryNotices("   \n  "), false);
   });
 });

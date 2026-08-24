@@ -17,7 +17,8 @@ import {
 import {slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
-import {isFlatPrimitiveObject, objectToRows, rowsToObject, type KvRow} from "./primitives"
+import {buildSecretContent, parseFlatJson} from "./content"
+import {objectToRows, rowsToObject, type KvRow} from "./primitives"
 
 export type JsonView = "grid" | "json"
 
@@ -52,6 +53,10 @@ export interface SecretFormController {
     duplicateKeys: Set<string>
     /** A duplicate key is visible and blocking in the JSON grid. */
     duplicateKeyError: boolean
+    /** Editing a write-only secret: nothing is prefilled and blank keeps the stored value. */
+    valueHidden: boolean
+    /** Masked hint for the stored value, when the backend supplies one. */
+    keyPreview?: string
     saving: boolean
     okDisabled: boolean
     onChangeName: (next: string) => void
@@ -85,14 +90,19 @@ export function useSecretForm({
     const [jsonView, setJsonView] = useState<JsonView>("grid")
     const [jsonText, setJsonText] = useState("{}")
     const [jsonError, setJsonError] = useState<string | null>(null)
+    const [replacementSupplied, setReplacementSupplied] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const isEditing = !!initialSecret?.id
+    // A write-only record returns no content, so the form is replace-only.
+    const valueHidden = isEditing && initialSecret?.writeOnly === true
 
     useEffect(() => {
         if (!open) return
         setJsonView("grid")
         setJsonError(null)
+        setJsonText("{}")
+        setReplacementSupplied(false)
         setSlugTouched(false)
         if (initialSecret) {
             setName(initialSecret.name ?? "")
@@ -100,7 +110,11 @@ export function useSecretForm({
             setFormat(initialSecret.format)
             if (initialSecret.format === CustomSecretFormat.Json) {
                 setTextValue("")
-                setKvRows(objectToRows(initialSecret.content))
+                setKvRows(
+                    initialSecret.content == null
+                        ? [{key: "", value: ""}]
+                        : objectToRows(initialSecret.content),
+                )
             } else {
                 setTextValue(typeof initialSecret.content === "string" ? initialSecret.content : "")
                 setKvRows([{key: "", value: ""}])
@@ -142,21 +156,34 @@ export function useSecretForm({
         setKvRows([{key: "", value: ""}])
         setJsonView("grid")
         setJsonError(null)
+        setReplacementSupplied(false)
+    }
+
+    const onChangeTextValue = (next: string) => {
+        setReplacementSupplied(true)
+        setTextValue(next)
     }
 
     const updateRow = (idx: number, patch: Partial<KvRow>) => {
+        setReplacementSupplied(true)
         setKvRows((rows) => rows.map((r, i) => (i === idx ? {...r, ...patch} : r)))
     }
 
     // Editing the raw JSON clears the last parse error (matches the Settings modal).
     const onChangeJsonText = (next: string) => {
+        if (next !== jsonText) setReplacementSupplied(true)
         setJsonText(next)
         setJsonError(null)
     }
 
-    const addRow = () => setKvRows((rows) => [...rows, {key: "", value: ""}])
-    const removeRow = (idx: number) =>
+    const addRow = () => {
+        setReplacementSupplied(true)
+        setKvRows((rows) => [...rows, {key: "", value: ""}])
+    }
+    const removeRow = (idx: number) => {
+        setReplacementSupplied(true)
         setKvRows((rows) => (rows.length === 1 ? rows : rows.filter((_, i) => i !== idx)))
+    }
 
     // Grid -> JSON: serialize the native object so the editor shows real types.
     const onSwitchToJson = () => {
@@ -167,40 +194,14 @@ export function useSecretForm({
 
     // JSON -> Grid: parse, enforce flat-primitive shape, then hydrate the rows.
     const onSwitchToGrid = () => {
-        if (syncJsonToRows()) setJsonView("grid")
-    }
-
-    const syncJsonToRows = (): boolean => {
-        let parsed: unknown
-        try {
-            parsed = JSON.parse(jsonText || "{}")
-        } catch {
-            setJsonError("Invalid JSON.")
-            return false
+        const parsed = parseFlatJson(jsonText)
+        if ("error" in parsed) {
+            setJsonError(parsed.error)
+            return
         }
-        if (!isFlatPrimitiveObject(parsed)) {
-            setJsonError("Must be a flat object of primitives — no nesting or arrays.")
-            return false
-        }
-        setKvRows(objectToRows(parsed))
+        setKvRows(objectToRows(parsed.value))
         setJsonError(null)
-        return true
-    }
-
-    const buildContent = (): CustomSecretContent | null => {
-        if (format === CustomSecretFormat.Text) {
-            return textValue
-        }
-        if (jsonView === "json" && !syncJsonToRows()) {
-            return null
-        }
-        const named = kvRows.filter((r) => r.key.trim())
-        const keys = named.map((r) => r.key.trim())
-        if (new Set(keys).size !== keys.length) {
-            message.error("Duplicate keys are not allowed.")
-            return null
-        }
-        return rowsToObject(named)
+        setJsonView("grid")
     }
 
     const submit = async () => {
@@ -209,9 +210,30 @@ export function useSecretForm({
             message.error("Name is required.")
             return
         }
-        const content = buildContent()
-        if (content === null) return
-        if (typeof content === "string" ? !content.trim() : Object.keys(content).length === 0) {
+        const result = buildSecretContent({
+            format,
+            originalFormat: initialSecret?.format ?? CustomSecretFormat.Text,
+            valueHidden,
+            replacementSupplied,
+            textValue,
+            jsonView,
+            jsonText,
+            kvRows,
+        })
+        if ("error" in result) {
+            if (format === CustomSecretFormat.Json) setJsonError(result.error)
+            message.error(result.error)
+            return
+        }
+        const content = result.content
+        // `undefined` means "keep the stored value" on a write-only secret; only a supplied
+        // value has to be non-empty.
+        if (
+            content !== undefined &&
+            (typeof content === "string"
+                ? !content.trim()
+                : !content || Object.keys(content).length === 0)
+        ) {
             message.error("Content is required.")
             return
         }
@@ -233,7 +255,7 @@ export function useSecretForm({
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
-                content,
+                content: content ?? "",
             })
         } catch (error) {
             console.error(error)
@@ -274,12 +296,14 @@ export function useSecretForm({
         jsonError,
         duplicateKeys,
         duplicateKeyError,
+        valueHidden,
+        keyPreview: initialSecret?.keyPreview,
         saving,
         okDisabled,
         onChangeName,
         onChangeSlug,
         onChangeFormat,
-        setTextValue,
+        setTextValue: onChangeTextValue,
         updateRow,
         addRow,
         removeRow,

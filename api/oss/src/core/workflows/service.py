@@ -141,7 +141,7 @@ from oss.src.core.embeds.utils import (
     find_string_embeds,
 )
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (
@@ -2804,11 +2804,15 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
+        # The grant lets the run's vault reads receive write-only secret values in
+        # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
+        # but a service running with auth middleware disabled uses this token directly.
         secret_token = await sign_secret_token(
             user_id=str(user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
@@ -2929,6 +2933,7 @@ class WorkflowsService:
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
