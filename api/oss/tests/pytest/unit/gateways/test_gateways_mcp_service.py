@@ -305,10 +305,10 @@ async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace(monke
     assert len(agenta) == 1
     assert agenta[0].id is None
     assert agenta[0].namespace.value == "builtin"
-    # The provider segment and the dialable URL are what make the entry reachable —
-    # both were silently dropped once by a rename, because the DTO ignores extras.
+    # The provider segment selects the in-process mock adapter; no dialable URL is
+    # involved for a generated mock entry.
     assert agenta[0].provider_key == "agenta"
-    assert agenta[0].data.route.base_url == env.mock_gateways.mcp_url
+    assert agenta[0].data.route.base_url is None
 
 
 @pytest.mark.asyncio
@@ -327,7 +327,7 @@ async def test_list_endpoints_adds_standard_mock_only_with_project_credential(
     ]
     assert len(standard) == 1
     assert standard[0].id is None
-    assert standard[0].data.route.base_url == env.mock_gateways.mcp_url
+    assert standard[0].data.route.base_url is None
 
 
 @pytest.mark.asyncio
@@ -586,7 +586,7 @@ async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_reso
     resolver = MockResolver()
     policy = MockPolicyService()
     service = _relay_service(
-        resolver=resolver, policy=policy, adapters={"mock_http": adapter}
+        resolver=resolver, policy=policy, adapters={"mock": adapter}
     )
 
     result = await service.relay(

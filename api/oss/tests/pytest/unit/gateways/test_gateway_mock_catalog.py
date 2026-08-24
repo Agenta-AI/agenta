@@ -6,6 +6,7 @@ from oss.src.core.gateways.llms.catalog import (
     builtin_llm_endpoint,
     standard_llm_endpoint,
 )
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.utils.env import env
 
 
@@ -17,7 +18,7 @@ def test_llm_mock_entries_are_absent_without_the_explicit_switch(monkeypatch):
     assert standard_llm_endpoint(provider_key="mock") is None
 
 
-def test_llm_mock_entries_have_distinct_namespaces_profiles_and_owners(monkeypatch):
+def test_llm_mock_entries_have_distinct_namespaces_and_use_mock_adapter(monkeypatch):
     monkeypatch.setattr(env.mock_gateways, "enabled", True)
 
     builtin = builtin_llm_endpoint(provider_key="agenta")
@@ -25,13 +26,15 @@ def test_llm_mock_entries_have_distinct_namespaces_profiles_and_owners(monkeypat
 
     assert builtin is not None
     assert builtin.namespace == GatewayEndpointNamespace.BUILTIN
-    assert builtin.data.route.headers["X-Agenta-Mock-Profile"] == "llm-builtin-agenta"
-    assert builtin.data.route.headers["Authorization"].startswith("Bearer ")
+    assert builtin.deployment_kind is LLMDeploymentKind.MOCK
+    assert builtin.data.route.base_url is None
+    assert builtin.data.route.headers is None
     assert standard is not None
     assert standard.namespace == GatewayEndpointNamespace.STANDARD
     assert standard.provider_key == "mock"
-    assert standard.data.route.headers["X-Agenta-Mock-Profile"] == "llm-standard-mock"
-    assert "Authorization" not in standard.data.route.headers
+    assert standard.deployment_kind is LLMDeploymentKind.MOCK
+    assert standard.data.route.base_url is None
+    assert standard.data.route.headers is None
 
 
 class _MCPService:

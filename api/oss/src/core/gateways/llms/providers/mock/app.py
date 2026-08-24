@@ -36,7 +36,9 @@ def _profile(request: Request) -> str:
 
 
 def _protected(request: Request) -> Response | None:
-    if not env.mock_gateways.enabled:
+    # Direct mock contract tests remain unauthenticated.  Gateway acceptance
+    # selects a named profile, which opts into the credential-injection proof.
+    if not env.mock_gateways.enabled or "X-Agenta-Mock-Profile" not in request.headers:
         return None
     expected = f"Bearer {env.mock_gateways.upstream_token}"
     if request.headers.get("Authorization") != expected:

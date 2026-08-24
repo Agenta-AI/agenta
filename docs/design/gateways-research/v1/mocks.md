@@ -1,15 +1,15 @@
 # Gateway mocks
 
 The local development stack must exercise every gateway namespace without calling a
-third-party service.  The two compose services are therefore product test doubles, not
-incidental fixtures:
+third-party service. Generated mock providers use in-process adapters. The two compose
+services remain test doubles for configured custom endpoints:
 
 - `mock-llm-gateway` speaks the OpenAI-compatible protocol on the Docker network.
 - `mock-mcp-gateway` speaks MCP Streamable HTTP on the Docker network.
 
-Their in-process adapters and their deployable forms share the same control behaviour.  Unit
-and contract tests use the adapters; integration and acceptance tests use the compose services
-over real sockets.
+Their in-process adapters and deployable forms share the same control behaviour. Unit and
+generated-catalogue acceptance tests use the adapters; custom-endpoint acceptance tests use
+the compose services over real sockets.
 
 This document defines the catalogue entries that make the mocks reachable through every
 gateway namespace.  They are generated in development only.  Production neither lists them
@@ -24,7 +24,6 @@ nor accepts their routes.
 | LLM | `standard` | `mock` | LLM mock | Generated standard-provider lookup and project-owned credential resolution. |
 | LLM | `custom` | test-created endpoint | LLM mock | Stored endpoint lookup, custom model restrictions, and direct-secret injection. |
 | MCP | `builtin` | `agenta` | MCP mock | Agenta-owned builtin tools. |
-| MCP | `builtin` | `composio` | local Composio-shaped fake over the MCP mock | Brokered connection lookup and brokered-auth handling, without a Composio account. |
 | MCP | `builtin` | `mock` | MCP mock | A deliberately local builtin provider, independent of the Agenta provider grammar. |
 | MCP | `standard` | `mock` | MCP mock | Generated standard-target lookup and project-owned credential resolution. |
 | MCP | `custom` | test-created endpoint | MCP mock | Stored server lookup, direct auth, and tool policy. |
@@ -48,7 +47,6 @@ families as future real entries; no test-only shortcut route is permitted.
 | LLM standard | `/gateways/llms/standard/mock/v1/{operation}` |
 | LLM custom | `/gateways/llms/custom/{slug}/v1/{operation}` |
 | MCP builtin Agenta or mock | `/gateways/mcps/builtin/{provider}/{slug}` |
-| MCP builtin Composio | `/gateways/mcps/builtin/composio/{integration}/{connection}` |
 | MCP standard | `/gateways/mcps/standard/mock` |
 | MCP custom | `/gateways/mcps/custom/{slug}` |
 
@@ -57,18 +55,17 @@ credential-owner boundary that matters here; adding Agenta-provided Gemini and B
 later extends this provider rather than inventing another namespace.  `builtin/mock` stays
 available as the deterministic local control case.
 
-The standard entries are generated, never persisted.  The custom entries are created through
-the existing endpoint APIs inside each test and deleted with the test project.  Builtin entries
-are generated, never persisted.  The Composio case creates a normal local connection record but
-points its adapter at the local fake; it must never use `COMPOSIO_API_URL` or a real token in a
-test.
+The standard entries are generated, never persisted. The custom entries are created through
+the existing endpoint APIs inside each test and deleted with the test project. Builtin entries
+are generated, never persisted. Composio remains a real brokered integration: the mock
+catalogue never invents a Composio connection, route, or credential.
 
 ## Configuration and isolation
 
 Introduce one explicit development switch, `AGENTA_GATEWAYS_MOCKS_ENABLED`.  It defaults to
-false and is set to true only by the OSS and EE development compose profiles.  It controls the
-generated mock entries and the local Composio fake route.  The two mock service URLs remain
-configuration values:
+false and is set to true only by the OSS and EE development compose profiles. It controls the
+generated mock entries. The two mock service URLs remain configuration values for custom
+endpoint tests:
 
 ```text
 AGENTA_MOCK_LLM_GATEWAY_URL=http://mock-llm-gateway:9091
@@ -76,10 +73,9 @@ AGENTA_MOCK_MCP_GATEWAY_URL=http://mock-mcp-gateway:9092
 ```
 
 The compose API service and mock services also share a non-secret test token through an
-environment variable dedicated to development.  The upstream validates that it receives the
-expected injected credential but never returns the credential in a response, log, or assertion
-message.  This lets the tests establish the important property: the caller's gateway token is
-not forwarded upstream, while the correct upstream credential is.
+environment variable dedicated to development. The custom mock upstream validates that it
+receives the expected injected credential but never returns the credential in a response, log,
+or assertion message.
 
 Project-owned mock credentials are created by test fixtures for standard and custom cases.
 They live only for the test project and are removed in fixture cleanup.  Builtin Agenta and mock
@@ -97,12 +93,11 @@ The current shared controls remain the base contract:
 The deployable services need two observable-but-safe assertions for acceptance:
 
 1. a protected mode that rejects a missing or wrong injected upstream credential; and
-2. a request marker in the normal response that identifies the selected mock provider/profile,
+2. a response marker for a configured custom mock server,
    never the credential value.
 
-The marker distinguishes the Agenta, builtin mock, standard mock, custom, and local-Composio
-paths without adding a test-only gateway bypass.  Forced error and slow modes must be usable on
-each path so timeout and error mapping are not only tested on custom endpoints.
+Forced error and slow modes must be usable on each path so timeout and error mapping are not
+only tested on custom endpoints.
 
 ## Test layers
 
@@ -113,12 +108,13 @@ each path so timeout and error mapping are not only tested on custom endpoints.
 | Acceptance | A real authenticated HTTP/MCP call for every row in the development matrix, plus streaming, errors, timeouts, auth injection, and policy refusals | Full OSS and EE dev compose stacks |
 
 Acceptance is parameterised by namespace/provider rather than copied into unrelated tests.  A
-case declares its endpoint factory, expected upstream profile, auth mode, and supported
+case declares its endpoint factory, auth mode, and supported
 operations.  The shared assertions then cover, where the protocol supports them:
 
 - unauthenticated and unauthorized calls fail before the mock is reached;
-- the selected endpoint reaches the expected local mock profile;
-- the caller gateway token is never accepted as an upstream credential;
+- the generated mock endpoints resolve to the in-process mock adapter;
+- a custom mock endpoint reaches its configured local mock server;
+- the custom mock upstream accepts only its configured upstream credential;
 - standard and custom paths use a project-owned credential, while builtin paths do not;
 - LLM streaming is byte-for-byte and non-streaming responses preserve status and body;
 - MCP `tools/list`, `tools/call`, tool allowlists, and JSON-RPC errors preserve their contract;
@@ -131,7 +127,7 @@ EE entitlement: these are development test doubles for shared gateway behaviour.
 ## Work packages
 
 - **WP28 — Generated development mock catalogue and provider routing** implements the dev-only
-  entries, all six route families, and the local Composio fake boundary.
+  entries and all six route families.
 - **WP29 — Gateway mock acceptance matrix** implements the fixtures and the unit, integration,
   and compose-acceptance coverage described above.
 

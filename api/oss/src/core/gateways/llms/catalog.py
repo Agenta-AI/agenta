@@ -25,15 +25,6 @@ from oss.src.utils.env import env
 _MOCK_MODEL = "mock/echo"
 
 
-def _mock_route(*, profile: str) -> LLMEndpointRoute:
-    """A generated entry always talks to the deployable mock, never the in-process
-    adapter.  The profile is observable but deliberately non-secret."""
-    return LLMEndpointRoute(
-        base_url=env.mock_gateways.llm_url,
-        headers={"X-Agenta-Mock-Profile": profile},
-    )
-
-
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
     """Strip the provider's own litellm routing prefix, if the catalogued id carries one.
 
@@ -58,10 +49,10 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
             slug="mock",
             header=Header(name="mock"),
             provider_key="mock",
-            deployment_kind=LLMDeploymentKind.CUSTOM,
+            deployment_kind=LLMDeploymentKind.MOCK,
             namespace=GatewayEndpointNamespace.STANDARD,
             data=LLMEndpointData(
-                route=_mock_route(profile="llm-standard-mock"),
+                route=LLMEndpointRoute(),
                 models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
             ),
         )
@@ -118,16 +109,10 @@ def builtin_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
         slug=provider_key,
         header=Header(name=provider_key),
         provider_key=provider_key,
-        deployment_kind=LLMDeploymentKind.CUSTOM,
+        deployment_kind=LLMDeploymentKind.MOCK,
         namespace=GatewayEndpointNamespace.BUILTIN,
         data=LLMEndpointData(
-            route=LLMEndpointRoute(
-                base_url=env.mock_gateways.llm_url,
-                headers={
-                    "Authorization": f"Bearer {env.mock_gateways.upstream_token}",
-                    "X-Agenta-Mock-Profile": f"llm-builtin-{provider_key}",
-                },
-            ),
+            route=LLMEndpointRoute(),
             models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
         ),
     )

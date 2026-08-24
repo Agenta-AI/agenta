@@ -71,9 +71,8 @@ from oss.src.utils.env import env
 # Adapter selection (§8 step 5). `builtin` dispatches on its provider segment, since
 # the namespace only says whose account pays, not which backend answers (D30).
 _BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
-    AGENTA_PROVIDER: "mock_http",
-    COMPOSIO_PROVIDER: "mock_http",
-    MOCK_PROVIDER: "mock_http",
+    AGENTA_PROVIDER: "mock",
+    MOCK_PROVIDER: "mock",
 }
 
 
@@ -81,7 +80,7 @@ def _adapter_key(
     *, namespace: GatewayEndpointNamespace, provider: Optional[str]
 ) -> str:
     if namespace == GatewayEndpointNamespace.BUILTIN:
-        if provider == COMPOSIO_PROVIDER and not env.mock_gateways.enabled:
+        if provider == COMPOSIO_PROVIDER:
             return "composio"
         key = _BUILTIN_ADAPTER_KEYS.get(provider or "")
         if key is None:
@@ -90,7 +89,7 @@ def _adapter_key(
     if namespace == GatewayEndpointNamespace.CUSTOM:
         return "http"
     if namespace == GatewayEndpointNamespace.STANDARD and provider == MOCK_PROVIDER:
-        return "mock_http"
+        return "mock"
     raise MCPEndpointNotFoundError(namespace=namespace, name=provider or "")
 
 
@@ -292,12 +291,7 @@ class MCPGatewayService:
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
                 provider_key=AGENTA_PROVIDER,
-                data=MCPEndpointData(
-                    route=MCPEndpointRoute(
-                        base_url=env.mock_gateways.mcp_url,
-                        headers={"X-Agenta-Mock-Profile": "mcp-builtin-agenta"},
-                    )
-                ),
+                data=MCPEndpointData(route=MCPEndpointRoute()),
             )
         ]
 
@@ -311,12 +305,7 @@ class MCPGatewayService:
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
                 provider_key=MOCK_PROVIDER,
-                data=MCPEndpointData(
-                    route=MCPEndpointRoute(
-                        base_url=env.mock_gateways.mcp_url,
-                        headers={"X-Agenta-Mock-Profile": "mcp-builtin-mock"},
-                    )
-                ),
+                data=MCPEndpointData(route=MCPEndpointRoute()),
             )
         ]
 
@@ -327,12 +316,7 @@ class MCPGatewayService:
             auth_mode=MCPAuthScheme.API_KEY,
             namespace=GatewayEndpointNamespace.STANDARD,
             provider_key=MOCK_PROVIDER,
-            data=MCPEndpointData(
-                route=MCPEndpointRoute(
-                    base_url=env.mock_gateways.mcp_url,
-                    headers={"X-Agenta-Mock-Profile": "mcp-standard-mock"},
-                )
-            ),
+            data=MCPEndpointData(route=MCPEndpointRoute()),
         )
 
     def _builtin_endpoint(self, connection: Connection) -> MCPEndpoint:
@@ -478,6 +462,15 @@ class MCPGatewayService:
         # 5. Dispatch. Usage is recorded even on failure.
         route = self._route_for(target)
         adapter_key = _adapter_key(namespace=namespace, provider=provider)
+        # A stored custom endpoint can deliberately target the development mock.
+        # Keep it on the real socket adapter so its credential/profile assertion is
+        # exercised, while all other custom URLs retain the normal SSRF-protected path.
+        if (
+            namespace == GatewayEndpointNamespace.CUSTOM
+            and self._mocks_enabled()
+            and route.url.rstrip("/") == env.mock_gateways.mcp_url.rstrip("/")
+        ):
+            adapter_key = "mock_http"
         try:
             result = await self.upstream_registry.get(adapter_key).relay(
                 route=route,
@@ -687,16 +680,29 @@ class MCPGatewayService:
             )
             return MCPDirectAuth(secret=secret)
 
-        # API_KEY: no static MCP secret kind exists yet (D14) — deferred with its kind.
-        raise NotImplementedError("api_key scheme MCP endpoints are deferred (D14)")
+        if endpoint.auth_mode == MCPAuthScheme.API_KEY:
+            if endpoint.secret_id is None:
+                raise SecretNotFoundError(
+                    missing=SecretOwnerKind.PROJECT,
+                    target=_target_path(
+                        namespace=target.namespace,
+                        provider=target.provider,
+                        integration=target.integration,
+                        name=target.name,
+                    ),
+                    mode=SecretMode.PROJECT_ONLY,
+                )
+            secret = await self.resolver.resolve(
+                scope=scope,
+                ref=BoundSecretRef(secret_id=endpoint.secret_id),
+                mode=SecretMode.PROJECT_ONLY,
+            )
+            return MCPDirectAuth(secret=secret)
+
+        raise AssertionError(f"unsupported MCP auth mode: {endpoint.auth_mode!r}")
 
     def _route_for(self, target: _ResolvedTarget) -> MCPResolvedRoute:
         if target.provider == COMPOSIO_PROVIDER:
-            if self._mocks_enabled():
-                return MCPResolvedRoute(
-                    url=env.mock_gateways.mcp_url,
-                    headers={"X-Agenta-Mock-Profile": "mcp-builtin-composio"},
-                )
             return MCPResolvedRoute(
                 url=_builtin_placeholder_url(
                     provider=target.provider or "",

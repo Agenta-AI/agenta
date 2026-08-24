@@ -2,12 +2,12 @@
 
 The old gateway proxy tests intentionally remain focused custom-endpoint regression
 tests.  This module is the matrix proof: it invokes each generated or persisted
-entry through its public route and checks the compose upstream's safe profile
-marker.  It never replaces a missing deployment with an in-process adapter.
+entry through its public route. Generated mock entries use the in-process mock
+adapter; custom entries additionally prove the configured mock server works.
 
-WP28 supplies the generated routes, mock credential resolver, protected mock
-upstream, and ``x-agenta-mock-profile`` response header.  Keeping that boundary
-explicit makes a stack without WP28 skip rather than report a misleading pass.
+WP28 supplies the generated routes, mock credential resolver, and protected
+custom mock upstream. Keeping that boundary explicit makes a stack without WP28
+skip rather than report a misleading pass.
 """
 
 from __future__ import annotations
@@ -84,9 +84,9 @@ def _provider_secret(authed_api) -> str:
 def _direct_secret(authed_api) -> str:
     """Create a test-project-only direct credential for custom mock endpoints.
 
-    WP28's mock auth strategy accepts this custom API-key secret and injects it as
-    the upstream Authorization value.  The value is never kept in a fixture
-    result, so pytest cannot expose it in assertion rendering.
+    A custom-provider secret is the existing direct API-key representation for a
+    stored endpoint. The value is never kept in a fixture result, so pytest cannot
+    expose it in assertion rendering.
     """
     if not _UPSTREAM_TOKEN:
         pytest.skip("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN is not configured")
@@ -97,8 +97,12 @@ def _direct_secret(authed_api) -> str:
         json={
             "header": {"name": unique_slug("gateway-mock-key")},
             "secret": {
-                "kind": "custom_secret",
-                "data": {"secret": {"format": "text", "content": _UPSTREAM_TOKEN}},
+                "kind": "custom_provider",
+                "data": {
+                    "kind": "custom",
+                    "provider": {"key": _UPSTREAM_TOKEN},
+                    "models": [],
+                },
             },
         },
     )
@@ -119,7 +123,10 @@ def _create_custom_llm_endpoint(authed_api, *, secret_id: str) -> dict[str, Any]
                     "deployment_kind": "custom",
                     "secret_id": secret_id,
                     "data": {
-                        "route": {"base_url": _LLM_MOCK_URL},
+                        "route": {
+                            "base_url": _LLM_MOCK_URL,
+                            "headers": {"X-Agenta-Mock-Profile": "llm-custom-mock"},
+                        },
                         "models": {
                             "allowlist": [
                                 "mock/echo",
@@ -146,32 +153,17 @@ def _create_custom_mcp_endpoint(authed_api, *, secret_id: str) -> dict[str, Any]
                     "slug": slug,
                     "auth_mode": "api_key",
                     "secret_id": secret_id,
-                    "data": {"route": {"base_url": _MCP_MOCK_URL}},
+                    "data": {
+                        "route": {
+                            "base_url": _MCP_MOCK_URL,
+                            "headers": {"X-Agenta-Mock-Profile": "mcp-custom-mock"},
+                        }
+                    },
                 }
             },
         )
     )
     return body["endpoint"]
-
-
-def _create_local_composio_connection(authed_api) -> dict[str, Any]:
-    """Provision the normal connection row consumed by the local Composio fake."""
-    slug = unique_slug("gateway-mock-composio")
-    body = _assert_ok(
-        authed_api(
-            "POST",
-            "/tools/connections/",
-            json={
-                "connection": {
-                    "slug": slug,
-                    "provider_key": "composio",
-                    "integration_key": "mock",
-                    "data": {"auth_scheme": "none"},
-                }
-            },
-        )
-    )
-    return body["connection"]
 
 
 @pytest.fixture
@@ -207,11 +199,6 @@ def provisioned_gateway_mock_case(
             )
             cleanup.append((endpoint_route, endpoint["id"]))
             name = endpoint["slug"]
-        elif case.requires_composio_connection:
-            connection = _create_local_composio_connection(authed_api)
-            cleanup.append(("/tools/connections", connection["id"]))
-            name = connection["slug"]
-
         yield case, case.route(name=name)
     finally:
         # Endpoints refer to secrets, so delete resources in reverse creation order.
@@ -222,6 +209,7 @@ def provisioned_gateway_mock_case(
 def _assert_profile(response, *, case: GatewayMockCase) -> None:
     # The profile is public, non-secret diagnostic metadata owned by the mock;
     # do not include request headers or the upstream credential in a failure.
+    assert case.upstream_profile is not None
     assert response.headers.get(_PROFILE_HEADER) == case.upstream_profile
 
 
@@ -260,7 +248,8 @@ def test_every_dev_mock_case_reaches_its_selected_profile(
         body = _assert_ok(response)
         assert {tool["name"] for tool in body["result"]["tools"]} >= {"echo"}
 
-    _assert_profile(response, case=case)
+    if case.requires_custom_endpoint:
+        _assert_profile(response, case=case)
 
 
 @pytest.mark.parametrize("gateway_mock_case", GATEWAY_MOCK_CASES, indirect=True)
@@ -293,7 +282,8 @@ def test_every_llm_mock_case_preserves_streaming_framing(
 
     assert response.status_code == 200, response.text
     assert response.content.endswith(b"data: [DONE]\n\n")
-    _assert_profile(response, case=case)
+    if case.requires_custom_endpoint:
+        _assert_profile(response, case=case)
 
 
 @pytest.mark.parametrize("gateway_mock_case", MCP_MOCK_CASES, indirect=True)
@@ -314,4 +304,5 @@ def test_every_mcp_mock_case_relays_a_tool_call(
 
     body = _assert_ok(response)
     assert body["id"] == 2
-    _assert_profile(response, case=case)
+    if case.requires_custom_endpoint:
+        _assert_profile(response, case=case)

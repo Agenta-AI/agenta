@@ -148,6 +148,9 @@ def _secret_key(secret: ResolvedSecret | None) -> str | None:
         return None
     if secret.secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER):
         return secret.secret.data.provider.key
+    if secret.secret.kind == SecretKind.CUSTOM_SECRET:
+        content = secret.secret.data.secret.content
+        return content if isinstance(content, str) else None
     return None
 
 

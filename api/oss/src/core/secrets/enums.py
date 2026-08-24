@@ -17,6 +17,7 @@ class CustomSecretFormat(str, Enum):
 
 
 class StandardProviderKind(str, Enum):
+    MOCK = "mock"  # local gateway development catalogue only
     OPENAI = "openai"
     COHERE = "cohere"
     ANYSCALE = "anyscale"
@@ -37,6 +38,7 @@ class StandardProviderKind(str, Enum):
 # Kept in agreement with the frontend provider catalog
 # (`web/packages/agenta-shared/src/utils/llmProviders.ts`).
 STANDARD_PROVIDER_DISPLAY_NAMES = {
+    StandardProviderKind.MOCK: "Mock",
     StandardProviderKind.OPENAI: "OpenAI",
     StandardProviderKind.COHERE: "Cohere",
     StandardProviderKind.ANYSCALE: "Anyscale",
@@ -74,4 +76,3 @@ class CustomProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
-    MOCK = "mock"  # local gateway development catalogue only

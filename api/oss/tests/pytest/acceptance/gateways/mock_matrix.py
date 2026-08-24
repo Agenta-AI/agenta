@@ -1,12 +1,13 @@
 """Declarative contract for the local gateway mock acceptance matrix.
 
 The cases deliberately describe public gateway routes rather than reaching into a
-service or adapter.  This keeps the acceptance layer honest: every enabled case
-has to cross the deployed API and one of the compose mock services.
+service or adapter. This keeps the acceptance layer honest: every enabled case
+crosses the deployed API, and custom cases also exercise their configured mock
+server over a real socket.
 
 WP28 owns the generated catalogue and provider routing that make the non-custom
 cases resolvable.  This module owns only the test-facing description and the
-normal HTTP setup required for custom endpoints and the local Composio fixture.
+normal HTTP setup required for custom endpoints.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ class CredentialOwner(StrEnum):
     PLATFORM = "platform"
     PROJECT = "project"
     DIRECT = "direct"
-    BROKERED = "brokered"
 
 
 Operation = Literal["chat", "models", "tools_list", "tools_call"]
@@ -46,18 +46,17 @@ class GatewayMockCase:
     plane: GatewayPlane
     namespace: GatewayNamespace
     credential_owner: CredentialOwner
-    upstream_profile: str
     operations: frozenset[Operation]
+    upstream_profile: str | None = None
     provider: str | None = None
     requires_custom_endpoint: bool = False
-    requires_composio_connection: bool = False
 
     def route(self, *, name: str | None = None) -> str:
         """Return the public relay route, before an LLM operation suffix.
 
-        ``name`` is only needed for persisted custom endpoints and the local
-        Composio connection.  Generated entries intentionally have no test-only
-        identifier: their catalogue key is their public name.
+        ``name`` is only needed for persisted custom endpoints. Generated entries
+        intentionally have no test-only identifier: their catalogue key is their
+        public name.
         """
         if self.plane is GatewayPlane.LLM:
             if self.namespace is GatewayNamespace.CUSTOM:
@@ -70,9 +69,8 @@ class GatewayMockCase:
             assert name, "custom MCP case needs its generated endpoint slug"
             return f"/gateways/mcps/custom/{name}"
         assert self.provider
-        if self.requires_composio_connection:
-            assert name, "Composio case needs its generated connection slug"
-            return f"/gateways/mcps/builtin/composio/mock/{name}"
+        if self.namespace is GatewayNamespace.STANDARD:
+            return f"/gateways/mcps/standard/{self.provider}"
         return f"/gateways/mcps/{self.namespace}/{self.provider}/mock"
 
 
@@ -83,7 +81,6 @@ LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.BUILTIN,
         provider="agenta",
         credential_owner=CredentialOwner.PLATFORM,
-        upstream_profile="llm-builtin-agenta",
         operations=frozenset({"chat", "models"}),
     ),
     GatewayMockCase(
@@ -92,7 +89,6 @@ LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.BUILTIN,
         provider="mock",
         credential_owner=CredentialOwner.PLATFORM,
-        upstream_profile="llm-builtin-mock",
         operations=frozenset({"chat", "models"}),
     ),
     GatewayMockCase(
@@ -101,7 +97,6 @@ LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.STANDARD,
         provider="mock",
         credential_owner=CredentialOwner.PROJECT,
-        upstream_profile="llm-standard-mock",
         operations=frozenset({"chat", "models"}),
     ),
     GatewayMockCase(
@@ -109,8 +104,8 @@ LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         plane=GatewayPlane.LLM,
         namespace=GatewayNamespace.CUSTOM,
         credential_owner=CredentialOwner.DIRECT,
-        upstream_profile="llm-custom-mock",
         operations=frozenset({"chat", "models"}),
+        upstream_profile="llm-custom-mock",
         requires_custom_endpoint=True,
     ),
 )
@@ -123,18 +118,7 @@ MCP_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.BUILTIN,
         provider="agenta",
         credential_owner=CredentialOwner.PLATFORM,
-        upstream_profile="mcp-builtin-agenta",
         operations=frozenset({"tools_list", "tools_call"}),
-    ),
-    GatewayMockCase(
-        key="mcp_builtin_composio",
-        plane=GatewayPlane.MCP,
-        namespace=GatewayNamespace.BUILTIN,
-        provider="composio",
-        credential_owner=CredentialOwner.BROKERED,
-        upstream_profile="mcp-builtin-composio",
-        operations=frozenset({"tools_list", "tools_call"}),
-        requires_composio_connection=True,
     ),
     GatewayMockCase(
         key="mcp_builtin_mock",
@@ -142,7 +126,6 @@ MCP_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.BUILTIN,
         provider="mock",
         credential_owner=CredentialOwner.PLATFORM,
-        upstream_profile="mcp-builtin-mock",
         operations=frozenset({"tools_list", "tools_call"}),
     ),
     GatewayMockCase(
@@ -151,7 +134,6 @@ MCP_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         namespace=GatewayNamespace.STANDARD,
         provider="mock",
         credential_owner=CredentialOwner.PROJECT,
-        upstream_profile="mcp-standard-mock",
         operations=frozenset({"tools_list", "tools_call"}),
     ),
     GatewayMockCase(
@@ -159,8 +141,8 @@ MCP_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
         plane=GatewayPlane.MCP,
         namespace=GatewayNamespace.CUSTOM,
         credential_owner=CredentialOwner.DIRECT,
-        upstream_profile="mcp-custom-mock",
         operations=frozenset({"tools_list", "tools_call"}),
+        upstream_profile="mcp-custom-mock",
         requires_custom_endpoint=True,
     ),
 )

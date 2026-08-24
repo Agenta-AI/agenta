@@ -15,7 +15,6 @@ def test_gateway_mock_matrix_has_every_declared_dev_case():
         "llm_standard_mock",
         "llm_custom_mock",
         "mcp_builtin_agenta",
-        "mcp_builtin_composio",
         "mcp_builtin_mock",
         "mcp_standard_mock",
         "mcp_custom_mock",
@@ -27,11 +26,13 @@ def test_gateway_mock_matrix_keeps_each_namespace_and_auth_boundary_visible():
         cases = [case for case in GATEWAY_MOCK_CASES if case.plane is plane]
         assert {case.namespace for case in cases} == set(GatewayNamespace)
 
-    # Standard and custom test project-owned/direct secret handling respectively;
-    # builtin covers platform-owned auth and Composio covers brokered auth.
-    assert {case.credential_owner for case in GATEWAY_MOCK_CASES} == set(
-        CredentialOwner
-    )
+    # Standard and custom cover project-owned/direct secret handling; builtins
+    # remain platform-owned. Composio is a real brokered integration, not a mock.
+    assert {case.credential_owner for case in GATEWAY_MOCK_CASES} == {
+        CredentialOwner.PLATFORM,
+        CredentialOwner.PROJECT,
+        CredentialOwner.DIRECT,
+    }
 
 
 def test_provider_variants_are_not_collapsed_into_one_builtin_case():
@@ -47,4 +48,4 @@ def test_provider_variants_are_not_collapsed_into_one_builtin_case():
     }
 
     assert builtin_llm == {"agenta", "mock"}
-    assert builtin_mcp == {"agenta", "composio", "mock"}
+    assert builtin_mcp == {"agenta", "mock"}
