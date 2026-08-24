@@ -6,7 +6,7 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
@@ -46,6 +46,21 @@ class MCPConnectRequest(BaseModel):
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
     scopes: Optional[List[str]] = None
+
+    @field_validator("scopes")
+    @classmethod
+    def scopes_must_be_distinct_non_blank(cls, scopes: Optional[List[str]]):
+        """The dashboard sends discovered scope identifiers verbatim. Rejecting
+        duplicates and whitespace-only values keeps the signed OAuth state stable
+        and makes a reconnect/step-up request unambiguous without inventing an
+        OAuth-specific scope grammar here."""
+        if scopes is None:
+            return scopes
+        if any(not scope or scope != scope.strip() for scope in scopes):
+            raise ValueError("scopes must be non-blank identifiers")
+        if len(set(scopes)) != len(scopes):
+            raise ValueError("scopes must not contain duplicates")
+        return scopes
 
 
 class MCPConnectResponse(BaseModel):

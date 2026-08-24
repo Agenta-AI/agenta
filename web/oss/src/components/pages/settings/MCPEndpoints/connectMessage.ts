@@ -3,6 +3,13 @@
 
 export const MCP_OAUTH_CONNECTED = "mcp:oauth:connected"
 
+export interface McpOauthCompletionMessage {
+    type: typeof MCP_OAUTH_CONNECTED
+    success: boolean
+    error?: string
+    endpoint_id?: string
+}
+
 export function buildTrustedOrigins(urls: (string | undefined)[]): Set<string> {
     const origins = new Set<string>()
     for (const url of urls) {
@@ -25,6 +32,7 @@ export function isTrustedOauthConnectedMessage(
     return (
         typeof data === "object" &&
         data !== null &&
-        (data as {type?: unknown}).type === MCP_OAUTH_CONNECTED
+        (data as {type?: unknown}).type === MCP_OAUTH_CONNECTED &&
+        typeof (data as {success?: unknown}).success === "boolean"
     )
 }

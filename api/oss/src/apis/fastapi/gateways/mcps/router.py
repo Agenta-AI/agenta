@@ -392,18 +392,28 @@ class MCPGatewayRouter:
         if error:
             return HTMLResponse(
                 status_code=400,
-                content=_connect_card(success=False, error=error_description or error),
+                content=_connect_card(
+                    success=False,
+                    error=error_description or error,
+                    agenta_url=env.agenta.web_url,
+                ),
             )
         if not state:
             return HTMLResponse(
                 status_code=400,
-                content=_connect_card(success=False, error="Missing state parameter."),
+                content=_connect_card(
+                    success=False,
+                    error="Missing state parameter.",
+                    agenta_url=env.agenta.web_url,
+                ),
             )
         if not code:
             return HTMLResponse(
                 status_code=400,
                 content=_connect_card(
-                    success=False, error="Missing authorization code."
+                    success=False,
+                    error="Missing authorization code.",
+                    agenta_url=env.agenta.web_url,
                 ),
             )
 
@@ -412,7 +422,9 @@ class MCPGatewayRouter:
             return HTMLResponse(
                 status_code=400,
                 content=_connect_card(
-                    success=False, error="OAuth state is invalid or expired."
+                    success=False,
+                    error="OAuth state is invalid or expired.",
+                    agenta_url=env.agenta.web_url,
                 ),
             )
 
@@ -422,7 +434,10 @@ class MCPGatewayRouter:
             )
         except GatewaysError as e:
             return HTMLResponse(
-                status_code=400, content=_connect_card(success=False, error=e.message)
+                status_code=400,
+                content=_connect_card(
+                    success=False, error=e.message, agenta_url=env.agenta.web_url
+                ),
             )
 
         user_id = UUID(state_payload["user_id"])
@@ -443,6 +458,7 @@ class MCPGatewayRouter:
                 content=_connect_card(
                     success=False,
                     error="No matching MCP endpoint found for this server.",
+                    agenta_url=env.agenta.web_url,
                 ),
             )
 
@@ -455,7 +471,11 @@ class MCPGatewayRouter:
 
         return HTMLResponse(
             status_code=200,
-            content=_connect_card(success=True, agenta_url=env.agenta.web_url),
+            content=_connect_card(
+                success=True,
+                agenta_url=env.agenta.web_url,
+                endpoint_id=str(target.id),
+            ),
         )
 
 
@@ -470,6 +490,7 @@ def _connect_card(
     success: bool,
     error: Optional[str] = None,
     agenta_url: Optional[str] = None,
+    endpoint_id: Optional[str] = None,
 ) -> str:
     """A small self-contained HTML page for the browser landing on the callback
     directly — trimmed from `tools/router.py::_oauth_card`'s Composio card to what
@@ -484,6 +505,10 @@ def _connect_card(
     agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
 
     payload: Dict[str, Any] = {"type": "mcp:oauth:connected", "success": success}
+    if error:
+        payload["error"] = error
+    if endpoint_id:
+        payload["endpoint_id"] = endpoint_id
     oauth_complete_message_js = _json_for_inline_script(payload)
 
     accent = "#16a34a" if success else "#dc2626"

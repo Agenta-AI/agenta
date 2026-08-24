@@ -29,6 +29,13 @@ export const mcpEndpointsAtom = atomWithQuery((get) => {
 
 const invalidateMcpEndpoints = () => queryClient.invalidateQueries({queryKey: ["mcp-endpoints"]})
 
+// The OAuth callback is a separate browser navigation. Expose the same refresh
+// operation used by mutations so the settings table immediately reflects the
+// secret handle written by the callback instead of waiting for its stale timeout.
+export const refreshMcpEndpointsAtom = atom(null, async () => {
+    await invalidateMcpEndpoints()
+})
+
 export const createMcpEndpointAtom = atom(null, async (get, _set, endpoint: MCPEndpointCreate) => {
     const projectId = get(projectIdAtom)
     const result = await createMcpEndpoint(endpoint, projectId ?? undefined)

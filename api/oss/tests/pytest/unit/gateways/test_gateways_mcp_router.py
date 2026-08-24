@@ -249,6 +249,20 @@ def test_connect_begin_step_returns_the_redirect_url(
     assert service.calls == ["fetch_endpoint"]
 
 
+@pytest.mark.parametrize("scopes", [["read", "read"], ["read", " "]])
+def test_connect_rejects_ambiguous_or_blank_scope_selection(
+    client, service, oauth_service, allow, scopes
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+
+    response = client.post(f"/endpoints/{endpoint_id}/connect", json={"scopes": scopes})
+
+    assert response.status_code == 422
+    assert service.calls == []
+    assert oauth_service.calls == []
+
+
 def test_connect_missing_endpoint_404s(client, service, oauth_service, allow):
     service.fetch_return = None
 
@@ -364,6 +378,8 @@ def test_callback_with_authorization_server_error_renders_a_failure_card_without
 
     assert response.status_code == 400
     assert "User declined" in response.text
+    assert '"success": false' in response.text
+    assert "mcp:oauth:connected" in response.text
     assert oauth_service.calls == []
     assert service.calls == []
 

@@ -13,8 +13,13 @@ import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-import {deleteMcpEndpointAtom, mcpEndpointsAtom} from "@/oss/state/mcpEndpoints/atoms"
+import {
+    deleteMcpEndpointAtom,
+    mcpEndpointsAtom,
+    refreshMcpEndpointsAtom,
+} from "@/oss/state/mcpEndpoints/atoms"
 
+import {getMcpConnectionState, getMcpConnectionStateLabel} from "./connectionState"
 import MCPConnectDialog from "./MCPConnectDialog"
 import MCPEndpointDrawer from "./MCPEndpointDrawer"
 
@@ -23,11 +28,10 @@ interface MCPEndpointRow extends MCPEndpoint {
     [extra: string]: unknown
 }
 
-const isConnected = (endpoint: MCPEndpoint) => !!endpoint.secret_id
-
 const MCPEndpoints: React.FC = () => {
     const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
+    const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
 
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [editingEndpoint, setEditingEndpoint] = useState<MCPEndpoint | null>(null)
@@ -106,14 +110,18 @@ const MCPEndpoints: React.FC = () => {
                     key: "status",
                     title: "Status",
                     width: 140,
-                    render: (_value, record) =>
-                        record.auth_mode === "oauth" ? (
-                            <Tag color={isConnected(record) ? "success" : "default"}>
-                                {isConnected(record) ? "Connected" : "Not connected"}
-                            </Tag>
-                        ) : (
-                            "-"
-                        ),
+                    render: (_value, record) => {
+                        const connectionState = getMcpConnectionState(record)
+                        const color =
+                            connectionState === "ready"
+                                ? "success"
+                                : connectionState === "needs_auth"
+                                  ? "warning"
+                                  : "default"
+                        return (
+                            <Tag color={color}>{getMcpConnectionStateLabel(connectionState)}</Tag>
+                        )
+                    },
                 },
                 {
                     type: "actions",
@@ -121,10 +129,11 @@ const MCPEndpoints: React.FC = () => {
                     items: [
                         {
                             key: "connect",
-                            label: "Connect",
+                            label: "Connect / reconnect",
                             icon: <Plug size={16} />,
-                            hidden: (record: MCPEndpointRow) =>
-                                record.auth_mode !== "oauth" || isConnected(record),
+                            // A ready OAuth endpoint remains reconnectable: that is how a user
+                            // requests newly offered scopes after an upstream step-up challenge.
+                            hidden: (record: MCPEndpointRow) => record.auth_mode !== "oauth",
                             onClick: (record: MCPEndpointRow) => handleConnect(record),
                         },
                         {
@@ -208,6 +217,7 @@ const MCPEndpoints: React.FC = () => {
             <MCPConnectDialog
                 endpoint={connectingEndpoint}
                 onClose={() => setConnectingEndpoint(null)}
+                onSuccess={() => refreshEndpoints()}
             />
         </div>
     )

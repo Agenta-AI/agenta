@@ -9,7 +9,11 @@ import {beginMcpConnect, discoverMcpConnect} from "@/oss/services/mcpEndpoints/a
 import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {buildTrustedOrigins, isTrustedOauthConnectedMessage} from "./connectMessage"
+import {
+    buildTrustedOrigins,
+    isTrustedOauthConnectedMessage,
+    McpOauthCompletionMessage,
+} from "./connectMessage"
 
 interface Props {
     endpoint: MCPEndpoint | null
@@ -46,7 +50,7 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
                 )
             })
             .finally(() => setLoading(false))
-    }, [endpoint?.id])
+    }, [endpoint?.id, projectId])
 
     const handleClose = useCallback(() => {
         setScopesOffered([])
@@ -87,6 +91,16 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
                 return
             }
 
+            let finished = false
+            let pollTimer: ReturnType<typeof setInterval> | undefined
+            const cleanup = (handler: (event: MessageEvent) => void) => {
+                if (finished) return false
+                finished = true
+                window.removeEventListener("message", handler)
+                if (pollTimer) clearInterval(pollTimer)
+                return true
+            }
+
             const onAuthDone = () => {
                 window.focus()
                 handleClose()
@@ -101,17 +115,28 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
 
             const handler = (event: MessageEvent) => {
                 if (isTrustedOauthConnectedMessage(event.data, event.origin, trustedOrigins)) {
-                    window.removeEventListener("message", handler)
-                    onAuthDone()
+                    const completion = event.data as McpOauthCompletionMessage
+                    if (completion.endpoint_id && completion.endpoint_id !== endpoint.id) return
+                    if (!cleanup(handler)) return
+                    if (completion.success) {
+                        onAuthDone()
+                    } else {
+                        setLoading(false)
+                        setDiscoverError(completion.error || "Authorization was not completed.")
+                    }
                 }
             }
             window.addEventListener("message", handler)
 
-            const pollTimer = setInterval(() => {
+            pollTimer = setInterval(() => {
                 if (popup && popup.closed) {
-                    clearInterval(pollTimer)
-                    window.removeEventListener("message", handler)
-                    onAuthDone()
+                    // A manually closed authorization window is not proof that the
+                    // callback exchanged a code. Only the typed callback message
+                    // above may move the dashboard to success.
+                    if (cleanup(handler)) {
+                        setLoading(false)
+                        setDiscoverError("Authorization window closed before completion.")
+                    }
                 }
             }, 1000)
         } catch (error) {

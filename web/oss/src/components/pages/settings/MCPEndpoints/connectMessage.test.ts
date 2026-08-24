@@ -25,7 +25,7 @@ describe("isTrustedOauthConnectedMessage", () => {
     it("accepts the connected message from a trusted origin", () => {
         expect(
             isTrustedOauthConnectedMessage(
-                {type: "mcp:oauth:connected"},
+                {type: "mcp:oauth:connected", success: true},
                 "https://app.example.test",
                 trusted,
             ),
@@ -50,6 +50,26 @@ describe("isTrustedOauthConnectedMessage", () => {
                 trusted,
             ),
         ).toBe(false)
+    })
+
+    it("rejects a completion message without an explicit boolean outcome", () => {
+        expect(
+            isTrustedOauthConnectedMessage(
+                {type: "mcp:oauth:connected"},
+                "https://app.example.test",
+                trusted,
+            ),
+        ).toBe(false)
+    })
+
+    it("accepts an explicit failed completion so the dialog can display its error", () => {
+        expect(
+            isTrustedOauthConnectedMessage(
+                {type: "mcp:oauth:connected", success: false, error: "User declined"},
+                "https://app.example.test",
+                trusted,
+            ),
+        ).toBe(true)
     })
 
     it("rejects a non-object payload", () => {
