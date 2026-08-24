@@ -1,11 +1,5 @@
 [
     {
-        "id": "changelog-2026-08-12-agent-workspace",
-        "title": "Agent Workspace",
-        "description": "Manage several sessions with one agent and keep each piece of work organized.",
-        "link": "https://agenta.ai/docs/changelog/agent-workspace"
-    },
-    {
         "id": "changelog-2026-08-12-slash-commands",
         "title": "Slash Commands",
         "description": "Control the model and reference skills or tools without leaving the conversation.",
