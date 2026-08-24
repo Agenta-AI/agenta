@@ -20,7 +20,14 @@ Last update: 2026-08-24
   relocation (path-with-spaces copy, explicit-env launch, health + authed readiness,
   live cold turn, optional strace classification). Build + gate + live turn all pass;
   strace on the staged runner shows only loopback, DNS, and api.openai.com.
-- Slice 2 work has started (schema/migration packet implemented; review pending).
+- Slice 2 is complete (S2.1–S2.5): SQLite schema with crash-safe migration, layered
+  agent/session DAOs and services with idempotency-first turn admission and concurrency
+  tests, protected provider credential file store, ExecutionService orchestration
+  (admit/stream split, session-keyed active registry, stop vs disconnect reasons,
+  timeout budget), and the FastAPI HTTP surface with the browser boundary (process
+  cookie, pinned Host/Origin, JSON mutations) plus SSE turn streaming and explicit
+  stop. Full suite: 179 passed; replayed runner acceptance runs end to end over real
+  HTTP against recorded fixtures.
 
 ## Settled decisions
 
@@ -93,15 +100,13 @@ or run shell commands); process teardown after SIGTERM left no owned children.
 
 ## Current blocker
 
-None. Slice 1 is complete (S1.1–S1.3). The clean-VM strace rerun is tracked as a Slice 4
-gate, not a blocker.
+None. Slices 1 and 2 are complete. The clean-VM strace rerun is a Slice 4 gate.
 
 ## Next actions
 
-1. Land the S2.1 review (schema + migration runner already implemented on top of the
-   parked stash: five tables, immutability triggers, partial active-turn index,
-   deferred FK cycle, safe-copy migration with backup/integrity/fsync/replace).
-2. Continue Slice 2 packets S2.2–S2.5 per plan order.
+1. Slice 3: static renderer at web/agenta-local consuming the local contract.
+2. Slice 4: Linux bundle + launcher (Python runtime pin still open), then the clean-VM
+   strace gate and AppImage evaluation.
 
 ## Deferred product work
 
