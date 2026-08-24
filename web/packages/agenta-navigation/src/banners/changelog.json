@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-08-22-agenta-on-mobile",
+        "title": "Agenta on Mobile",
+        "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",
+        "link": "https://agenta.ai/docs/changelog/agenta-on-mobile"
+    },
+    {
         "id": "changelog-2026-08-12-slash-commands",
         "title": "Slash Commands",
         "description": "Control the model and reference skills or tools without leaving the conversation.",
