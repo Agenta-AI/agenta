@@ -29,9 +29,20 @@ def create_app(
     app = FastAPI(
         title="Agenta Local", lifespan=lifespan, docs_url=None, redoc_url=None
     )
+    if migrations_dir is not None:
+        settings.migrations_dir = migrations_dir
     app.state.settings = settings
+    app.state.shutting_down = False
 
-    boundary = BrowserBoundary(host=settings.host, port=settings.port)
+    boundary = BrowserBoundary(
+        host=settings.host,
+        port=settings.port,
+        **(
+            {"cookie_value": settings.browser_session}
+            if settings.browser_session is not None
+            else {}
+        ),
+    )
     app.state.boundary = boundary
     app.add_middleware(BrowserBoundaryMiddleware, boundary=boundary)
 
@@ -46,23 +57,22 @@ def create_app(
             "recovered_turns": app.state.recovered_turns,
         }
 
-    @app.get("/", include_in_schema=False)
-    async def shell() -> HTMLResponse:
-        return _shell_response(settings, boundary)
-
-    @app.get("/app/{rest:path}", include_in_schema=False)
-    async def shell_deep(rest: str) -> HTMLResponse:
-        return _shell_response(settings, boundary)
-
-    if settings.static_dir is not None and settings.static_dir.is_dir():
-        app.mount(
-            "/app/assets",
-            StaticFiles(directory=settings.static_dir / "assets"),
-            name="assets",
-        )
-
     for router in (agents_router, sessions_router, providers_router, runtime_router):
         app.include_router(router)
+
+    # The renderer is last so /health and /api routes always win. StaticFiles'
+    # HTML mode resolves exported route directories such as /agents/.
+    if settings.static_dir is not None and settings.static_dir.is_dir():
+        app.mount(
+            "/",
+            StaticFiles(directory=settings.static_dir, html=True),
+            name="renderer",
+        )
+    else:
+
+        @app.get("/", include_in_schema=False)
+        async def shell() -> HTMLResponse:
+            return _shell_response(settings, boundary)
 
     return app
 

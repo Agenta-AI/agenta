@@ -29,8 +29,21 @@ def _load_migration_runner(migrations_dir: Path):
     return module
 
 
-def _migrations_dir() -> Path:
+def _migrations_dir(settings: Settings) -> Path:
+    if settings.migrations_dir is not None:
+        return settings.migrations_dir
     return Path(__file__).resolve().parents[2] / "databases" / "sqlite" / "migrations"
+
+
+async def prepare_shutdown(app) -> None:
+    """Stop admission and await interruption commits before SQLite closes."""
+    if getattr(app.state, "shutting_down", False):
+        return
+    app.state.shutting_down = True
+    execution = getattr(app.state, "execution", None)
+    if execution is None:
+        return
+    await execution.shutdown()
 
 
 @asynccontextmanager
@@ -38,7 +51,7 @@ async def lifespan(app):
     settings: Settings = app.state.settings
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
-    runner = _load_migration_runner(_migrations_dir())
+    runner = _load_migration_runner(_migrations_dir(settings))
     schema_version = runner.upgrade_database(settings.database_path)
 
     engine, factory = build_engine(settings.database_path)
@@ -63,7 +76,9 @@ async def lifespan(app):
     app.state.version = "0.1.0"
     app.state.schema_version = schema_version
     app.state.recovered_turns = recovered
+    app.state.prepare_shutdown = lambda: prepare_shutdown(app)
     try:
         yield
     finally:
+        await prepare_shutdown(app)
         await engine.dispose()

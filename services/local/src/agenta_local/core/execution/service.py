@@ -268,6 +268,17 @@ class ExecutionService(ExecutionServiceInterface):
     def active_session_ids(self) -> set[str]:
         return set(self._active)
 
+    async def shutdown(self) -> None:
+        """Interrupt every in-flight turn and await their terminal commits."""
+        entries = [e for e in self._active.values() if not e.task.done()]
+        for entry in entries:
+            entry.reason = TurnStatus.INTERRUPTED
+            entry.task.cancel()
+        if entries:
+            await asyncio.gather(
+                *(entry.task for entry in entries), return_exceptions=True
+            )
+
     async def recover_interrupted_turns(self) -> int:
         """Startup recovery for leftover pending/running rows."""
         return await self._sessions.interrupt_incomplete_turns()

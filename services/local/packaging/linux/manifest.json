@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "product": {
+    "name": "agenta-local"
+  },
+  "python": {
+    "builder_license": "MPL-2.0",
+    "distribution": "python-build-standalone",
+    "runtime_license": "PSF-2.0 and bundled component licenses",
+    "release": "20260814",
+    "version": "3.13.15"
+  },
+  "requirements": {
+    "host_utilities": [
+      "/bin/sh",
+      "dirname"
+    ]
+  }
+}

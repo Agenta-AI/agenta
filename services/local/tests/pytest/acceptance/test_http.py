@@ -51,12 +51,13 @@ def _free_port() -> int:
 class LocalServer:
     """One uvicorn server per test; settings point storage into tmp_path."""
 
-    def __init__(self, tmp_path, runner_url: str) -> None:
+    def __init__(self, tmp_path, runner_url: str, *, static_dir=None) -> None:
         self.settings = Settings(
             host="127.0.0.1",
             port=_free_port(),
             data_dir=tmp_path / "data",
             runner_url=runner_url,
+            static_dir=static_dir,
         )
         self.app = create_app(self.settings)
         config = uvicorn.Config(
@@ -390,3 +391,27 @@ def _raw_statuses(server: LocalServer) -> list[str]:
     rows = connection.execute("SELECT status FROM turns").fetchall()
     connection.close()
     return [row[0] for row in rows]
+
+
+def test_renderer_export_mounted_with_api_priority(tmp_path, replay):
+    """The built static export is served at / with direct route refresh."""
+    out_dir = Path(__file__).resolve().parents[5] / "web" / "agenta-local" / "out"
+    if not out_dir.is_dir():
+        pytest.skip("renderer export not built yet")
+
+    with (
+        LocalServer(tmp_path, replay.url, static_dir=out_dir) as local,
+        local.client() as client,
+    ):
+        shell = client.get("/")
+        assert shell.status_code == 200
+        assert "text/html" in shell.headers["content-type"]
+
+        for route in ("/agents/", "/sessions/", "/providers/"):
+            page = client.get(route)
+            assert page.status_code == 200, route
+            assert "text/html" in page.headers["content-type"], route
+
+        # API routes win over the static mount.
+        assert client.get("/api/agents").json() == []
+        assert client.get("/health").json()["ok"] is True

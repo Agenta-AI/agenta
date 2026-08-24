@@ -1,7 +1,7 @@
 """Browser session boundary: process cookie, Host/Origin pinning, JSON mutations."""
 
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -11,9 +11,6 @@ COOKIE_NAME = "agenta_local_session"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 # Body-carrying mutations must declare JSON; bodyless DELETE only needs the cookie.
 JSON_METHODS = {"POST", "PUT", "PATCH"}
-# Liveness and the static shell never require the cookie; HTML responses
-# (re)issue it after a service restart rotated it.
-COOKIE_EXEMPT_PREFIXES = ("/health", "/app")
 
 
 @dataclass
@@ -22,9 +19,7 @@ class BrowserBoundary:
 
     host: str
     port: int
-
-    def __post_init__(self) -> None:
-        self.cookie_value = secrets.token_urlsafe(32)
+    cookie_value: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     @property
     def host_header(self) -> str:
@@ -63,6 +58,19 @@ class BrowserBoundaryMiddleware(BaseHTTPMiddleware):
             return _reject("invalid_origin", "origin does not match the pinned origin")
 
         has_cookie = request.cookies.get(COOKIE_NAME) == self._boundary.cookie_value
+        if (
+            request.method not in SAFE_METHODS
+            and request.url.path != "/api/runtime/shutdown"
+            and getattr(request.app.state, "shutting_down", False)
+        ):
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "code": "shutting_down",
+                    "message": "Agenta Local is shutting down",
+                    "retryable": False,
+                },
+            )
         if request.method in SAFE_METHODS:
             response = await call_next(request)
         else:
@@ -77,10 +85,12 @@ class BrowserBoundaryMiddleware(BaseHTTPMiddleware):
                 return _reject("missing_session", "browser session cookie required")
             response = await call_next(request)
 
-        if not has_cookie and request.url.path.startswith("/app"):
-            # HTML navigation replaces a stale/missing process cookie.
+        content_type = response.headers.get("content-type", "")
+        if not has_cookie and content_type.startswith("text/html"):
+            # Every HTML navigation replaces a stale/missing process cookie.
             self._boundary._attach_cookie(response)
         response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
         return response
 
 
