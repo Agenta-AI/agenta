@@ -36,6 +36,7 @@ from oss.src.core.shared.dtos import Header
 from ee.src.core.starter_credits_bridge.client import StarterCreditsProxyClient
 from ee.src.core.starter_credits_bridge.types import (
     DEVELOPMENT_POLICY_VALUES,
+    PLUS_ALIAS_ALLOWLIST_DOMAINS,
     KeyAliasExistsError,
     MintedKey,
     MintPolicy,
@@ -338,6 +339,7 @@ async def _create_row(
         management=SecretManagementDTO(
             manager=SecretManager.STARTER_CREDITS_BRIDGE,
             policy=SecretManagementPolicy.MANAGER_ONLY,
+            recommended_for_new_agents=True,
         ),
     )
 
@@ -612,8 +614,17 @@ async def _mint_policy_allows(
     domain = _email_domain(organization_email)
     freemail = policy.is_freemail(domain)
 
+    if "+" in local_part and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS:
+        log.warning(
+            "[starter_credits_bridge] policy refused mint; skipping seed",
+            rule="plus_local_part",
+            domain=domain,
+        )
+        return False
+
     if (
         not freemail
+        and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS
         and policy.block_digit_locals
         and any(character.isdigit() for character in local_part)
     ):
