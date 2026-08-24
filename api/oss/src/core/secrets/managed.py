@@ -16,12 +16,14 @@ class SecretManagementDTO(BaseModel):
 
     manager: SecretManager
     policy: SecretManagementPolicy = SecretManagementPolicy.MANAGER_ONLY
+    recommended_for_new_agents: bool = False
 
 
 class PublicSecretManagementDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     policy: SecretManagementPolicy
+    recommended_for_new_agents: bool = False
 
 
 class ManagedSecretReadOnlyError(Exception):

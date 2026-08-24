@@ -1,4 +1,26 @@
 export type {
+    AgentConnectionMode,
+    AgentModelCandidate,
+    AgentModelSelection,
+    BuildAgentModelCandidatesArgs,
+} from "./agentModelCandidates"
+export {
+    agentFamilyFromModelId,
+    agentModelSelectionIsRunnable,
+    agentModelSelectionMode,
+    agentVaultProviderFamily,
+    buildAgentModelCandidates,
+    connectionModelIds,
+    effectiveHarnesses,
+    firstAgentModelForConnection,
+    isAgentDeploymentProviderKind,
+    resolveAgentModelSelection,
+    selectableAgentHarnesses,
+    soleAgentHarnessProviderFamily,
+    SUBSCRIPTION_HARNESSES,
+} from "./agentModelCandidates"
+
+export type {
     CreateSecretDto,
     CustomModelSettingsDto,
     CustomProviderDto,

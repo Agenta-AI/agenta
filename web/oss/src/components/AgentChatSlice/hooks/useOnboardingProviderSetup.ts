@@ -45,7 +45,7 @@ export interface OnboardingProviderSetup {
     openDrawer: () => void
     closeDrawer: () => void
     /** Hand to `ProviderDrawer.onSaved`. */
-    onSaved: () => void
+    onSaved: (savedConnectionId?: string) => void
     /** Every connection in the project, for the drawer's Connected section. */
     connections: ProviderConnection[]
 }
@@ -69,6 +69,7 @@ export function useOnboardingProviderSetup(
     const armedRef = useRef(false)
     const onboardingRef = useRef(false)
     const knownKeysRef = useRef<string[]>([])
+    const savedConnectionIdRef = useRef<string | null>(null)
 
     // Latest config, so the switch composes against what the agent holds when the vault answers —
     // not against the snapshot from the render that opened the drawer.
@@ -88,10 +89,14 @@ export function useOnboardingProviderSetup(
 
     const closeDrawer = useCallback(() => setOpen(false), [])
 
-    const onSaved = useCallback(() => {
-        armedRef.current = onboardingRef.current
-        refetchVault()
-    }, [refetchVault])
+    const onSaved = useCallback(
+        (savedConnectionId?: string) => {
+            armedRef.current = onboardingRef.current
+            savedConnectionIdRef.current = savedConnectionId ?? null
+            refetchVault()
+        },
+        [refetchVault],
+    )
 
     useEffect(() => {
         if (!armedRef.current) return
@@ -102,17 +107,61 @@ export function useOnboardingProviderSetup(
             showSubscriptions: true,
         })
         // Nothing new yet: the refetch has not landed. Stay armed and wait for the next list.
-        const appeared = rows.some(
-            (row) => row.kind === "connection" && !knownKeysRef.current.includes(row.key),
-        )
+        const appeared = savedConnectionIdRef.current
+            ? rows.some(
+                  (row) => row.kind === "connection" && row.key === savedConnectionIdRef.current,
+              )
+            : rows.some(
+                  (row) => row.kind === "connection" && !knownKeysRef.current.includes(row.key),
+              )
         if (!appeared) return
         armedRef.current = false
 
+        const current = configRef.current as Record<string, unknown> | null
+        const currentLlm =
+            current?.llm && typeof current.llm === "object" && !Array.isArray(current.llm)
+                ? (current.llm as Record<string, unknown>)
+                : null
+        const currentConnection =
+            currentLlm?.connection &&
+            typeof currentLlm.connection === "object" &&
+            !Array.isArray(currentLlm.connection)
+                ? (currentLlm.connection as Record<string, unknown>)
+                : null
+        const currentHarness = readHarnessKind(current)
+        const currentModel =
+            typeof currentLlm?.model === "string" && currentLlm.model ? currentLlm.model : null
+        const currentSelection =
+            currentModel && currentHarness
+                ? {
+                      modelId: currentModel,
+                      provider:
+                          typeof currentLlm?.provider === "string" ? currentLlm.provider : null,
+                      mode:
+                          currentConnection?.mode === "self_managed"
+                              ? ("self_managed" as const)
+                              : ("agenta" as const),
+                      slug:
+                          typeof currentConnection?.slug === "string"
+                              ? currentConnection.slug
+                              : null,
+                      harness: currentHarness,
+                  }
+                : null
+
         const selection = onboardingModelSwitch({
             onboarding: true,
+            replaceable: entityId.startsWith("local-"),
+            savedConnectionId: savedConnectionIdRef.current,
+            current: currentSelection,
+            // This drawer was opened only while the resolved candidate set was empty. The template
+            // tuple can become runnable because of the key just saved, but that does not turn the
+            // automatic placeholder into a user choice made before the save.
+            currentWasRunnable: false,
             previousConnectionKeys: knownKeysRef.current,
             rows,
         })
+        savedConnectionIdRef.current = null
         if (!selection) {
             // The connection serves no model we can name. Open the picker rather than switch
             // blindly — the Model section IS the picker now.
@@ -120,8 +169,6 @@ export function useOnboardingProviderSetup(
             return
         }
 
-        const current = configRef.current as Record<string, unknown> | null
-        const currentHarness = readHarnessKind(current)
         const harness = selection.harness ?? currentHarness
         // Same single-dispatch write a `/model` pick performs: harness first, model onto that base,
         // so one update carries both and neither composes from a stale copy of the other.

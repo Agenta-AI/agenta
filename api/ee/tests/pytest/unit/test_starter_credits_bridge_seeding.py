@@ -289,6 +289,7 @@ class TestSeeding:
         assert row.data.provider.key.startswith("sk-virtual-")
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
         assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+        assert row.data.harnesses == ["pi_core"]
         assert row.header.name == service.STARTER_CREDITS_NAME
         assert row.header.description == service.STARTER_CREDITS_DESCRIPTION
         assert service.PROXY_ORIGIN not in row.header.description
@@ -1053,7 +1054,7 @@ class TestManagedAndWriteOnlyRow:
             manager=SecretManager.STARTER_CREDITS_BRIDGE,
             policy=SecretManagementPolicy.MANAGER_ONLY,
             recommended_for_new_agents=True,
-        )
+        ),
 
         assert seeding_env.vault.row.management == seeding_env.vault.management
         assert seeding_env.vault.row.write_only is True

@@ -13,7 +13,7 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
     providerConnectionsAtom,
@@ -36,6 +36,8 @@ import {atom, useAtomValue} from "jotai"
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
     buildConnectionPickerRows,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
     pickerSelectionFrom,
     selectedModelRowKey,
     type PickerSelection,
@@ -56,10 +58,13 @@ export interface ModelPickerControlProps {
     /** The stored harness, so the row the config points at is the one marked. */
     harness: string | null
     modelId: string | null
+    provider: string | null
     /** The stored connection mode, so a subscription-only project still gets a menu. */
     mode: ConnectionMode
     /** The stored connection slug, so the right connection's row shows as selected. */
     slug: string | null
+    /** Only an uncommitted local agent may replace its automatic template placeholder. */
+    replaceable: boolean
     disabled?: boolean
     /**
      * Whether subscription rows belong here — false on cloud, where no provider login can be
@@ -77,8 +82,10 @@ const ModelPickerControl = ({
     harnessIds,
     harness,
     modelId,
+    provider,
     mode,
     slug,
+    replaceable,
     disabled,
     showSubscriptions = true,
     onSelect,
@@ -88,6 +95,13 @@ const ModelPickerControl = ({
     const vaultLoaded = useAtomValue(vaultLoadedAtom)
     const refetchVault = useAtomValue(vaultRefetchAtom)
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const drawerConnectionKeysRef = useRef<string[]>([])
+    const pendingSaveRef = useRef<{
+        savedConnectionId: string | null
+        previousConnectionKeys: string[]
+        current: PickerSelection | null
+        currentWasRunnable: boolean
+    } | null>(null)
 
     // The runner's live answer, filed under the shared key so the drawer and both pickers ride ONE
     // query rather than polling the deployment once per surface.
@@ -96,8 +110,11 @@ const ModelPickerControl = ({
     )
     const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
     const subscriptionPairs = useMemo(
-        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.data?.harnesses],
+        () =>
+            subscriptionStatus.isError
+                ? []
+                : subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
+        [subscriptionStatus.isError, subscriptionStatus.data?.harnesses],
     )
 
     const rows = useMemo(
@@ -127,6 +144,54 @@ const ModelPickerControl = ({
         [rows, modelId, slug, mode, harness],
     )
     const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
+    const allSourcesResolved =
+        vaultLoaded && capabilities != null && (!showSubscriptions || subscriptionPairs !== null)
+
+    const currentSelection = useMemo<PickerSelection | null>(
+        () => (modelId && harness ? {modelId, provider, mode, slug, harness} : null),
+        [modelId, provider, mode, slug, harness],
+    )
+    const openProviderDrawer = useCallback(() => {
+        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+        setDrawerOpen(true)
+    }, [connections])
+    const providerSaved = useCallback(
+        (savedConnectionId?: string) => {
+            if (replaceable) {
+                pendingSaveRef.current = {
+                    savedConnectionId: savedConnectionId ?? null,
+                    previousConnectionKeys: drawerConnectionKeysRef.current,
+                    current: currentSelection,
+                    currentWasRunnable: pickerSelectionIsRunnable(rows, currentSelection),
+                }
+            }
+            refetchVault()
+        },
+        [replaceable, currentSelection, rows, refetchVault],
+    )
+
+    useEffect(() => {
+        const pending = pendingSaveRef.current
+        if (!pending) return
+        const known = new Set(pending.previousConnectionKeys)
+        const connectionId =
+            pending.savedConnectionId ??
+            connections.find((connection) => !known.has(connection.id))?.id ??
+            null
+        if (!connectionId || !connections.some((connection) => connection.id === connectionId)) {
+            return
+        }
+        pendingSaveRef.current = null
+        const selection = pickerSelectionAfterProviderSave({
+            rows,
+            replaceable,
+            savedConnectionId: connectionId,
+            previousConnectionKeys: pending.previousConnectionKeys,
+            current: pending.current,
+            currentWasRunnable: pending.currentWasRunnable,
+        })
+        if (selection) onSelect(selection)
+    }, [connections, rows, replaceable, onSelect])
 
     const drawer = (
         <ProviderDrawer
@@ -135,19 +200,27 @@ const ModelPickerControl = ({
             context="playground"
             connections={connections}
             showSubscriptions={showSubscriptions}
-            onSaved={() => refetchVault()}
+            onSaved={providerSaved}
         />
     )
 
+    if (!allSourcesResolved) {
+        return (
+            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
+                Loading models…
+            </div>
+        )
+    }
+
     // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
     // already running on a subscription keeps its menu — it has models without a stored key.
-    if (vaultLoaded && !connections.length && mode !== "self_managed") {
+    if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
         return (
             <>
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => setDrawerOpen(true)}
+                    onClick={openProviderDrawer}
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
@@ -183,7 +256,7 @@ const ModelPickerControl = ({
                 disabled={disabled}
                 placeholder="Select a model…"
                 className="w-full"
-                footerContent={<ManageProvidersRow onClick={() => setDrawerOpen(true)} />}
+                footerContent={<ManageProvidersRow onClick={openProviderDrawer} />}
             />
             {drawer}
         </>

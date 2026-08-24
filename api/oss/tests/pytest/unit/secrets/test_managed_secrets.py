@@ -131,7 +131,10 @@ def test_public_projection_exposes_policy_but_not_manager():
     )
     public = project_secret_response(secret, reveal_write_only=True)
     dumped = public.model_dump(mode="json", exclude_none=True)
-    assert dumped["management"] == {"policy": "manager_only"}
+    assert dumped["management"] == {
+        "policy": "manager_only",
+        "recommended_for_new_agents": False,
+    }
     assert "manager" not in dumped["management"]
 
 

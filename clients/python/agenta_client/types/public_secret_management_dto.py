@@ -9,6 +9,7 @@ from .secret_management_policy import SecretManagementPolicy
 
 class PublicSecretManagementDto(UniversalBaseModel):
     policy: SecretManagementPolicy
+    recommended_for_new_agents: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

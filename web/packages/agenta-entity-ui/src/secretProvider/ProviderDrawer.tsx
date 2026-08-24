@@ -57,7 +57,7 @@ export interface ProviderDrawerProps {
     /** Open straight on this saved connection's card (a Settings table row click). */
     connection?: ProviderConnection | null
     /** Called after a connection is saved, so the host can refetch the vault. */
-    onSaved?: () => void
+    onSaved?: (savedConnectionId?: string) => void
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
     /**
@@ -370,8 +370,8 @@ const ProviderDrawer = ({
                     connection={view.connection}
                     connections={connections}
                     onSaveStateChange={setCardSave}
-                    onSaved={() => {
-                        onSaved?.()
+                    onSaved={(savedConnectionId) => {
+                        onSaved?.(savedConnectionId)
                         onClose()
                     }}
                 />

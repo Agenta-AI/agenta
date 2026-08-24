@@ -4,4 +4,5 @@ import type * as AgentaApi from "../index.js";
 
 export interface PublicSecretManagementDto {
     policy: AgentaApi.SecretManagementPolicy;
+    recommended_for_new_agents?: boolean | undefined;
 }
