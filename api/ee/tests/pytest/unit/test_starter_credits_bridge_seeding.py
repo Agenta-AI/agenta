@@ -289,6 +289,7 @@ class TestSeeding:
         assert row.data.provider.key.startswith("sk-virtual-")
         assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
         assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+        assert row.data.harnesses == ["pi_core"]
         assert row.header.name == service.STARTER_CREDITS_NAME
         assert row.header.description == service.STARTER_CREDITS_DESCRIPTION
         assert service.PROXY_ORIGIN not in row.header.description

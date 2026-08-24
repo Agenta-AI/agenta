@@ -98,7 +98,7 @@ export interface ProviderConnectionCardProps {
     /** Every connection in the project — the default-name preview reads them. */
     connections: ProviderConnection[]
     /** Called after a successful save, so the host can refetch and close. */
-    onSaved: () => void
+    onSaved: (savedConnectionId?: string) => void
     /**
      * Publishes the save wiring so the drawer can draw the footer outside the scrolling card.
      * Cancel is the drawer's own — it is the step that opened the card that gets undone.
@@ -313,7 +313,7 @@ const ProviderConnectionCard = ({
         setSaving(true)
         setSaveError(null)
         try {
-            await saveConnection({
+            const savedConnectionId = await saveConnection({
                 draft: {
                     kind,
                     name,
@@ -330,7 +330,7 @@ const ProviderConnectionCard = ({
                 fallbackName: namePreview,
                 connectionId: connection?.id,
             })
-            onSaved()
+            onSaved(savedConnectionId ?? undefined)
         } catch {
             setSaveError(`Agenta could not save this ${title} connection. Try again.`)
         } finally {

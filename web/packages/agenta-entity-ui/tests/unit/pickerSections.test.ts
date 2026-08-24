@@ -6,7 +6,11 @@
  * and a subscription is marked by the olive tag rather than by its name. Runs under
  * @agenta/entity-ui's own vitest runner.
  */
-import {SecretKind, type ProviderConnection} from "@agenta/entities/secret"
+import {
+    buildAgentModelCandidates,
+    SecretKind,
+    type ProviderConnection,
+} from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
 import {buildConnectionPickerRows} from "../../src/DrillInView/SchemaControls/connectionPicker"
@@ -53,16 +57,31 @@ const standard = (
     kind,
     title: kind,
     secretKind: SecretKind.ProviderKey,
+    hasStoredCredential: true,
     source: {name: `${kind}_api_key`, title: kind, key: "sk-test"} as ProviderConnection["source"],
     ...overrides,
 })
 
 const rowsFor = (connections: ProviderConnection[], showSubscriptions = false) =>
     buildConnectionPickerRows({
+        candidates: buildAgentModelCandidates({
+            connections,
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+            showSubscriptions,
+            subscriptionPairs: showSubscriptions
+                ? [
+                      {
+                          key: "anthropic:claude",
+                          provider: "anthropic",
+                          name: "Claude",
+                          harness: "claude",
+                      },
+                  ]
+                : [],
+        }),
         connections,
         capabilities: CAPABILITIES,
-        harnessIds: HARNESS_IDS,
-        showSubscriptions,
     })
 
 describe("harnessSections", () => {

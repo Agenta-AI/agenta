@@ -1,20 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {
-    customSecretsAtom,
-    providerConnectionsAtom,
-    subscriptionPairModelsAtom,
-    subscriptionPairsFrom,
-} from "@agenta/entities/secret"
-import {
-    harnessCapabilitiesAtomFamily,
-    SUBSCRIPTION_STATUS_QUERY_HARNESS,
-    subscriptionStatusQueryAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
+import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    buildModelOptionGroups,
     buildPickerGroupsWithSections,
     pickerSelectionFrom,
     describeMcp,
@@ -28,14 +16,12 @@ import {
     DEFAULT_PERMISSION_POLICY,
     PLATFORM_OPS,
     providerForModel,
-    vaultModelGroups,
     vaultPickedProviderFamily,
     readAgentItems,
     readHarnessKind,
     readModelId,
     readModelConnectionSlug,
     readRunnerPermission,
-    selectableHarnesses,
     staticEmbedSlug,
     toolName,
     withHarnessKind,
@@ -86,8 +72,8 @@ export function useChatSlashCommands({
     const parametersSchema = useAtomValue(
         useMemo(() => workflowMolecule.selectors.parametersSchema(entityId), [entityId]),
     )
-    const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
-    const customSecrets = useAtomValue(customSecretsAtom)
+    const candidateState = useAtomValue(agentModelCandidatesAtomFamily(true))
+    const capabilities = candidateState.capabilities
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
 
@@ -135,51 +121,23 @@ export function useChatSlashCommands({
         (!parametersSchema || permissionPolicySchema(parametersSchema) !== null) &&
         permissionOptions.length > 0
 
-    const harnessIds = useMemo(
-        () => selectableHarnesses(capabilities ? Object.keys(capabilities) : []),
-        [capabilities],
-    )
-
     /**
      * The same model source the config drawer uses: one group per stored connection (and per
      * subscription), each listing its models crossed with the harnesses that may drive them.
      * Built from one recipe with `useModelHarness` so the two pickers cannot list different models
-     * for the same agent. A project with no connections falls back to the pre-connections menu —
-     * the harness catalog plus the vault's custom-provider models.
+     * for the same agent.
      */
-    const connections = useAtomValue(providerConnectionsAtom)
-    // Same live pairs the config picker and the drawer read, under the same query key — one poll
-    // for the deployment, not one per surface.
-    const subscriptionStatus = useAtomValue(
-        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
-    )
-    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
-    const subscriptionPairs = useMemo(
-        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.data?.harnesses],
-    )
     const modelGroups = useMemo(() => {
-        const rows = buildConnectionPickerRows({
-            connections,
-            capabilities,
-            harnessIds,
-            subscriptionPairs,
-            pairModelSelection,
-        })
-        if (rows.length) return buildPickerGroupsWithSections(rows)
-        return [
-            ...buildModelOptionGroups(capabilities, currentHarness),
-            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
-        ]
-    }, [
-        connections,
-        capabilities,
-        harnessIds,
-        currentHarness,
-        customSecrets,
-        subscriptionPairs,
-        pairModelSelection,
-    ])
+        const rows =
+            candidateState.status === "ready"
+                ? buildConnectionPickerRows({
+                      candidates: candidateState.candidates,
+                      connections: candidateState.connections,
+                      capabilities,
+                  })
+                : []
+        return buildPickerGroupsWithSections(rows)
+    }, [candidateState, capabilities])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
     const modelAvailable = modelGroups.length > 0
@@ -207,9 +165,8 @@ export function useChatSlashCommands({
 
     /**
      * Apply a picked model. A connection row's option carries its connection slug, mode, provider
-     * family and harness in `metadata`; a fallback catalog option carries only what
-     * `vaultModelGroups` put there. Read them off the PICKED option rather than re-deriving from
-     * the model id — duplicate ids exist across providers/connections — and mirror the drawer's
+     * family and harness in `metadata`. Read them off the PICKED option rather than re-deriving
+     * from the model id — duplicate ids exist across providers/connections — and mirror the drawer's
      * provider rule: a vault pick resolves to the model FAMILY, since a connection's own kind
      * (bedrock/…) would fail the harness check.
      *
@@ -427,11 +384,9 @@ export function useChatSlashCommands({
         modelGroups,
         currentModel,
         currentConnectionSlug,
-        customSecrets,
         currentHarness,
         currentPermission,
         permissionOptions,
-        harnessIds,
         capabilities,
         applyModel,
         applyPermission,

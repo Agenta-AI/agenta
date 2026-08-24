@@ -83,9 +83,10 @@ export const saveProviderConnectionAtom = atom(
                     secret: payload.secret,
                 },
             })
-            return
+            return connectionId
         }
 
-        await get(createVaultSecretMutationAtom).mutateAsync({projectId, payload})
+        const created = await get(createVaultSecretMutationAtom).mutateAsync({projectId, payload})
+        return created.id ?? null
     },
 )

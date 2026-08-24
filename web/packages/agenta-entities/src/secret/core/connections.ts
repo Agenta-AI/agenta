@@ -378,6 +378,8 @@ export interface HarnessModelCapabilities {
     deployments?: string[]
     models?: Record<string, string[]>
     default_models?: Record<string, string[]>
+    connection_modes?: string[]
+    model_selection?: string
     /** Curated per-model records; a picker reads `label`/`name` for the model's display name. */
     model_catalog?: HarnessModelCatalogEntry[]
 }

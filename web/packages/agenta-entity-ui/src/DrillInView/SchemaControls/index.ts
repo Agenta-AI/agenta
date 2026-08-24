@@ -126,11 +126,14 @@ export {
     buildConnectionPickerRows,
     connectionModelIds,
     effectiveHarnesses,
+    firstPickerSelectionForConnection,
     modelRowKey,
     pickerSelectionFrom,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
+    resolvePickerSelection,
     selectedModelRowKey,
     selectionFromModelRow,
-    SUBSCRIPTION_HARNESSES,
 } from "./connectionPicker"
 export type {
     BuildPickerRowsArgs,
