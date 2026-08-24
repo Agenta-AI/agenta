@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -20,3 +21,11 @@ class AgentRevision(BaseModel):
     instructions: str
     model: AgentModel
     execution: AgentExecution = AgentExecution()
+
+
+class Agent(BaseModel):
+    id: str
+    name: str
+    current_revision: AgentRevision
+    created_at: datetime
+    updated_at: datetime

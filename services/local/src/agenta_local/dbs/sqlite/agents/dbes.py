@@ -19,7 +19,6 @@ class AgentRevisionDBE(Base):
     agent_id: Mapped[str] = mapped_column(
         ForeignKey(
             "agents.id",
-            ondelete="RESTRICT",
             deferrable=True,
             initially="DEFERRED",
         ),
@@ -40,7 +39,6 @@ class AgentDBE(Base):
     current_revision_id: Mapped[str] = mapped_column(
         ForeignKey(
             "agent_revisions.id",
-            ondelete="RESTRICT",
             deferrable=True,
             initially="DEFERRED",
         ),

@@ -52,6 +52,20 @@ async def immediate_transaction(
         await conn.close()
 
 
+async def fetch_one(
+    conn: AsyncConnection,
+    stmt,
+    entity_cls: type,
+):
+    """One row from a Core-connection select as an untracked ORM instance.
+
+    Bare connections do not instantiate ORM entities from ``select(Entity)``;
+    rebuild them from the column mapping instead.
+    """
+    row = (await conn.execute(stmt)).first()
+    return None if row is None else entity_cls(**row._mapping)
+
+
 async def connection_pragmas(conn: AsyncConnection) -> dict[str, object]:
     return {
         "foreign_keys": (await conn.execute(text("PRAGMA foreign_keys"))).scalar(),

@@ -28,8 +28,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["current_revision_id"],
             ["agent_revisions.id"],
+            # NO ACTION (not RESTRICT): SQLite enforces RESTRICT immediately even on
+            # deferrable constraints, which would make the creation cycle undeletable.
             name="fk_agents_current_revision_id_agent_revisions",
-            ondelete="RESTRICT",
             deferrable=True,
             initially="DEFERRED",
         ),
@@ -48,7 +49,6 @@ def upgrade() -> None:
             ["agent_id"],
             ["agents.id"],
             name="fk_agent_revisions_agent_id_agents",
-            ondelete="RESTRICT",
             deferrable=True,
             initially="DEFERRED",
         ),
