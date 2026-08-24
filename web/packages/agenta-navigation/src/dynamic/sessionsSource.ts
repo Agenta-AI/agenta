@@ -13,7 +13,8 @@ import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../stat
 
 import {
     PINNED_GROUP_KEY,
-    sidebarSessionExpandedGroupsAtomFamily,
+    groupingStartsFolded,
+    sidebarSessionToggledGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
     type SidebarSessionGroupBy,
@@ -449,13 +450,14 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         }
         const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
-        // Folded unless opened. A rail with a heading per agent is a wall of rows before it is a
-        // way to find one. Pinned's head start lives in the atom's default, so it stays closable.
-        const expanded = new Set(get(sidebarSessionExpandedGroupsAtomFamily(scopeId)))
+        // The stored set flips a heading away from its grouping's default, so a regrouping keeps
+        // whatever you chose without carrying the previous grouping's keys.
+        const folded = groupingStartsFolded(get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy)
+        const toggled = new Set(get(sidebarSessionToggledGroupsAtomFamily(scopeId)))
         return {
             groups,
             collapsedKeys: groups
-                .filter((group) => !expanded.has(group.key))
+                .filter((group) => folded !== toggled.has(group.key))
                 .map((group) => group.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,

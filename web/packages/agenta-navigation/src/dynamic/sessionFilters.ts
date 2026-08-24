@@ -6,10 +6,10 @@ import {atomFamily} from "jotai-family"
 const SESSION_FILTERS_STORAGE_KEY = "agenta:sidebar:session-filters"
 // EXPANDED, not collapsed: groups now start folded, so the stored set is what the user opened.
 // A new key on purpose — reading the old collapsed set here would invert every saved choice.
-const SESSION_GROUPS_EXPANDED_STORAGE_KEY = "agenta:sidebar:session-groups-expanded"
+const SESSION_GROUPS_TOGGLED_STORAGE_KEY = "agenta:sidebar:session-groups-toggled"
 const NO_PROJECT_SCOPE = "__global__"
 
-/** The pins' own heading. Defined here because it is also the one group that starts OPEN. */
+/** The pins' own heading. */
 export const PINNED_GROUP_KEY = "pinned"
 
 /** Liveness the server can answer directly — `flags.is_running` / `flags.is_alive`. */
@@ -58,8 +58,8 @@ const sessionFiltersStorageAtom = atomWithStorage<Record<string, SidebarSessionF
     {},
 )
 
-const expandedGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
-    SESSION_GROUPS_EXPANDED_STORAGE_KEY,
+const toggledGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
+    SESSION_GROUPS_TOGGLED_STORAGE_KEY,
     {},
 )
 
@@ -110,26 +110,34 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
 )
 
 /**
- * The groups the user has OPENED. Everything else renders folded.
+ * Headings the user has toggled AWAY from their default — not a list of open groups.
  *
- * Untouched, that is Pinned alone: a pin IS the user asking to see a session, so hiding pins
- * behind a caret contradicts the gesture. It is a DEFAULT, not a rule — the absent record resolves
- * to it, and the first toggle writes a real list, so Pinned collapses like any other group.
+ * An open/closed list cannot survive a regrouping: its keys are `agent:…`, so switching to dates
+ * matches nothing and the whole rail reads as collapsed. An override set is grouping-agnostic,
+ * because the default it flips is whatever the new grouping asks for.
  */
-export const sidebarSessionExpandedGroupsAtomFamily = atomFamily((scopeId: string) =>
+export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
-            return get(expandedGroupsStorageAtom)[scope] ?? [PINNED_GROUP_KEY]
+            return get(toggledGroupsStorageAtom)[scope] ?? []
         },
         (get, set, groupKey: string) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
-            const storage = get(expandedGroupsStorageAtom)
-            const current = storage[scope] ?? [PINNED_GROUP_KEY]
+            const storage = get(toggledGroupsStorageAtom)
+            const current = storage[scope] ?? []
             const next = current.includes(groupKey)
                 ? current.filter((key) => key !== groupKey)
                 : [...current, groupKey]
-            set(expandedGroupsStorageAtom, {...storage, [scope]: next})
+            set(toggledGroupsStorageAtom, {...storage, [scope]: next})
         },
     ),
 )
+
+/**
+ * Whether a grouping's headings start folded.
+ *
+ * Only agent does. It is the one with a heading per entity, which is the wall of rows worth
+ * folding; date and status have a handful of buckets whose labels say nothing on their own.
+ */
+export const groupingStartsFolded = (groupBy: SidebarSessionGroupBy) => groupBy === "agent"

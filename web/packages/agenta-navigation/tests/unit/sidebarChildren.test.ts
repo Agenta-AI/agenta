@@ -2,6 +2,7 @@ import {createElement} from "react"
 
 import {
     defineSidebarEntity,
+    groupingStartsFolded,
     resolveChildren,
     sidebarSessionGroup,
     withRefsByRecency,
@@ -284,5 +285,19 @@ describe("withRefsByRecency", () => {
     it("leaves a source that is not ready alone", () => {
         const loading: SidebarEntitySource = {status: "loading", refs: []}
         expect(withRefsByRecency(loading, () => 1)).toBe(loading)
+    })
+})
+
+// A grouping change must not read as "everything collapsed": the stored set flips a heading away
+// from its default rather than listing open ones, so its keys survive a regrouping.
+describe("groupingStartsFolded", () => {
+    it("folds agent headings, which are one per entity", () => {
+        expect(groupingStartsFolded("agent")).toBe(true)
+    })
+
+    it("leaves the handful-of-buckets groupings open", () => {
+        expect(groupingStartsFolded("date")).toBe(false)
+        expect(groupingStartsFolded("status")).toBe(false)
+        expect(groupingStartsFolded("pinned")).toBe(false)
     })
 })
