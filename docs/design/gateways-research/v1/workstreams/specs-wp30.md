@@ -15,6 +15,16 @@ contract. Do not build a bespoke OAuth client.
   refusals.
 - Pin the direct MCP SDK version and test the adapter against that exact API.
 
+## Required verification
+
+- **Unit:** token-storage mapping, secret-handle-only persistence, OAuth state transitions, and
+  refusal serialization; include negative assertions that tokens never appear in API DTOs, logs,
+  or runner payloads.
+- **Integration:** a local OAuth provider exercises discovery, metadata, redirect/callback, secret
+  persistence, and reconnect through the API/service boundary.
+- **Acceptance:** an OAuth-backed MCP endpoint completes the mocked authorization exchange and
+  invokes a tool through the real gateway socket on both OSS and EE development stacks.
+
 ## Out of scope
 
 Dashboard scope selection and registration fallback belong to WP31. User-owned secrets and

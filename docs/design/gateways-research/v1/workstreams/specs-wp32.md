@@ -11,6 +11,14 @@ shared prefix for Vertex; protocol doors append only their own path tail.
 - Cover every supported protocol door, including the static field-rewrite doors, proving the route
   does not silently select another endpoint or capability.
 
+## Required verification
+
+- **Unit:** deployment-specific URL grammar, malformed-value rejection, and route construction.
+- **Integration:** registered Bedrock/Vertex endpoint fixtures reach every translated protocol
+  door and static rewrite without live cloud credentials.
+- **Acceptance:** OSS and EE gateway socket calls prove each deployment uses its configured
+  `base_url` and never falls back to another endpoint or capability.
+
 ## Done when
 
 All supported Bedrock and Vertex routes use the configured endpoint deterministically, malformed
