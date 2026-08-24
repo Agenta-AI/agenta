@@ -121,6 +121,22 @@ Slices 3 and 4 code is complete (2026-08-24):
 None for code. Operational gates remain: assemble the real linux-x64 bundle and run
 the clean-VM journey; build + verify a darwin-arm64 bundle on the Mac.
 
+## Handoff: continuing on a macOS machine
+
+All four slices are code-complete on branch `feat/agenta-local-poc`. What remains needs
+real hardware:
+
+1. On the Mac: clone/fetch the branch, then follow
+   `services/local/packaging/linux/BUILDING.md` ("macOS" recipe): corepack pnpm install,
+   build the runner extension + Pi patch, build the renderer export, run
+   `uv run --no-sync python packaging/linux/build_bundle.py --platform darwin-arm64`,
+   then `verify_bundle.py dist/agenta-local-darwin-arm64`.
+2. Verify the computed darwin Node/CPython digests against official SHASUMS256 files and
+   flip `hash_verified_against_upstream` in the generated manifest.
+3. Run the full journey from qa.md against the bundle; archive SHA256SUMS only after it
+   passes.
+4. The linux-x64 clean-VM gate is unchanged and can run independently.
+
 ## Known deferred items
 
 1. pyproject does not package migration assets into the wheel (bundle copies them to
