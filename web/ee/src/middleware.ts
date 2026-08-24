@@ -2,11 +2,13 @@ import {GATE_COOKIE_MAX_AGE, decideDesktopGate} from "@agenta/shared/utils/mobil
 import {NextRequest, NextResponse} from "next/server"
 
 /**
- * Mobile device gate, forward direction (agenta-mobile WP5): mobile devices
- * navigating desktop routes are redirected into the /m app.
+ * Forward gate: desktop routes are redirected into the /m app, for two independent reasons.
  *
- * DEFAULT OFF. Activates only when the deployment sets AGENTA_MOBILE_GATE=true.
- * The flag is read inside the handler at request time: on the self-hosted
+ * - AGENTA_MOBILE_GATE — the device gate (agenta-mobile WP5): mobile devices. DEFAULT OFF.
+ * - AGENTA_CLASSIC_MODE_GATE — the preference gate: users whose "Classic mode" is off, on any
+ *   device, for the routes /m covers. DEFAULT ON; set it to "false" to disable.
+ *
+ * Both flags are read inside the handler at request time: on the self-hosted
  * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime
  * (the client-only DefinePlugin in next.config.ts does not touch this
  * compiler), so flipping the env + recreating the container is enough — no
@@ -25,6 +27,7 @@ export function middleware(request: NextRequest) {
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
         gateEnabled: process.env.AGENTA_MOBILE_GATE === "true",
+        classicGateEnabled: process.env.AGENTA_CLASSIC_MODE_GATE !== "false",
     })
 
     if (decision.kind === "redirect") {

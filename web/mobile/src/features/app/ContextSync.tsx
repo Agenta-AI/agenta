@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
+import {useClassicModeCookieSync} from "@agenta/shared/hooks"
 import {activeUserIdAtom, setProjectIdAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -33,6 +34,10 @@ export const ContextSync = () => {
         if (profilePending) return
         setActiveUserId(user?.id ?? null)
     }, [profilePending, user?.id, setActiveUserId])
+
+    // Classic mode is toggled here as well as on the desktop, and the desktop's middleware reads
+    // it as a cookie — so this app publishes it too, or a switch flipped here would not stick.
+    useClassicModeCookieSync()
 
     const {workspace_id, project_id} = router.query
     const workspaceId = typeof workspace_id === "string" ? workspace_id : null
