@@ -6,14 +6,16 @@
  */
 import {providerConnectionsAtom} from "@agenta/entities/secret"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
-import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
+import {
+    isInteractionEndedOutput,
+    type ClientToolWidgetProps as ClientToolHandlerProps,
+} from "@agenta/shared/clientTools"
 import {CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import MCPConnectDialog from "@/oss/components/pages/settings/MCPEndpoints/MCPConnectDialog"
 
-import type {ClientToolHandlerProps} from "./types"
 import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
 
 const {Text} = Typography

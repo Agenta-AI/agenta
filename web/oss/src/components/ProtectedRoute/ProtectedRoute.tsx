@@ -1,13 +1,9 @@
 import {memo, type FC, type PropsWithChildren} from "react"
 
+import {SIDEBAR_COLLAPSED_WIDTH, sidebarCollapsedAtom, sidebarWidthAtom} from "@agenta/navigation"
 import {useAtomValue} from "jotai"
 
 import {useSession} from "@/oss/hooks/useSession"
-import {
-    SIDEBAR_COLLAPSED_WIDTH,
-    sidebarCollapsedAtom,
-    sidebarWidthAtom,
-} from "@/oss/lib/atoms/sidebar"
 import {selectedOrgAtom, selectedOrgQueryAtom} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"

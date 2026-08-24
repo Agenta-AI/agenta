@@ -42,6 +42,12 @@ export interface GateInput {
     cookie: (name: string) => string | undefined
     /** AGENTA_MOBILE_GATE, resolved by the adapter at request time. */
     gateEnabled: boolean
+    /**
+     * AGENTA_MOBILE_REVERSE_GATE, mobile-app only. `false` keeps the forward gate (mobile
+     * devices → /m) while letting anything reach /m: tablets and desktop-UA browsers report
+     * as non-mobile, so the bounce blocks deliberate visits. Defaults to on.
+     */
+    reverseGateEnabled?: boolean
 }
 
 export type GateDecision =
@@ -222,6 +228,8 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
+        // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
+        if (input.reverseGateEnabled === false) return {kind: "pass"}
         if (isMobileDevice(input.header)) return {kind: "pass"}
 
         return {kind: "redirect", location: mapMobileToDesktop(input.pathname)}

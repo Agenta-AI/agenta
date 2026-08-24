@@ -156,7 +156,12 @@ image build and `@agenta/mobile` typecheck needed a new job.
 
 Ships the mobile device gate (design.md "Gate and routing") behind a runtime flag,
 `AGENTA_MOBILE_GATE`, **default off**: with the flag off, request behavior is byte-identical to
-today. `NoMobilePageWrapper` retirement (T8) is specified but deliberately **not executed** —
+today. A second flag, `AGENTA_MOBILE_REVERSE_GATE` (**default on**, mobile app only), turns off
+the reverse direction alone: mobile devices still get sent to `/m`, but nothing is bounced back
+out of `/m`. Set it to `false` to test `/m` from a tablet or a desktop browser — iPadOS Safari
+sends the macOS desktop UA and Chromium tablets send `sec-ch-ua-mobile: ?0`, so both read as
+non-mobile and would otherwise be bounced.
+`NoMobilePageWrapper` retirement (T8) is specified but deliberately **not executed** —
 it ships only in the deployment window where the flag is actually flipped on. See
 [plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md) for the full task
 breakdown and grounding facts.

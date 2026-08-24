@@ -33,9 +33,11 @@ import {
   computeCredentialEpoch,
   configFingerprint,
   mountExpiryMs,
+  MOUNT_LEASE_SKEW_MS,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import { resolveRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
 import {
   appliedStateForRequest,
   AppliedState,
@@ -1239,9 +1241,13 @@ describe("runWithKeepalive: approval credential lifecycle", () => {
   });
 
   it("the repark after a resume keeps the parked secrets hash AND the installed mount lease", async () => {
-    // Six hours out, so neither the expiry bound nor the expiring-lease bound fires here.
+    // The lease must outlive the reuse horizon (`now + total deadline + skew`, the
+    // session coordinator's `requiredValidThroughMs`) or the resume rebuilds cold and
+    // this test fails for the wrong reason. Derive it from the real default so a future
+    // change to DEFAULT_TOTAL_DEADLINE_MS cannot silently invalidate the setup; the
+    // hour of margin keeps the expiring-lease bound from firing either.
     const installedExpiresAt = new Date(
-      Date.now() + 6 * 3_600_000,
+      Date.now() + resolveRunLimits().totalMs + MOUNT_LEASE_SKEW_MS + 3_600_000,
     ).toISOString();
     const { engine, calls } = makeApprovalEngine(
       [

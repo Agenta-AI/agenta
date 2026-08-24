@@ -14,6 +14,7 @@ import {previewEvalTypeAtom} from "../state/evalType"
 import {resolveValueBySegments, splitPath} from "../utils/valueAccess"
 
 import {isTerminalStatus} from "./compare"
+import {sameFamilyKey} from "./familyKeys"
 import {
     createMetricProcessor,
     isLegacyValueLeaf,
@@ -665,123 +666,127 @@ const extractMetricValueFromData = (
     return undefined
 }
 
-export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
-    atom((get) => {
-        const projectId = resolveProjectId(get)
-        const effectiveRunId = resolveEffectiveRunId(get, runId)
-        const evalTypeFromAtom = get(previewEvalTypeAtom)
+export const evaluationMetricBatcherFamily = atomFamily(
+    ({runId}: {runId?: string | null} = {}) =>
+        atom((get) => {
+            const projectId = resolveProjectId(get)
+            const effectiveRunId = resolveEffectiveRunId(get, runId)
+            const evalTypeFromAtom = get(previewEvalTypeAtom)
 
-        // Derive evaluation type from run.data.steps - this is the reliable source of truth
-        // Do NOT use meta.evaluation_kind as it's flaky and unreliable
-        const runQuery = effectiveRunId
-            ? get(evaluationRunQueryAtomFamily(effectiveRunId))
-            : undefined
-        const rawRun = runQuery?.data?.rawRun
-        const evalTypeFromRun = rawRun ? deriveEvaluationKind(rawRun) : null
-        const evaluationType = evalTypeFromAtom || evalTypeFromRun
+            // Derive evaluation type from run.data.steps - this is the reliable source of truth
+            // Do NOT use meta.evaluation_kind as it's flaky and unreliable
+            const runQuery = effectiveRunId
+                ? get(evaluationRunQueryAtomFamily(effectiveRunId))
+                : undefined
+            const rawRun = runQuery?.data?.rawRun
+            const evalTypeFromRun = rawRun ? deriveEvaluationKind(rawRun) : null
+            const evaluationType = evalTypeFromAtom || evalTypeFromRun
 
-        if (!projectId || !effectiveRunId) return null
+            if (!projectId || !effectiveRunId) return null
 
-        const cacheKey = `${projectId}:${effectiveRunId}:${evaluationType || "auto"}`
-        let batcher = metricBatcherCache.get(cacheKey)
-        if (!batcher) {
-            metricBatcherCache.clear()
-            batcher = createBatchFetcher<string, ScenarioMetricData | null>({
-                serializeKey: (key) => key,
-                batchFn: async (scenarioIds) => {
-                    const unique = Array.from(new Set(scenarioIds.filter(Boolean)))
-                    if (!unique.length) {
-                        return {}
-                    }
-
-                    const fetchMetrics = async () => {
-                        const metricPayload: Record<string, any> = {}
-                        // metricPayload.run_id = effectiveRunId
-                        if (unique.length) {
-                            // For scenario-scoped queries, do not constrain by run_ids to avoid over-filtering.
-                            metricPayload.scenario_ids = unique
-                        } else {
-                            metricPayload.run_ids = [effectiveRunId]
+            const cacheKey = `${projectId}:${effectiveRunId}:${evaluationType || "auto"}`
+            let batcher = metricBatcherCache.get(cacheKey)
+            if (!batcher) {
+                metricBatcherCache.clear()
+                batcher = createBatchFetcher<string, ScenarioMetricData | null>({
+                    serializeKey: (key) => key,
+                    batchFn: async (scenarioIds) => {
+                        const unique = Array.from(new Set(scenarioIds.filter(Boolean)))
+                        if (!unique.length) {
+                            return {}
                         }
 
-                        const response = await axios.post(
-                            `/evaluations/metrics/query`,
-                            {
-                                metrics: {
-                                    ...metricPayload,
+                        const fetchMetrics = async () => {
+                            const metricPayload: Record<string, any> = {}
+                            // metricPayload.run_id = effectiveRunId
+                            if (unique.length) {
+                                // For scenario-scoped queries, do not constrain by run_ids to avoid over-filtering.
+                                metricPayload.scenario_ids = unique
+                            } else {
+                                metricPayload.run_ids = [effectiveRunId]
+                            }
+
+                            const response = await axios.post(
+                                `/evaluations/metrics/query`,
+                                {
+                                    metrics: {
+                                        ...metricPayload,
+                                    },
                                 },
-                            },
-                            {
-                                params: {project_id: projectId},
-                            },
-                        )
-
-                        return Array.isArray(response.data?.metrics) ? response.data.metrics : []
-                    }
-
-                    const resolveMetrics = async (): Promise<
-                        Record<string, ScenarioMetricData | null>
-                    > => {
-                        const processMetrics = async ({
-                            entries,
-                            source,
-                            triggerRefresh,
-                        }: {
-                            entries: any[]
-                            source: string
-                            triggerRefresh: boolean
-                        }) => {
-                            const processor = createMetricProcessor({
-                                projectId,
-                                runId: effectiveRunId,
-                                source,
-                                evaluationType,
-                            })
-
-                            // Get scenario statuses from cache for terminal state detection
-                            const scenarioStatuses = getScenarioStatuses(unique)
-
-                            const grouped = buildGroupedMetrics(
-                                unique,
-                                entries,
-                                processor,
-                                scenarioStatuses,
+                                {
+                                    params: {project_id: projectId},
+                                },
                             )
-                            const flushResult = await processor.flush({triggerRefresh})
-                            return {grouped, flushResult}
+
+                            return Array.isArray(response.data?.metrics)
+                                ? response.data.metrics
+                                : []
                         }
 
-                        const initial = await processMetrics({
-                            entries: await fetchMetrics(),
-                            source: "scenario-metric-batcher",
-                            triggerRefresh: true,
-                        })
+                        const resolveMetrics = async (): Promise<
+                            Record<string, ScenarioMetricData | null>
+                        > => {
+                            const processMetrics = async ({
+                                entries,
+                                source,
+                                triggerRefresh,
+                            }: {
+                                entries: any[]
+                                source: string
+                                triggerRefresh: boolean
+                            }) => {
+                                const processor = createMetricProcessor({
+                                    projectId,
+                                    runId: effectiveRunId,
+                                    source,
+                                    evaluationType,
+                                })
 
-                        let grouped = initial.grouped
-                        let flushResult = initial.flushResult
+                                // Get scenario statuses from cache for terminal state detection
+                                const scenarioStatuses = getScenarioStatuses(unique)
 
-                        // Re-fetch after refresh to get updated metrics
-                        if (flushResult.refreshed) {
-                            const retry = await processMetrics({
+                                const grouped = buildGroupedMetrics(
+                                    unique,
+                                    entries,
+                                    processor,
+                                    scenarioStatuses,
+                                )
+                                const flushResult = await processor.flush({triggerRefresh})
+                                return {grouped, flushResult}
+                            }
+
+                            const initial = await processMetrics({
                                 entries: await fetchMetrics(),
-                                source: "scenario-metric-batcher:retry",
-                                triggerRefresh: false,
+                                source: "scenario-metric-batcher",
+                                triggerRefresh: true,
                             })
 
-                            grouped = retry.grouped
+                            let grouped = initial.grouped
+                            let flushResult = initial.flushResult
+
+                            // Re-fetch after refresh to get updated metrics
+                            if (flushResult.refreshed) {
+                                const retry = await processMetrics({
+                                    entries: await fetchMetrics(),
+                                    source: "scenario-metric-batcher:retry",
+                                    triggerRefresh: false,
+                                })
+
+                                grouped = retry.grouped
+                            }
+
+                            return grouped
                         }
 
-                        return grouped
-                    }
+                        return resolveMetrics()
+                    },
+                })
+                metricBatcherCache.set(cacheKey, batcher)
+            }
 
-                    return resolveMetrics()
-                },
-            })
-            metricBatcherCache.set(cacheKey, batcher)
-        }
-
-        return batcher
-    }),
+            return batcher
+        }),
+    sameFamilyKey,
 )
 
 export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily({})))
@@ -821,6 +826,7 @@ export const evaluationMetricQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )
 
 export const scenarioMetricValueAtomFamily = atomFamily(
@@ -861,6 +867,7 @@ export const scenarioMetricValueAtomFamily = atomFamily(
             },
             deepEqual,
         ),
+    sameFamilyKey,
 )
 
 export const scenarioMetricMetaAtomFamily = atomFamily(
@@ -879,45 +886,50 @@ export const scenarioMetricMetaAtomFamily = atomFamily(
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),
+    sameFamilyKey,
 )
 
-export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
-    atomWithQuery<RunLevelMetricData | null>((get) => {
-        const effectiveRunId = resolveEffectiveRunId(get, runId)
-        const projectId = resolveProjectId(get)
+export const runLevelMetricQueryAtomFamily = atomFamily(
+    ({runId}: {runId?: string | null} = {}) =>
+        atomWithQuery<RunLevelMetricData | null>((get) => {
+            const effectiveRunId = resolveEffectiveRunId(get, runId)
+            const projectId = resolveProjectId(get)
 
-        return {
-            queryKey: ["preview", "run-level-metrics", projectId, effectiveRunId],
-            enabled: Boolean(projectId && effectiveRunId),
-            staleTime: 30_000,
-            gcTime: 5 * 60 * 1000,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!projectId || !effectiveRunId) return null
+            return {
+                queryKey: ["preview", "run-level-metrics", projectId, effectiveRunId],
+                enabled: Boolean(projectId && effectiveRunId),
+                staleTime: 30_000,
+                gcTime: 5 * 60 * 1000,
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                queryFn: async () => {
+                    if (!projectId || !effectiveRunId) return null
 
-                const response = await axios.post(
-                    `/evaluations/metrics/query`,
-                    {
-                        metrics: {
-                            run_ids: [effectiveRunId],
-                            scenario_ids: false,
-                            timestamps: false,
+                    const response = await axios.post(
+                        `/evaluations/metrics/query`,
+                        {
+                            metrics: {
+                                run_ids: [effectiveRunId],
+                                scenario_ids: false,
+                                timestamps: false,
+                            },
                         },
-                    },
-                    {params: {project_id: projectId}},
-                )
+                        {params: {project_id: projectId}},
+                    )
 
-                const entries = Array.isArray(response.data?.metrics) ? response.data.metrics : []
+                    const entries = Array.isArray(response.data?.metrics)
+                        ? response.data.metrics
+                        : []
 
-                if (!entries.length) {
-                    return {metrics: [], raw: {}, flat: {}}
-                }
+                    if (!entries.length) {
+                        return {metrics: [], raw: {}, flat: {}}
+                    }
 
-                return buildRunLevelMetricData(entries)
-            },
-        }
-    }),
+                    return buildRunLevelMetricData(entries)
+                },
+            }
+        }),
+    sameFamilyKey,
 )
 
 /**

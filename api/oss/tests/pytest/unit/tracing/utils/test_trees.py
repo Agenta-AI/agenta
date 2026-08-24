@@ -39,6 +39,8 @@ def _span(
     links=None,
     prompt_tokens: float = 0.0,
     completion_tokens: float = 0.0,
+    cache_read_tokens: float | None = None,
+    cache_token_key: str = "cache_read",
     prompt_cost: float = 0.0,
     completion_cost: float = 0.0,
     errors: int = 0,
@@ -50,14 +52,18 @@ def _span(
 ) -> OTelFlatSpan:
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
+    incremental_tokens = {
+        "prompt": prompt_tokens,
+        "completion": completion_tokens,
+        "total": total_tokens,
+    }
+    # Under `cache_token_key` because the ingest adapters disagree on the name: the logfire
+    # path writes `cache_read`, the Vercel AI path writes `cached`. Absent entirely when
+    # None, which is the shape of a span from a provider or model without prompt caching.
+    if cache_read_tokens is not None:
+        incremental_tokens[cache_token_key] = cache_read_tokens
     metrics = {
-        "tokens": {
-            "incremental": {
-                "prompt": prompt_tokens,
-                "completion": completion_tokens,
-                "total": total_tokens,
-            }
-        },
+        "tokens": {"incremental": incremental_tokens},
         "costs": {
             "incremental": {
                 "prompt": prompt_cost,
@@ -250,6 +256,298 @@ def test_calculate_costs_swallows_calculation_errors(monkeypatch):
     calculate_costs(span_idx)
 
     assert "incremental" in span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]
+
+
+@pytest.mark.parametrize("cache_token_key", ["cache_read", "cached"])
+def test_calculate_costs_passes_cached_tokens_to_the_pricer(
+    monkeypatch,
+    cache_token_key,
+):
+    """Cached prompt tokens must reach litellm, which prices them far below fresh input.
+
+    Both spellings have to be honoured: the logfire ingest path writes `cache_read`, the
+    Vercel AI path writes `cached`. Reading only one silently overstates the other's cost.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        cache_token_key=cache_token_key,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.005, 0.001)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert seen["cache_read_input_tokens"] == 24540
+    # The cached count is a SUBSET of the prompt total, not an addition to it. litellm
+    # re-prices that slice itself, so the prompt total is passed through untouched;
+    # subtracting the cached tokens here would understate cost instead of overstating it.
+    assert seen["prompt_tokens"] == 25978
+
+
+def test_calculate_costs_sends_the_cached_count_as_an_int(monkeypatch):
+    """The count must reach litellm as an int, not the float this metric is stored as.
+
+    litellm reads the cached slice back off `Usage.prompt_tokens_details.cached_tokens`,
+    and its `Usage` model only builds that wrapper from an int -- given a float it leaves
+    `prompt_tokens_details` None and bills every token at the full input rate again. There
+    is no exception to catch: the whole fix degrades to a no-op. Verified against litellm
+    1.92.0, where `cost_per_token(..., cache_read_input_tokens=24540)` prices a 25,978-token
+    Gemini prompt at $0.001168 and the same call with `24540.0` at $0.007793.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978.0,
+        completion_tokens=100.0,
+        cache_read_tokens=24540.0,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.001, 0.002)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert isinstance(seen["cache_read_input_tokens"], int)
+    assert not isinstance(seen["cache_read_input_tokens"], bool)
+    assert seen["cache_read_input_tokens"] == 24540
+
+
+def test_calculate_costs_omits_cache_kwarg_when_nothing_was_cached(monkeypatch):
+    """A span with no caching must call exactly the signature it always did.
+
+    The SDK pins `litellm>=1,<2`, and `calculate_costs` swallows every exception. On a 1.x
+    old enough to lack the parameter, passing it unconditionally would raise TypeError and
+    be swallowed into "no costs at all" for EVERY span, not just cached ones -- so the
+    pricer is called here with a signature that accepts nothing else.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["prompt"] == pytest.approx(0.1)
+    assert costs["completion"] == pytest.approx(0.2)
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_zero_cached_count(monkeypatch):
+    """An explicit zero is a cache miss, not a cached slice: still the legacy signature."""
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens=0,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_non_numeric_cached_count(monkeypatch):
+    """Garbage in the cache field must not cost the span its ENTIRE cost.
+
+    A foreign OTLP source can write anything under `tokens.incremental`. A truthy
+    non-numeric value that reached `int()` would raise inside the try, and the bare
+    `except` would swallow it into "no costs at all" for the span -- a regression
+    against the pre-fix behaviour, where a garbage cache field was simply ignored
+    and prompt/completion were still priced.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens="24540",
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["prompt"] == pytest.approx(0.1)
+    assert costs["completion"] == pytest.approx(0.2)
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_ignores_a_negative_cached_count(monkeypatch):
+    """A negative count is not a cached slice: still the legacy signature.
+
+    Negative is truthy, so without the numeric guard it would reach the pricer,
+    where "fresh = prompt - cached" arithmetic turns it into an overstated cost.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=10,
+        completion_tokens=20,
+        cache_read_tokens=-5,
+        span_type=SpanType.CHAT,
+    )
+    span_idx = {span.span_id: span}
+
+    def _legacy_signature(model, prompt_tokens, completion_tokens):
+        return (0.1, 0.2)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _legacy_signature,
+    )
+
+    calculate_costs(span_idx)
+
+    costs = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["incremental"]
+    assert costs["total"] == pytest.approx(0.3)
+
+
+def test_calculate_costs_prefers_cache_read_over_cached_when_both_present(monkeypatch):
+    """`cache_read` wins when both aliases appear on one span.
+
+    No ingest adapter writes both today, but the precedence should be pinned:
+    `cache_read` is the spelling the runner emits and the logfire path stores.
+    """
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        span_type=SpanType.CHAT,
+    )
+    span.attributes["ag"]["metrics"]["tokens"]["incremental"]["cached"] = 999
+    span_idx = {span.span_id: span}
+
+    seen = {}
+
+    def _capture(**kwargs):
+        seen.update(kwargs)
+        return (0.001, 0.002)
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _capture,
+    )
+
+    calculate_costs(span_idx)
+
+    assert seen["cache_read_input_tokens"] == 24540
+
+
+def test_calculate_costs_bills_cached_tokens_below_fresh_input(monkeypatch):
+    """End-to-end shape of #5711, with the pricer modelling litellm's published contract.
+
+    The reported case: a 25,978-token prompt of which 24,540 came from cache, on a model
+    whose cached rate is a tenth of its input rate. Billing every token at the full input
+    rate is what produced the 6.6x overstatement.
+    """
+    input_rate = 0.30 / 1_000_000
+    cached_rate = input_rate / 10
+    output_rate = 2.50 / 1_000_000
+
+    def _priced(model, prompt_tokens, completion_tokens, cache_read_input_tokens=0):
+        fresh = prompt_tokens - cache_read_input_tokens
+        return (
+            fresh * input_rate + cache_read_input_tokens * cached_rate,
+            completion_tokens * output_rate,
+        )
+
+    monkeypatch.setattr(
+        "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
+        _priced,
+    )
+
+    cached = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        cache_read_tokens=24540,
+        span_type=SpanType.CHAT,
+    )
+    uncached = _span(
+        span_id=CHILD_A_UUID,
+        span_name="root",
+        prompt_tokens=25978,
+        completion_tokens=100,
+        span_type=SpanType.CHAT,
+    )
+
+    calculate_costs({cached.span_id: cached})
+    calculate_costs({uncached.span_id: uncached})
+
+    cached_costs = cached.attributes["ag"]["metrics"]["costs"]["incremental"]
+    uncached_costs = uncached.attributes["ag"]["metrics"]["costs"]["incremental"]
+
+    assert cached_costs["total"] < uncached_costs["total"]
+    # Compared on the prompt component, which is the part caching changes -- the issue's
+    # 6.6x is a prompt-side ratio, and folding in the (identical) completion cost would
+    # dilute it to ~5.7x. Same call, same token counts: the only difference is whether the
+    # cached slice was priced as cached. Before the fix both paths produced the high number.
+    assert uncached_costs["prompt"] / cached_costs["prompt"] == pytest.approx(
+        6.67,
+        abs=0.01,
+    )
 
 
 def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):

@@ -5,7 +5,7 @@ environment** (design: issue #5650; live proof:
 `docs/design/railway-preview-clone-spike/`). This directory makes that template
 code in the repo:
 
-- `template.json` — the full definition of the template environment: 13
+- `template.json` — the full definition of the template environment: 14
   services with images (tags parameterized), startCommands, restart policies,
   volumes, healthcheck policy, deploy-ordering constraints, and every managed
   variable by NAME. It contains **no secret values**.
@@ -38,6 +38,12 @@ the same additive-first discipline:
    service lands in the template *before* the code that requires it (old code
    ignores the extra config); removal lands *after* no supported code path
    needs it. This keeps every open PR's clone deployable throughout.
+
+   A service added here does not reach existing clones until step 4 runs, so
+   `preview-clone-create.sh` treats the names in its `OPTIONAL_SERVICES` list
+   as skippable: a clone made from the not-yet-converged template deploys
+   without them instead of failing on a missing `serviceId`. Add a new service
+   to that list in the same PR, and drop it once the template is applied.
 3. **Test on a clone first.** Create a scratch clone of `pr-template` (or reuse
    a preview clone), then converge *it* against your edited definition:
 
@@ -82,10 +88,13 @@ variables query per service) against the token's 1000/hour Hobby budget.
 
 Four tag parameters in `template.json`:
 
-- `app_tag` — the four Agenta app images (`agenta-api`, `agenta-web`,
-  `agenta-services`, `agenta-runner`), pinned to a release tag. Clones patch
-  these to `pr-<n>-<sha>` tags per PR via `environmentPatchCommit`.
-  Overridable via `--app-tag` or `AGENTA_TEMPLATE_APP_TAG`.
+- `app_tag` — the five Agenta app images (`agenta-api`, `agenta-web`,
+  `agenta-web-mobile`, `agenta-services`, `agenta-runner`), pinned to a release
+  tag. Clones patch these to `pr-<n>-<sha>` tags per PR via
+  `environmentPatchCommit`. Overridable via `--app-tag` or
+  `AGENTA_TEMPLATE_APP_TAG`. **`agenta-web-mobile` was first published at
+  `v0.111.0`**, so an `app_tag` older than that leaves `web-mobile` unable to
+  pull its image; keep the parameter on a release that shipped all five.
 - `gateway_tag` / `redis_tag` / `seaweedfs_tag` — one content-addressed tag
   per preview wrapper image
   (`ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}`, built by
@@ -164,9 +173,16 @@ deployments are irrelevant to clones — clones copy config, not deployments).
 
 - **startCommand:** services whose image owns its entrypoint (Postgres,
   supertokens, and the three wrapper images) must have it empty/unset. The
-  eight app services carry explicit startCommands because one image backs
+  nine app services carry explicit startCommands because one image backs
   several services (`agenta-api` alone backs api, worker-streams,
-  worker-queues, cron, alembic).
+  worker-queues, cron, alembic) and because `web` and `web-mobile` share an
+  entrypoint but start different servers.
+- **Mobile app:** `web-mobile` serves `/m`. The gateway routes `/m` and `/m/*`
+  to it with **no** prefix strip, because the Next app is built with
+  `basePath: "/m"` and owns the prefix. Preview gate policy: `web` sets
+  `AGENTA_MOBILE_GATE=true` so a phone is redirected from a desktop route to
+  `/m`, and `web-mobile` sets `AGENTA_MOBILE_REVERSE_GATE=false` so a reviewer
+  on a laptop can open `/m` directly.
 - **Healthchecks:** unset on all services, matching the live-proven template
   (10/10 green clone cycles). The standalone deployment path
   (`../scripts/configure.sh`) sets healthchecks on gateway/api/services/runner;

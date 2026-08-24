@@ -1,11 +1,10 @@
+import {RevealCollapse} from "@agenta/chat/components"
+import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
-import {Button} from "antd"
+import {Button} from "@agenta/ui/ui"
 import {Lock} from "lucide-react"
 
-import type {AgentModelKeyStatus} from "../hooks/useAgentModelKeyStatus"
 import {useOnboardingProviderSetup} from "../hooks/useOnboardingProviderSetup"
-
-import RevealCollapse from "./RevealCollapse"
 
 /**
  * Set-up-your-key prompt shown above the composer while the project vault is empty (see `gateActive`
@@ -41,7 +40,7 @@ const ConnectModelBanner = ({
                             Add your model provider key to run this agent.
                         </span>
                     </span>
-                    <Button type="primary" onClick={setup.openDrawer} className="shrink-0">
+                    <Button onClick={setup.openDrawer} className="shrink-0">
                         Set up model providers
                     </Button>
                 </div>

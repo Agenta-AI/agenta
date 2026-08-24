@@ -1,18 +1,18 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {Tag} from "antd"
-import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
-
 import {
+    getSettingsTabVariant,
     DEFAULT_SETTINGS_TAB,
     getSettingsTabDescription,
     getSettingsTabDocs,
     getSettingsTabLabel,
     resolveSettingsTab,
-    type SettingsTabKey,
-} from "@/oss/components/pages/settings/assets/navigation"
-import SettingsPageShell from "@/oss/components/pages/settings/components/SettingsPageShell"
+} from "@agenta/settings"
+import {SettingsPageShell} from "@agenta/settings-ui"
+import {Tag} from "antd"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
+
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -83,8 +83,12 @@ interface SettingsProps {
     AuditLogComponent?: React.ComponentType
 }
 
-/** Tabs that render a form rather than a table, so they cap at 640 inside the page column. */
-const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
+/** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
+
+/**
+ * Tabs whose table is wider than the 1120 cap every other table tab gets — the Audit Log
+ * carries a timestamp, a dotted event type and a full UUID on one row.
+ */
 
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
@@ -199,9 +203,7 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 title={title}
                 description={getSettingsTabDescription(resolvedTab, settingsAccess)}
                 docs={getSettingsTabDocs(resolvedTab)}
-                variant={FORM_TABS.has(resolvedTab) ? "form" : "full"}
-                // Audit Log's virtual table needs a bounded parent to scroll internally.
-                fullHeight={resolvedTab === "auditLog"}
+                variant={getSettingsTabVariant(resolvedTab)}
             >
                 {content}
             </SettingsPageShell>

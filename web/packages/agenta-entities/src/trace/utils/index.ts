@@ -28,3 +28,5 @@ export {
     generateMappingSuggestions,
     matchColumnsWithSuggestions,
 } from "./selectors"
+
+export {getNodeById} from "./nodeTree"

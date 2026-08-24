@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 /**
  * The section language for rail/page surfaces (`/apps`, `/overview`, `/agents`, `/sessions`).
@@ -14,12 +14,9 @@ import type {ReactNode} from "react"
  */
 
 /** The rail column's frame. Transparent now — the sections are the cards, and a card inside a
- * card was exactly the "one monolithic block" problem. The cap (`max-h-full min-h-0`) lives here,
- * not at call sites: without it {@link PanelScroll} grows with its content and never scrolls. */
+ * card was exactly the "one monolithic block" problem. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
-    <div className={`box-border flex max-h-full min-h-0 flex-col ${className ?? ""}`}>
-        {children}
-    </div>
+    <div className={`box-border ${className ?? ""}`}>{children}</div>
 )
 
 /**
@@ -81,22 +78,52 @@ export const PanelSection = ({
     children,
 }: PanelSectionProps) => {
     const isRail = variant === "rail"
+    // Publish this header's own height so a sticky element INSIDE the body can pin below it
+    // instead of on top of it — a nested list's group headings are the case. MEASURED, not a
+    // constant: the two variants are different heights (40px page, 48px rail) and the header
+    // wraps on a narrow viewport, so any hardcoded offset is wrong somewhere.
+    const headerRef = useRef<HTMLDivElement | null>(null)
+    const [headerHeight, setHeaderHeight] = useState(0)
+    useLayoutEffect(() => {
+        const el = headerRef.current
+        if (!el || !sticky) return
+        const measure = () => setHeaderHeight(el.getBoundingClientRect().height)
+        measure()
+        const observer = new ResizeObserver(measure)
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [sticky])
     return (
         <section
+            style={
+                sticky && headerHeight
+                    ? ({"--ag-panel-header-h": `${headerHeight}px`} as CSSProperties)
+                    : undefined
+            }
             className={`ag-panel-section flex flex-col ${
                 isRail
                     ? // Each section is its own card. Stacked inside one, they read as a single
                       // block: same surface, same colour, a hairline carrying every boundary.
-                      // `overflow-clip`, not `-hidden`: hidden makes this the sticky header's
-                      // scroll ancestor, so it never pins against PanelScroll.
-                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
+                      //
+                      // `overflow-clip`, not `overflow-hidden`: both round the corners, but
+                      // `hidden` also makes the section a scroll container, and a sticky header
+                      // then pins to a box that never scrolls — i.e. `sticky` silently does
+                      // nothing. `clip` establishes no scrollport, so the header pins to the
+                      // real scroller ({@link PanelScroll}) as intended.
+                      //
+                      // The card carries the warm tinted surface rather than plain white, so the
+                      // rail reads as one object against the page. Light only: dark restores
+                      // colorBgElevated, where the tint would flatten into the page ground. The
+                      // frame, the header and the body all state it, so no slot stays white.
+                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
                     : ""
             } ${minHeightClassName ?? ""}`}
         >
             <div
+                ref={headerRef}
                 className={`ag-panel-section-header flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? `bg-colorBgElevated px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
+                        ? `bg-[var(--ag-surface-paper)] px-4 pb-2 pt-4 dark:bg-colorBgElevated ${sticky ? "sticky top-0 z-10" : ""}`
                         : `px-2 pb-2 pt-2 ${
                               // The page surface is colorBgContainer (#141414 dark / #fff light);
                               // colorBgLayout is pure black and paints a bar the page never uses.
@@ -118,7 +145,18 @@ export const PanelSection = ({
             </div>
             {/* Rows inside a rail section separate by spacing, never by a rule — a rule inside a
                 section competes with the rule that ends it. Lines mean "new section", nothing else. */}
-            <div className={bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}>{children}</div>
+            {/* The body states the section's surface so a `bg-inherit` descendant — a nested
+                list's own sticky heading — resolves to something opaque. Without it those
+                headings are transparent and rows scroll visibly THROUGH them. */}
+            <div
+                className={`${
+                    isRail
+                        ? "bg-[var(--ag-surface-paper)] dark:bg-colorBgElevated"
+                        : "bg-colorBgContainer"
+                } ${bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}`}
+            >
+                {children}
+            </div>
         </section>
     )
 }

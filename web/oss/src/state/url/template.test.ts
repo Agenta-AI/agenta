@@ -1,7 +1,6 @@
+import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
-import {AGENT_TEMPLATES} from "../../components/pages/agent-home/assets/templates"
 
 import {
     activeTemplateAtom,

@@ -2,8 +2,10 @@ body {
     --not-available-stripe: #eaeff5;
     --not-available-bg: transparent;
 
+    /* `--ag-viewport-height` is set only while a phone keyboard is open (see
+       useVisualViewportHeight); everywhere else this stays 100dvh. */
     :has(.human-eval) {
-        height: 100dvh;
+        height: var(--ag-viewport-height, 100dvh);
         overflow: hidden;
     }
 
@@ -16,6 +18,12 @@ body {
             display: flex;
             align-items: center;
         }
+    }
+
+    .evaluation-runs-table__container {
+        isolation: isolate;
+        position: relative;
+        z-index: 0;
     }
 
     .not-available-table-cell {

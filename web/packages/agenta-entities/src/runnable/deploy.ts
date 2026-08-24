@@ -6,7 +6,7 @@
  * revision delta with full application references.
  */
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import {atomWithMutation} from "jotai-tanstack-query"
@@ -178,6 +178,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
         })
     },
     onSuccess: async () => {
+        const queryClient = getHostQueryClient()
         queryClient.invalidateQueries({queryKey: ["environments"]})
         queryClient.invalidateQueries({queryKey: ["environments-list"], exact: false})
         queryClient.invalidateQueries({queryKey: ["environment"], exact: false})
@@ -249,6 +250,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
     })
 
     // Invalidate caches
+    const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["environments"]})
     queryClient.invalidateQueries({queryKey: ["environments-list"], exact: false})
     queryClient.invalidateQueries({queryKey: ["environment"], exact: false})

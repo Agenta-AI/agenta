@@ -52,6 +52,9 @@ function PopoverContent({
                     // box-border: preflight is off, so w-[trigger-width] must include the p-1 padding
                     // (else the panel renders 8px wider than the trigger / antd dropdown).
                     "z-50 box-border rounded-control-lg bg-popover text-popover-foreground shadow-overlay outline-none font-portal",
+                    // Enter/exit (surfaces.css). Without it a popover has no open/closed state to
+                    // read — it is simply there, then not, on the same frame as the click.
+                    "ag-overlay-motion",
                     className,
                 )}
                 {...props}

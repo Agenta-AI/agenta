@@ -7,11 +7,11 @@ import {
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
+import {useStaticTable} from "@agenta/settings"
 import {PencilSimpleLine, Plug, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
 import {deleteMcpEndpointAtom, mcpEndpointsAtom} from "@/oss/state/mcpEndpoints/atoms"
 

@@ -6,8 +6,8 @@
  */
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, BracketsCurly, DownloadSimple} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
@@ -48,29 +48,30 @@ export function InspectorDrawer({
                         {sessionId}
                     </span>
                     <div className="ml-auto flex items-center">
-                        <Tooltip title={rawOpen ? "Hide raw JSON" : "Raw JSON"}>
+                        <SimpleTooltip title={rawOpen ? "Hide raw JSON" : "Raw JSON"}>
                             <Button
-                                type={rawOpen ? "primary" : "text"}
-                                size="small"
-                                icon={<BracketsCurly size={13} />}
+                                variant={rawOpen ? "default" : "ghost"}
+                                size="icon-sm"
                                 onClick={() => setRawOpen(!rawOpen)}
                                 aria-label="Toggle raw JSON"
-                            />
-                        </Tooltip>
-                        <Tooltip title="Refresh">
+                            >
+                                <BracketsCurly size={13} />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip title="Refresh">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<ArrowClockwise size={13} />}
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() => revalidate(sessionId)}
                                 aria-label="Refresh"
-                            />
-                        </Tooltip>
-                        <Tooltip title="Export">
+                            >
+                                <ArrowClockwise size={13} />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip title="Export">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<DownloadSimple size={13} />}
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() =>
                                     downloadText(
                                         JSON.stringify(records.data ?? [], null, 2),
@@ -78,8 +79,10 @@ export function InspectorDrawer({
                                     )
                                 }
                                 aria-label="Export"
-                            />
-                        </Tooltip>
+                            >
+                                <DownloadSimple size={13} />
+                            </Button>
+                        </SimpleTooltip>
                     </div>
                 </div>
                 <LensRail lens={lens} onChange={setLens} />
