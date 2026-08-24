@@ -10,6 +10,7 @@ import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -42,6 +43,12 @@ export interface SessionLocalCache {
 export interface UseSessionActionsOptions {
     /** Omit on a surface with no local tab cache — every action then goes straight to the server. */
     localCache?: SessionLocalCache
+    /**
+     * Absolute link to a session, or "" where this app cannot address one. Supplying it adds
+     * "Copy share link" to the menu; an app whose sessions have no URL of their own omits it and
+     * the entry never appears.
+     */
+    shareLinkFor?: (target: SessionActionTarget) => string
 }
 
 /**
@@ -51,7 +58,7 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -153,6 +160,19 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         [isCached, localCache, projectId, revalidate],
     )
 
+    const copyShareLink = useCallback(
+        async (target: SessionActionTarget) => {
+            const link = shareLinkFor?.(target)
+            if (!link) {
+                message.error("This session has no link yet")
+                return
+            }
+            if (await copyToClipboard(link)) message.success("Share link copied")
+            else message.error("Couldn't copy the link")
+        },
+        [shareLinkFor],
+    )
+
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
 
     /** The one menu every surface renders. `onOpen` is omitted where the session is already open. */
@@ -166,11 +186,20 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                 : []),
             {key: "rename", label: "Rename"},
             {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
+            ...(shareLinkFor
+                ? [
+                      {
+                          key: "copy-link",
+                          label: "Copy share link",
+                          disabled: !shareLinkFor(target),
+                      },
+                  ]
+                : []),
             {type: "divider" as const},
             {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
             {key: "delete", label: "Delete", danger: true},
         ],
-        [pinnedSet],
+        [pinnedSet, shareLinkFor],
     )
 
     const onMenuClick = useCallback(
@@ -179,11 +208,21 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                 if (key === "open") options?.onOpen?.()
                 if (key === "rename") rename(target)
                 if (key === "pin") togglePin(target.sessionId)
+                if (key === "copy-link") void copyShareLink(target)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [remove, rename, setArchived, togglePin],
+        [copyShareLink, remove, rename, setArchived, togglePin],
     )
 
-    return {rename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
+    return {
+        rename,
+        setArchived,
+        remove,
+        togglePin,
+        copyShareLink,
+        menuItems,
+        onMenuClick,
+        pinnedSet,
+    }
 }
