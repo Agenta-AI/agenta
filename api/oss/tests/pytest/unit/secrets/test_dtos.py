@@ -205,6 +205,16 @@ def _standard_provider_payload(**data):
     }
 
 
+def _channel_secret_payload(inner_kind, channel):
+    return {
+        "header": {"name": "slack-bot", "description": ""},
+        "secret": {
+            "kind": "channel_secret",
+            "data": {"kind": inner_kind, "channel": channel},
+        },
+    }
+
+
 def test_standard_provider_round_trips_models_and_harnesses():
     secret = CreateSecretDTO.model_validate(
         _standard_provider_payload(
@@ -357,16 +367,6 @@ def test_create_secret_allows_an_empty_header_for_a_provider_key():
     )
 
     assert secret.header.name is None
-
-
-def _channel_secret_payload(inner_kind, channel):
-    return {
-        "header": {"name": "slack-bot", "description": ""},
-        "secret": {
-            "kind": "channel_secret",
-            "data": {"kind": inner_kind, "channel": channel},
-        },
-    }
 
 
 def test_create_channel_secret_slack():
