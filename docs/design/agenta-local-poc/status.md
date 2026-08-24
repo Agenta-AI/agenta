@@ -15,7 +15,12 @@ Last update: 2026-08-24
   observer, smoke script, replay harness) implemented; unit + replay + live cold-turn +
   tool-denial tests green against a real runner and OpenAI key; redacted replay fixtures
   committed.
-- Implementation of S1.3 (relocatable runner) has not started.
+- Slice 1 packet S1.3 (relocatable runner) implemented: `packaging/runner/build_runner.py`
+  stages the runner tree with a pinned Node 24 runtime, and `verify_runner.py` proves
+  relocation (path-with-spaces copy, explicit-env launch, health + authed readiness,
+  live cold turn, optional strace classification). Build + gate + live turn all pass;
+  strace on the staged runner shows only loopback, DNS, and api.openai.com.
+- Slice 2 work has started (schema/migration packet implemented; review pending).
 
 ## Settled decisions
 
@@ -46,10 +51,26 @@ Last update: 2026-08-24
 
 ## Open decisions
 
-1. Resolve and record exact Python and Node archive versions and hashes during the
-   relocatable-runtime spike.
+1. RESOLVED for Node: pin v24.19.0 (URL
+   https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz, sha256
+   14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647, glibc >= 2.28),
+   recorded in the generated manifest. Python runtime pin remains open (Slice 4).
 2. Confirm that cancelling the local streaming task reliably closes the runner connection
    and terminates the unowned run.
+
+## Runtime-download neutralizations (verified 2026-08-24)
+
+The two non-provider destinations from the live capture are both neutralized in the
+staged bundle:
+
+| Source | Mechanism | Neutralization |
+| --- | --- | --- |
+| `npm view @earendil-works/pi-coding-agent version` spawned by pi-acp every session/new | update banner only; no env gate | runner child env gets `npm_config_offline=true`; cold cache fails fast and the notice silently nulls |
+| sandbox-agent daemon boot telemetry to tc.rivet.dev | anonymous event, rate-limited daily; env vars ignored at daemon 0.4.2 | shipped `bin/sandbox-agent-wrapper` execs the real ELF with appended `--no-telemetry`, selected via `SANDBOX_AGENT_BIN`; state redirected via fresh `XDG_DATA_HOME` |
+
+Remaining hardening follow-up: extend the pi-acp patch to stub `buildUpdateNotice`
+(recorded as a known-open item in the manifest). Full clean-VM strace gate still to run
+before Slice 4.
 
 ## Observed findings (Slice 1 live capture, 2026-08-24)
 
@@ -72,15 +93,15 @@ or run shell commands); process teardown after SIGTERM left no owned children.
 
 ## Current blocker
 
-None. Slice 1 packets S1.1/S1.2 are done and green. Next: S1.3 relocatable runner, whose
-build recipe must address the two observed runtime-download sources above.
+None. Slice 1 is complete (S1.1–S1.3). The clean-VM strace rerun is tracked as a Slice 4
+gate, not a blocker.
 
 ## Next actions
 
-1. Implement S1.3: `packaging/runner/build_runner.py` + `verify_runner.py` (full frozen
-   install, Pi patch, staged Node launch, npm/pi-acp and sandbox-agent update-check
-   neutralization), then the clean-VM gate with a repeat of the strace network check.
-2. Update this workspace with the relocation results before starting Slice 2 (SQLite).
+1. Land the S2.1 review (schema + migration runner already implemented on top of the
+   parked stash: five tables, immutability triggers, partial active-turn index,
+   deferred FK cycle, safe-copy migration with backup/integrity/fsync/replace).
+2. Continue Slice 2 packets S2.2–S2.5 per plan order.
 
 ## Deferred product work
 
