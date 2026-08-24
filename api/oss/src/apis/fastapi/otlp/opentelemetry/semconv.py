@@ -18,6 +18,10 @@ V_0_4_1_ATTRIBUTES_EXACT = [
     ("gen_ai.usage.prompt_tokens", "ag.metrics.unit.tokens.prompt"),
     ("gen_ai.usage.completion_tokens", "ag.metrics.unit.tokens.completion"),
     ("gen_ai.usage.total_tokens", "ag.metrics.unit.tokens.total"),
+    # Cost reported by the instrumentation itself. Authoritative: a harness or
+    # gateway knows the price actually charged, which a public pricing table
+    # cannot reproduce for proxied or negotiated models.
+    ("gen_ai.usage.cost", "ag.metrics.unit.costs.total"),
     ("llm.headers", "ag.meta.request.headers"),
     ("llm.request.type", "ag.type.node"),
     ("llm.top_k", "ag.meta.request.top_k"),

@@ -11,6 +11,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    SpanType,
     TraceType,
 )
 
@@ -315,8 +316,24 @@ def cumulate_costs(
         if span.attributes is None:
             span.attributes = {}
 
+        incremental = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("costs", {})
+            .get("incremental", {})
+        )
+        has_reported_total = (
+            isinstance(incremental, dict)
+            and "total" in incremental
+            and "prompt" not in incremental
+            and "completion" not in incremental
+        )
+        if has_reported_total:
+            costs = _get_incremental(span)
+
         if (
-            costs.get("prompt", 0.0) != 0.0
+            has_reported_total
+            or costs.get("prompt", 0.0) != 0.0
             or costs.get("completion", 0.0) != 0.0
             or costs.get("total", 0.0) != 0.0
         ):
@@ -437,8 +454,25 @@ def cumulate_tokens(
         if span.attributes is None:
             span.attributes = {}
 
+        incremental = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("tokens", {})
+            .get("incremental", {})
+        )
+        has_workflow_total = (
+            span.span_type == SpanType.WORKFLOW
+            and isinstance(incremental, dict)
+            and "total" in incremental
+        )
+        if has_workflow_total:
+            # record_usage stamps the runner's whole-run total on the workflow
+            # root. Its child model spans describe the same usage, not more usage.
+            tokens = _get_incremental(span)
+
         if (
-            tokens.get("prompt", 0.0) != 0.0
+            has_workflow_total
+            or tokens.get("prompt", 0.0) != 0.0
             or tokens.get("completion", 0.0) != 0.0
             or tokens.get("total", 0.0) != 0.0
         ):
@@ -601,6 +635,20 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                 .get("tokens", {})
                 .get("incremental", {})
             )
+
+            incremental_costs = (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("incremental", {})
+            )
+            if (
+                isinstance(incremental_costs, dict)
+                and "total" in incremental_costs
+                and "prompt" not in incremental_costs
+                and "completion" not in incremental_costs
+            ):
+                continue
 
             prompt_tokens = tokens.get("prompt", 0.0)
 

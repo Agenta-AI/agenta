@@ -1824,6 +1824,82 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     assert.equal(r.stopReason, "cancelled");
   });
 
+  it("returns the original Pi trace id when an approval resume has a new runner trace", async () => {
+    const { deps } = pausableHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "approve" }],
+      context: {
+        propagation: {
+          traceparent:
+            "00-22222222222222222222222222222222-3333333333333333-01",
+        },
+      },
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    acquired.env.piTraceExport = {
+      publishControl: async () => true,
+      updatePlatformAuthorization() {},
+      traceId: () => "11111111111111111111111111111111",
+      emitMissingBatchFallback: async () => {},
+      finish: async () => ({ pickedUpBatches: 1, exportedBatches: 1 }),
+      teardown: async () => {},
+    };
+
+    const result = await runTurn(acquired.env, request, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-pi",
+            reply: "once",
+            toolCallId: "tool-pi",
+            toolName: "edit",
+            args: {},
+            interactionToken: "tool-pi",
+            promptPromise: Promise.resolve({ stopReason: "complete" }),
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.traceId, "11111111111111111111111111111111");
+  });
+
+  it("emits the missing-batch fallback when a parked Pi environment is evicted", async () => {
+    const { deps } = pausableHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "approve" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const journal: string[] = [];
+    acquired.env.piTraceExport = {
+      publishControl: async () => true,
+      updatePlatformAuthorization() {},
+      traceId: () => "11111111111111111111111111111111",
+      emitMissingBatchFallback: async () => {
+        journal.push("fallback");
+      },
+      finish: async () => {
+        journal.push("finish");
+        return { pickedUpBatches: 0, exportedBatches: 0 };
+      },
+      teardown: async () => {},
+    };
+
+    await acquired.env.destroy({ reason: "capacity-eviction" });
+
+    assert.deepEqual(journal, ["finish", "fallback"]);
+  });
+
   it("parks a Claude ACP gate (session alive), then answers it live and streams the continuation", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);

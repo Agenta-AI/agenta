@@ -31,7 +31,7 @@ const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
 export const REPLICA_ID =
   process.env.AGENTA_RUNNER_REPLICA_ID?.trim() || randomUUID();
 
-import { refreshCredential } from "./auth.ts";
+import { startPlatformCredentialLease } from "./auth.ts";
 import type { TypedReference } from "./interactions.ts";
 
 /**
@@ -45,12 +45,6 @@ export interface SessionProposal {
   /** The run's workflow references, so the stream row is openable without a turn append. */
   references?: TypedReference[];
 }
-
-/** Refresh the run credential every Nth heartbeat (well inside the ~15-min token TTL). */
-const REFRESH_EVERY_N_HEARTBEATS = Math.max(
-  1,
-  Math.floor((5 * 60) / HEARTBEAT_INTERVAL_SECONDS),
-);
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/alive] ${msg}\n`);
@@ -193,10 +187,12 @@ export async function startAliveWatchdog(
   credential: () => string;
   streamId: () => string | undefined;
 }> {
-  // The run credential is an ephemeral Secret (~15-min TTL). Hold it mutably and refresh it
-  // every Nth heartbeat (re-/check mints a fresh-expiry token) so a long turn never 401s.
-  let credential = authorization;
-  let beats = 0;
+  // Session coordination and standalone turns share this lease. The watchdog owns it here so
+  // heartbeat, persistence, and trace export all observe the same current credential.
+  const credentialLease = startPlatformCredentialLease(
+    apiBase(),
+    authorization,
+  );
   let interruptedFired = false;
   let streamId: string | undefined;
 
@@ -216,7 +212,7 @@ export async function startAliveWatchdog(
   const first = await sendHeartbeat(
     sessionId,
     turnId,
-    credential,
+    credentialLease.credential(),
     true,
     proposal,
   );
@@ -224,13 +220,14 @@ export async function startAliveWatchdog(
 
   const interval = setInterval(() => {
     void (async () => {
-      beats += 1;
-      if (beats % REFRESH_EVERY_N_HEARTBEATS === 0) {
-        const fresh = await refreshCredential(apiBase(), credential);
-        if (fresh) credential = fresh;
-      }
       handleBeat(
-        await sendHeartbeat(sessionId, turnId, credential, true, proposal),
+        await sendHeartbeat(
+          sessionId,
+          turnId,
+          credentialLease.credential(),
+          true,
+          proposal,
+        ),
       );
     })();
   }, REFRESH_INTERVAL_MS);
@@ -243,10 +240,17 @@ export async function startAliveWatchdog(
   return {
     async release() {
       clearInterval(interval);
+      credentialLease.release();
       // Mark the stream row ended (best-effort; the orphan sweep catches a miss).
-      await sendHeartbeat(sessionId, turnId, credential, false, proposal);
+      await sendHeartbeat(
+        sessionId,
+        turnId,
+        credentialLease.credential(),
+        false,
+        proposal,
+      );
     },
-    credential: () => credential,
+    credential: credentialLease.credential,
     streamId: () => streamId,
   };
 }

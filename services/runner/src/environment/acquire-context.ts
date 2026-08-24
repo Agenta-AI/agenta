@@ -323,7 +323,6 @@ export interface AcquireContext {
    */
   setRunAgentDir(dir: string | undefined): void;
 
-  setOtlpAuthFilePath(path: string | undefined): void;
   setCodexSqliteHome(dir: string | undefined): void;
   setCloseToolMcp(close: (() => Promise<void>) | undefined): void;
 
@@ -377,9 +376,8 @@ export interface AcquireContextHandle {
  * | 6 | `durableCwdSafeToDelete` | mount + teardown    | beginCwdMount / markCwdDetachConfirmed / recordCwdUnmountResult |
  * | 7 | `runtimeRemount`         | runtime             | setRuntimeRemount            |
  * | 8 | `runAgentDir`            | mount (GUIDANCE)    | setRunAgentDir               |
- * | 9 | `otlpAuthFilePath`       | runtime             | setOtlpAuthFilePath          |
- * |10 | `codexSqliteHome`        | runtime             | setCodexSqliteHome           |
- * |11 | `closeToolMcp`           | runtime             | setCloseToolMcp              |
+ * | 9 | `codexSqliteHome`        | runtime             | setCodexSqliteHome           |
+ * |10 | `closeToolMcp`           | runtime             | setCloseToolMcp              |
  *
  * Corrections against revision 1, all from the review:
  *   - #3 is LOCAL ONLY. Daytona records an expiry with no path (#5's second committer).

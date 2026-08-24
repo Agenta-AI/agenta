@@ -8,4 +8,10 @@ from .sso_provider_dto import SsoProviderDto
 from .standard_provider_dto import StandardProviderDto
 from .webhook_provider_dto import WebhookProviderDto
 
-SecretResponseDtoData = typing.Union[StandardProviderDto, CustomProviderDto, SsoProviderDto, WebhookProviderDto, CustomSecretDto]
+PublicSecretResponseDtoData = typing.Union[
+    StandardProviderDto,
+    CustomProviderDto,
+    SsoProviderDto,
+    WebhookProviderDto,
+    CustomSecretDto,
+]

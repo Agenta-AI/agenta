@@ -23,7 +23,9 @@ let savedReverseFlag: string | undefined
 beforeEach(() => {
     savedFlag = process.env.AGENTA_MOBILE_GATE
     savedReverseFlag = process.env.AGENTA_MOBILE_REVERSE_GATE
-    process.env.AGENTA_MOBILE_GATE = "true"
+    // Both gates default ON, so the suite runs with neither key set — the same
+    // state as a deployment that configures nothing.
+    delete process.env.AGENTA_MOBILE_GATE
     delete process.env.AGENTA_MOBILE_REVERSE_GATE
 })
 
@@ -35,10 +37,41 @@ afterEach(() => {
 })
 
 describe("mobile reverse gate proxy", () => {
+    it("gates by default, with no env key set", () => {
+        const res = proxy(req("/m/", doc(DESKTOP_UA)))
+        expect(res.status).toBe(307)
+        expect(res.headers.get("location")).toBe("http://localhost:3000/w")
+    })
+
+    it("still gates with the flag explicitly on", () => {
+        process.env.AGENTA_MOBILE_GATE = "true"
+        const res = proxy(req("/m/", doc(DESKTOP_UA)))
+        expect(res.headers.get("location")).toBe("http://localhost:3000/w")
+    })
+
     it("passes everything through when the flag is off", () => {
         process.env.AGENTA_MOBILE_GATE = "false"
         const res = proxy(req("/m/", doc(DESKTOP_UA)))
         expect(res.headers.get("location")).toBeNull()
+    })
+
+    it("keeps gating for an empty or unrecognized flag value", () => {
+        // Only the exact string "false" opts out; a typo must not hide the gate.
+        for (const raw of ["", "0", "off", "FALSE"]) {
+            process.env.AGENTA_MOBILE_GATE = raw
+            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBe(
+                "http://localhost:3000/w",
+            )
+        }
+    })
+
+    it("keeps the reverse bounce for an unrecognized reverse-gate value", () => {
+        for (const raw of ["", "0", "FALSE"]) {
+            process.env.AGENTA_MOBILE_REVERSE_GATE = raw
+            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBe(
+                "http://localhost:3000/w",
+            )
+        }
     })
 
     it("passes desktop UAs when AGENTA_MOBILE_REVERSE_GATE=false", () => {

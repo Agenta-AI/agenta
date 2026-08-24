@@ -31,13 +31,15 @@ import {
     manualModelPlaceholderForKind,
     modelDisplayOrder,
     probeProviderMutationAtom,
+    probeFailureMessage,
+    probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
     secretNoteForKind,
     SecretKind,
-    toProviderCredentials,
+    storedCredentialFields,
     type CredentialValues,
     type ProbeProviderResponse,
     type ProviderConnection,
@@ -96,7 +98,7 @@ export interface ProviderConnectionCardProps {
     /** Every connection in the project — the default-name preview reads them. */
     connections: ProviderConnection[]
     /** Called after a successful save, so the host can refetch and close. */
-    onSaved: () => void
+    onSaved: (savedConnectionId?: string) => void
     /**
      * Publishes the save wiring so the drawer can draw the footer outside the scrolling card.
      * Cancel is the drawer's own — it is the step that opened the card that gets undone.
@@ -162,7 +164,13 @@ const ProviderConnectionCard = ({
         setHarnesses(connection?.harnesses ?? null)
     }, [connection, storedCredential])
 
-    const credentialFilled = hasRequiredCredential(kind, credential)
+    // A saved write-only record returns no values, so its secret fields arrive empty every time.
+    // They still count as filled — otherwise editing only the model list would demand the key again.
+    const storedFields = useMemo(() => storedCredentialFields(connection), [connection])
+    // Typed OR already in the vault. Test used to demand typed material, because an empty form had
+    // no credential to spend; the probe now takes a `secret_id` and resolves the stored one itself,
+    // so a write-only connection is testable without retyping a key it can never read back.
+    const credentialFilled = hasRequiredCredential(kind, credential, storedFields)
     const storedCredentialUnchanged = useMemo(
         () =>
             !!connection &&
@@ -270,19 +278,21 @@ const ProviderConnectionCard = ({
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
+        const request = probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
-                kind,
-                provider: toProviderCredentials(kind, credential),
+                kind: request.kind,
+                provider: request.provider,
+                secretId: request.secret_id,
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
-        } catch {
+        } catch (error) {
             setProbe(null)
-            setProbeFailure(`Agenta could not reach ${title} to test this credential.`)
+            setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, kind, credential, title])
+    }, [projectId, probeMutation, kind, credential, connection, title])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -303,7 +313,7 @@ const ProviderConnectionCard = ({
         setSaving(true)
         setSaveError(null)
         try {
-            await saveConnection({
+            const savedConnectionId = await saveConnection({
                 draft: {
                     kind,
                     name,
@@ -320,7 +330,7 @@ const ProviderConnectionCard = ({
                 fallbackName: namePreview,
                 connectionId: connection?.id,
             })
-            onSaved()
+            onSaved(savedConnectionId ?? undefined)
         } catch {
             setSaveError(`Agenta could not save this ${title} connection. Try again.`)
         } finally {
@@ -346,7 +356,7 @@ const ProviderConnectionCard = ({
     const statusLine = credentialMessage
         ? credentialStatusLine(
               credentialMessage,
-              discovered ? (probe?.discovery.models.length ?? 0) : null,
+              discovered ? (probe?.discovery.models?.length ?? 0) : null,
           )
         : null
 
@@ -376,10 +386,29 @@ const ProviderConnectionCard = ({
                     // Test belongs beside the credential it spends. A JSON credential is a block,
                     // not a line, so it gets the button underneath instead.
                     const inlineTest = field.key === testedField && !block
+                    // Stored but unreadable: the field is a replace box, never a prefilled value.
+                    const replaceOnly = storedFields.includes(field.key)
 
                     return (
                         <div key={field.key} className="flex flex-col gap-1">
-                            <span className="font-medium text-colorText">{field.label}</span>
+                            <span className="font-medium text-colorText">
+                                {/* TODO(copy: owner) */}
+                                {replaceOnly
+                                    ? field.key === "apiKey"
+                                        ? "Replace key"
+                                        : `Replace ${field.label}`
+                                    : field.label}
+                            </span>
+                            {replaceOnly ? (
+                                <span className="text-[11px] text-colorTextTertiary">
+                                    {/* TODO(copy: owner) */}
+                                    {field.key === "apiKey"
+                                        ? connection?.keyPreview
+                                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
+                                            : "Key configured. Leave blank to keep it."
+                                        : "Saved value. Leave blank to keep it."}
+                                </span>
+                            ) : null}
                             <div className="flex items-start gap-2">
                                 <div className="min-w-0 flex-1">
                                     {block ? (

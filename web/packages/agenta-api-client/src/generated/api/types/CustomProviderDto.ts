@@ -6,6 +6,7 @@ export interface CustomProviderDto {
     kind: AgentaApi.CustomProviderKind;
     provider: AgentaApi.CustomProviderSettingsDto;
     models: AgentaApi.CustomModelSettingsDto[];
+    harnesses?: (string[] | null) | undefined;
     provider_slug?: (string | null) | undefined;
     model_keys?: (string[] | null) | undefined;
 }
