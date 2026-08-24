@@ -7,21 +7,22 @@
  */
 import {
     agentModelSelectionIsRunnable,
-    buildAgentModelCandidates,
+    bareModelId,
     connectionModelIds,
     effectiveHarnesses,
     firstAgentModelForConnection,
     resolveAgentModelSelection,
-    SUBSCRIPTION_HARNESSES,
+    subscriptionPlanName,
+    SecretKind,
     type AgentModelCandidate,
     type AgentModelSelection,
-    type BuildAgentModelCandidatesArgs,
+    type ProviderConnection,
 } from "@agenta/entities/secret"
 
 import {modelDisplayName, type ConnectionMode, type HarnessCapabilitiesMap} from "./connectionUtils"
 import {harnessMetaFor} from "./harnessMeta"
 
-export {connectionModelIds, effectiveHarnesses, SUBSCRIPTION_HARNESSES}
+export {connectionModelIds, effectiveHarnesses}
 
 export interface PickerModelRow {
     modelId: string
@@ -41,7 +42,6 @@ export interface PickerConnectionRow {
     iconKey: string
     kind: "connection" | "subscription"
     managed?: boolean
-    recommended?: boolean
     models: PickerModelRow[]
 }
 
@@ -54,49 +54,62 @@ export interface PickerSelection {
     harness: string | null
 }
 
-export type BuildPickerRowsArgs = BuildAgentModelCandidatesArgs
+export interface BuildPickerRowsArgs {
+    candidates: readonly AgentModelCandidate[]
+    connections: readonly ProviderConnection[]
+    capabilities: HarnessCapabilitiesMap | null | undefined
+}
 
-const rowFromCandidate = (candidate: AgentModelCandidate): PickerConnectionRow => ({
+const rowFromCandidate = (
+    candidate: AgentModelCandidate,
+    connection: ProviderConnection | undefined,
+): PickerConnectionRow => ({
     key: candidate.connectionKey,
-    name: candidate.connectionName,
-    iconKey: candidate.iconKey,
+    name: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+    iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
-    recommended: candidate.recommended || undefined,
     models: [],
 })
 
 const modelFromCandidate = (
     candidate: AgentModelCandidate,
     capabilities: HarnessCapabilitiesMap | null | undefined,
-): PickerModelRow => ({
-    modelId: candidate.modelId,
-    label:
-        candidate.displayModelId ??
-        modelDisplayName(capabilities, candidate.harness, candidate.modelId),
-    harness: candidate.harness,
-    harnessLabel: harnessMetaFor(candidate.harness).label,
-    mode: candidate.mode,
-    slug: candidate.slug,
-    provider: candidate.provider,
-    connectionKey: candidate.connectionKey,
-    connectionName: candidate.connectionName,
-})
+    connection: ProviderConnection | undefined,
+): PickerModelRow => {
+    const catalogLabel = modelDisplayName(capabilities, candidate.harness, candidate.modelId)
+    const label =
+        connection?.secretKind === SecretKind.ProviderKey && catalogLabel === candidate.modelId
+            ? bareModelId(candidate.modelId, connection.kind)
+            : catalogLabel
+
+    return {
+        modelId: candidate.modelId,
+        label,
+        harness: candidate.harness,
+        harnessLabel: harnessMetaFor(candidate.harness).label,
+        mode: candidate.mode,
+        slug: candidate.slug,
+        provider: candidate.provider,
+        connectionKey: candidate.connectionKey,
+        connectionName: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+    }
+}
 
 /** Every connection in source order, with its model/harness candidates in deterministic order. */
 export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConnectionRow[] => {
     const rows: PickerConnectionRow[] = []
     const byKey = new Map<string, PickerConnectionRow>()
-    for (const candidate of buildAgentModelCandidates(args)) {
+    const connections = new Map(args.connections.map((connection) => [connection.id, connection]))
+    for (const candidate of args.candidates) {
+        const connection = connections.get(candidate.connectionKey)
         let row = byKey.get(candidate.connectionKey)
         if (!row) {
-            row = rowFromCandidate(candidate)
+            row = rowFromCandidate(candidate, connection)
             byKey.set(candidate.connectionKey, row)
             rows.push(row)
         }
-        row.models.push(
-            modelFromCandidate(candidate, args.capabilities as HarnessCapabilitiesMap | null),
-        )
+        row.models.push(modelFromCandidate(candidate, args.capabilities, connection))
     }
     return rows
 }
@@ -175,10 +188,7 @@ const candidatesFromRows = (rows: readonly PickerConnectionRow[]): AgentModelCan
             ...completeSelection(selectionFromModelRow(model))!,
             source: row.kind,
             connectionKey: row.key,
-            connectionName: row.name,
-            iconKey: row.iconKey,
             managed: !!row.managed,
-            recommended: !!row.recommended,
         })),
     )
 
@@ -230,7 +240,7 @@ export const pickerSelectionAfterProviderSave = ({
     return firstPickerSelectionForConnection(rows, connectionId)
 }
 
-/** Explicit valid choice, then valid last choice, then Agenta recommendation, then first. */
+/** Explicit valid choice, then valid last choice, then first managed route, then first. */
 export const resolvePickerSelection = ({
     rows,
     explicit,

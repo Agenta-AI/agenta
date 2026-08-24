@@ -19,16 +19,13 @@ const candidate = (
     harness: "pi_core",
     source: "connection",
     connectionKey: key,
-    connectionName: key,
-    iconKey: "openai",
     managed: false,
-    recommended: false,
     ...overrides,
 })
 
 describe("resolveAgentModelSelection", () => {
     const first = candidate("first")
-    const managed = candidate("managed", {managed: true, recommended: true})
+    const managed = candidate("managed", {managed: true})
     const last = candidate("last")
     const explicit = candidate("explicit")
     const candidates = [first, managed, last, explicit]
@@ -41,14 +38,15 @@ describe("resolveAgentModelSelection", () => {
         expect(resolveAgentModelSelection({candidates, last})).toBe(last)
     })
 
-    it("prefers the managed recommendation when saved choices are stale", () => {
+    it("prefers the first managed connection when saved choices are stale", () => {
         expect(resolveAgentModelSelection({candidates, last: candidate("gone")})).toBe(managed)
     })
 
-    it("does not confuse manager-only authorization with recommendation", () => {
-        const locked = candidate("locked", {managed: true, recommended: false})
-
-        expect(resolveAgentModelSelection({candidates: [first, locked]})).toBe(first)
+    it("uses the first model offered by the managed connection", () => {
+        const managedSecondModel = candidate("managed-2", {managed: true})
+        expect(resolveAgentModelSelection({candidates: [first, managed, managedSecondModel]})).toBe(
+            managed,
+        )
     })
 
     it("falls back to the deterministic first candidate and then null", () => {

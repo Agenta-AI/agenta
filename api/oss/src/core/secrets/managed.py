@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class SecretManager(str, Enum):
@@ -16,14 +16,23 @@ class SecretManagementDTO(BaseModel):
 
     manager: SecretManager
     policy: SecretManagementPolicy = SecretManagementPolicy.MANAGER_ONLY
-    recommended_for_new_agents: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def discard_legacy_recommendation(cls, value):
+        if isinstance(value, dict) and "recommended_for_new_agents" in value:
+            return {
+                key: item
+                for key, item in value.items()
+                if key != "recommended_for_new_agents"
+            }
+        return value
 
 
 class PublicSecretManagementDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     policy: SecretManagementPolicy
-    recommended_for_new_agents: bool = False
 
 
 class ManagedSecretReadOnlyError(Exception):

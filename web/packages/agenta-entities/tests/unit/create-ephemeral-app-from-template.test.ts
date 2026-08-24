@@ -89,7 +89,6 @@ const managedConnection = () => ({
     harnesses: ["pi_core"],
     hasKey: true,
     managementPolicy: "manager_only",
-    recommendedForNewAgents: true,
 })
 
 /** Pi's default built-in grants, in the typed form the default template ships. */
@@ -166,7 +165,7 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         expect(agent.tools).toEqual(PI_DEFAULT_BUILTINS)
     })
 
-    it("keeps a complete runnable last selection ahead of the managed recommendation", async () => {
+    it("keeps a complete runnable last selection ahead of the managed candidate", async () => {
         fetchVaultSecretMock.mockResolvedValue([standardConnection(), managedConnection()])
         getDefaultStore().set(agentCreationPrefsAtom, {
             version: 1,
@@ -188,7 +187,7 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         expect(agent.tools).toEqual(PI_DEFAULT_BUILTINS)
     })
 
-    it("falls from a stale last tuple to the managed Pi recommendation", async () => {
+    it("falls from a stale last tuple to the first managed Pi candidate", async () => {
         fetchVaultSecretMock.mockResolvedValue([managedConnection()])
         getDefaultStore().set(agentCreationPrefsAtom, {
             version: 1,

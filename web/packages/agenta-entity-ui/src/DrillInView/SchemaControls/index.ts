@@ -134,7 +134,6 @@ export {
     resolvePickerSelection,
     selectedModelRowKey,
     selectionFromModelRow,
-    SUBSCRIPTION_HARNESSES,
 } from "./connectionPicker"
 export type {
     BuildPickerRowsArgs,

@@ -78,7 +78,6 @@ export {
     resolveAgentModelSelection,
     selectableAgentHarnesses,
     soleAgentHarnessProviderFamily,
-    SUBSCRIPTION_HARNESSES,
     CustomProviderKind,
     CustomSecretFormat,
     PROVIDER_KINDS,

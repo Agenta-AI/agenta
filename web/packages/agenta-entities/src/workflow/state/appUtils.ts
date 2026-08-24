@@ -12,34 +12,19 @@
  * @packageDocumentation
  */
 
-import {getEnabledSandboxProviders, getHostQueryClient} from "@agenta/shared/api"
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
-import type {LlmProvider} from "@agenta/shared/types"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
-import {fetchVaultSecret} from "../../secret/api"
-import {
-    buildAgentModelCandidates,
-    resolveAgentModelSelection,
-    selectableAgentHarnesses,
-    subscriptionPairsFrom,
-    toProviderConnections,
-    type AgentModelCandidate,
-    type HarnessCapabilityMap,
-} from "../../secret/core"
+import {resolveAgentModelSelection} from "../../secret/core"
 import {subscriptionPairModelsAtom} from "../../secret/state"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
-import {
-    fetchHarnessCapabilities,
-    fetchSubscriptionStatus,
-    fetchWorkflowCatalogTemplates,
-    inspectWorkflow,
-} from "../api"
+import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
@@ -49,9 +34,9 @@ import {
     ensureEnabledSandbox,
     selectionFromAgentCreationPrefs,
 } from "./agentCreationPrefs"
+import {loadAgentModelCandidates} from "./agentModelCandidates"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
-import {SUBSCRIPTION_STATUS_QUERY_HARNESS} from "./subscriptionStatus"
 
 // ============================================================================
 // TEMPLATES QUERY
@@ -132,73 +117,6 @@ function matchTemplateForType(
             return normalizedKey === lowerType
         }) ?? null
     )
-}
-
-/**
- * The project's complete runnable model routes, for shaping a new agent's default model.
- *
- * Resolved through the SAME query entry `vaultSecretsQueryAtom` uses, so a warm cache costs
- * nothing and a cold one is fetched once and shared. Deliberately not `store.get(...)` on that
- * atom: the mint runs on first landing and can beat the atom's own fetch, and reading it empty
- * would commit the very template default the managed connection exists to replace. Vault,
- * capabilities, and live subscription status must all resolve; failure returns `null` so the
- * caller does not mistake an unresolved source for an empty one.
- */
-async function agentCandidatesForNewAgent(
-    projectId: string,
-    userId: string,
-    pairModelSelection?: Record<string, string[] | undefined> | null,
-): Promise<AgentModelCandidate[] | null> {
-    try {
-        const queryClient = getHostQueryClient()
-        const [rows, capabilities, subscriptionStatus] = await Promise.all([
-            queryClient.ensureQueryData<LlmProvider[]>({
-                queryKey: ["vault", "secrets", userId, projectId],
-                queryFn: () => fetchVaultSecret({projectId}),
-                staleTime: 5 * 60_000,
-                retry: false,
-            }),
-            queryClient.ensureQueryData<HarnessCapabilityMap>({
-                queryKey: ["workflows", "catalog", "harnesses"],
-                queryFn: async () => (await fetchHarnessCapabilities()) as HarnessCapabilityMap,
-                staleTime: 5 * 60_000,
-                retry: false,
-            }),
-            queryClient
-                .ensureQueryData({
-                    queryKey: [
-                        "workflows",
-                        "runtime",
-                        "subscription-status",
-                        SUBSCRIPTION_STATUS_QUERY_HARNESS,
-                        projectId,
-                    ],
-                    queryFn: () =>
-                        fetchSubscriptionStatus({
-                            harness: SUBSCRIPTION_STATUS_QUERY_HARNESS,
-                            projectId,
-                        }),
-                    staleTime: 10_000,
-                    retry: false,
-                })
-                // Subscription mounts are an optional runner capability. A settled unsupported or
-                // failed status contributes no candidates; it must not block a valid vault route.
-                .catch(() => null),
-        ])
-        const subscriptionPairs = subscriptionStatus
-            ? (subscriptionPairsFrom(subscriptionStatus.harnesses ?? {}) ?? [])
-            : []
-        return buildAgentModelCandidates({
-            connections: toProviderConnections(rows ?? []),
-            capabilities,
-            harnessIds: selectableAgentHarnesses(Object.keys(capabilities)),
-            showSubscriptions: true,
-            subscriptionPairs,
-            pairModelSelection,
-        })
-    } catch {
-        return null
-    }
 }
 
 /** Wait for auth hydration instead of turning a pending user into a terminal creation failure. */
@@ -314,14 +232,14 @@ export async function createEphemeralAppFromTemplate({
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
-        const candidates = await agentCandidatesForNewAgent(
+        const candidateState = await loadAgentModelCandidates({
             projectId,
             userId,
-            store.get(subscriptionPairModelsAtom),
-        )
-        if (signal?.aborted || candidates === null) return null
+            pairModelSelection: store.get(subscriptionPairModelsAtom),
+        })
+        if (signal?.aborted || candidateState.status !== "ready") return null
         const selected = resolveAgentModelSelection({
-            candidates,
+            candidates: candidateState.candidates,
             last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
         })
         const resolvedAgent = selected

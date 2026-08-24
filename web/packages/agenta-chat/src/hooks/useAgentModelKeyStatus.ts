@@ -1,22 +1,8 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useMemo} from "react"
 
-import {
-    buildAgentModelCandidates,
-    hasStoredKey,
-    providerConnectionsAtom,
-    selectableAgentHarnesses,
-    standardSecretsAtom,
-    subscriptionPairModelsAtom,
-    subscriptionPairsFrom,
-    vaultSecretsQueryAtom,
-} from "@agenta/entities/secret"
-import {
-    harnessCapabilitiesAtomFamily,
-    SUBSCRIPTION_STATUS_QUERY_HARNESS,
-    subscriptionStatusQueryAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
+import {hasStoredKey, standardSecretsAtom} from "@agenta/entities/secret"
+import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
@@ -74,40 +60,8 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const standardSecrets = useAtomValue(standardSecretsAtom)
-    // "Loaded" = the vault query produced an array (successful fetch). Pending/errored → `data` is
-    // undefined, so we treat the vault as unresolved and never assert a missing key from empty slots.
-    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
-    const vaultLoading = !Array.isArray(vaultQuery.data)
-    // Provider CONNECTIONS, not raw vault rows and not the static standardSecrets catalog.
-    const connections = useAtomValue(providerConnectionsAtom)
-    const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
-    const subscriptionStatus = useAtomValue(
-        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
-    )
-    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
-    const subscriptionPairs = useMemo(
-        () =>
-            subscriptionStatus.isError
-                ? []
-                : subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.isError, subscriptionStatus.data?.harnesses],
-    )
-    const candidateSourcesLoading =
-        vaultLoading || capabilities == null || subscriptionPairs === null
-    const candidates = useMemo(
-        () =>
-            candidateSourcesLoading
-                ? []
-                : buildAgentModelCandidates({
-                      connections,
-                      capabilities,
-                      harnessIds: selectableAgentHarnesses(Object.keys(capabilities)),
-                      showSubscriptions: true,
-                      subscriptionPairs,
-                      pairModelSelection,
-                  }),
-        [candidateSourcesLoading, connections, capabilities, subscriptionPairs, pairModelSelection],
-    )
+    const candidateState = useAtomValue(agentModelCandidatesAtomFamily(true))
+    const candidateSourcesLoading = candidateState.status !== "ready"
 
     return useMemo(() => {
         const agent = (config as {agent?: {llm?: LlmRef; harness?: HarnessRef}} | null)?.agent
@@ -134,8 +88,8 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             : null
 
         const gateActive = connectModelGate({
-            loading: candidateSourcesLoading,
-            candidateCount: candidates.length,
+            loading: candidateState.status !== "ready",
+            candidateCount: candidateState.candidates.length,
         })
 
         return {
@@ -147,5 +101,5 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             loading: candidateSourcesLoading,
             gateActive,
         }
-    }, [config, standardSecrets, candidateSourcesLoading, candidates.length])
+    }, [config, standardSecrets, candidateSourcesLoading, candidateState])
 }

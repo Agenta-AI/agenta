@@ -17,7 +17,6 @@ export {
     resolveAgentModelSelection,
     selectableAgentHarnesses,
     soleAgentHarnessProviderFamily,
-    SUBSCRIPTION_HARNESSES,
 } from "./agentModelCandidates"
 
 export type {

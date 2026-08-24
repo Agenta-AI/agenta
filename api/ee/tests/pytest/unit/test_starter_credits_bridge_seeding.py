@@ -990,6 +990,19 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows("john99@acme.test", policy) is True
 
+    async def test_plus_alias_rule_is_opt_in(self):
+        assert (
+            await service._mint_policy_allows("john+one@freemail.test", _policy())
+            is True
+        )
+        self.engine.counts.clear()
+
+        policy = _policy(block_plus_aliases=True)
+        assert (
+            await service._mint_policy_allows("john+one@freemail.test", policy) is False
+        )
+        assert self.engine.counts == {}
+
     async def test_global_hourly_cap_blocks(self):
         policy = _policy(global_hourly=2)
 
@@ -1031,7 +1044,6 @@ class TestManagedAndWriteOnlyRow:
         assert seeding_env.vault.management == SecretManagementDTO(
             manager=SecretManager.STARTER_CREDITS_BRIDGE,
             policy=SecretManagementPolicy.MANAGER_ONLY,
-            recommended_for_new_agents=True,
         )
 
         assert seeding_env.vault.row.management == seeding_env.vault.management
@@ -1109,6 +1121,15 @@ class TestRefusalLogging:
         assert fields["rule"] == "digit_local_part"
         assert fields["domain"] == "acme.test"
         assert "john99" not in repr((message, fields))
+
+    async def test_a_plus_alias_refusal_names_only_the_rule_and_domain(self):
+        policy = _policy(block_plus_aliases=True)
+        assert await service._mint_policy_allows("john+one@acme.test", policy) is False
+
+        message, fields = self.records[-1]
+        assert fields["rule"] == "plus_alias_local_part"
+        assert fields["domain"] == "acme.test"
+        assert "john+one" not in repr((message, fields))
 
     async def test_a_velocity_refusal_names_the_rule_and_the_domain(self):
         policy = _policy(work_domain_daily=1)

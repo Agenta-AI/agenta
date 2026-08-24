@@ -6,13 +6,7 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {
-    SecretKind,
-    SecretManagementPolicy,
-    connectionSlugFor,
-    type ProviderConnection,
-    type AgentModelSelection,
-} from "../../secret/core"
+import {type AgentModelSelection} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -132,66 +126,6 @@ const objectAt = (config: Record<string, unknown>, key: string): Record<string, 
     return value && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : {}
-}
-
-/**
- * A connection's own model ids. A credential-set (custom) connection publishes `model_keys`, whose
- * spelling names the connection and which the resolver rewrites itself; everything else publishes
- * plain saved models.
- */
-const connectionModelIds = (connection: ProviderConnection): string[] =>
-    (connection.secretKind === SecretKind.CustomProvider
-        ? (connection.source.modelKeys ?? connection.models)
-        : connection.models) ?? []
-
-/**
- * Default a new agent onto an Agenta-managed connection when its template provider has no key.
- *
- * The backend template hard-codes a provider/model pair, so a project whose only credentials are
- * ones protected by the manager-only policy mints an agent pointing at a provider the user has
- * never connected — it paints a "Connect key" warning and cannot run until they configure one.
- * Repoint it at the managed connection's first model, addressed by slug.
- *
- * Only the untouched default is rewritten: a config already naming a connection slug, or running
- * on self-managed credentials, is the user's own choice (or their saved prefs) and is left alone.
- * Likewise when the template's provider IS connected with the user's own key.
- *
- * No `provider` is written. The slug is the whole routing identity of a managed connection, and a
- * provider on a named custom connection becomes a model-id prefix the resolver cannot match — the
- * same reason `vaultPickedProviderFamily` omits it for a picked custom model.
- */
-export function applyManagedConnectionDefault(
-    agentConfig: Record<string, unknown>,
-    connections: ProviderConnection[],
-): Record<string, unknown> {
-    const llm = objectAt(agentConfig, "llm")
-    const connection = objectAt(llm, "connection")
-    const mode = typeof connection.mode === "string" ? connection.mode : "agenta"
-    const slug = typeof connection.slug === "string" ? connection.slug.trim() : ""
-    if (mode !== "agenta" || slug) return agentConfig
-
-    const managed = connections.find(
-        (candidate) =>
-            candidate.managementPolicy === SecretManagementPolicy.ManagerOnly &&
-            !!connectionSlugFor(candidate) &&
-            connectionModelIds(candidate).length > 0,
-    )
-    if (!managed) return agentConfig
-
-    const nextLlm: Record<string, unknown> = {
-        ...llm,
-        model: connectionModelIds(managed)[0],
-        connection: {...connection, mode: "agenta", slug: connectionSlugFor(managed)},
-    }
-    delete nextLlm.provider
-    if (managed.harnesses?.length === 1) {
-        return {
-            ...agentConfig,
-            harness: {...objectAt(agentConfig, "harness"), kind: managed.harnesses[0]},
-            llm: nextLlm,
-        }
-    }
-    return {...agentConfig, llm: nextLlm}
 }
 
 /**

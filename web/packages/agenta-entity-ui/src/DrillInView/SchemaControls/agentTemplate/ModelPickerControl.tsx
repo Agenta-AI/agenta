@@ -13,25 +13,18 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {
-    providerConnectionsAtom,
-    subscriptionPairModelsAtom,
-    subscriptionPairsFrom,
-    vaultSecretsQueryAtom,
-} from "@agenta/entities/secret"
-import {
-    SUBSCRIPTION_STATUS_QUERY_HARNESS,
-    subscriptionStatusQueryAtomFamily,
-} from "@agenta/entities/workflow"
+import {subscriptionPairModelsAtom} from "@agenta/entities/secret"
+import {agentModelCandidatesAtomFamily, loadAgentModelCandidates} from "@agenta/entities/workflow"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
     ManageProvidersRow,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
-import {atom, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
@@ -44,12 +37,6 @@ import {
 } from "../connectionPicker"
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
-
-/** Narrowed to the refetch handle — the raw query atom churns identity on every fetch-state flip. */
-const vaultRefetchAtom = atom((get) => get(vaultSecretsQueryAtom).refetch)
-
-/** Only claim "nothing connected" once the vault has answered; before that it is just unknown. */
-const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 export interface ModelPickerControlProps {
     capabilities: HarnessCapabilitiesMap | null | undefined
@@ -91,50 +78,28 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const connections = useAtomValue(providerConnectionsAtom)
-    const vaultLoaded = useAtomValue(vaultLoadedAtom)
-    const refetchVault = useAtomValue(vaultRefetchAtom)
+    const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
+    const candidateState = useAtomValue(candidateAtom)
+    const connections = candidateState.connections
+    const projectId = useAtomValue(projectIdAtom)
+    const userId = useAtomValue(userAtom)?.id
+    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
     const [drawerOpen, setDrawerOpen] = useState(false)
     const drawerConnectionKeysRef = useRef<string[]>([])
-    const pendingSaveRef = useRef<{
-        savedConnectionId: string | null
-        previousConnectionKeys: string[]
-        current: PickerSelection | null
-        currentWasRunnable: boolean
-    } | null>(null)
-
-    // The runner's live answer, filed under the shared key so the drawer and both pickers ride ONE
-    // query rather than polling the deployment once per surface.
-    const subscriptionStatus = useAtomValue(
-        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
-    )
-    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
-    const subscriptionPairs = useMemo(
+    const candidates = useMemo(
         () =>
-            subscriptionStatus.isError
-                ? []
-                : subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.isError, subscriptionStatus.data?.harnesses],
+            candidateState.candidates.filter((candidate) => harnessIds.includes(candidate.harness)),
+        [candidateState.candidates, harnessIds],
     )
 
     const rows = useMemo(
         () =>
             buildConnectionPickerRows({
+                candidates,
                 connections,
                 capabilities,
-                harnessIds,
-                showSubscriptions,
-                subscriptionPairs,
-                pairModelSelection,
             }),
-        [
-            connections,
-            capabilities,
-            harnessIds,
-            showSubscriptions,
-            subscriptionPairs,
-            pairModelSelection,
-        ],
+        [candidates, connections, capabilities],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
@@ -144,8 +109,7 @@ const ModelPickerControl = ({
         [rows, modelId, slug, mode, harness],
     )
     const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
-    const allSourcesResolved =
-        vaultLoaded && capabilities != null && (!showSubscriptions || subscriptionPairs !== null)
+    const allSourcesResolved = candidateState.status === "ready"
 
     const currentSelection = useMemo<PickerSelection | null>(
         () => (modelId && harness ? {modelId, provider, mode, slug, harness} : null),
@@ -156,42 +120,48 @@ const ModelPickerControl = ({
         setDrawerOpen(true)
     }, [connections])
     const providerSaved = useCallback(
-        (savedConnectionId?: string) => {
-            if (replaceable) {
-                pendingSaveRef.current = {
-                    savedConnectionId: savedConnectionId ?? null,
-                    previousConnectionKeys: drawerConnectionKeysRef.current,
-                    current: currentSelection,
-                    currentWasRunnable: pickerSelectionIsRunnable(rows, currentSelection),
-                }
-            }
-            refetchVault()
-        },
-        [replaceable, currentSelection, rows, refetchVault],
-    )
+        async (savedConnectionId?: string) => {
+            const previousConnectionKeys = drawerConnectionKeysRef.current
+            const currentWasRunnable = pickerSelectionIsRunnable(rows, currentSelection)
+            if (!projectId || !userId) return
 
-    useEffect(() => {
-        const pending = pendingSaveRef.current
-        if (!pending) return
-        const known = new Set(pending.previousConnectionKeys)
-        const connectionId =
-            pending.savedConnectionId ??
-            connections.find((connection) => !known.has(connection.id))?.id ??
-            null
-        if (!connectionId || !connections.some((connection) => connection.id === connectionId)) {
-            return
-        }
-        pendingSaveRef.current = null
-        const selection = pickerSelectionAfterProviderSave({
-            rows,
+            const fresh = await loadAgentModelCandidates({
+                projectId,
+                userId,
+                pairModelSelection,
+                showSubscriptions,
+                refreshVault: true,
+            })
+            if (!replaceable || fresh.status !== "ready") return
+            const freshRows = buildConnectionPickerRows({
+                candidates: fresh.candidates.filter((candidate) =>
+                    harnessIds.includes(candidate.harness),
+                ),
+                connections: fresh.connections,
+                capabilities: fresh.capabilities,
+            })
+            const selection = pickerSelectionAfterProviderSave({
+                rows: freshRows,
+                replaceable,
+                savedConnectionId: savedConnectionId ?? null,
+                previousConnectionKeys,
+                current: currentSelection,
+                currentWasRunnable,
+            })
+            if (selection) onSelect(selection)
+        },
+        [
+            currentSelection,
+            harnessIds,
+            onSelect,
+            pairModelSelection,
+            projectId,
             replaceable,
-            savedConnectionId: connectionId,
-            previousConnectionKeys: pending.previousConnectionKeys,
-            current: pending.current,
-            currentWasRunnable: pending.currentWasRunnable,
-        })
-        if (selection) onSelect(selection)
-    }, [connections, rows, replaceable, onSelect])
+            rows,
+            showSubscriptions,
+            userId,
+        ],
+    )
 
     const drawer = (
         <ProviderDrawer

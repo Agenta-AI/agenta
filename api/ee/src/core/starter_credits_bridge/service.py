@@ -339,7 +339,6 @@ async def _create_row(
         management=SecretManagementDTO(
             manager=SecretManager.STARTER_CREDITS_BRIDGE,
             policy=SecretManagementPolicy.MANAGER_ONLY,
-            recommended_for_new_agents=True,
         ),
     )
 
@@ -613,6 +612,14 @@ async def _mint_policy_allows(
     local_part, _, _ = organization_email.rpartition("@")
     domain = _email_domain(organization_email)
     freemail = policy.is_freemail(domain)
+
+    if policy.block_plus_aliases and "+" in local_part:
+        log.warning(
+            "[starter_credits_bridge] policy refused mint; skipping seed",
+            rule="plus_alias_local_part",
+            domain=domain,
+        )
+        return False
 
     if (
         not freemail

@@ -6,11 +6,7 @@ import {
     type ProviderConnection,
 } from "./connections"
 import {connectionSlugFor} from "./promptModelGroups"
-import {
-    subscriptionPairModels,
-    subscriptionPlanName,
-    type SubscriptionPair,
-} from "./subscriptionPairs"
+import {subscriptionPairModels, type SubscriptionPair} from "./subscriptionPairs"
 import {SecretKind, SecretManagementPolicy} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
@@ -26,12 +22,7 @@ export interface AgentModelSelection {
 export interface AgentModelCandidate extends AgentModelSelection {
     source: "connection" | "subscription"
     connectionKey: string
-    connectionName: string
-    iconKey: string
     managed: boolean
-    recommended: boolean
-    /** Original saved id when the harness needs a different routing spelling. */
-    displayModelId?: string
 }
 
 export interface BuildAgentModelCandidatesArgs {
@@ -39,13 +30,8 @@ export interface BuildAgentModelCandidatesArgs {
     capabilities: HarnessCapabilityMap | null | undefined
     harnessIds: string[]
     showSubscriptions?: boolean
-    subscriptionPairs?: SubscriptionPair[] | null
+    subscriptionPairs?: SubscriptionPair[]
     pairModelSelection?: Record<string, string[] | undefined> | null
-}
-
-export const SUBSCRIPTION_HARNESSES: Record<string, {family: string; mount: string}> = {
-    claude: {family: "anthropic", mount: "~/.claude"},
-    codex: {family: "openai", mount: "~/.codex"},
 }
 
 export const selectableAgentHarnesses = (harnessIds: string[]): string[] =>
@@ -168,7 +154,6 @@ const connectionCandidates = ({
         const standard = connection.secretKind === SecretKind.ProviderKey
         const savedModels = Boolean(connection.models)
         const managed = connection.managementPolicy === SecretManagementPolicy.ManagerOnly
-        const recommended = connection.recommendedForNewAgents ?? false
 
         for (const harness of harnesses) {
             if (standard) {
@@ -187,11 +172,7 @@ const connectionCandidates = ({
                         harness,
                         source: "connection",
                         connectionKey: connection.id,
-                        connectionName: connection.name,
-                        iconKey: managed ? "agenta" : connection.kind,
                         managed,
-                        recommended,
-                        ...(catalogued ? {} : {displayModelId: id}),
                     })
                 }
                 continue
@@ -206,10 +187,7 @@ const connectionCandidates = ({
                     harness,
                     source: "connection",
                     connectionKey: connection.id,
-                    connectionName: connection.name,
-                    iconKey: managed ? "agenta" : connection.kind,
                     managed,
-                    recommended,
                 })
             }
         }
@@ -242,38 +220,7 @@ const liveSubscriptionCandidates = ({
                 harness: pair.harness,
                 source: "subscription",
                 connectionKey: `subscription:${pair.provider}`,
-                connectionName: pair.name,
-                iconKey: pair.provider,
                 managed: false,
-                recommended: false,
-            })
-        }
-    }
-    return candidates
-}
-
-const staticSubscriptionCandidates = ({
-    capabilities,
-    harnessIds,
-}: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
-    const candidates: AgentModelCandidate[] = []
-    for (const harness of harnessIds) {
-        const meta = SUBSCRIPTION_HARNESSES[harness]
-        const caps = capabilities?.[harness]
-        if (!meta || !caps?.connection_modes?.includes("self_managed")) continue
-        for (const modelId of caps.models?.[meta.family] ?? []) {
-            candidates.push({
-                modelId,
-                provider: meta.family,
-                mode: "self_managed",
-                slug: null,
-                harness,
-                source: "subscription",
-                connectionKey: `subscription:${meta.family}`,
-                connectionName: subscriptionPlanName(meta.family),
-                iconKey: meta.family,
-                managed: false,
-                recommended: false,
             })
         }
     }
@@ -285,11 +232,7 @@ export const buildAgentModelCandidates = (
 ): AgentModelCandidate[] => {
     const connections = connectionCandidates(args)
     if (args.showSubscriptions === false) return connections
-    const subscriptions =
-        args.subscriptionPairs === null || args.subscriptionPairs === undefined
-            ? staticSubscriptionCandidates(args)
-            : liveSubscriptionCandidates(args)
-    return [...connections, ...subscriptions]
+    return [...connections, ...liveSubscriptionCandidates(args)]
 }
 
 const findRunnableAgentModel = <T extends AgentModelSelection>(
@@ -325,7 +268,7 @@ export const resolveAgentModelSelection = ({
         const match = findRunnableAgentModel(candidates, selection)
         if (match) return match
     }
-    return candidates.find((candidate) => candidate.recommended) ?? candidates[0] ?? null
+    return candidates.find((candidate) => candidate.managed) ?? candidates[0] ?? null
 }
 
 export const firstAgentModelForConnection = (

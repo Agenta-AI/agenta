@@ -80,10 +80,7 @@ def test_public_response_exposes_policy_without_manager(client):
     response = client.get("/secrets/")
     assert response.status_code == 200
     management = response.json()[0]["management"]
-    assert management == {
-        "policy": "manager_only",
-        "recommended_for_new_agents": False,
-    }
+    assert management == {"policy": "manager_only"}
     assert "manager" not in management
 
 

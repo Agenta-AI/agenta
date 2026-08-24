@@ -63,8 +63,6 @@ export interface ProviderConnection {
     keyPreview?: string
     /** Server-enforced management policy. Manager-only rows may not be edited or deleted by users. */
     managementPolicy?: SecretManagementPolicy
-    /** Product recommendation used only when a new agent has no valid saved route. */
-    recommendedForNewAgents?: boolean
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
@@ -114,7 +112,6 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
                 row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
             keyPreview: row.keyPreview,
             managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
-            recommendedForNewAgents: row.recommendedForNewAgents ?? false,
             source: row,
         })
         return acc

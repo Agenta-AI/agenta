@@ -181,18 +181,14 @@ describe("write-only records", () => {
         expect(row.keyPreview).toBe("sk-****9Qa")
     })
 
-    it("carries the owner marker of a platform-provisioned record", () => {
+    it("carries the policy of a platform-provisioned record", () => {
         const [row] = transformSecret([
             writeOnly({
-                management: {
-                    policy: SecretManagementPolicy.ManagerOnly,
-                    recommended_for_new_agents: true,
-                },
+                management: {policy: SecretManagementPolicy.ManagerOnly},
             }),
         ])
 
         expect(row.managementPolicy).toBe(SecretManagementPolicy.ManagerOnly)
-        expect(row.recommendedForNewAgents).toBe(true)
     })
 
     it("leaves every write-only field undefined on a legacy readable record", () => {

@@ -1,17 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {
-    customSecretsAtom,
-    providerConnectionsAtom,
-    subscriptionPairModelsAtom,
-    subscriptionPairsFrom,
-} from "@agenta/entities/secret"
-import {
-    harnessCapabilitiesAtomFamily,
-    SUBSCRIPTION_STATUS_QUERY_HARNESS,
-    subscriptionStatusQueryAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
+import {customSecretsAtom} from "@agenta/entities/secret"
+import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
     buildModelOptionGroups,
@@ -86,7 +76,8 @@ export function useChatSlashCommands({
     const parametersSchema = useAtomValue(
         useMemo(() => workflowMolecule.selectors.parametersSchema(entityId), [entityId]),
     )
-    const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const candidateState = useAtomValue(agentModelCandidatesAtomFamily(true))
+    const capabilities = candidateState.capabilities
     const customSecrets = useAtomValue(customSecretsAtom)
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
@@ -147,39 +138,21 @@ export function useChatSlashCommands({
      * for the same agent. A project with no connections falls back to the pre-connections menu —
      * the harness catalog plus the vault's custom-provider models.
      */
-    const connections = useAtomValue(providerConnectionsAtom)
-    // Same live pairs the config picker and the drawer read, under the same query key — one poll
-    // for the deployment, not one per surface.
-    const subscriptionStatus = useAtomValue(
-        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
-    )
-    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
-    const subscriptionPairs = useMemo(
-        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.data?.harnesses],
-    )
     const modelGroups = useMemo(() => {
-        const rows = buildConnectionPickerRows({
-            connections,
-            capabilities,
-            harnessIds,
-            subscriptionPairs,
-            pairModelSelection,
-        })
+        const rows =
+            candidateState.status === "ready"
+                ? buildConnectionPickerRows({
+                      candidates: candidateState.candidates,
+                      connections: candidateState.connections,
+                      capabilities,
+                  })
+                : []
         if (rows.length) return buildPickerGroupsWithSections(rows)
         return [
             ...buildModelOptionGroups(capabilities, currentHarness),
             ...vaultModelGroups(customSecrets, capabilities, currentHarness),
         ]
-    }, [
-        connections,
-        capabilities,
-        harnessIds,
-        currentHarness,
-        customSecrets,
-        subscriptionPairs,
-        pairModelSelection,
-    ])
+    }, [candidateState, capabilities, currentHarness, customSecrets])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
     const modelAvailable = modelGroups.length > 0

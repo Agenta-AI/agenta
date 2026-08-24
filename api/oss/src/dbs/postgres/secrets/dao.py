@@ -111,7 +111,11 @@ class SecretsDAO(SecretsDAOInterface):
     async def list(self, project_id: UUID | None, organization_id: UUID | None):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = select(SecretsDBE).filter_by(**scope_filter)
+            stmt = (
+                select(SecretsDBE)
+                .filter_by(**scope_filter)
+                .order_by(SecretsDBE.created_at.asc(), SecretsDBE.id.asc())
+            )
 
             results = await session.execute(stmt)  # type: ignore
             secrets_dbes = results.scalars().all()

@@ -46,8 +46,6 @@ export interface LlmProvider {
     keyPreview?: string
     /** Public management policy for the row; internal manager identity is never exposed. */
     managementPolicy?: string
-    /** Explicit product recommendation for resolving a new agent's initial route. */
-    recommendedForNewAgents?: boolean
     id?: string
     type?: string
     created_at?: string

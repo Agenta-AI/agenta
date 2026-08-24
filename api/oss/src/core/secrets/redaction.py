@@ -96,10 +96,7 @@ def project_secret_response(
     """Build the public response, optionally retaining a write-only value for runtime."""
     public_data = secret.model_dump(mode="python", exclude={"management"})
     if secret.management is not None:
-        public_data["management"] = {
-            "policy": secret.management.policy,
-            "recommended_for_new_agents": secret.management.recommended_for_new_agents,
-        }
+        public_data["management"] = {"policy": secret.management.policy}
 
     projected = PublicSecretResponseDTO.model_validate(
         {**public_data, "value_status": _value_status(secret)}

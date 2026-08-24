@@ -89,6 +89,17 @@ def test_management_models_are_exact():
     assert management.policy is SecretManagementPolicy.MANAGER_ONLY
 
 
+def test_management_model_reads_but_drops_legacy_recommendation():
+    management = SecretManagementDTO.model_validate(
+        {
+            "manager": "starter-credits-bridge",
+            "policy": "manager_only",
+            "recommended_for_new_agents": True,
+        }
+    )
+    assert "recommended_for_new_agents" not in management.model_dump()
+
+
 @pytest.mark.parametrize("dto", [CreateSecretDTO, UpdateSecretDTO])
 def test_public_write_models_reject_management_fields(dto):
     payload = {"management": {"manager": "starter-credits-bridge"}}
@@ -131,10 +142,7 @@ def test_public_projection_exposes_policy_but_not_manager():
     )
     public = project_secret_response(secret, reveal_write_only=True)
     dumped = public.model_dump(mode="json", exclude_none=True)
-    assert dumped["management"] == {
-        "policy": "manager_only",
-        "recommended_for_new_agents": False,
-    }
+    assert dumped["management"] == {"policy": "manager_only"}
     assert "manager" not in dumped["management"]
 
 
