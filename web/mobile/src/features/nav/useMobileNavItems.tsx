@@ -1,4 +1,4 @@
-import {createElement, useCallback, useEffect, useMemo, useRef, type ReactNode} from "react"
+import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {
@@ -7,12 +7,15 @@ import {
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
+    PINNED_GROUP_KEY,
+    sidebarAgentLastUsedAtomFamily,
     sidebarSessionExpandedGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionScopeLimit,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
+    withRefsByRecency,
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
@@ -41,6 +44,14 @@ import {useSessionRowChrome} from "./useSessionRowChrome"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+
+/**
+ * Sessions whose group has already been opened for them, MODULE-wide.
+ *
+ * The rail and the drawer both run this hook, so a per-instance ref let one instance re-seed a
+ * group the user had just collapsed through the other — the caret appeared to do nothing.
+ */
+const seededSessions = new Set<string>()
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -119,20 +130,30 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // Keyed on the session id, so collapsing the group of the session you are in stays collapsed.
     const openSessionId = useRouter().query.session_id
     const expandGroup = useSetAtom(sidebarSessionExpandedGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
-    const seededForSession = useRef<string | null>(null)
     useEffect(() => {
         if (typeof openSessionId !== "string" || !groups) return
-        if (seededForSession.current === openSessionId) return
+        if (seededSessions.has(openSessionId)) return
         const active = rawSource.refs.find(
             (ref) => (ref as SessionSidebarRef).sessionId === openSessionId,
         ) as SessionSidebarRef | undefined
         if (!active?.groupKey) return
-        seededForSession.current = openSessionId
+        seededSessions.add(openSessionId)
+        // Never Pinned: it opens by default anyway, and re-opening it here fought the caret for
+        // anyone who had deliberately folded it.
+        if (active.groupKey === PINNED_GROUP_KEY) return
         if (groups.collapsedKeys.includes(active.groupKey)) expandGroup(active.groupKey)
     }, [expandGroup, groups, openSessionId, rawSource.refs])
 
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    const agentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
+    // Most recently USED first — an agent list in catalog order reads as random. The ranks come
+    // off the sessions the rail already holds, so this costs no request; agents with none keep
+    // catalog order behind the ranked ones.
+    const rawAgentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
+    const agentLastUsed = useAtomValue(sidebarAgentLastUsedAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const agentsSource = useMemo(
+        () => withRefsByRecency(rawAgentsSource, (ref) => agentLastUsed.get(ref.id)),
+        [agentLastUsed, rawAgentsSource],
+    )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome()
     const wrapSessionRow = useCallback(

@@ -12,6 +12,7 @@ import {SESSIONS_SIDEBAR_KEY} from "../constants"
 import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../state"
 
 import {
+    PINNED_GROUP_KEY,
     sidebarSessionExpandedGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
@@ -372,7 +373,6 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
     }),
 )
 
-const PINNED_GROUP_KEY = "pinned"
 const UNASSIGNED_GROUP_KEY = "agent:none"
 
 const DAY = 24 * 60 * 60 * 1000
@@ -447,23 +447,11 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             const key = sidebarSessionGroupKey(ref)
             if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
         }
-        const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({
-            key,
-            label,
-            // Only the agent buckets name something openable — a date or a status heading has
-            // nowhere to go. `agent:none` is a placeholder, not an agent.
-            path:
-                key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
-                    ? `/agents/${key.slice("agent:".length)}`
-                    : undefined,
-        }))
+        const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
         // Folded unless opened. A rail with a heading per agent is a wall of rows before it is a
-        // way to find one; Pinned is the exception, because a pin IS the user asking to see it.
-        const expanded = new Set([
-            PINNED_GROUP_KEY,
-            ...get(sidebarSessionExpandedGroupsAtomFamily(scopeId)),
-        ])
+        // way to find one. Pinned's head start lives in the atom's default, so it stays closable.
+        const expanded = new Set(get(sidebarSessionExpandedGroupsAtomFamily(scopeId)))
         return {
             groups,
             collapsedKeys: groups
@@ -483,12 +471,41 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
         // A failed pin fetch must surface: the recent window excludes pinned ids, so silence here
         // would just make the pinned sessions vanish.
         const pinnedFailed = hasPins && pinnedQuery.isError
+        const data = get(sidebarSessionRefsAtomFamily(scopeId))
         return {
-            data: get(sidebarSessionRefsAtomFamily(scopeId)),
-            isPending: query.isPending || (hasPins && pinnedQuery.isPending),
+            data,
+            // Only pending with nothing to show. Pinning a session mints a NEW pinned-query key,
+            // and reporting that first flight as pending emptied the whole rail for a frame —
+            // every row vanished and came back reordered.
+            isPending: (query.isPending || (hasPins && pinnedQuery.isPending)) && !data.length,
             isError: query.isError || pinnedFailed,
             error: query.error ?? (pinnedFailed ? pinnedQuery.error : null) ?? null,
         }
+    }),
+)
+
+/**
+ * `agentId -> when it was last used`, in ms, off the sessions the rail already holds.
+ *
+ * "Used" means a session ran, which is the product's own definition of agent activity (the home
+ * roster reads the agent's most recent session). Derived rather than fetched: a timestamp per
+ * agent would otherwise be one request each, and the rail has the sessions in hand.
+ *
+ * The catch, accepted deliberately: these sessions carry the rail's FILTERS and its activity
+ * window, so narrowing to one agent or one status leaves the others without a timestamp and they
+ * fall back to catalog order. The alternative is a second unfiltered query per project.
+ */
+export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const lastUsed = new Map<string, number>()
+        for (const ref of get(sidebarSessionRefsAtomFamily(scopeId))) {
+            if (!ref.agentId || !ref.activityAt) continue
+            const at = new Date(ref.activityAt).getTime()
+            if (!Number.isFinite(at)) continue
+            const current = lastUsed.get(ref.agentId)
+            if (current === undefined || at > current) lastUsed.set(ref.agentId, at)
+        }
+        return lastUsed
     }),
 )
 

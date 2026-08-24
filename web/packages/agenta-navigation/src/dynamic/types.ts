@@ -45,9 +45,6 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
 export interface SidebarEntityGroup {
     key: string
     label: string
-    /** Project-relative destination for the heading's LABEL — a heading that names an entity
-     * should open it. The caret keeps the collapse; omit and the heading is text. */
-    path?: string
 }
 
 /**

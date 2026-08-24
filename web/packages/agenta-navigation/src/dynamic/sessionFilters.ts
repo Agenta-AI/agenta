@@ -9,6 +9,9 @@ const SESSION_FILTERS_STORAGE_KEY = "agenta:sidebar:session-filters"
 const SESSION_GROUPS_EXPANDED_STORAGE_KEY = "agenta:sidebar:session-groups-expanded"
 const NO_PROJECT_SCOPE = "__global__"
 
+/** The pins' own heading. Defined here because it is also the one group that starts OPEN. */
+export const PINNED_GROUP_KEY = "pinned"
+
 /** Liveness the server can answer directly — `flags.is_running` / `flags.is_alive`. */
 export type SidebarSessionStatusFilter = "all" | "running" | "waiting" | "idle"
 
@@ -106,17 +109,23 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
     }),
 )
 
-/** The groups the user has OPENED. Everything else renders folded. */
+/**
+ * The groups the user has OPENED. Everything else renders folded.
+ *
+ * Untouched, that is Pinned alone: a pin IS the user asking to see a session, so hiding pins
+ * behind a caret contradicts the gesture. It is a DEFAULT, not a rule — the absent record resolves
+ * to it, and the first toggle writes a real list, so Pinned collapses like any other group.
+ */
 export const sidebarSessionExpandedGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
-            return get(expandedGroupsStorageAtom)[scope] ?? []
+            return get(expandedGroupsStorageAtom)[scope] ?? [PINNED_GROUP_KEY]
         },
         (get, set, groupKey: string) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
             const storage = get(expandedGroupsStorageAtom)
-            const current = storage[scope] ?? []
+            const current = storage[scope] ?? [PINNED_GROUP_KEY]
             const next = current.includes(groupKey)
                 ? current.filter((key) => key !== groupKey)
                 : [...current, groupKey]
