@@ -26,25 +26,23 @@ const HTML_TYPES = new Set([
   "text/html",
   "application/xhtml+xml",
   "application/xml",
-  "text/xml",
 ]);
 const MARKDOWN_TYPES = new Set(["text/markdown", "text/x-markdown"]);
-const JSON_TYPES = new Set(["application/json"]);
 
 /**
  * Parse an Accept header into entries ordered by preference: q descending,
- * then specificity (exact type, then subtype wildcard, then full wildcard),
- * then source order.
+ * then specificity (exact type, then subtype wildcard, then full wildcard).
+ * `Array.sort` is stable, so equally ranked entries keep their source order.
  * RFC 9110 §12.5.1.
  */
 export function parseAccept(header: string | null | undefined): AcceptEntry[] {
   if (!header) return [];
-  const entries: AcceptEntry[] = [];
 
-  header.split(",").forEach((part, index) => {
+  const entries: AcceptEntry[] = [];
+  for (const part of header.split(",")) {
     const [rawType, ...params] = part.split(";");
     const type = rawType.trim().toLowerCase();
-    if (!type) return;
+    if (!type) continue;
 
     let q = 1;
     for (const param of params) {
@@ -56,10 +54,12 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
       }
     }
 
-    const specificity = type === "*/*" ? 0 : type.endsWith("/*") ? 1 : 2;
-    // `index` keeps the sort stable across engines without extra bookkeeping.
-    entries.push({ type, q, specificity: specificity * 1000 - index });
-  });
+    entries.push({
+      type,
+      q,
+      specificity: type === "*/*" ? 0 : type.endsWith("/*") ? 1 : 2,
+    });
+  }
 
   return entries.sort((a, b) => b.q - a.q || b.specificity - a.specificity);
 }
@@ -68,17 +68,17 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
 export function pickRepresentation(
   header: string | null | undefined,
 ): Representation {
-  const entries = parseAccept(header).filter((e) => e.q > 0);
+  const entries = parseAccept(header).filter((entry) => entry.q > 0);
   // No header, or a header we could not parse at all: treat as "anything".
   if (entries.length === 0) return "any";
 
   for (const { type } of entries) {
     if (MARKDOWN_TYPES.has(type)) return "markdown";
     if (HTML_TYPES.has(type)) return "html";
-    if (JSON_TYPES.has(type)) return "json";
+    if (type === "application/json") return "json";
     if (type === "*/*") return "any";
-    // `text/*` matches both html and markdown; html is the safer default (it is
-    // what a browser or crawler sending text/* would expect).
+    // `text/*` matches both html and markdown; html is the safer reading (it is
+    // what a browser or crawler sending text/* expects).
     if (type === "text/*") return "html";
     if (type === "application/*") return "json";
   }
@@ -88,29 +88,26 @@ export function pickRepresentation(
 }
 
 /**
- * Markdown twin candidates for an HTML route, most likely first.
+ * Markdown twin of an HTML route: `/pricing` → `/pricing.md`, `/` → `/index.md`.
  *
  * Returns null for anything that already names a file (assets, /llms.txt,
- * /openapi.json …) — those are served verbatim and never negotiated.
- * A trailing slash is stripped first: the live sitemap advertises the slash
- * form, and a Cloudflare Transform Rule may re-add it for /authors/<slug>/.
+ * /openapi.json, and the twins themselves) — those are served verbatim and
+ * never negotiated. A trailing slash is stripped first: the live sitemap
+ * advertises the slash form, and a Cloudflare Transform Rule may re-add it for
+ * /authors/<slug>/.
  */
-export function mdCandidates(pathname: string): string[] | null {
+export function mdPath(pathname: string): string | null {
   const lastSegment = pathname.split("/").pop() ?? "";
   if (lastSegment.includes(".")) return null;
 
   const clean = pathname.replace(/\/+$/, "");
-  if (clean === "") return ["/index.md"];
-  return [`${clean}.md`, `${clean}/index.md`];
+  return clean === "" ? "/index.md" : `${clean}.md`;
 }
 
 const SITE = "https://agenta.ai";
 
-/** Where an agent should look next after a dead end. */
+/** The machine-readable entry points an agent should try after a dead end. */
 const RECOVERY = {
-  home: `${SITE}/`,
-  blog: `${SITE}/blog`,
-  pricing: `${SITE}/pricing`,
   sitemap: `${SITE}/sitemap-index.xml`,
   llms_txt: `${SITE}/llms.txt`,
   openapi: `${SITE}/openapi.json`,
@@ -127,9 +124,9 @@ Agenta is the open-source workspace for your agents.
 
 ## Where to look next
 
-- [Homepage](${RECOVERY.home})
-- [Blog](${RECOVERY.blog})
-- [Pricing](${RECOVERY.pricing})
+- [Homepage](${SITE}/)
+- [Blog](${SITE}/blog)
+- [Pricing](${SITE}/pricing)
 - [Documentation](${RECOVERY.docs})
 
 ## Machine-readable
@@ -142,41 +139,32 @@ Every page also serves markdown via \`Accept: text/markdown\`.
 `;
 }
 
-/** Structured error body: a code, a message, and hints an agent can act on. */
-export function errorJson(
-  status: number,
-  code: string,
-  message: string,
-  pathname: string,
-  hints: string[],
-): string {
-  return JSON.stringify(
-    {
-      error: {
-        code,
-        status,
-        message,
-        path: pathname,
-        hints,
-        ...RECOVERY,
-      },
-    },
-    null,
-    2,
-  );
+/**
+ * Structured error body: a code, a message, hints an agent can act on, and the
+ * entry points above so a lost client always has somewhere to go.
+ */
+export function errorJson(error: {
+  status: number;
+  code: string;
+  message: string;
+  path: string;
+  hints: string[];
+}): string {
+  return JSON.stringify({ error: { ...error, ...RECOVERY } }, null, 2);
 }
 
 /** Body for a 406: say plainly what representations exist. */
-export function notAcceptableJson(pathname: string): string {
-  return errorJson(
-    406,
-    "not_acceptable",
-    "None of the media types in the Accept header can be served for this resource.",
-    pathname,
-    [
+export function notAcceptableJson(path: string): string {
+  return errorJson({
+    status: 406,
+    code: "not_acceptable",
+    message:
+      "None of the media types in the Accept header can be served for this resource.",
+    path,
+    hints: [
       "Request text/html for the rendered page.",
       "Request text/markdown for the plain-text representation.",
       "Request application/json for structured errors.",
     ],
-  );
+  });
 }

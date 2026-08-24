@@ -18,24 +18,28 @@
 //      with "404-page" the asset server would answer them itself and no agent
 //      could ever get a markdown or JSON 404.
 //   2. Cloudflare's CDN ignores Vary values other than Accept-Encoding, so the
-//      markdown representation is marked private/no-store-ish to guarantee a
-//      shared cache can never hand a markdown body to a browser.
+//      markdown representation is marked private so a shared cache can never
+//      hand a markdown body to a browser.
 //
 // Every path is wrapped in a try/catch that falls back to the raw asset: a bug
 // in negotiation must never be able to take the marketing site down.
 import {
   HEADERS,
   errorJson,
-  mdCandidates,
+  mdPath,
   notAcceptableJson,
   notFoundMarkdown,
   pickRepresentation,
+  type Representation,
 } from "./negotiate";
 
 // The entire Workers runtime surface this script uses.
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
 }
+
+const MARKDOWN = "text/markdown; charset=utf-8";
+const JSON_TYPE = "application/json; charset=utf-8";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -53,103 +57,98 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (method !== "GET" && method !== "HEAD") return env.ASSETS.fetch(request);
 
   const url = new URL(request.url);
-  const candidates = mdCandidates(url.pathname);
-  // A path that names a file (asset, /llms.txt, /openapi.json) is never
-  // negotiated — hand it straight to the asset server, headers untouched.
-  if (!candidates) return env.ASSETS.fetch(request);
+  const twin = mdPath(url.pathname);
+  // A path that names a file (asset, /llms.txt, /openapi.json, a .md twin) is
+  // never negotiated — hand it straight to the asset server, headers untouched.
+  if (!twin) return env.ASSETS.fetch(request);
 
   const preference = pickRepresentation(request.headers.get("accept"));
 
   if (preference === "markdown") {
-    const markdown = await fetchFirstAsset(env, url, candidates);
-    if (markdown) return markdownResponse(await markdown.text(), method);
+    const markdown = await getAsset(env, url, twin);
+    if (markdown) {
+      return respond(await markdown.text(), method, {
+        type: MARKDOWN,
+        // The HTML page is the canonical, indexable representation.
+        cache: "private, max-age=0, must-revalidate",
+        extra: { "X-Robots-Tag": "noindex" },
+      });
+    }
   }
 
   if (preference === "none") {
-    return json(notAcceptableJson(url.pathname), 406, method);
+    return respond(notAcceptableJson(url.pathname), method, {
+      status: 406,
+      type: JSON_TYPE,
+      cache: "no-store",
+    });
   }
 
   const asset = await env.ASSETS.fetch(request);
-
   if (asset.status === 404) return notFound(env, url, preference, method);
-  if (!isHtml(asset)) return asset;
 
-  return htmlResponse(asset, candidates[0], method);
+  return rewrap(asset, method, {
+    // Point agents that do not guess at the markdown twin (RFC 8288).
+    Link: `<${twin}>; rel="alternate"; type="text/markdown"`,
+  });
 }
 
-/** Try each markdown twin in turn; null when none of them exist. */
-async function fetchFirstAsset(
+/** Fetch one asset by path; null when it does not exist. */
+async function getAsset(
   env: Env,
   url: URL,
-  candidates: string[],
+  path: string,
 ): Promise<Response | null> {
-  for (const path of candidates) {
-    const response = await env.ASSETS.fetch(
-      new Request(new URL(path, url.origin).toString(), { method: "GET" }),
-    );
-    // A miss is a 404 response (not_found_handling: "none"), not a throw.
-    if (response.status === 200) return response;
-  }
-  return null;
+  const response = await env.ASSETS.fetch(
+    new Request(new URL(path, url.origin).toString(), { method: "GET" }),
+  );
+  // A miss is a 404 response (not_found_handling: "none"), not a throw.
+  return response.status === 200 ? response : null;
 }
 
-function isHtml(response: Response): boolean {
-  return (response.headers.get("content-type") ?? "").includes("text/html");
-}
-
-/** HEAD must carry the headers of the GET, but no body. */
-function body(content: string, method: string): string | null {
-  return method === "HEAD" ? null : content;
-}
-
-function withPolicy(headers: Headers): Headers {
-  for (const [name, value] of Object.entries(HEADERS)) headers.set(name, value);
-  return headers;
-}
-
-/** The rendered page, plus the machine-readable affordances. */
-function htmlResponse(
-  asset: Response,
-  markdownPath: string,
+/**
+ * A response this worker composes itself.
+ *
+ * `_headers` does not reach worker responses, so the site-wide policy is
+ * re-applied here; `Vary: Accept` is what makes the negotiation honest.
+ */
+function respond(
+  body: string,
   method: string,
+  options: {
+    status?: number;
+    type: string;
+    cache: string;
+    extra?: Record<string, string>;
+  },
 ): Response {
-  const headers = withPolicy(new Headers(asset.headers));
+  return new Response(method === "HEAD" ? null : body, {
+    status: options.status ?? 200,
+    headers: {
+      ...HEADERS,
+      "Content-Type": options.type,
+      "Cache-Control": options.cache,
+      Vary: "Accept, Accept-Encoding",
+      ...options.extra,
+    },
+  });
+}
+
+/** An asset the worker passes through, with the same headers added. */
+function rewrap(
+  asset: Response,
+  method: string,
+  extra: Record<string, string>,
+  status = asset.status,
+): Response {
+  const headers = new Headers(asset.headers);
+  for (const [name, value] of Object.entries({ ...HEADERS, ...extra })) {
+    headers.set(name, value);
+  }
   headers.set("Vary", "Accept, Accept-Encoding");
-  // Point agents that do not guess at the markdown twin (RFC 8288).
-  headers.append("Link", `<${markdownPath}>; rel="alternate"; type="text/markdown"`);
   return new Response(method === "HEAD" ? null : asset.body, {
-    status: asset.status,
-    statusText: asset.statusText,
-    headers,
-  });
-}
-
-function markdownResponse(content: string, method: string): Response {
-  return new Response(body(content, method), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/markdown; charset=utf-8",
-      Vary: "Accept, Accept-Encoding",
-      // Cloudflare ignores Vary: Accept when caching, so the markdown variant
-      // must never enter a shared cache under the HTML URL.
-      "Cache-Control": "private, max-age=0, must-revalidate",
-      // The HTML page is the canonical, indexable representation.
-      "X-Robots-Tag": "noindex",
-      "X-Content-Type-Options": HEADERS["X-Content-Type-Options"],
-      "Referrer-Policy": HEADERS["Referrer-Policy"],
-    },
-  });
-}
-
-function json(content: string, status: number, method: string): Response {
-  return new Response(body(content, method), {
     status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      Vary: "Accept, Accept-Encoding",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": HEADERS["X-Content-Type-Options"],
-    },
+    headers,
   });
 }
 
@@ -164,31 +163,34 @@ function json(content: string, status: number, method: string): Response {
 async function notFound(
   env: Env,
   url: URL,
-  preference: string,
+  preference: Representation,
   method: string,
 ): Promise<Response> {
   if (preference === "json" || url.pathname.startsWith("/api/")) {
-    return json(
-      errorJson(404, "not_found", "No resource exists at this path.", url.pathname, [
-        "Fetch /sitemap-index.xml for every indexable URL.",
-        "Fetch /llms.txt for a short description of the site.",
-        "Fetch /openapi.json for the Agenta API surface.",
-        "The Agenta API is served from us.cloud.agenta.ai and eu.cloud.agenta.ai, not from agenta.ai.",
-      ]),
-      404,
+    return respond(
+      errorJson({
+        status: 404,
+        code: "not_found",
+        message: "No resource exists at this path.",
+        path: url.pathname,
+        hints: [
+          "Fetch /sitemap-index.xml for every indexable URL.",
+          "Fetch /llms.txt for a short description of the site.",
+          "Fetch /openapi.json for the Agenta API surface.",
+          "The Agenta API is served from us.cloud.agenta.ai and eu.cloud.agenta.ai, not from agenta.ai.",
+        ],
+      }),
       method,
+      { status: 404, type: JSON_TYPE, cache: "no-store" },
     );
   }
 
   if (preference === "markdown") {
-    return new Response(body(notFoundMarkdown(url.pathname), method), {
+    return respond(notFoundMarkdown(url.pathname), method, {
       status: 404,
-      headers: {
-        "Content-Type": "text/markdown; charset=utf-8",
-        Vary: "Accept, Accept-Encoding",
-        "Cache-Control": "no-store",
-        "X-Robots-Tag": "noindex",
-      },
+      type: MARKDOWN,
+      cache: "no-store",
+      extra: { "X-Robots-Tag": "noindex" },
     });
   }
 
@@ -197,12 +199,5 @@ async function notFound(
   const page = await env.ASSETS.fetch(
     new Request(new URL("/404.html", url.origin).toString(), { method: "GET" }),
   );
-  const headers = withPolicy(new Headers(page.headers));
-  headers.set("Content-Type", "text/html; charset=utf-8");
-  headers.set("Vary", "Accept, Accept-Encoding");
-  headers.set("Cache-Control", "no-store");
-  return new Response(method === "HEAD" ? null : page.body, {
-    status: 404,
-    headers,
-  });
+  return rewrap(page, method, { "Cache-Control": "no-store" }, 404);
 }

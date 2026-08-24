@@ -48,6 +48,13 @@
   ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
+# Markdown twins of the HTML pages (/pricing.md, /blog/<slug>.md ...). They are
+# alternate representations, not pages: the HTML page is canonical and the only
+# thing that should be indexed. A static Astro endpoint cannot set this header
+# itself (the build keeps the body, not the Response headers), so it lives here.
+/*.md
+  X-Robots-Tag: noindex
+
 # Published API specification — agents fetch it cross-origin from browser-based
 # tools, so it needs CORS. One day TTL: it only changes when the API does.
 /openapi.json

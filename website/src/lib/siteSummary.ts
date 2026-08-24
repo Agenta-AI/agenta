@@ -50,10 +50,3 @@ export const API: string[] = [
   "US base URL: https://us.cloud.agenta.ai/api",
   "EU base URL: https://eu.cloud.agenta.ai/api",
 ];
-
-export const MACHINE_READABLE: Array<{ label: string; href: string }> = [
-  { label: "Sitemap", href: `${SITE_URL}/sitemap-index.xml` },
-  { label: "llms.txt", href: `${SITE_URL}/llms.txt` },
-  { label: "OpenAPI specification", href: `${SITE_URL}/openapi.json` },
-  { label: "Documentation", href: "https://docs.agenta.ai" },
-];

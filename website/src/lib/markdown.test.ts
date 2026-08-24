@@ -25,12 +25,12 @@ describe("page", () => {
 });
 
 describe("markdownResponse", () => {
-  it("labels the media type and keeps the twin out of the index", () => {
-    const response = markdownResponse("# hi");
-    expect(response.headers.get("content-type")).toBe(
+  it("labels the media type", () => {
+    // Only astro dev reads this; a static build keeps the body, not the
+    // headers. The deployed twin gets its headers from public/_headers.
+    expect(markdownResponse("# hi").headers.get("content-type")).toBe(
       "text/markdown; charset=utf-8",
     );
-    expect(response.headers.get("x-robots-tag")).toBe("noindex");
   });
 });
 

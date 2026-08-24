@@ -4,7 +4,15 @@
 // serves when a client asks for `Accept: text/markdown` — see worker/index.ts.
 // The twins are also directly fetchable (/pricing.md), which is how agents that
 // do not negotiate can still read the site without running JavaScript.
-import { MACHINE_READABLE, SITE_URL } from "./siteSummary";
+import { SITE_URL } from "./siteSummary";
+
+/** The footer every twin carries: where an agent goes from here. */
+const MACHINE_READABLE = [
+  { label: "Sitemap", href: `${SITE_URL}/sitemap-index.xml` },
+  { label: "llms.txt", href: `${SITE_URL}/llms.txt` },
+  { label: "OpenAPI specification", href: `${SITE_URL}/openapi.json` },
+  { label: "Documentation", href: "https://docs.agenta.ai" },
+];
 
 export interface MarkdownPage {
   title: string;
@@ -41,14 +49,17 @@ Every page on ${SITE_URL} serves this representation when requested with
 `;
 }
 
-/** A markdown response with the headers an agent expects. */
+/**
+ * A markdown response for the endpoint to return.
+ *
+ * Only the Content-Type is set here, and only `astro dev` reads it: a static
+ * build keeps the body and drops the headers. Everything a deployed twin needs
+ * comes from public/_headers (`/*.md` → noindex) or, on a negotiated request,
+ * from worker/index.ts.
+ */
 export function markdownResponse(body: string): Response {
   return new Response(body, {
-    headers: {
-      "Content-Type": "text/markdown; charset=utf-8",
-      // The HTML page is the canonical, indexable representation.
-      "X-Robots-Tag": "noindex",
-    },
+    headers: { "Content-Type": "text/markdown; charset=utf-8" },
   });
 }
 

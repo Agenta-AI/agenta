@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   errorJson,
-  mdCandidates,
+  mdPath,
   notFoundMarkdown,
   parseAccept,
   pickRepresentation,
@@ -70,28 +70,26 @@ describe("pickRepresentation", () => {
   });
 });
 
-describe("mdCandidates", () => {
+describe("mdPath", () => {
   it("maps the root to /index.md", () => {
-    expect(mdCandidates("/")).toEqual(["/index.md"]);
+    expect(mdPath("/")).toBe("/index.md");
   });
 
-  it("strips a trailing slash before building candidates", () => {
+  it("strips a trailing slash first", () => {
     // The live sitemap advertises the slash form, and a Cloudflare Transform
     // Rule may re-add it for /authors/<slug>/.
-    expect(mdCandidates("/authors/mahmoud-mabrouk/")).toEqual([
+    expect(mdPath("/authors/mahmoud-mabrouk/")).toBe(
       "/authors/mahmoud-mabrouk.md",
-      "/authors/mahmoud-mabrouk/index.md",
-    ]);
-  });
-
-  it("offers both the flat and the directory twin", () => {
-    expect(mdCandidates("/blog")).toEqual(["/blog.md", "/blog/index.md"]);
+    );
+    expect(mdPath("/blog")).toBe("/blog.md");
   });
 
   it("never negotiates a path that already names a file", () => {
-    expect(mdCandidates("/openapi.json")).toBeNull();
-    expect(mdCandidates("/llms.txt")).toBeNull();
-    expect(mdCandidates("/blog/post/hero.webp")).toBeNull();
+    expect(mdPath("/openapi.json")).toBeNull();
+    expect(mdPath("/llms.txt")).toBeNull();
+    expect(mdPath("/blog/post/hero.webp")).toBeNull();
+    // The twins themselves are plain assets, not negotiable routes.
+    expect(mdPath("/pricing.md")).toBeNull();
   });
 });
 
@@ -106,9 +104,13 @@ describe("bodies", () => {
 
   it("emits a structured error with a code and hints", () => {
     const parsed = JSON.parse(
-      errorJson(404, "not_found", "No resource exists at this path.", "/nope", [
-        "Fetch /sitemap-index.xml.",
-      ]),
+      errorJson({
+        status: 404,
+        code: "not_found",
+        message: "No resource exists at this path.",
+        path: "/nope",
+        hints: ["Fetch /sitemap-index.xml."],
+      }),
     );
     expect(parsed.error.code).toBe("not_found");
     expect(parsed.error.status).toBe(404);

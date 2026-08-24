@@ -10,7 +10,7 @@ import {
   API,
   HOSTING,
   LINKS,
-  MACHINE_READABLE,
+  SITE_URL,
   TAGLINE,
 } from "../lib/siteSummary";
 
@@ -40,7 +40,7 @@ ${API.map((item) => `- ${item}`).join("\n")}
 
 ## Machine-readable
 
-${MACHINE_READABLE.map((link) => `- ${link.label}: ${link.href}`).join("\n")}
+- Sitemap: ${SITE_URL}/sitemap-index.xml
 - Every page also serves a markdown representation: request it with \`Accept: text/markdown\`, or append \`.md\` to the path.
 `;
 

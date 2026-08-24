@@ -68,6 +68,12 @@ check "never 406s a browser" 200 \
   "$(curl -s -o /dev/null -w '%{http_code}' \
     -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' "$BASE/")"
 
+echo "- the twins are alternates, not indexable pages"
+contains "direct .md fetch is noindex" "noindex" \
+  "$(curl -sI "$BASE/pricing.md" | grep -i '^x-robots-tag:')"
+check "the HTML page is still indexable" "" \
+  "$(curl -sI "$BASE/pricing" | grep -i '^x-robots-tag:')"
+
 echo "- agent-facing errors and specs"
 contains "JSON 404 carries an error code" '"code": "not_found"' \
   "$(curl -s -H 'Accept: application/json' "$BASE/nope")"

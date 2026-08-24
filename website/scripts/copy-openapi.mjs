@@ -45,24 +45,17 @@ export function normalize(spec) {
     ),
   );
 
-  return {
-    ...spec,
-    servers: SERVERS,
-    paths,
-    info: {
-      ...spec.info,
-      // Point a reader at the docs without editing the generated description.
-      "x-documentation-url": "https://docs.agenta.ai",
-    },
-  };
+  return { ...spec, servers: SERVERS, paths };
 }
 
 function main() {
   const inCI = Boolean(process.env.CI);
 
+  let source;
   let published;
   try {
-    published = normalize(JSON.parse(readFileSync(SOURCE, "utf8")));
+    source = JSON.parse(readFileSync(SOURCE, "utf8"));
+    published = normalize(source);
   } catch (error) {
     const message = `[copy-openapi] cannot publish ${SOURCE}: ${error.message}`;
     if (inCI) {
@@ -76,11 +69,10 @@ function main() {
   mkdirSync(dirname(TARGET), { recursive: true });
   writeFileSync(TARGET, JSON.stringify(published));
 
-  const removed =
-    Object.keys(JSON.parse(readFileSync(SOURCE, "utf8")).paths).length -
-    Object.keys(published.paths).length;
+  const kept = Object.keys(published.paths).length;
+  const removed = Object.keys(source.paths).length - kept;
   console.log(
-    `[copy-openapi] wrote public/openapi.json — ${Object.keys(published.paths).length} paths (${removed} private paths removed).`,
+    `[copy-openapi] wrote public/openapi.json — ${kept} paths (${removed} private paths removed).`,
   );
 }
 
