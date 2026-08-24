@@ -160,6 +160,31 @@ if [[ ${#components[@]} -eq 0 ]]; then
     components=(sdk services api runner web)
 fi
 
+configure_host_postgres() {
+    local port="${POSTGRES_PORT:-5432}" license="${AGENTA_LICENSE:-oss}"
+    local prefix="${POSTGRES_DB_PREFIX:-agenta_${license}}"
+    local user="${POSTGRES_USER:-username}" password="${POSTGRES_PASSWORD:-password}"
+    local user_q password_q
+
+    [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || error "Invalid POSTGRES_PORT: $port"
+    if [[ -n "${POSTGRES_URI_CORE:-}" && -n "${POSTGRES_URI_TRACING:-}" && -n "${POSTGRES_URI_SUPERTOKENS:-}" ]]; then
+        return
+    fi
+
+    user_q="$(python3 -c 'from urllib.parse import quote_plus; import sys; print(quote_plus(sys.argv[1]))' "$user")" || error "Could not URL-encode POSTGRES_USER."
+    password_q="$(python3 -c 'from urllib.parse import quote_plus; import sys; print(quote_plus(sys.argv[1]))' "$password")" || error "Could not URL-encode POSTGRES_PASSWORD."
+    export POSTGRES_URI_CORE="${POSTGRES_URI_CORE:-postgresql+asyncpg://${user_q}:${password_q}@127.0.0.1:${port}/${prefix}_core}"
+    export POSTGRES_URI_TRACING="${POSTGRES_URI_TRACING:-postgresql+asyncpg://${user_q}:${password_q}@127.0.0.1:${port}/${prefix}_tracing}"
+    export POSTGRES_URI_SUPERTOKENS="${POSTGRES_URI_SUPERTOKENS:-postgresql://${user_q}:${password_q}@127.0.0.1:${port}/${prefix}_supertokens}"
+    echo "[test.sh] Host PostgreSQL: 127.0.0.1:${port}"
+}
+
+for component in "${components[@]}"; do
+    case "$component" in
+        sdk|services|api) configure_host_postgres; break ;;
+    esac
+done
+
 run_logged() {
     local suite="$1"; shift
     if [[ "$want_logs" == false ]]; then
