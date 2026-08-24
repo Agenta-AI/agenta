@@ -152,8 +152,8 @@ load_environment() {
     echo "Loaded ${env_path} (stage: ${stage})."
 }
 
-if [[ "$license_set" == false ]]; then env_args=(--oss "${env_args[@]}"); fi
-if [[ "$image_set" == false ]]; then env_args=(--gh "${env_args[@]}"); fi
+if [[ "$license_set" == false ]]; then env_args=(--oss "${env_args[@]+"${env_args[@]}"}"); fi
+if [[ "$image_set" == false ]]; then env_args=(--gh "${env_args[@]+"${env_args[@]}"}"); fi
 load_environment "${env_args[@]}"
 
 if [[ ${#components[@]} -eq 0 ]]; then
@@ -179,18 +179,18 @@ run_logged() {
 
 run_python() {
     local suite="$1" root="$2" layer
-    local -a python_args=("${forwarded[@]}")
+    local -a python_args=("${forwarded[@]+"${forwarded[@]}"}")
     if [[ "$time_profile" == true ]]; then python_args+=(--time-profile); fi
     [[ -f "${root}/run-tests.py" && -f "${root}/uv.lock" ]] || error "Expected run-tests.py and uv.lock in ${root}."
     echo "[test.sh] Installing Python packages: ${root}"
     (cd "$root" && uv sync --locked)
     if [[ "$selected_layer" == false ]]; then
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py "${@:2}"' _ "$root" "${python_args[@]}"
+        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py "${@:2}"' _ "$root" "${python_args[@]+"${python_args[@]}"}"
         return
     fi
     for layer in "${layers[@]}"; do
         echo "[test.sh] Running ${suite} ${layer} tests"
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py --layer "$2" "${@:3}"' _ "$root" "$layer" "${python_args[@]}"
+        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py --layer "$2" "${@:3}"' _ "$root" "$layer" "${python_args[@]+"${python_args[@]}"}"
     done
 }
 
@@ -199,11 +199,11 @@ run_runner() {
     [[ -f "${root}/pnpm-lock.yaml" && -f "${root}/vitest.config.ts" ]] || error "Expected pnpm-lock.yaml and vitest.config.ts in ${root}."
     echo "[test.sh] Installing runner packages: ${root}"
     (cd "$root" && pnpm install --frozen-lockfile)
-    local -a runner_layers=("${layers[@]}")
+    local -a runner_layers=("${layers[@]+"${layers[@]}"}")
     [[ "$selected_layer" == true ]] || runner_layers=(unit integration acceptance)
     for layer in "${runner_layers[@]}"; do
         echo "[test.sh] Running runner ${layer} tests"
-        run_logged runner bash -c 'cd "$1" && exec pnpm run "test:$2" -- "${@:3}"' _ "$root" "$layer" "${forwarded[@]}"
+        run_logged runner bash -c 'cd "$1" && exec pnpm run "test:$2" -- "${@:3}"' _ "$root" "$layer" "${forwarded[@]+"${forwarded[@]}"}"
     done
 }
 
@@ -212,7 +212,7 @@ run_web() {
     [[ -f "${root}/pnpm-lock.yaml" && -f "${root}/tests/playwright/scripts/run-tests.ts" ]] || error "Expected web test files in ${root}."
     echo "[test.sh] Installing web workspace packages: ${root}"
     (cd "$root" && pnpm install --frozen-lockfile)
-    local -a web_layers=("${layers[@]}") web_args=("${forwarded[@]}")
+    local -a web_layers=("${layers[@]+"${layers[@]}"}") web_args=("${forwarded[@]+"${forwarded[@]}"}")
     [[ "$selected_layer" == true ]] || web_layers=(unit integration)
     if [[ "$time_profile" == true ]]; then web_args+=(--reporter=verbose "--slowTestThreshold=${slow_ms}"); fi
     for layer in "${web_layers[@]}"; do
