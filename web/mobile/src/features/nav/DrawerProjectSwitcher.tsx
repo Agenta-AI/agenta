@@ -16,13 +16,8 @@ import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
 
 /**
- * The drawer's header switcher — the same designed component as the desktop rail, bound to
- * mobile's project data.
- *
- * Both panels speak ORGANIZATIONS, as the desktop does. Listing workspaces instead rendered one
- * indistinguishable "Default" row per org — every org's default workspace carries that name — so
- * a multi-org account had no way to tell the rows apart. The workspace stays in the URL
- * (`/w/:id/p/:id`); each project row routes with its OWN workspace id.
+ * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
+ * Both panels speak organizations, because every org's workspace is named "Default".
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
@@ -43,8 +38,7 @@ export const DrawerProjectSwitcher = ({
         [query.data],
     )
 
-    // Resolve by the project in the URL: an org can hold several workspaces, and the workspace
-    // alone would not name the org on a route the switcher did not build.
+    // Matched on the project, not the workspace: one org can hold several workspaces.
     const currentGroup =
         groups.find((group) =>
             group.projects.some(

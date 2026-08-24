@@ -51,8 +51,7 @@ const orgProject = (
 
 describe("groupByOrganization", () => {
     it("names each group after its ORGANIZATION, not its workspace", () => {
-        // The bug this guards: every org's default workspace is called "Default", so grouping by
-        // workspace rendered N indistinguishable rows and switching orgs became a coin flip.
+        // Guards #6228: every org's workspace is "Default", so workspace rows were identical.
         const groups = groupByOrganization([
             orgProject("p1", "o1", "Acme Robotics"),
             orgProject("p2", "o2", "Contoso"),
@@ -87,8 +86,6 @@ describe("groupByOrganization", () => {
     })
 
     it("takes the org name from a later row when the first one has none", () => {
-        // Resolution reads the WHOLE group: a nameless first row must not pin the label to a
-        // fallback for the rest of the org's rows.
         const groups = groupByOrganization([
             orgProject("p1", "o1", null, "ws-a"),
             orgProject("p2", "o1", "Acme Robotics", "ws-b"),

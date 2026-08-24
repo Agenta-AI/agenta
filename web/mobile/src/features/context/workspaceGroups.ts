@@ -3,10 +3,7 @@ import type {MobileProject} from "@/lib/context"
 /** A project row that can be routed to: `/w/:workspace_id/p/:project_id` needs both halves. */
 export type RoutableProject = MobileProject & {workspace_id: string}
 
-/**
- * The one place a project is judged routable. A row without a workspace would render as a tap
- * that goes nowhere, so it never reaches a group.
- */
+/** A row without a workspace would be a tap that goes nowhere, so it never reaches a group. */
 const routableProjects = (projects: MobileProject[]): RoutableProject[] =>
     projects.filter((project): project is RoutableProject => Boolean(project.workspace_id))
 
@@ -49,14 +46,7 @@ export interface OrganizationGroup {
     projects: RoutableProject[]
 }
 
-/**
- * Group the flat project list by ORGANIZATION — what the switcher offers, matching the desktop
- * rail. Grouping by workspace instead rendered one indistinguishable "Default" row per org,
- * because every org's default workspace carries that same name.
- *
- * Every group-level field is resolved from the WHOLE group rather than from whichever row arrived
- * first, so a row with a missing or blank name cannot pin the group to a fallback label.
- */
+/** Group by organization, resolving each field across the whole group, never off the first row. */
 export const groupByOrganization = (projects: MobileProject[]): OrganizationGroup[] =>
     [
         ...bucketBy(
@@ -66,7 +56,7 @@ export const groupByOrganization = (projects: MobileProject[]): OrganizationGrou
         ),
     ].map(([key, rows]) => ({
         key,
-        // Every row in a bucket agrees on this by construction — it IS the bucket key.
+        // Every row in a bucket agrees on this: it IS the bucket key.
         organizationId: rows[0].organization_id ?? null,
         organizationName:
             firstNonBlank(rows.map((row) => row.organization_name)) ??
