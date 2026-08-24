@@ -179,9 +179,24 @@ configure_host_postgres() {
     echo "[test.sh] Host PostgreSQL: 127.0.0.1:${port}"
 }
 
+configure_host_store() {
+    local endpoint="${AGENTA_STORE_ENDPOINT_URL:-}" port="${AGENTA_STORE_PORT:-8333}"
+
+    # The compose service name only resolves inside Docker. Preserve an explicitly
+    # configured remote object store; otherwise point host-run tests at the
+    # loopback-published bundled SeaweedFS instance without changing the env file.
+    case "$endpoint" in
+        ""|http://seaweedfs:8333|https://seaweedfs:8333) ;;
+        *) return ;;
+    esac
+    [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || error "Invalid AGENTA_STORE_PORT: $port"
+    export AGENTA_STORE_ENDPOINT_URL="http://127.0.0.1:${port}"
+    echo "[test.sh] Host object store: ${AGENTA_STORE_ENDPOINT_URL}"
+}
+
 for component in "${components[@]}"; do
     case "$component" in
-        sdk|services|api) configure_host_postgres; break ;;
+        sdk|services|api) configure_host_postgres; configure_host_store; break ;;
     esac
 done
 

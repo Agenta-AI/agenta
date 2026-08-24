@@ -114,7 +114,7 @@ prepare options:
       --postgres-port PORT     Explicit Postgres host port.
       --http-port PORT         Explicit Traefik HTTP host port.
       --traefik-ui-port PORT   Explicit Traefik dashboard host port.
-      --store-port PORT        Explicit host port for the GH-mode object store.
+      --store-port PORT        Explicit host port for the bundled object store.
       --check-ports            Fail if a selected host port already listens.
       --dry-run                Print the allocation without writing files.
   -f, --force                  Replace existing output and allocation files.
@@ -161,6 +161,20 @@ allocate() {
     is_port "$range_start" && is_port "$range_end" && (( range_start <= range_end )) || error "Invalid --port-range: $port_range"
     base_env="$(absolute_path "$base_env")"; output_file="$(absolute_path "$output_file")"; env_file="$(absolute_path "$env_file")"
     if [[ -e "$output_file" && "$force" != true ]]; then
+        if [[ "$with_store_port" == true && -z "$(read_env_value "$output_file" AGENTA_STORE_PORT "")" ]]; then
+            postgres_port="$(read_env_value "$output_file" POSTGRES_PORT 5432)"
+            http_port="$(read_env_value "$output_file" TRAEFIK_PORT 80)"
+            traefik_ui_port="$(read_env_value "$output_file" TRAEFIK_UI_PORT 8080)"
+            store_port="${store_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port" "$traefik_ui_port")}"
+            is_port "$store_port" || error "Invalid store port: $store_port"
+            if [[ "$dry_run" == true ]]; then
+                printf 'Would add AGENTA_STORE_PORT=%s to allocation: %s\n' "$store_port" "$(display_path "$output_file")"
+            else
+                printf 'AGENTA_STORE_PORT=%s\n' "$store_port" >> "$output_file"
+                chmod 600 "$output_file"
+                printf 'Added AGENTA_STORE_PORT=%s to allocation: %s\n' "$store_port" "$(display_path "$output_file")"
+            fi
+        fi
         if [[ "$dry_run" == true ]]; then
             printf 'Would reuse allocation: %s\n' "$(display_path "$output_file")"
         else
@@ -189,7 +203,12 @@ allocate() {
     public_scheme="${public_scheme:-$(read_env_value "$base_env" TRAEFIK_PROTOCOL http)}"
     [[ "$public_host" =~ ^[A-Za-z0-9._-]+$ ]] || error "--public-host must be a hostname without a scheme or port."
     [[ "$public_scheme" =~ ^https?$ ]] || error "--public-scheme must be http or https."
-    if [[ "$check_ports" == true ]]; then check_port_available "$postgres_port"; check_port_available "$http_port"; check_port_available "$traefik_ui_port"; fi
+    if [[ "$check_ports" == true ]]; then
+        check_port_available "$postgres_port"
+        check_port_available "$http_port"
+        check_port_available "$traefik_ui_port"
+        [[ "$with_store_port" != true ]] || check_port_available "$store_port"
+    fi
     if [[ "$dry_run" == true ]]; then
         printf 'Would create allocation: %s\n' "$(display_path "$output_file")"
     else
@@ -302,7 +321,7 @@ prepare() {
     source_file="${source_file:-$(default_source_env "$license" "$env_name" ".env.${license}.gh")}"
     [[ -f "$source_file" ]] || error "Source environment file not found: $source_file"
     allocation_args+=(--base-env "$source_file" --env-file "$output_file" --output "$overrides_file")
-    [[ "$stage" == "dev" ]] || allocation_args+=(--with-store-port)
+    allocation_args+=(--with-store-port)
     [[ "$dry_run" == true ]] && allocation_args+=(--dry-run)
     [[ "$force" == true ]] && allocation_args+=(--force)
     allocate "${allocation_args[@]}"

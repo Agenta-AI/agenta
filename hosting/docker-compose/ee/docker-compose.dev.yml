@@ -669,8 +669,10 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
-        # ports:
-        #     - "8333:8333"
+        # Loopback-only: host-run tests use this published S3 endpoint, while
+        # containers continue using the in-network `seaweedfs:8333` address.
+        ports:
+            - "127.0.0.1:${AGENTA_STORE_PORT:-8333}:8333"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
