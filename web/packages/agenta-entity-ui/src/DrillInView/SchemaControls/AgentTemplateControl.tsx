@@ -197,6 +197,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionBaseline = useRef<{
         config: Record<string, unknown>
         buildKit: BuildKitUiState
+        // The revision the draft was opened against — Save must write back to THIS one, not to
+        // whatever is active by then (the revision can change under an open drawer).
+        revision: string
     } | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
@@ -228,7 +231,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
-            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+            sectionBaseline.current = {
+                config: snapshotConfig,
+                buildKit: snapshotBuildKit,
+                revision: snapshotRevision,
+            }
             setOpenSection(key)
         },
         [value, store, openSection, isCurrentSectionDirty],
@@ -274,7 +281,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         }
         if (draftBuildKit !== null) {
-            const revision = revisionIdRef.current ?? ""
+            const revision = sectionBaseline.current?.revision ?? revisionIdRef.current ?? ""
             store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
             store.set(workflowBuildKitDisabledOpsAtomFamily(revision), draftBuildKit.disabledOps)
         }
