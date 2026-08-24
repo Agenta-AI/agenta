@@ -20,6 +20,8 @@ export interface AgentPageHeaderProps {
     actions?: ReactNode
     /** The agent's workflow id, so the chip can wear that agent's own icon. Display only. */
     workflowId?: string | null
+    /** Replaces the chip entirely — the desktop passes an interactive one that opens the picker. */
+    icon?: ReactNode
     className?: string
 }
 
@@ -48,6 +50,7 @@ export const AgentPageHeader = ({
     actions,
     className,
     workflowId,
+    icon,
 }: AgentPageHeaderProps) => {
     const chrome = useAgentIconChrome(workflowId, {
         size: 15,
@@ -71,14 +74,16 @@ export const AgentPageHeader = ({
                 {leading}
                 {name ? (
                     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                        <SimpleTooltip title="Agent">
-                            <span
-                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${chrome.className}`}
-                                style={chrome.style}
-                            >
-                                {chrome.glyph}
-                            </span>
-                        </SimpleTooltip>
+                        {icon ?? (
+                            <SimpleTooltip title="Agent">
+                                <span
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${chrome.className}`}
+                                    style={chrome.style}
+                                >
+                                    {chrome.glyph}
+                                </span>
+                            </SimpleTooltip>
+                        )}
                         {typeof name === "string" ? (
                             <span className="truncate whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText sm:text-[16px]">
                                 {name}
