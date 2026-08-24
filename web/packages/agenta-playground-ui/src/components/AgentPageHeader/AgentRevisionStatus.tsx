@@ -5,6 +5,7 @@ import {
 } from "@agenta/entities/workflow"
 import {
     agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
 } from "@agenta/playground/state"
@@ -118,15 +119,18 @@ export const AgentRevisionStatus = ({
     const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(revisionId || ""))
     const autoCommitStatus = useAtomValue(agentAutoCommitStatusAtomFamily(revisionId || ""))
     const autoCommitError = useAtomValue(agentAutoCommitErrorAtomFamily(revisionId || ""))
+    const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
 
     const failed = autoCommitStatus === "error"
-    // A dirty draft IS the pending state — it is either inside the debounce window or in the
-    // request — so the engine needs no separate status for it and the dot reads the draft.
-    const saving = isAgent && !failed && (isDirty || autoCommitStatus === "saving")
+    // "Saving…" has to mean a save is actually coming — armed, or in the request. Reading it off
+    // `isDirty` instead was wrong for every revision auto-commit deliberately skips (a restored
+    // snapshot, an ephemeral agent, a project id that has not resolved): those are dirty with
+    // nothing scheduled, and the header sat on "Saving…" forever. They read Draft, which is true.
+    const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
 
     const dot = failed
         ? {
@@ -136,7 +140,9 @@ export const AgentRevisionStatus = ({
           }
         : saving
           ? {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
-          : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
+          : isDirty
+            ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
+            : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>

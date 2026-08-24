@@ -384,6 +384,7 @@ export {
 export {
     agentAutoCommitStatusAtomFamily,
     agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
     flushAgentAutoCommitAtom,
     registerAgentAutoCommitHandler,
 } from "./agentAutoCommit"

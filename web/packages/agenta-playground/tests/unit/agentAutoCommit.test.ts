@@ -80,6 +80,7 @@ import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
 import {
     __resetAgentAutoCommit,
     agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
 } from "../../src/state/execution/agentAutoCommit"
@@ -164,6 +165,32 @@ describe("predicate — what must never auto-commit", () => {
         await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
         expect(commitCalls).toHaveLength(1)
         expect(commitCalls[0].revisionId).toBe(id)
+    })
+})
+
+describe('the scheduled flag — what the header reads as "Saving…"', () => {
+    it("is false for a dirty revision auto-commit skips, so the header cannot claim a save", () => {
+        // A restored snapshot, an ephemeral agent and an unresolved project id are all dirty with
+        // nothing coming. Reading "Saving…" off isDirty is what made the header look stuck.
+        const id = seed(nextId(), {isEphemeral: true})
+        edit(id)
+        expect(store.get(agentAutoCommitScheduledAtomFamily(id))).toBe(false)
+    })
+
+    it("is false when no draft write ever arrived (a hydrating restore)", () => {
+        const id = seed(nextId())
+        // No `edit(id)`: hydration suppresses the callback, so nothing is armed.
+        expect(store.get(agentAutoCommitScheduledAtomFamily(id))).toBe(false)
+    })
+
+    it("goes true while armed and false once the commit takes over", async () => {
+        const id = seed(nextId())
+        edit(id)
+        expect(store.get(agentAutoCommitScheduledAtomFamily(id))).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
+        expect(commitCalls).toHaveLength(1)
+        expect(store.get(agentAutoCommitScheduledAtomFamily(id))).toBe(false)
     })
 })
 

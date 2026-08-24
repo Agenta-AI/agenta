@@ -39,6 +39,15 @@ export const agentAutoCommitErrorAtomFamily = atomFamily((_revisionId: string) =
     atom<string | null>(null),
 )
 
+/**
+ * A flush is armed for this revision.
+ *
+ * The header needs this to tell "about to save" apart from "dirty and nobody is coming" — a
+ * hydrated snapshot, an ephemeral agent, a missing project id are all dirty but deliberately
+ * skipped, and reading them as "Saving…" is how the stuck-looking header comes back.
+ */
+export const agentAutoCommitScheduledAtomFamily = atomFamily((_revisionId: string) => atom(false))
+
 /** Commits in flight, so a second flush can never stack on the first. */
 const inFlight = new Set<string>()
 
@@ -102,23 +111,31 @@ const buildMessage = (store: Store, revisionId: string): string | undefined => {
 /** Timers per revision: the idle debounce, and the single post-failure retry. */
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
-const clearTimer = (revisionId: string) => {
+const setScheduled = (store: Store, revisionId: string, value: boolean) => {
+    const scheduledAtom = agentAutoCommitScheduledAtomFamily(revisionId)
+    if (store.get(scheduledAtom) !== value) store.set(scheduledAtom, value)
+}
+
+const clearTimer = (store: Store, revisionId: string) => {
     const timer = timers.get(revisionId)
     if (timer) {
         clearTimeout(timer)
         timers.delete(revisionId)
     }
+    setScheduled(store, revisionId, false)
 }
 
 const schedule = (store: Store, revisionId: string, delay: number, isRetry: boolean) => {
-    clearTimer(revisionId)
+    clearTimer(store, revisionId)
     timers.set(
         revisionId,
         setTimeout(() => {
             timers.delete(revisionId)
+            setScheduled(store, revisionId, false)
             void runFlush(store, revisionId, isRetry)
         }, delay),
     )
+    setScheduled(store, revisionId, true)
 }
 
 /**
@@ -126,7 +143,7 @@ const schedule = (store: Store, revisionId: string, delay: number, isRetry: bool
  * warning is stale and would strand the header on "Not saved" with nothing left to retry.
  */
 const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean") => {
-    clearTimer(revisionId)
+    clearTimer(store, revisionId)
     if (blocker === "clean") {
         store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
         store.set(agentAutoCommitStatusAtomFamily(revisionId), "idle")
@@ -139,6 +156,7 @@ const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean")
 const forgetRevision = (revisionId: string) => {
     agentAutoCommitStatusAtomFamily.remove(revisionId)
     agentAutoCommitErrorAtomFamily.remove(revisionId)
+    agentAutoCommitScheduledAtomFamily.remove(revisionId)
 }
 
 const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
@@ -217,7 +235,7 @@ const scheduleAgentAutoCommit = (revisionId: string) => {
 export const flushAgentAutoCommitAtom = atom(
     null,
     async (_get, _set, {revisionId}: {revisionId: string}) => {
-        clearTimer(revisionId)
+        clearTimer(getDefaultStore(), revisionId)
         // A manual retry is the user's second attempt; don't spend the automatic one on it.
         await runFlush(getDefaultStore(), revisionId, true)
     },

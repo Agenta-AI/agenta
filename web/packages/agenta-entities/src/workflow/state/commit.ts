@@ -28,6 +28,7 @@ import {
     preserveResponseStatus,
     stripAgentaMetadataDeep,
 } from "@agenta/shared/utils"
+import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
@@ -46,6 +47,8 @@ import {workflowsListDataAtom} from "./allWorkflows"
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     workflowEntityAtomFamily,
+    workflowDraftAtomFamily,
+    updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -259,6 +262,9 @@ export const commitWorkflowRevisionAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
+            // What we are about to send. Step 4 compares against this so an edit made WHILE the
+            // request is in flight is not mistaken for something this commit contains.
+            const draftAtSend = get(workflowDraftAtomFamily(revisionId))
             const flatSource = getFlatSourceData(get, revisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
@@ -322,8 +328,30 @@ export const commitWorkflowRevisionAtom = atom(
                 await _commitCallbacks.onNewRevision(result, params)
             }
 
-            // 4. Discard draft
-            set(discardWorkflowDraftAtom, revisionId)
+            // 4. Discard the draft — but only what this commit actually contains.
+            //
+            // The payload was snapshotted before the `await` above, so anything typed while the
+            // request was in flight is NOT in the new revision. Blanket-discarding destroyed it,
+            // with the draft as its only copy. A manual Commit made that window rare; auto-commit
+            // (#6126) fires on idle, so the user is routinely still editing when it lands.
+            //
+            // Carry that edit onto the new revision instead: the new revision's server state is
+            // exactly what we sent, so the current draft's data diffs against it as precisely the
+            // extra edit — and the draft write re-arms auto-commit for it.
+            const draftNow = get(workflowDraftAtomFamily(revisionId))
+            const editedDuringCommit = !isEqual(draftNow, draftAtSend)
+            let carriedForward = false
+            if (editedDuringCommit && draftNow?.data) {
+                set(updateWorkflowDraftAtom, newRevisionId, {data: draftNow.data})
+                // The write is dropped when the new revision has no server baseline yet, so
+                // confirm it landed rather than assume it.
+                carriedForward = get(workflowDraftAtomFamily(newRevisionId)) !== null
+            }
+            // Keep the old draft when the edit could not be carried: a stranded draft is
+            // recoverable, a discarded one is not.
+            if (!editedDuringCommit || carriedForward) {
+                set(discardWorkflowDraftAtom, revisionId)
+            }
 
             // 5. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
