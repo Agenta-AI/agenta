@@ -1,8 +1,4 @@
-import {
-    SESSION_TITLE_MAX_LENGTH,
-    normalizeTitlePart,
-    truncateTitlePart,
-} from "@/oss/components/PageTitle/utils"
+import {SESSION_TITLE_MAX_LENGTH, normalizeTitlePart, truncateTitlePart} from "@agenta/shared/utils"
 
 interface AgentChatTitleInput {
     agentName?: string | null

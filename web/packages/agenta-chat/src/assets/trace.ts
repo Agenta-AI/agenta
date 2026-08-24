@@ -1,6 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/trace.ts (2026-07-25); the
-// OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it. Keep
-// byte-parity if either side changes.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 
 /**

@@ -10,7 +10,7 @@
  * by their respective packages.
  */
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 // ============================================================================
 // ENTITY QUERY KEYS
@@ -45,6 +45,7 @@ const ENTITY_QUERY_KEYS = [
  * should be handled separately by the respective entity packages.
  */
 export async function invalidateEntityQueries(): Promise<void> {
+    const queryClient = getHostQueryClient()
     // Remove queries from TanStack cache entirely.
     // This is critical for cross-page invalidation: when a mutation happens
     // on one page (e.g. playground), queries used by another page (e.g. registry)

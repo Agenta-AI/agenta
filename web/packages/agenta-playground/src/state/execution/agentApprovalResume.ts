@@ -60,18 +60,6 @@ const isToolPart = (part: ToolPartLike): boolean => {
 const isRespondedToolPart = (part: ToolPartLike): boolean =>
     isToolPart(part) && part.state === "approval-responded"
 
-/**
- * A browser-fulfilled client-tool result: a tool part the playground settled via `addToolOutput`
- * (`output-available`/`output-error`) that the server did NOT run (`providerExecuted` falsy) and
- * carries NO approval metadata. This is how a parked `request_connection` (or any client tool) reads
- * once the widget settles it.
- *
- * The `approval == null` guard is load-bearing: an approval-gated tool that was approved and then RAN
- * also lands in `output-available` with `providerExecuted` falsy, but it is NOT a parked client tool
- * (its turn already continued) — it keeps its `approval` field, so excluding it here stops a spurious
- * resume (and stops the queue gate, which composes this predicate, from holding forever). v1 client
- * tools are never approval-gated; an approval-gated client tool would need a richer signal.
- */
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
 

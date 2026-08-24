@@ -1,6 +1,5 @@
+import {formatPageTitle} from "@agenta/shared/utils"
 import Head from "next/head"
-
-import {formatPageTitle} from "./utils"
 
 interface PageTitleProps {
     title?: string | null

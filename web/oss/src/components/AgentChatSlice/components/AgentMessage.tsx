@@ -1,16 +1,40 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {
+    ClientToolPart,
+    isClientToolPart,
+    type ClientToolOutputHandler,
+} from "@agenta/chat/clientTools"
+import {AudioPlayer, StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {
+    errorKey,
+    expandedValueAtomFamily,
+    reasoningKey,
+    setExpandedAtom,
+    useStartupPhase,
+} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
-import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
-import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
+import {
+    ChatActionIconButton,
+    ChatAttachmentCard,
+    ChatBubble,
+    ChatBubbleAvatar,
+    turnRowClass,
+    turnToolbarClass,
+    turnToolbarRevealClass,
+} from "@agenta/ui/components/presentational"
 import {
     ArrowUUpLeft,
     Brain,
     CaretRight,
     Check,
-    Clock,
     Copy,
     Robot,
     TreeStructure,
@@ -18,77 +42,12 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Skeleton, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import {attachmentIdForPart, fileKind, filePartName} from "../assets/files"
 import Markdown from "../assets/markdown"
-import {
-    getMessageRunError,
-    getMessageTraceId,
-    getMessageUsage,
-    type MessageUsageMetrics,
-} from "../assets/trace"
-import {useStartupPhase} from "../hooks/useStartupPhase"
-import {
-    errorKey,
-    expandedValueAtomFamily,
-    reasoningKey,
-    setExpandedAtom,
-} from "../state/expandState"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
-import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
-import AudioPlayer from "./AudioPlayer"
-import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
-import {StartupActivity} from "./TurnActivity"
-
-const {Text} = Typography
-
-/** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
-const parseTraceTime = (value: unknown): number | undefined => {
-    if (value == null) return undefined
-    const ms = new Date(value as string | number).getTime()
-    return Number.isFinite(ms) ? ms : undefined
-}
-
-/** Relative "just now / 5m ago / 2h ago" message stamp; subscribes to the minute tick so it stays
- * fresh, and shows the exact date/time on hover. */
-const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
-    useAtomValue(nowTickAtom)
-    return (
-        <Tooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-xs text-colorTextTertiary">
-                <Clock size={12} />
-                {timeAgo(createdAt)}
-            </span>
-        </Tooltip>
-    )
-}
-
-/** Cost / tokens / latency for a message, read from its trace (same data + component the
- * playground and trace drawer use). */
-const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMetrics}) => {
-    const summary = useAtomValue(traceDataSummaryAtomFamily(traceId))
-    // Latency comes from the trace; tokens/cost come from the streamed message usage
-    // (the agent-run trace summary doesn't surface them on the Pi/local path). Usage
-    // wins where both exist so the figures match what the model actually reported.
-    // Only the latency slot waits on the trace — usage renders immediately, and a fixed-size
-    // placeholder holds latency's spot so the row doesn't shift (or blank known data) meanwhile.
-    if (summary.isPending) {
-        return (
-            <div className="flex items-center gap-1">
-                <Skeleton.Button active size="small" style={{width: 56, height: 22}} />
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
-            </div>
-        )
-    }
-    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
-}
 
 interface AgentMessageProps {
     message: UIMessage
@@ -110,19 +69,6 @@ interface AgentMessageProps {
     /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
      * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
     turnTraceId?: string
-}
-
-const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
-
-/** Dedup key for a tool call. Stringifies its input, which can be large — call it sparingly. */
-const toolIdentity = (p: ToolUIPart): string => {
-    let inputKey = ""
-    try {
-        inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
-    } catch {
-        inputKey = ""
-    }
-    return `${p.type}::${inputKey}`
 }
 
 /**
@@ -172,7 +118,7 @@ const ReasoningPart = ({
             >
                 <div className="min-h-0 overflow-hidden">
                     <div className="mt-1 ml-5 text-colorTextTertiary">
-                        <Markdown content={text} className="!text-xs" />
+                        <Markdown content={text} className="!text-xs" streaming={streaming} />
                     </div>
                 </div>
             </div>
@@ -195,23 +141,23 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
     const big = isBigError(text)
 
     return (
-        <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
+        <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
+                <span className="text-xs font-medium text-colorError">The agent run failed</span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
-                    <Text
-                        className={`!text-xs whitespace-pre-wrap break-words !text-colorErrorText ${
+                    <span
+                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
                             big ? "line-clamp-3" : ""
                         }`}
                         title={big ? text : undefined}
                     >
                         {text}
-                    </Text>
+                    </span>
                 )}
                 {big && (
                     <button
@@ -229,7 +175,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
 }
 
 const avatarFor = (isUser: boolean) => (
-    <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
+    <ChatBubbleAvatar icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
 
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
@@ -237,20 +183,14 @@ const avatarFor = (isUser: boolean) => (
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
     const startupPhase = useStartupPhase(sessionId)
     return startupPhase ? (
-        <Bubble
+        <ChatBubble
             placement="start"
             variant="borderless"
             avatar={avatarFor(false)}
             content={<StartupActivity label={startupPhase} />}
         />
     ) : (
-        <Bubble
-            placement="start"
-            variant="borderless"
-            avatar={avatarFor(false)}
-            loading
-            content=""
-        />
+        <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
     )
 }
 
@@ -310,15 +250,14 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
     }
 
     return (
-        <FileCard
+        <ChatAttachmentCard
             name={name}
-            type={kind}
+            kind={kind}
             src={src ?? undefined}
-            size="small"
             loading={attachmentId ? source.isPending : false}
             className="max-w-full"
-            imageProps={kind === "image" && attachmentId ? {onError: source.onError} : undefined}
-            videoProps={kind === "video" && attachmentId ? {onError: source.onError} : undefined}
+            onImageError={kind === "image" && attachmentId ? source.onError : undefined}
+            onVideoError={kind === "video" && attachmentId ? source.onError : undefined}
             description={
                 kind === "file" ? (
                     src ? (
@@ -326,12 +265,12 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
                             href={src}
                             download={name}
                             onClick={handleDownload}
-                            className="text-xs text-colorPrimary"
+                            className="truncate text-xs text-colorPrimary"
                         >
                             {file.mediaType}
                         </a>
                     ) : (
-                        <span className="text-xs text-colorTextTertiary">
+                        <span className="truncate text-xs text-colorTextTertiary">
                             {source.failed ? "Download unavailable" : file.mediaType}
                         </span>
                     )
@@ -367,20 +306,10 @@ const AgentMessage = ({
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
-    // Client-stamped first-seen time — only a fallback: it back-dates history to load time. The
-    // trace's real start time (own trace, or the paired turn trace for a user turn) is authoritative.
-    const createdAt = useAtomValue(messageCreatedAtAtomFamily(message.id))
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
     // error on the message's OWN trace; read it so the bubble can render as a failure.
     const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
     const traceError = ownSummary.error
-    // Timestamp uses the run's real start. An assistant turn already has `ownSummary`; only a user
-    // turn needs the paired turn's trace, so read that second (no-op when null) atom only then.
-    const pairedSummary = useAtomValue(
-        traceDataSummaryAtomFamily(!traceId && turnTraceId ? turnTraceId : null),
-    )
-    const timeSummary = traceId ? ownSummary : pairedSummary
-    const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
     // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
     // we know whether the turn produced an answer.
@@ -532,8 +461,19 @@ const AgentMessage = ({
         if (part.type === "text") {
             const text = (part as {text: string}).text
             if (!text) return null
-            // Render markdown for both roles so typed markdown displays properly.
-            return <Markdown key={partKey} content={text} />
+            // Render markdown for both roles so typed markdown displays properly. Only the LAST
+            // text part of the message being generated animates — earlier parts are settled.
+            const lastTextIndex = message.parts.reduce(
+                (acc, candidate, idx) => (candidate.type === "text" ? idx : acc),
+                -1,
+            )
+            return (
+                <Markdown
+                    key={partKey}
+                    content={text}
+                    streaming={isStreaming && i === lastTextIndex}
+                />
+            )
         }
         if (part.type === "reasoning") {
             const reasoning = part as ReasoningUIPart
@@ -587,9 +527,9 @@ const AgentMessage = ({
 
             {sources.length > 0 && (
                 <div className="flex flex-col gap-0.5 pt-1">
-                    <Text type="secondary" className="!text-xs uppercase tracking-wide">
+                    <span className="text-xs uppercase tracking-wide text-colorTextSecondary">
                         Sources
-                    </Text>
+                    </span>
                     {sources.map((s, i) => (
                         <a
                             key={`${message.id}-source-${i}`}
@@ -605,9 +545,9 @@ const AgentMessage = ({
             )}
 
             {noResponse && (
-                <Text type="secondary" className="!text-xs italic">
+                <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
-                </Text>
+                </span>
             )}
         </div>
     )
@@ -640,34 +580,28 @@ const AgentMessage = ({
     // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
     // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
     // safe). The item `label` renders as the hover tooltip.
-    const toolbarReveal =
-        "opacity-0 transition-opacity duration-150 pointer-events-none " +
-        "group-hover:opacity-100 group-hover:pointer-events-auto " +
-        "focus-within:opacity-100 focus-within:pointer-events-auto"
-    const rewindAction: ActionsProps["items"][number] = {
-        key: "rewind",
-        label: isUser
-            ? "Rewind here — edit and re-run the conversation from this message"
-            : "Rewind here — re-run this turn",
-        icon: <ArrowUUpLeft size={14} />,
-        onItemClick: () => onRewind(message),
-    }
+    const toolbarReveal = turnToolbarRevealClass
     // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
-    const rewindItems = isLastMessage ? [] : [rewindAction]
+    const rewindButton = isLastMessage ? null : (
+        <ChatActionIconButton
+            label={
+                isUser
+                    ? "Rewind here — edit and re-run the conversation from this message"
+                    : "Rewind here — re-run this turn"
+            }
+            icon={<ArrowUUpLeft size={14} />}
+            onClick={() => onRewind(message)}
+        />
+    )
 
-    // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
-    // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
-    // trace (deleted/expired) → no stamp at all. Live turns show first-seen instantly as before.
-    const timestamp = messageTime ? (
-        <MessageTimestamp createdAt={messageTime} />
-    ) : timeSummary.isPending ? (
-        <Skeleton.Button active size="small" style={{width: 64, height: 16}} />
-    ) : null
+    const timestamp = (
+        <TurnTimestamp messageId={message.id} traceId={traceId} turnTraceId={turnTraceId} />
+    )
 
     const toolbar = isUser ? (
         <>
             {timestamp}
-            {rewindItems.length > 0 && <Actions variant="borderless" items={rewindItems} />}
+            {rewindButton}
         </>
     ) : (
         <>
@@ -675,33 +609,20 @@ const AgentMessage = ({
             {/* Show run metrics (tokens/cost, + latency when traced). Usage is stamped on the
                 settled message itself, so surface it even on the no-trace playground path instead
                 of leaving the turn with no data. */}
-            {traceId ? (
-                <TraceMetrics traceId={traceId} usage={usage} />
-            ) : usage ? (
-                <ExecutionMetricsDisplay metrics={usage} size="small" />
-            ) : null}
-            <Actions
-                variant="borderless"
-                items={[
-                    {
-                        key: "copy",
-                        label: copied ? "Copied" : "Copy",
-                        icon: copied ? <Check size={14} /> : <Copy size={14} />,
-                        onItemClick: handleCopy,
-                    },
-                    ...rewindItems,
-                    ...(traceId
-                        ? [
-                              {
-                                  key: "trace",
-                                  label: "View trace",
-                                  icon: <TreeStructure size={14} />,
-                                  onItemClick: () => openTraceDrawer({traceId}),
-                              },
-                          ]
-                        : []),
-                ]}
+            <TurnMetrics traceId={traceId} usage={usage} />
+            <ChatActionIconButton
+                label={copied ? "Copied" : "Copy"}
+                icon={copied ? <Check size={14} /> : <Copy size={14} />}
+                onClick={handleCopy}
             />
+            {rewindButton}
+            {traceId ? (
+                <ChatActionIconButton
+                    label="View trace"
+                    icon={<TreeStructure size={14} />}
+                    onClick={() => openTraceDrawer({traceId})}
+                />
+            ) : null}
         </>
     )
 
@@ -712,10 +633,8 @@ const AgentMessage = ({
     // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
     // it drops the fade while this row is hovered/focused, so the revealed toolbar can't be washed.
     return (
-        <div
-            className={`ag-turn group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
-        >
-            <Bubble<React.ReactNode>
+        <div className={`${turnRowClass} ${isUser ? "justify-end" : "justify-start"}`}>
+            <ChatBubble
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
@@ -728,16 +647,14 @@ const AgentMessage = ({
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden !border !border-solid !border-[var(--ag-user-bubble-border)] !bg-[var(--ag-user-bubble-bg)]"
+                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}
             />
             <div
-                className={`absolute bottom-0 z-10 flex items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
-                    isUser ? "right-2" : "left-10"
-                } ${toolbarReveal}`}
+                className={`${turnToolbarClass} ${isUser ? "right-2" : "left-10"} ${toolbarReveal}`}
             >
                 {toolbar}
             </div>

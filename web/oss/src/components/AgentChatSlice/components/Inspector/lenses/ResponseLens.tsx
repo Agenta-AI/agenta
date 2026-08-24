@@ -8,7 +8,6 @@ import type {ReactNode} from "react"
 
 import {agentChannelModeAtomFamily, type AgentChannelMode} from "@agenta/playground"
 import {Broadcast, Package} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useAtom} from "jotai"
 
 const OPTIONS: {
@@ -36,10 +35,10 @@ export function ResponseLens({sessionId}: {sessionId: string}) {
 
     return (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
-            <Typography.Text type="secondary" className="text-xs">
+            <span className="text-xs text-colorTextSecondary">
                 How this session receives replies from the agent. A transport preference for this
                 conversation only — it is not saved on the revision.
-            </Typography.Text>
+            </span>
             <div role="radiogroup" aria-label="Response channel" className="flex flex-col gap-2">
                 {OPTIONS.map((opt) => {
                     const selected = mode === opt.value

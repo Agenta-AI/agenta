@@ -1,10 +1,9 @@
 import {memo, useState} from "react"
 
+import {AgentActionsMenu} from "@agenta/entity-ui/agent"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {MoreOutlined} from "@ant-design/icons"
-import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Typography} from "antd"
+import {Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -19,7 +18,6 @@ import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsO
 import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useAppsData} from "@/oss/state/app"
 import {currentWorkflowAtom} from "@/oss/state/workflow"
 
@@ -57,78 +55,26 @@ const AppDetailsSection = memo(() => {
                     {workflowName}
                 </Title>
 
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{
-                        root: {
-                            width: 180,
-                        },
+                <AgentActionsMenu
+                    agent={{
+                        id: workflowId,
+                        name: workflowName,
+                        slug: currentWorkflow?.slug,
                     }}
-                    menu={{
-                        items: [
-                            ...(currentWorkflow?.flags?.is_custom
-                                ? [
-                                      {
-                                          key: "configure",
-                                          label: "Configure",
-                                          icon: <PencilSimple size={16} />,
-                                          onClick: openModal,
-                                      },
-                                      //   {
-                                      //       key: "history",
-                                      //       label: "History",
-                                      //       icon: <ClockCounterClockwise size={16} />,
-                                      //       onClick: () =>
-                                      //           setIsCustomWorkflowHistoryDrawerOpen(true),
-                                      //   },
-                                  ]
-                                : [
-                                      {
-                                          key: "rename_app",
-                                          label: "Rename",
-                                          icon: <PencilSimple size={16} />,
-                                          onClick: () =>
-                                              openEditAppModal({
-                                                  id: workflowId,
-                                                  name: workflowName,
-                                                  onRenamed: async () => {
-                                                      await mutateApps?.()
-                                                  },
-                                              }),
-                                      },
-                                  ]),
-                            {
-                                key: "copy_id",
-                                label: "Copy ID",
-                                icon: <Copy size={16} />,
-                                onClick: () => copyToClipboard(workflowId),
+                    // The desktop keeps its app-management modals: they validate, and the edit
+                    // flow refreshes the apps cache the rest of this app reads.
+                    onRename={() =>
+                        openEditAppModal({
+                            id: workflowId,
+                            name: workflowName,
+                            onRenamed: async () => {
+                                await mutateApps?.()
                             },
-                            ...(currentWorkflow?.slug
-                                ? [
-                                      {
-                                          key: "copy_slug",
-                                          label: "Copy Slug",
-                                          icon: <Copy size={16} />,
-                                          onClick: () => copyToClipboard(currentWorkflow.slug!),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                key: "delete_app",
-                                label: "Delete",
-                                icon: <Trash size={16} />,
-                                danger: true,
-                                onClick: () =>
-                                    openDeleteAppModal({
-                                        id: workflowId,
-                                        name: workflowName,
-                                    }),
-                            },
-                        ],
-                    }}
-                >
-                    <Button type="text" icon={<MoreOutlined />} />
-                </Dropdown>
+                        })
+                    }
+                    onDelete={() => openDeleteAppModal({id: workflowId, name: workflowName})}
+                    onConfigure={currentWorkflow?.flags?.is_custom ? openModal : undefined}
+                />
             </Space>
         </>
     )

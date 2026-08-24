@@ -27,7 +27,7 @@ const EntityModalsProvider = dynamic(
 )
 
 const TraceDrawer = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
+    () => import("@agenta/observability-ui/traceDrawer").then((m) => m.TraceDrawer),
     {ssr: false},
 )
 
@@ -116,8 +116,8 @@ const executeNavigationCommand = async (command: NavigationCommand) => {
     const method = command.method ?? (command.type === "href" ? "push" : "replace")
     const shallow = command.shallow ?? true
 
-    if (process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true") {
-        console.debug("[nav] execute", command)
+    if (command.type === "patch-query") {
+        console.log(JSON.stringify(command.patch), "from", window.location.search)
     }
 
     if (command.type === "href") {
@@ -153,7 +153,9 @@ const executeNavigationCommand = async (command: NavigationCommand) => {
         },
         undefined,
         {shallow},
-    )
+    ).then((ok) => {
+        if (command.type === "patch-query") return ok
+    })
 }
 
 const NavigationCommandListener = () => {

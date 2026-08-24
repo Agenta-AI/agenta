@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {isSessionStreamingAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {deriveStreamNest} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
@@ -7,10 +8,6 @@ import {Alert, Button, Popconfirm, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateSessionInspector} from "@/oss/components/AgentChatSlice/components/Inspector/invalidate"
-import {
-    isSessionStreamingAtomFamily,
-    sessionStatusAtomFamily,
-} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {attachStream, detachStream, fetchStream, killStream} from "../api"

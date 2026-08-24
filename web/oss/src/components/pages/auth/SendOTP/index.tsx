@@ -7,21 +7,13 @@ import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
-import {
-    clearLoginAttemptInfo,
-    consumeCode,
-    resendCode,
-} from "supertokens-auth-react/recipe/passwordless"
 
-import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {authFlowAtom} from "@/oss/state/session"
 
 import {SendOTPProps} from "../assets/types"
 
-const {Text} = Typography
-
+/** OSS binding: the package owns the step; redirect + auth-flow gating stay app-side. */
 const SendOTP = ({
     message,
     email,
@@ -130,83 +122,21 @@ const SendOTP = ({
     }
 
     return (
-        <div className="w-full">
-            <Form
-                autoComplete="off"
-                onFinish={submitOTP}
-                className="w-full flex flex-col gap-4"
-                initialValues={{email}}
-            >
-                {message.type == "error" && <ShowErrorMessage info={message} />}
-
-                <Form.Item name="email" className="w-full mb-0 flex flex-col gap-1">
-                    <Input
-                        size="large"
-                        type="email"
-                        value={email}
-                        placeholder="Enter valid email address"
-                        disabled
-                        className="auth-locked-input"
-                    />
-                </Form.Item>
-
-                <Form.Item
-                    name="otp"
-                    className={clsx(
-                        message.type == "error" &&
-                            "[&_.ant-otp_.ant-input]:border [&_.ant-otp_.ant-input]:border-solid [&_.ant-otp_.ant-input]:border-colorErrorBorder",
-                        "w-full mb-0 [&_.ant-otp]:w-full [&_.ant-otp_.ant-otp-input-wrapper]:w-full",
-                    )}
-                    rules={[
-                        {
-                            required: true,
-                            message: "Invalid OTP!",
-                            min: 6,
-                        },
-                    ]}
-                >
-                    <Input.OTP
-                        formatter={(str) => str.toUpperCase()}
-                        autoFocus={true}
-                        ref={inputRef}
-                    />
-                </Form.Item>
-
-                <Button
-                    size="large"
-                    type="primary"
-                    htmlType="submit"
-                    className="w-full"
-                    loading={isLoading}
-                >
-                    Continue with OTP
-                </Button>
-            </Form>
-
-            <div className="grid gap-2 text-center mt-4">
-                <Button
-                    type="link"
-                    className="w-full"
-                    icon={<ArrowLeft size={14} className="mt-[3px]" />}
-                    onClick={backToLogin}
-                >
-                    Use a different email
-                </Button>
-                <Button
-                    type="link"
-                    className="w-full"
-                    disabled={isResendDisabled || isLoading}
-                    onClick={resendOTP}
-                >
-                    Resend one-time password
-                </Button>
-                {isResendDisabled && (
-                    <Text className="text-colorTextDisabled">
-                        Please wait to request new code (60s)
-                    </Text>
-                )}
-            </div>
-        </div>
+        <OtpVerifyForm
+            email={email}
+            message={message}
+            setMessage={setMessage}
+            onSubmitStart={() => setAuthFlow("authing")}
+            onFail={() => setAuthFlow("unauthed")}
+            onSuccess={async (payload) => {
+                await handleAuthSuccess(
+                    {createdNewRecipeUser: payload.createdNewRecipeUser, user: payload.user},
+                    {isInvitedUser, authMethod: "email"},
+                )
+            }}
+            onRestart={() => setIsLoginCodeVisible(false)}
+            onAuthError={authErrorMsg}
+        />
     )
 }
 

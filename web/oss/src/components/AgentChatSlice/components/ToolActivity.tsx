@@ -1,7 +1,16 @@
 import {memo, useMemo} from "react"
 
+import {formatToolValue, stripFence} from "@agenta/chat/assets"
+import {partToolName} from "@agenta/chat/model"
+import {
+    expandedValueAtomFamily,
+    setExpandedAtom,
+    toolGroupKey,
+    toolRowKey,
+} from "@agenta/chat/state"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
+import {DriveFileCard} from "@agenta/entity-ui/drive"
 import {HeightCollapse} from "@agenta/ui"
 import {
     CaretRight,
@@ -14,18 +23,9 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
-
-import {
-    extractCallDescription,
-    partToolName,
-    resolveToolDisplay,
-    type ToolDisplay,
-} from "../assets/toolDisplay"
-import {formatToolValue, stripFence} from "../assets/toolFormat"
+import {extractCallDescription, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {
     groupLabelText,
     hasFailed,
@@ -35,14 +35,6 @@ import {
     partSentence,
     rowSummary,
 } from "../assets/toolRow"
-import {
-    expandedValueAtomFamily,
-    setExpandedAtom,
-    toolGroupKey,
-    toolRowKey,
-} from "../state/expandState"
-
-const {Text} = Typography
 
 /** Per-tool status glyph, shared by the live gutter and the expanded list. */
 const StatusIcon = ({part}: {part: ToolUIPart}) => {
@@ -97,12 +89,14 @@ const CatalogToolRow = ({base, ...props}: ToolRowProps & {base: ToolDisplay}) =>
     return <ToolRowView {...props} display={display} />
 }
 
-const ToolSource = ({display}: {display: ToolDisplay}) => {
-    if (!display.source) return null
+/** Hidden in Build mode: that log already carries the raw name, so the chip is a second answer to
+ * a question the reader is not asking there. */
+const ToolSource = ({display, detailed}: {display: ToolDisplay; detailed?: boolean}) => {
+    if (detailed || !display.source) return null
     return (
-        <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
+        <span className="shrink-0 whitespace-nowrap text-xs text-colorTextSecondary">
             {display.source}
-        </Text>
+        </span>
     )
 }
 
@@ -175,27 +169,32 @@ const ToolRowView = memo(
             <>
                 <StatusIcon part={part} />
                 {/* The sentence never yields: the detail and status beside it absorb the squeeze. */}
-                <Text className="!text-xs max-w-full shrink-0 truncate" title={name}>
+                <span
+                    className="max-w-full shrink-0 truncate text-xs font-medium text-colorText"
+                    title={name}
+                >
                     {shownName}
-                </Text>
+                </span>
                 {display.detail ? (
-                    <Text
-                        type="secondary"
-                        className="!text-xs font-mono min-w-0 truncate"
+                    <span
+                        className="min-w-0 truncate font-mono text-xs text-colorTextSecondary"
                         title={display.detail}
                     >
                         {display.detail}
-                    </Text>
+                    </span>
                 ) : null}
-                <ToolSource display={display} />
+                <ToolSource display={display} detailed={detailed} />
                 {midText ? (
-                    <Text
-                        type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
-                        className="!text-xs min-w-0 truncate"
+                    <span
+                        className={`min-w-0 truncate text-xs ${
+                            state === "output-error" && !nonFinalError
+                                ? "text-colorError"
+                                : "text-colorTextSecondary"
+                        }`}
                         title={typeof midText === "string" ? midText : undefined}
                     >
                         {midText}
-                    </Text>
+                    </span>
                 ) : null}
             </>
         )
@@ -223,14 +222,13 @@ const ToolRowView = memo(
                 )}
 
                 {callDescription ? (
-                    <Text
-                        type="secondary"
-                        className="!text-xs mt-0.5 pl-[21px] italic leading-snug"
+                    <span
+                        className="mt-0.5 pl-[21px] text-xs italic leading-snug text-colorTextSecondary"
                         title={callDescription.text}
                     >
                         {callDescription.text}
                         {callDescription.truncated ? "… (shortened)" : ""}
-                    </Text>
+                    </span>
                 ) : null}
 
                 {hasIO ? (
@@ -375,10 +373,10 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                     weight="fill"
                     className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
                 />
-                <Text type="secondary" className="!text-xs">
+                <span className="text-xs text-colorTextSecondary">
                     <GroupLabel parts={parts} />
                     {failed > 0 && parts.length > 1 ? ` · ${failed} failed` : ""}
-                </Text>
+                </span>
             </button>
 
             <HeightCollapse open={expanded}>

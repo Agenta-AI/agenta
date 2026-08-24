@@ -1,10 +1,10 @@
 import {useEffect} from "react"
 
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {sessionStatusAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchLatestTurn, fetchState} from "../api"

@@ -1,6 +1,6 @@
 import {useEffect, useCallback, useState} from "react"
 
-import {configureAxios} from "@agenta/shared/api"
+import {configureAuthToken, configureAxios} from "@agenta/shared/api"
 import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 
 import {installTurnstileFetchPatch} from "@/oss/lib/helpers/auth/turnstile"
@@ -34,6 +34,8 @@ const AuthProvider: AuthProviderType = ({children, pageProps}) => {
             // workflow by-id query, which fires earliest) stop intermittently
             // 401-ing on a stale token. Configured before children mount (and thus
             // before any query fires), since we only render once `isInitialized`.
+            // Raw-fetch paths (streaming download) need the bearer token in hand.
+            configureAuthToken(() => getJWT())
             configureAxios({
                 requestInterceptor: async (config) => {
                     const jwt = await getJWT()

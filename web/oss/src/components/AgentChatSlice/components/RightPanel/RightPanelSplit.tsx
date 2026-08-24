@@ -1,6 +1,6 @@
 import {useEffect, useState, type ReactNode} from "react"
 
-import {Splitter} from "antd"
+import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtom, type WritableAtom} from "jotai"
 
 import {
@@ -14,50 +14,15 @@ import {
 const clampWidth = (w: number, total: number, min: number, max: number) =>
     Math.max(min, Math.min(w, max, Math.max(min, total - CHAT_MIN)))
 
-// Open/close slide duration. The class must be a static string (Tailwind JIT can't see
-// interpolated names), so the 240ms is duplicated there
-// (curve = the playground pane ease, globals.css .playground-splitter-animated). The transition lives on the panes
-// whenever the divider is NOT being dragged — putting it behind an effect-driven flag doesn't
-// work: effects run after the size change is committed, so the class would arrive after the
-// browser already painted the new width and nothing would animate.
-const SLIDE_MS = 240
-// The fill (chat) pane is forced to `flex:1 1 auto` PERMANENTLY (not just during the slide): it
-// then tracks the container/driven sibling purely via flexbox, ignoring antd's per-frame inline
-// flex-basis. Keeping it permanent removes the end-of-slide SWITCH — when this rule was gated to
-// the animation window, dropping it handed the chat back to antd's ResizeObserver basis, which had
-// lagged behind during a heavy slide, so the pane SNAPPED to catch up right as the transition
-// ended (an empty session was smooth only because antd kept up). No transition on it, so it never
-// lags the way a transitioned basis would.
-const FILL_PANE_CLASS =
-    "[&>.ant-splitter-panel:first-child]:!flex-auto [&>.ant-splitter-panel:first-child]:!transition-none"
-// Only the DRIVEN pane (the panel, last) transitions its flex-basis, and ONLY around a flip.
-// antd v6 sizes panels via inline `flexBasis`/`flexGrow` (Panel.js), so basis is the property to
-// transition. Curve kept IDENTICAL to globals.css .playground-splitter-animated so the nested
-// inner/outer slides read as one motion.
-const DRIVEN_SLIDE_CLASS =
-    "[&>.ant-splitter-panel:last-child]:[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
-// The divider bar spans the full pane height, so in build mode its top rides UP under the
-// absolute session bar (whose tab gaps are transparent) and the line shows through it. Bottom-align
-// the bar and trim its height by the same `--agent-bar-inset` the panes clear, so the divider starts
-// below the session bar. Transitioned on the build↔chat inset flip to move in lockstep with the panes.
-const BAR_INSET_CLASS =
-    "[&>.ant-splitter-bar]:!h-[calc(100%-var(--agent-bar-inset,0px))] [&>.ant-splitter-bar]:!self-end " +
-    "[&>.ant-splitter-bar]:[transition:height_240ms_cubic-bezier(0.4,0,0.2,1)]"
-// A COLLAPSED panel draws no divider: these splits nest (Inspector inside the Files split's chat
-// column), so a closed one's hairline lands ~1px from the open one's and reads as a double border.
-// `visibility` (not display) keeps the bar's box, so the open panel's slide isn't disturbed; held
-// until the close slide finishes so the line leaves with the pane, not before it.
-const BAR_HIDDEN_CLASS = "[&>.ant-splitter-bar]:invisible"
-
 /**
- * Nested resizable split: [chat | right panel]. The Splitter (and thus the chat column) stays
+ * Nested resizable split: [chat | right panel]. The split (and thus the chat column) stays
  * mounted across open/close — the panel just collapses to width 0 — so the transcript never
  * remounts. Drag width is held in local state for smoothness and persisted only on drag-end (no
  * per-frame localStorage writes). The chat keeps a hard min so the panel can't squeeze it.
  *
- * Open/close slides: the panes carry a width transition (suspended during divider drags so
- * resizing tracks the pointer 1:1), and on close the panel content stays mounted until the
- * collapse finishes so it slides out instead of blanking.
+ * SplitPane's driven basis is fully controlled, so the open/close slide is just its `animate`
+ * transition around a flip — none of the pre-frame machinery the antd Splitter version needed
+ * (antd rewrote inline flex-basis from a ResizeObserver, which fought any CSS transition).
  */
 const RightPanelSplit = ({
     open,
@@ -80,84 +45,45 @@ const RightPanelSplit = ({
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
-    // Flip detection DURING render (not in an effect) so the transition class and the content
-    // hold land in the very commit that changes the size — an effect would arrive a paint late.
-    const [prevOpen, setPrevOpen] = useState(open)
-    const [closing, setClosing] = useState(false)
-    const [holdAnimate, setHoldAnimate] = useState(false)
-    // The "from" basis is painted for one frame (with the slide class on) before the size flips
-    // to its target, so flex-basis has a prior value to transition FROM instead of popping. antd
-    // writes the panel basis inline, so without this pre-frame the browser first paints the NEW
-    // basis (class not yet applied) and the later class arrival has nothing left to animate.
-    const [preFrame, setPreFrame] = useState(false)
-    const justToggled = prevOpen !== open
-    if (justToggled) {
-        setPrevOpen(open)
-        setPreFrame(true)
-        if (!open) setClosing(true)
-    }
-    useEffect(() => {
-        if (!closing) return
-        const timer = setTimeout(() => setClosing(false), SLIDE_MS + 40)
-        return () => clearTimeout(timer)
-    }, [closing])
-    // Clear the pre-frame after exactly ONE painted frame (the preFrame render already carries the
-    // slide class — `preFrame` is in `animate` below — so the from-basis frame is class-on when it
-    // paints). A single rAF flips to the target basis on the next frame, so the transition fires off
-    // a painted prior value. One frame (not two): on CLOSE the from-basis is `live`, so a 2-frame
-    // hold reads as a visible hitch before the slide; one frame is imperceptible.
-    useEffect(() => {
-        if (!preFrame) return
-        const r = requestAnimationFrame(() => setPreFrame(false))
-        return () => cancelAnimationFrame(r)
-    }, [preFrame])
-    // Animate ONLY around a flip (MainLayout's animateSplit pattern): antd recomputes every
-    // panel's inline flex-basis from a ResizeObserver, so a PERMANENT transition makes the chat
-    // panel lag 240ms behind each tick while the outer playground pane eases or the window
-    // resizes — the transcript rubber-bands against its own container.
-    useEffect(() => {
-        setHoldAnimate(true)
-        const timer = setTimeout(() => setHoldAnimate(false), SLIDE_MS + 40)
-        return () => clearTimeout(timer)
-    }, [open])
-    const animate = (justToggled || holdAnimate || preFrame) && !dragging
+    // The slide itself is the shared hook — the ref-not-state flip detection, the hold, and
+    // keeping the pane mounted through a close all have to line up or the panel snaps.
+    const {animate, keepMounted} = usePaneSlide(open, dragging)
 
     // Re-sync to the stored width each time the panel opens.
     useEffect(() => {
         if (open) setLive(persisted)
     }, [open])
 
-    // Panel basis: hold the FROM value during the pre-frame (opening → 0, closing → live), then
-    // settle to the target (open → live, closed → 0) so the slide runs off a painted prior value.
-    const panelSize = preFrame ? (open ? 0 : live) : open ? live : 0
-    // Suppress the min clamp on the collapsed frames so the 0-basis "from"/"to" isn't snapped up
-    // to the pane min by antd (which would erase the slide).
-    const panelMin = open && !preFrame ? `${min}px` : 0
-
     return (
-        // playground-splitter classes: this divider renders EXACTLY like the config pane's (2px
-        // hairline + centered grip) instead of antd's default bar, so all vertical seams match.
-        <Splitter
-            className={`h-full min-h-0 w-full flex-1 playground-splitter playground-splitter-agent ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""} ${!open && !closing ? BAR_HIDDEN_CLASS : ""}`}
+        <SplitPane
+            paneSide="end"
+            paneSize={open ? live : 0}
+            paneMin={open ? min : 0}
+            paneMax={max}
+            fillMin={CHAT_MIN}
+            resizable={open}
+            animate={animate}
+            // A closed panel draws no divider. These splits NEST (Inspector inside the Files
+            // split's chat column), so two closed ones painted 18px of stacked empty gutter at the
+            // right edge; a single closed one reads as a double border beside an open one. Zero-
+            // width rather than unmounted, so it closes on the same curve as the panel.
+            barHidden={!open}
+            className="h-full min-h-0 w-full flex-1"
+            // The divider spans the pane height minus the absolute session bar's inset, so it
+            // starts below the bar. SplitPane owns the transition (height AND flex-basis, one
+            // duration) — declaring one here silently dropped the other.
+            barClassName="h-[calc(100%-var(--agent-bar-inset,0px))] self-end"
             onResizeStart={() => setDragging(true)}
-            onResize={(sizes) => {
-                if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))
+            onResize={(size, total) => {
+                if (open) setLive(clampWidth(size, total, min, max))
             }}
-            onResizeEnd={(sizes) => {
+            onResizeEnd={(size, total) => {
                 setDragging(false)
-                if (open) setPersisted(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))
+                if (open) setPersisted(clampWidth(size, total, min, max))
             }}
-        >
-            <Splitter.Panel min={`${CHAT_MIN}px`}>{children}</Splitter.Panel>
-            <Splitter.Panel
-                size={panelSize}
-                min={panelMin}
-                max={`${max}px`}
-                resizable={open && !preFrame}
-            >
-                {open || closing ? panel : null}
-            </Splitter.Panel>
-        </Splitter>
+            pane={keepMounted ? panel : null}
+            fill={children}
+        />
     )
 }
 
