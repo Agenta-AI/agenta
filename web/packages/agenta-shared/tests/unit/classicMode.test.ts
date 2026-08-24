@@ -27,14 +27,19 @@ import {
     navSimplifiedOverrideAtom,
 } from "../../src/state/classicMode"
 import {activeUserIdAtom} from "../../src/state/featureFlags"
+import {userAtom} from "../../src/state/user"
 
 /**
- * A fresh user per test. The atoms are `getOnInit`, so each one reads storage exactly once — at
- * the moment its family memoizes it. Reusing an id would hand the next test a cached atom
- * holding the previous test's answer.
+ * A fresh user per test, with the atoms SUBSCRIBED.
+ *
+ * `atomWithStorage` reads storage in `onMount`, not on first get, so an unsubscribed
+ * `store.get` reports the default — the same one-tick window the app sees before React
+ * subscribes. Mounting here is what makes these assertions about stored values rather than
+ * about that window. A fresh id per test keeps the module-level atom families from handing the
+ * next test a cached atom.
  */
 let seq = 0
-const signIn = (stored: Record<string, string> = {}) => {
+const signIn = (stored: Record<string, string> = {}, createdAt?: string) => {
     const userId = `user-${++seq}`
     const keys = {
         base: `agenta:onboarding:${userId}:nav-simplified`,
@@ -45,6 +50,21 @@ const signIn = (stored: Record<string, string> = {}) => {
 
     const store = createStore()
     store.set(activeUserIdAtom, userId)
+    store.set(userAtom, {
+        id: userId,
+        uid: userId,
+        username: "u",
+        email: "u@example.com",
+        ...(createdAt ? {created_at: createdAt} : {}),
+    })
+    for (const a of [
+        navSimplifiedDefaultAtom,
+        navSimplifiedOverrideAtom,
+        advancedNavHiddenAtom,
+        classicModeEnabledAtom,
+    ]) {
+        store.sub(a, () => undefined)
+    }
     return {store, keys}
 }
 
@@ -86,6 +106,46 @@ describe("classic mode preference", () => {
     it("existing users, who have neither key, keep classic mode on", () => {
         const {store} = signIn()
         expect(store.get(classicModeEnabledAtom)).toBe(true)
+    })
+})
+
+describe("simplified cohort, derived from the account", () => {
+    // The stored flag only exists on the browser the user signed up in. The account's creation
+    // date is the same everywhere, so a second device stops disagreeing with the first.
+    it("treats an account created after the cutoff as simplified, with nothing in storage", () => {
+        const {store} = signIn({}, "2026-08-14 09:12:33.123456+00:00")
+        expect(store.get(classicModeEnabledAtom)).toBe(false)
+    })
+
+    it("leaves an account created before the cutoff on classic mode", () => {
+        const {store} = signIn({}, "2026-06-01 09:12:33.123456+00:00")
+        expect(store.get(classicModeEnabledAtom)).toBe(true)
+    })
+
+    it("parses the backend's space-separated datetime", () => {
+        // `str(datetime)` in Python, not an ISO `T`. Safari refuses the space; the atom
+        // normalizes it. A regression here reads as NaN → classic mode → silently no redirect.
+        const spaced = signIn({}, "2026-08-14 09:12:33.123456+00:00")
+        const isoT = signIn({}, "2026-08-14T09:12:33.123456+00:00")
+        expect(spaced.store.get(classicModeEnabledAtom)).toBe(false)
+        expect(isoT.store.get(classicModeEnabledAtom)).toBe(false)
+    })
+
+    it("falls back to classic mode when the date is missing or unparseable", () => {
+        expect(signIn({}).store.get(classicModeEnabledAtom)).toBe(true)
+        expect(signIn({}, "not a date").store.get(classicModeEnabledAtom)).toBe(true)
+    })
+
+    it("still lets an explicit choice win over the derived default", () => {
+        const {store} = signIn({override: "false"}, "2026-08-14 09:12:33.123456+00:00")
+        expect(store.get(classicModeEnabledAtom)).toBe(true)
+    })
+
+    it("keeps the stored signup flag authoritative for a pre-cutoff account", () => {
+        // Belt and braces: whatever the date says, the browser that witnessed the signup
+        // answers exactly as it always has.
+        const {store} = signIn({base: "true"}, "2026-06-01 09:12:33.123456+00:00")
+        expect(store.get(classicModeEnabledAtom)).toBe(false)
     })
 
     it("reads a default and writes nothing while no user is known", () => {
