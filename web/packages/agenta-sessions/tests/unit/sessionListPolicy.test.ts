@@ -3,8 +3,11 @@ import {describe, expect, it} from "vitest"
 
 import {
     awaitingHiddenRows,
+    isOpenableSession,
     isStartedSession,
+    openableSessions,
     selectedSessionListPolicy,
+    sessionGroupRows,
     sessionListIdGroupLimit,
     sessionListRequestFilters,
     shouldLoadMoreForHiddenRows,
@@ -110,6 +113,86 @@ describe("isStartedSession", () => {
             streamRow({session_id: "c", references: [{id: "app-1"}]}),
         ]
         expect(startedSessions(rows).map((row) => row.session_id)).toEqual(["a", "c"])
+    })
+})
+
+const WORKFLOW_ID = "11111111-1111-4111-8111-111111111111"
+const VARIANT_ID = "22222222-2222-4222-8222-222222222222"
+
+describe("isOpenableSession", () => {
+    it("is open when the references name an agent", () => {
+        expect(
+            isOpenableSession(streamRow({references: [{id: WORKFLOW_ID, key: "workflow"}]})),
+        ).toBe(true)
+        expect(isOpenableSession(streamRow({references: [{id: WORKFLOW_ID}]}))).toBe(true)
+    })
+
+    // The two shapes behind "clicking a session does nothing": no references at all, and the
+    // headless `test_run` shape that carries the variant alone.
+    it("is not open with no references, or with a keyed family that has no workflow", () => {
+        expect(isOpenableSession(streamRow({name: "Refund policy"}))).toBe(false)
+        expect(
+            isOpenableSession(streamRow({references: [{id: VARIANT_ID, key: "workflow_variant"}]})),
+        ).toBe(false)
+    })
+
+    it("drops rows that would render inert, keeping order", () => {
+        const rows = [
+            streamRow({session_id: "a", references: [{id: WORKFLOW_ID, key: "workflow"}]}),
+            streamRow({session_id: "b", name: "Untitled but named"}),
+            streamRow({session_id: "c", references: [{id: VARIANT_ID, key: "workflow_variant"}]}),
+            streamRow({session_id: "d", references: [{id: WORKFLOW_ID}]}),
+        ]
+        expect(openableSessions(rows).map((row) => row.session_id)).toEqual(["a", "d"])
+    })
+
+    // The backend stores reference keys permissively, so a key this code does not act on still
+    // proves the family was labelled — falling back to the first id there reopens the dead route.
+    it("is not open for a key it does not recognise", () => {
+        expect(
+            isOpenableSession(
+                streamRow({references: [{id: VARIANT_ID, key: "application_variant"}]}),
+            ),
+        ).toBe(false)
+    })
+
+    // An automation row IS its schedule: it has a name and its own menu before its first turn,
+    // and the automations list must never blank.
+    it("keeps an automation row that has nowhere to open", () => {
+        expect(openableSessions([streamRow({origin: "trigger"})])).toHaveLength(1)
+        expect(
+            openableSessions([streamRow({trigger: {id: "trigger-1", kind: "schedule"}})]),
+        ).toHaveLength(1)
+    })
+})
+
+describe("sessionGroupRows", () => {
+    const rows = [
+        streamRow({session_id: "openable", references: [{id: WORKFLOW_ID, key: "workflow"}]}),
+        streamRow({session_id: "unstarted"}),
+        streamRow({session_id: "named-only", name: "Refund policy"}),
+        streamRow({
+            session_id: "variant-only",
+            references: [{id: VARIANT_ID, key: "workflow_variant"}],
+        }),
+    ]
+
+    it("hides unstarted and unopenable rows while browsing the main list", () => {
+        expect(sessionGroupRows("main", rows).map((row) => row.session_id)).toEqual(["openable"])
+    })
+
+    // A pin that silently vanishes reads as data loss, and the user could not unpin it if it did.
+    it("keeps every pinned row, inert or not", () => {
+        expect(sessionGroupRows("pinned", rows).map((row) => row.session_id)).toEqual(
+            rows.map((row) => row.session_id),
+        )
+    })
+
+    // Hiding a gated row asks its owner to approve a tool call they cannot see.
+    it("keeps every waiting row, inert or not", () => {
+        expect(sessionGroupRows("waiting", rows).map((row) => row.session_id)).toEqual(
+            rows.map((row) => row.session_id),
+        )
     })
 })
 

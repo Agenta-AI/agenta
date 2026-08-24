@@ -28,6 +28,19 @@ export {
 } from "./inspectMeta"
 
 // ============================================================================
+// RUNNER SUBSCRIPTION STATUS (live per-harness login state)
+// ============================================================================
+
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./subscriptionStatus"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
@@ -275,3 +288,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

@@ -65,6 +65,22 @@ export {
     type ModelRatings,
 } from "./state/inspectMeta"
 
+// Live runner subscription status for the selected harness (self-managed credentials card).
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./state/subscriptionStatus"
+
+export {
+    type SubscriptionStatusResponse,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+} from "./api/subscriptionStatus"
+
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
@@ -441,3 +457,30 @@ export {
 // ============================================================================
 
 export {workflowSnapshotAdapter} from "./snapshotAdapter"
+
+// ============================================================================
+// AGENT TEMPLATES — the starter catalogue every create surface offers
+// ============================================================================
+
+export {
+    AGENT_TEMPLATES,
+    ALL_TEMPLATES_CATEGORY,
+    PROVIDERS,
+    TEMPLATE_CATEGORY_ORDER,
+    agentTemplateByKey,
+    agentTemplateSeed,
+    categoryFromSlug,
+    categorySlug,
+    templateBuilderMessage,
+    templateCategories,
+    templateProviderSlugs,
+    templateToolCount,
+} from "./agentTemplates"
+export type {
+    AgentStarterTemplate,
+    RequiredIntegration,
+    TemplateExampleSession,
+    TemplateTool,
+} from "./agentTemplates"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"

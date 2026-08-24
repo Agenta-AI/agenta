@@ -6,8 +6,8 @@
 import {useState} from "react"
 
 import {CopyButton} from "@agenta/ui/components/presentational"
+import {Tag} from "@agenta/ui/components/presentational"
 import {CaretRight} from "@phosphor-icons/react"
-import {Tag} from "antd"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
@@ -24,7 +24,11 @@ function eventLabel(event: TimelineEvent): string {
     const p = isRecord(event.payload) ? event.payload : {}
     if (event.type === "tool_call" || event.type === "tool_result") {
         const name = typeof p.name === "string" ? p.name : event.toolName
-        if (name) return resolveToolDisplay(name).label
+        // The call is the action starting, the result is it finished — same tense split as a row.
+        if (name) {
+            const {activity} = resolveToolDisplay(name, p.input)
+            return event.type === "tool_call" ? activity.running : activity.done
+        }
         return event.type === "tool_call" ? "Tool call" : "Tool result"
     }
     if (event.type === "message" || event.type === "thought") {
@@ -99,11 +103,10 @@ export function EventRow({
                     {eventLabel(event)}
                 </span>
                 <Tag
-                    className="m-0 shrink-0 border-0 font-mono !text-[12px] leading-[16px]"
+                    label={chipText}
+                    className="m-0 shrink-0 border-0 font-mono text-[12px] leading-[16px]"
                     style={{background: "var(--ag-colorFillTertiary)", color: dotColor}}
-                >
-                    {chipText}
-                </Tag>
+                />
                 {durationLabel ? (
                     <span className="shrink-0 font-mono text-[12px] text-colorTextQuaternary">
                         {durationLabel}

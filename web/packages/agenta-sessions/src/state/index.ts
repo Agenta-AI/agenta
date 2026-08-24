@@ -12,16 +12,21 @@ export {
     type SessionStatusFilter,
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
+export {sessionTabOrderAtomFamily, setSessionTabOrderAtom, applySessionTabOrder} from "./tabOrder"
 export {
     sessionListRequestFilters,
     sessionListIdGroupLimit,
     selectedSessionListPolicy,
     isStartedSession,
     startedSessions,
+    isOpenableSession,
+    openableSessions,
+    sessionGroupRows,
     awaitingHiddenRows,
     shouldLoadMoreForHiddenRows,
     type SessionOriginPolicy,
     type SessionListRequestPolicy,
+    sessionListPolicies,
 } from "./sessionListPolicy"
 export {
     useSessionList,
@@ -45,3 +50,10 @@ export {
     type SessionCardGroup,
     type UseSessionCardListArgs,
 } from "./useSessionCardList"
+export {
+    pendingSessionOpensAtom,
+    addPendingSessionOpenAtom,
+    removePendingSessionOpensAtom,
+    type PendingSessionOpen,
+} from "./pendingSessionOpen"
+export {useWaitingByAgent} from "./waitingByAgent"

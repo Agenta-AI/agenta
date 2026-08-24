@@ -27,15 +27,18 @@ export type Header = AgentaApi.Header
 export type LegacyLifecycleDto = AgentaApi.LegacyLifecycleDto
 
 export type SecretDto = AgentaApi.SecretDto
-export type SecretResponseDto = AgentaApi.SecretResponseDto
+
+export type SecretResponseDto = AgentaApi.PublicSecretResponseDto
+
 export type CreateSecretDto = AgentaApi.CreateSecretDto
 export type UpdateSecretDto = AgentaApi.UpdateSecretDto
 
-export type StandardProviderDto = AgentaApi.StandardProviderDto
 export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
-export type CustomProviderDto = AgentaApi.CustomProviderDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
+
+export type StandardProviderDto = AgentaApi.StandardProviderDto
+export type CustomProviderDto = AgentaApi.CustomProviderDto
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
@@ -43,6 +46,8 @@ export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
 export const CustomSecretFormat = AgentaApi.CustomSecretFormat
 export type CustomSecretFormat = AgentaApi.CustomSecretFormat
 
+export const SecretManagementPolicy = AgentaApi.SecretManagementPolicy
+export type SecretManagementPolicy = AgentaApi.SecretManagementPolicy
 /**
  * Flat json content for a `json`-format custom secret: a single-level map of
  * primitives. Mirrors the backend's flat-only validation (no nesting/arrays).
@@ -58,7 +63,8 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat
-    content: CustomSecretContent
+    /** Absent on a write-only record (the value never comes back) and on an update that keeps it. */
+    content?: CustomSecretContent
 }
 
 // `SecretKind` / `StandardProviderKind` / `CustomProviderKind` are Fern
@@ -93,6 +99,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     gemini: "Google Gemini",
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",
+    sagemaker: "AWS SageMaker",
     azure: "Azure OpenAI",
     minimax: "MiniMax",
     // Stored value stays "custom"; only the user-visible label changes. The v1 custom deployment
@@ -123,6 +130,28 @@ export const PROVIDER_KINDS: Record<string, string> = {
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]
 ).filter((kind) => kind !== StandardProviderKind.Mistralai)
+
+/**
+ * Truthy, obviously-not-a-key sentinel the vault persister writes to disk in place of secret
+ * values. It lives here rather than beside the persister because readers of a restored row — the
+ * connection card seeds its credential fields from one — must recognise it as "no value yet".
+ */
+export const VAULT_PERSIST_REDACTED = "[redacted]"
+
+/**
+ * Every `LlmProvider` field that can carry actual secret material — the fields the vault strips
+ * from a write-only response, and the fields the IndexedDB persister replaces with a sentinel.
+ * One list so the two can never disagree about what counts as a secret.
+ */
+export const SECRET_VALUE_FIELDS = [
+    "key",
+    "apiKey",
+    "accessKeyId",
+    "accessKey",
+    "sessionToken",
+    "bearerToken",
+    "vertexCredentials",
+] as const
 
 // ---------------------------------------------------------------------------
 // Migration status (UI state, not wire)

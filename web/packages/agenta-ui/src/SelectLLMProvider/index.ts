@@ -24,5 +24,19 @@
  */
 
 export {default as SelectLLMProviderBase} from "./SelectLLMProviderBase"
-export type {SelectLLMProviderBaseProps, ProviderOption, ProviderGroup} from "./types"
-export {capitalize, PROVIDER_ICON_MAP, getProviderIcon, getProviderDisplayName} from "./utils"
+export {default as ManageProvidersRow} from "./ManageProvidersRow"
+export type {ManageProvidersRowProps} from "./ManageProvidersRow"
+export {default as HarnessTooltip, HARNESS_TOOLTIP_COPY} from "./HarnessTooltip"
+export type {
+    SelectLLMProviderBaseProps,
+    ProviderOption,
+    ProviderGroup,
+    ProviderSection,
+} from "./types"
+export {
+    capitalize,
+    PROVIDER_ICON_MAP,
+    getProviderIcon,
+    getHarnessIcon,
+    getProviderDisplayName,
+} from "./utils"

@@ -20,6 +20,7 @@
  * list) and provider-model-auth/design.md (Concern 1: ModelRef; Concern 3b: per-harness gating).
  */
 
+import {bareModelId} from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
     HarnessCapabilitiesMap,
@@ -327,6 +328,12 @@ export function buildModelOptionGroups(
  * The catalog's display label for a picked model id (`label`, then `name`). Null when the catalog
  * has neither, so a caller can try the schema's own title before falling back to the raw id; the
  * picker has no schema to consult, which is why it ends at `id` instead.
+ *
+ * Matched on the BARE spelling, not the literal id: harnesses prefix the family differently (Pi
+ * publishes `openai/gpt-5.6-luna`) while the config stores the bare id, so an exact compare missed
+ * and the pill fell back to the raw id — "Pi · gpt-5.6-luna" where the catalog says "Luna". Each
+ * entry normalizes against ITS OWN provider, which is the same rule `curatedModelName` applies on
+ * the completion side.
  */
 export function modelLabel(
     capabilities: HarnessCapabilitiesMap | null | undefined,
@@ -334,8 +341,63 @@ export function modelLabel(
     modelId: string | null | undefined,
 ): string | null {
     if (!modelId) return null
-    const hit = capsFor(capabilities, harness)?.model_catalog?.find((e) => e.id === modelId)
+    const catalog = capsFor(capabilities, harness)?.model_catalog
+    if (!catalog) return null
+
+    const matches = (entry: ModelCatalogEntry): boolean => {
+        if (entry.id === modelId) return true
+        if (!entry.id || !entry.provider) return false
+        return (
+            bareModelId(entry.id, entry.provider).toLowerCase() ===
+            bareModelId(modelId, entry.provider).toLowerCase()
+        )
+    }
+
+    // An exact hit wins over a normalized one, so a catalog that lists both spellings is not
+    // decided by array order.
+    const hit = catalog.find((entry) => entry.id === modelId) ?? catalog.find(matches)
     return hit?.label ?? hit?.name ?? null
+}
+
+/**
+ * The model's own id inside a connection model key.
+ *
+ * A credential-set connection stores its models as `model_keys`, spelled
+ * `<connection>/<deployment>/<id>` — and the id can itself carry the deployment's own prefix
+ * ("Agenta/custom/vertex_ai/gemini-3.6-flash"). None of that namespace is the model's name, so it
+ * is dropped for display. Anything that is not a model key comes back untouched, which is why the
+ * second segment must name a deployment before this strips anything: a plain provider-prefixed id
+ * ("anthropic/claude-opus-4-7") is two segments and never matches.
+ *
+ * Display only. The stored config keeps the full key — that is what the resolver matches on.
+ */
+export function bareConnectionModelId(modelId: string): string {
+    const parts = modelId.split("/")
+    if (parts.length < 3 || !isDeploymentProviderKind(parts[1])) return modelId
+    return parts[parts.length - 1]
+}
+
+/**
+ * What to CALL a model in the UI: the catalog's curated name when it knows the id, else the id
+ * itself. Never null — every surface that shows a model needs something to print.
+ *
+ * A connection model key is looked up twice, on the stored spelling and on its bare id, so a
+ * provisioned connection's model reads "Gemini 3.6 Flash" rather than the whole key. No
+ * prettifier: an id the catalog does not curate is shown exactly as it is stored, because a
+ * guessed capitalization is worse than the real string.
+ */
+export function modelDisplayName(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string {
+    if (!modelId) return ""
+    const bare = bareConnectionModelId(modelId)
+    return (
+        modelLabel(capabilities, harness, modelId) ??
+        modelLabel(capabilities, harness, bare) ??
+        bare
+    )
 }
 
 /**
@@ -376,37 +438,43 @@ export function harnessAllowsModel(
     slug?: string | null | undefined,
 ): boolean {
     if (!modelId) return true
-    if (slug) {
-        if (customSecrets?.length) {
-            for (const secret of customSecrets) {
-                const secretSlug = secret.name?.trim()
-                const kind = secret.provider?.toLowerCase() || null
-                const secretModels = (secret.models ?? []).filter(Boolean)
-                if (!secretModels.includes(modelId)) continue
-                if (secretSlug !== slug) continue
-                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
-                    return true
-            }
-        }
-        return false
-    }
 
     const caps = capsFor(capabilities, harness)
     const catalog = caps?.model_catalog
     const models = caps?.models
     const hasCatalog = Boolean(catalog && catalog.length)
     const hasModels = Boolean(models && Object.keys(models).length > 0)
-    if (hasCatalog && catalog!.some((e) => e.id === modelId)) return true
-    if (
-        hasModels &&
-        Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId))
-    )
-        return true
+    const inHarnessCatalog =
+        (hasCatalog && catalog!.some((e) => e.id === modelId)) ||
+        (hasModels &&
+            Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId)))
+
+    if (slug) {
+        let namesCustomConnection = false
+        if (customSecrets?.length) {
+            for (const secret of customSecrets) {
+                if (vaultSourceSlug(secret) !== slug) continue
+                namesCustomConnection = true
+                const kind = secret.provider?.toLowerCase() || null
+                const secretModels = reachableModelIds(secret)
+                if (!secretModels.includes(modelId)) continue
+                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
+                    return true
+            }
+        }
+        // A slug naming a CUSTOM connection is the whole answer: that connection's models are the
+        // only ones it reaches. A slug naming none is a STANDARD connection — every pick persists
+        // one now — so the harness's own catalog decides. Deliberately NOT the other connections'
+        // models: a slug that resolves to nothing must not borrow another connection's model.
+        return namesCustomConnection ? false : inHarnessCatalog || (!hasCatalog && !hasModels)
+    }
+
+    if (inHarnessCatalog) return true
 
     if (customSecrets?.length) {
         for (const secret of customSecrets) {
             const kind = secret.provider?.toLowerCase() || null
-            const secretModels = (secret.models ?? []).filter(Boolean)
+            const secretModels = reachableModelIds(secret)
             if (!secretModels.includes(modelId)) continue
             if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind)) return true
         }
@@ -426,13 +494,33 @@ export function harnessAllowsModel(
 
 /** A vault custom_provider entry rich enough to contribute model options (its own models). */
 export interface VaultModelSource {
-    /** The connection name == the slug the resolver matches on. */
+    /** The stored slug — the connection's identity. Absent on records that predate it. */
+    slug?: string
+    /** The connection name; the slug a record without a stored one is still addressed by. */
     name?: string
     /** The provider family (data.kind), e.g. "bedrock". */
     provider?: string
     /** The connection's own model ids (bare slugs). */
     models?: string[]
+    /**
+     * The connection's `model_keys` — the fully qualified spelling ("<name>/<kind>/<model>") the
+     * picker actually persists for a credential-set connection. Distinct from `models`, which
+     * holds the bare slugs, so reachability has to accept both or a saved key reads as unavailable.
+     */
+    modelKeys?: string[]
 }
+
+/** The identity the resolver matches this connection on — its stored slug, else its name. */
+const vaultSourceSlug = (secret: VaultModelSource): string | null =>
+    secret.slug?.trim() || secret.name?.trim() || null
+
+/**
+ * Every model id a connection can be addressed by: its bare slugs AND its `model_keys`. The picker
+ * persists whichever the connection publishes (a credential-set connection publishes only keys), so
+ * a check against `models` alone reads a valid saved config back as unreachable.
+ */
+const reachableModelIds = (secret: VaultModelSource): string[] =>
+    [...(secret.models ?? []), ...(secret.modelKeys ?? [])].filter(Boolean)
 
 /**
  * The model FAMILY a hosted model id encodes, matched against the provider families the capability
@@ -457,29 +545,57 @@ export function familyFromModelId(
 }
 
 /**
+ * The one provider family a harness reaches, or null when it reaches none or several.
+ *
+ * A deployment surface (bedrock/azure/vertex_ai) hosts many vendors, so its connection kind names
+ * no family — but a harness that reaches exactly ONE family leaves nothing to guess: a Claude-Code
+ * model on a Bedrock connection is `anthropic`, because that is the only family Claude Code reaches
+ * at all. This mirrors the server's own pair rule (`harness_allows_pair`), which accepts
+ * claude+anthropic+bedrock and rejects every other family on that harness.
+ */
+export function soleHarnessProviderFamily(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): string | null {
+    const providers = capsFor(capabilities, harness)?.providers ?? []
+    return providers.length === 1 ? providers[0] : null
+}
+
+/**
  * The provider FAMILY to persist for a vault-hosted model pick (a picker option carrying a
- * `connectionSlug`, per `vaultModelGroups`). Prefers the family the model id itself encodes
- * (`familyFromModelId` — deployment-hosted ids like "eu.anthropic.claude-haiku-4-5" carry it
- * structurally); when the id encodes none (e.g. a plain custom connection's own model,
- * "gpt-4o-mini"), falls back to the option's `metadata.provider` — but ONLY when that IS already
- * a plain family, never a deployment kind (bedrock/azure/... is a hosting mechanism, not itself a
- * valid `llm.provider`). Returns null only when neither source resolves a family; the caller
- * (`useModelHarness.writeModel`) falls back further to the prior provider so a vault pick never
- * silently drops the field.
+ * `connectionSlug`, per `vaultModelGroups`). Resolution order:
+ *
+ * 0. NONE for an OpenAI-compatible (`custom`) connection — see below;
+ * 1. the family the model id itself encodes (`familyFromModelId` — deployment-hosted ids like
+ *    "eu.anthropic.claude-haiku-4-5" carry it structurally);
+ * 2. the connection's own kind, but ONLY when that IS already a plain family — a deployment kind
+ *    (bedrock/azure/...) is a hosting mechanism and never a valid `llm.provider`;
+ * 3. the sole family the driving harness reaches (`soleHarnessProviderFamily`), which is what
+ *    resolves a deployment-hosted id that names only the model ("claude-3-sonnet-...-v1:0" on a
+ *    Bedrock connection under Claude Code).
+ *
+ * Null when none of them resolves a family. The caller must then write NO provider: inheriting the
+ * previously selected model's family would persist a connection whose provider contradicts it, and
+ * the server validates the pair (`harness_allows_pair`) and fails the run.
+ *
+ * A `custom` connection resolves to null on purpose. Its models are stored as `model_keys`, whose
+ * spelling already names the connection (`<name>/custom/<model>`), and the resolver matches them
+ * against `ModelRef.to_model_string()` — which a written `provider` turns into `<provider>/<key>`,
+ * missing every key and routing the raw id to the endpoint. The resolver then supplies the family
+ * itself (`_ConnectionCandidate.resolved_provider` normalizes a provider-less custom connection to
+ * `openai`), so omitting it is both required and lossless.
  */
 export function vaultPickedProviderFamily(
     modelId: string | null | undefined,
     metadataProvider: string | null | undefined,
     capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness?: string | null,
 ): string | null {
+    if (metadataProvider?.toLowerCase() === OPENAI_COMPATIBLE_KIND) return null
     const family = familyFromModelId(modelId, capabilities)
     if (family) return family
     if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
-    // The OpenAI-compatible (`custom`) deployment defaults to openai rather than deferring to the
-    // caller's prior (likely unrelated) provider fallback.
-    if (metadataProvider?.toLowerCase() === OPENAI_COMPATIBLE_KIND)
-        return OPENAI_COMPATIBLE_DEFAULT_FAMILY
-    return null
+    return soleHarnessProviderFamily(capabilities, harness)
 }
 
 // A custom_provider secret's `kind` (its `provider` field) is one of two flavors: a DEPLOYMENT
@@ -552,13 +668,13 @@ export function vaultModelGroups(
 
     const groups: ModelOptionGroup[] = []
     for (const secret of secrets) {
-        const slug = secret.name?.trim()
+        const slug = vaultSourceSlug(secret)
         const kind = secret.provider?.toLowerCase() || null
         const models = (secret.models ?? []).filter(Boolean)
         if (!slug || !models.length) continue
         if (kind && !harnessReachesCustomProviderKind(capabilities, harness, kind)) continue
         groups.push({
-            label: secret.name ?? slug,
+            label: secret.name?.trim() || slug,
             options: models.map((id) => ({
                 label: id,
                 value: id,

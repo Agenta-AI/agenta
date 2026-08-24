@@ -10,9 +10,7 @@ import type * as AgentaApi from "../../../../index.js";
  *             kind: "provider_key",
  *             data: {
  *                 kind: "openai",
- *                 provider: {
- *                     key: "key"
- *                 }
+ *                 provider: {}
  *             }
  *         }
  *     }
@@ -21,4 +19,5 @@ export interface CreateSecretDto {
     slug?: string | null;
     header: AgentaApi.Header;
     secret: AgentaApi.SecretDto;
+    write_only?: boolean;
 }

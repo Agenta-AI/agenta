@@ -2,18 +2,22 @@ import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
+  resolvePiToolSpecsDelivery,
   uploadPiExtensionToSandbox,
+  uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
 import {
+  describePiModelsJsonPlan,
   PI_MODELS_JSON_FILENAME,
   serializePiModelsJson,
-  type PiModelConfigPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import {
   type RunPlan,
   type RunPlanPrompt,
+  type RunPlanTools,
   type RunPlanWorkspace,
 } from "./run-plan.ts";
 
@@ -152,14 +156,15 @@ export async function ensurePiInSandbox(
 /**
  * Upload the exact Pi `models.json` into a Daytona sandbox's Pi agent dir, overwriting any stale
  * file left by an earlier configuration on a reused sandbox. THROWS on failure so the caller makes
- * materialization terminal — a managed custom run must never fall through to a default provider
- * (design Decision 6). The document carries only the `$OPENAI_API_KEY` reference; the key value
- * itself rides `daytonaEnvVars` into the sandbox env.
+ * materialization terminal — a run whose model could not be registered must never fall through to
+ * a default provider (design Decision 6). This agent dir belongs to the sandbox, never to the
+ * operator, so both plan shapes are safe to write here. The document carries only an env var
+ * REFERENCE when it names a credential at all; key values ride `daytonaEnvVars` into the sandbox.
  */
 export async function uploadPiModelsConfigToSandbox(
   sandbox: any,
   agentDir: string,
-  plan: PiModelConfigPlan,
+  plan: PiModelsJsonPlan,
   log: Log = () => {},
 ): Promise<void> {
   await sandbox.mkdirFs({ path: agentDir });
@@ -167,10 +172,7 @@ export async function uploadPiModelsConfigToSandbox(
     { path: `${agentDir}/${PI_MODELS_JSON_FILENAME}` },
     serializePiModelsJson(plan),
   );
-  log(
-    `pi models.json uploaded provider=${plan.providerId} api=${plan.api} ` +
-      `model=${plan.models.map((m) => m.id).join(",")}`,
-  );
+  log(`pi models.json uploaded ${describePiModelsJsonPlan(plan)}`);
 }
 
 /**
@@ -195,18 +197,19 @@ export async function removePiModelsConfigFromSandbox(
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<RunPlan, "isPi"> & {
-    workspace: Pick<RunPlanWorkspace, "skillDirs">;
+    workspace: Pick<RunPlanWorkspace, "skillDirs" | "relayDir">;
+    tools: Pick<RunPlanTools, "toolSpecs">;
     prompt: Pick<
       RunPlanPrompt,
       "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
     >;
   };
   /**
-   * A managed OpenAI-compatible custom run's Pi provider config. When set, its `models.json` is
-   * uploaded before the ACP session starts; when absent, any stale `models.json` on a reused
-   * sandbox is removed so no earlier provider survives.
+   * The run's Pi `models.json` plan (a custom provider, or one model merged into a built-in
+   * provider). When set, the file is uploaded before the ACP session starts; when absent, any
+   * stale `models.json` on a reused sandbox is removed so no earlier configuration survives.
    */
-  piModelConfig?: PiModelConfigPlan;
+  piModelConfig?: PiModelsJsonPlan;
   log?: Log;
 }
 
@@ -233,9 +236,21 @@ export async function prepareDaytonaPiAssets({
     DAYTONA_PI_DIR,
     log,
   );
-  // Managed OpenAI-compatible custom provider: upload the exact models.json (overwriting stale)
-  // before the session starts. No plan: remove any stale file so a reused sandbox keeps no earlier
-  // provider. Upload failure THROWS here and is terminal in the engine's acquire try.
+  // The run's tool specs. The sandbox env map was fixed at creation with the in-sandbox PATH of
+  // this file (`buildPiExtensionEnv`), so the bytes have to arrive here, before the session opens.
+  // They never rode the env itself: one env string holding every hydrated spec overflows Linux's
+  // per-string execve limit and the harness spawn dies with E2BIG (see `piToolSpecsFilePath`).
+  // A failure THROWS and is terminal in the engine's acquire try — a run whose tools silently
+  // vanished is worse than one that stops with a reason.
+  const toolSpecs = resolvePiToolSpecsDelivery(
+    plan.tools.toolSpecs,
+    plan.workspace.relayDir,
+  );
+  if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
+  // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
+  // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
+  // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is
+  // terminal in the engine's acquire try.
   if (piModelConfig) {
     await uploadPiModelsConfigToSandbox(
       sandbox,

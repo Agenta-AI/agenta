@@ -1,8 +1,8 @@
 import {useCallback, useState} from "react"
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
@@ -47,7 +47,7 @@ export const useTriggerSchedule = (scheduleId?: string) => {
                 // selects the just-saved schedule reads it immediately (no loading flash);
                 // it still background-refetches since the list invalidation marks it stale.
                 if (res.schedule?.id) {
-                    queryClient.setQueryData(
+                    getHostQueryClient().setQueryData(
                         ["triggers", "schedules", "detail", res.schedule.id],
                         res,
                     )

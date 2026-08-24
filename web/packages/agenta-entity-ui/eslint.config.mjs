@@ -3,7 +3,7 @@
  * adopt the agent surfaces. The rest of the package still uses antd (EntityPicker, modals) and
  * is unaffected.
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -14,11 +14,7 @@ export default [
                 "error",
                 {
                     paths: [
-                        {
-                            name: "@agenta/sdk",
-                            message:
-                                "Import per-resource accessors from '@agenta/sdk/resources' — the root barrel bundles all 27 Fern resource clients.",
-                        },
+                        ...restrictedImportPaths,
                         {
                             name: "@agenta/ui",
                             message:

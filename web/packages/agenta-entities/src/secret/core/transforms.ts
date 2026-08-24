@@ -58,6 +58,15 @@ const STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
 }
 
 /**
+ * Whether the vault holds a key for this row — the ONE presence check.
+ *
+ * A readable row proves it by carrying the value. A write-only row never returns one, so it says
+ * so with `hasKey` instead; reading `!!row.key` on it would report every connection as keyless.
+ */
+export const hasStoredKey = (provider: LlmProvider | null | undefined): boolean =>
+    provider?.hasKey ?? !!provider?.key
+
+/**
  * Transform raw `/secrets/` response items into the `LlmProvider` shape
  * used throughout the app. Standard provider secrets and custom provider
  * secrets have different wire shapes; both collapse into the common
@@ -67,6 +76,19 @@ const STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
  * are dropped (with a warning) — the app uses the env-var name as the
  * provider identity, so an unmapped kind would surface as a nameless row.
  */
+/**
+ * The fields every row carries about its own value, whichever kind it is.
+ *
+ * The public API reports value presence and an optional safe preview through `value_status`.
+ * The UI maps those general facts into its provider-specific connection model here.
+ */
+const storageFacts = (secret: SecretResponseDto) => ({
+    writeOnly: secret.write_only ?? undefined,
+    hasKey: secret.value_status.configured,
+    keyPreview: secret.value_status.preview ?? undefined,
+    managementPolicy: secret.management?.policy,
+})
+
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
@@ -80,11 +102,20 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             }
 
             acc.push({
+                ...storageFacts(secret),
                 title: provider,
-                key: data.provider.key,
+                key: data.provider.key ?? undefined,
                 name: envName,
                 id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
+                // Several connections can share a provider family, so the record's own name is
+                // what tells them apart. Absent on records created before named connections.
+                displayName: secret.header?.name ?? undefined,
                 type: secret.kind,
+                // Absent stays absent: no saved list means "use the defaults", which an empty
+                // array would misreport as "this connection offers no models".
+                models: data.models?.map((model) => model.slug),
+                harnesses: data.harnesses ?? undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomProvider) {
@@ -92,8 +123,11 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             const extras = (data.provider.extras ?? {}) as Record<string, string | undefined>
 
             acc.push({
+                ...storageFacts(secret),
                 name: secret.header.name ?? "",
+                displayName: secret.header.name ?? undefined,
                 id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
                 type: secret.kind,
                 provider: data.kind,
                 apiKey: extras.api_key || "",
@@ -108,6 +142,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 bearerToken: extras.aws_bearer_token_bedrock || "",
                 models: data.models.map((model) => model.slug),
                 modelKeys: data.model_keys ?? undefined,
+                harnesses: data.harnesses ?? undefined,
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
             })
@@ -118,6 +153,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             const data = secret.data as unknown as CustomSecretDto
 
             const row: NamedSecretRow = {
+                ...storageFacts(secret),
                 name: secret.header.name ?? "",
                 slug: secret.slug ?? undefined,
                 format: data.secret.format,
@@ -131,6 +167,34 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
         return acc
     }, [] as LlmProvider[])
 }
+
+/**
+ * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` for a standard provider
+ * connection.
+ *
+ * `models` and `harnesses` ride along only when the caller has them: a connection that saved
+ * no list keeps using Agenta's defaults, and sending an empty one instead would mean "offer
+ * nothing".
+ */
+export const transformStandardProviderPayloadData = (
+    values: LlmProvider,
+    providerKind: StandardProviderKind,
+): CreateSecretDto =>
+    ({
+        header: {
+            name: values.title,
+        },
+        secret: {
+            kind: SecretKind.ProviderKey,
+            data: {
+                kind: providerKind,
+                // An omitted key means "keep the stored value"; `""` would blank it.
+                provider: values.key ? {key: values.key} : {},
+                ...(values.models ? {models: values.models.map((slug) => ({slug}))} : {}),
+                ...(values.harnesses ? {harnesses: values.harnesses} : {}),
+            } satisfies StandardProviderDto,
+        },
+    }) as CreateSecretDto
 
 /**
  * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` suitable
@@ -168,6 +232,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                     },
                 },
                 models: values.models?.map((slug) => ({slug})) ?? [],
+                ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } as CustomProviderDto,
         },
     }
@@ -191,7 +256,9 @@ export const transformCustomSecretPayloadData = (values: NamedSecretRow): Create
         data: {
             secret: {
                 format: values.format,
-                content: values.content,
+                // An omitted content means "keep the stored value"; a write-only record is only
+                // ever replaced, never read back, so an untouched edit must send nothing.
+                ...(values.content === undefined ? {} : {content: values.content}),
             },
         } as CustomSecretDto,
     },

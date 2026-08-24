@@ -12,14 +12,17 @@
  * @packageDocumentation
  */
 
-import {getEnabledSandboxProviders} from "@agenta/shared/api"
+import {getEnabledSandboxProviders, getHostQueryClient} from "@agenta/shared/api"
 import {catalogPersister} from "@agenta/shared/api/persist"
-import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
+import type {LlmProvider} from "@agenta/shared/types"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
+import {fetchVaultSecret} from "../../secret/api"
+import {toProviderConnections, type ProviderConnection} from "../../secret/core"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
 import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
@@ -28,6 +31,7 @@ import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
     applyAgentCreationPrefs,
+    applyManagedConnectionDefault,
     agentCreationPrefsAtom,
     ensureEnabledSandbox,
 } from "./agentCreationPrefs"
@@ -116,6 +120,34 @@ function matchTemplateForType(
 }
 
 /**
+ * The project's vault connections, for shaping a new agent's default model.
+ *
+ * Resolved through the SAME query entry `vaultSecretsQueryAtom` uses, so a warm cache costs
+ * nothing and a cold one is fetched once and shared. Deliberately not `store.get(...)` on that
+ * atom: the mint runs on first landing and can beat the atom's own fetch, and reading it empty
+ * would commit the very template default the managed connection exists to replace. A failure
+ * yields no connections, which leaves the template default untouched.
+ */
+async function vaultConnectionsForNewAgent(
+    projectId: string,
+    userId?: string,
+): Promise<ProviderConnection[]> {
+    if (!userId) return []
+
+    try {
+        const rows = await getHostQueryClient().ensureQueryData<LlmProvider[]>({
+            queryKey: ["vault", "secrets", userId, projectId],
+            queryFn: () => fetchVaultSecret({projectId}),
+            staleTime: 5 * 60_000,
+            retry: false,
+        })
+        return toProviderConnections(rows ?? [])
+    } catch {
+        return []
+    }
+}
+
+/**
  * Create a local-only application workflow entity from a built-in catalog
  * template (chat or completion). Mirrors `createEvaluatorFromTemplate` —
  * fetches the parameter schema via the inspect endpoint, merges with template
@@ -201,12 +233,19 @@ export async function createEphemeralAppFromTemplate({
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
+        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
+        // Repoint the template's hard-coded provider at an Agenta-managed connection when that is
+        // the only credential the project has, so a first agent runs without being configured.
+        const withManaged = applyManagedConnectionDefault(
+            withPrefs,
+            await vaultConnectionsForNewAgent(projectId, store.get(userAtom)?.id),
+        )
+        if (signal?.aborted) return null
         // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
         // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
-        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
         parameters = {
             ...parameters,
-            agent: ensureEnabledSandbox(withPrefs, getEnabledSandboxProviders()),
+            agent: ensureEnabledSandbox(withManaged, getEnabledSandboxProviders()),
         }
     }
 

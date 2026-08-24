@@ -47,6 +47,7 @@ import {
     getEnvNameMap,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
+    transformStandardProviderPayloadData,
 } from "../core/transforms"
 import {
     SecretKind,
@@ -141,7 +142,16 @@ export const standardSecretsAtom = atom((get) => {
             return {
                 ...secret,
                 key: match.key,
+                // A write-only record answers "is it configured" here; its value never arrives.
+                writeOnly: match.writeOnly,
+                hasKey: match.hasKey,
+                keyPreview: match.keyPreview,
+                managementPolicy: match.managementPolicy,
                 id: match.id,
+                // The connection's saved policy round-trips: a form seeded from this row
+                // sends it back on update instead of dropping it.
+                models: match.models,
+                harnesses: match.harnesses,
                 created_at: match.created_at,
             }
         } else {
@@ -227,20 +237,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
             )
         }
 
-        const payload: CreateSecretDto = {
-            header: {
-                name: provider.title,
-            },
-            secret: {
-                kind: SecretKind.ProviderKey,
-                data: {
-                    kind: providerKind,
-                    provider: {
-                        key: provider.key,
-                    },
-                },
-            },
-        }
+        const payload = transformStandardProviderPayloadData(provider, providerKind)
 
         const findSecret = standardSecrets.find((s) => s.name === provider.name)
         // Prefer the id from the matched server-side record so we still hit

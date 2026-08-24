@@ -21,7 +21,7 @@
  *
  * Run: pnpm exec vitest run tests/unit/otel-trace-target-attribution.test.ts
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
@@ -32,20 +32,40 @@ interface FakeExport {
 }
 
 const fakeExports: FakeExport[] = [];
+const fakeShutdowns: Array<string | undefined> = [];
+let holdNextExport = false;
+let releaseHeldExport: (() => void) | undefined;
+let throwNextExporterConstruction = false;
 
 vi.mock("@opentelemetry/exporter-trace-otlp-proto", () => {
   class FakeOTLPTraceExporter {
     url: string;
     authorization?: string;
     constructor(config: { url: string; headers?: Record<string, string> }) {
+      if (throwNextExporterConstruction) {
+        throwNextExporterConstruction = false;
+        throw new Error("exporter construction failed");
+      }
       this.url = config.url;
       this.authorization = config.headers?.Authorization;
     }
     export(spans: ReadableSpan[], cb: (r: ExportResult) => void): void {
-      fakeExports.push({ url: this.url, authorization: this.authorization, spans });
-      cb({ code: 0 /* ExportResultCode.SUCCESS */ });
+      fakeExports.push({
+        url: this.url,
+        authorization: this.authorization,
+        spans,
+      });
+      const finish = () => cb({ code: 0 /* ExportResultCode.SUCCESS */ });
+      if (holdNextExport) {
+        holdNextExport = false;
+        releaseHeldExport = finish;
+        return;
+      }
+      finish();
     }
-    async shutdown(): Promise<void> {}
+    async shutdown(): Promise<void> {
+      fakeShutdowns.push(this.authorization);
+    }
   }
   return { OTLPTraceExporter: FakeOTLPTraceExporter };
 });
@@ -53,15 +73,28 @@ vi.mock("@opentelemetry/exporter-trace-otlp-proto", () => {
 // Imported AFTER the mock so `otel.ts` picks up the fake OTLPTraceExporter.
 const { createSandboxAgentOtel } = await import("../../src/tracing/otel.ts");
 
-/** Batches actually shipped to one endpoint, across every (possibly cached) exporter instance
- * built for it — `getExporter` caches per endpoint+auth, so distinct auths to the same endpoint
- * would be separate instances, but this suite always pairs a distinct auth with a distinct URL. */
+/** Batches actually shipped to one endpoint, across every exporter instance built for it. */
 function exportsTo(endpoint: string): ReadableSpan[] {
   return fakeExports.filter((e) => e.url === endpoint).flatMap((e) => e.spans);
 }
 
+beforeEach(() => {
+  // Pin the env fallback target so the "nothing fell back to the default" assertions below are
+  // real. Empty API urls keep `defaultTarget()` on the cloud base the assertions name, and the
+  // credential is what keeps a fallback batch EXPORTING: without one it would be skipped
+  // (Agenta ingest never takes an unauthenticated export) and the guard would pass vacuously.
+  vi.stubEnv("AGENTA_API_INTERNAL_URL", "");
+  vi.stubEnv("AGENTA_API_URL", "");
+  vi.stubEnv("AGENTA_CREDENTIALS", "Secret fallback-credential");
+});
+
 afterEach(() => {
   fakeExports.length = 0;
+  fakeShutdowns.length = 0;
+  holdNextExport = false;
+  releaseHeldExport = undefined;
+  throwNextExporterConstruction = false;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -113,7 +146,9 @@ describe("otel traceTargets — per-run target attribution across a shared trace
     expect(atB.length).toBeGreaterThan(0);
 
     // No batch fell back to the env default while a run was still registered.
-    expect(exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces")).toHaveLength(0);
+    expect(
+      exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces"),
+    ).toHaveLength(0);
 
     // Attribution is correct, not merely present: A's spans carry A's prompt, B's carry B's.
     // `input.value` is itself a JSON-encoded string attribute, so the nested quotes are escaped.
@@ -164,14 +199,230 @@ describe("otel traceTargets — per-run target attribution across a shared trace
 
     for (const [label, endpoint] of Object.entries(TARGETS)) {
       const spans = exportsTo(endpoint);
-      expect(spans.length, `${label} should have exported to its own target`).toBeGreaterThan(0);
+      expect(
+        spans.length,
+        `${label} should have exported to its own target`,
+      ).toBeGreaterThan(0);
       const text = JSON.stringify(spans.map((s) => s.attributes));
-      expect(text).toContain(`\\"prompt\\":\\"prompt-${label.toLowerCase()}\\"`);
+      expect(text).toContain(
+        `\\"prompt\\":\\"prompt-${label.toLowerCase()}\\"`,
+      );
       for (const other of Object.keys(TARGETS)) {
         if (other === label) continue;
-        expect(text).not.toContain(`\\"prompt\\":\\"prompt-${other.toLowerCase()}\\"`);
+        expect(text).not.toContain(
+          `\\"prompt\\":\\"prompt-${other.toLowerCase()}\\"`,
+        );
       }
     }
-    expect(exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces")).toHaveLength(0);
+    expect(
+      exportsTo("https://cloud.agenta.ai/api/otlp/v1/traces"),
+    ).toHaveLength(0);
+  });
+
+  it("resolves a refreshed authorization value when the batch is exported", async () => {
+    const traceparent = `00-${"f".repeat(32)}-${"4".repeat(16)}-01`;
+    const endpoint = "http://collector-rotating.example/v1/traces";
+    let authorization = "Secret initial";
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => authorization,
+      traceparent,
+    });
+
+    run.start({ prompt: "long running prompt" });
+    run.finish();
+    authorization = "Secret refreshed";
+    await run.flush();
+
+    const exports = fakeExports.filter((item) => item.url === endpoint);
+    expect(exports).toHaveLength(1);
+    expect(exports[0].authorization).toBe("Secret refreshed");
+  });
+
+  it("uses the resolved authorization for the Agenta missing-credential check", async () => {
+    const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
+    let authorization = "Secret initial";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // A blank resolved credential falls back to the runner's own `AGENTA_CREDENTIALS`, so drop
+    // that too: the skip needs the run credential AND the env fallback to be empty.
+    vi.stubEnv("AGENTA_CREDENTIALS", "");
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => authorization,
+      traceparent: `00-${"c".repeat(32)}-${"6".repeat(16)}-01`,
+    });
+
+    run.start({ prompt: "credential disappears before flush" });
+    run.finish();
+    authorization = "   ";
+    await run.flush();
+
+    expect(fakeExports.filter((item) => item.url === endpoint)).toHaveLength(0);
+    expect(
+      errorSpy.mock.calls.some((args) =>
+        args.join(" ").includes("trace export skipped, no credential"),
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to the env credential when the run carries no authorization header, and prefers the run's own header when it has one", async () => {
+    // `runCredential` reads the request's OTLP authorization header and trims it, so a run
+    // without that header hands the tracer a provider that resolves to "". That must still
+    // export under `AGENTA_CREDENTIALS`, exactly as a run that configured no credential at all.
+    const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const headerless = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => "",
+      traceparent: `00-${"a".repeat(32)}-${"7".repeat(16)}-01`,
+    });
+
+    headerless.start({ prompt: "no authorization header on the request" });
+    headerless.finish();
+    await headerless.flush();
+
+    expect(fakeExports.filter((item) => item.url === endpoint)).toEqual([
+      expect.objectContaining({ authorization: "Secret fallback-credential" }),
+    ]);
+    expect(
+      errorSpy.mock.calls.some((args) =>
+        args.join(" ").includes("trace export skipped, no credential"),
+      ),
+    ).toBe(false);
+
+    const withHeader = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => "Secret run-credential",
+      traceparent: `00-${"b".repeat(32)}-${"8".repeat(16)}-01`,
+    });
+
+    withHeader.start({ prompt: "authorization header present" });
+    withHeader.finish();
+    await withHeader.flush();
+
+    expect(
+      fakeExports
+        .filter((item) => item.url === endpoint)
+        .map((item) => item.authorization),
+    ).toEqual(["Secret fallback-credential", "Secret run-credential"]);
+  });
+
+  it("retires a replaced exporter only after its active export finishes", async () => {
+    const endpoint = "http://collector-cache-rotation.example/v1/traces";
+    let authorization = "Secret first";
+    const makeRun = (traceIdDigit: string) =>
+      createSandboxAgentOtel({
+        harness: "claude",
+        model: "anthropic/claude-haiku",
+        emitSpans: true,
+        endpoint,
+        authorization: () => authorization,
+        traceparent: `00-${traceIdDigit.repeat(32)}-${"5".repeat(16)}-01`,
+      });
+
+    holdNextExport = true;
+    const first = makeRun("a");
+    first.start({ prompt: "first" });
+    first.finish();
+    const firstFlush = first.flush();
+
+    authorization = "Secret second";
+    const second = makeRun("b");
+    second.start({ prompt: "second" });
+    second.finish();
+    await second.flush();
+
+    expect(fakeShutdowns).not.toContain("Secret first");
+    releaseHeldExport?.();
+    await firstFlush;
+    expect(fakeShutdowns).toContain("Secret first");
+    expect(
+      fakeExports
+        .filter((item) => item.url === endpoint)
+        .map((item) => item.authorization),
+    ).toEqual(["Secret first", "Secret second"]);
+  });
+
+  it("keeps the cached exporter live when constructing its replacement throws", async () => {
+    const endpoint = "http://collector-constructor-error.example/v1/traces";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let authorization = "Secret original";
+    const makeRun = (traceIdDigit: string) =>
+      createSandboxAgentOtel({
+        harness: "claude",
+        model: "anthropic/claude-haiku",
+        emitSpans: true,
+        endpoint,
+        authorization: () => authorization,
+        traceparent: `00-${traceIdDigit.repeat(32)}-${"8".repeat(16)}-01`,
+      });
+
+    const original = makeRun("1");
+    original.start({ prompt: "original" });
+    original.finish();
+    await original.flush();
+
+    authorization = "Secret replacement";
+    throwNextExporterConstruction = true;
+    const failedReplacement = makeRun("2");
+    failedReplacement.start({ prompt: "replacement" });
+    failedReplacement.finish();
+    await expect(failedReplacement.flush()).resolves.toBeUndefined();
+
+    authorization = "Secret original";
+    const reusedOriginal = makeRun("3");
+    reusedOriginal.start({ prompt: "original again" });
+    reusedOriginal.finish();
+    await reusedOriginal.flush();
+
+    expect(fakeShutdowns).not.toContain("Secret original");
+    expect(
+      errorSpy.mock.calls.some((args) =>
+        args.join(" ").includes("exporter construction failed"),
+      ),
+    ).toBe(true);
+    expect(
+      fakeExports
+        .filter((item) => item.url === endpoint)
+        .map((item) => item.authorization),
+    ).toEqual(["Secret original", "Secret original"]);
+  });
+
+  it("keeps flush best-effort when the authorization provider throws", async () => {
+    const endpoint = "http://collector-provider-error.example/v1/traces";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => {
+        throw new Error("credential refresh failed");
+      },
+      traceparent: `00-${"9".repeat(32)}-${"7".repeat(16)}-01`,
+    });
+
+    run.start({ prompt: "provider failure" });
+    run.finish();
+
+    await expect(run.flush()).resolves.toBeUndefined();
+    expect(fakeExports.filter((item) => item.url === endpoint)).toHaveLength(0);
+    expect(
+      errorSpy.mock.calls.some((args) =>
+        args.join(" ").includes("credential refresh failed"),
+      ),
+    ).toBe(true);
   });
 });

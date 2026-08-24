@@ -14,6 +14,9 @@
  */
 import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 
+import {agentMountQueryFamily} from "@agenta/entities/drive"
+import {cleanPath} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR} from "@agenta/entities/drive"
 import {
     mountFileContentQueryFamily,
     mountPathMatchesToolPath,
@@ -22,21 +25,21 @@ import {
     sessionRecordFileRecencyAtomFamily,
     type Mount,
 } from "@agenta/entities/session"
+import {DriveFileInlineRef} from "@agenta/entity-ui/drive"
+import {useDriveArtifactId, useDriveSessionId} from "@agenta/entity-ui/drive"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {agentMountQueryFamily} from "./agentDrive"
-import {DriveFileInlineRef} from "./DriveFileCard"
-import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
-import {cleanPath} from "./driveTree"
-import {AGENT_FILES_DIR} from "./useSessionDrive"
 
 /** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
  * decimals (`3.14`), abbreviations (`e.g.`), and dotted identifiers (`user.name`) — each firing a
  * guaranteed-404 on-demand read once scrolled into view; the shape test drops those. */
-const fileCandidate = (text: string): string | null => {
-    const t = text.trim().replace(/^\.?\/+/, "")
+export const fileCandidate = (text: string): string | null => {
+    const trimmed = text.trim()
+    // Keep the leading slash on an absolute sandbox path. The Quick Look host uses the complete
+    // tool-path tail to match the mount-relative file, while removing it turns `/tmp/...` into an
+    // unrelated drive-relative path and loses the information needed for that match (#5983).
+    const t = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed
     return t && /\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(t) ? t : null
 }
 
@@ -59,7 +62,8 @@ const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 )
 
 /** True when the record log proves this mention names a written file (tail match). */
-const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
+export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
+    if (!candidate.includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }

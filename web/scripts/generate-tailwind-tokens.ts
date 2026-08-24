@@ -9,7 +9,10 @@
  *
  * SAFETY: writes to $GEN_OUT (default: a scratch dir), never the live
  * theme-variables.css, so it can't collide with in-flight edits. Pass
- * GEN_OUT=oss/src/styles to actually regenerate (Phase 3, when the tree is quiet).
+ * GEN_OUT=packages/agenta-ui/src/styles to actually regenerate (Phase 3, when the tree is
+ * quiet). theme-variables.css moved there so BOTH apps import one generated token layer —
+ * shared components reference `--ag-*` literally, and mobile silently had 98 of them undefined
+ * while it lived under oss/.
  *
  * Run: pnpm --filter web exec tsx scripts/generate-tailwind-tokens.ts   (from web/)
  */
@@ -24,7 +27,9 @@ import {palette, type ColorValue, type Pair} from "../oss/src/styles/theme/palet
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/scripts
 const WEB = pathResolve(HERE, "..") // web
 const OSS = pathResolve(WEB, "oss")
-const CURRENT_CSS = pathResolve(OSS, "src/styles/theme-variables.css")
+// The live token layer lives in @agenta/ui (see the header note) — both apps import it.
+// Left pointing at oss/ it would regenerate a file nothing reads.
+const CURRENT_CSS = pathResolve(WEB, "packages/agenta-ui/src/styles/theme-variables.css")
 const OUT = process.env.GEN_OUT
     ? pathResolve(WEB, process.env.GEN_OUT)
     : pathResolve(process.env.SCRATCH || "/tmp", "theme-gen")
@@ -147,6 +152,9 @@ const CORE: Row[] = [
     ["colorPrimary", palette.accent.primary],
     ["colorPrimaryHover", palette.accent.primaryHover],
     ["colorPrimaryText", palette.accent.primaryText],
+    // Links on an ink overlay. `colorLink` is an antd seed token and stays out of this list; this
+    // one is ours, because a tooltip is dark in both themes and needs a step that ignores the mode.
+    ["colorLinkOnInk", palette.accent.linkOnInk],
     ["colorSuccess", palette.semantic.success],
     ["colorWarning", palette.semantic.warning],
     ["colorWarningText", palette.semantic.warningText],

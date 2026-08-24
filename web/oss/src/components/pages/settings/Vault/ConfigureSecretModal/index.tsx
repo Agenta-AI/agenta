@@ -4,7 +4,6 @@ import {
     useVaultSecret,
     CustomSecretFormat,
     type CustomSecretFormat as CustomSecretFormatType,
-    type CustomSecretContent,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {message} from "@agenta/ui/app-message"
@@ -16,9 +15,9 @@ import {Button, Input, Segmented, Select, Typography} from "antd"
 
 import {slugifyBase} from "@/oss/lib/utils/slugify"
 
+import {buildSecretContent, parseFlatJson} from "./assets/content"
 import {
     coerceToType,
-    isFlatPrimitiveObject,
     objectToRows,
     primitiveTypeOf,
     PRIMITIVE_TYPES,
@@ -49,14 +48,20 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
     const [jsonView, setJsonView] = useState<JsonView>("grid")
     const [jsonText, setJsonText] = useState("{}")
     const [jsonError, setJsonError] = useState<string | null>(null)
+    const [replacementSupplied, setReplacementSupplied] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const isEditing = !!selectedSecret?.id
+    // A write-only record returns no content. The form is then replace-only: nothing is prefilled,
+    // and leaving it untouched keeps whatever is stored.
+    const valueHidden = isEditing && selectedSecret?.writeOnly === true
 
     useEffect(() => {
         if (!open) return
         setJsonView("grid")
         setJsonError(null)
+        setJsonText("{}")
+        setReplacementSupplied(false)
         setSlugTouched(false)
         if (selectedSecret) {
             setName(selectedSecret.name ?? "")
@@ -64,7 +69,11 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
             setFormat(selectedSecret.format)
             if (selectedSecret.format === CustomSecretFormat.Json) {
                 setTextValue("")
-                setKvRows(objectToRows(selectedSecret.content))
+                setKvRows(
+                    selectedSecret.content == null
+                        ? [{key: "", value: ""}]
+                        : objectToRows(selectedSecret.content),
+                )
             } else {
                 setTextValue(
                     typeof selectedSecret.content === "string" ? selectedSecret.content : "",
@@ -100,9 +109,11 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
         setKvRows([{key: "", value: ""}])
         setJsonView("grid")
         setJsonError(null)
+        setReplacementSupplied(false)
     }
 
     const updateRow = (idx: number, patch: Partial<KvRow>) => {
+        setReplacementSupplied(true)
         setKvRows((rows) => rows.map((r, i) => (i === idx ? {...r, ...patch} : r)))
     }
 
@@ -115,41 +126,14 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
 
     // JSON -> Grid: parse, enforce flat-primitive shape, then hydrate the rows.
     const onSwitchToGrid = () => {
-        const ok = syncJsonToRows()
-        if (ok) setJsonView("grid")
-    }
-
-    const syncJsonToRows = (): boolean => {
-        let parsed: unknown
-        try {
-            parsed = JSON.parse(jsonText || "{}")
-        } catch {
-            setJsonError("Invalid JSON.")
-            return false
+        const parsed = parseFlatJson(jsonText)
+        if ("error" in parsed) {
+            setJsonError(parsed.error)
+            return
         }
-        if (!isFlatPrimitiveObject(parsed)) {
-            setJsonError("Must be a flat object of primitives — no nesting or arrays.")
-            return false
-        }
-        setKvRows(objectToRows(parsed))
+        setKvRows(objectToRows(parsed.value))
         setJsonError(null)
-        return true
-    }
-
-    const buildContent = (): CustomSecretContent | null => {
-        if (format === CustomSecretFormat.Text) {
-            return textValue
-        }
-        if (jsonView === "json" && !syncJsonToRows()) {
-            return null
-        }
-        const named = kvRows.filter((r) => r.key.trim())
-        const keys = named.map((r) => r.key.trim())
-        if (new Set(keys).size !== keys.length) {
-            message.error("Duplicate keys are not allowed.")
-            return null
-        }
-        return rowsToObject(named)
+        setJsonView("grid")
     }
 
     const onSubmit = async () => {
@@ -157,8 +141,21 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
             message.error("Name is required.")
             return
         }
-        const content = buildContent()
-        if (content === null) return
+        const result = buildSecretContent({
+            format,
+            originalFormat: selectedSecret?.format ?? CustomSecretFormat.Text,
+            valueHidden,
+            replacementSupplied,
+            textValue,
+            jsonView,
+            jsonText,
+            kvRows,
+        })
+        if ("error" in result) {
+            if (format === CustomSecretFormat.Json) setJsonError(result.error)
+            message.error(result.error)
+            return
+        }
 
         try {
             setSaving(true)
@@ -167,7 +164,7 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                 // Slug is immutable: only send it on create.
                 slug: isEditing ? undefined : slug.trim() || undefined,
                 format,
-                content,
+                content: result.content,
                 id: selectedSecret?.id,
             })
             mutate()
@@ -269,7 +266,10 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                         <div className="flex items-baseline gap-2">
-                            <Typography.Text className="font-medium">Content</Typography.Text>
+                            <Typography.Text className="font-medium">
+                                {/* TODO(copy: owner) */}
+                                {valueHidden ? "Replace content" : "Content"}
+                            </Typography.Text>
                             {format === CustomSecretFormat.Json &&
                                 jsonView === "grid" &&
                                 hasDuplicateKeys && (
@@ -293,12 +293,24 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                         )}
                     </div>
 
+                    {valueHidden ? (
+                        <Typography.Text type="secondary" className="text-xs">
+                            {/* TODO(copy: owner) */}
+                            {selectedSecret?.keyPreview
+                                ? `Value configured (${selectedSecret.keyPreview}). Leave blank to keep it.`
+                                : "Value configured. Leave blank to keep it."}
+                        </Typography.Text>
+                    ) : null}
+
                     {format === CustomSecretFormat.Text ? (
                         <Input.TextArea
                             rows={4}
                             className="font-mono"
                             value={textValue}
-                            onChange={(e) => setTextValue(e.target.value)}
+                            onChange={(e) => {
+                                setReplacementSupplied(true)
+                                setTextValue(e.target.value)
+                            }}
                         />
                     ) : jsonView === "json" ? (
                         <div className="flex flex-col gap-1">
@@ -306,6 +318,7 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                                 initialValue={jsonText}
                                 value={jsonText}
                                 handleChange={(v) => {
+                                    if (v !== jsonText) setReplacementSupplied(true)
                                     setJsonText(v)
                                     setJsonError(null)
                                 }}
@@ -397,9 +410,10 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                                             icon={<Trash />}
                                             size="small"
                                             disabled={kvRows.length === 1}
-                                            onClick={() =>
+                                            onClick={() => {
+                                                setReplacementSupplied(true)
                                                 setKvRows(kvRows.filter((_, i) => i !== idx))
-                                            }
+                                            }}
                                         />
                                     </div>
                                 )
@@ -408,7 +422,10 @@ const ConfigureSecretModal = ({open, selectedSecret, onCancel}: ConfigureSecretM
                                 type="dashed"
                                 size="small"
                                 icon={<Plus size={14} />}
-                                onClick={() => setKvRows([...kvRows, {key: "", value: ""}])}
+                                onClick={() => {
+                                    setReplacementSupplied(true)
+                                    setKvRows([...kvRows, {key: "", value: ""}])
+                                }}
                             >
                                 Add field
                             </Button>

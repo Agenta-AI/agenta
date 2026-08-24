@@ -13,7 +13,7 @@ export {
 } from "./validators"
 
 // Platform detection (modifier-key naming)
-export {isMacPlatform, modifierKeyLabel} from "./platform"
+export {isMacPlatform, modifierKeyLabel, altKeyPrefix} from "./platform"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -64,7 +64,7 @@ export {
 export type {TemplateVariableValidation} from "./templateVariable"
 
 // Type narrowing utilities
-export {asRecord, safeStringify} from "./typeNarrowing"
+export {asRecord, getStringOrJson, safeStringify} from "./typeNarrowing"
 
 // Chat message utilities
 export {
@@ -145,6 +145,7 @@ export type {Formatter, FormatterOptions} from "./formatters/index"
 
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
+export {splitCuratedLabel, type CuratedLabel} from "./curatedLabel"
 
 // Schema options utilities
 export {getOptionsFromSchema} from "./schemaOptions"
@@ -158,6 +159,8 @@ export {generateId} from "./generateId"
 
 // Data URI / Base64 / URL detection utilities
 export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
+export {sanitizeDataWithBlobUrls, type FileAttachment} from "./attachments"
+export {downloadCsv, downloadText} from "./download"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {
@@ -277,3 +280,11 @@ export type {
     ParseResult,
     SourceSpan,
 } from "./mustache"
+
+export {
+    DEFAULT_PAGE_TITLE,
+    SESSION_TITLE_MAX_LENGTH,
+    formatPageTitle,
+    normalizeTitlePart,
+    truncateTitlePart,
+} from "./pageTitle"

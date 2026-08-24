@@ -59,6 +59,8 @@ export {
     type SessionInteractionStatusCode,
     type SessionStream,
     type SessionsQueryResponse,
+    type SessionReference,
+    type SessionReferenceKey,
     type SessionOrigin,
     type SessionTriggerKind,
     type SessionExpansion,
@@ -91,7 +93,7 @@ export {
     type SessionListCursor,
     type SessionListFilters,
 } from "./state/listOptions"
-export {invalidateSessionListQueries} from "./state/invalidate"
+export {invalidateSessionListQueries, invalidateSessionLivenessQueries} from "./state/invalidate"
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"
@@ -105,6 +107,7 @@ export {
 } from "./state/records"
 export {
     fetchSessionInteractionStatesAtom,
+    hasWaitingInteraction,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
@@ -138,3 +141,9 @@ export {
     type SessionFileActivityEntry,
     type FileActivityEffect,
 } from "./state/fileActivity"
+export {
+    clearSessionFresh,
+    freshSessionIds,
+    isSessionFresh,
+    markSessionFresh,
+} from "./core/freshSessions"

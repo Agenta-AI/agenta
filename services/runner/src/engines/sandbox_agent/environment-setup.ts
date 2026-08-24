@@ -26,12 +26,15 @@ import {
   configurePiSkillSnapshot,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
-  writeOtlpAuthFile,
 } from "./pi-assets.ts";
 import {
   buildPiModelConfigPlan,
-  type PiModelConfigPlan,
+  buildPiModelRegistrationPlan,
+  describePiModelsJsonPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
@@ -174,7 +177,7 @@ export async function prepareEnvironmentSetup(
   // provider cannot leak.
   // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
   // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
-  // RuntimeLifecycle BUILDS the daemon world: both env maps plus the 0600 OTLP bearer file.
+  // RuntimeLifecycle BUILDS the daemon world: both environment maps and runner-owned paths.
   // That was never planning, which is why it moved out of this file (lifecycle migration,
   // step 5). See `environment/runtime-lifecycle.ts` for the ordering rule inside it.
   const runtimeEnvironment = buildRuntimeEnvironment({
@@ -182,16 +185,17 @@ export async function prepareEnvironmentSetup(
     request,
     piSkillSnapshot,
     log: logger,
-    deps: { ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}) },
+    deps: {
+      ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}),
+    },
   });
   const env = runtimeEnvironment.env;
   const piExtEnv = runtimeEnvironment.piExtEnv;
   const piSessionDir = runtimeEnvironment.piSessionDir;
-  const otlpAuthFilePath = runtimeEnvironment.otlpAuthFilePath;
   const strictModel = modelResolutionStrict();
   logger(
     `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
-      `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
+      `piPublicTools=${piExtEnv[PUBLIC_SPECS_FILE_ENV] ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
     const clientTools = plan.tools.toolSpecs
@@ -210,7 +214,7 @@ export async function prepareEnvironmentSetup(
   // but incomplete request throws — captured here and re-thrown inside the try below so the
   // engine's own catch turns it into `{ ok: false, error }` and a visible error frame (fail loud,
   // never a silent fall-back to a default provider). Only the env var NAME enters the plan.
-  let piModelConfig: PiModelConfigPlan | undefined;
+  let piModelConfig: PiModelsJsonPlan | undefined;
   let piModelConfigError: Error | undefined;
   if (plan.isPi) {
     try {
@@ -232,11 +236,28 @@ export async function prepareEnvironmentSetup(
       piModelConfigError = err as Error;
     }
   }
+  // No custom provider to register, but the requested model may still be one Pi's static registry
+  // does not carry — a hand-entered id such as an OpenRouter routing variant. Pi refuses to select
+  // an unregistered model, so merge it into its built-in provider for this run only.
+  //
+  // Skipped for a local subscription run: its Pi agent dir is the operator's own mounted login,
+  // which `prepareLocalPiAssets` uses in place and must not be rewritten per run. A Daytona run
+  // has no such mount (its agent dir lives in the sandbox), so registration applies there.
+  const canWritePiModelsJson =
+    plan.isDaytona || plan.credentials.credentialMode !== "runtime_provided";
+  if (
+    plan.isPi &&
+    !piModelConfig &&
+    !piModelConfigError &&
+    canWritePiModelsJson
+  ) {
+    const registry = await loadPiBuiltinRegistry(logger);
+    if (registry) {
+      piModelConfig = buildPiModelRegistrationPlan(request, registry);
+    }
+  }
   if (piModelConfig) {
-    logger(
-      `pi model-config plan provider=${piModelConfig.providerId} api=${piModelConfig.api} ` +
-        `model=${piModelConfig.models.map((m) => m.id).join(",")}`,
-    );
+    logger(`pi models.json plan ${describePiModelsJsonPlan(piModelConfig)}`);
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.
@@ -280,6 +301,12 @@ export async function prepareEnvironmentSetup(
     !plan.isDaytona &&
     piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
     !localPiAssets.extensionInstalled;
+  // Fail closed: a subscription run whose operator-mounted Pi agent dir failed the write probe
+  // cannot start — Pi dies at startup on the unwritable dir with zero output, which the user sees
+  // as a session that silently hangs. Recorded here (the probe ran above) and thrown inside the
+  // engine try, like the three gates above, so it becomes a visible error frame.
+  const localPiAgentDirUnwritable =
+    plan.isPi && !plan.isDaytona && !localPiAssets.agentDirWritable;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -357,7 +384,6 @@ export async function prepareEnvironmentSetup(
     executableToolGateRef,
     mcpAbort,
     runAgentDir,
-    otlpAuthFilePath,
     codexSqliteHome,
     mountCreds,
     agentMountCreds,
@@ -409,6 +435,7 @@ export async function prepareEnvironmentSetup(
     logger,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

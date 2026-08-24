@@ -6,7 +6,8 @@ from pydantic import BaseModel
 
 from agenta.sdk.agents.dtos import HarnessKind
 
-from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId, Reference
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId
 
 
 class SessionTurn(Identifier, Lifecycle):
@@ -18,7 +19,7 @@ class SessionTurn(Identifier, Lifecycle):
     harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     trace_id: Optional[UUID] = None
     span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None
@@ -33,7 +34,7 @@ class SessionTurnCreate(BaseModel):
     harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     trace_id: Optional[UUID] = None
     span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None
@@ -51,4 +52,4 @@ class SessionTurnQuery(BaseModel):
     session_id: Optional[str] = None
     stream_id: Optional[UUID] = None
     harness_kind: Optional[HarnessKind] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None

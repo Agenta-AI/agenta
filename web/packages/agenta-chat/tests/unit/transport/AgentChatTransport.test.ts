@@ -127,4 +127,56 @@ describe("AgentChatTransport", () => {
             {toolCallId: "call-1", output: "hi"},
         ])
     })
+
+    // Smoothing re-emits a coarse backend delta as word-sized pieces. Past the per-chunk time
+    // budget the per-piece delay falls below a millisecond, which used to disable yielding
+    // altogether and flush the whole thing from one `pull()`. Pieces now carry across pulls, so
+    // what must be proved is that the text still reassembles EXACTLY and in order.
+    it("re-emits an oversized delta piece by piece without losing or reordering any of it", async () => {
+        const words = Array.from({length: 4000}, (_, i) => `w${i}`)
+        const text = words.join(" ")
+        const sseBody =
+            [
+                {type: "start", messageId: "assist-1"},
+                {type: "start-step"},
+                {type: "text-start", id: "t1"},
+                {type: "text-delta", id: "t1", delta: text},
+                {type: "text-end", id: "t1"},
+                {type: "finish-step"},
+                {type: "finish"},
+            ]
+                .map((c) => `data: ${JSON.stringify(c)}\n\n`)
+                .join("") + "data: [DONE]\n\n"
+
+        const baseFetch = vi.fn(
+            async () =>
+                new Response(sseBody, {
+                    status: 200,
+                    headers: {"content-type": "text/event-stream"},
+                }),
+        )
+        const transport = new AgentChatTransport({
+            api: "/api/agent/invoke",
+            headers: {Accept: "text/event-stream"},
+            fetch: baseFetch as unknown as typeof fetch,
+        })
+        const chunks = await readAll(
+            await transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("write a lot")],
+            }),
+        )
+
+        const deltas = chunks.filter((c) => c.type === "text-delta") as {delta: string}[]
+        // Genuinely split up, not passed through whole…
+        expect(deltas.length).toBeGreaterThan(1000)
+        // …and byte-identical once reassembled, in order.
+        expect(deltas.map((c) => c.delta).join("")).toBe(text)
+        // The surrounding chunks keep their positions around it.
+        expect(chunks[0]).toMatchObject({type: "start"})
+        expect(chunks[chunks.length - 1]).toMatchObject({type: "finish"})
+        expect(chunks.filter((c) => c.type === "text-end")).toHaveLength(1)
+    })
 })

@@ -56,8 +56,10 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <span>{policyTitle}</span>
-                    <span className="text-colorTextDescription">{policyDescription}</span>
+                    <span className="font-medium text-xs">{policyTitle}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
+                        {policyDescription}
+                    </span>
                 </div>
                 <ConfigSelect
                     size="sm"
@@ -73,8 +75,8 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
             </div>
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                    <span>{fallbackConfigsTitle}</span>
-                    <span className="leading-snug text-colorTextDescription">
+                    <span className="font-medium text-xs">{fallbackConfigsTitle}</span>
+                    <span className="text-xs leading-snug text-colorTextDescription">
                         {fallbackConfigsDescription}{" "}
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"

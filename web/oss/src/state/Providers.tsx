@@ -1,13 +1,21 @@
-import {PropsWithChildren} from "react"
+import {PropsWithChildren, useRef} from "react"
 
+import {
+    bindTraceDrawerClearParams,
+    bindTraceDrawerNavigate,
+    bindTraceDrawerSetQueryParam,
+} from "@agenta/observability/traceDrawer"
 import {useQueryClient} from "@tanstack/react-query"
-import {Provider, getDefaultStore} from "jotai"
+import {Provider, getDefaultStore, useSetAtom} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
+import {registerTraceDrawerReferenceSlots} from "../components/SharedDrawers/TraceDrawer/registerReferenceSlots"
 import AgSWRConfig from "../lib/api/SWRConfig"
 
+import {bindObservabilityHostAtoms} from "./observability"
 import UserListener from "./profile/UserListener"
 import {SessionListener} from "./session"
 
@@ -19,6 +27,55 @@ const DeferredAppBoot = dynamic(() => import("./boot/DeferredAppBoot"), {ssr: fa
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     const queryClient = useQueryClient()
     useHydrateAtoms([[queryClientAtom, queryClient]])
+    // Point @agenta/observability's seams at the OSS atoms during the first
+    // render — before any consumer's query atom evaluates. An effect would be
+    // too late and fire one disabled query first.
+    const bindObservability = useSetAtom(bindObservabilityHostAtoms)
+    const router = useRouter()
+    const observabilityBound = useRef(false)
+    if (!observabilityBound.current) {
+        observabilityBound.current = true
+        bindObservability()
+        registerTraceDrawerReferenceSlots()
+    }
+    // The drawer's out-links push through the app's router; rebound each render so the
+    // binding never closes over a stale router instance.
+    bindTraceDrawerNavigate((href) => {
+        void router.push(href)
+    })
+    // Shallow query writes: the drawer syncs ?trace/?span without re-running data fetching.
+    //
+    // Read the LIVE url, never `router.query`. These callbacks are rebound every render, but each
+    // one still closes over that render's query SNAPSHOT — so a seam invoked shortly after another
+    // navigation rebuilt the whole query from a pre-navigation copy and silently dropped the keys
+    // that had just landed. That is what made a trace click flash the drawer and lose `?trace=`:
+    // the click wrote both params, then the drawer's own seam pushed a query that predated them.
+    // Mutating the current `location.search` has no snapshot to go stale.
+    const pushCurrentUrl = (mutate: (params: URLSearchParams) => void) => {
+        if (typeof window === "undefined") return
+        const url = new URL(window.location.href)
+        const before = `${url.pathname}${url.search}${url.hash}`
+        mutate(url.searchParams)
+        const after = `${url.pathname}${url.search}${url.hash}`
+        // A no-op write must not navigate. These seams are called on render, so pushing an
+        // IDENTICAL url fires a route change, which re-renders, which calls the seam again —
+        // an infinite loop that pegs the tab. (Reading `router.query` instead used to hide this
+        // by being stale enough that the pushes differed; that was the previous bug.)
+        if (after === before) return
+        void router.push(after, undefined, {shallow: true})
+    }
+    bindTraceDrawerSetQueryParam((name, value) => {
+        pushCurrentUrl((params) => {
+            if (value === null || value === undefined) params.delete(name)
+            else params.set(name, String(value))
+        })
+    })
+    bindTraceDrawerClearParams(() => {
+        pushCurrentUrl((params) => {
+            params.delete("trace")
+            params.delete("span")
+        })
+    })
     return children
 }
 

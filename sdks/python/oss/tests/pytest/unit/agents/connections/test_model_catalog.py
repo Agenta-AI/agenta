@@ -14,8 +14,10 @@ from pydantic import ValidationError
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
+from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.model_catalog import (
     ModelCatalogEntry,
     ModelRatings,
@@ -84,7 +86,8 @@ def test_pi_ids_are_unique_and_provider_prefixed():
     for entry in entries:
         # id is the provider/model join key; its prefix is the entry's provider.
         assert entry.id.startswith(f"{entry.provider}/"), entry.id
-        assert entry.source == "pi_generated"
+        # Generated facts, or a hand-written addition for a model the pinned pi-ai predates.
+        assert entry.source in ("pi_generated", "curated"), entry.id
 
 
 def test_pi_overlay_merges_without_overwriting_facts():
@@ -111,6 +114,70 @@ def test_uncurated_pi_entry_is_valid_with_absent_curated_fields():
     assert uncurated, "expected some uncurated Pi entries"
     sample = uncurated[0]
     assert sample.name is not None  # frontend falls back to name
+
+
+def test_gemini_3_6_flash_is_published_with_its_display_name():
+    # The model postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
+    # `additions` list. Without an entry the picker can only show the bare id, which is the bug
+    # this pins: the Model row must read "Gemini 3.6 Flash".
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "gemini/gemini-3.6-flash"), None
+    )
+    assert entry is not None, "gemini/gemini-3.6-flash missing from the pi catalog"
+    assert entry["name"] == "Gemini 3.6 Flash"
+    assert entry["provider"] == "gemini"
+    assert entry["source"] == "curated"
+    assert entry["context_window"] == 1048576
+
+
+def test_gemini_3_6_flash_is_offered_as_a_default_model():
+    # A curated default is dropped when the harness cannot select it, so the catalog entry and the
+    # PROVIDER_DEFAULT_MODELS line only work together.
+    assert "gemini/gemini-3.6-flash" in PROVIDER_DEFAULT_MODELS["gemini"]
+    defaults = harness_catalog_document()["pi_core"]["capabilities"]["default_models"]
+    assert "gemini/gemini-3.6-flash" in defaults["gemini"]
+
+
+def test_a_curated_addition_never_shadows_a_generated_entry(monkeypatch):
+    # The addition is a stopgap until a regeneration carries the model. When both files name the
+    # same id the generated facts win, so an addition left behind cannot mask fresher facts.
+    generated = {
+        "models": [
+            {
+                "id": "gemini/overlapping",
+                "provider": "gemini",
+                "source": "pi_generated",
+                "name": "From pi-ai",
+            }
+        ]
+    }
+    curated = {
+        "overlay": {},
+        "additions": [
+            {
+                "id": "gemini/overlapping",
+                "provider": "gemini",
+                "source": "curated",
+                "name": "Hand written",
+            },
+            {
+                "id": "gemini/only-curated",
+                "provider": "gemini",
+                "source": "curated",
+                "name": "Only curated",
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        model_catalog_module,
+        "_read_json",
+        lambda name: generated if "generated" in name else curated,
+    )
+
+    names = {entry.id: entry.name for entry in load_pi_model_catalog().models}
+    assert names["gemini/overlapping"] == "From pi-ai"
+    assert names["gemini/only-curated"] == "Only curated"
 
 
 def test_claude_catalog_covers_exactly_the_accepted_alias_set():
@@ -244,3 +311,56 @@ def test_pricing_and_ratings_never_collide_in_type():
             assert isinstance(entry.pricing.input_per_mtok, float)
         if entry.ratings is not None and entry.ratings.cost is not None:
             assert isinstance(entry.ratings.cost, int)
+
+
+def test_default_models_are_published_per_harness_in_its_own_spelling():
+    catalog = harness_catalog_document()
+
+    pi_defaults = catalog["pi_core"]["capabilities"]["default_models"]
+    assert set(pi_defaults) == set(PROVIDER_DEFAULT_MODELS)
+    # Pi spells the openai family bare and every other family provider-prefixed; the defaults
+    # follow the accepted set rather than the curated list's canonical spelling.
+    assert pi_defaults["openai"] == ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    assert pi_defaults["anthropic"] == [
+        "anthropic/claude-fable-5",
+        "anthropic/claude-opus-5",
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-4-5",
+    ]
+    assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+
+    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned opus, sonnet
+    # and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives as the
+    # bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
+    assert catalog["claude"]["capabilities"]["default_models"] == {
+        "anthropic": ["claude-fable-5", "opus[1m]", "sonnet", "haiku"]
+    }
+    # Codex reaches openai only, and names its models bare.
+    assert catalog["codex"]["capabilities"]["default_models"] == {
+        "openai": ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    }
+
+
+def test_default_models_are_a_subset_of_what_the_harness_can_select():
+    for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items():
+        for provider, defaults in caps.default_models.items():
+            # Scoped to the provider: an id under another provider's catalog is not something
+            # this provider's connection can select.
+            catalog_ids = {
+                str(entry["id"])
+                for entry in caps.model_catalog
+                if entry.get("provider") == provider
+            }
+            assert provider in caps.providers, harness
+            selectable = set(caps.models.get(provider) or []) | catalog_ids
+            assert set(defaults) <= selectable, (harness, provider)
+
+
+def test_curated_default_models_exist_in_the_pinned_pi_catalog():
+    catalog_ids = {entry.id for entry in pi_model_catalog().models}
+    for provider, models in PROVIDER_DEFAULT_MODELS.items():
+        for model_id in models:
+            assert model_id in catalog_ids, (provider, model_id)
+    # Opus 5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
+    # `additions` list rather than the generated file. The loop above is what proves it arrived.
+    assert "anthropic/claude-opus-5" in catalog_ids

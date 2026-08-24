@@ -1,4 +1,4 @@
-import {LLMIconMap} from "../LLMIcons"
+import {Anthropic, LLMIconMap, OpenAi, Pi} from "../LLMIcons"
 
 /**
  * Capitalize the first letter of each word in a string.
@@ -15,6 +15,9 @@ export function capitalize(str: string): string {
  * Map normalized (lowercase, `_`-separated) provider keys to LLMIcons display labels.
  */
 export const PROVIDER_ICON_MAP: Record<string, string> = {
+    // Not a vendor: the mark a connection Agenta provisioned carries, since no vendor mark is
+    // honest for one.
+    agenta: "Agenta",
     anthropic: "Anthropic",
     openai: "OpenAI",
     // OpenAI's ChatGPT/Codex subscription provider — reuses the OpenAI mark (no distinct icon
@@ -65,6 +68,21 @@ export const getProviderIcon = (key: string): React.FC<{className?: string}> | n
     if (LLMIconMap[key]) return LLMIconMap[key]
     return null
 }
+
+/**
+ * Harness marks. A harness is a runtime, not a provider, so it is keyed separately even where the
+ * mark is shared: Codex is OpenAI's, Claude Code is Anthropic's, Pi has an interim mark of its own.
+ */
+const HARNESS_ICON_MAP: Record<string, React.FC<{className?: string}>> = {
+    pi_core: Pi,
+    pi_agenta: Pi,
+    codex: OpenAi,
+    claude: Anthropic,
+}
+
+/** The mark for a harness id, or null for one Agenta has no logo for. */
+export const getHarnessIcon = (harness: string): React.FC<{className?: string}> | null =>
+    HARNESS_ICON_MAP[normalizeProviderKey(harness)] ?? null
 
 /**
  * Display-name overrides for providers whose name must diverge from PROVIDER_ICON_MAP's

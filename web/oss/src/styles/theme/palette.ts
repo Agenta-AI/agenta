@@ -115,6 +115,9 @@ export const accent = {
     link: {light: OLIVE, dark: "#8ccfff"}, // [override] [absorbs] the 6× #58a6ff literal
     linkHover: {light: INK, dark: "#b0deff"}, // [override]
     linkActive: {light: INK_DEEP, dark: "#54b5fa"}, // [override]
+    // A link drawn ON an ink surface (the tooltip overlay), which is dark in BOTH themes — so it
+    // takes the dark link step in both. `link` itself is olive in light and unreadable there.
+    linkOnInk: {light: "#8ccfff", dark: "#8ccfff"},
 } satisfies Record<string, Pair>
 
 /**
@@ -183,6 +186,13 @@ export const shadow = {
     drawerBottom: {
         light: antd("boxShadowDrawerBottom"),
         dark: "0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28)",
+    },
+    // antd Switch `handleShadow`. antd itself has no dark variant, but its light value is a
+    // near-black green tint that all but vanishes on a dark track — dark gets the same drop at
+    // the opacity the other dark shadows use.
+    switchHandle: {
+        light: "0 2px 4px 0 rgba(0, 35, 11, 0.2)",
+        dark: "0 2px 4px 0 rgba(0, 0, 0, 0.45)",
     },
 } satisfies Record<string, Pair>
 
@@ -645,8 +655,10 @@ export const shell = {
     scrollThumb: {light: "rgba(36, 36, 36, 0.22)", dark: "rgba(255, 255, 255, 0.20)"},
     scrollThumbHover: {light: "rgba(36, 36, 36, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
     // Selected nav row: a WHITE pill with a hairline on the warm rail (a yellow tint
-    // was reviewed and rejected). Dark keeps the shipped olive selection.
-    selectedBg: {light: "#ffffff", dark: "#3e3d1a"},
+    // was reviewed and rejected). Dark keeps the shipped olive selection — #57572a is
+    // what v0.112.1 actually paints (antd derived it; this token only carried the
+    // hairline then, so its old #3e3d1a never shipped).
+    selectedBg: {light: "#ffffff", dark: "#57572a"},
     selectedBorder: {light: HAIRLINE, dark: "transparent"},
     selectedText: {light: INK, dark: "#d1d151"},
 } satisfies Record<string, Pair>
@@ -818,6 +830,7 @@ export const antdLight: Record<string, string> = {
     colorLink: l(accent.link),
     colorLinkHover: l(accent.linkHover),
     colorLinkActive: l(accent.linkActive),
+    colorLinkOnInk: l(accent.linkOnInk),
     // info (deep blue)
     colorInfo: l(semantic.info),
     colorInfoText: l(semantic.info),

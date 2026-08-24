@@ -1,3 +1,4 @@
+import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
   permissionsFromRequest,
@@ -10,7 +11,8 @@ import {
   type EmitEvent,
   type ToolCallbackContext,
 } from "../../protocol.ts";
-import { seedForRun } from "../../redaction.ts";
+import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -21,7 +23,7 @@ import {
 } from "../../responder.ts";
 import {
   buildInteractionData,
-  buildWorkflowReferences,
+  buildWorkflowReferenceList,
   createInteraction,
   resolveInteraction,
 } from "../../sessions/interactions.ts";
@@ -48,6 +50,7 @@ import {
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
+import { createHarnessTracePort } from "./harness-trace-port.ts";
 import {
   attachmentCapabilityGate,
   buildPromptBlocks,
@@ -58,9 +61,13 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
-import { findSwallowedPiError } from "./pi-error.ts";
+import {
+  capturePiTranscriptCursor,
+  findSwallowedPiError,
+  isOnlyHarnessRetryNotices,
+} from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -77,6 +84,7 @@ import {
   type SessionEnvironment,
 } from "./runtime-contracts.ts";
 import {
+  resolveRunOtlpTarget,
   runCredential,
   serverPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
@@ -104,7 +112,18 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
-  const credential = opts.credential ?? (() => runCredential(request));
+  const initialCredential = opts.credential ?? (() => runCredential(request));
+  const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
+  // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
+  // Agenta run owns the same reusable lease here so even a single 12-hour turn exports with a
+  // current credential. External collector headers stay static and never enter this exchange.
+  const platformCredentialLease =
+    !opts.credential && initialOtlpTarget.authorizationSource === "platform"
+      ? startPlatformCredentialLease(apiBase(), runCredential(request))
+      : undefined;
+  const credential =
+    opts.credential ?? platformCredentialLease?.credential ?? initialCredential;
+  const otlpTarget = resolveRunOtlpTarget(request, credential);
   const sessionId = env.sessionId;
   const toolRunContext = env.sessionId
     ? { ...request.runContext, session: { id: env.sessionId } }
@@ -144,6 +163,12 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  const harnessTrace = createHarnessTracePort({
+    env,
+    request: () => request,
+    target: otlpTarget,
+    resume: !!opts.resume,
+  });
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
   // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
@@ -258,25 +283,24 @@ export async function runTurn(
         ? buildTurnText(request, logger)
         : plan.prompt.turnText;
 
+    const runRedactor = seedForRun(request, sandboxVisibleSecretValues(env));
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
       skills: plan.workspace.skillDirs.map((s) => s.name),
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
-      endpoint: request.telemetry?.exporters?.otlp?.endpoint,
-      authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
+      endpoint: otlpTarget.endpoint,
+      // The session keepalive owns this getter and refreshes its value while a long turn runs.
+      // Resolve it only when the trace batch leaves the runner, not when the turn starts.
+      authorization: otlpTarget.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
       // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
       // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan
       // but still transit runner memory) plus the mount's STS pair — none of which lives in the
       // sidecar's process env.
-      redactor: seedForRun(request, [
-        env.mountCreds?.accessKey,
-        env.mountCreds?.secretKey,
-        env.mountCreds?.sessionToken,
-      ]),
-      emitSpans: !plan.isPi || plan.isDaytona,
+      redactor: runRedactor,
+      emitSpans: harnessTrace.runnerEmitsSpans,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
@@ -292,6 +316,8 @@ export async function runTurn(
         { role: "user", content: promptText },
       ],
     });
+    await harnessTrace.start(run, runRedactor);
+    const resultTraceId = harnessTrace.traceId(run);
 
     let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
     if (!opts.resume) {
@@ -367,7 +393,7 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
-      const workflowRefs = buildWorkflowReferences(
+      const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
       // Row existence proves only that a turn started. Native continuation is trustworthy only
@@ -381,8 +407,8 @@ export async function runTurn(
           turnId: request.turnId,
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
-          references: workflowRefs ? Object.values(workflowRefs) : undefined,
-          traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
+          references: workflowRefs,
+          traceId: resultTraceId ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
@@ -927,6 +953,18 @@ export async function runTurn(
       await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
+    // Capture the append-only transcript boundary before this turn can write into it. Recovery
+    // must never attribute an error already present here to the prompt below.
+    const piSessionId = env.session?.agentSessionId;
+    const piTranscriptCursor =
+      plan.isPi && piSessionId
+        ? await (plan.isDaytona
+            ? capturePiTranscriptCursor(plan.workspace.cwd, piSessionId, {
+                sandbox: env.sandbox,
+              })
+            : capturePiTranscriptCursor(plan.workspace.cwd, piSessionId))
+        : undefined;
+
     // The prompt promise this turn races against the pause signal. A normal/continuation turn
     // sends a fresh prompt; a live approval resume answers the parked gate on the SAME session and
     // continues the ORIGINAL, still-pending prompt promise (the tool then runs with its original
@@ -1016,9 +1054,7 @@ export async function runTurn(
         pause.pause();
       }
     } else {
-      promptPromise = Promise.resolve(
-        env.session.prompt(promptBlocks),
-      );
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
     // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
@@ -1130,8 +1166,22 @@ export async function runTurn(
       }
     }
     await turn.toolRelay?.stop();
+    if (stopReason === "cancelled") {
+      // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
+      // before draining; the outer environment teardown would otherwise cancel Pi only after the
+      // spool had already timed out and then sweep the late batch.
+      await harnessTrace.cancelBeforeDrain();
+    }
     logger(`prompt stopReason=${stopReason}`);
 
+    // Pi publishes the usage sidecar immediately before its native trace batch. Draining that
+    // batch first is therefore the cross-filesystem publication barrier for both local and
+    // Daytona runs. Runner-traced harnesses still need usage before trace finalization so the
+    // runner can stamp it on its own span.
+    let traceFinish =
+      plan.isPi && stopReason !== "paused"
+        ? await harnessTrace.finish()
+        : undefined;
     const usage = await resolveRunUsage({
       sandbox: env.sandbox,
       usageOutPath: plan.workspace.usageOutPath,
@@ -1140,26 +1190,50 @@ export async function runTurn(
       streamUsage: run.usage(),
     });
     run.setUsage(usage);
+    if (!plan.isPi && stopReason !== "paused") {
+      traceFinish = await harnessTrace.finish();
+    }
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
+    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
+    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
+    // with chatter alone — which used to skip the recovery below and ship that chatter as the
+    // turn's answer. See `isOnlyHarnessRetryNotices`.
+    const visibleOutput = run.output().trim();
     const swallowedPiError =
       plan.isPi &&
-      !plan.isDaytona &&
-      !run.output().trim() &&
+      stopReason === "end_turn" &&
+      piTranscriptCursor &&
+      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
       !run.events().some((e) => e.type === "tool_call")
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
-          // `configurePiSessionWorkspace` used to point Pi at it.
-          findSwallowedPiError(plan.workspace.cwd)
+          // `configurePiSessionWorkspace` used to point Pi at it. On Daytona the
+          // transcript lives inside the remote sandbox, so it is read through the
+          // sandbox's file API here, before teardown takes the only copy with it.
+          await (plan.isDaytona
+            ? findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor, {
+                sandbox: env.sandbox,
+              })
+            : findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor))
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      swallowedError = conciseError(
+      const classified = classifyRunError(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
       );
+      swallowedError = classified.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent({ type: "error", message: swallowedError });
+      run.emitEvent({
+        type: "error",
+        message: classified.message,
+        code: classified.code,
+      });
+    }
+    if (nativeTraceBatches === 0 && !swallowedError) {
+      await harnessTrace.emitMissingBatchFallback(run);
     }
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
@@ -1223,17 +1297,31 @@ export async function runTurn(
       },
       sessionId,
       model: env.model ?? request.model,
-      traceId: run.traceId(),
+      traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(
+    const classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
-    otel?.recordError(error, request.modelConnection?.provider);
-    otel?.emitEvent({ type: "error", message: error });
+    const error = classified.message;
+    await harnessTrace.cancelBeforeDrain();
+    const traceFinish = await harnessTrace.finish();
+    const nativeTraceBatches = traceFinish?.pickedUpBatches;
+    // A valid native Pi batch already carries the harness failure. Otherwise preserve the
+    // runner-owned error and usage fallback under the caller trace context.
+    if (harnessTrace.runnerEmitsSpans) {
+      otel?.recordError(error, request.modelConnection?.provider);
+    } else if (nativeTraceBatches === 0) {
+      await harnessTrace.emitMissingBatchFallback(otel, error);
+    }
+    otel?.emitEvent({
+      type: "error",
+      message: error,
+      code: classified.code,
+    });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
@@ -1245,6 +1333,7 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

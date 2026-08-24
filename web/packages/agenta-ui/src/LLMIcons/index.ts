@@ -12,6 +12,7 @@
  * ```
  */
 
+import Agenta from "./assets/Agenta"
 import AlephAlpha from "./assets/AlephAlpha"
 import Anthropic from "./assets/Anthropic"
 import AnyScale from "./assets/AnyScale"
@@ -28,6 +29,7 @@ import Mistral from "./assets/Mistral"
 import OpenAi from "./assets/OpenAi"
 import OpenRouter from "./assets/OpenRouter"
 import Perplexity from "./assets/Perplexity"
+import Pi from "./assets/Pi"
 import Replicate from "./assets/Replicate"
 import Sagemaker from "./assets/Sagemaker"
 import Together from "./assets/Together"
@@ -41,6 +43,7 @@ export type {IconProps} from "./assets/types"
  * Use this to look up icons by provider name.
  */
 export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
+    Agenta: Agenta,
     OpenAI: OpenAi,
     Cohere: Cerebus,
     Anyscale: AnyScale,
@@ -66,6 +69,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
 
 // Export individual icons for direct use
 export {
+    Agenta,
     AlephAlpha,
     Anthropic,
     AnyScale,
@@ -82,6 +86,7 @@ export {
     OpenAi,
     OpenRouter,
     Perplexity,
+    Pi,
     Replicate,
     Sagemaker,
     Together,

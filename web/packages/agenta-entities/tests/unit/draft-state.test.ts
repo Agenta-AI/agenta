@@ -11,15 +11,15 @@
  * Tests run in isolation using Jotai's createStore() — no API calls, no React.
  */
 
-import {describe, it, expect, beforeEach} from "vitest"
 import {atom, createStore} from "jotai"
 import type {PrimitiveAtom} from "jotai"
+import {describe, it, expect, beforeEach} from "vitest"
 
 import {createEntityDraftState} from "../../src/shared/molecule/createEntityDraftState"
 
 // ── Fixture type ──────────────────────────────────────────────────────────────
 
-type Note = {
+interface Note {
     id: string
     title: string
     body: string

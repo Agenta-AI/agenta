@@ -5,43 +5,50 @@ import typing
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.header import Header
+from ..types.probe_provider_response import ProbeProviderResponse
+from ..types.provider_credentials import ProviderCredentials
+from ..types.public_secret_response_dto import PublicSecretResponseDto
 from ..types.secret_dto import SecretDto
-from ..types.secret_response_dto import SecretResponseDto
+from ..types.update_secret_payload_dto import UpdateSecretPayloadDto
 from .raw_client import AsyncRawSecretsClient, RawSecretsClient
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
+
+
 class SecretsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._raw_client = RawSecretsClient(client_wrapper=client_wrapper)
-    
+
     @property
     def with_raw_response(self) -> RawSecretsClient:
         """
         Retrieves a raw implementation of this client that returns raw responses.
-        
+
         Returns
         -------
         RawSecretsClient
         """
         return self._raw_client
-    
-    def list_secrets(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[SecretResponseDto]:
+
+    def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        typing.List[SecretResponseDto]
+        typing.List[PublicSecretResponseDto]
             Successful Response
-        
+
         Examples
         --------
         from agenta import AgentaApi
-        
+
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
@@ -49,25 +56,35 @@ class SecretsClient:
         """
         _response = self._raw_client.list_secrets(request_options=request_options)
         return _response.data
-    
-    def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    def create_secret(
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        slug: typing.Optional[str] = OMIT,
+        write_only: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         header : Header
-        
+
         secret : SecretDto
-        
+
         slug : typing.Optional[str]
-        
+
+        write_only : typing.Optional[bool]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         from agenta import (
@@ -77,7 +94,7 @@ class SecretsClient:
             StandardProviderDto,
             StandardProviderSettingsDto,
         )
-        
+
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
@@ -87,34 +104,43 @@ class SecretsClient:
                 kind="provider_key",
                 data=StandardProviderDto(
                     kind="openai",
-                    provider=StandardProviderSettingsDto(
-                        key="key",
-                    ),
+                    provider=StandardProviderSettingsDto(),
                 ),
             ),
         )
         """
-        _response = self._raw_client.create_secret(header=header, secret=secret, slug=slug, request_options=request_options)
+        _response = self._raw_client.create_secret(
+            header=header,
+            secret=secret,
+            slug=slug,
+            write_only=write_only,
+            request_options=request_options,
+        )
         return _response.data
-    
-    def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    def read_secret(
+        self,
+        secret_id_or_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         secret_id_or_slug : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         from agenta import AgentaApi
-        
+
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
@@ -122,31 +148,40 @@ class SecretsClient:
             secret_id_or_slug="secret_id_or_slug",
         )
         """
-        _response = self._raw_client.read_secret(secret_id_or_slug, request_options=request_options)
+        _response = self._raw_client.read_secret(
+            secret_id_or_slug, request_options=request_options
+        )
         return _response.data
-    
-    def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    def update_secret(
+        self,
+        secret_id: str,
+        *,
+        header: typing.Optional[Header] = OMIT,
+        secret: typing.Optional[UpdateSecretPayloadDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         secret_id : str
-        
+
         header : typing.Optional[Header]
-        
-        secret : typing.Optional[SecretDto]
-        
+
+        secret : typing.Optional[UpdateSecretPayloadDto]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         from agenta import AgentaApi
-        
+
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
@@ -154,26 +189,30 @@ class SecretsClient:
             secret_id="secret_id",
         )
         """
-        _response = self._raw_client.update_secret(secret_id, header=header, secret=secret, request_options=request_options)
+        _response = self._raw_client.update_secret(
+            secret_id, header=header, secret=secret, request_options=request_options
+        )
         return _response.data
-    
-    def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+
+    def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Parameters
         ----------
         secret_id : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
         None
-        
+
         Examples
         --------
         from agenta import AgentaApi
-        
+
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
@@ -181,77 +220,137 @@ class SecretsClient:
             secret_id="secret_id",
         )
         """
-        _response = self._raw_client.delete_secret(secret_id, request_options=request_options)
+        _response = self._raw_client.delete_secret(
+            secret_id, request_options=request_options
+        )
         return _response.data
+
+    def probe_provider(
+        self,
+        *,
+        kind: typing.Optional[str] = OMIT,
+        provider: typing.Optional[ProviderCredentials] = OMIT,
+        secret_id: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProbeProviderResponse:
+        """
+        Parameters
+        ----------
+        kind : typing.Optional[str]
+            Provider kind, e.g. 'openai', 'azure', 'custom'. Optional when `secret_id` is given: the stored kind is used unless this overrides it.
+
+        provider : typing.Optional[ProviderCredentials]
+
+        secret_id : typing.Optional[str]
+            Test the credential stored under this secret, in the caller's project. Fields sent in `provider` override the stored ones.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProbeProviderResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.secrets.probe_provider()
+        """
+        _response = self._raw_client.probe_provider(
+            kind=kind,
+            provider=provider,
+            secret_id=secret_id,
+            request_options=request_options,
+        )
+        return _response.data
+
+
 class AsyncSecretsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._raw_client = AsyncRawSecretsClient(client_wrapper=client_wrapper)
-    
+
     @property
     def with_raw_response(self) -> AsyncRawSecretsClient:
         """
         Retrieves a raw implementation of this client that returns raw responses.
-        
+
         Returns
         -------
         AsyncRawSecretsClient
         """
         return self._raw_client
-    
-    async def list_secrets(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[SecretResponseDto]:
+
+    async def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        typing.List[SecretResponseDto]
+        typing.List[PublicSecretResponseDto]
             Successful Response
-        
+
         Examples
         --------
         import asyncio
-        
+
         from agenta import AsyncAgentaApi
-        
+
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
         )
-        
-        
+
+
         async def main() -> None:
             await client.secrets.list_secrets()
-        
-        
+
+
         asyncio.run(main())
         """
         _response = await self._raw_client.list_secrets(request_options=request_options)
         return _response.data
-    
-    async def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    async def create_secret(
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        slug: typing.Optional[str] = OMIT,
+        write_only: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         header : Header
-        
+
         secret : SecretDto
-        
+
         slug : typing.Optional[str]
-        
+
+        write_only : typing.Optional[bool]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         import asyncio
-        
+
         from agenta import (
             AsyncAgentaApi,
             Header,
@@ -259,12 +358,12 @@ class AsyncSecretsClient:
             StandardProviderDto,
             StandardProviderSettingsDto,
         )
-        
+
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
         )
-        
-        
+
+
         async def main() -> None:
             await client.secrets.create_secret(
                 header=Header(),
@@ -272,126 +371,202 @@ class AsyncSecretsClient:
                     kind="provider_key",
                     data=StandardProviderDto(
                         kind="openai",
-                        provider=StandardProviderSettingsDto(
-                            key="key",
-                        ),
+                        provider=StandardProviderSettingsDto(),
                     ),
                 ),
             )
-        
-        
+
+
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_secret(header=header, secret=secret, slug=slug, request_options=request_options)
+        _response = await self._raw_client.create_secret(
+            header=header,
+            secret=secret,
+            slug=slug,
+            write_only=write_only,
+            request_options=request_options,
+        )
         return _response.data
-    
-    async def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    async def read_secret(
+        self,
+        secret_id_or_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         secret_id_or_slug : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         import asyncio
-        
+
         from agenta import AsyncAgentaApi
-        
+
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
         )
-        
-        
+
+
         async def main() -> None:
             await client.secrets.read_secret(
                 secret_id_or_slug="secret_id_or_slug",
             )
-        
-        
+
+
         asyncio.run(main())
         """
-        _response = await self._raw_client.read_secret(secret_id_or_slug, request_options=request_options)
+        _response = await self._raw_client.read_secret(
+            secret_id_or_slug, request_options=request_options
+        )
         return _response.data
-    
-    async def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SecretResponseDto:
+
+    async def update_secret(
+        self,
+        secret_id: str,
+        *,
+        header: typing.Optional[Header] = OMIT,
+        secret: typing.Optional[UpdateSecretPayloadDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> PublicSecretResponseDto:
         """
         Parameters
         ----------
         secret_id : str
-        
+
         header : typing.Optional[Header]
-        
-        secret : typing.Optional[SecretDto]
-        
+
+        secret : typing.Optional[UpdateSecretPayloadDto]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        SecretResponseDto
+        PublicSecretResponseDto
             Successful Response
-        
+
         Examples
         --------
         import asyncio
-        
+
         from agenta import AsyncAgentaApi
-        
+
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
         )
-        
-        
+
+
         async def main() -> None:
             await client.secrets.update_secret(
                 secret_id="secret_id",
             )
-        
-        
+
+
         asyncio.run(main())
         """
-        _response = await self._raw_client.update_secret(secret_id, header=header, secret=secret, request_options=request_options)
+        _response = await self._raw_client.update_secret(
+            secret_id, header=header, secret=secret, request_options=request_options
+        )
         return _response.data
-    
-    async def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+
+    async def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Parameters
         ----------
         secret_id : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
         None
-        
+
         Examples
         --------
         import asyncio
-        
+
         from agenta import AsyncAgentaApi
-        
+
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
         )
-        
-        
+
+
         async def main() -> None:
             await client.secrets.delete_secret(
                 secret_id="secret_id",
             )
-        
-        
+
+
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_secret(secret_id, request_options=request_options)
+        _response = await self._raw_client.delete_secret(
+            secret_id, request_options=request_options
+        )
+        return _response.data
+
+    async def probe_provider(
+        self,
+        *,
+        kind: typing.Optional[str] = OMIT,
+        provider: typing.Optional[ProviderCredentials] = OMIT,
+        secret_id: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProbeProviderResponse:
+        """
+        Parameters
+        ----------
+        kind : typing.Optional[str]
+            Provider kind, e.g. 'openai', 'azure', 'custom'. Optional when `secret_id` is given: the stored kind is used unless this overrides it.
+
+        provider : typing.Optional[ProviderCredentials]
+
+        secret_id : typing.Optional[str]
+            Test the credential stored under this secret, in the caller's project. Fields sent in `provider` override the stored ones.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProbeProviderResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.secrets.probe_provider()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.probe_provider(
+            kind=kind,
+            provider=provider,
+            secret_id=secret_id,
+            request_options=request_options,
+        )
         return _response.data

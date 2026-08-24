@@ -6,10 +6,10 @@ UI components for entity selection built on top of the unified hooks and adapter
 
 The entity selection system provides a **single unified component** with multiple display variants:
 
-| Component | Description |
-|-----------|-------------|
-| `EntityPicker` | Unified component with `variant` prop for different UIs |
-| `EntitySelectorModal` | Modal wrapper with tabs for multiple entity types |
+| Component             | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| `EntityPicker`        | Unified component with `variant` prop for different UIs |
+| `EntitySelectorModal` | Modal wrapper with tabs for multiple entity types       |
 
 ## EntityPicker
 
@@ -17,10 +17,10 @@ The unified picker component that renders differently based on the `variant` pro
 
 ### Variants
 
-| Variant | Description | Use Case |
-|---------|-------------|----------|
-| `cascading` | Cascading `Select` dropdowns | Inline forms, compact space |
-| `breadcrumb` | Breadcrumb navigation with list | Modal/drawer, full selection |
+| Variant        | Description                     | Use Case                      |
+| -------------- | ------------------------------- | ----------------------------- |
+| `cascading`    | Cascading `Select` dropdowns    | Inline forms, compact space   |
+| `breadcrumb`   | Breadcrumb navigation with list | Modal/drawer, full selection  |
 | `list-popover` | Parent list with hover popovers | Sidebars, 2-level hierarchies |
 
 ### Basic Usage
@@ -58,29 +58,29 @@ import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui
 
 ```typescript
 interface EntityPickerBaseProps<TSelection> {
-  /** The adapter defining the entity hierarchy */
-  adapter: EntitySelectionAdapter<TSelection> | string
+    /** The adapter defining the entity hierarchy */
+    adapter: EntitySelectionAdapter<TSelection> | string
 
-  /** Callback when an entity is selected */
-  onSelect?: (selection: TSelection) => void
+    /** Callback when an entity is selected */
+    onSelect?: (selection: TSelection) => void
 
-  /** Instance ID for state isolation */
-  instanceId?: string
+    /** Instance ID for state isolation */
+    instanceId?: string
 
-  /** Show search input */
-  showSearch?: boolean
+    /** Show search input */
+    showSearch?: boolean
 
-  /** Empty message when no items */
-  emptyMessage?: string
+    /** Empty message when no items */
+    emptyMessage?: string
 
-  /** Loading message */
-  loadingMessage?: string
+    /** Loading message */
+    loadingMessage?: string
 
-  /** Additional CSS class */
-  className?: string
+    /** Additional CSS class */
+    className?: string
 
-  /** Disabled state */
-  disabled?: boolean
+    /** Disabled state */
+    disabled?: boolean
 }
 ```
 
@@ -88,25 +88,25 @@ interface EntityPickerBaseProps<TSelection> {
 
 ```typescript
 interface CascadingVariantProps<TSelection> extends EntityPickerBaseProps<TSelection> {
-  variant: "cascading"
+    variant: "cascading"
 
-  /** Override auto-select per level */
-  autoSelectByLevel?: (boolean | undefined)[]
+    /** Override auto-select per level */
+    autoSelectByLevel?: (boolean | undefined)[]
 
-  /** Show labels above each select */
-  showLabels?: boolean
+    /** Show labels above each select */
+    showLabels?: boolean
 
-  /** Layout direction */
-  layout?: "horizontal" | "vertical"
+    /** Layout direction */
+    layout?: "horizontal" | "vertical"
 
-  /** Gap between selects */
-  gap?: number
+    /** Gap between selects */
+    gap?: number
 
-  /** Select size */
-  size?: "small" | "middle" | "large"
+    /** Select size */
+    size?: "small" | "middle" | "large"
 
-  /** Show auto-selected indicator */
-  showAutoIndicator?: boolean
+    /** Show auto-selected indicator */
+    showAutoIndicator?: boolean
 }
 ```
 
@@ -114,40 +114,40 @@ interface CascadingVariantProps<TSelection> extends EntityPickerBaseProps<TSelec
 
 ```typescript
 interface BreadcrumbVariantProps<TSelection> extends EntityPickerBaseProps<TSelection> {
-  variant: "breadcrumb"
+    variant: "breadcrumb"
 
-  /** Override auto-select per level */
-  autoSelectByLevel?: (boolean | undefined)[]
+    /** Override auto-select per level */
+    autoSelectByLevel?: (boolean | undefined)[]
 
-  /** Show breadcrumb navigation */
-  showBreadcrumb?: boolean
+    /** Show breadcrumb navigation */
+    showBreadcrumb?: boolean
 
-  /** Show back button */
-  showBackButton?: boolean
+    /** Show back button */
+    showBackButton?: boolean
 
-  /** Root label for breadcrumb */
-  rootLabel?: string
+    /** Root label for breadcrumb */
+    rootLabel?: string
 
-  /** Max height for list */
-  maxHeight?: number | string
+    /** Max height for list */
+    maxHeight?: number | string
 
-  /** Auto-select single option */
-  autoSelectSingle?: boolean
+    /** Auto-select single option */
+    autoSelectSingle?: boolean
 
-  /** Enable infinite scroll */
-  infiniteScroll?: boolean
+    /** Enable infinite scroll */
+    infiniteScroll?: boolean
 
-  /** Page size for infinite scroll */
-  pageSize?: number
+    /** Page size for infinite scroll */
+    pageSize?: number
 
-  /** Show load more button (instead of auto-load) */
-  loadMoreButton?: boolean
+    /** Show load more button (instead of auto-load) */
+    loadMoreButton?: boolean
 
-  /** Show load all button */
-  showLoadAll?: boolean
+    /** Show load all button */
+    showLoadAll?: boolean
 
-  /** Estimated item height for virtual list */
-  estimatedItemHeight?: number
+    /** Estimated item height for virtual list */
+    estimatedItemHeight?: number
 }
 ```
 
@@ -155,42 +155,42 @@ interface BreadcrumbVariantProps<TSelection> extends EntityPickerBaseProps<TSele
 
 ```typescript
 interface ListPopoverVariantProps<TSelection> extends EntityPickerBaseProps<TSelection> {
-  variant: "list-popover"
+    variant: "list-popover"
 
-  /** Currently selected parent ID */
-  selectedParentId?: string | null
+    /** Currently selected parent ID */
+    selectedParentId?: string | null
 
-  /** Currently selected child ID */
-  selectedChildId?: string | null
+    /** Currently selected child ID */
+    selectedChildId?: string | null
 
-  /** Auto-select first parent's first/latest child on mount */
-  autoSelectFirst?: boolean
-  autoSelectLatest?: boolean
+    /** Auto-select first parent's first/latest child on mount */
+    autoSelectFirst?: boolean
+    autoSelectLatest?: boolean
 
-  /** Select latest child when clicking a parent */
-  selectLatestOnParentClick?: boolean
+    /** Select latest child when clicking a parent */
+    selectLatestOnParentClick?: boolean
 
-  /** Set of disabled parent IDs */
-  disabledParentIds?: Set<string>
+    /** Set of disabled parent IDs */
+    disabledParentIds?: Set<string>
 
-  /** Set of disabled child IDs */
-  disabledChildIds?: Set<string>
+    /** Set of disabled child IDs */
+    disabledChildIds?: Set<string>
 
-  /** Tooltip for disabled items */
-  disabledTooltip?: string
-  disabledChildTooltip?: string
+    /** Tooltip for disabled items */
+    disabledTooltip?: string
+    disabledChildTooltip?: string
 
-  /** Popover placement */
-  popoverPlacement?: "right" | "rightTop" | "rightBottom"
+    /** Popover placement */
+    popoverPlacement?: "right" | "rightTop" | "rightBottom"
 
-  /** Popover trigger */
-  popoverTrigger?: "hover" | "click"
+    /** Popover trigger */
+    popoverTrigger?: "hover" | "click"
 
-  /** Max height for list */
-  maxHeight?: number | string
+    /** Max height for list */
+    maxHeight?: number | string
 
-  /** Callback when parent is hovered */
-  onParentHover?: (parentId: string) => void
+    /** Callback when parent is hovered */
+    onParentHover?: (parentId: string) => void
 }
 ```
 
@@ -201,44 +201,44 @@ A modal component for selecting entities, with optional tab navigation for multi
 ### Usage with Hook
 
 ```tsx
-import { useEntitySelector } from '@agenta/entity-ui'
+import {useEntitySelector} from "@agenta/entity-ui"
 
 function MyComponent() {
-  const { open } = useEntitySelector()
+    const {open} = useEntitySelector()
 
-  const handleAdd = async () => {
-    const selection = await open({
-      title: 'Select Entity',
-      allowedTypes: ['appRevision', 'evaluatorRevision'],
-    })
+    const handleAdd = async () => {
+        const selection = await open({
+            title: "Select Entity",
+            allowedTypes: ["appRevision", "evaluatorRevision"],
+        })
 
-    if (selection) {
-      console.log('Selected:', selection.type, selection.id)
+        if (selection) {
+            console.log("Selected:", selection.type, selection.id)
+        }
     }
-  }
 
-  return <button onClick={handleAdd}>Add Entity</button>
+    return <button onClick={handleAdd}>Add Entity</button>
 }
 ```
 
 ### Direct Usage
 
 ```tsx
-import { EntitySelectorModal } from '@agenta/entity-ui'
+import {EntitySelectorModal} from "@agenta/entity-ui"
 
-function MyModal({ open, onClose }) {
-  return (
-    <EntitySelectorModal
-      open={open}
-      title="Select an App Revision"
-      allowedTypes={['appRevision']}
-      onSelect={(selection) => {
-        console.log('Selected:', selection)
-        onClose()
-      }}
-      onCancel={onClose}
-    />
-  )
+function MyModal({open, onClose}) {
+    return (
+        <EntitySelectorModal
+            open={open}
+            title="Select an App Revision"
+            allowedTypes={["appRevision"]}
+            onSelect={(selection) => {
+                console.log("Selected:", selection)
+                onClose()
+            }}
+            onCancel={onClose}
+        />
+    )
 }
 ```
 
@@ -246,23 +246,23 @@ function MyModal({ open, onClose }) {
 
 ```typescript
 interface EntitySelectorModalProps {
-  /** Modal visibility */
-  open?: boolean
+    /** Modal visibility */
+    open?: boolean
 
-  /** Cancel callback */
-  onCancel?: () => void
+    /** Cancel callback */
+    onCancel?: () => void
 
-  /** Selection callback */
-  onSelect?: (selection: EntitySelectionResult) => void
+    /** Selection callback */
+    onSelect?: (selection: EntitySelectionResult) => void
 
-  /** Allowed entity types (creates tabs) */
-  allowedTypes?: SelectableEntityType[]
+    /** Allowed entity types (creates tabs) */
+    allowedTypes?: SelectableEntityType[]
 
-  /** Modal title */
-  title?: string
+    /** Modal title */
+    title?: string
 
-  /** Additional modal width */
-  width?: number
+    /** Additional modal width */
+    width?: number
 }
 ```
 
@@ -273,10 +273,10 @@ interface EntitySelectorModalProps {
 >
 > ```typescript
 > // Direct import from @agenta/ui
-> import { SearchInput, EntityListItem, VirtualEntityList, EntityBreadcrumb } from '@agenta/ui'
+> import {SearchInput, EntityListItem, VirtualEntityList, EntityBreadcrumb} from "@agenta/ui"
 >
 > // Or via @agenta/entity-ui (re-export)
-> import { SearchInput, EntityListItem, VirtualEntityList, EntityBreadcrumb } from '@agenta/entity-ui'
+> import {SearchInput, EntityListItem, VirtualEntityList, EntityBreadcrumb} from "@agenta/entity-ui"
 > ```
 
 Building blocks for custom implementations:
@@ -286,15 +286,15 @@ Building blocks for custom implementations:
 Displays the current navigation path with clickable items.
 
 ```tsx
-import { EntityBreadcrumb } from '@agenta/entity-ui'
+import {EntityBreadcrumb} from "@agenta/entity-ui"
 
-<EntityBreadcrumb
-  path={[
-    { id: '1', label: 'My App' },
-    { id: '2', label: 'default' },
-  ]}
-  onNavigate={(level) => console.log('Navigate to level:', level)}
-  rootLabel="Home"
+;<EntityBreadcrumb
+    path={[
+        {id: "1", label: "My App"},
+        {id: "2", label: "default"},
+    ]}
+    onNavigate={(level) => console.log("Navigate to level:", level)}
+    rootLabel="Home"
 />
 ```
 
@@ -303,17 +303,17 @@ import { EntityBreadcrumb } from '@agenta/entity-ui'
 A single selectable item with optional children indicator.
 
 ```tsx
-import { EntityListItem } from '@agenta/entity-ui'
+import {EntityListItem} from "@agenta/entity-ui"
 
-<EntityListItem
-  label="My App"
-  labelNode={<CustomLabel />}  // Optional rich label
-  hasChildren={true}
-  isSelectable={true}
-  isSelected={false}
-  isHovered={false}
-  onClick={() => navigateDown(item)}
-  onSelect={() => select(item)}
+;<EntityListItem
+    label="My App"
+    labelNode={<CustomLabel />} // Optional rich label
+    hasChildren={true}
+    isSelectable={true}
+    isSelected={false}
+    isHovered={false}
+    onClick={() => navigateDown(item)}
+    onSelect={() => select(item)}
 />
 ```
 
@@ -322,13 +322,13 @@ import { EntityListItem } from '@agenta/entity-ui'
 Debounced search input.
 
 ```tsx
-import { SearchInput } from '@agenta/entity-ui'
+import {SearchInput} from "@agenta/entity-ui"
 
-<SearchInput
-  value={searchTerm}
-  onChange={setSearchTerm}
-  placeholder="Search apps..."
-  disabled={false}
+;<SearchInput
+    value={searchTerm}
+    onChange={setSearchTerm}
+    placeholder="Search apps..."
+    disabled={false}
 />
 ```
 
@@ -381,14 +381,9 @@ Internal shared components used by the variant implementations:
 Renders a single level as an Ant Design `Select`:
 
 ```tsx
-import { LevelSelect } from '@agenta/entity-ui'
+import {LevelSelect} from "@agenta/entity-ui"
 
-<LevelSelect
-  level={levelState}
-  onChange={handleChange}
-  showLabel
-  size="middle"
-/>
+;<LevelSelect level={levelState} onChange={handleChange} showLabel size="middle" />
 ```
 
 ### ChildPopoverContent
@@ -396,16 +391,16 @@ import { LevelSelect } from '@agenta/entity-ui'
 Renders children in a popover:
 
 ```tsx
-import { ChildPopoverContent } from '@agenta/entity-ui'
+import {ChildPopoverContent} from "@agenta/entity-ui"
 
-<ChildPopoverContent
-  parentId={parent.id}
-  parentLabel={parent.label}
-  childLevelConfig={childLevelConfig}
-  selectedChildId={selectedChildId}
-  disabledChildIds={disabledChildIds}
-  disabledChildTooltip="Already connected"
-  onSelect={handleChildSelect}
+;<ChildPopoverContent
+    parentId={parent.id}
+    parentLabel={parent.label}
+    childLevelConfig={childLevelConfig}
+    selectedChildId={selectedChildId}
+    disabledChildIds={disabledChildIds}
+    disabledChildTooltip="Already connected"
+    onSelect={handleChildSelect}
 />
 ```
 
@@ -414,19 +409,21 @@ import { ChildPopoverContent } from '@agenta/entity-ui'
 Invisible component that triggers auto-selection:
 
 ```tsx
-import { AutoSelectHandler } from '@agenta/entity-ui'
+import {AutoSelectHandler} from "@agenta/entity-ui"
 
-{autoSelectingParent && (
-  <AutoSelectHandler
-    parentId={autoSelectingParent.id}
-    parentLabel={autoSelectingParent.label}
-    parentLevelConfig={parentLevelConfig}
-    childLevelConfig={childLevelConfig}
-    createSelection={adapter.toSelection}
-    onSelect={onSelect}
-    onComplete={() => setAutoSelectingParent(null)}
-  />
-)}
+{
+    autoSelectingParent && (
+        <AutoSelectHandler
+            parentId={autoSelectingParent.id}
+            parentLabel={autoSelectingParent.label}
+            parentLevelConfig={parentLevelConfig}
+            childLevelConfig={childLevelConfig}
+            createSelection={adapter.toSelection}
+            onSelect={onSelect}
+            onComplete={() => setAutoSelectingParent(null)}
+        />
+    )
+}
 ```
 
 ## Styling

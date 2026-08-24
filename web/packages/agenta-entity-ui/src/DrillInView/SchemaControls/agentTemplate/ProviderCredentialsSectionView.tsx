@@ -26,15 +26,26 @@ import {useEffect, useMemo, useState, type ReactNode} from "react"
 import {
     CUSTOM_PROVIDER_KIND_FAMILIES,
     CustomProviderKind,
+    hasStoredKey,
     PROVIDER_LABELS,
 } from "@agenta/entities/secret"
+import type {SubscriptionStatusDisplay, SubscriptionStatusTone} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Segmented} from "@agenta/ui/ui"
-import {Key, Plus, Terminal} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    CheckCircle,
+    CircleNotch,
+    Key,
+    Plus,
+    Terminal,
+    Warning,
+    WarningCircle,
+} from "@phosphor-icons/react"
 
 import type {ConnectionMode} from "../connectionUtils"
 
@@ -92,6 +103,12 @@ export interface ProviderCredentialsSectionViewProps {
     indicator?: {tone: "draft" | "invalid" | "incomplete" | "agent"; tooltip?: ReactNode}
     /** Section-scoped revert control, rendered in the header beside the mode toggle. */
     revertControl?: ReactNode
+
+    /** The runner's answer for the selected harness, resolved by the container. A null `message`
+     * means there is nothing to check, so the self-managed card shows no status line. */
+    subscriptionStatus?: SubscriptionStatusDisplay
+    /** Refetches the runner status ("Check again"). */
+    onCheckAgain?: () => void
 }
 
 const STANDARD_PREFIX = "std:"
@@ -151,6 +168,22 @@ function kindServesFamily(kind: string | null | undefined, candidates: Set<strin
 function renderProviderIcon(family: string): ReactNode {
     const Icon = getProviderIcon(family)
     return Icon ? <Icon className="h-3.5 w-3.5" /> : null
+}
+
+const STATUS_TONE_CLASS: Record<SubscriptionStatusTone, string> = {
+    neutral: "text-[var(--ag-colorTextSecondary)]",
+    success: "text-[var(--ag-colorSuccess)]",
+    warning: "text-[var(--ag-colorWarning)]",
+    error: "text-[var(--ag-colorError)]",
+}
+
+/** Icon renderer helper (not a component) — same reason as `renderProviderIcon`. */
+function renderStatusIcon(status: SubscriptionStatusDisplay): ReactNode {
+    if (status.loading) return <CircleNotch size={13} className="shrink-0 animate-spin" />
+    if (status.tone === "success") return <CheckCircle size={13} className="shrink-0" />
+    if (status.tone === "error") return <WarningCircle size={13} className="shrink-0" />
+    if (status.tone === "warning") return <Warning size={13} className="shrink-0" />
+    return null
 }
 
 function ProviderTile({family, label}: {family: string; label: string}) {
@@ -260,6 +293,8 @@ export function ProviderCredentialsSectionView({
     revisionId,
     indicator,
     revertControl,
+    subscriptionStatus,
+    onCheckAgain,
 }: ProviderCredentialsSectionViewProps) {
     // The model's own named vault connection, when it has one. It always gets a rail row and wins
     // the auto-highlight — a vault model id often encodes no catalog family, so without this the
@@ -403,6 +438,19 @@ export function ProviderCredentialsSectionView({
                     </li>
                 </ul>
             </div>
+            {/* The runner reports whether a login FILE is present and readable — never that the
+                provider will accept it, so no state here claims a verified subscription. */}
+            {subscriptionStatus?.message ? (
+                <span
+                    className={cn(
+                        "inline-flex items-center gap-1.5 text-xs leading-relaxed",
+                        STATUS_TONE_CLASS[subscriptionStatus.tone],
+                    )}
+                >
+                    {renderStatusIcon(subscriptionStatus)}
+                    {subscriptionStatus.message}
+                </span>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
                 <a
                     href={guideUrl}
@@ -412,6 +460,17 @@ export function ProviderCredentialsSectionView({
                 >
                     Read the self-hosting guide →
                 </a>
+                {onCheckAgain && subscriptionStatus?.message ? (
+                    <button
+                        type="button"
+                        onClick={onCheckAgain}
+                        disabled={disabled || subscriptionStatus.loading}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-[var(--ag-colorBorder)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <ArrowClockwise size={13} className="shrink-0" />
+                        Check again
+                    </button>
+                ) : null}
                 {isCloud ? (
                     // fallback until colorErrorBg token lands
                     <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-xs text-[var(--ag-colorErrorText)]">
@@ -500,7 +559,7 @@ export function ProviderCredentialsSectionView({
                         }
                         label={secret.title ?? secret.name ?? "Provider"}
                         trailing={
-                            secret.key ? (
+                            hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                             ) : undefined
                         }
@@ -559,7 +618,7 @@ export function ProviderCredentialsSectionView({
                         }
                         label={secret.title ?? secret.name ?? "Provider"}
                         trailing={
-                            secret.key ? (
+                            hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                             ) : undefined
                         }

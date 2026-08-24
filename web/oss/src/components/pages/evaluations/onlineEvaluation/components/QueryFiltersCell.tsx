@@ -1,8 +1,7 @@
 import React, {useEffect, useMemo, useState} from "react"
 
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {Skeleton} from "antd"
-
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
 import {
     retrieveQueryRevision,

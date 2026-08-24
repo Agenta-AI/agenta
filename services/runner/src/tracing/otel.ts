@@ -1,6 +1,6 @@
 /**
- * agenta-otel — a Pi extension that turns Pi's `pi.on(...)` lifecycle events into
- * OpenTelemetry spans and exports them (OTLP/HTTP protobuf) to Agenta.
+ * agenta-otel turns Pi lifecycle events into OpenTelemetry spans. Runner tracing may
+ * export through HTTP; Pi injects a serialized-byte transport so the runner owns export.
  *
  * This is the service build of the WP-1 POC extension
  * (docs/design/agent-workflows/scratch/wp-1-pi-tracing/poc/agenta-otel.ts). It keeps the
@@ -16,10 +16,9 @@
  *      remote span, so the whole agent run joins the same trace as the `/invoke`
  *      request — the agent's work becomes part of the response trace, the way
  *      completion/chat nest their LLM spans under the workflow span.
- *   3. Per-trace export target. The OTLP endpoint and `Authorization` header come
- *      from the run config (the caller's host + credentials), falling back to env.
- *      Each trace is exported with its own target, so a shared process can serve
- *      more than one project.
+ *   3. Per-run export destination. Runner tracing can supply an HTTP endpoint and
+ *      authorization provider. Pi supplies only a serialized-byte transport, so no
+ *      endpoint or export credential crosses into the Pi process.
  *
  * Span tree (per user prompt), unchanged from the POC:
  *   invoke_agent            (openinference.span.kind = AGENT)
@@ -27,7 +26,7 @@
  *       chat <model>        (LLM)   — the provider request for that turn
  *       execute_tool <name> (TOOL)  — each tool the turn ran
  *
- * Config (read lazily from the environment for the fallback target):
+ * Runner HTTP fallback config (read lazily from the environment):
  *   AGENTA_API_INTERNAL_URL, AGENTA_API_URL  — fallback exporter endpoint
  *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
@@ -46,6 +45,7 @@ import {
 } from "@opentelemetry/api";
 import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import type {
   ReadableSpan,
@@ -57,6 +57,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
+import { logExportProblem } from "./export-diagnostics.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -79,8 +80,37 @@ export const INTERRUPTED_BY_USER =
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
 
-/** Where a trace's spans are shipped: an OTLP endpoint and an Authorization header. */
-interface ExportTarget {
+export type AuthorizationProvider = () => string | undefined;
+
+/** One complete OTLP request body produced from a parent-first trace batch. */
+export interface SerializedTraceBatch {
+  body: Uint8Array;
+  traceId: string;
+  spanCount: number;
+}
+
+/** Bundle-safe destination for Pi-produced OTLP bytes, such as its atomic file publisher. */
+export interface SerializedTraceBatchTransport {
+  export(batch: SerializedTraceBatch): void | Promise<void>;
+}
+
+/** Where a trace's spans are shipped. The credential is read only when the batch is sent. */
+interface HttpExportTarget {
+  kind: "http";
+  endpoint: string;
+  authorization: AuthorizationProvider;
+}
+
+/** A non-network target used inside Pi to publish a standard serialized OTLP request. */
+interface SerializedExportTarget {
+  kind: "serialized";
+  transport: SerializedTraceBatchTransport;
+}
+
+type ExportTarget = HttpExportTarget | SerializedExportTarget;
+
+/** The target material resolved for one concrete export attempt. */
+interface ResolvedExportTarget {
   endpoint: string;
   authorization?: string;
 }
@@ -182,12 +212,16 @@ function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
     }
     const status = span.status as { message?: string };
     if (typeof status.message === "string") {
-      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+      status.message =
+        redactor.redactString(status.message, "spans") ?? status.message;
     }
   }
 }
 
-function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
+function redactAttributes(
+  attrs: Record<string, unknown>,
+  redactor: Redactor,
+): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -200,46 +234,134 @@ function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): v
   }
 }
 
-/** Cache one exporter per distinct endpoint+auth so we do not rebuild per export. */
-const exporterCache = new Map<string, OTLPTraceExporter>();
-
-function targetKey(target: ExportTarget): string {
-  return `${target.endpoint}\n${target.authorization ?? ""}`;
+interface ExporterCacheEntry {
+  authorization?: string;
+  exporter: OTLPTraceExporter;
+  activeExports: number;
+  retired: boolean;
+  shutdown?: Promise<void>;
 }
 
-function getExporter(target: ExportTarget): OTLPTraceExporter {
-  const key = targetKey(target);
-  let exporter = exporterCache.get(key);
-  if (!exporter) {
-    exporter = new OTLPTraceExporter({
+/** Cache the current exporter per endpoint and retire it safely when the credential rotates. */
+const exporterCache = new Map<string, ExporterCacheEntry>();
+/** Only retired exporters with an active request remain here, so rotation cannot grow it unbounded. */
+const retiringExporters = new Set<ExporterCacheEntry>();
+
+function shutdownExporter(entry: ExporterCacheEntry): Promise<void> {
+  entry.shutdown ??= entry.exporter.shutdown();
+  return entry.shutdown;
+}
+
+function retireExporter(entry: ExporterCacheEntry): void {
+  entry.retired = true;
+  if (entry.activeExports === 0) {
+    void shutdownExporter(entry).catch(() => {});
+    return;
+  }
+  retiringExporters.add(entry);
+}
+
+function completeExport(entry: ExporterCacheEntry): void {
+  entry.activeExports -= 1;
+  if (!entry.retired || entry.activeExports !== 0) return;
+  retiringExporters.delete(entry);
+  void shutdownExporter(entry).catch(() => {});
+}
+
+function getExporter(target: ResolvedExportTarget): ExporterCacheEntry {
+  const cached = exporterCache.get(target.endpoint);
+  if (cached && cached.authorization === target.authorization) return cached;
+
+  const entry: ExporterCacheEntry = {
+    authorization: target.authorization,
+    exporter: new OTLPTraceExporter({
       url: target.endpoint,
       headers: target.authorization
         ? { Authorization: target.authorization }
         : {},
       timeoutMillis: 10_000,
-    });
-    exporterCache.set(key, exporter);
-  }
-  return exporter;
+    }),
+    activeExports: 0,
+    retired: false,
+  };
+  if (cached) retireExporter(cached);
+  exporterCache.set(target.endpoint, entry);
+  return entry;
 }
 
+const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
+
 /** Fallback target from env, used when a trace was started without an explicit one. */
-function defaultTarget(): ExportTarget {
+function defaultTarget(): HttpExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
     (
       process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
-    )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+    )?.replace(/\/+$/, "") || CLOUD_API_BASE;
   // The per-run caller credential rides the request (each explicit trace target carries its own
-  // authorization; local Pi's OTLP bearer is written to a 0600 file). The runner holds no static
+  // authorization; Pi's runner-owned exporter receives it only at send time). The runner holds no static
   // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
   // reuse (interface.md section 2). The scheme-tagged ephemeral `AGENTA_CREDENTIALS` (a
-  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, export unauthed.
-  const credentials = process.env.AGENTA_CREDENTIALS || "";
+  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, `flush` skips
+  // the export rather than sending Agenta an unauthenticated one (see `isAgentaIngest`).
   return {
+    kind: "http",
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: credentials || undefined,
+    authorization: () => process.env.AGENTA_CREDENTIALS || undefined,
   };
+}
+
+/** Add the runner's live platform credential as the fallback for a blank request credential. */
+export function platformAuthorizationProvider(
+  configured?: string | AuthorizationProvider,
+): AuthorizationProvider {
+  const configuredProvider =
+    typeof configured === "function" ? configured : () => configured;
+  const fallbackAuthorization = defaultTarget().authorization;
+  return () => {
+    const resolved = configuredProvider();
+    return resolved?.trim() ? resolved : fallbackAuthorization();
+  };
+}
+
+/** Resolve the trace endpoint exactly as the runner's ordinary span exporter does. */
+export function resolveOtlpTraceEndpoint(endpoint?: string): string {
+  return endpoint?.trim() || defaultTarget().endpoint;
+}
+
+/**
+ * Does this endpoint speak Agenta's own ingest, which always requires a credential? Only there
+ * is a credential-less export pointless — a caller may instead aim a run at a third-party
+ * collector (a local OTel collector, Jaeger, a host behind network auth), and those accept
+ * unauthenticated spans, so those must still be sent.
+ *
+ * Both configured bases count, not only the one `defaultTarget` picked: a run can be handed the
+ * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
+ * because a third-party collector may share the Agenta host behind a different proxy path.
+ */
+export function isAgentaIngest(endpoint: string): boolean {
+  const normalize = (value: string): string | undefined => {
+    try {
+      const url = new URL(value);
+      const path = url.pathname.replace(/\/+$/, "") || "/";
+      return `${url.origin}${path}`;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const normalizedEndpoint = normalize(endpoint);
+  if (!normalizedEndpoint) return false;
+  return [
+    process.env.AGENTA_API_INTERNAL_URL,
+    process.env.AGENTA_API_URL,
+    CLOUD_API_BASE,
+  ].some(
+    (base) =>
+      base &&
+      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
+        normalizedEndpoint,
+  );
 }
 
 /**
@@ -306,23 +428,103 @@ class TraceBatchProcessor implements SpanProcessor {
         // Fall back to the env default only for a span whose OWN run's target is unknown
         // (untagged span, or the run already released) — never to another run's target, or a
         // batch could still land on an unintended endpoint/auth.
-        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
-        return new Promise<void>((resolve) => {
+        const target =
+          (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        if (target.kind === "serialized") {
           try {
-            getExporter(target).export(orderParentFirst(group), (result) => {
-              if (result.code === ExportResultCode.FAILED)
-                console.error(
-                  "otel: trace export failed",
-                  traceId,
-                  result.error,
-                );
-              resolve();
+            const body = serializeTraceBatch(group);
+            if (!body)
+              throw new Error("OTLP trace serialization returned no body");
+            return Promise.resolve(
+              target.transport.export({
+                body,
+                traceId,
+                spanCount: group.length,
+              }),
+            ).catch((error) => {
+              logSerializedTransportProblem(
+                traceId,
+                group.length,
+                error,
+                redactors,
+              );
+            });
+          } catch (error) {
+            logSerializedTransportProblem(
+              traceId,
+              group.length,
+              error,
+              redactors,
+            );
+            return Promise.resolve();
+          }
+        }
+        const ordered = orderParentFirst(group);
+        let resolvedTarget: ResolvedExportTarget;
+        try {
+          resolvedTarget = {
+            endpoint: target.endpoint,
+            authorization: target.authorization(),
+          };
+        } catch (error) {
+          logExportProblem({
+            traceId,
+            endpoint: target.endpoint,
+            authorization: undefined,
+            spans: group.length,
+            redactors,
+            outcome: "threw",
+            error,
+          });
+          return Promise.resolve();
+        }
+        const problem = {
+          traceId,
+          endpoint: resolvedTarget.endpoint,
+          authorization: resolvedTarget.authorization,
+          spans: group.length,
+          redactors,
+        };
+        if (
+          !resolvedTarget.authorization?.trim() &&
+          isAgentaIngest(resolvedTarget.endpoint)
+        ) {
+          // Agenta's ingest rejects an unauthenticated export, so sending one buys nothing and
+          // reports as a 401 that reads like a BAD credential. Say the credential is missing
+          // instead, and drop the batch here.
+          logExportProblem({ ...problem, outcome: "skipped" });
+          return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+          let entry: ExporterCacheEntry | undefined;
+          let exportSettled = false;
+          const settleExport = (): void => {
+            if (!exportSettled && entry) {
+              exportSettled = true;
+              completeExport(entry);
+            }
+            resolve();
+          };
+          try {
+            entry = getExporter(resolvedTarget);
+            entry.activeExports += 1;
+            entry.exporter.export(ordered, (result) => {
+              try {
+                if (result.code === ExportResultCode.FAILED)
+                  logExportProblem({
+                    ...problem,
+                    outcome: "failed",
+                    error: result.error,
+                  });
+              } finally {
+                settleExport();
+              }
             });
           } catch (err) {
             // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
             // flush() is awaited without a catch, so a reject here would break the run.
-            console.error("otel: trace export threw", traceId, err);
-            resolve();
+            settleExport();
+            logExportProblem({ ...problem, outcome: "threw", error: err });
           }
         });
       }),
@@ -338,7 +540,9 @@ class TraceBatchProcessor implements SpanProcessor {
   shutdown(): Promise<void> {
     return this.forceFlush().then(async () => {
       await Promise.all(
-        [...exporterCache.values()].map((exporter) => exporter.shutdown()),
+        [...exporterCache.values(), ...retiringExporters].map((entry) =>
+          shutdownExporter(entry),
+        ),
       );
     });
   }
@@ -414,6 +618,28 @@ function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   return ordered;
 }
 
+/** Serialize one complete trace batch in the exact parent-first order Agenta ingest expects. */
+export function serializeTraceBatch(
+  spans: ReadableSpan[],
+): Uint8Array | undefined {
+  return ProtobufTraceSerializer.serializeRequest(orderParentFirst(spans));
+}
+
+function logSerializedTransportProblem(
+  traceId: string,
+  spanCount: number,
+  error: unknown,
+  redactors?: Iterable<Redactor>,
+): void {
+  let message = error instanceof Error ? error.message : String(error);
+  for (const redactor of redactors ?? [])
+    message = redactor.redactString(message, "stderr") ?? message;
+  console.error(
+    "otel: serialized trace transport threw",
+    JSON.stringify({ traceId, spans: spanCount, error: message.slice(0, 200) }),
+  );
+}
+
 /** Build a parent Context from a W3C traceparent string, or undefined if absent/invalid. */
 function parentContext(traceparent?: string): Context | undefined {
   if (!traceparent) return undefined;
@@ -439,14 +665,20 @@ function parentContext(traceparent?: string): Context | undefined {
 
 /** One run's tracing config. Mutated by the runner after the session is created. */
 export interface RunConfig {
+  /** False when this warm Pi turn did not receive a valid runner control file. */
+  enabled?: boolean;
   /** OTLP traces endpoint for this run's trace (falls back to env). */
   endpoint?: string;
   /** Authorization header value for the OTLP export (falls back to env ApiKey). */
   authorization?: string;
+  /** Optional bundle-safe Pi transport that receives raw OTLP bytes instead of sending HTTP. */
+  serializedBatchTransport?: SerializedTraceBatchTransport;
   /** W3C traceparent from the caller; nests invoke_agent under that span. */
   traceparent?: string;
   /** W3C baggage from the caller (carried for future use). */
   baggage?: string;
+  /** Durable turn id stamped as runner metadata when supplied. */
+  turnId?: string;
   /** Drop prompt/completion/tool I/O from spans when false. */
   captureContent: boolean;
   /** Pi session id, set after createAgentSession so spans carry session.id. */
@@ -621,6 +853,8 @@ export interface AgentaOtel {
   register: (pi: ExtensionAPI) => void;
   /** Mutable config; set sessionId/provider/requestModel after the session exists. */
   config: RunConfig;
+  /** Replace all per-turn Pi state and reset usage before a warm prompt begins. */
+  beginTurn: (next: Partial<RunConfig>) => void;
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
@@ -638,11 +872,15 @@ export function createAgentaOtel(
   ensureProvider();
 
   const config: RunConfig = {
+    enabled: init.enabled,
     endpoint: init.endpoint,
     authorization: init.authorization,
+    serializedBatchTransport: init.serializedBatchTransport,
     traceparent: init.traceparent,
+    baggage: init.baggage,
     captureContent: init.captureContent !== false,
     sessionId: init.sessionId,
+    turnId: init.turnId,
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
@@ -677,12 +915,34 @@ export function createAgentaOtel(
     if (u.cost?.total != null) runUsage.cost += u.cost.total;
   }
 
+  function beginTurn(next: Partial<RunConfig>): void {
+    config.enabled = next.enabled;
+    config.endpoint = next.endpoint;
+    config.authorization = next.authorization;
+    config.serializedBatchTransport = next.serializedBatchTransport;
+    config.traceparent = next.traceparent;
+    config.baggage = next.baggage;
+    config.captureContent = next.captureContent !== false;
+    config.sessionId = next.sessionId;
+    config.turnId = next.turnId;
+    config.provider = next.provider;
+    config.requestModel = next.requestModel;
+    config.skills = next.skills;
+    config.redactor = next.redactor;
+    config.traceId = undefined;
+    runUsage.input = 0;
+    runUsage.output = 0;
+    runUsage.total = 0;
+    runUsage.cost = 0;
+  }
+
   const register = (pi: ExtensionAPI): void => {
     pi.on("before_agent_start", async (event: any) => {
       pendingPrompt = event?.prompt;
     });
 
     pi.on("agent_start", async () => {
+      if (config.enabled === false) return;
       // Nest under the caller's workflow span when a traceparent was supplied,
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
       // Tag the run id onto the start context BEFORE creating the root span, so onStart
@@ -699,7 +959,7 @@ export function createAgentaOtel(
       // `ag.meta.*` namespace, so a local-Pi trace shows the surfaced skills (not just the author
       // config echoed elsewhere) AND Agenta's OTel ingest keeps them in a first-class `ag.*` bucket
       // rather than relocating an unrecognized `ag.agent.*` key to `ag.unsupported.*`. The set is
-      // passed from the runner via AGENTA_AGENT_SKILLS_LOADED.
+      // passed from the runner through the per-turn trace control.
       if (config.skills && config.skills.length > 0) {
         agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
         agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);
@@ -708,6 +968,8 @@ export function createAgentaOtel(
         agentSpan.setAttribute("session.id", config.sessionId);
         agentSpan.setAttribute("gen_ai.conversation.id", config.sessionId);
       }
+      if (config.turnId)
+        agentSpan.setAttribute("ag.meta.turn.id", config.turnId);
       setInputs(
         agentSpan,
         { prompt: pendingPrompt ?? "" },
@@ -716,10 +978,21 @@ export function createAgentaOtel(
 
       const traceId = agentSpan.spanContext().traceId;
       config.traceId = traceId;
-      registerRunTarget(traceId, runId, {
-        endpoint: config.endpoint ?? defaultTarget().endpoint,
-        authorization: config.authorization ?? defaultTarget().authorization,
-      });
+      registerRunTarget(
+        traceId,
+        runId,
+        config.serializedBatchTransport
+          ? {
+              kind: "serialized",
+              transport: config.serializedBatchTransport,
+            }
+          : {
+              kind: "http",
+              endpoint: config.endpoint ?? defaultTarget().endpoint,
+              authorization: () =>
+                config.authorization ?? defaultTarget().authorization(),
+            },
+      );
       if (config.redactor) registerRunRedactor(traceId, config.redactor);
       agentCtx = trace.setSpan(parent, agentSpan);
     });
@@ -730,6 +1003,7 @@ export function createAgentaOtel(
     });
 
     pi.on("turn_start", async (event: any) => {
+      if (config.enabled === false) return;
       const parent = agentCtx ?? context.active();
       const name =
         event?.turnIndex != null ? `turn ${event.turnIndex}` : "turn";
@@ -745,6 +1019,7 @@ export function createAgentaOtel(
     });
 
     pi.on("before_provider_request", async (_event: any, ctx: any) => {
+      if (config.enabled === false) return;
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const modelId = config.requestModel ?? ctx?.model?.id;
       const providerName = config.provider ?? ctx?.model?.provider;
@@ -768,14 +1043,16 @@ export function createAgentaOtel(
 
     pi.on("message_end", async (event: any) => {
       const msg = event?.message;
-      if (!msg || msg.role !== "assistant" || !llmSpan) return;
-      applyAssistant(llmSpan, msg, config.captureContent);
+      if (!msg || msg.role !== "assistant") return;
       accumulateUsage(msg);
+      if (!llmSpan) return;
+      applyAssistant(llmSpan, msg, config.captureContent);
       llmSpan.end();
       llmSpan = undefined;
     });
 
     pi.on("tool_execution_start", async (event: any) => {
+      if (config.enabled === false) return;
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const name = event?.toolName
         ? `execute_tool ${event.toolName}`
@@ -823,6 +1100,18 @@ export function createAgentaOtel(
 
     pi.on("agent_end", async (event: any) => {
       if (!agentSpan) return;
+      // Cancellation may skip message_end, tool_execution_end, and turn_end. Close every child
+      // before the agent root so the one native batch contains all partial work Pi still holds.
+      if (llmSpan) {
+        llmSpan.end();
+        llmSpan = undefined;
+      }
+      for (const span of toolSpans.values()) span.end();
+      toolSpans.clear();
+      if (currentTurn) {
+        currentTurn.span.end();
+        currentTurn = undefined;
+      }
       setOutput(
         agentSpan,
         lastAssistantText(event?.messages),
@@ -852,6 +1141,7 @@ export function createAgentaOtel(
   return {
     register,
     config,
+    beginTurn,
     flush: () => flushTrace(config.traceId, config.redactor, runId),
     usage: () => ({ ...runUsage }),
   };
@@ -955,7 +1245,8 @@ function acpRawOutputText(raw: any): string {
       continue;
     }
     if (value && typeof value === "object") {
-      const text = acpToolContentText(value.content) || acpToolContentText(value);
+      const text =
+        acpToolContentText(value.content) || acpToolContentText(value);
       if (text) return text;
       const json = jsonText(value);
       if (json) return json;
@@ -1074,7 +1365,16 @@ function splitModel(model?: string): { provider?: string; id?: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-export interface SandboxAgentOtelInit extends Partial<RunConfig> {
+export interface SandboxAgentOtelInit extends Omit<
+  Partial<RunConfig>,
+  "authorization" | "serializedBatchTransport"
+> {
+  /**
+   * Authorization for the OTLP exporter. The runner supplies a provider so a long-lived turn
+   * uses the latest session credential when it exports. A string remains accepted for local
+   * callers and focused tests.
+   */
+  authorization?: string | AuthorizationProvider;
   captureContent?: boolean;
   /** Harness id ("pi" / "claude"); becomes gen_ai.agent.name. */
   harness?: string;
@@ -1162,7 +1462,9 @@ export function createSandboxAgentOtel(
   const capture = init.captureContent !== false;
   const emitSpans = init.emitSpans !== false;
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
-  const authorization = init.authorization ?? defaultTarget().authorization;
+  // A run whose request carries no authorization header resolves to an empty value, not to
+  // undefined. The shared provider keeps runner and Pi export behavior identical.
+  const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
@@ -1173,6 +1475,7 @@ export function createSandboxAgentOtel(
   let turnCtx: Context | undefined;
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
+  let standaloneErrorRecorded = false;
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
@@ -1354,7 +1657,11 @@ export function createSandboxAgentOtel(
     setInputs(agentSpan, { prompt: input.prompt ?? "" }, capture);
 
     runTraceId = agentSpan.spanContext().traceId;
-    registerRunTarget(runTraceId, runId, { endpoint, authorization });
+    registerRunTarget(runTraceId, runId, {
+      kind: "http",
+      endpoint,
+      authorization,
+    });
     if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
     agentCtx = trace.setSpan(parent, agentSpan);
 
@@ -1495,8 +1802,8 @@ export function createSandboxAgentOtel(
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: typeof total === "number" ? total : (usage?.total ?? 0),
+        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
       };
       record({ type: "usage", ...usage });
     }
@@ -1559,10 +1866,11 @@ export function createSandboxAgentOtel(
    * Two cases:
    *  - This tracer owns the agent span (emitSpans=true: Claude / gateway / Daytona) — stamp it
    *    directly, before finish() ends it.
-   *  - The harness self-instruments (emitSpans=false: local Pi emits its own spans in another
-   *    process, which never carry the error and are already flushed) — emit a standalone error
+   *  - The harness self-instruments (emitSpans=false: Pi emits its own spans in another process)
+   *    and no valid native batch was received — emit a standalone error
    *    span as a child of the caller's traceparent, so the error still reaches the /invoke trace.
-   * Idempotent and best-effort: a second call or a tracing failure must never break the run.
+   * The standalone fallback is idempotent and best-effort: a second call or a tracing failure
+   * must never break the run.
    */
   function recordError(message: string, errorProvider?: string): void {
     const text = message || "agent run failed";
@@ -1582,10 +1890,12 @@ export function createSandboxAgentOtel(
         stamp(agentSpan);
         return;
       }
-      // No owned span (harness self-instruments). Emit a standalone error span under the
-      // caller's traceparent so the failure is visible in the /invoke trace. Tag the run id
-      // onto the start context first, same as the emitSpans=true root, so onStart attributes
-      // this span to THIS run (concurrent runs sharing the trace id may have different targets).
+      // No owned span (harness self-instruments). Emit one standalone error span under the
+      // caller's traceparent so the failure is visible in the /invoke trace.
+      if (standaloneErrorRecorded) return;
+      standaloneErrorRecorded = true;
+      // Tag the run id onto the start context first, same as the emitSpans=true root, so onStart
+      // attributes this span to THIS run (concurrent runs may have different targets).
       const parent = withRunId(
         parentContext(init.traceparent) ?? context.active(),
         runId,
@@ -1594,12 +1904,17 @@ export function createSandboxAgentOtel(
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
+      stampUsage(errSpan, usage);
       stamp(errSpan);
       // The standalone span shares the caller's trace id; make sure the run reports it so the
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
       // traceparent, which is the same id — but set it defensively if it was never resolved).
       runTraceId = runTraceId ?? errSpan.spanContext().traceId;
-      registerRunTarget(runTraceId, runId, { endpoint, authorization });
+      registerRunTarget(runTraceId, runId, {
+        kind: "http",
+        endpoint,
+        authorization,
+      });
       // Register BEFORE end(): a root span with no in-process parent flushes synchronously
       // on end(), so the redactor/target must already be in their accumulators or this batch
       // escapes raw / falls back to the wrong target.

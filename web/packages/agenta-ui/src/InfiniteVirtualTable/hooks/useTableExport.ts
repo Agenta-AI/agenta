@@ -1,7 +1,6 @@
 import {useCallback} from "react"
 
-import type {ColumnsType} from "antd/es/table"
-
+import type {ColumnDefs} from "../columnDef"
 import type {InfiniteTableRowBase} from "../types"
 
 export const EXPORT_RESOLVE_SKIP = Symbol("EXPORT_RESOLVE_SKIP")
@@ -11,7 +10,7 @@ interface ExtendedColumnProps {
     visibilityHidden?: boolean
     visibilityLocked?: boolean
     columnProps?: {hidden?: boolean}
-    children?: ColumnsType<InfiniteTableRowBase>
+    children?: ColumnDefs<InfiniteTableRowBase>
     dataIndex?: string | number | readonly (string | number)[]
     key?: React.Key
     title?: React.ReactNode
@@ -23,10 +22,10 @@ interface ExtendedColumnProps {
     exportEnabled?: boolean
 }
 
-type ColumnWithExtensions<Row> = ColumnsType<Row>[number] & ExtendedColumnProps
+type ColumnWithExtensions<Row> = ColumnDefs<Row>[number] & ExtendedColumnProps
 
 const columnIsHidden = <Row extends InfiniteTableRowBase>(
-    column: ColumnsType<Row>[number],
+    column: ColumnDefs<Row>[number],
 ): boolean => {
     const extColumn = column as ColumnWithExtensions<Row>
     if (extColumn?.visibilityHidden) return true
@@ -35,14 +34,14 @@ const columnIsHidden = <Row extends InfiniteTableRowBase>(
 }
 
 const flattenColumns = <Row extends InfiniteTableRowBase>(
-    columns: ColumnsType<Row>,
-): ColumnsType<Row> => {
-    const flat: ColumnsType<Row> = []
+    columns: ColumnDefs<Row>,
+): ColumnDefs<Row> => {
+    const flat: ColumnDefs<Row> = []
     columns.forEach((column) => {
         if (!column) return
         const extColumn = column as ColumnWithExtensions<Row>
         if (extColumn.children && extColumn.children.length) {
-            flat.push(...flattenColumns(extColumn.children as ColumnsType<Row>))
+            flat.push(...flattenColumns(extColumn.children as ColumnDefs<Row>))
         } else {
             flat.push(column)
         }
@@ -51,7 +50,7 @@ const flattenColumns = <Row extends InfiniteTableRowBase>(
 }
 
 const getColumnIdentifier = <Row extends InfiniteTableRowBase>(
-    column: ColumnsType<Row>[number],
+    column: ColumnDefs<Row>[number],
     index: number,
 ) => {
     const extColumn = column as ColumnWithExtensions<Row>
@@ -69,7 +68,7 @@ const getColumnIdentifier = <Row extends InfiniteTableRowBase>(
 }
 
 const getColumnKey = <Row extends InfiniteTableRowBase>(
-    column: ColumnsType<Row>[number],
+    column: ColumnDefs<Row>[number],
     index: number,
 ) => {
     const extColumn = column as ColumnWithExtensions<Row>
@@ -80,7 +79,7 @@ const getColumnKey = <Row extends InfiniteTableRowBase>(
 }
 
 const getColumnLabel = <Row extends InfiniteTableRowBase>(
-    column: ColumnsType<Row>[number],
+    column: ColumnDefs<Row>[number],
     index: number,
 ) => {
     const extColumn = column as ColumnWithExtensions<Row>
@@ -188,7 +187,7 @@ const filterSkeletonRows = <Row extends InfiniteTableRowBase>(
 }
 
 export interface TableExportColumnContext<Row extends InfiniteTableRowBase> {
-    column: ColumnsType<Row>[number]
+    column: ColumnDefs<Row>[number]
     columnIndex: number
 }
 
@@ -212,7 +211,7 @@ export interface TableExportOptions<Row extends InfiniteTableRowBase> {
 export interface TableExportParams<
     Row extends InfiniteTableRowBase,
 > extends TableExportOptions<Row> {
-    columns: ColumnsType<Row>
+    columns: ColumnDefs<Row>
     rows: Row[]
 }
 

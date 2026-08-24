@@ -8,7 +8,12 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
+from agenta.sdk.utils.providers import normalize_provider_kind
 
+from agenta.sdk.agents.connections.credentials import (
+    credential_extras,
+    secret_value_configured,
+)
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
 
@@ -361,8 +366,24 @@ async def get_secrets(
     except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Vault Secrets Exception")
 
+    vault_secrets, redacted_names = _split_write_only_redacted(vault_secrets)
+    if redacted_names:
+        # Engineering copy; adjust freely.
+        log.error(
+            "Vault: %d secret(s) are write-only and were returned without their values "
+            "(%s). Their values cannot be read back outside the platform runtime; for "
+            "standalone runs, provide the provider key via its environment variable "
+            "(for example OPENAI_API_KEY) instead.",
+            len(redacted_names),
+            ", ".join(redacted_names),
+        )
+
     local_standard = {}
-    vault_standard = {}
+    # A project may hold several connections per provider family, so vault provider_key records
+    # are kept as a list. Keying them by family (as the locals still are) would drop every
+    # connection but the last, making a named second OpenAI key unreachable.
+    vault_standard = []
+    vault_standard_kinds = set()
     vault_custom = []
 
     if local_secrets:
@@ -372,13 +393,25 @@ async def get_secrets(
     if vault_secrets:
         for secret in vault_secrets:
             if secret["kind"] == "provider_key":  # type: ignore
-                vault_standard[secret["data"]["kind"]] = secret  # type: ignore
+                vault_standard.append(secret)
+                vault_standard_kinds.add(
+                    normalize_provider_kind(secret["data"]["kind"])  # type: ignore
+                )
             elif secret["kind"] == "custom_provider":  # type: ignore
                 vault_custom.append(secret)
 
-    combined_standard = {**local_standard, **vault_standard}
-    combined_vault = list(vault_standard.values()) + vault_custom
-    secrets = list(combined_standard.values()) + vault_custom
+    # A stored key still shadows the env-var local for the same family. Compared by canonical
+    # family, because the two sides can spell one family differently (MISTRALAI_API_KEY against
+    # a stored `mistral`) and a raw comparison would let the env key survive and then win the
+    # resolver's tiebreak, which reads both spellings as the same family.
+    surviving_locals = [
+        secret
+        for kind, secret in local_standard.items()
+        if normalize_provider_kind(kind) not in vault_standard_kinds
+    ]
+    combined_standard = surviving_locals + vault_standard
+    combined_vault = vault_standard + vault_custom
+    secrets = combined_standard + vault_custom
 
     secrets_cache = pack_secrets_cache_payload(
         secrets=secrets,
@@ -389,6 +422,44 @@ async def get_secrets(
     set_secrets_cache(credentials, secrets_cache)
 
     return secrets, combined_vault, local_secrets
+
+
+def _split_write_only_redacted(
+    vault_secrets: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    """Drop entries whose value the vault redacted (write-only secret, non-granted caller).
+
+    A redacted entry has no usable credential, so keeping it would either pass an empty key
+    to a provider or shadow a working env-var key of the same provider family. Returns the
+    usable entries and the display names of the dropped ones.
+    """
+    usable: List[Dict[str, Any]] = []
+    redacted_names: List[str] = []
+
+    for secret in vault_secrets or []:
+        if isinstance(secret, dict) and secret.get("write_only"):
+            data = secret.get("data") or {}
+            kind = secret.get("kind")
+            value = None
+            if kind in ("provider_key", "custom_provider"):
+                provider = data.get("provider") or {}
+                value = provider.get("key") or credential_extras(
+                    provider.get("extras") or {}
+                )
+            elif kind == "custom_secret":
+                value = (data.get("secret") or {}).get("content")
+
+            if not value:
+                if secret_value_configured(secret):
+                    header = secret.get("header") or {}
+                    redacted_names.append(
+                        header.get("name") or secret.get("slug") or kind
+                    )
+                continue
+
+        usable.append(secret)
+
+    return usable, redacted_names
 
 
 def _has_invalid_secrets_error(response: Any) -> bool:

@@ -10,7 +10,10 @@
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   createAgentServer,
@@ -27,11 +30,36 @@ const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
   if (previousLimit === undefined) delete process.env[LIMIT_ENV];
   else process.env[LIMIT_ENV] = previousLimit;
 });
+
+/** A value that must never reach the wire: it stands in for a real credential. */
+const FAKE_LOGIN_SECRET = "not-a-real-token";
+
+/**
+ * Point every subscription mount variable at a temp folder holding fake logins, so
+ * `/subscription-status` answers about these files instead of the operator's own.
+ */
+function mountFakeLogins(): { cleanup: () => void } {
+  const root = mkdtempSync(join(tmpdir(), "runner-subscription-"));
+  const contents = JSON.stringify({ fake: FAKE_LOGIN_SECRET });
+  for (const [dirEnv, file] of [
+    ["CODEX_HOME", "auth.json"],
+    // Mounted, but without the credentials file Claude reads: `login_missing`.
+    ["CLAUDE_CONFIG_DIR", null],
+    ["PI_CODING_AGENT_DIR", "auth.json"],
+  ] as const) {
+    const dir = join(root, dirEnv.toLowerCase());
+    mkdirSync(dir, { recursive: true });
+    if (file) writeFileSync(join(dir, file), contents);
+    vi.stubEnv(dirEnv, dir);
+  }
+  return { cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
 
 /**
  * The token is REQUIRED to serve, so a booted runner always has one. `listen` therefore configures
@@ -210,6 +238,70 @@ describe("createAgentServer", () => {
       assert.equal(res.status, 200);
     } finally {
       await s.close();
+    }
+  });
+
+  it("GET /subscription-status without a token returns 401", async () => {
+    // Unlike /health, this describes the operator's own login state: it stays behind the gate.
+    const s = await listen(okRun, "s3cret");
+    try {
+      const res = await fetch(`${s.url}/subscription-status`);
+      assert.equal(res.status, 401);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /Unauthorized/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("GET /subscription-status with a wrong token returns 401", async () => {
+    const s = await listen(okRun, "s3cret");
+    try {
+      const res = await fetch(`${s.url}/subscription-status`, {
+        headers: { authorization: "Bearer nope" },
+      });
+      assert.equal(res.status, 401);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("GET /subscription-status with the token returns one state per harness", async () => {
+    // Every mount variable is stubbed at a temp folder, so the route reads these fake logins and
+    // never the login files of whoever runs the suite — and the expected states are exact.
+    const mounts = mountFakeLogins();
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/subscription-status`, {
+        headers: AUTH,
+      });
+      assert.equal(res.status, 200);
+      const raw = await res.text();
+      const body = JSON.parse(raw) as {
+        version: number;
+        harnesses: Record<string, { state: string; provider?: string }>;
+      };
+      assert.equal(body.version, 1);
+      assert.deepEqual(body.harnesses, {
+        // A login file that parses.
+        codex: { state: "ready", provider: "openai" },
+        // A mounted folder without the credentials file.
+        claude: { state: "login_missing", provider: "anthropic" },
+        // One Pi mount, one login: both Pi harnesses read it.
+        pi_core: { state: "ready" },
+        pi_agenta: { state: "ready" },
+      });
+      // The fake credential sitting in the login file the route just read is not on the wire,
+      // and neither is any path.
+      assert.ok(
+        !raw.includes(FAKE_LOGIN_SECRET),
+        `response leaked the login contents: ${raw}`,
+      );
+      assert.ok(!raw.includes("/"), `response carried a path: ${raw}`);
+    } finally {
+      await s.close();
+      mounts.cleanup();
     }
   });
 
@@ -555,6 +647,74 @@ describe("createAgentServer", () => {
       );
     } finally {
       delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("never sends a third-party collector credential to session APIs", async () => {
+    let engineCredential: string | undefined;
+    const s = await listen(async (_request, _emit, _signal, options) => {
+      engineCredential = options?.credential?.();
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const platformCalls: Array<{ url: string; authorization: string }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        platformCalls.push({
+          url,
+          authorization: headers.authorization ?? "",
+        });
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-third-party",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: "https://collector.example.test/v1/traces",
+                headers: {
+                  authorization: "Bearer collector-secret",
+                },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      });
+      await res.text();
+
+      assert.equal(engineCredential, "");
+      assert.equal(
+        platformCalls.some((call) =>
+          call.url.endsWith("/sessions/streams/heartbeat"),
+        ),
+        true,
+      );
+      assert.equal(
+        platformCalls.some(
+          (call) => call.authorization === "Bearer collector-secret",
+        ),
+        false,
+      );
+    } finally {
       fetchSpy.mockRestore();
       await s.close();
     }

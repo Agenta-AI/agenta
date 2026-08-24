@@ -1,8 +1,7 @@
 import {useMemo} from "react"
 
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import clsx from "clsx"
-
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
 import type {
     QueryFilteringPayload,

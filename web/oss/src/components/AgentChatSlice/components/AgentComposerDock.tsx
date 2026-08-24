@@ -1,12 +1,29 @@
-import {type RefObject, Suspense, lazy, useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, type RefObject} from "react"
 
+import {CHAT_COLUMN} from "@agenta/chat/assets"
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
+import {
+    ChatComposer,
+    MicPermissionNotice,
+    RecordingBar,
+    RevealCollapse,
+    RunningElsewhereStrip,
+    VoiceInputButton,
+} from "@agenta/chat/components"
+import {
+    type QueuedMessage,
+    type useComposerAttachments,
+    type useVoiceComposer,
+} from "@agenta/chat/hooks"
+import {type getPendingApprovals} from "@agenta/chat/model"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
-import {HeightCollapse} from "@agenta/ui"
+import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {ArrowRight, Code, Paperclip} from "@phosphor-icons/react"
+import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {Button, LoadingButton} from "@agenta/ui/ui"
+import {ArrowRight, Code} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -16,37 +33,18 @@ import TemplateStrip from "@/oss/components/TemplateStrip"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentIntentActions"
 
-import {CHAT_COLUMN} from "../assets/conversationLayout"
 import {SESSION_SPRING} from "../assets/sessionMotion"
-import {type QueuedMessage} from "../hooks/useAgentChatQueue"
 import {useChatSlashCommands} from "../hooks/useChatSlashCommands"
-import {type useComposerAttachments} from "../hooks/useComposerAttachments"
 import {type useComposerDraft} from "../hooks/useComposerDraft"
 import {type useOnboardingChat} from "../hooks/useOnboardingChat"
-import {type useVoiceComposer} from "../hooks/useVoiceComposer"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
-import ApprovalDock, {type getPendingApprovals} from "./ApprovalDock"
-import ComposerAttachments from "./ComposerAttachments"
+import ApprovalDock from "./ApprovalDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
-import MicPermissionNotice from "./MicPermissionNotice"
 import QueuedMessages from "./QueuedMessages"
-import RecordingBar from "./RecordingBar"
-import RevealCollapse from "./RevealCollapse"
-import RunningElsewhereStrip from "./RunningElsewhereStrip"
-import HarnessPickerPanel from "./SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
-import VoiceInputButton from "./VoiceInputButton"
-
-// The composer carries Lexical — the heaviest dependency of this chunk — out of the
-// conversation's synchronous mount; React.lazy (not next/dynamic) so the imperative handle
-// ref forwards. Its fallback is the same ComposerSkeleton the frame reserves for this slot.
-const RichChatInput = lazy(() =>
-    import("@agenta/ui/rich-chat-input").then((m) => ({default: m.RichChatInput})),
-)
 
 /**
  * Everything below the transcript: the held-message queue, the connect-model banner, the HITL
@@ -65,12 +63,12 @@ const AgentComposerDock = ({
     modelBlocked,
     contextMaxTokens,
     showContextBudget,
-    buildMode,
-    firstRunPrompt,
+    showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
     onViewTrace,
     pendingInteraction,
+    onClientToolOutput,
     onSubmit,
     onStop,
     richInputRef,
@@ -97,12 +95,13 @@ const AgentComposerDock = ({
     modelBlocked: boolean
     contextMaxTokens: number | null
     showContextBudget: boolean
-    buildMode: boolean
-    firstRunPrompt: string | null
+    /** The agent empty-chat template strip is on (owned by AgentConversation — see its comment). */
+    showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     onViewTrace?: () => void
     pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
+    onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
     richInputRef: RefObject<RichChatInputHandle | null>
@@ -123,30 +122,13 @@ const AgentComposerDock = ({
         chromeHidden,
         selectedTemplateKey,
         handleStripPick,
-        isFreshAgentRevision,
-        pendingFirstTurn,
         handleCreateAgent,
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,
         showBareOnboardingHero,
     } = onboardingChat
-    const {
-        uploadsEnabled,
-        files,
-        rejections,
-        setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
-        setViewingUid,
-        limits,
-        atMax,
-        attachmentsSettled,
-        uploadBlockReason,
-        addFiles,
-        removeFile,
-        uploads,
-    } = attachments
+    const {setViewingUid, atMax} = attachments
     const {
         voiceEnabled,
         voiceRecorder,
@@ -179,6 +161,24 @@ const AgentComposerDock = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    // Sending on a touch device dismisses the on-screen keyboard, which returns the page to its
+    // full height and puts the transcript back in view — the message you just sent is the thing
+    // you want to read next. On desktop the editor keeps focus after Enter so the next message can
+    // be typed straight away, so the helper checks the pointer type.
+    //
+    // It also DEFERS the blur, which is the part that matters: `submitEditorAsMarkdown` clears the
+    // editor on the statement after this handler returns, and that reconcile writes a fresh DOM
+    // selection, which re-focuses the editor and pops the keyboard straight back up. A blur called
+    // inline here is undone before the user sees it.
+    const submitMessage = useCallback(
+        (text: string) => {
+            const result = onSubmit(text)
+            dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
+            return result
+        },
+        [onSubmit, richInputRef],
+    )
+
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
     // undone when the still-focused panel (or Radix popover) leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -250,16 +250,10 @@ const AgentComposerDock = ({
                 empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                 onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
             <Reveal className="px-3" enabled={composer.playComposerEntrance}>
-                {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
-                    message exists or a first-run prompt is pending. Build-mode + fresh-agent
-                    only — never in maximized chat mode, and gone for good after any commit. */}
-                {TEMPLATE_STRIP_MODE &&
-                !onboardingActive &&
-                buildMode &&
-                isFreshAgentRevision &&
-                messages.length === 0 &&
-                !firstRunPrompt &&
-                !pendingFirstTurn ? (
+                {/* Agent empty-chat strip (S6): docked above the composer. Visibility is decided by
+                    AgentConversation, which hands the same flag to the empty state so exactly one of
+                    the strip and the starter pills renders. */}
+                {showTemplateStrip ? (
                     <div className={`${CHAT_COLUMN} mb-3`}>
                         <TemplateStrip
                             surface="agent-chat"
@@ -287,8 +281,14 @@ const AgentComposerDock = ({
                     onViewTrace={onViewTrace}
                     entityId={entityId}
                 />
-                {/* The connect dock is a shortcut to the actionable transcript card. */}
-                <InteractionDock className={CHAT_COLUMN} pending={pendingInteraction} />
+                {/* Parked client-tool interactions (connect): same placement contract as the
+                    approval dock — the paused gate can't scroll out of reach, and "Not now"
+                    is the escape hatch that resumes the run without connecting. */}
+                <InteractionDock
+                    className={CHAT_COLUMN}
+                    pending={pendingInteraction}
+                    onOutput={onClientToolOutput}
+                />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
                     (unlike the home surface) — the strip card's own selected state is the
                     "which template" indicator; the composer text is the only other feedback. */}
@@ -319,28 +319,6 @@ const AgentComposerDock = ({
                 {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
                 <div className="relative mb-3" ref={composerBoxRef}>
-                    {/* Drilled into from the palette: same anchor, so the panel replaces the menu
-                        in place rather than opening somewhere else on screen. */}
-                    {slash.picker === "harness" ? (
-                        // `origin-bottom`: the panel is docked to the composer's top edge, so it
-                        // grows out of that edge rather than from its own middle.
-                        <div
-                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
-                        >
-                            <HarnessPickerPanel
-                                harnessIds={slash.harnessIds}
-                                capabilities={slash.capabilities}
-                                currentHarness={slash.currentHarness}
-                                currentModel={slash.currentModel}
-                                customSecrets={slash.customSecrets}
-                                currentConnectionSlug={slash.currentConnectionSlug}
-                                onApply={slash.applyHarness}
-                                onDismiss={dismissPicker}
-                                onBackToCommands={backToCommands}
-                                onOpenConfig={openModelHarnessConfig}
-                            />
-                        </div>
-                    ) : null}
                     {slash.picker === "permissions" ? (
                         <div
                             className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
@@ -369,6 +347,8 @@ const AgentComposerDock = ({
                         hideTrigger
                         showGroup
                         showSearch
+                        searchPlaceholder="Search models"
+                        sectionTooltip={<HarnessTooltip />}
                         options={slash.modelGroups}
                         value={slash.currentModel}
                         // The option carries a vault pick's connection slug + kind; `applyModel`
@@ -398,155 +378,112 @@ const AgentComposerDock = ({
                             </div>
                         }
                     />
-                    <Suspense fallback={<ComposerSkeleton className={CHAT_COLUMN} />}>
-                        <RichChatInput
-                            ref={richInputRef}
-                            autoFocus={composer.autoFocusComposer}
-                            dictating={voiceEnabled && dictating}
-                            className={CHAT_COLUMN}
-                            // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                            // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
-                            // for longer descriptions.
-                            onSubmit={onboardingActive ? () => handleCreateAgent() : onSubmit}
-                            disabled={onboardingActive ? ideHandoffActive : modelBlocked}
-                            hideSendButton={onboardingActive}
-                            placeholder={
-                                onboardingActive
-                                    ? ideHandoffActive
-                                        ? "Continue in your IDE from the steps above — or start over."
-                                        : STRIP_COPY.describeAgentPlaceholder
-                                    : modelBlocked
-                                      ? "Connect a model to start chatting…"
-                                      : hitlPending
-                                        ? "The agent is waiting for your response — new messages will be queued"
-                                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                            }
-                            initialMarkdown={composer.initialDraft}
-                            slashCommands={slash.sections}
-                            onChange={composer.handleComposerChange}
-                            onPasteFile={(pasted) => {
-                                if (!attachmentsBlocked()) addFiles(Array.from(pasted))
-                            }}
-                            sendForceEnabled={files.length > 0 && attachmentsSettled}
-                            sendDisabled={files.length > 0 && !attachmentsSettled}
-                            sendDisabledReason={uploadBlockReason}
-                            streaming={busy}
-                            onStop={onStop}
-                            prefix={
-                                // Left cluster of the composer toolbar: voice mic + the (gated)
-                                // attach button + the context token-budget readout, filling the
-                                // otherwise-empty left space next to the attachments icon.
-                                <div className="flex items-center gap-2">
-                                    {voiceEnabled ? (
-                                        <VoiceInputButton
-                                            inputRef={richInputRef}
-                                            onStartAudio={startVoiceMessage}
-                                            // During onboarding the composer commits the
-                                            // ephemeral via handleCreateAgent, but a voice
-                                            // MESSAGE routes through handleSubmit → submit,
-                                            // bypassing that commit. So offer dictation
-                                            // only (it just fills the description text) —
-                                            // voice-message returns once the agent exists.
-                                            audioSupported={
-                                                !onboardingActive && voiceRecorder.supported
-                                            }
-                                            audioPending={voiceRecorder.pending}
-                                            audioPerceivable={audioPerceivable}
-                                            attachmentsFull={atMax}
-                                            onDictationError={setDictationError}
-                                            onDictatingChange={setDictating}
-                                            disabled={
-                                                onboardingActive ? ideHandoffActive : modelBlocked
-                                            }
-                                        />
-                                    ) : null}
-                                    {/* Gate the attach button until inline file parts are supported. */}
-                                    <Tooltip
-                                        title={
-                                            !uploadsEnabled
-                                                ? "Attach files coming soon"
-                                                : atMax
-                                                  ? `Up to ${limits.maxCount} files`
-                                                  : "Attach files"
+                    {/* The SHARED composer — the same component mobile renders: lazy Lexical
+                        input, paperclip, attachments tray, placeholders. Desktop-only chrome
+                        (voice mic, context budget, onboarding actions) rides its slots. */}
+                    <ChatComposer
+                        inputRef={richInputRef}
+                        autoFocus={composer.autoFocusComposer}
+                        dictating={voiceEnabled && dictating}
+                        className={CHAT_COLUMN}
+                        fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
+                        // Onboarding: submit = commit the ephemeral — Enter creates the agent
+                        // (matching the composer's "↵ Send" hint).
+                        onSubmit={onboardingActive ? () => handleCreateAgent() : submitMessage}
+                        disabled={onboardingActive ? ideHandoffActive : modelBlocked}
+                        hideSendButton={onboardingActive}
+                        placeholder={
+                            onboardingActive
+                                ? ideHandoffActive
+                                    ? "Continue in your IDE from the steps above — or start over."
+                                    : STRIP_COPY.describeAgentPlaceholder
+                                : modelBlocked
+                                  ? "Connect a model to start chatting…"
+                                  : undefined
+                        }
+                        waitingOnUser={hitlPending}
+                        initialMarkdown={composer.initialDraft}
+                        slashCommands={slash.sections}
+                        onChange={composer.handleComposerChange}
+                        streaming={busy}
+                        onStop={onStop}
+                        attachments={attachments}
+                        attachmentsBlocked={attachmentsBlocked}
+                        composerDisabled={composerDisabled}
+                        onViewAttachment={setViewingUid}
+                        extraPrefix={
+                            <>
+                                {voiceEnabled ? (
+                                    <VoiceInputButton
+                                        inputRef={richInputRef}
+                                        onStartAudio={startVoiceMessage}
+                                        // During onboarding the composer commits the ephemeral via
+                                        // handleCreateAgent, but a voice MESSAGE routes through
+                                        // handleSubmit → submit, bypassing that commit. So offer
+                                        // dictation only — voice-message returns once the agent exists.
+                                        audioSupported={
+                                            !onboardingActive && voiceRecorder.supported
                                         }
-                                    >
-                                        <Button
-                                            type="text"
-                                            icon={<Paperclip size={16} />}
-                                            // Paste, drop and voice all attach
-                                            // already; leaving the obvious control
-                                            // dead was the odd one out. Gated with
-                                            // them on the composer being usable.
-                                            disabled={!uploadsEnabled || composerDisabled}
-                                            onClick={() => setAttachmentsOpen((open) => !open)}
-                                            aria-label="Attach files"
-                                        />
-                                    </Tooltip>
-                                    {/* Context-budget meter temporarily hidden from the UI.
-                                    Logic is retained — flip `showContextBudget` to re-enable.
-                                    Only meaningful in a real conversation, so still gated on
-                                    onboarding (no turns / no usage yet). */}
-                                    {showContextBudget && !onboardingActive ? (
-                                        <ContextBudgetIndicator
-                                            messages={messages}
-                                            maxTokens={contextMaxTokens}
-                                        />
-                                    ) : null}
-                                </div>
-                            }
-                            header={
-                                <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                                    <ComposerAttachments
-                                        files={files}
-                                        rejections={rejections}
-                                        limits={limits}
-                                        onAdd={addFiles}
-                                        onRemove={removeFile}
-                                        onDismissRejections={() => setRejections([])}
-                                        onView={uploadsEnabled ? setViewingUid : undefined}
-                                        onRetry={uploads.retry}
-                                        canRetry={uploads.canRetry}
+                                        audioPending={voiceRecorder.pending}
+                                        audioPerceivable={audioPerceivable}
+                                        attachmentsFull={atMax}
+                                        onDictationError={setDictationError}
+                                        onDictatingChange={setDictating}
+                                        disabled={
+                                            onboardingActive ? ideHandoffActive : modelBlocked
+                                        }
                                     />
-                                </HeightCollapse>
-                            }
-                            trailing={
-                                onboardingActive ? (
-                                    ideHandoffActive ? (
-                                        <Button onClick={handleStartOver} className="!shadow-none">
-                                            Start over
+                                ) : null}
+                                {/* Context-budget meter temporarily hidden from the UI.
+                                    Logic is retained — flip `showContextBudget` to re-enable. */}
+                                {showContextBudget && !onboardingActive ? (
+                                    <ContextBudgetIndicator
+                                        messages={messages}
+                                        maxTokens={contextMaxTokens}
+                                    />
+                                ) : null}
+                            </>
+                        }
+                        trailing={
+                            onboardingActive ? (
+                                ideHandoffActive ? (
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleStartOver}
+                                        className="shadow-none"
+                                    >
+                                        Start over
+                                    </Button>
+                                ) : TEMPLATE_STRIP_MODE ? (
+                                    // Strip era: the SAME action cluster as the home hero composer
+                                    // (shared component).
+                                    <AgentIntentActions
+                                        onCreate={handleCreateAgent}
+                                        loading={!!onboarding?.committing}
+                                    />
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={streamIdeBubble}
+                                            className="shadow-none"
+                                        >
+                                            <Code size={14} />
+                                            Continue in IDE
                                         </Button>
-                                    ) : TEMPLATE_STRIP_MODE ? (
-                                        // Strip era: the SAME action cluster as the home hero composer
-                                        // (shared component), with the one-click copy + toast handoff.
-                                        <AgentIntentActions
-                                            onCreate={handleCreateAgent}
+                                        <LoadingButton
                                             loading={!!onboarding?.committing}
-                                        />
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                icon={<Code size={14} />}
-                                                onClick={streamIdeBubble}
-                                                className="!shadow-none"
-                                            >
-                                                Continue in IDE
-                                            </Button>
-                                            <Button
-                                                type="primary"
-                                                icon={<ArrowRight size={14} />}
-                                                iconPosition="end"
-                                                loading={!!onboarding?.committing}
-                                                onClick={handleCreateAgent}
-                                                className="!shadow-none"
-                                            >
-                                                Create agent
-                                            </Button>
-                                        </div>
-                                    )
-                                ) : undefined
-                            }
-                        />
-                    </Suspense>
+                                            onClick={handleCreateAgent}
+                                            className="shadow-none"
+                                        >
+                                            Create agent
+                                            <ArrowRight size={14} />
+                                        </LoadingButton>
+                                    </div>
+                                )
+                            ) : undefined
+                        }
+                    />
                     {/* Cross-fades over the composer instead of popping; same spring
                     as the rest of the slice's chrome. */}
                     <AnimatePresence initial={false}>

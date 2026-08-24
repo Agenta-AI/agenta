@@ -1,10 +1,10 @@
 import type {SessionStream} from "@agenta/entities/session"
-import {isValidUUID} from "@agenta/shared/utils"
 
 import type {SessionPending} from "../state/useSessionList"
 
+import {sessionAgentId} from "./sessionAgent"
 import {sessionPreviewText} from "./sessionPreview"
-import {pendingGateLabel, sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
+import {sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
 import {sessionRowTitle} from "./sessionRowTitle"
 import {
     isAutomationSession,
@@ -27,8 +27,8 @@ export interface SessionRowVm {
     status: SessionRowStatusMeta
     pending: SessionPending | undefined
     /**
-     * The owning agent, from the latest turn's references. Null when the session has no turns
-     * yet — such a row has nowhere to open, so callers disable the action.
+     * The owning agent, from the row's workflow references (see `sessionAgentId`). Null when the
+     * row names none — it has nowhere to open, so callers disable the action.
      */
     agentId: string | null
     /** ISO timestamp of last activity. Formatting relative time is the UI's job. */
@@ -51,18 +51,13 @@ export function sessionRowVm(
         sessionPreviewText(row),
         automation ? sessionAutomationTitle(automation) : null,
     )
-    const status = sessionRowStatus(row, pending?.count)
     return {
         id: row.session_id,
         title,
         subtitle,
-        // One source for the chip text: a waiting chip names WHAT is being asked, so surfaces
-        // render `status.chipLabel` and never re-derive it from the gate kinds themselves.
-        status: status.chipLabel
-            ? {...status, chipLabel: pendingGateLabel(pending?.kinds)}
-            : status,
+        status: sessionRowStatus(row, pending?.count),
         pending,
-        agentId: row.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null,
+        agentId: sessionAgentId(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
         isAutomation: isAutomationSession(row),
         automation,

@@ -20,8 +20,8 @@ import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from ".
 import {
     awaitingHiddenRows,
     selectedSessionListPolicy,
+    sessionGroupRows,
     shouldLoadMoreForHiddenRows,
-    startedSessions,
     type SessionListRequestPolicy,
 } from "./sessionListPolicy"
 import {
@@ -133,14 +133,13 @@ export const useSessionsList = ({
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
     // re-derive every row VM (and re-render every memoized row) on every render.
-    // A chat that was opened but never used is not a session anyone is looking for — see
-    // `isStartedSession`. Pins are exempt: pinning is an explicit request, like the origin filter.
+    // Which rules each group applies (pins are exempt from all of them) is `sessionGroupRows`.
     const listRows = useMemo(
-        () => startedSessions(rowsFromPages(listQuery.data?.pages)),
+        () => sessionGroupRows("main", rowsFromPages(listQuery.data?.pages)),
         [listQuery.data?.pages],
     )
     const pinnedRowsAll = useMemo(
-        () => rowsFromPages(pinnedQuery.data?.pages),
+        () => sessionGroupRows("pinned", rowsFromPages(pinnedQuery.data?.pages)),
         [pinnedQuery.data?.pages],
     )
     const knownById = useMemo(() => {

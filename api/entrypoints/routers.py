@@ -14,7 +14,11 @@ from supertokens_python.framework.fastapi import (
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
+from oss.src.utils.helpers import (
+    validate_platform_runtime_key,
+    validate_required_env_vars,
+    warn_deprecated_env_vars,
+)
 
 # Engines
 from oss.src.dbs.postgres.shared.engine import (
@@ -101,9 +105,11 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
 from oss.src.core.tracing.service import SimpleTracesService
+from oss.src.core.providers.service import ProviderProbeService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
@@ -261,6 +267,7 @@ async def lifespan(*args, **kwargs):
 
     warn_deprecated_env_vars()
     validate_required_env_vars()
+    validate_platform_runtime_key()
 
     await _triggers_broker.startup()
 
@@ -594,6 +601,8 @@ _t_services = time.perf_counter()
 vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
+
+provider_probe_service = ProviderProbeService()
 
 
 webhooks_service = WebhooksService(
@@ -944,6 +953,11 @@ secrets = VaultRouter(
     vault_service=vault_service,
 )
 
+providers = ProvidersRouter(
+    provider_probe_service=provider_probe_service,
+    vault_service=vault_service,
+)
+
 webhooks = WebhooksRouter(
     webhooks_service=webhooks_service,
 )
@@ -1129,6 +1143,19 @@ _t_mount_routers = time.perf_counter()
 app.include_router(
     router=secrets.router,
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=providers.router,
+    tags=["Secrets"],
+)
+
+# The probe is also reachable under the vault's legacy prefix, so a client that already
+# addresses connections as /vault/v1/secrets/ can test one without switching base paths.
+app.include_router(
+    router=providers.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
 )
 
 ## DEPRECATED

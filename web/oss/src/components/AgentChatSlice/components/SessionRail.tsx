@@ -1,5 +1,9 @@
 import {memo, useCallback, useRef, useState} from "react"
 
+import {sessionMessagesAtom} from "@agenta/chat/state"
+import {useSessionPins} from "@agenta/sessions/state"
+import {timeAgo} from "@agenta/shared/utils"
+import {Button, EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {
     Archive,
     ArrowCounterClockwise,
@@ -7,9 +11,10 @@ import {
     MagnifyingGlass,
     PencilSimple,
     Plus,
+    PushPin,
+    PushPinSlash,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -29,8 +34,6 @@ import {
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
     sessionHistoryAtomFamily,
-    sessionMessagesAtom,
-    timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
 
@@ -40,6 +43,8 @@ import {SessionStatusDot} from "./SessionTagBar"
 // Static icon elements: an inline `<Icon />` prop is a fresh element every render, which defeats
 // antd Button's own memoization and shows up as a changed `icon` prop on every row.
 const PENCIL_ICON = <PencilSimple size={12} />
+const PIN_ICON = <PushPin size={12} />
+const UNPIN_ICON = <PushPinSlash size={12} />
 const TRASH_ICON = <Trash size={12} />
 const ARCHIVE_ICON = <Archive size={12} />
 const RESTORE_ICON = <ArrowCounterClockwise size={12} />
@@ -59,6 +64,9 @@ interface SessionRailRowProps {
     onRename: (id: string, title: string) => void
     onArchive: (id: string) => void
     onUnarchive: (id: string) => void
+    /** Shared project-wide pin (the SAME pin Home and mobile show) — pinned rows lead the list. */
+    pinned?: boolean
+    onTogglePin?: (id: string) => void
     /** Archived rows swap the rename/archive actions for a single restore action. */
     archived?: boolean
 }
@@ -75,6 +83,8 @@ const SessionRailRow = memo(function SessionRailRow({
     onRename,
     onArchive,
     onUnarchive,
+    pinned = false,
+    onTogglePin,
     archived = false,
 }: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
@@ -125,6 +135,13 @@ const SessionRailRow = memo(function SessionRailRow({
             onUnarchive(sessionId)
         },
         [onUnarchive, sessionId],
+    )
+    const handleTogglePin = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            onTogglePin?.(sessionId)
+        },
+        [onTogglePin, sessionId],
     )
     const onKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -184,50 +201,74 @@ const SessionRailRow = memo(function SessionRailRow({
                         </span>
                     )}
                 </div>
+                {pinned && !hot && (
+                    <PushPin size={12} weight="fill" className="shrink-0 text-colorTextTertiary" />
+                )}
                 {hot && !renaming && (
                     <div className="flex shrink-0 items-center gap-0.5">
                         {/* Inspection is build-mode only, so the chat-mode rail has no inspect entry. */}
                         {archived ? (
-                            <Tooltip title="Unarchive session">
+                            <SimpleTooltip title="Unarchive session">
                                 <Button
-                                    type="text"
+                                    variant="ghost"
+                                    size="icon-sm"
                                     aria-label="Unarchive session"
-                                    icon={RESTORE_ICON}
                                     onClick={handleUnarchive}
-                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                                />
-                            </Tooltip>
+                                    className="h-5 w-5 shrink-0 p-0"
+                                >
+                                    {RESTORE_ICON}
+                                </Button>
+                            </SimpleTooltip>
                         ) : (
                             <>
-                                <Tooltip title="Rename session">
+                                {onTogglePin ? (
+                                    <SimpleTooltip title={pinned ? "Unpin session" : "Pin session"}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={pinned ? "Unpin session" : "Pin session"}
+                                            onClick={handleTogglePin}
+                                            className="h-5 w-5 shrink-0 p-0"
+                                        >
+                                            {pinned ? UNPIN_ICON : PIN_ICON}
+                                        </Button>
+                                    </SimpleTooltip>
+                                ) : null}
+                                <SimpleTooltip title="Rename session">
                                     <Button
-                                        type="text"
+                                        variant="ghost"
+                                        size="icon-sm"
                                         aria-label="Rename session"
-                                        icon={PENCIL_ICON}
                                         onClick={startRename}
-                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                                    />
-                                </Tooltip>
-                                <Tooltip title="Archive session">
+                                        className="h-5 w-5 shrink-0 p-0"
+                                    >
+                                        {PENCIL_ICON}
+                                    </Button>
+                                </SimpleTooltip>
+                                <SimpleTooltip title="Archive session">
                                     <Button
-                                        type="text"
+                                        variant="ghost"
+                                        size="icon-sm"
                                         aria-label="Archive session"
-                                        icon={ARCHIVE_ICON}
                                         onClick={handleArchive}
-                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                                    />
-                                </Tooltip>
+                                        className="h-5 w-5 shrink-0 p-0"
+                                    >
+                                        {ARCHIVE_ICON}
+                                    </Button>
+                                </SimpleTooltip>
                             </>
                         )}
-                        <Tooltip title="Delete session">
+                        <SimpleTooltip title="Delete session">
                             <Button
-                                type="text"
+                                variant="ghost"
+                                size="icon-sm"
                                 aria-label="Delete session"
-                                icon={TRASH_ICON}
                                 onClick={confirmDelete}
-                                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                            />
-                        </Tooltip>
+                                className="h-5 w-5 shrink-0 p-0"
+                            >
+                                {TRASH_ICON}
+                            </Button>
+                        </SimpleTooltip>
                     </div>
                 )}
             </div>
@@ -263,6 +304,9 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const archiveSession = useSetAtom(archiveSessionAtomFamily(scope))
     const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
 
+    // The SHARED project-wide pins (@agenta/sessions) — the same pin Home and mobile toggle,
+    // so pinning here reorders those surfaces too (and vice versa).
+    const {isPinned, toggle: togglePin} = useSessionPins()
     const [query, setQuery] = useState("")
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
@@ -283,7 +327,11 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
             session,
             label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
         }))
-    const filtered = q ? rows.filter((r) => r.label.toLowerCase().includes(q)) : rows
+    const unsorted = q ? rows.filter((r) => r.label.toLowerCase().includes(q)) : rows
+    // Pinned rows lead, keeping recency order within each half (stable sort).
+    const filtered = [...unsorted].sort(
+        (a, b) => Number(isPinned(b.session.id)) - Number(isPinned(a.session.id)),
+    )
 
     const archivedRows = archivedHistory.map((session) => ({
         session,
@@ -303,35 +351,37 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
             >
                 <div className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-3">
                     <span className="text-xs font-medium text-colorTextSecondary">Sessions</span>
-                    <Tooltip
+                    <SimpleTooltip
                         title={
                             addDisabled
                                 ? "Available after your agent's first response"
                                 : "New session"
                         }
                     >
-                        {/* Non-disabled span trigger: antd v6 Tooltips don't fire on a disabled Button. */}
+                        {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
                         <span className="inline-flex">
                             <Button
-                                type="text"
+                                variant="ghost"
+                                size="icon-sm"
                                 aria-label="New session"
-                                icon={<Plus size={14} />}
                                 onClick={() => addSession()}
                                 disabled={addDisabled}
-                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                            />
+                                className="h-7 w-7 shrink-0 p-0"
+                            >
+                                <Plus size={14} />
+                            </Button>
                         </span>
-                    </Tooltip>
+                    </SimpleTooltip>
                 </div>
 
                 <div className="shrink-0 px-2 pt-2">
-                    <Input
+                    <SearchInput
                         allowClear
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search sessions"
                         prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
-                        className="!text-xs !border-[var(--ag-surface-inset-border)] !bg-[var(--ag-surface-inset)]"
+                        className="border-[var(--ag-surface-inset-border)] bg-[var(--ag-surface-inset)] text-xs"
                     />
                 </div>
 
@@ -341,10 +391,10 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                     className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2"
                 >
                     {history.length === 0 && (
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            image="simple"
                             description={<span className="text-xs">No sessions yet</span>}
-                            className="!my-6"
+                            className="my-6"
                         />
                     )}
                     {history.length > 0 && filtered.length === 0 && (
@@ -365,6 +415,8 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                                 onRename={handleRename}
                                 onArchive={archiveSession}
                                 onUnarchive={unarchiveSession}
+                                pinned={isPinned(session.id)}
+                                onTogglePin={togglePin}
                             />
                         ))}
                     </AnimatePresence>
