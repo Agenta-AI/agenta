@@ -173,6 +173,7 @@ import {
 import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
 import { prepareEnvironmentSetup } from "./environment-setup.ts";
+import { wrapMockSandbox } from "./mock-session.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
@@ -556,6 +557,10 @@ export async function acquireEnvironment(
       },
     );
     environment.sandbox = acquiredSandbox.sandbox;
+    // "mock" runs in-process on the real sandbox: only createSession is replaced.
+    if (plan.acpAgent === "mock" && environment.sandbox) {
+      environment.sandbox = wrapMockSandbox(environment.sandbox, plan.isDaytona);
+    }
     environment.resumable = acquiredSandbox.resumable;
     // Read AFTER the sandbox is acquired, because the port is bound to a sandbox: the provider has
     // no allocation to deliver against until create (or reconnect) has settled. Undefined for
@@ -657,6 +662,7 @@ export async function acquireEnvironment(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);
@@ -726,6 +732,7 @@ export async function acquireEnvironment(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);

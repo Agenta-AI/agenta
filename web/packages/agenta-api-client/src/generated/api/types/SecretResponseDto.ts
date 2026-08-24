@@ -17,5 +17,6 @@ export namespace SecretResponseDto {
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto
-        | AgentaApi.CustomSecretDto;
+        | AgentaApi.CustomSecretDto
+        | AgentaApi.ChannelSecretDto;
 }

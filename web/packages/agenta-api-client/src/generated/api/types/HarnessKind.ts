@@ -5,11 +5,14 @@
  *
  * ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
  * policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code.
+ * ``mock`` drives no real coding agent at all: it is a deterministic, LLM-free, network-free
+ * stand-in for testing, selecting a named behavior the runner resolves in-process.
  */
 export const HarnessKind = {
     PiCore: "pi_core",
     Claude: "claude",
     PiAgenta: "pi_agenta",
     Codex: "codex",
+    Mock: "mock",
 } as const;
 export type HarnessKind = (typeof HarnessKind)[keyof typeof HarnessKind];

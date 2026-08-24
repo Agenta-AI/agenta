@@ -38,7 +38,7 @@ def _sel(harness="pi_core", sandbox="local"):
     return AgentTemplate(harness=harness, sandbox=sandbox)
 
 
-@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta", "claude"])
+@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta", "claude", "codex", "mock"])
 def test_all_harnesses_use_sandbox_agent_backend(harness):
     assert isinstance(select_backend(_sel(harness, "local")), SandboxAgentBackend)
 

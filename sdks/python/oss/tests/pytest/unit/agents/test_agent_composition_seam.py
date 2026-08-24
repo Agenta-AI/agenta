@@ -77,12 +77,13 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA, HarnessKind.MOCK}
     )
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
         self.created_run_contexts: List[Any] = []
+        self.created_configs: List[Any] = []
         self.created_effective_parameters: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
@@ -101,6 +102,7 @@ class _FakeBackend(Backend):
         effective_parameters=None,
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
+        self.created_configs.append(config)
         self.created_effective_parameters.append(effective_parameters)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
@@ -569,6 +571,50 @@ async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
         )
 
     assert ran == []
+
+
+# --------------------------------------------------------------------------- #
+# mock harness: selecting it must reach MockHarness end to end, and a model set on
+# the run must not be rejected by the pre/post-resolve capability gate.
+# --------------------------------------------------------------------------- #
+async def test_mock_harness_reaches_mock_agent_template_through_the_handler():
+    backend = _FakeBackend()
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="mock",
+            model="mock-1",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {
+                "harness": {
+                    "kind": "mock",
+                    "extras": {"behavior": "echo", "kwargs": {"text": "hi"}},
+                },
+                "llm": "mock-1",
+            }
+        },
+    )
+
+    from agenta.sdk.agents.dtos import MockAgentTemplate
+
+    config = backend.created_configs[0]
+    assert isinstance(config, MockAgentTemplate)
+    assert config.behavior == "echo"
+    assert config.behavior_kwargs == {"text": "hi"}
+    assert config.wire_tools() == {}
 
 
 if __name__ == "__main__":

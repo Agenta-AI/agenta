@@ -22,6 +22,8 @@ from agenta.sdk.agents import (
     CodexAgentTemplate,
     CodexHarness,
     HarnessKind,
+    MockAgentTemplate,
+    MockHarness,
     PiAgentTemplate,
     PiHarness,
     SessionConfig,
@@ -354,6 +356,75 @@ def test_codex_managed_renders_file_free_provider_block(make_env):
     assert 'env_key = "OPENAI_API_KEY"' in content
 
 
+# ---------------------------------------------------------------------------- Mock
+
+
+def test_mock_has_no_tools(make_env):
+    harness = MockHarness(make_env(supported=[HarnessKind.MOCK]))
+    config = _session_config(
+        custom_tools=[{"name": "t", "callRef": "ref"}],
+        permission_default="deny",
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert isinstance(result, MockAgentTemplate)
+    assert result.wire_tools() == {}
+
+
+def test_mock_reads_its_harness_extras_slice_into_behavior_and_kwargs(make_env):
+    harness = MockHarness(make_env(supported=[HarnessKind.MOCK]))
+    agent = AgentTemplate(
+        instructions="hi",
+        harness_extras={"behavior": "echo", "kwargs": {"text": "hello"}},
+    )
+
+    result = harness._to_harness_config(_session_config(agent=agent))
+
+    assert result.behavior == "echo"
+    assert result.behavior_kwargs == {"text": "hello"}
+
+
+def test_mock_drops_a_blank_behavior_and_a_non_dict_kwargs(make_env):
+    harness = MockHarness(make_env(supported=[HarnessKind.MOCK]))
+    agent = AgentTemplate(
+        instructions="hi",
+        harness_extras={"behavior": "   ", "kwargs": "not-a-dict"},
+    )
+
+    result = harness._to_harness_config(_session_config(agent=agent))
+
+    assert result.behavior is None
+    assert result.behavior_kwargs == {}
+
+
+def test_mock_renders_its_behavior_into_a_generic_harness_file(make_env):
+    import json
+
+    harness = MockHarness(make_env(supported=[HarnessKind.MOCK]))
+    agent = AgentTemplate(
+        instructions="hi",
+        harness_extras={"behavior": "score", "kwargs": {"score": 0.9}},
+    )
+
+    result = harness._to_harness_config(_session_config(agent=agent))
+    wire = result.wire_harness_files()
+
+    assert wire["harnessFiles"][0]["path"] == ".agenta/mock.json"
+    assert json.loads(wire["harnessFiles"][0]["content"]) == {
+        "behavior": "score",
+        "kwargs": {"score": 0.9},
+    }
+
+
+def test_mock_is_sandbox_agent_supported():
+    # The runner drives Mock in-process (no subprocess), but it is still the sandbox-agent
+    # backend that reaches it, like Pi/Claude/Codex/Agenta.
+    from agenta.sdk.agents import SandboxAgentBackend
+
+    assert SandboxAgentBackend(url="http://runner").supports(HarnessKind.MOCK)
+
+
 # --------------------------------------------------------------- _normalize_tool_specs
 
 
@@ -410,6 +481,7 @@ def test_make_harness_maps_string_to_class(make_env):
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
             HarnessKind.AGENTA,
+            HarnessKind.MOCK,
         ]
     )
     assert isinstance(make_harness("pi_core", env), PiHarness)
@@ -422,6 +494,8 @@ def test_make_harness_maps_string_to_class(make_env):
     assert isinstance(make_harness(HarnessKind.CODEX, env), CodexHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
+    assert isinstance(make_harness("mock", env), MockHarness)
+    assert isinstance(make_harness(HarnessKind.MOCK, env), MockHarness)
 
 
 def test_make_harness_unsupported_backend_raises(make_env):

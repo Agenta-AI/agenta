@@ -1,5 +1,9 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {agentVoiceInputEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    agentaChannelSurfaceEnabledAtom,
+    agentVoiceInputEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
@@ -16,6 +20,9 @@ const Preferences = () => {
         playgroundInspectorEnabledAtom,
     )
     const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
+    const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
+        agentaChannelSurfaceEnabledAtom,
+    )
 
     return (
         <PreferencesPage
@@ -46,6 +53,14 @@ const Preferences = () => {
                         "Show controls for inspecting Playground sessions and individual turns.",
                     enabled: playgroundInspectorEnabled,
                     onChange: setPlaygroundInspectorEnabled,
+                    badge: "DEBUG",
+                },
+                {
+                    key: "agenta-channel-surface",
+                    title: "Agenta channel probe",
+                    description: "Show the temporary in-browser channel conversation probe.",
+                    enabled: agentaChannelSurfaceEnabled,
+                    onChange: setAgentaChannelSurfaceEnabled,
                     badge: "DEBUG",
                 },
             ]}

@@ -23,4 +23,6 @@ export interface ApplicationRevisionRetrieveRequest {
     key?: string | null;
     /** When `true`, resolve embedded references in the returned revision's `data` (for example, snippet references). */
     resolve?: boolean | null;
+    /** When false, an archived application, variant, or revision resolves to nothing. */
+    include_archived?: boolean | null;
 }
