@@ -166,6 +166,8 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
             # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
             # address + shared token as the `services` container's runner_url().
             AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
@@ -822,6 +824,9 @@ services:
                 "9091",
             ]
         # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
         ports:
             - "127.0.0.1:9091:9091"
         networks:
@@ -848,6 +853,9 @@ services:
                 "9092",
             ]
         # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
         ports:
             - "127.0.0.1:9092:9092"
         networks:

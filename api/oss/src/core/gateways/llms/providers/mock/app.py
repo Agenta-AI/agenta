@@ -25,9 +25,26 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
 from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.utils.env import env
 
 app = FastAPI(title="agenta-mock-llm-gateway")
 _adapter = MockLLMAdapter()
+
+
+def _profile(request: Request) -> str:
+    return request.headers.get("X-Agenta-Mock-Profile", "llm-custom")
+
+
+def _protected(request: Request) -> Response | None:
+    if not env.mock_gateways.enabled:
+        return None
+    expected = f"Bearer {env.mock_gateways.upstream_token}"
+    if request.headers.get("Authorization") != expected:
+        return JSONResponse(
+            status_code=401,
+            content={"error": {"message": "mock upstream credential rejected"}},
+        )
+    return None
 
 
 @app.get("/health")
@@ -47,6 +64,11 @@ async def echo_headers(request: Request) -> Response:
 
 
 async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
+    denied = _protected(request)
+    if denied is not None:
+        return denied
+
+    profile = _profile(request)
     body = await request.body()
     try:
         payload = json.loads(body) if body else {}
@@ -74,11 +96,15 @@ async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
                     "code": "mock_upstream_error",
                 }
             },
+            headers={"X-Agenta-Mock-Profile": profile},
         )
 
     if stream:
         return StreamingResponse(
-            result.body, media_type="text/event-stream", status_code=result.status_code
+            result.body,
+            media_type="text/event-stream",
+            status_code=result.status_code,
+            headers={"X-Agenta-Mock-Profile": profile},
         )
 
     chunks = [chunk async for chunk in result.body]
@@ -86,6 +112,7 @@ async def _relay(request: Request, *, protocol: LLMProtocol) -> Response:
         content=b"".join(chunks),
         media_type="application/json",
         status_code=result.status_code,
+        headers={"X-Agenta-Mock-Profile": profile},
     )
 
 

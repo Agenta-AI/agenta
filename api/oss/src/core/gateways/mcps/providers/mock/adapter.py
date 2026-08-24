@@ -32,13 +32,19 @@ import asyncio
 import json
 from typing import Any, Dict
 
+import httpx
+
 from oss.src.core.gateways.mcps.dtos import (
     MCPCallContext,
+    MCPDirectAuth,
     MCPRelayAuth,
     MCPResolvedRoute,
 )
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
+from oss.src.core.gateways.policy.dtos import ResolvedSecret
+from oss.src.core.secrets.enums import SecretKind
+from oss.src.utils.env import env
 
 _PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
 
@@ -134,4 +140,67 @@ class MockMCPAdapter(MCPUpstreamInterface):
             status_code=200,
             headers={"content-type": "application/json"},
             body=json.dumps(response).encode(),
+        )
+
+
+def _secret_key(secret: ResolvedSecret | None) -> str | None:
+    if secret is None:
+        return None
+    if secret.secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER):
+        return secret.secret.data.provider.key
+    return None
+
+
+class DeployableMockMCPAdapter(MCPUpstreamInterface):
+    """Relay generated development entries to the compose mock over a real socket.
+
+    This bypasses the generic custom-server SSRF adapter because the target is a
+    fixed, opt-in development service, not caller-controlled routing data.
+    """
+
+    async def relay(
+        self,
+        *,
+        route: MCPResolvedRoute,
+        auth: MCPRelayAuth,
+        context: MCPCallContext,
+        body: bytes,
+        headers: Dict[str, str],
+    ) -> MCPRelayResult:
+        if not env.mock_gateways.enabled or route.url.rstrip(
+            "/"
+        ) != env.mock_gateways.mcp_url.rstrip("/"):
+            raise MCPUpstreamError(
+                target=route.url, detail="mock gateway is unavailable"
+            )
+
+        outbound = {
+            key: value
+            for key, value in {**route.headers, **headers}.items()
+            if key.lower() not in {"authorization", "host", "content-length"}
+        }
+        token = (
+            _secret_key(auth.secret)
+            if isinstance(auth, MCPDirectAuth)
+            else env.mock_gateways.upstream_token
+        )
+        if token is None:
+            token = env.mock_gateways.upstream_token
+        if token:
+            outbound["Authorization"] = f"Bearer {token}"
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=route.settings.timeout_seconds or 30.0
+            ) as client:
+                response = await client.post(route.url, content=body, headers=outbound)
+        except httpx.HTTPError as exc:
+            raise MCPUpstreamError(
+                target=route.url, detail="mock gateway request failed"
+            ) from exc
+
+        return MCPRelayResult(
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            body=response.content,
         )

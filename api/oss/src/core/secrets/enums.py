@@ -74,3 +74,4 @@ class CustomProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
+    MOCK = "mock"  # local gateway development catalogue only

@@ -11,6 +11,7 @@ from uuid import UUID
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
+    builtin_llm_endpoint,
     standard_llm_endpoint,
     standard_llm_endpoints,
 )
@@ -408,7 +409,20 @@ class LLMGatewayService:
                 is_active=row.flags.is_active,
             )
 
-        # BUILTIN: reserved, empty on the LLM plane until we supply the key (D30).
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            endpoint = builtin_llm_endpoint(provider_key=name)
+            if endpoint is None:
+                raise LLMEndpointNotFoundError(namespace=namespace, name=name)
+            return _ResolvedLlmTarget(
+                namespace=GatewayEndpointNamespace.BUILTIN,
+                name=name,
+                provider_key=endpoint.provider_key,
+                deployment_kind=endpoint.deployment_kind,
+                models=endpoint.data.models,
+                route_data=endpoint.data.route,
+                settings=endpoint.data.settings,
+            )
+
         raise LLMEndpointNotFoundError(namespace=namespace, name=name)
 
     @staticmethod

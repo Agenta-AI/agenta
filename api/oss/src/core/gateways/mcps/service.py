@@ -22,6 +22,7 @@ from oss.src.core.gateways.dtos import (
 from oss.src.core.gateways.mcps.dtos import (
     AGENTA_PROVIDER,
     COMPOSIO_PROVIDER,
+    MOCK_PROVIDER,
     MCPBrokeredAuth,
     MCPCallContext,
     MCPDirectAuth,
@@ -49,6 +50,7 @@ from oss.src.core.gateways.mcps.types import (
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
+    ProviderKeyRef,
     SecretOwnerKind,
     SecretMode,
     GatewayOutcome,
@@ -69,8 +71,9 @@ from oss.src.utils.env import env
 # Adapter selection (§8 step 5). `builtin` dispatches on its provider segment, since
 # the namespace only says whose account pays, not which backend answers (D30).
 _BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
-    AGENTA_PROVIDER: "mock",
-    COMPOSIO_PROVIDER: "composio",
+    AGENTA_PROVIDER: "mock_http",
+    COMPOSIO_PROVIDER: "mock_http",
+    MOCK_PROVIDER: "mock_http",
 }
 
 
@@ -78,14 +81,17 @@ def _adapter_key(
     *, namespace: GatewayEndpointNamespace, provider: Optional[str]
 ) -> str:
     if namespace == GatewayEndpointNamespace.BUILTIN:
+        if provider == COMPOSIO_PROVIDER and not env.mock_gateways.enabled:
+            return "composio"
         key = _BUILTIN_ADAPTER_KEYS.get(provider or "")
         if key is None:
             raise MCPEndpointNotFoundError(namespace=namespace, name=provider or "")
         return key
     if namespace == GatewayEndpointNamespace.CUSTOM:
         return "http"
-    # STANDARD: reserved, empty on the MCP plane (D30).
-    raise MCPEndpointNotFoundError(namespace=namespace, name="")
+    if namespace == GatewayEndpointNamespace.STANDARD and provider == MOCK_PROVIDER:
+        return "mock_http"
+    raise MCPEndpointNotFoundError(namespace=namespace, name=provider or "")
 
 
 @dataclass
@@ -249,29 +255,85 @@ class MCPGatewayService:
         )
         builtin = [self._builtin_endpoint(connection) for connection in connections]
 
-        # builtin's two providers first (agenta, then composio), custom rows last — no
+        provider_keys = await self.resolver.available_provider_keys(scope=scope)
+        standard = (
+            [self._standard_mock_endpoint()]
+            if self._mocks_enabled() and MOCK_PROVIDER in provider_keys
+            else []
+        )
+
+        # builtin's providers first, generated standard targets next, custom rows last — no
         # ordering guarantee is promised by entities.md §8.
-        return [*self._agenta_endpoints(), *builtin, *custom]
+        return [
+            *self._agenta_endpoints(),
+            *builtin,
+            *self._mock_endpoints(),
+            *standard,
+            *custom,
+        ]
+
+    @staticmethod
+    def _mocks_enabled() -> bool:
+        return env.mock_gateways.enabled
 
     def _agenta_endpoints(self) -> List[MCPEndpoint]:
         """The endpoints Agenta itself serves — the `agenta` provider inside `builtin`
         (D23, D30). Private and
         service-internal — entities.md names no public symbol for this, unlike the LLM
-        plane's `standard_llm_endpoint(s)`. Wave 1's only member is WP5's deployable
-        mock MCP server; slug "tools" matches the route grammar's own worked example
-        (D30: `/gateways/mcps/builtin/agenta/{slug}` -> `builtin/agenta/tools`)."""
+        plane's `standard_llm_endpoint(s)`. The local member is named `mock` so its
+        route clearly denotes the development upstream rather than a product tool.
+        """
+        if not self._mocks_enabled():
+            return []
         return [
             MCPEndpoint(
-                slug="tools",
+                slug="mock",
                 name="Agenta Tools",
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
                 provider_key=AGENTA_PROVIDER,
                 data=MCPEndpointData(
-                    route=MCPEndpointRoute(base_url=env.mock_gateways.mcp_url)
+                    route=MCPEndpointRoute(
+                        base_url=env.mock_gateways.mcp_url,
+                        headers={"X-Agenta-Mock-Profile": "mcp-builtin-agenta"},
+                    )
                 ),
             )
         ]
+
+    def _mock_endpoints(self) -> List[MCPEndpoint]:
+        if not self._mocks_enabled():
+            return []
+        return [
+            MCPEndpoint(
+                slug="mock",
+                name="Mock Tools",
+                auth_mode=MCPAuthScheme.NONE,
+                namespace=GatewayEndpointNamespace.BUILTIN,
+                provider_key=MOCK_PROVIDER,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(
+                        base_url=env.mock_gateways.mcp_url,
+                        headers={"X-Agenta-Mock-Profile": "mcp-builtin-mock"},
+                    )
+                ),
+            )
+        ]
+
+    def _standard_mock_endpoint(self) -> MCPEndpoint:
+        return MCPEndpoint(
+            slug=MOCK_PROVIDER,
+            name="Mock MCP",
+            auth_mode=MCPAuthScheme.API_KEY,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            provider_key=MOCK_PROVIDER,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(
+                    base_url=env.mock_gateways.mcp_url,
+                    headers={"X-Agenta-Mock-Profile": "mcp-standard-mock"},
+                )
+            ),
+        )
 
     def _builtin_endpoint(self, connection: Connection) -> MCPEndpoint:
         """One generated (never persisted, D19/D20) `MCPEndpoint` per active composio
@@ -499,6 +561,23 @@ class MCPGatewayService:
                 namespace=namespace, name=name, provider=provider, endpoint=endpoint
             )
 
+        if namespace == GatewayEndpointNamespace.BUILTIN and provider == MOCK_PROVIDER:
+            endpoint = next((e for e in self._mock_endpoints() if e.slug == name), None)
+            if endpoint is None:
+                raise MCPEndpointNotFoundError(namespace=namespace, name=name)
+            return _ResolvedTarget(
+                namespace=namespace, name=name, provider=provider, endpoint=endpoint
+            )
+
+        if (
+            namespace == GatewayEndpointNamespace.STANDARD
+            and name == MOCK_PROVIDER
+            and self._mocks_enabled()
+        ):
+            return _ResolvedTarget(
+                namespace=namespace, name=name, endpoint=self._standard_mock_endpoint()
+            )
+
         if namespace == GatewayEndpointNamespace.BUILTIN:
             connections = await self.connections_service.query_connections(
                 project_id=project_id,
@@ -579,6 +658,13 @@ class MCPGatewayService:
             return MCPBrokeredAuth(connection=connection)
 
         endpoint = target.endpoint
+        if target.namespace == GatewayEndpointNamespace.STANDARD:
+            secret = await self.resolver.resolve(
+                scope=scope,
+                ref=ProviderKeyRef(provider_key=target.name),
+                mode=SecretMode.PROJECT_ONLY,
+            )
+            return MCPDirectAuth(secret=secret)
         if endpoint.auth_mode == MCPAuthScheme.NONE:
             return MCPDirectAuth(secret=None)
 
@@ -606,6 +692,11 @@ class MCPGatewayService:
 
     def _route_for(self, target: _ResolvedTarget) -> MCPResolvedRoute:
         if target.provider == COMPOSIO_PROVIDER:
+            if self._mocks_enabled():
+                return MCPResolvedRoute(
+                    url=env.mock_gateways.mcp_url,
+                    headers={"X-Agenta-Mock-Profile": "mcp-builtin-composio"},
+                )
             return MCPResolvedRoute(
                 url=_builtin_placeholder_url(
                     provider=target.provider or "",

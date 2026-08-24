@@ -178,7 +178,10 @@ from oss.src.core.gateways.llms.providers.passthrough.adapter import (
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
-from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.providers.mock.adapter import (
+    DeployableMockMCPAdapter,
+    MockMCPAdapter,
+)
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
@@ -1123,6 +1126,7 @@ mcp_gateway_service = MCPGatewayService(
         adapters={
             "http": HttpMCPAdapter(),
             "mock": MockMCPAdapter(),
+            "mock_http": DeployableMockMCPAdapter(),
         }
     ),
 )

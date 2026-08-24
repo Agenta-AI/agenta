@@ -33,6 +33,7 @@ MCPAuthScheme = GatewayAuthScheme
 # them, not a namespace of its own.
 AGENTA_PROVIDER = "agenta"
 COMPOSIO_PROVIDER = "composio"
+MOCK_PROVIDER = "mock"
 
 
 class MCPEndpointRoute(GatewayEndpointRoute):

@@ -22,11 +22,28 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
+from oss.src.utils.env import env
 
 app = FastAPI(title="agenta-mock-mcp-gateway")
 _adapter = MockMCPAdapter()
 _route = MCPResolvedRoute(url="http://mock-mcp-gateway:9092/")
 _auth = MCPDirectAuth(secret=None)
+
+
+def _profile(request: Request) -> str:
+    return request.headers.get("X-Agenta-Mock-Profile", "mcp-custom")
+
+
+def _protected(request: Request) -> Response | None:
+    if not env.mock_gateways.enabled:
+        return None
+    expected = f"Bearer {env.mock_gateways.upstream_token}"
+    if request.headers.get("Authorization") != expected:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "mock upstream credential rejected"},
+        )
+    return None
 
 
 @app.get("/health")
@@ -46,6 +63,11 @@ async def echo_headers(request: Request) -> Response:
 
 @app.post("/")
 async def relay(request: Request) -> Response:
+    denied = _protected(request)
+    if denied is not None:
+        return denied
+
+    profile = _profile(request)
     body = await request.body()
     try:
         payload = json.loads(body) if body else {}
@@ -70,12 +92,13 @@ async def relay(request: Request) -> Response:
         )
 
     if result.status_code == 202:
-        return Response(status_code=202)
+        return Response(status_code=202, headers={"X-Agenta-Mock-Profile": profile})
 
     return Response(
         status_code=result.status_code,
         content=result.body,
         media_type="application/json",
+        headers={"X-Agenta-Mock-Profile": profile},
     )
 
 

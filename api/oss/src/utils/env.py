@@ -727,14 +727,23 @@ class ComposioConfig(BaseModel):
 
 
 class MockGatewaysConfig(BaseModel):
-    """Local-stack mock upstream addresses (WP5). Unset in production images —
-    nothing references these outside dev/gh compose."""
+    """Development-only gateway mock configuration.
+
+    The URLs have safe defaults so the compose services can share one image, but generated
+    gateway entries are opt-in.  A production process must therefore not accidentally expose
+    an endpoint merely because a Docker DNS name happens to resolve.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_GATEWAYS_MOCKS_ENABLED", default=False)
 
     llm_url: str = os.getenv(
         "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
     )
     mcp_url: str = os.getenv(
         "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+    upstream_token: str = os.getenv(
+        "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
     )
 
     model_config = ConfigDict(extra="ignore")

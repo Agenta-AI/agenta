@@ -20,6 +20,18 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import DIRECT_BASE_URLS
 from oss.src.core.shared.dtos import Header
+from oss.src.utils.env import env
+
+_MOCK_MODEL = "mock/echo"
+
+
+def _mock_route(*, profile: str) -> LLMEndpointRoute:
+    """A generated entry always talks to the deployable mock, never the in-process
+    adapter.  The profile is observable but deliberately non-secret."""
+    return LLMEndpointRoute(
+        base_url=env.mock_gateways.llm_url,
+        headers={"X-Agenta-Mock-Profile": profile},
+    )
 
 
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
@@ -41,6 +53,19 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
     entry in `supported_llm_models` — covers both an unknown string and the three
     `StandardProviderKind` members with no catalogue entry (`anyscale`, `alephalpha`,
     `mistralai`)."""
+    if provider_key == "mock" and env.mock_gateways.enabled:
+        return LLMEndpoint(
+            slug="mock",
+            header=Header(name="mock"),
+            provider_key="mock",
+            deployment_kind=LLMDeploymentKind.CUSTOM,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            data=LLMEndpointData(
+                route=_mock_route(profile="llm-standard-mock"),
+                models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
+            ),
+        )
+
     model_slugs = supported_llm_models.get(provider_key)
     if model_slugs is None:
         return None
@@ -78,4 +103,31 @@ def standard_llm_endpoints() -> List[LLMEndpoint]:
         standard_llm_endpoint(provider_key=provider_key)
         for provider_key in supported_llm_models
     )
-    return [endpoint for endpoint in endpoints if endpoint is not None]
+    generated = [endpoint for endpoint in endpoints if endpoint is not None]
+    mock = standard_llm_endpoint(provider_key="mock")
+    return ([mock] if mock is not None else []) + generated
+
+
+def builtin_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
+    """Platform-owned development models.  These are generated only under the
+    explicit switch; their static upstream credential is never project-owned."""
+    if not env.mock_gateways.enabled or provider_key not in {"agenta", "mock"}:
+        return None
+
+    return LLMEndpoint(
+        slug=provider_key,
+        header=Header(name=provider_key),
+        provider_key=provider_key,
+        deployment_kind=LLMDeploymentKind.CUSTOM,
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        data=LLMEndpointData(
+            route=LLMEndpointRoute(
+                base_url=env.mock_gateways.llm_url,
+                headers={
+                    "Authorization": f"Bearer {env.mock_gateways.upstream_token}",
+                    "X-Agenta-Mock-Profile": f"llm-builtin-{provider_key}",
+                },
+            ),
+            models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
+        ),
+    )

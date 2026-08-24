@@ -585,6 +585,10 @@ def test_route_table_matches_the_design_exactly():
 
     assert actual == {
         (
+            "/builtin/{provider}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_builtin",
+        (
             "/standard/{provider}/v1/chat/completions",
             "POST",
         ): "llm_gateway_chat_completions_standard",
@@ -592,10 +596,13 @@ def test_route_table_matches_the_design_exactly():
             "/custom/{slug}/v1/chat/completions",
             "POST",
         ): "llm_gateway_chat_completions_custom",
+        ("/builtin/{provider}/v1/responses", "POST"): "llm_gateway_responses_builtin",
         ("/standard/{provider}/v1/responses", "POST"): "llm_gateway_responses_standard",
         ("/custom/{slug}/v1/responses", "POST"): "llm_gateway_responses_custom",
+        ("/builtin/{provider}/v1/messages", "POST"): "llm_gateway_messages_builtin",
         ("/standard/{provider}/v1/messages", "POST"): "llm_gateway_messages_standard",
         ("/custom/{slug}/v1/messages", "POST"): "llm_gateway_messages_custom",
+        ("/builtin/{provider}/v1/models", "GET"): "llm_gateway_list_models_builtin",
         ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
         ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",
     }

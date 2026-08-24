@@ -295,12 +295,13 @@ async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace():
+async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
     service = _service()
 
     endpoints = await service.list_endpoints(scope=_scope())
 
-    agenta = [e for e in endpoints if e.slug == "tools"]
+    agenta = [e for e in endpoints if e.slug == "mock" and e.provider_key == "agenta"]
     assert len(agenta) == 1
     assert agenta[0].id is None
     assert agenta[0].namespace.value == "builtin"
@@ -308,6 +309,33 @@ async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace():
     # both were silently dropped once by a rename, because the DTO ignores extras.
     assert agenta[0].provider_key == "agenta"
     assert agenta[0].data.route.base_url == env.mock_gateways.mcp_url
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_adds_standard_mock_only_with_project_credential(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    service = _service(resolver=MockResolver(provider_keys={"mock"}))
+
+    endpoints = await service.list_endpoints(scope=_scope())
+
+    standard = [
+        endpoint
+        for endpoint in endpoints
+        if endpoint.namespace.value == "standard" and endpoint.slug == "mock"
+    ]
+    assert len(standard) == 1
+    assert standard[0].id is None
+    assert standard[0].data.route.base_url == env.mock_gateways.mcp_url
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_omits_generated_mocks_when_disabled(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    service = _service(resolver=MockResolver(provider_keys={"mock"}))
+
+    assert await service.list_endpoints(scope=_scope()) == []
 
 
 @pytest.mark.asyncio
@@ -463,11 +491,12 @@ class MockUpstreamAdapter:
 class MockResolver:
     """Logs every call; returns a canned secret or raises."""
 
-    def __init__(self, *, secret=None, raise_exc=None) -> None:
+    def __init__(self, *, secret=None, raise_exc=None, provider_keys=None) -> None:
         self.resolve_calls = 0
         self.last_mode = None
         self._secret = secret
         self._raise = raise_exc
+        self._provider_keys = provider_keys or set()
 
     async def resolve(self, *, scope, ref, mode):
         self.resolve_calls += 1
@@ -477,7 +506,7 @@ class MockResolver:
         return self._secret
 
     async def available_provider_keys(self, *, scope):
-        return set()
+        return self._provider_keys
 
 
 class MockPolicyService:
@@ -549,19 +578,22 @@ def _relay_service(
 
 
 @pytest.mark.asyncio
-async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_resolver():
+async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_resolver(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
     adapter = MockUpstreamAdapter()
     resolver = MockResolver()
     policy = MockPolicyService()
     service = _relay_service(
-        resolver=resolver, policy=policy, adapters={"mock": adapter}
+        resolver=resolver, policy=policy, adapters={"mock_http": adapter}
     )
 
     result = await service.relay(
         scope=_scope(),
         namespace="builtin",
         provider="agenta",
-        name="tools",
+        name="mock",
         context=MCPCallContext(method="tools/call", target="echo"),
         body=b"{}",
         headers={},

@@ -252,6 +252,12 @@ class MCPGatewayProxy:
         self.router = APIRouter()
 
         self.router.add_api_route(
+            "/standard/{provider}",
+            self.relay_standard,
+            methods=["POST"],
+            operation_id="mcp_gateway_relay_standard",
+        )
+        self.router.add_api_route(
             "/builtin/{provider}/{rest:path}",
             self.relay_builtin,
             methods=["POST"],
@@ -265,6 +271,7 @@ class MCPGatewayProxy:
         )
 
         for path in (
+            "/standard/{provider}",
             "/builtin/{provider}/{rest:path}",
             "/custom/{slug}",
         ):
@@ -324,6 +331,15 @@ class MCPGatewayProxy:
             name=name,
             provider=provider,
             integration=integration,
+        )
+
+    @intercept_exceptions()
+    async def relay_standard(self, request: Request, provider: str) -> Response:
+        return await self._relay(
+            request=request,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=provider,
+            provider=provider,
         )
 
     @intercept_exceptions()

@@ -175,6 +175,12 @@ class LLMGatewayProxy:
         self.router = APIRouter()
 
         self.router.add_api_route(
+            "/builtin/{provider}/v1/chat/completions",
+            self.chat_completions_builtin,
+            methods=["POST"],
+            operation_id="llm_gateway_chat_completions_builtin",
+        )
+        self.router.add_api_route(
             "/standard/{provider}/v1/chat/completions",
             self.chat_completions_standard,
             methods=["POST"],
@@ -185,6 +191,12 @@ class LLMGatewayProxy:
             self.chat_completions_custom,
             methods=["POST"],
             operation_id="llm_gateway_chat_completions_custom",
+        )
+        self.router.add_api_route(
+            "/builtin/{provider}/v1/responses",
+            self.responses_builtin,
+            methods=["POST"],
+            operation_id="llm_gateway_responses_builtin",
         )
         self.router.add_api_route(
             "/standard/{provider}/v1/responses",
@@ -199,6 +211,12 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_responses_custom",
         )
         self.router.add_api_route(
+            "/builtin/{provider}/v1/messages",
+            self.messages_builtin,
+            methods=["POST"],
+            operation_id="llm_gateway_messages_builtin",
+        )
+        self.router.add_api_route(
             "/standard/{provider}/v1/messages",
             self.messages_standard,
             methods=["POST"],
@@ -209,6 +227,12 @@ class LLMGatewayProxy:
             self.messages_custom,
             methods=["POST"],
             operation_id="llm_gateway_messages_custom",
+        )
+        self.router.add_api_route(
+            "/builtin/{provider}/v1/models",
+            self.list_models_builtin,
+            methods=["GET"],
+            operation_id="llm_gateway_list_models_builtin",
         )
         self.router.add_api_route(
             "/standard/{provider}/v1/models",
@@ -224,6 +248,17 @@ class LLMGatewayProxy:
         )
 
     # --- chat completions ---------------------------------------------------- #
+
+    async def chat_completions_builtin(
+        self, request: Request, provider: str
+    ) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name=provider,
+            parser=parse_llm_call_context,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+        )
 
     async def chat_completions_standard(
         self, request: Request, provider: str
@@ -247,6 +282,15 @@ class LLMGatewayProxy:
 
     # --- responses -------------------------------------------------------------- #
 
+    async def responses_builtin(self, request: Request, provider: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name=provider,
+            parser=parse_responses_call_context,
+            protocol=LLMProtocol.RESPONSES,
+        )
+
     async def responses_standard(self, request: Request, provider: str) -> Response:
         return await self._relay(
             request,
@@ -266,6 +310,15 @@ class LLMGatewayProxy:
         )
 
     # --- messages --------------------------------------------------------------- #
+
+    async def messages_builtin(self, request: Request, provider: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name=provider,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
+        )
 
     async def messages_standard(self, request: Request, provider: str) -> Response:
         return await self._relay(
@@ -344,6 +397,11 @@ class LLMGatewayProxy:
         )
 
     # --- models ---------------------------------------------------------------- #
+
+    async def list_models_builtin(self, provider: str) -> Any:
+        return await self._list_models(
+            namespace=GatewayEndpointNamespace.BUILTIN, name=provider
+        )
 
     async def list_models_standard(self, provider: str) -> Any:
         return await self._list_models(
