@@ -1,9 +1,4 @@
-/**
- * The frontend skill-name/draft guard mirrors the SDK's pydantic rules
- * (`sdks/python/agenta/sdk/agents/skills/models.py`). A name the SDK rejects must be rejected
- * here too: it saves as plain JSON but blows up `parse_skill_templates` on the first run, so the
- * whole agent fails rather than just the skill.
- */
+/** Mirrors the SDK's pydantic rules: a name the SDK rejects must be rejected here too. */
 import {describe, expect, it} from "vitest"
 
 import {
@@ -36,6 +31,21 @@ describe("skillNameError", () => {
         for (const name of ["my_skill", "my skill", "-lead", "trail-", "double--hyphen", "a.b"])
             expect(skillNameError(name), name).toBeDefined()
         expect(skillNameError("a".repeat(65))).toBe("Max 64 characters.")
+    })
+
+    it("rejects surrounding whitespace, which the form stores untrimmed", () => {
+        expect(skillNameError("weather ")).toBe("No leading or trailing spaces.")
+        expect(skillNameError(" weather")).toBe("No leading or trailing spaces.")
+        expect(isValidSkillName("weather ")).toBe(false)
+        expect(skillDraftError({name: "weather ", description: "d", body: "b"})).toBe(
+            "No leading or trailing spaces.",
+        )
+        expect(skillNameError(" My Skill ")).toBe("Lowercase, digits and hyphens only.")
+    })
+
+    it("slugifies away the whitespace so the one-click fix resolves it", () => {
+        expect(slugifySkillName("weather ")).toBe("weather")
+        expect(slugifySkillName(" My Skill ")).toBe("my-skill")
     })
 
     it("slugifies a human-written name for the one-click fix", () => {

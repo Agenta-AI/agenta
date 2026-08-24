@@ -164,10 +164,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),
-        // `@ag.embed` skill references carry no name and are always valid (they round-trip as-is).
-        // Everything else is checked against the same rules the SDK enforces at run time
-        // (see `skillName.ts`) — a capitalised name or an empty description/body parses fine as
-        // JSON but fails `parse_skill_templates` on the first run, taking the whole agent with it.
+        // `@ag.embed` references round-trip as-is; everything else must pass the SDK's own rules.
         draftInvalid: (draft) => !isEmbedRefSkill(draft) && skillDraftError(draft) !== undefined,
     },
 }

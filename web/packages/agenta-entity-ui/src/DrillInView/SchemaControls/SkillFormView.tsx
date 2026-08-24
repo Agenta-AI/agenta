@@ -157,8 +157,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         : []
 
     const [selected, setSelected] = useState<Selection>("skill")
-    // Validation messages stay quiet on a pristine "New skill" draft and switch on as soon as the
-    // user (or an upload) puts something in the field, so the drawer doesn't open shouting.
+    // Quiet on a pristine draft; on once the user or an upload touches the field.
     const [nameTouched, setNameTouched] = useState(() => Boolean(String(skill.name ?? "").trim()))
     const [descriptionTouched, setDescriptionTouched] = useState(() =>
         Boolean(String(skill.description ?? "").trim()),
@@ -169,6 +168,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     const description = (skill.description as string | undefined) ?? ""
     const nameError = skillNameError(name, {touched: nameTouched})
     const nameSuggestion = nameError && name.trim() ? slugifySkillName(name) : ""
+    const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
     const descriptionError =
         descriptionTouched && !description.trim()
             ? "Required."
@@ -221,14 +221,12 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     // Merge an uploaded/parsed skill into the draft (only overwrite what the upload provides).
     const applyParsed = (parsed: ParsedSkill) => {
         const next = {...skill}
-        if (parsed.name) {
-            next.name = parsed.name
-            setNameTouched(true)
-        }
-        if (parsed.description) {
-            next.description = parsed.description
-            setDescriptionTouched(true)
-        }
+        if (parsed.name) next.name = parsed.name
+        if (parsed.description) next.description = parsed.description
+        // Touched regardless of what the upload carried, so a package missing a name or
+        // description shows "Required." instead of only a dead Save button.
+        setNameTouched(true)
+        setDescriptionTouched(true)
         // body/files are always present on a parsed upload; assign unconditionally so a
         // replacement with an empty body or no bundled files clears the previous draft.
         next.body = parsed.body
@@ -338,7 +336,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                         nameError ? (
                             <span>
                                 {nameError}
-                                {nameSuggestion && nameSuggestion !== name.trim() ? (
+                                {showNameSuggestion ? (
                                     <>
                                         {" "}
                                         <button
@@ -348,7 +346,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                                 set("name", nameSuggestion)
                                             }}
                                             disabled={disabled}
-                                            className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-xs text-error underline"
+                                            className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-xs text-error underline underline-offset-2 outline-none hover:no-underline hover:opacity-80 focus-visible:ring-2 focus-visible:ring-error/50 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50"
                                         >
                                             Use &quot;{nameSuggestion}&quot;
                                         </button>
