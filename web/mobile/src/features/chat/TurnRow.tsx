@@ -2,7 +2,7 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {StartupActivity, TurnFooter} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {useStartupPhase} from "@agenta/chat/state"
@@ -10,7 +10,6 @@ import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatActionIconButton,
     ChatBubble,
     ChatBubbleAvatar,
     ChatTypingDots,
@@ -23,13 +22,9 @@ import {
     Ban,
     Bot,
     Brain,
-    Check,
     CheckCircle2,
     ChevronRight,
     CircleDashed,
-    Copy,
-    Network,
-    Undo2,
     User,
     Wrench,
     XCircle,
@@ -219,7 +214,6 @@ export const TurnRow = ({
     sessionId: string
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [copied, setCopied] = useState(false)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
     const renderMap = useMemo(
@@ -233,21 +227,11 @@ export const TurnRow = ({
     const usage = getMessageUsage(turn.message)
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
-    const handleCopy = async () => {
-        const text = (turn.message.parts ?? [])
-            .filter((part) => part.type === "text")
-            .map((part) => (part as {text?: string}).text ?? "")
-            .join("\n")
-            .trim()
-        if (!text) return
-        try {
-            await navigator.clipboard.writeText(text)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-        } catch {
-            // Clipboard denied (insecure origin, or the user said no) — nothing to recover.
-        }
-    }
+    const copyText = (turn.message.parts ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => (part as {text?: string}).text ?? "")
+        .join("\n")
+        .trim()
 
     // Only the turn being generated shows the loading state, and only until it has content —
     // the same gate the desktop uses.
@@ -340,40 +324,21 @@ export const TurnRow = ({
                 reach for it. */}
             <div
                 className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
-                    turn.isUser ? "right-2" : "left-10"
+                    turn.isUser ? "right-11" : "left-11"
                 }`}
             >
-                <TurnTimestamp
+                <TurnFooter
                     messageId={turn.message.id}
                     traceId={traceId}
                     turnTraceId={turn.turnTraceId}
+                    isUser={turn.isUser}
+                    usage={usage}
+                    copyText={copyText}
+                    // Rewinding the LAST turn just re-runs the turn that is already current, so the
+                    // desktop hides it there and so do we.
+                    onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
+                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
                 />
-                <TurnMetrics traceId={traceId} usage={usage} />
-                <ChatActionIconButton
-                    label={copied ? "Copied" : "Copy"}
-                    icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                    onClick={handleCopy}
-                />
-                {/* Rewinding the LAST turn just re-runs the turn that is already current, so the
-                    desktop hides it there and so do we. */}
-                {onRewind && !turn.isLast ? (
-                    <ChatActionIconButton
-                        label={
-                            turn.isUser
-                                ? "Rewind here — edit and re-run the conversation from this message"
-                                : "Rewind here — re-run this turn"
-                        }
-                        icon={<Undo2 className="size-3.5" />}
-                        onClick={() => onRewind(turn)}
-                    />
-                ) : null}
-                {traceId ? (
-                    <ChatActionIconButton
-                        label="View trace"
-                        icon={<Network className="size-3.5" />}
-                        onClick={() => openTraceDrawer({traceId})}
-                    />
-                ) : null}
             </div>
         </div>
     )

@@ -1,5 +1,5 @@
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
+import {ExecutionMetricsDisplay, MetaSeparator} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -22,21 +22,35 @@ import type {MessageUsageMetrics} from "../assets"
 export const TurnMetrics = ({
     traceId,
     usage,
+    separator = false,
 }: {
     traceId?: string | null
     usage?: MessageUsageMetrics
+    /** Prepend a `·`, so these figures read as part of the segment before them. */
+    separator?: boolean
 }) => {
     const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
     if (!traceId) {
-        return usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null
+        return usage ? (
+            <ExecutionMetricsDisplay metrics={usage} variant="plain" separator={separator} />
+        ) : null
     }
     if (summary.isPending) {
         return (
             <div className="flex items-center gap-1">
-                <SkeletonBlock active className="h-[22px] w-14 rounded-control-sm" />
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+                {separator ? <MetaSeparator /> : null}
+                <SkeletonBlock active className="h-4 w-10 rounded-control-sm" />
+                {usage ? (
+                    <ExecutionMetricsDisplay metrics={usage} variant="plain" separator />
+                ) : null}
             </div>
         )
     }
-    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
+    return (
+        <ExecutionMetricsDisplay
+            metrics={{...summary.metrics, ...usage}}
+            variant="plain"
+            separator={separator}
+        />
+    )
 }

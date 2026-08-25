@@ -14,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A row of icon Tags for latency / tokens / cost. Composes the @agenta/ui Badge + Tooltip internally; stands in for the same row of antd Tags built by hand.\n\n**Used in:** 2 places — the agent chat message footer (`oss/src/components/AgentChatSlice/components/AgentMessage.tsx`) and the shared generation-result utils behind playground outputs.",
+                    "A row of icon Tags for latency / tokens / cost, or — in the `plain` variant — one line of dot-separated muted text. Composes the @agenta/ui Badge + Tooltip internally; stands in for the same row of antd Tags built by hand.\n\n**Used in:** the shared generation-result utils behind playground outputs (`badge`), and the turn footer both apps render via `TurnFooter` in `@agenta/chat` (`plain`).",
             },
         },
     },
@@ -101,6 +101,38 @@ export const AntdVsAgenta: Story = {
                         show={["tokens"]}
                     />
                 }
+            />
+        </div>
+    ),
+}
+
+// The turn footer's variant: no tags, no per-metric icons — just the values, dot-separated.
+export const Plain: Story = {
+    render: () => (
+        <div className="flex max-w-[820px] flex-col gap-3">
+            <ExecutionMetricsDisplay
+                metrics={{
+                    durationMs: 134_000,
+                    totalTokens: 1_600_000,
+                    promptTokens: 1_500_000,
+                    completionTokens: 100_000,
+                    totalCost: 0.06951,
+                }}
+                variant="plain"
+            />
+            {/* `separator` in context: the leading `·` ties the row to the segment before it. */}
+            <div className="flex items-center gap-1">
+                <span className="text-[12px] text-colorTextTertiary">3h ago</span>
+                <ExecutionMetricsDisplay
+                    metrics={{durationMs: 46_380, totalTokens: 117_800, totalCost: 0.00891}}
+                    variant="plain"
+                    separator
+                />
+            </div>
+            <ExecutionMetricsDisplay
+                metrics={{totalTokens: 256}}
+                variant="plain"
+                show={["tokens"]}
             />
         </div>
     ),
