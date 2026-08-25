@@ -42,8 +42,8 @@ export interface ConnectionDockState {
     open: boolean
     /** Every parked connection, front card first (the user's pick, else the agent's order). */
     stack: ClientToolMeta[]
-    /** The whole turn's connect calls, settled included, in the agent's order — what the progress
-     *  dots walk. Stable: it neither shrinks on a settle nor reorders when a card is pulled up. */
+    /** The connections parked in this group, settled ones included, in the agent's order — what
+     *  the progress dots walk. Stable: it neither shrinks on a settle nor reorders on a pick. */
     batch: ClientToolMeta[]
     /** The card that owns the actions; null when nothing is parked. */
     front: ClientToolMeta | null
@@ -66,10 +66,32 @@ export const useConnectionDock = ({
         () => (enabled ? getPendingConnectInteractions(messages) : []),
         [messages, enabled],
     )
-    const batch = useMemo(
+    const turnConnections = useMemo(
         () => (enabled ? getConnectInteractions(messages) : []),
         [messages, enabled],
     )
+
+    // The dots walk the connections parked in THIS group, not every connect call the turn ever
+    // made. A long turn accumulates them — the agent's own retries of one tool included — and
+    // reading the whole turn showed a row of dots for a single outstanding connection.
+    //
+    // The group opens with whatever is pending when the dock does, and holds those ids as each one
+    // settles so they stay on the row as progress. It empties with the dock, so the agent's next
+    // ask starts a fresh group.
+    const groupIdsRef = useRef<string[]>([])
+    if (pending.length === 0) groupIdsRef.current = []
+    else {
+        const known = new Set(groupIdsRef.current)
+        const added = pending.filter((meta) => !known.has(meta.toolCallId))
+        if (added.length)
+            groupIdsRef.current = [...groupIdsRef.current, ...added.map((m) => m.toolCallId)]
+    }
+    const batch = useMemo(() => {
+        const byId = new Map(turnConnections.map((meta) => [meta.toolCallId, meta]))
+        return groupIdsRef.current
+            .map((id) => byId.get(id))
+            .filter((meta): meta is ClientToolMeta => !!meta)
+    }, [turnConnections, pending])
 
     // The user's pick. Cleared implicitly: once that call settles it drops out of `pending`, so
     // the lookup below misses and the front falls back to the agent's first-asked.
@@ -83,8 +105,8 @@ export const useConnectionDock = ({
 
     const bringForward = useCallback((toolCallId: string) => setFrontId(toolCallId), [])
 
-    // Derived from the real batch: it keeps its settled entries, so the counter simply reads how
-    // many are done rather than watching the pending set shrink.
+    // Derived from the group: it keeps its settled entries, so the counter simply reads how many
+    // are done rather than watching the pending set shrink.
     const total = batch.length
     const settled = batch.filter((meta) => meta.settled).length
     const open = stack.length > 0
