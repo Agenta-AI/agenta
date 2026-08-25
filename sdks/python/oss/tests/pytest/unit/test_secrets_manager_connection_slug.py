@@ -196,6 +196,27 @@ def test_no_slug_with_one_legacy_record_is_unchanged(resolve):
     }
 
 
+def test_null_custom_model_list_does_not_break_standard_resolution(resolve):
+    secrets = [
+        _provider_key(slug="openai", key="sk-openai"),
+        {
+            "kind": "custom_provider",
+            "slug": "legacy-gateway",
+            "data": {
+                "kind": "custom",
+                "provider_slug": "legacy-gateway",
+                "provider": {"extras": {"api_key": "sk-gateway"}},
+                "model_keys": None,
+            },
+        },
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini") == {
+        "model": "gpt-4o-mini",
+        "api_key": "sk-openai",
+    }
+
+
 def test_no_slug_with_two_listless_records_takes_the_first(resolve):
     secrets = [
         _provider_key(slug="openai", key="sk-first"),
