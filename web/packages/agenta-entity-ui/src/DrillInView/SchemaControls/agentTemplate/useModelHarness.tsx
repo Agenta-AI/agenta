@@ -515,8 +515,10 @@ export function useModelHarness({
             harnessIds={harnessList}
             harness={harnessValue}
             modelId={modelId}
+            provider={connection.provider ?? null}
             mode={connection.mode}
             slug={connection.slug ?? null}
+            replaceable={revisionId?.startsWith("local-") ?? false}
             disabled={disabled}
             // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
             // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,

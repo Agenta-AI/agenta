@@ -6,12 +6,7 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {
-    SecretKind,
-    SecretManagementPolicy,
-    connectionSlugFor,
-    type ProviderConnection,
-} from "../../secret/core"
+import {type AgentModelSelection} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -19,6 +14,7 @@ export interface AgentCreationPrefs {
     model?: string
     provider?: string
     connectionMode?: string
+    connectionSlug?: string
 }
 
 const DEFAULT_PREFS: AgentCreationPrefs = {version: 1}
@@ -29,6 +25,53 @@ export const agentCreationPrefsAtom = atomWithStorage<AgentCreationPrefs>(
     undefined,
     {getOnInit: true},
 )
+
+/** Read only a complete last-used route; partial legacy preferences are not guessed. */
+export function selectionFromAgentCreationPrefs(
+    prefs: AgentCreationPrefs,
+): AgentModelSelection | null {
+    if (!prefs.model || !prefs.harness) return null
+    const mode =
+        prefs.connectionMode === "self_managed"
+            ? "self_managed"
+            : prefs.connectionMode === "agenta"
+              ? "agenta"
+              : null
+    if (!mode) return null
+    if (mode === "agenta" && !prefs.connectionSlug) return null
+    if (mode === "self_managed" && !prefs.provider) return null
+    return {
+        modelId: prefs.model,
+        provider: prefs.provider ?? null,
+        mode,
+        slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        harness: prefs.harness,
+    }
+}
+
+/** Apply one resolved candidate without dropping unrelated harness or model settings. */
+export function applyAgentModelSelection(
+    agentConfig: Record<string, unknown>,
+    selection: AgentModelSelection,
+): Record<string, unknown> {
+    const harness = objectAt(agentConfig, "harness")
+    const llm = objectAt(agentConfig, "llm")
+    const nextLlm: Record<string, unknown> = {
+        ...llm,
+        model: selection.modelId,
+        connection: {
+            mode: selection.mode,
+            ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
+        },
+    }
+    if (selection.provider) nextLlm.provider = selection.provider
+    else delete nextLlm.provider
+    return {
+        ...agentConfig,
+        harness: {...harness, kind: selection.harness},
+        llm: nextLlm,
+    }
+}
 
 /**
  * Overlay saved prefs onto a fresh agent template's config (`parameters.agent`). Only sets fields
@@ -79,69 +122,6 @@ const objectAt = (config: Record<string, unknown>, key: string): Record<string, 
     return value && typeof value === "object" && !Array.isArray(value)
         ? (value as Record<string, unknown>)
         : {}
-}
-
-/**
- * A connection's own model ids. A credential-set (custom) connection publishes `model_keys`, whose
- * spelling names the connection and which the resolver rewrites itself; everything else publishes
- * plain saved models.
- */
-const connectionModelIds = (connection: ProviderConnection): string[] =>
-    (connection.secretKind === SecretKind.CustomProvider
-        ? (connection.source.modelKeys ?? connection.models)
-        : connection.models) ?? []
-
-/**
- * Default a new agent onto an Agenta-managed connection when its template provider has no key.
- *
- * The backend template hard-codes a provider/model pair, so a project whose only credentials are
- * ones protected by the manager-only policy mints an agent pointing at a provider the user has
- * never connected — it paints a "Connect key" warning and cannot run until they configure one.
- * Repoint it at the managed connection's first model, addressed by slug.
- *
- * Only the untouched default is rewritten: a config already naming a connection slug, or running
- * on self-managed credentials, is the user's own choice (or their saved prefs) and is left alone.
- * Likewise when the template's provider IS connected with the user's own key.
- *
- * No `provider` is written. The slug is the whole routing identity of a managed connection, and a
- * provider on a named custom connection becomes a model-id prefix the resolver cannot match — the
- * same reason `vaultPickedProviderFamily` omits it for a picked custom model.
- */
-export function applyManagedConnectionDefault(
-    agentConfig: Record<string, unknown>,
-    connections: ProviderConnection[],
-): Record<string, unknown> {
-    const llm = objectAt(agentConfig, "llm")
-    const connection = objectAt(llm, "connection")
-    const mode = typeof connection.mode === "string" ? connection.mode : "agenta"
-    const slug = typeof connection.slug === "string" ? connection.slug.trim() : ""
-    if (mode !== "agenta" || slug) return agentConfig
-
-    const provider = typeof llm.provider === "string" ? llm.provider.trim().toLowerCase() : ""
-    const userConnected = connections.some(
-        (candidate) =>
-            candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-            candidate.hasStoredCredential &&
-            !!provider &&
-            candidate.kind.toLowerCase() === provider,
-    )
-    if (userConnected) return agentConfig
-
-    const managed = connections.find(
-        (candidate) =>
-            candidate.managementPolicy === SecretManagementPolicy.ManagerOnly &&
-            !!connectionSlugFor(candidate) &&
-            connectionModelIds(candidate).length > 0,
-    )
-    if (!managed) return agentConfig
-
-    const nextLlm: Record<string, unknown> = {
-        ...llm,
-        model: connectionModelIds(managed)[0],
-        connection: {...connection, mode: "agenta", slug: connectionSlugFor(managed)},
-    }
-    delete nextLlm.provider
-    return {...agentConfig, llm: nextLlm}
 }
 
 /**

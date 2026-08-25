@@ -282,6 +282,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     // model contradicts.
                     provider: connection.provider ?? undefined,
                     connectionMode: connection.mode ?? prev.connectionMode,
+                    connectionSlug: connection.slug ?? undefined,
                 }))
             }
         }

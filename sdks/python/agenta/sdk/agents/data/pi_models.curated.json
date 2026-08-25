@@ -3,7 +3,7 @@
   "_curation": {
     "target": "pi_models.generated.json",
     "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description. The separate `additions` list carries WHOLE entries (facts included, `source`: `curated`) for models released after the pinned pi-ai snapshot, which the generated file cannot carry at all. A generated entry of the same id always wins, so an addition retires itself on the next regeneration; drop it then.",
-    "sources": "@earendil-works/pi-ai@0.80.6; vendor model + pricing pages. gemini/gemini-3.6-flash facts from ai.google.dev/gemini-api/docs/pricing and the vendor model page, checked 2026-08-21. anthropic/claude-opus-5 facts from the Anthropic pricing page, cross-checked against litellm 1.92.0's cost table, checked 2026-08-22."
+    "sources": "@earendil-works/pi-ai@0.80.6; vendor model + pricing pages. gemini/gemini-3.7-flash facts from ai.google.dev/gemini-api/docs/latest-model and docs/pricing, checked 2026-08-24. gemini/gemini-3.6-flash facts from ai.google.dev/gemini-api/docs/pricing and the vendor model page, checked 2026-08-21. anthropic/claude-opus-5 facts from the Anthropic pricing page, cross-checked against litellm 1.92.0's cost table, checked 2026-08-22."
   },
   "overlay": {
     "anthropic/claude-fable-5": {
@@ -36,6 +36,16 @@
     }
   },
   "additions": [
+    {
+      "id": "gemini/gemini-3.7-flash",
+      "provider": "gemini",
+      "source": "curated",
+      "name": "Gemini 3.7 Flash",
+      "pricing": {"input_per_mtok": 0.75, "output_per_mtok": 3.75, "cache_read_per_mtok": 0.075, "currency": "USD"},
+      "context_window": 1048576,
+      "modalities": ["text", "image"],
+      "description": "Google Gemini Flash model for coding and agentic work, with a one-million-token context window."
+    },
     {
       "id": "gemini/gemini-3.6-flash",
       "provider": "gemini",

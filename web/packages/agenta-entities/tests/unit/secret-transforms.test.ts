@@ -181,7 +181,7 @@ describe("write-only records", () => {
         expect(row.keyPreview).toBe("sk-****9Qa")
     })
 
-    it("carries the owner marker of a platform-provisioned record", () => {
+    it("carries the policy of a platform-provisioned record", () => {
         const [row] = transformSecret([
             writeOnly({
                 management: {policy: SecretManagementPolicy.ManagerOnly},

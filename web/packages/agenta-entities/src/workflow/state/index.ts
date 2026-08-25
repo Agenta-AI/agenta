@@ -40,6 +40,13 @@ export {
     type SubscriptionStatusTone,
 } from "./subscriptionStatus"
 
+export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
 // ============================================================================
 // HELPERS
 // ============================================================================

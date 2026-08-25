@@ -6,11 +6,18 @@
  * pair only exists when the harness can both drive the connection and spell the model, and a pick
  * persists the exact connection slug. Runs under @agenta/entity-ui's own vitest runner.
  */
-import {SecretKind, SecretManagementPolicy, type ProviderConnection} from "@agenta/entities/secret"
+import {
+    buildAgentModelCandidates,
+    SecretKind,
+    SecretManagementPolicy,
+    type BuildAgentModelCandidatesArgs,
+    type ProviderConnection,
+    type SubscriptionPair,
+} from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
 import {
-    buildConnectionPickerRows,
+    buildConnectionPickerRows as presentConnectionPickerRows,
     connectionModelIds,
     effectiveHarnesses,
     modelRowKey,
@@ -46,6 +53,20 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
 
 const HARNESS_IDS = ["pi_core", "claude"]
 
+type CandidateArgs = Omit<BuildAgentModelCandidatesArgs, "subscriptionPairs"> & {
+    subscriptionPairs?: SubscriptionPair[] | null
+}
+
+const buildConnectionPickerRows = (args: CandidateArgs) =>
+    presentConnectionPickerRows({
+        candidates: buildAgentModelCandidates({
+            ...args,
+            subscriptionPairs: args.subscriptionPairs ?? [],
+        }),
+        connections: args.connections,
+        capabilities: args.capabilities as HarnessCapabilitiesMap,
+    })
+
 const standard = (
     id: string,
     kind: string,
@@ -56,6 +77,7 @@ const standard = (
     kind,
     title: kind,
     secretKind: SecretKind.ProviderKey,
+    hasStoredCredential: true,
     source: {name: `${kind}_api_key`, title: kind, key: "sk-test"} as ProviderConnection["source"],
     ...overrides,
 })
@@ -72,6 +94,7 @@ const custom = (
     kind,
     title: kind,
     secretKind: SecretKind.CustomProvider,
+    hasStoredCredential: true,
     source: {name: `my-${kind}`, provider: kind, modelKeys} as ProviderConnection["source"],
     ...overrides,
 })
@@ -273,6 +296,9 @@ describe("buildConnectionPickerRows", () => {
             connections: [],
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
+            subscriptionPairs: [
+                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+            ],
         })
 
         // The plan's consumer name, never "Claude subscription" — the picker's olive tag is what
@@ -288,8 +314,6 @@ describe("buildConnectionPickerRows", () => {
     it("identifies a subscription row by its PLAN, so two harnesses would share one row", () => {
         // The row key is the family, not the harness. That is the whole merge: a second harness
         // reaching the same plan appends its pairs to this row instead of opening a second one.
-        // Unreachable through `SUBSCRIPTION_HARNESSES` today — its two entries name two different
-        // families — so what is pinned here is the identity that makes the merge possible.
         const rows = buildConnectionPickerRows({
             connections: [],
             capabilities: {
@@ -303,6 +327,10 @@ describe("buildConnectionPickerRows", () => {
                 },
             },
             harnessIds: [...HARNESS_IDS, "codex"],
+            subscriptionPairs: [
+                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {key: "openai:codex", provider: "openai", name: "ChatGPT", harness: "codex"},
+            ],
         })
 
         expect(rows.map((row) => [row.name, row.key])).toEqual([
@@ -322,6 +350,9 @@ describe("buildConnectionPickerRows", () => {
             connections: [standard("1", "anthropic", {slug: "anthropic"})],
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
+            subscriptionPairs: [
+                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+            ],
         }
 
         expect(
@@ -353,13 +384,11 @@ describe("buildConnectionPickerRows", () => {
                 (row) => row.kind === "subscription",
             ),
         ).toBe(false)
-        // No answer at all (null) still keeps the placeholders, so the menu holds its shape
-        // while the check is in flight or against an old runner.
         expect(
             buildConnectionPickerRows({...args, subscriptionPairs: null}).some(
                 (row) => row.kind === "subscription",
             ),
-        ).toBe(true)
+        ).toBe(false)
     })
 
     it("offers the same model through a key and a subscription as separate rows", () => {
@@ -373,6 +402,9 @@ describe("buildConnectionPickerRows", () => {
             ],
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
+            subscriptionPairs: [
+                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+            ],
         })
 
         // Reachable twice, and nothing on the row says which is cheaper — the rows are told apart
@@ -415,6 +447,9 @@ describe("selectedModelRowKey", () => {
             ],
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
+            subscriptionPairs: [
+                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+            ],
         })
 
     const rowFor = (key: string | undefined) =>

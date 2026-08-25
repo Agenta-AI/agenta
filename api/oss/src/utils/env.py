@@ -1562,7 +1562,7 @@ class StarterCreditsBridgeConfig(BaseModel):
 
     model_id: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
-        or "vertex_ai/gemini-3.6-flash"
+        or "vertex_ai/gemini-3.7-flash"
     )
 
     # The mint policy (velocity caps, domain classification, eligibility rules,

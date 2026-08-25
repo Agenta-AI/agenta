@@ -1,9 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import {SecretKind, SecretManagementPolicy, type ProviderConnection} from "../../src/secret/core"
 import {
     applyAgentCreationPrefs,
-    applyManagedConnectionDefault,
     ensureEnabledSandbox,
 } from "../../src/workflow/state/agentCreationPrefs"
 
@@ -92,88 +90,5 @@ describe("ensureEnabledSandbox", () => {
     it("is a no-op when the enabled set is empty (never hide every option)", () => {
         const config = {sandbox: {kind: "local"}}
         expect(ensureEnabledSandbox(config, [])).toBe(config)
-    })
-})
-
-describe("applyManagedConnectionDefault", () => {
-    const managed = (over: Partial<ProviderConnection> = {}): ProviderConnection =>
-        ({
-            id: "sec-managed",
-            slug: "starter-credits",
-            name: "Starter credits",
-            kind: "custom",
-            title: "Custom",
-            secretKind: SecretKind.CustomProvider,
-            hasStoredCredential: true,
-            managementPolicy: SecretManagementPolicy.ManagerOnly,
-            source: {
-                modelKeys: ["Starter credits/custom/vertex_ai/gemini-3.6-flash"],
-            } as ProviderConnection["source"],
-            ...over,
-        }) as ProviderConnection
-
-    const ownKey = (kind: string): ProviderConnection =>
-        ({
-            id: `sec-${kind}`,
-            name: kind,
-            kind,
-            title: kind,
-            secretKind: SecretKind.ProviderKey,
-            hasStoredCredential: true,
-            source: {} as ProviderConnection["source"],
-        }) as ProviderConnection
-
-    const TEMPLATE = {llm: {provider: "openai", model: "gpt-5.6-luna"}, tools: []}
-
-    it("repoints the template default at the managed connection's first model", () => {
-        const result = applyManagedConnectionDefault(TEMPLATE, [managed()])
-        expect(result.llm).toEqual({
-            model: "Starter credits/custom/vertex_ai/gemini-3.6-flash",
-            connection: {mode: "agenta", slug: "starter-credits"},
-        })
-        expect(result.tools).toBe(TEMPLATE.tools)
-    })
-
-    it("writes no provider — the slug is the whole routing identity", () => {
-        const result = applyManagedConnectionDefault(TEMPLATE, [managed()])
-        expect(result.llm).not.toHaveProperty("provider")
-    })
-
-    it("leaves the template alone when the user has their own key for its provider", () => {
-        const connections = [ownKey("openai"), managed()]
-        expect(applyManagedConnectionDefault(TEMPLATE, connections)).toBe(TEMPLATE)
-    })
-
-    it("still repoints when the user's own key is for a different provider", () => {
-        const result = applyManagedConnectionDefault(TEMPLATE, [ownKey("anthropic"), managed()])
-        expect((result.llm as Record<string, unknown>).model).toBe(
-            "Starter credits/custom/vertex_ai/gemini-3.6-flash",
-        )
-    })
-
-    it("never overrides a config that already names a connection slug", () => {
-        const chosen = {llm: {model: "gpt-4o", connection: {mode: "agenta", slug: "my-gateway"}}}
-        expect(applyManagedConnectionDefault(chosen, [managed()])).toBe(chosen)
-    })
-
-    it("never overrides self-managed credentials", () => {
-        const chosen = {llm: {model: "sonnet", connection: {mode: "self_managed"}}}
-        expect(applyManagedConnectionDefault(chosen, [managed()])).toBe(chosen)
-    })
-
-    it("is a no-op when the project has no managed connection", () => {
-        expect(applyManagedConnectionDefault(TEMPLATE, [ownKey("anthropic")])).toBe(TEMPLATE)
-        expect(applyManagedConnectionDefault(TEMPLATE, [])).toBe(TEMPLATE)
-    })
-
-    it("skips a managed connection that publishes no models", () => {
-        const empty = managed({source: {modelKeys: []} as ProviderConnection["source"]})
-        expect(applyManagedConnectionDefault(TEMPLATE, [empty])).toBe(TEMPLATE)
-    })
-
-    it("keeps sibling llm keys (temperature, extras) while repointing", () => {
-        const config = {llm: {provider: "openai", model: "gpt-5.6-luna", temperature: 0.3}}
-        const result = applyManagedConnectionDefault(config, [managed()])
-        expect((result.llm as Record<string, unknown>).temperature).toBe(0.3)
     })
 })

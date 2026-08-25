@@ -67,7 +67,7 @@ deployment does.
 | `PROXY_ADMIN_URL` | yes | The proxy's address on the private network. The minting client dials it, so the master key never crosses the public edge |
 | `MASTER_KEY` | yes | The proxy's admin credential. It mints and blocks keys |
 | `TEAM_ID` | yes | The proxy team every minted key joins. The team's own budget ceiling bounds total exposure, so seeding refuses to run without one |
-| `MODEL_ID` | no | The single model id the minted key allowlists and the seeded connection publishes. Defaults to `vertex_ai/gemini-3.6-flash` |
+| `MODEL_ID` | no | The single model id the minted key allowlists and the seeded connection publishes. Defaults to `vertex_ai/gemini-3.7-flash` |
 | `POLICY_FLAG` | no | The name of the PostHog feature flag whose payload carries the mint policy. Defaults to `starter-credits-bridge-policy` |
 | `ALERT_WEBHOOK` | no | An operator webhook. The service posts `{"text": ...}` to it on refusals and failures |
 

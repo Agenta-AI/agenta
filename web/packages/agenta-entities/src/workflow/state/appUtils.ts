@@ -12,17 +12,16 @@
  * @packageDocumentation
  */
 
-import {getEnabledSandboxProviders, getHostQueryClient} from "@agenta/shared/api"
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
-import type {LlmProvider} from "@agenta/shared/types"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
-import {fetchVaultSecret} from "../../secret/api"
-import {toProviderConnections, type ProviderConnection} from "../../secret/core"
+import {resolveAgentModelSelection} from "../../secret/core"
+import {subscriptionPairModelsAtom} from "../../secret/state"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
 import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
@@ -30,11 +29,12 @@ import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
-    applyAgentCreationPrefs,
-    applyManagedConnectionDefault,
+    applyAgentModelSelection,
     agentCreationPrefsAtom,
     ensureEnabledSandbox,
+    selectionFromAgentCreationPrefs,
 } from "./agentCreationPrefs"
+import {loadAgentModelCandidates} from "./agentModelCandidates"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -94,6 +94,7 @@ export interface CreateEphemeralAppFromTemplateParams {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
+const USER_HYDRATION_TIMEOUT_MS = 10_000
 
 /**
  * Match a template to the requested app type. The catalog returns templates
@@ -119,32 +120,33 @@ function matchTemplateForType(
     )
 }
 
-/**
- * The project's vault connections, for shaping a new agent's default model.
- *
- * Resolved through the SAME query entry `vaultSecretsQueryAtom` uses, so a warm cache costs
- * nothing and a cold one is fetched once and shared. Deliberately not `store.get(...)` on that
- * atom: the mint runs on first landing and can beat the atom's own fetch, and reading it empty
- * would commit the very template default the managed connection exists to replace. A failure
- * yields no connections, which leaves the template default untouched.
- */
-async function vaultConnectionsForNewAgent(
-    projectId: string,
-    userId?: string,
-): Promise<ProviderConnection[]> {
-    if (!userId) return []
+/** Wait for auth hydration instead of turning a pending user into a terminal creation failure. */
+async function waitForAgentCreationUserId(signal?: AbortSignal): Promise<string | null> {
+    const store = getDefaultStore()
+    const current = store.get(userAtom)?.id
+    if (current) return current
+    if (signal?.aborted) return null
 
-    try {
-        const rows = await getHostQueryClient().ensureQueryData<LlmProvider[]>({
-            queryKey: ["vault", "secrets", userId, projectId],
-            queryFn: () => fetchVaultSecret({projectId}),
-            staleTime: 5 * 60_000,
-            retry: false,
+    return new Promise((resolve) => {
+        let unsubscribe: () => void = () => undefined
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        const finish = (userId: string | null) => {
+            unsubscribe()
+            if (timeout) clearTimeout(timeout)
+            signal?.removeEventListener("abort", onAbort)
+            resolve(userId)
+        }
+        const onAbort = () => finish(null)
+        unsubscribe = store.sub(userAtom, () => {
+            const userId = store.get(userAtom)?.id
+            if (userId) finish(userId)
         })
-        return toProviderConnections(rows ?? [])
-    } catch {
-        return []
-    }
+        signal?.addEventListener("abort", onAbort, {once: true})
+        // Close the subscribe/read race if hydration landed between the first read and `sub`.
+        const hydrated = store.get(userAtom)?.id
+        if (hydrated) finish(hydrated)
+        else timeout = setTimeout(() => finish(null), USER_HYDRATION_TIMEOUT_MS)
+    })
 }
 
 /**
@@ -222,30 +224,36 @@ export async function createEphemeralAppFromTemplate({
         (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
         rawParameters
 
-    // New agents default to the user's last-used harness/model/connection instead of only the
-    // template default. Both agent-create paths (home composer + onboarding) mint through this one
-    // factory, so overlaying here covers both without duplicating the logic at each call site.
+    // Both agent-create paths (home composer + onboarding) use this resolver. The static v0 template
+    // route is only a replaceable placeholder: complete last-used, managed, and deterministic-first
+    // candidates take precedence in that order.
     if (type === "agent") {
-        const agentPrefs = store.get(agentCreationPrefsAtom)
+        const userId = await waitForAgentCreationUserId(signal)
+        if (!userId || signal?.aborted) return null
         const agentConfig =
             parameters.agent &&
             typeof parameters.agent === "object" &&
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
-        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
-        // Repoint the template's hard-coded provider at an Agenta-managed connection when that is
-        // the only credential the project has, so a first agent runs without being configured.
-        const withManaged = applyManagedConnectionDefault(
-            withPrefs,
-            await vaultConnectionsForNewAgent(projectId, store.get(userAtom)?.id),
-        )
-        if (signal?.aborted) return null
+        const candidateState = await loadAgentModelCandidates({
+            projectId,
+            userId,
+            pairModelSelection: store.get(subscriptionPairModelsAtom),
+        })
+        if (signal?.aborted || candidateState.status !== "ready") return null
+        const selected = resolveAgentModelSelection({
+            candidates: candidateState.candidates,
+            last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
+        })
+        const resolvedAgent = selected
+            ? applyAgentModelSelection(agentConfig, selected)
+            : agentConfig
         // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
         // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
         parameters = {
             ...parameters,
-            agent: ensureEnabledSandbox(withManaged, getEnabledSandboxProviders()),
+            agent: ensureEnabledSandbox(resolvedAgent, getEnabledSandboxProviders()),
         }
     }
 

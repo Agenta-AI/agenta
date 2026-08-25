@@ -88,6 +88,10 @@ DEFAULT_FREEMAIL_DOMAINS: tuple[str, ...] = (
     "bol.com.br",
 )
 
+# Plus-tags (`jane+1@gmail.com`) are one inbox and many grant-eligible strings.
+# Internal testers who need a plus tag use this domain.
+PLUS_ALIAS_ALLOWLIST_DOMAINS: tuple[str, ...] = ("agenta.ai",)
+
 
 class MintPolicy(BaseModel):
     """Mint policy: velocity caps, domain classification, eligibility rules, and
