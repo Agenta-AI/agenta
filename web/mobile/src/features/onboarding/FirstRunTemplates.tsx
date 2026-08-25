@@ -71,80 +71,96 @@ export const FirstRunTemplates = ({
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-3">
-                <span className="text-sm font-medium">{FIRST_RUN_COPY.templates}</span>
-                <div className="flex items-center gap-3">
-                    {/*
-                     * The desktop's pager, and `lg`-only on purpose: below that the cards are a
-                     * snap scroller with no discrete pages, so a "1–3 of 28" counter would name a
-                     * window the user is not in.
-                     */}
-                    <div className="hidden items-center gap-1.5 lg:flex">
-                        <span className="text-muted-foreground mr-0.5 text-xs">
-                            {FIRST_RUN_COPY.templateCounter(pageStart + 1, pageEnd, shown.length)}
-                        </span>
-                        <TemplatePagerButton
-                            label={FIRST_RUN_COPY.prevTemplates}
-                            disabled={atStart}
-                            onClick={() => setPage(safePage - 1)}
+            {/*
+             * One header row from `lg`, like the desktop strip: label, then the chips, then the
+             * controls. Below `lg` there is no width for that, so it stays two rows — and the
+             * `lg:contents` wrapper is what lets the chips sit BETWEEN label and controls at `lg`
+             * while those two still share a row of their own on a phone.
+             */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+                <div className="flex items-baseline justify-between gap-3 lg:contents">
+                    <span className="text-sm font-medium lg:order-1 lg:shrink-0">
+                        {FIRST_RUN_COPY.templates}
+                    </span>
+                    <div className="flex items-center gap-3 lg:order-3 lg:ml-auto lg:shrink-0">
+                        {/*
+                         * The desktop's pager, and `lg`-only on purpose: below that the cards are a
+                         * snap scroller with no discrete pages, so a "1–3 of 28" counter would name a
+                         * window the user is not in.
+                         */}
+                        <div className="hidden items-center gap-1.5 lg:flex">
+                            <span className="text-muted-foreground mr-0.5 text-xs">
+                                {FIRST_RUN_COPY.templateCounter(
+                                    pageStart + 1,
+                                    pageEnd,
+                                    shown.length,
+                                )}
+                            </span>
+                            <TemplatePagerButton
+                                label={FIRST_RUN_COPY.prevTemplates}
+                                disabled={atStart}
+                                onClick={() => setPage(safePage - 1)}
+                            >
+                                <ChevronLeft size={14} />
+                            </TemplatePagerButton>
+                            <TemplatePagerButton
+                                label={FIRST_RUN_COPY.nextTemplates}
+                                disabled={atEnd}
+                                onClick={() => setPage(safePage + 1)}
+                            >
+                                <ChevronRight size={14} />
+                            </TemplatePagerButton>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onBrowseAll}
+                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
                         >
-                            <ChevronLeft size={14} />
-                        </TemplatePagerButton>
-                        <TemplatePagerButton
-                            label={FIRST_RUN_COPY.nextTemplates}
-                            disabled={atEnd}
-                            onClick={() => setPage(safePage + 1)}
-                        >
-                            <ChevronRight size={14} />
-                        </TemplatePagerButton>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onBrowseAll}
-                        className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
-                    >
-                        {FIRST_RUN_COPY.browseAll(AGENT_TEMPLATES.length)}
-                    </button>
-                    {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
+                            {FIRST_RUN_COPY.browseAll(AGENT_TEMPLATES.length)}
+                        </button>
+                        {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
                         that is two taps for one action, so it is a labelled button here. */}
-                    <button
-                        type="button"
-                        onClick={() => setHidden(true)}
-                        aria-label={FIRST_RUN_COPY.hideTemplates}
-                        title={FIRST_RUN_COPY.hideTemplates}
-                        className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center border-0 bg-transparent p-0"
-                    >
-                        <EyeOff size={14} />
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => setHidden(true)}
+                            aria-label={FIRST_RUN_COPY.hideTemplates}
+                            title={FIRST_RUN_COPY.hideTemplates}
+                            className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center border-0 bg-transparent p-0"
+                        >
+                            <EyeOff size={14} />
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            {/* Negative margin + matching padding so the row bleeds to the screen edge while its
-                first and last cards still clear the page gutter. */}
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-                {categories.map((entry) => (
-                    <button
-                        key={entry}
-                        type="button"
-                        onClick={() => {
-                            setCategory(entry)
-                            setPage(0)
-                        }}
-                        aria-pressed={entry === category}
-                        className={`box-border shrink-0 cursor-pointer rounded-full border border-solid px-3 py-1 text-xs transition-colors ${
-                            entry === category
-                                ? "border-foreground bg-foreground text-background"
-                                : "border-border text-muted-foreground hover:text-foreground bg-transparent"
-                        }`}
-                    >
-                        {entry}
-                        <span className="ml-1.5 opacity-60">
-                            {entry === ALL_TEMPLATES_CATEGORY
-                                ? AGENT_TEMPLATES.length
-                                : AGENT_TEMPLATES.filter((t) => t.category === entry).length}
-                        </span>
-                    </button>
-                ))}
+                {/* Bleeds to the screen edge on a phone (negative margin + matching padding) so a
+                    scrolled chip is not clipped by the page gutter; at `lg` it is an inline track
+                    in the header row instead, and `min-w-0` keeps it scrolling rather than pushing
+                    the controls off the end. */}
+                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:order-2 lg:mx-0 lg:min-w-0 lg:flex-1 lg:px-0 lg:pb-0">
+                    {categories.map((entry) => (
+                        <button
+                            key={entry}
+                            type="button"
+                            onClick={() => {
+                                setCategory(entry)
+                                setPage(0)
+                            }}
+                            aria-pressed={entry === category}
+                            className={`box-border shrink-0 cursor-pointer rounded-full border border-solid px-3 py-1 text-xs transition-colors ${
+                                entry === category
+                                    ? "border-foreground bg-foreground text-background"
+                                    : "border-border text-muted-foreground hover:text-foreground bg-transparent"
+                            }`}
+                        >
+                            {entry}
+                            <span className="ml-1.5 opacity-60">
+                                {entry === ALL_TEMPLATES_CATEGORY
+                                    ? AGENT_TEMPLATES.length
+                                    : AGENT_TEMPLATES.filter((t) => t.category === entry).length}
+                            </span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/*
