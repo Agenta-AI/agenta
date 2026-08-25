@@ -251,7 +251,16 @@ print(json.dumps({
     result = _run_component(
         "staged Python imports", [str(python), "-c", probe], bundle=bundle, env=env
     )
-    versions = json.loads(result.stdout)
+    # SDK import-time INFO logs share stdout; the probe payload is the JSON line.
+    json_line = next(
+        (
+            line
+            for line in reversed(result.stdout.splitlines())
+            if line.lstrip().startswith("{")
+        ),
+        "",
+    )
+    versions = json.loads(json_line)
     if versions["launcher_available"]:
         _run_component(
             "staged launcher import",

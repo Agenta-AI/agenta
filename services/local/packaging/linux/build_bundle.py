@@ -507,6 +507,10 @@ def install_python_payload(
         cwd=SERVICE_ROOT,
     )
     shutil.rmtree(site_packages / "bin", ignore_errors=True)
+    # direct_url.json records the wheel-build checkout path; drop it so the
+    # relocatable payload carries no source-tree references.
+    for record in site_packages.glob("*.dist-info/direct_url.json"):
+        record.unlink()
 
 
 def write_wrapper(bundle: Path) -> None:

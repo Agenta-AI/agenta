@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import shutil
 import stat
 import subprocess
@@ -31,10 +32,55 @@ DEFAULT_RUNNER_SRC = REPO_ROOT / "services" / "runner"
 
 # Verified pin: ~30MB, glibc >= 2.28, linux-x64.
 NODE_VERSION = "v24.19.0"
-NODE_ARCH = "linux-x64"
-NODE_TARBALL_NAME = f"node-{NODE_VERSION}-{NODE_ARCH}.tar.xz"
-NODE_URL = f"https://nodejs.org/dist/{NODE_VERSION}/{NODE_TARBALL_NAME}"
-NODE_SHA256 = "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647"
+
+
+@dataclass(frozen=True)
+class NodePin:
+    platform: str
+    archive: str
+    url: str
+    # None means the digest was not verifiable from this repo; the build
+    # computes it and records it for manual upstream confirmation.
+    sha256: str | None
+
+
+def _node_url(archive: str) -> str:
+    return f"https://nodejs.org/dist/{NODE_VERSION}/{archive}"
+
+
+NODE_PINS = {
+    "linux-x64": NodePin(
+        platform="linux-x64",
+        archive=f"node-{NODE_VERSION}-linux-x64.tar.xz",
+        url=_node_url(f"node-{NODE_VERSION}-linux-x64.tar.xz"),
+        sha256="14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+    ),
+    "darwin-arm64": NodePin(
+        platform="darwin-arm64",
+        archive=f"node-{NODE_VERSION}-darwin-arm64.tar.gz",
+        url=_node_url(f"node-{NODE_VERSION}-darwin-arm64.tar.gz"),
+        sha256=None,
+    ),
+    "darwin-x64": NodePin(
+        platform="darwin-x64",
+        archive=f"node-{NODE_VERSION}-darwin-x64.tar.gz",
+        url=_node_url(f"node-{NODE_VERSION}-darwin-x64.tar.gz"),
+        sha256=None,
+    ),
+}
+
+
+def detect_host_platform() -> str:
+    machine = platform.machine().lower()
+    if sys.platform == "linux" and machine in {"x86_64", "amd64"}:
+        return "linux-x64"
+    if sys.platform == "darwin":
+        if machine in {"arm64", "aarch64"}:
+            return "darwin-arm64"
+        if machine in {"x86_64", "amd64"}:
+            return "darwin-x64"
+    raise BuildError(f"unsupported build host: {sys.platform}/{machine}")
+
 
 REQUIRED_SOURCE_ENTRIES = (
     "package.json",
@@ -46,7 +92,6 @@ REQUIRED_SOURCE_ENTRIES = (
     "src",
 )
 STAGED_COPY_ITEMS = REQUIRED_SOURCE_ENTRIES + ("dist", "node_modules")
-DAEMON_REL_FALLBACK = "node_modules/@sandbox-agent/cli-linux-x64/bin/sandbox-agent"
 
 WRAPPER_REL_DEPTH = "../"
 
@@ -161,6 +206,22 @@ def stage_source(plan: StagingPlan) -> int:
     return count
 
 
+def strip_bin_shims(runner_dir: Path) -> int:
+    """Remove node_modules/.bin launcher shims from the staged copy.
+
+    pnpm shims (cmd-shim) embed absolute NODE_PATH entries on some platforms;
+    the staged runtime never executes through .bin (tsx runs via dist/cli.mjs,
+    the daemon via its real package path), so the shims are dead weight that
+    would fail the self-containment scan.
+    """
+    removed = 0
+    for bin_dir in list(runner_dir.rglob("node_modules/.bin")):
+        if bin_dir.is_dir():
+            shutil.rmtree(bin_dir)
+            removed += 1
+    return removed
+
+
 def member_is_safe(name: str) -> bool:
     """Reject absolute paths and parent traversals in archive member names."""
     posix = PurePosixPath(name)
@@ -175,13 +236,13 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def fetch_node_tarball(node_tarball: str | None, scratch: Path) -> Path:
+def fetch_node_tarball(pin: NodePin, node_tarball: str | None, scratch: Path) -> Path:
     """Return a local tarball path, downloading the pinned release if given a URL."""
     if node_tarball is None:
-        node_tarball = NODE_URL
+        node_tarball = pin.url
     parsed = urllib.parse.urlparse(node_tarball)
     if parsed.scheme in ("http", "https"):
-        target = scratch / NODE_TARBALL_NAME
+        target = scratch / pin.archive
         print(f"downloading {node_tarball}")
         with (
             urllib.request.urlopen(node_tarball, timeout=60) as response,
@@ -198,21 +259,26 @@ def fetch_node_tarball(node_tarball: str | None, scratch: Path) -> Path:
 def acquire_node(
     plan: StagingPlan,
     *,
+    pin: NodePin,
     node_tarball: str | None,
     scratch: Path,
-) -> None:
-    """Verify sha256, extract bin/node + LICENSE, and prove the binary runs bare."""
-    tar_path = fetch_node_tarball(node_tarball, scratch)
+) -> str:
+    """Verify sha256 when pinned, extract bin/node + LICENSE, prove it runs bare.
+
+    Returns the archive digest (computed for platforms without a pinned value).
+    """
+    tar_path = fetch_node_tarball(pin, node_tarball, scratch)
     actual_sha = _sha256_file(tar_path)
-    if actual_sha != NODE_SHA256:
+    if pin.sha256 is not None and actual_sha != pin.sha256:
         raise BuildError(
-            f"node tarball sha256 mismatch: got {actual_sha}, want {NODE_SHA256}"
+            f"node tarball sha256 mismatch: got {actual_sha}, want {pin.sha256}"
         )
     plan.runtime_node_dir.mkdir(parents=True, exist_ok=True)
     extracted: dict[str, Path] = {}
-    prefix = f"node-{NODE_VERSION}-{NODE_ARCH}/"
+    prefix = f"node-{NODE_VERSION}-{pin.platform}/"
     wanted = {f"{prefix}bin/node": plan.runtime_node_dir / "bin" / "node"}
-    with tarfile.open(tar_path, "r:xz") as archive:
+    mode = "r:xz" if tar_path.suffix == ".xz" else "r:gz"
+    with tarfile.open(tar_path, mode) as archive:
         for member in archive:
             if not member.isfile():
                 continue
@@ -226,7 +292,7 @@ def acquire_node(
                 continue
     for name, target in extracted.items():
         target.parent.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(tar_path, "r:xz") as archive:
+        with tarfile.open(tar_path, mode) as archive:
             handle = archive.extractfile(name)
             if handle is None:
                 raise BuildError(f"cannot read tarball member {name}")
@@ -253,27 +319,31 @@ def acquire_node(
             f"out={probe.stdout!r} err={probe.stderr!r}"
         )
     print(f"staged node OK: {probe.stdout.strip()}")
+    return actual_sha
 
 
-def find_daemon_binary(runner_root: Path) -> str:
-    """Locate the sandbox-agent daemon ELF under runner/node_modules (relative)."""
-    direct = runner_root / DAEMON_REL_FALLBACK
+def find_daemon_binary(runner_root: Path, platform_id: str) -> str:
+    """Locate the sandbox-agent daemon binary under runner/node_modules (relative)."""
+    direct = (
+        runner_root / f"node_modules/@sandbox-agent/cli-{platform_id}/bin/sandbox-agent"
+    )
     if direct.exists():
-        return DAEMON_REL_FALLBACK
-    platform = "linux-x64"
+        return f"node_modules/@sandbox-agent/cli-{platform_id}/bin/sandbox-agent"
     store = runner_root / "node_modules" / ".pnpm"
     if store.is_dir():
         for entry in sorted(store.iterdir()):
             candidate_rel = (
                 f"node_modules/.pnpm/{entry.name}/node_modules/"
-                f"@sandbox-agent/cli-{platform}/bin/sandbox-agent"
+                f"@sandbox-agent/cli-{platform_id}/bin/sandbox-agent"
             )
             if (
-                entry.name.startswith(f"@sandbox-agent+cli-{platform}")
+                entry.name.startswith(f"@sandbox-agent+cli-{platform_id}")
                 and (runner_root / candidate_rel).exists()
             ):
                 return candidate_rel
-    raise BuildError("sandbox-agent daemon binary not found in runner node_modules")
+    raise BuildError(
+        f"sandbox-agent daemon binary for {platform_id} not found in runner node_modules"
+    )
 
 
 def wrapper_script(daemon_rel: str) -> str:
@@ -360,13 +430,16 @@ def build_manifest(
     runner_version: str,
     lockfile_sha256: str,
     install_mode: str,
+    node_pin: NodePin,
+    node_sha256: str,
 ) -> dict[str, object]:
     return {
         "node": {
             "version": NODE_VERSION,
-            "url": NODE_URL,
-            "sha256": NODE_SHA256,
-            "arch": NODE_ARCH,
+            "url": node_pin.url,
+            "sha256": node_sha256,
+            "arch": node_pin.platform,
+            "hash_verified_against_upstream": node_pin.sha256 == node_sha256,
         },
         "generated_at_utc": generated_at_utc,
         "runner": {"name": runner_name, "version": runner_version},
@@ -381,7 +454,10 @@ def build_manifest(
         "daemon_binary": daemon_rel,
         "lockfile_sha256": lockfile_sha256,
         "install_mode": install_mode,
-        "requirements": {"glibc": ">=2.28", "host_utils": ["/bin/sh"]},
+        "requirements": {
+            **({"glibc": ">=2.28"} if node_pin.platform == "linux-x64" else {}),
+            "host_utils": ["/bin/sh"],
+        },
         "known_open_items": KNOWN_OPEN_ITEMS,
     }
 
@@ -531,7 +607,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="stage dist/extensions as-is instead of rebuilding",
     )
+    parser.add_argument(
+        "--platform",
+        default=None,
+        help=(
+            f"target platform: one of {', '.join(NODE_PINS)}; "
+            "defaults to the build host"
+        ),
+    )
     args = parser.parse_args(argv)
+
+    platform_id = args.platform if args.platform is not None else detect_host_platform()
+    if platform_id not in NODE_PINS:
+        raise BuildError(
+            f"unsupported platform {platform_id!r}; supported: {', '.join(NODE_PINS)}"
+        )
+    node_pin = NODE_PINS[platform_id]
 
     plan = plan_staging(runner_src=args.runner_src, output=Path(args.output))
     install_mode = validate_source(plan, install=args.install)
@@ -551,12 +642,20 @@ def main(argv: list[str] | None = None) -> int:
     plan.output.mkdir(parents=True)
 
     file_count = stage_source(plan)
+    removed = strip_bin_shims(plan.runner_dir)
     print(f"staged {file_count} files into {plan.runner_dir}")
+    if removed:
+        print(f"stripped {removed} node_modules/.bin shim directories")
 
     with tempfile.TemporaryDirectory(prefix="agenta-node-dl-") as scratch_name:
-        acquire_node(plan, node_tarball=args.node_tarball, scratch=Path(scratch_name))
+        node_sha256 = acquire_node(
+            plan,
+            pin=node_pin,
+            node_tarball=args.node_tarball,
+            scratch=Path(scratch_name),
+        )
 
-    daemon_rel = find_daemon_binary(plan.runner_dir)
+    daemon_rel = find_daemon_binary(plan.runner_dir, platform_id)
     write_wrapper(plan, f"runner/{daemon_rel}")
     print(f"sandbox-agent wrapper -> ../runner/{daemon_rel}")
 
@@ -571,6 +670,8 @@ def main(argv: list[str] | None = None) -> int:
         runner_version=runner_pkg.get("version", "?"),
         lockfile_sha256=lockfile_sha256,
         install_mode=install_mode,
+        node_pin=node_pin,
+        node_sha256=node_sha256,
     )
     write_manifest(plan.output / "manifest.json", manifest)
 

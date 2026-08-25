@@ -22,6 +22,7 @@ build_runner = _load("build_runner")
 
 
 def test_manifest_contains_node_pin_constants():
+    linux_pin = build_runner.NODE_PINS["linux-x64"]
     manifest = build_runner.build_manifest(
         generated_at_utc="2026-01-01T00:00:00+00:00",
         pnpm_version="10.30.0",
@@ -31,12 +32,15 @@ def test_manifest_contains_node_pin_constants():
         runner_version="0.1.0",
         lockfile_sha256="deadbeef",
         install_mode="preinstalled",
+        node_pin=linux_pin,
+        node_sha256=linux_pin.sha256,
     )
     assert manifest["node"] == {
         "version": build_runner.NODE_VERSION,
-        "url": build_runner.NODE_URL,
-        "sha256": build_runner.NODE_SHA256,
-        "arch": build_runner.NODE_ARCH,
+        "url": linux_pin.url,
+        "sha256": linux_pin.sha256,
+        "arch": "linux-x64",
+        "hash_verified_against_upstream": True,
     }
     for key in (
         "generated_at_utc",
@@ -51,6 +55,27 @@ def test_manifest_contains_node_pin_constants():
     assert manifest["lockfile_sha256"] == "deadbeef"
     assert manifest["install_mode"] == "preinstalled"
     assert manifest["requirements"] == {"glibc": ">=2.28", "host_utils": ["/bin/sh"]}
+
+
+def test_manifest_records_computed_digest_for_unpinned_platforms():
+    darwin_pin = build_runner.NODE_PINS["darwin-arm64"]
+    computed = "a" * 64
+    manifest = build_runner.build_manifest(
+        generated_at_utc="2026-01-01T00:00:00+00:00",
+        pnpm_version="10.30.0",
+        dependency_versions={},
+        daemon_rel="node_modules/@sandbox-agent/cli-darwin-arm64/bin/sandbox-agent",
+        runner_name="agenta-runner",
+        runner_version="0.1.0",
+        lockfile_sha256="deadbeef",
+        install_mode="preinstalled",
+        node_pin=darwin_pin,
+        node_sha256=computed,
+    )
+    assert manifest["node"]["sha256"] == computed
+    assert manifest["node"]["arch"] == "darwin-arm64"
+    assert manifest["node"]["hash_verified_against_upstream"] is False
+    assert "glibc" not in manifest["requirements"]
 
 
 def test_wrapper_script_content_is_exact():

@@ -30,12 +30,14 @@ class Settings:
     )
     static_dir: Path | None = field(
         default_factory=lambda: (
-            Path(_env("STATIC_DIR")).expanduser() if _env("STATIC_DIR", "") else None
+            Path(_env("STATIC_DIR", "")).expanduser()
+            if _env("STATIC_DIR", "")
+            else None
         )
     )
     migrations_dir: Path | None = field(
         default_factory=lambda: (
-            Path(_env("MIGRATIONS_DIR")).expanduser()
+            Path(_env("MIGRATIONS_DIR", "")).expanduser()
             if _env("MIGRATIONS_DIR", "")
             else None
         )

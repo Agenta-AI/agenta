@@ -65,7 +65,10 @@ def test_paths_are_cwd_independent_with_spaces_and_read_only_install(
     assert mutable.logs_dir.stat().st_mode & 0o777 == 0o700
 
 
-def test_relative_xdg_values_are_ignored_instead_of_becoming_cwd_relative(tmp_path):
+def test_relative_xdg_values_are_ignored_instead_of_becoming_cwd_relative(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(sys, "platform", "linux")
     paths = resolve_mutable_paths(
         {
             "HOME": str(tmp_path / "home"),

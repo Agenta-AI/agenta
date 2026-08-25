@@ -14,6 +14,11 @@ web/packages/agenta-api-client/dist/
 web/tsconfig.tsbuildinfo
 # Agent Pi extension bundle, built by `pnpm run build:extension` and in the Docker image.
 services/runner/dist/
+# Agenta Local build artifacts: relocatable runner stages / bundles and the
+# static renderer export (all reproducible via services/local/packaging/).
+services/local/dist/
+web/agenta-local/out/
+web/agenta-local/tsconfig.tsbuildinfo
 # Agent runner test/coverage artifacts (vitest writes these on `pnpm test` / coverage runs).
 services/runner/coverage/
 

@@ -17,6 +17,7 @@ dependencies = [
     "uvicorn[standard]>=0.51,<0.52",
     "httpx>=0.28,<0.29",
     "sqlalchemy>=2,<3",
+    "greenlet>=3,<4",
     "aiosqlite>=0.20,<1",
     "alembic>=1,<2",
     "orjson>=3,<4",
