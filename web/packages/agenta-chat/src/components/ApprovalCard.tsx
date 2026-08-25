@@ -201,29 +201,40 @@ export const ApprovalCard = ({
                         <div className="flex max-h-[196px] flex-col overflow-y-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary">
                             {items.map((item, index) => {
                                 const rowOpen = expandedRows.has(index)
-                                return (
-                                    <div
-                                        key={`${item.title}-${index}`}
-                                        className="flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 last:border-b-0"
-                                    >
-                                        <span className="text-xs font-medium text-colorText">
-                                            {item.title}
-                                        </span>
-                                        {item.detail ? (
-                                            // Click to expand the one-line preview to the full text.
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleRow(index)}
-                                                aria-expanded={rowOpen}
-                                                className={`block w-full cursor-pointer border-0 bg-transparent p-0 text-left text-xs leading-relaxed text-colorTextSecondary transition-colors hover:text-colorText ${
+                                const rowClass =
+                                    "flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 text-left last:border-b-0"
+                                const title = (
+                                    <span className="text-xs font-medium text-colorText">
+                                        {item.title}
+                                    </span>
+                                )
+                                // A row with a detail is one clickable target — the whole row (title,
+                                // text, padding) toggles between the one-line preview and full text.
+                                if (item.detail) {
+                                    return (
+                                        <button
+                                            key={`${item.title}-${index}`}
+                                            type="button"
+                                            onClick={() => toggleRow(index)}
+                                            aria-expanded={rowOpen}
+                                            className={`${rowClass} w-full cursor-pointer bg-transparent`}
+                                        >
+                                            {title}
+                                            <span
+                                                className={`w-full text-xs leading-relaxed text-colorTextSecondary ${
                                                     rowOpen
                                                         ? "whitespace-pre-wrap break-words"
                                                         : "truncate"
                                                 }`}
                                             >
                                                 {item.detail}
-                                            </button>
-                                        ) : null}
+                                            </span>
+                                        </button>
+                                    )
+                                }
+                                return (
+                                    <div key={`${item.title}-${index}`} className={rowClass}>
+                                        {title}
                                     </div>
                                 )
                             })}
