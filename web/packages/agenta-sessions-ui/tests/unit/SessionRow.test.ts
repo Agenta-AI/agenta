@@ -115,4 +115,19 @@ describe("SessionRow actions", () => {
         expect(onMenuSelect).toHaveBeenCalledWith(key)
         expect(onOpen).not.toHaveBeenCalled()
     })
+
+    it("parks the agent name under the title below md so the trailing w-40 slot cannot squeeze it", () => {
+        act(() => {
+            root.render(createElement(SessionRow, {row, showAgent: true, onOpen: vi.fn()}))
+        })
+
+        const phoneAgent = container.querySelector(".md\\:hidden")
+        const desktopAgent = container.querySelector(".md\\:block")
+        expect(phoneAgent).not.toBeNull()
+        expect(desktopAgent).not.toBeNull()
+        expect(desktopAgent?.className).toContain("hidden")
+        expect(desktopAgent?.className).toContain("w-40")
+        expect(desktopAgent?.className).toContain("shrink-0")
+        expect(phoneAgent?.className).toContain("w-full")
+    })
 })
