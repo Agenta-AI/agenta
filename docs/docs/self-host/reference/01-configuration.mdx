@@ -24,7 +24,7 @@ The Helm chart accepts a single Helm-only key, `secrets.existingSecret`, that
 points at a pre-created Kubernetes Secret. When set, the chart will not create
 or update the Secret object; it just wires `envFrom`/`secretKeyRef` references
 to the name you provide. Your Secret must contain the canonical env-var keys
-(`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`, and any optional
+(`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, `POSTGRES_PASSWORD`, and any optional
 keys such as `SUPERTOKENS_API_KEY`, `OPENAI_API_KEY`, OAuth client secrets,
 etc.). See [Deploy to Kubernetes Secrets](/self-host/guides/deploy-to-kubernetes#secrets).
 This key has no env-var or `env.py` equivalent.
@@ -41,11 +41,27 @@ This key has no env-var or `env.py` equivalent.
 | `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
 | `AGENTA_AUTH_KEY` | `agenta.auth_key` | `agenta.authKey` |
 | `AGENTA_CRYPT_KEY` | `agenta.crypt_key` | `agenta.cryptKey` |
+| `AGENTA_SERVICES_INTERNAL_KEY` | `agenta.services_internal_key` | `agenta.servicesInternalKey` |
 | `AGENTA_RUNNER_TOKEN` | n/a (read by the runner and its caller) | `agenta.runnerToken` |
 
-`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `AGENTA_RUNNER_TOKEN` are required secrets: the examples
-ship them as `replace-me` and you must set a real value for each. See
-[Agent runner](#routing-and-authentication) for the runner token.
+`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`
+are required secrets: the examples ship them as `replace-me` and you must set a real value for
+each. See [Agent runner](#routing-and-authentication) for the runner token.
+
+`AGENTA_SERVICES_INTERNAL_KEY` proves to the API that a caller **is** the platform runtime (the
+Services container), as opposed to a browser or an ApiKey holder reaching the same public route.
+Only a caller holding it can be issued a credential that reads write-only secret values (a run
+whose connection stores such a secret otherwise fails with a misleading "provide the provider key
+in this run's environment" error). Set the **same** value on the API and the Services container;
+generate it the same way as the other keys:
+
+```bash
+openssl rand -hex 32
+```
+
+There is no fallback to `AGENTA_AUTH_KEY` — the API refuses to start (`AGENTA_SERVICES_INTERNAL_KEY
+is required and must not use the placeholder. ...`) while this is unset or still `replace-me`. It
+is never sent to the runner or into a sandbox.
 
 ## Agenta access
 

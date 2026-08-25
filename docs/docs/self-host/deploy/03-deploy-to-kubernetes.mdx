@@ -63,11 +63,12 @@ For Enterprise Edition:
 cp hosting/kubernetes/ee/values.ee.example.yaml hosting/kubernetes/ee/.values.ee.yaml
 ```
 
-Open the copy and fill in the values you need — at minimum `agenta.authKey`, `agenta.cryptKey`, `agenta.runnerToken`, and `postgres.password`, plus the public URLs under `agenta.*` if you are not using the default local URLs:
+Open the copy and fill in the values you need — at minimum `agenta.authKey`, `agenta.cryptKey`, `agenta.servicesInternalKey`, `agenta.runnerToken`, and `postgres.password`, plus the public URLs under `agenta.*` if you are not using the default local URLs:
 
 ```bash
 openssl rand -hex 32   # use for agenta.authKey
 openssl rand -hex 32   # use for agenta.cryptKey
+openssl rand -hex 32   # use for agenta.servicesInternalKey
 openssl rand -hex 32   # use for agenta.runnerToken
 openssl rand -hex 16   # use for postgres.password
 ```
@@ -83,6 +84,7 @@ agenta:
   servicesUrl: "https://agenta.example.com/services"
   authKey: "<openssl rand -hex 32>"
   cryptKey: "<openssl rand -hex 32>"
+  servicesInternalKey: "<openssl rand -hex 32>"
   runnerToken: "<openssl rand -hex 32>"
 
 postgres:
@@ -201,6 +203,7 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 | `secrets.existingSecret` | Name of an existing Secret to use instead of the chart-managed one | `""` |
 | `agenta.authKey` | Authorization key (**required**) | `""` |
 | `agenta.cryptKey` | Encryption key (**required**) | `""` |
+| `agenta.servicesInternalKey` | Shared secret proving the Services pod is the platform runtime, so a run can read write-only secret values (**required**) | `""` |
 | `agenta.runnerToken` | Shared secret between the agent runner and its caller (**required**) | `""` |
 | `postgres.password` | PostgreSQL password (**required**) | `""` |
 | `supertokens.apiKey` | SuperTokens API key (recommended for production) | `""` |
@@ -617,7 +620,7 @@ kubectl -n agenta describe pod <pod-name>
 ```
 
 Common causes:
-- Missing secrets: ensure `agenta.authKey`, `agenta.cryptKey`, and `postgres.password` are set
+- Missing secrets: ensure `agenta.authKey`, `agenta.cryptKey`, `agenta.servicesInternalKey`, and `postgres.password` are set
 - Image pull errors: verify image names and that `imagePullSecrets` are configured if using a private registry
 
 ### Migration job fails
