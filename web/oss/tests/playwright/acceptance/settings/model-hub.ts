@@ -10,8 +10,8 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect, pollLocatorState} from "@agenta/web-tests/utils"
-import type {Locator} from "@playwright/test"
+import {expect} from "@agenta/web-tests/utils"
+import type {Locator, Page} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
@@ -30,23 +30,23 @@ import {buildAcceptanceTags} from "../utils/tags"
  * NOTE: Authentication is globally handled in Playwright config/globalSetup.
  * Info: Adding secret at the bigening of the all tests and then removing the secret in the end of all the tests
  */
-// Product copy for the custom-providers section. The section header is plural; the
-// button that opens its create form is "Add endpoint". Note that the provider-KIND
-// label in the type dropdown is still the singular "OpenAI-compatible endpoint" — a
-// different string in a different place, deliberately left as-is below.
-const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
-const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
+const PROVIDER_ADD_BUTTON_LABEL = "Add provider"
 
 /**
  * A data row in one of the provider tables.
  *
- * These tables are virtualised: the semantic `<table>` carries only the `<thead>`, and
- * each body row is rendered outside it as a `[data-row-key]` node with no `row`/`cell`
- * role. Matching on `getByRole("row")`/`getByRole("cell")` therefore only ever sees the
- * header. `[data-row-key]` is how the rest of this suite addresses virtualised rows.
+ * Anchor on the exact Name cell so provider text in another column cannot select the
+ * wrong connection, then use its clickable table-row ancestor.
  */
 const providerRow = (section: Locator, name: string) =>
-    section.locator("[data-row-key]").filter({hasText: name}).first()
+    section.getByRole("cell", {name, exact: true}).locator("xpath=ancestor::tr[1]").first()
+
+const providersSection = (page: Page) =>
+    page
+        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
+        .first()
+        .locator("xpath=ancestor::section[1]")
+        .first()
 
 const scenarios = createScenarios(test)
 
@@ -84,12 +84,8 @@ const modelHubTests = () => {
             await testProviderHelpers.ensureTestProvider()
         })
 
-        await scenarios.then('the "Custom providers" table lists the "mock" provider', async () => {
-            const customProvidersSection = page
-                .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-                .locator("xpath=ancestor::section[1]")
-                .first()
-            const mockRow = providerRow(customProvidersSection, "mock")
+        await scenarios.then('the providers table lists the "mock" connection', async () => {
+            const mockRow = providerRow(providersSection(page), "mock")
 
             await expect(mockRow).toBeVisible({timeout: 15000})
             await expect(mockRow).toContainText("mock")
@@ -97,126 +93,44 @@ const modelHubTests = () => {
     })
 
     test(
-        "should configure a standard provider key and verify it is listed",
+        "should test a stored provider connection and keep it listed",
         {tag: tagsLight},
-        async ({page, testProviderHelpers}, testInfo) => {
-            // Captured before configuring so the "then" step can assert the count went
-            // down. Counting rows instead does not work: the table is virtualised, so the
-            // DOM holds only the rows currently in view.
-            let configureNowCountBefore = 0
-
+        async ({page, testProviderHelpers}) => {
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
             })
 
-            await scenarios.given("the user is on the Settings models page", async () => {
+            await scenarios.given("a stored mock provider is listed in Settings", async () => {
                 await testProviderHelpers.ensureTestProvider()
             })
 
             await scenarios.when(
-                "the user configures a key for the first unconfigured standard provider",
+                "the user tests the connection without re-entering its write-only key",
                 async () => {
-                    const standardProvidersSection = page
-                        .getByText("Standard providers", {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
+                    const mockRow = providerRow(providersSection(page), "mock")
+                    await expect(mockRow).toBeVisible({timeout: 15000})
+                    await mockRow.click()
 
-                    const configureNowButton = standardProvidersSection
-                        .getByRole("button", {name: "Configure now"})
-                        .first()
-
-                    const hasConfigureNow = await pollLocatorState(() =>
-                        configureNowButton.isVisible({timeout: 5000}),
-                    )
-
-                    testInfo.skip(
-                        !hasConfigureNow,
-                        "All standard providers are already configured — skipping standard provider key test",
-                    )
-
-                    configureNowCountBefore = await standardProvidersSection
-                        .getByRole("button", {name: "Configure now"})
-                        .count()
-
-                    await configureNowButton.click()
-
-                    // Matched by role: this modal renders through `EnhancedModal`, a facade
-                    // over the @agenta/ui (Radix) `Dialog`, so there is no `.ant-modal`.
-                    const modal = page.getByRole("dialog").last()
-                    await expect(modal).toBeVisible({timeout: 15000})
-                    await modal.getByPlaceholder("Enter API key").fill("sk-test-e2e-cleanup")
-                    await modal.getByRole("button", {name: "Confirm"}).click()
-                    await expect(modal).not.toBeVisible({timeout: 15000})
-                },
-            )
-
-            await scenarios.then(
-                "the Status column no longer shows Configure now for that row",
-                async () => {
-                    const standardProvidersSection = page
-                        .getByText("Standard providers", {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
-
-                    const configureNowButtons = standardProvidersSection.getByRole("button", {
-                        name: "Configure now",
+                    const drawer = page.getByRole("dialog").last()
+                    await expect(drawer).toBeVisible({timeout: 15000})
+                    await expect(drawer.getByText(/Key configured/)).toBeVisible({
+                        timeout: 15000,
                     })
 
-                    // One more provider is configured than before, so one fewer row offers
-                    // "Configure now". Comparing against a row count does not work here —
-                    // the table is virtualised, so the number of rows in the DOM depends on
-                    // the viewport rather than on how many providers exist.
-                    await expect
-                        .poll(() => configureNowButtons.count(), {timeout: 15000})
-                        .toBeLessThan(configureNowCountBefore)
-                },
-            )
-
-            await scenarios.when(
-                "the user deletes the configured standard provider key",
-                async () => {
-                    const standardProvidersSection = page
-                        .getByText("Standard providers", {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
-
-                    // Deleting is no longer a visible danger button — it is an entry in the
-                    // row's actions menu. That menu only renders for rows that already have
-                    // a key, so "the first row with an actions button" IS a configured row.
-                    const configuredRow = standardProvidersSection
-                        .locator("[data-row-key]")
-                        .filter({has: page.locator("button")})
-                        .first()
-                    await expect(configuredRow).toBeVisible({timeout: 15000})
-                    await configuredRow.locator("button").last().click()
-
-                    // Scope by name: the sidebar navigation also uses role="menuitem".
-                    const removeKeyItem = page.getByRole("menuitem", {name: "Remove key"})
-                    await expect(removeKeyItem).toBeVisible({timeout: 10000})
-                    await removeKeyItem.click()
-
-                    // Matched by role: this confirmation renders through `EnhancedModal`
-                    // (Radix `Dialog`), so there is no `.ant-modal`.
-                    const deleteModal = page.getByRole("dialog").last()
-                    await expect(deleteModal).toBeVisible({timeout: 15000})
-                    await deleteModal.getByRole("button", {name: "Delete"}).click()
-                    await expect(deleteModal).not.toBeVisible({timeout: 15000})
+                    await drawer.getByRole("button", {name: "Test"}).click()
+                    const done = drawer.getByRole("button", {name: "Done"})
+                    await expect(done).toBeEnabled({timeout: 30000})
+                    await done.click()
+                    await expect(drawer).not.toBeVisible({timeout: 15000})
                 },
             )
 
             await scenarios.then(
-                'the Status column shows "Configure now" again for that provider',
+                "the stored connection remains in the providers table",
                 async () => {
-                    const standardProvidersSection = page
-                        .getByText("Standard providers", {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
-
-                    await expect(
-                        standardProvidersSection
-                            .getByRole("button", {name: "Configure now"})
-                            .first(),
-                    ).toBeVisible({timeout: 15000})
+                    await expect(providerRow(providersSection(page), "mock")).toBeVisible({
+                        timeout: 15000,
+                    })
                 },
             )
         },
@@ -241,16 +155,13 @@ const modelHubTests = () => {
             await scenarios.when(
                 "the user creates a new custom provider via the drawer",
                 async () => {
-                    const customProvidersSection = page
-                        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
+                    const customProvidersSection = providersSection(page)
 
                     // The button that opens the create form. It is rendered twice inside
                     // the section (header + empty-state row), hence `.first()`.
                     const createButton = customProvidersSection
                         .getByRole("button", {
-                            name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL,
+                            name: PROVIDER_ADD_BUTTON_LABEL,
                             exact: true,
                         })
                         .first()
@@ -309,10 +220,7 @@ const modelHubTests = () => {
             await scenarios.then(
                 "the new custom provider row appears in the Custom providers table",
                 async () => {
-                    const customProvidersSection = page
-                        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-                        .locator("xpath=ancestor::section[1]")
-                        .first()
+                    const customProvidersSection = providersSection(page)
 
                     const newRow = providerRow(customProvidersSection, providerName)
 
@@ -321,10 +229,7 @@ const modelHubTests = () => {
             )
 
             await scenarios.when("the user deletes the newly created custom provider", async () => {
-                const customProvidersSection = page
-                    .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-                    .locator("xpath=ancestor::section[1]")
-                    .first()
+                const customProvidersSection = providersSection(page)
 
                 const newRow = providerRow(customProvidersSection, providerName)
 
@@ -345,10 +250,7 @@ const modelHubTests = () => {
             })
 
             await scenarios.then("the deleted provider row is no longer visible", async () => {
-                const customProvidersSection = page
-                    .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
-                    .locator("xpath=ancestor::section[1]")
-                    .first()
+                const customProvidersSection = providersSection(page)
 
                 const deletedRow = providerRow(customProvidersSection, providerName)
 

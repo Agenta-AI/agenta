@@ -43,7 +43,9 @@ export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
  *
  * The shelved components, with their insertion points, are:
  *  - the untrusted best-effort acknowledgement (adapter-matrix.md section 4.3);
- *  - the Pi specs-file channel, replacing the `AGENTA_AGENT_TOOLS_PUBLIC_SPECS` env var;
+ *  - re-reading the Pi specs file mid-session (the file channel itself now ships — the runner
+ *    writes `AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE` on every Pi run — but the extension reads it
+ *    once, at session start);
  *  - the MCP shim `tools.listChanged` capability plus its notification.
  */
 export interface HarnessLifecycleCapabilities {

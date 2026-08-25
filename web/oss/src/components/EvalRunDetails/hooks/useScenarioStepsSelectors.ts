@@ -6,6 +6,7 @@ import {atomFamily} from "jotai/utils"
 
 import type {IStepResponse} from "@/oss/lib/evaluations"
 
+import {sameFamilyKey} from "../atoms/familyKeys"
 import {activePreviewRunIdAtom} from "../atoms/run"
 import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"
 import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
@@ -60,7 +61,7 @@ const buildScenarioStepsSelector = (kind: "input" | "invocation" | "annotation")
                 isFetching: Boolean(query.isFetching),
             }
         })
-    })
+    }, sameFamilyKey)
 
 export const scenarioInputStepsAtomFamily = buildScenarioStepsSelector("input")
 export const scenarioInvocationStepsAtomFamily = buildScenarioStepsSelector("invocation")

@@ -1,0 +1,19 @@
+{{- if eq (include "agenta.webMobile.enabled" .) "true" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-web-mobile
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-mobile
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ include "agenta.webMobile.port" . }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web-mobile
+{{- end }}

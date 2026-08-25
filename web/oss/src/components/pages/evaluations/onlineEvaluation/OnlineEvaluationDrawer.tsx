@@ -8,6 +8,7 @@ import {
     evaluatorTemplatesQueryAtom,
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
+import {getFilterColumns} from "@agenta/observability"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
@@ -19,7 +20,6 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {v4 as uuidv4} from "uuid"
 
-import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import type {Filter} from "@/oss/lib/Types"
 
 import {
@@ -54,7 +54,9 @@ interface OnlineEvaluationDrawerProps {
 
 const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
-const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
+const Filters = dynamic(() => import("@/oss/components/Filters/AnnotatedFilterDialog"), {
+    ssr: false,
+})
 
 const collapseClass =
     "[&_.ant-collapse-item]:!border-none [&_.ant-collapse-item]:!rounded-[10px] [&_.ant-collapse-item]:overflow-hidden [&_.ant-collapse-item]:bg-colorBgContainer [&_.ant-collapse-item]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_.ant-collapse-item+.ant-collapse-item]:mt-2 [&_.ant-collapse-header]:!bg-[var(--ag-c-FAFAFB)] [&_.ant-collapse-header]:!border-b [&_.ant-collapse-header]:!border-solid [&_.ant-collapse-header]:!border-[var(--ag-colorSplit)] [&_.ant-collapse-header]:!p-[12px_16px] [&_.ant-collapse-content]:!border-t-0 [&_.ant-collapse-content]:!rounded-[0_0_10px_10px] [&_.ant-collapse-content>.ant-collapse-content-box]:!p-4"

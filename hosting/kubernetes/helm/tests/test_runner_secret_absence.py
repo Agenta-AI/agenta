@@ -42,6 +42,8 @@ BASE_ARGS = [
     "--set",
     "agenta.cryptKey=test-crypt-key",
     "--set",
+    "agenta.servicesInternalKey=test-services-internal-key",
+    "--set",
     "postgres.password=test-postgres-password",
 ]
 
@@ -62,6 +64,7 @@ TOKEN_ARGS = [
 FORBIDDEN_EXACT = {
     "AGENTA_AUTH_KEY",
     "AGENTA_CRYPT_KEY",
+    "AGENTA_SERVICES_INTERNAL_KEY",
     "AGENTA_LICENSE",
     "AGENTA_API_KEY",
     "OPENAI_API_KEY",
@@ -117,6 +120,19 @@ def runner_container_env_names(docs: list[dict]) -> list[str]:
     raise AssertionError("no runner Deployment found in the rendered chart")
 
 
+def deployment_env_names(docs: list[dict], component: str) -> set[str]:
+    """Environment variable names on a component's primary container."""
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        labels = doc.get("metadata", {}).get("labels", {})
+        if labels.get("app.kubernetes.io/component") != component:
+            continue
+        container = doc["spec"]["template"]["spec"]["containers"][0]
+        return {entry["name"] for entry in container.get("env", [])}
+    raise AssertionError(f"no {component} Deployment found in the rendered chart")
+
+
 def check(names: list[str]) -> list[str]:
     failures: list[str] = []
     present = set(names)
@@ -150,6 +166,18 @@ def main() -> int:
     names = runner_container_env_names(render(DEFAULT_TOKEN_ARGS))
     failures += check(names)
 
+    docs = render(DEFAULT_TOKEN_ARGS)
+    for component in ("api", "services"):
+        if "AGENTA_SERVICES_INTERNAL_KEY" not in deployment_env_names(docs, component):
+            failures.append(
+                f"{component} env must contain AGENTA_SERVICES_INTERNAL_KEY"
+            )
+    for component in ("worker-streams", "worker-queues", "cron"):
+        if "AGENTA_SERVICES_INTERNAL_KEY" in deployment_env_names(docs, component):
+            failures.append(
+                f"{component} env must not contain AGENTA_SERVICES_INTERNAL_KEY"
+            )
+
     # Operator supplies their own secret ref: same narrow env, token sourced from their Secret.
     names_with_token = runner_container_env_names(render(TOKEN_ARGS))
     failures += check(names_with_token)
@@ -161,7 +189,7 @@ def main() -> int:
         return 1
 
     print(
-        "OK: runner Deployment env is narrow (no platform secrets, provider keys, or API key)."
+        "OK: internal-services key is limited to API/Services; runner env remains narrow."
     )
     print(f"  default env: {sorted(names)}")
     return 0

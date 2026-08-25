@@ -3,7 +3,6 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {buildFormFieldsFromSchema} from "../../src/utils/gatewayToolSchema"
 import {
     ELICITATION_RENDER_KIND,
     SECRET_FIELD_PATTERN,
@@ -18,6 +17,7 @@ import {
     partitionElicitationDraft,
     serializeElicitationContent,
 } from "../../src/utils/elicitation"
+import {buildFormFieldsFromSchema} from "../../src/utils/gatewayToolSchema"
 
 const fixture = (name: string) =>
     JSON.parse(readFileSync(join(__dirname, "..", "fixtures", name), "utf-8"))

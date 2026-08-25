@@ -76,6 +76,13 @@ export {
 } from "./state/subscriptionStatus"
 
 export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./state/agentModelCandidates"
+
+export {
     type SubscriptionStatusResponse,
     type SubscriptionRunnerState,
     type SubscriptionHarnessState,
@@ -457,3 +464,30 @@ export {
 // ============================================================================
 
 export {workflowSnapshotAdapter} from "./snapshotAdapter"
+
+// ============================================================================
+// AGENT TEMPLATES — the starter catalogue every create surface offers
+// ============================================================================
+
+export {
+    AGENT_TEMPLATES,
+    ALL_TEMPLATES_CATEGORY,
+    PROVIDERS,
+    TEMPLATE_CATEGORY_ORDER,
+    agentTemplateByKey,
+    agentTemplateSeed,
+    categoryFromSlug,
+    categorySlug,
+    templateBuilderMessage,
+    templateCategories,
+    templateProviderSlugs,
+    templateToolCount,
+} from "./agentTemplates"
+export type {
+    AgentStarterTemplate,
+    RequiredIntegration,
+    TemplateExampleSession,
+    TemplateTool,
+} from "./agentTemplates"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"

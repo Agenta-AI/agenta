@@ -6,10 +6,8 @@ import {
     nonDeterministicEvaluatorsAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
-import type {MenuProps} from "antd"
-import clsx from "clsx"
+import type {WorkflowPickerEntry} from "@agenta/navigation-ui"
 import {atom, useAtomValue, useSetAtom} from "jotai"
-import Link from "next/link"
 
 import {
     appSwitchHrefAtom,
@@ -40,11 +38,6 @@ const getWorkflowActivityTime = (workflow: Workflow) => {
     const parsedTimestamp = Date.parse(timestamp)
     return Number.isNaN(parsedTimestamp) ? 0 : parsedTimestamp
 }
-
-export const WORKFLOW_SWITCHER_MENU_CLASS = clsx(
-    "max-h-80 overflow-y-auto !py-2 !px-2",
-    "[&_.ant-dropdown-menu-item]:!px-2",
-)
 
 export const useWorkflowSwitcher = () => {
     const context = useAtomValue(currentWorkflowContextAtom)
@@ -122,45 +115,23 @@ export const useWorkflowSwitcher = () => {
         evaluators,
     })
 
-    // Real anchor per item so middle-click / ctrl+click open a new tab; plain
-    // left clicks preventDefault and stay on the antd onClick (SPA) path.
-    const handleItemLinkClick = useCallback((event: React.MouseEvent) => {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-            event.stopPropagation()
-            setOpen(false)
-            return
-        }
-        event.preventDefault()
-    }, [])
-
-    const menuItems = useMemo<MenuProps["items"]>(() => {
-        const toMenuItem = (entity: Workflow, isEvaluator: boolean) => {
+    const entries = useMemo<WorkflowPickerEntry[]>(() => {
+        const toEntry = (entity: Workflow, isEvaluator: boolean): WorkflowPickerEntry => {
             const label = entity.name ?? entity.slug ?? entity.id
-            const identity = (
-                <WorkflowIdentity
-                    workflowId={entity.id}
-                    name={label}
-                    isEvaluator={isEvaluator}
-                    selected={entity.id === workflowId}
-                />
-            )
-            const href = buildWorkflowHref(entity.id)
             return {
                 key: entity.id,
-                label: href ? (
-                    <Link
-                        className="block w-full !text-inherit hover:!text-inherit no-underline"
-                        href={href}
-                        onClick={handleItemLinkClick}
-                    >
-                        {identity}
-                    </Link>
-                ) : (
-                    identity
+                href: buildWorkflowHref(entity.id),
+                content: (
+                    <WorkflowIdentity
+                        workflowId={entity.id}
+                        name={label}
+                        isEvaluator={isEvaluator}
+                        selected={entity.id === workflowId}
+                    />
                 ),
             }
         }
-        const children = [
+        return [
             ...apps.map((entity) => ({entity, isEvaluator: false})),
             ...switcherEvaluators.map((entity) => ({entity, isEvaluator: true})),
         ]
@@ -168,25 +139,22 @@ export const useWorkflowSwitcher = () => {
                 (left, right) =>
                     getWorkflowActivityTime(right.entity) - getWorkflowActivityTime(left.entity),
             )
-            .map(({entity, isEvaluator}) => toMenuItem(entity, isEvaluator))
+            .map(({entity, isEvaluator}) => toEntry(entity, isEvaluator))
+    }, [apps, buildWorkflowHref, switcherEvaluators, workflowId])
 
-        return children
-    }, [apps, buildWorkflowHref, handleItemLinkClick, switcherEvaluators, workflowId])
-
-    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
+    const handleSelect = useCallback(
+        (key: string) => {
             setOpen(false)
             if (key && key !== workflowId) navigateToWorkflow(key)
         },
-        [navigateToWorkflow, workflowId],
+        [navigateToWorkflow, setOpen, workflowId],
     )
 
     return {
         displayName,
-        handleMenuClick,
-        menuItems,
+        entries,
+        handleSelect,
         open,
-        selectedKeys: workflowId ? [workflowId] : undefined,
         setOpen,
         isEvaluator,
         workflow,

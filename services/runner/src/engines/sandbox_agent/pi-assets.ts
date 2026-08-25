@@ -16,11 +16,16 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
+import { PI_TRACE_CONTROL_ENV } from "../../tracing/pi-spool-protocol.ts";
 import {
   encodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
-import { advertisedToolSpecs } from "../../tools/public-spec.ts";
+import {
+  advertisedToolSpecs,
+  type AdvertisedToolSpec,
+} from "../../tools/public-spec.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import {
@@ -315,6 +320,19 @@ export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
   "default endpoint. Ask your deployment operator to rebuild and republish the runner image.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a local subscription run's Pi agent dir —
+ * the operator's mounted login — is not writable by the runner user. Pi persists its session
+ * rollouts and OAuth refresh into that dir, so an unwritable mount makes the harness die at
+ * startup with no output at all: the turn ends instantly and the UI shows nothing (the exact
+ * "session looks stuck, user retries forever" failure). Fail closed with a visible error instead.
+ * Single line so `conciseError` surfaces it verbatim.
+ */
+export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
+  "The agent could not use the mounted Pi login directory: it is not writable by the runner's " +
+  "user, so the harness cannot persist its session or refresh its login. The run was stopped. " +
+  "Ask your deployment operator to make the mounted Pi agent directory writable by the runner's uid.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -341,41 +359,126 @@ export function writePiModelsConfigLocal(
 }
 
 /**
- * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
- * relay directory; private specs/auth stay in the runner.
+ * Thrown (via the engine's named-message pattern) when the run's tool specs could not be
+ * delivered to the harness. Fail loud rather than start a run whose tools the model never sees —
+ * the silent-tool-drop failure (F-042) is indistinguishable from a model that chose not to call
+ * them. Mirrors `TOOL_MCP_UNAVAILABLE_MESSAGE` for the non-Pi shim. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_TOOL_SPECS_UNAVAILABLE_MESSAGE =
+  "The agent could not deliver its tool definitions to the harness, so none of its tools would " +
+  "have been available to the model. The run was stopped rather than run without them. Ask your " +
+  "deployment operator to check that the runner can write its relay directory.";
+
+/**
+ * The file the run's advertised tool specs ride to the Pi extension.
  *
- * The OTLP bearer is deliberately NOT placed in `OTEL_EXPORTER_OTLP_HEADERS` (or any other
- * plain env var): that env is inherited by the harness process, so a prompt-injected sandbox
- * could read/echo the caller's reusable Authorization bearer and impersonate the caller. It
- * rides a runner-written 0600 read-once file whose PATH is the only thing env carries
- * (`opts.otlpAuthFilePath` -> `AGENTA_AGENT_OTLP_AUTH_FILE`, see `writeOtlpAuthFile`).
+ * A FILE, NEVER AN ENV VALUE. Linux caps a single argv/env string at `MAX_ARG_STRLEN`
+ * (131,072 bytes) and fails the whole `execve` with `E2BIG` when one exceeds it. Tool JSON
+ * Schemas are unbounded, so no size threshold is safe: a session with 44 hydrated Composio
+ * tools serialized to ~250 KB and every run died with "spawn E2BIG" before the harness
+ * started. The non-Pi stdio shim already rides a file for the same reason — see
+ * `PUBLIC_SPECS_FILE_ENV` in `tools/tool-mcp-env.ts`, whose name this reuses.
+ *
+ * A SIBLING of the relay dir, like the OTLP auth file, because `prepareWorkspace` clears and
+ * recreates the relay dir itself on every turn. It is keyed on the conversation (the relay dir
+ * is), non-secret, and rewritten in place per run, so it is left behind at teardown exactly as
+ * the relay dir is.
+ */
+export function piToolSpecsFilePath(relayDir: string): string {
+  return `${relayDir}.tool-specs.json`;
+}
+
+/** The run's advertised specs plus the path the extension reads them from. */
+export interface PiToolSpecsDelivery {
+  /** A runner host path on local; the deterministic in-sandbox path on Daytona. */
+  path: string;
+  /** The serialized `AdvertisedToolSpec` array — the exact bytes written to `path`. */
+  contents: string;
+  specs: AdvertisedToolSpec[];
+}
+
+/**
+ * The tool specs this Pi run advertises, or `undefined` when there is nothing to advertise (no
+ * tools, or no relay dir to relay their execution back through). Takes the resolved specs so
+ * both sides derive from one source: the env builder from `request.customTools`, the Daytona
+ * upload from `plan.tools.toolSpecs` (the same array).
+ */
+export function resolvePiToolSpecsDelivery(
+  toolSpecs: ResolvedToolSpec[],
+  relayDir: string | undefined,
+): PiToolSpecsDelivery | undefined {
+  const specs = advertisedToolSpecs(toolSpecs);
+  if (specs.length === 0 || !relayDir) return undefined;
+  return {
+    path: piToolSpecsFilePath(relayDir),
+    contents: JSON.stringify(specs),
+    specs,
+  };
+}
+
+/**
+ * Write the specs file for a LOCAL Pi run. THROWS the named message on failure: without the file
+ * the extension registers no tools, and a run whose tools silently vanished is worse than one
+ * that stops with a reason.
+ */
+export function writePiToolSpecsFileLocal(
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): void {
+  try {
+    mkdirSync(dirname(delivery.path), { recursive: true });
+    writeFileSync(delivery.path, delivery.contents, "utf-8");
+  } catch (err) {
+    log(`pi tool specs write failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs written path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
+ * Upload the specs file into a Daytona sandbox: the runner's filesystem is not the sandbox's, and
+ * the sandbox env map is fixed at creation, so the env var names a deterministic in-sandbox path
+ * that this fills in before the session starts. THROWS the named message on failure, for the same
+ * reason the local write does.
+ */
+export async function uploadPiToolSpecsToSandbox(
+  sandbox: any,
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): Promise<void> {
+  try {
+    await sandbox.mkdirFs({ path: dirname(delivery.path) });
+    await sandbox.writeFsFile({ path: delivery.path }, delivery.contents);
+  } catch (err) {
+    log(`pi tool specs upload failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs uploaded path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
+ * Env the Agenta Pi extension reads. Per-turn trace context, capture policy, and redaction values
+ * ride the stable read-once control file; the endpoint and authorization stay in the runner.
  */
 export function buildPiExtensionEnv(
   request: AgentRunRequest,
-  tracing: boolean,
   opts: {
     relayDir?: string;
     usageOutPath?: string;
-    otlpAuthFilePath?: string;
-    skills?: string[];
+    telemetryControlPath?: string;
     builtinGatingActive?: boolean;
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
-  const propagation = tracing ? request.context?.propagation : undefined;
-  const telemetry = tracing ? request.telemetry : undefined;
-  const otlp = telemetry?.exporters?.otlp;
-  if (propagation?.traceparent) env.TRACEPARENT = propagation.traceparent;
-  if (otlp?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = otlp.endpoint;
-  if (otlp?.headers?.authorization && opts.otlpAuthFilePath)
-    env.AGENTA_AGENT_OTLP_AUTH_FILE = opts.otlpAuthFilePath;
-  if (telemetry?.capture?.content?.enabled === false)
-    env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
-  // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
-  // span records which skills loaded (F-029). Only set under tracing (the extension's only span
-  // consumer); a JSON array string the extension parses.
-  if (telemetry && opts.skills && opts.skills.length > 0)
-    env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
+  if (opts.telemetryControlPath)
+    env[PI_TRACE_CONTROL_ENV] = opts.telemetryControlPath;
 
   // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
@@ -389,11 +492,15 @@ export function buildPiExtensionEnv(
     });
   }
 
-  const specs = advertisedToolSpecs(
+  // The specs themselves ride a file whose PATH is all env carries: one env string holding every
+  // hydrated tool spec overflows Linux's per-string execve limit and kills the spawn with E2BIG.
+  // See `piToolSpecsFilePath`. The runner writes that file locally, or uploads it on Daytona.
+  const toolSpecs = resolvePiToolSpecsDelivery(
     (request.customTools as ResolvedToolSpec[]) ?? [],
+    opts.relayDir,
   );
-  if (specs.length && opts.relayDir) {
-    env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
+  if (toolSpecs && opts.relayDir) {
+    env[PUBLIC_SPECS_FILE_ENV] = toolSpecs.path;
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
     // Hop-1 response-watch kill switch (event-driven-tool-relay plan, decision 7): the
     // in-sandbox writer defaults it to true, so it is only forwarded — verbatim — when
@@ -412,25 +519,6 @@ export function buildPiExtensionEnv(
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;
-}
-
-/**
- * Write the OTLP bearer to a 0600 file at `path`: the runner still holds this value
- * in memory for its own out-of-band use (session/mount calls), but the harness process only
- * ever gets a path, never the value, via env. Best-effort: a write failure just means the
- * extension traces without export auth (falls back to its own env fallback, if any).
- */
-export function writeOtlpAuthFile(
-  path: string,
-  authorization: string,
-  log: Log = () => {},
-): void {
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, authorization, { encoding: "utf-8", mode: 0o600 });
-  } catch (err) {
-    log(`otlp auth file write skipped: ${(err as Error).message}`);
-  }
 }
 
 /**
@@ -623,6 +711,48 @@ export interface PrepareLocalPiAssetsResult {
    * when this is false (materialization is terminal — design Decision 6).
    */
   modelConfigWritten: boolean;
+  /**
+   * False only for a subscription run whose operator-mounted agent dir failed the write probe. Pi
+   * persists session rollouts and its OAuth refresh into that dir, so an unwritable mount makes
+   * the harness die at startup with zero output; the caller fails the run closed with
+   * `PI_AGENT_DIR_UNWRITABLE_MESSAGE` instead. Always true for the per-run-dir paths (the dir is
+   * created by the runtime user) and for non-local-Pi runs.
+   */
+  agentDirWritable: boolean;
+}
+
+/**
+ * Probe whether the runner user can write to both Pi state targets: the agent-dir root for login
+ * refreshes and extension assets, plus `sessions/` for transcript rollouts. A partially writable
+ * mount is still unusable, and Pi fails on EACCES with an instant silent exit.
+ */
+export function probePiAgentDirWritable(
+  agentDir: string,
+  log: Log = () => {},
+): boolean {
+  const sessionsDir = join(agentDir, "sessions");
+  const probes = [
+    join(agentDir, `.agenta-write-probe-${randomUUID()}`),
+    join(sessionsDir, `.agenta-write-probe-${randomUUID()}`),
+  ];
+  try {
+    mkdirSync(sessionsDir, { recursive: true });
+    for (const probe of probes) {
+      writeFileSync(probe, "", "utf-8");
+      rmSync(probe, { force: true });
+    }
+    return true;
+  } catch (err) {
+    for (const probe of probes) {
+      try {
+        rmSync(probe, { force: true });
+      } catch {
+        // the probe file was never created; nothing to clean up
+      }
+    }
+    log(`pi agent dir write probe failed: ${(err as Error).message}`);
+    return false;
+  }
 }
 
 /**
@@ -658,6 +788,7 @@ export function prepareLocalPiAssets({
       dir: undefined,
       extensionInstalled: true,
       modelConfigWritten: true,
+      agentDirWritable: true,
     };
 
   // buildRunPlan already rejected a local runtime_provided run with no configured
@@ -677,6 +808,7 @@ export function prepareLocalPiAssets({
           describePiModelsJsonPlan(piModelConfig),
       );
     }
+    const agentDirWritable = probePiAgentDirWritable(agentDir, log);
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
     if (plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
@@ -688,7 +820,12 @@ export function prepareLocalPiAssets({
     }
     env.PI_CODING_AGENT_DIR = agentDir;
     // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
-    return { dir: undefined, extensionInstalled, modelConfigWritten: true };
+    return {
+      dir: undefined,
+      extensionInstalled,
+      modelConfigWritten: true,
+      agentDirWritable,
+    };
   }
 
   // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
@@ -724,7 +861,12 @@ export function prepareLocalPiAssets({
     }
   }
   env.PI_CODING_AGENT_DIR = runAgentDir;
-  return { dir: runAgentDir, extensionInstalled, modelConfigWritten };
+  return {
+    dir: runAgentDir,
+    extensionInstalled,
+    modelConfigWritten,
+    agentDirWritable: true,
+  };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */

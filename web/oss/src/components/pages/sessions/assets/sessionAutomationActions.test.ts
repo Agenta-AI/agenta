@@ -4,10 +4,10 @@ import {
     VIEW_SESSION_DELIVERY_ACTION,
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
+import {createSessionAutomationActions} from "@agenta/sessions-ui"
 import {describe, expect, it, vi} from "vitest"
 
 import {mergeSessionMenuEntries, selectSessionContextMenuItem} from "./menuEntries"
-import {createSessionAutomationActions} from "./sessionAutomationActions"
 
 function row({
     kind = "schedule",

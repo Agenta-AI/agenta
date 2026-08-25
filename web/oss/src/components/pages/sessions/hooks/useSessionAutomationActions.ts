@@ -5,11 +5,10 @@ import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
+import {createSessionAutomationActions} from "@agenta/sessions-ui"
 import {useSetAtom} from "jotai"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-
-import {createSessionAutomationActions} from "../assets/sessionAutomationActions"
 
 export function useSessionAutomationActions() {
     const {hasPermission} = useProjectPermissions()

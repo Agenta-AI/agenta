@@ -7,9 +7,17 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
+import {
+    Button,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, BracketsCurly, DownloadSimple, X} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
@@ -144,56 +152,66 @@ export function Inspector({sessionId}: {sessionId: string}) {
             <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-colorSplit px-2 py-2">
                 <div className="flex items-center gap-2">
                     <Button
-                        type="text"
-                        size="small"
-                        icon={<X size={14} />}
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => close()}
                         aria-label="Close inspector"
-                    />
+                    >
+                        <X size={14} />
+                    </Button>
                     <span className="text-[13px] font-semibold">Inspector</span>
                     {/* One scope control for the whole panel: Session or a specific turn. */}
-                    <Tooltip
-                        title="Focus the whole inspector on one turn, or the whole session."
-                        placement="bottom"
-                        mouseEnterDelay={0.4}
+                    <Select
+                        value={focusedTurn != null ? String(focusedTurn) : "session"}
+                        onValueChange={onScopeChange}
                     >
-                        <Select
-                            size="small"
-                            value={focusedTurn != null ? String(focusedTurn) : "session"}
-                            onChange={onScopeChange}
-                            options={scopeOptions}
-                            popupMatchSelectWidth={false}
-                            className="min-w-[96px]"
-                        />
-                    </Tooltip>
+                        <SimpleTooltip
+                            title="Focus the whole inspector on one turn, or the whole session."
+                            side="bottom"
+                        >
+                            <SelectTrigger size="sm" className="min-w-[96px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                        </SimpleTooltip>
+                        <SelectContent>
+                            {scopeOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <div className="ml-auto flex items-center">
-                        <Tooltip title={rawOpen ? "Hide raw JSON" : "Raw JSON"}>
+                        <SimpleTooltip title={rawOpen ? "Hide raw JSON" : "Raw JSON"}>
                             <Button
-                                type={rawOpen ? "primary" : "text"}
-                                size="small"
-                                icon={<BracketsCurly size={13} />}
+                                variant={rawOpen ? "default" : "ghost"}
+                                size="icon-sm"
                                 onClick={() => setRawOpen((v) => !v)}
                                 aria-label="Toggle raw JSON"
-                            />
-                        </Tooltip>
-                        <Tooltip title="Refresh">
+                            >
+                                <BracketsCurly size={13} />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip title="Refresh">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<ArrowClockwise size={13} />}
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={refresh}
                                 aria-label="Refresh"
-                            />
-                        </Tooltip>
-                        <Tooltip title="Export">
+                            >
+                                <ArrowClockwise size={13} />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip title="Export">
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<DownloadSimple size={13} />}
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={exportPayload}
                                 aria-label="Export"
-                            />
-                        </Tooltip>
+                            >
+                                <DownloadSimple size={13} />
+                            </Button>
+                        </SimpleTooltip>
                     </div>
                 </div>
                 {/* Identity line: the session is always the scope; a focused turn is the chip above. */}

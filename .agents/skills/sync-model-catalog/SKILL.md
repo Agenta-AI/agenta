@@ -23,7 +23,8 @@ Three JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
 - `pi_models.generated.json` — machine-generated from pi-ai. Objective facts only (name / pricing /
   context_window / modalities), `source: "pi_generated"`. **Never hand-edit.**
 - `pi_models.curated.json` — human overlay for the generated file (id -> `{label?, description?,
-  ratings?}`), merged onto the generated facts at load. Survives regeneration.
+  ratings?}`), merged onto the generated facts at load. Survives regeneration. Its `additions`
+  list holds whole entries for models the pinned pi-ai release predates (see below).
 - `claude_models.curated.json` — hand-curated Claude alias entries (facts + judgments),
   `source: "curated"`.
 
@@ -49,6 +50,18 @@ node .agents/skills/sync-model-catalog/generate_pi_models.mjs "$MODELS" \
 Detect the bump from a lockfile diff on `@earendil-works+pi-ai@<version>`. The `_generator` field
 in the output records the exact pi-ai version. The curated overlay is untouched — only the
 `.generated.json` is rewritten, so the merge on load re-applies the human judgments.
+
+#### Adding a model pi-ai does not carry yet
+
+A model released after the pinned pi-ai snapshot has no generated entry, so it has no catalog entry
+at all: the picker can only show its bare id, and `PROVIDER_DEFAULT_MODELS` drops it (a curated
+default must exist in the catalog or the accepted set). The overlay cannot fix this, because an
+overlay key only decorates an id the generated file already has.
+
+Put the whole entry in the `additions` list of `pi_models.curated.json` instead, with
+`source: "curated"` and every fact sourced from the vendor's own pages. Do not hand-edit the
+generated file. A generated entry of the same id always wins at load, so the addition retires
+itself the moment a regeneration carries the model. Prune superseded additions after job 1.
 
 ### 2. Sync Claude to the live accepted set (needs a running runner)
 

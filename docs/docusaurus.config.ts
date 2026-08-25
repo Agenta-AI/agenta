@@ -712,6 +712,8 @@ const config: Config = {
     ],
   ],
 
+  clientModules: ["./src/clientModules/streamSkeleton.ts"],
+
   themes: ["docusaurus-theme-openapi-docs"],
 };
 

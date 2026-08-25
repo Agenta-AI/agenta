@@ -1,7 +1,5 @@
+import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {atom, getDefaultStore} from "jotai"
-
-import {AGENT_TEMPLATES} from "../../components/pages/agent-home/assets/templates"
-import type {AgentTemplate} from "../../components/pages/agent-home/assets/templates"
 
 // Capture / storage / TTL / validation / claim for a website template deep-link. Kept out of
 // auth.ts so that module does not become a registry of unrelated features; auth.ts only calls in.
@@ -47,7 +45,9 @@ export const activeTemplateAtom = atom<PendingTemplate | null>(null)
 const validTemplateKeys = new Set(AGENT_TEMPLATES.map((template) => template.key))
 
 /** Exact-match lookup against the app registry; an unknown or stale key resolves to undefined. */
-export const resolveTemplate = (key: string | null | undefined): AgentTemplate | undefined => {
+export const resolveTemplate = (
+    key: string | null | undefined,
+): AgentStarterTemplate | undefined => {
     if (!key) return undefined
     return AGENT_TEMPLATES.find((template) => template.key === key)
 }

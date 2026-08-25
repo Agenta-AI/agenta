@@ -110,3 +110,39 @@ export function resetAxiosConfig(): void {
 }
 
 export default axios
+
+// ─── Auth token accessor ─────────────────────────────────────────────────────────────────────
+// The axios interceptor covers every request that goes through this instance, but a few paths
+// cannot: a streaming download writes into a FileSystemWritableFileStream, which needs a raw
+// `fetch` and therefore the bearer token in hand. Apps register their own getter (the desktop's
+// supertokens-auth-react session, mobile's supertokens-web-js one) so package code never imports
+// an auth library.
+let authTokenProvider: (() => Promise<string | undefined>) | null = null
+
+/** Register the app's bearer-token getter. Call once at startup, beside {@link configureAxios}. */
+export function configureAuthToken(provider: () => Promise<string | undefined>): void {
+    authTokenProvider = provider
+}
+
+/** The current bearer token, or undefined when unauthenticated / unconfigured. */
+export async function getAuthToken(): Promise<string | undefined> {
+    if (!authTokenProvider) return undefined
+    try {
+        return await authTokenProvider()
+    } catch {
+        return undefined
+    }
+}
+
+/**
+ * Request flags the app's response interceptor reads. Declared here so callers can set them
+ * without an `as any` cast — the desktop's interceptor owns the behaviour, this only types it.
+ */
+declare module "axios" {
+    interface AxiosRequestConfig {
+        /** Skip the global error toast; the caller handles the failure itself. */
+        _ignoreError?: boolean
+        /** Do not redirect to the auth-upgrade flow on a 401/403. */
+        _skipAuthUpgradeRedirect?: boolean
+    }
+}

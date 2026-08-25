@@ -23,6 +23,7 @@ import httpx
 from agenta.sdk.utils.logging import get_module_logger
 
 from ..capabilities import PROVIDER_ENV_VARS
+from ..connections.credentials import secret_value_configured
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
@@ -60,9 +61,19 @@ async def resolve_named_secrets(
                         "agent: named-secret read HTTP %s", response.status_code
                     )
                     continue
-                value = _text_custom_secret_value(response.json())
+                payload = response.json()
+                value = _text_custom_secret_value(payload)
                 if value is not None:
                     resolved[name] = value
+                elif _is_write_only_redacted(payload):
+                    # Engineering copy; adjust freely. No secret name in the log (module
+                    # policy above); the caller knows which names it requested.
+                    log.error(
+                        "agent: a requested named secret is write-only: its value "
+                        "cannot be read back outside the platform runtime. For "
+                        "standalone runs, set the value directly in the tool's "
+                        "environment configuration instead."
+                    )
             except Exception:  # pylint: disable=broad-except
                 log.warning("agent: named-secret read failed", exc_info=True)
 
@@ -70,6 +81,15 @@ async def resolve_named_secrets(
     if missing_count:
         log.warning("agent: %d named secret(s) unresolved", missing_count)
     return resolved
+
+
+def _is_write_only_redacted(payload: Any) -> bool:
+    """Whether the vault says a value exists but redacted it for this caller."""
+    return (
+        isinstance(payload, dict)
+        and bool(payload.get("write_only"))
+        and secret_value_configured(payload)
+    )
 
 
 def _text_custom_secret_value(payload: Any) -> Optional[str]:

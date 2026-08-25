@@ -1,3 +1,7 @@
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/chat/assets"
 import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
@@ -11,10 +15,6 @@ import {
     sizeOf,
     summarizeOutput,
 } from "./toolRow"
-import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    DEFERRED_NOT_EXECUTED_PREFIX,
-} from "./transcriptToMessages"
 
 const part = (over: Record<string, unknown>): ToolUIPart =>
     ({type: "tool-test_run", toolCallId: "c1", ...over}) as unknown as ToolUIPart

@@ -1,12 +1,16 @@
 import {useEffect, useState} from "react"
 
+import {
+    AGENT_TEMPLATES,
+    templateBuilderMessage,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
-import {AGENT_TEMPLATES, templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 
 import {useOnboardingContext} from "./OnboardingContext"
 
@@ -27,7 +31,7 @@ const OnboardingConfigPanel = () => {
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
 
-    const selectTemplate = (template: AgentTemplate) => {
+    const selectTemplate = (template: AgentStarterTemplate) => {
         captureFirstAgentIntent(posthog, {
             source: "template",
             properties: {

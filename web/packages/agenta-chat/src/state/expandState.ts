@@ -1,9 +1,8 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/state/expandState.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /**
  * Persisted expand/collapse state for in-message widgets (thoughts, tool rows, tool groups, long

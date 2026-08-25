@@ -156,6 +156,8 @@ export {
     getSuggestedColumnName,
     generateMappingSuggestions,
     matchColumnsWithSuggestions,
+    // Span-tree traversal
+    getNodeById,
 } from "./utils"
 
 // ============================================================================
