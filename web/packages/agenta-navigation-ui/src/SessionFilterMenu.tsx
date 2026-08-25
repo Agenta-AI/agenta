@@ -1,6 +1,7 @@
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef, useState, type KeyboardEvent} from "react"
 
 import {
+    DEFAULT_SIDEBAR_SESSION_FILTERS,
     sidebarSessionAgentOptionsAtomFamily,
     sidebarSessionFiltersAtomFamily,
     sidebarSessionFiltersDirtyAtomFamily,
@@ -156,6 +157,19 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         setAlign(right < FILTER_MENU_MIN_WIDTH ? "start" : "end")
     }, [])
 
+    // Radix also opens on Enter, Space and ArrowDown, and a keyboard user in a narrow rail needs
+    // the same flip a pointer user gets.
+    const onTriggerKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLButtonElement>) => {
+            if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                measureAlign()
+            }
+        },
+        [measureAlign],
+    )
+
+    const onReset = useCallback(() => setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS), [setFilters])
+
     return (
         <FilterMenu
             facets={facets}
@@ -164,6 +178,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
             onToggleChange={onToggleChange}
+            onReset={onReset}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
             // otherwise move the menu somewhere different depending on scroll position. The side
             // it anchors to comes from `measureAlign` instead.
@@ -179,6 +194,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 // Radix opens on pointer down, so the measurement has to land in the same
                 // event — by click the menu is already positioned.
                 onPointerDown={measureAlign}
+                onKeyDown={onTriggerKeyDown}
                 onClick={(event) => {
                     // The group row's link anchor is stretched over the whole row.
                     event.preventDefault()

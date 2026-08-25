@@ -131,9 +131,10 @@ const SessionRowActions = ({
         setRenaming(false)
         if (!name || name === (session.name ?? "")) return
 
-        const ok = await renameSession(session.sessionId, name)
+        // The same target the menu verbs get, so a cached session renames its open tab too.
+        const ok = await renameSession(target, name)
         if (!ok) message.error("Couldn't rename this session")
-    }, [draft, renameSession, session.name, session.sessionId])
+    }, [draft, renameSession, session.name, target])
 
     // The row's link stretches a ::before over the whole item — swallow presses on the controls
     // so they don't also navigate into the session.

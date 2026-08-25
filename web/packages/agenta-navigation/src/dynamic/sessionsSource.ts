@@ -282,7 +282,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
-        running: false,
+        running: Boolean(row.flags?.is_running),
         activityAt: row.updated_at ?? row.created_at ?? null,
     }
 }

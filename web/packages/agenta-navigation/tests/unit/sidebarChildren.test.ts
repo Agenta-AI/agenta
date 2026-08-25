@@ -178,6 +178,7 @@ describe("sidebarSessionGroup", () => {
         pinned: false,
         alive: false,
         running: false,
+        archived: false,
         ...over,
     })
 

@@ -1,17 +1,12 @@
 import {useCallback, useMemo} from "react"
 
-import {setSessionHeader} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
-import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
-
-import type {useSessionActions} from "./useSessionActions"
+import type {SessionActionTarget, useSessionActions} from "./useSessionActions"
 
 export interface SessionRowChrome {
     menuItems: ReturnType<typeof useSessionActions>["menuItems"]
     onMenuClick: ReturnType<typeof useSessionActions>["onMenuClick"]
     /** Commits a rename and refreshes every list that shows the name. `false` on failure. */
-    renameSession: (sessionId: string, name: string) => Promise<boolean>
+    renameSession: (target: SessionActionTarget, name: string) => Promise<boolean>
 }
 
 /**
@@ -27,26 +22,16 @@ export interface SessionRowChrome {
 export const useSessionRowChrome = ({
     menuItems,
     onMenuClick,
-}: Pick<ReturnType<typeof useSessionActions>, "menuItems" | "onMenuClick">): SessionRowChrome => {
-    const queryClient = useQueryClient()
-    const projectId = useAtomValue(projectIdAtom) ?? ""
-
+    commitRename,
+}: Pick<
+    ReturnType<typeof useSessionActions>,
+    "menuItems" | "onMenuClick" | "commitRename"
+>): SessionRowChrome => {
+    // Straight through to the shared verb: it owns the cache-or-server branch AND the
+    // revalidation, so the rail's inline rename cannot drift from the menu's modal one.
     const renameSession = useCallback(
-        async (sessionId: string, name: string) => {
-            const ok = await setSessionHeader({sessionId, projectId, name})
-            if (!ok) return false
-            // The same key set the shared verbs invalidate, plus the rail's own two.
-            for (const key of [
-                ["sidebar-sessions"],
-                ["sidebar-sessions-pinned"],
-                ["session-list"],
-                ["sessions-page"],
-            ]) {
-                void queryClient.invalidateQueries({queryKey: key})
-            }
-            return true
-        },
-        [projectId, queryClient],
+        (target: SessionActionTarget, name: string) => commitRename(target, name),
+        [commitRename],
     )
 
     // One stable object, so a row's props only change when a verb actually does.

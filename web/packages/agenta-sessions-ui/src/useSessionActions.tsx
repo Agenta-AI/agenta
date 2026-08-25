@@ -79,6 +79,32 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         [localCache],
     )
 
+    /**
+     * The headless half of `rename`: writes to the local cache when the session is open there and
+     * to the server otherwise, then revalidates. The rail renames INLINE, with no modal, and has
+     * to take the same cache-or-server branch the modal does — otherwise a rename from the rail
+     * leaves an open tab showing the old title.
+     */
+    const commitRename = useCallback(
+        async (target: SessionActionTarget, title: string) => {
+            const name = title.trim()
+            if (!name) return false
+            if (isCached(target)) {
+                localCache?.rename(target, name)
+            } else {
+                const ok = await setSessionHeader({
+                    sessionId: target.sessionId,
+                    projectId,
+                    name,
+                })
+                if (!ok) return false
+            }
+            revalidate()
+            return true
+        },
+        [isCached, localCache, projectId, revalidate],
+    )
+
     const rename = useCallback(
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
@@ -98,26 +124,14 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                 ),
                 okText: "Rename",
                 onOk: async () => {
-                    const title = next.trim()
-                    if (!title) return
-                    if (isCached(target)) {
-                        localCache?.rename(target, title)
-                    } else {
-                        const ok = await setSessionHeader({
-                            sessionId: target.sessionId,
-                            projectId,
-                            name: title,
-                        })
-                        if (!ok) {
-                            message.error("Couldn't rename this session")
-                            return
-                        }
+                    if (!next.trim()) return
+                    if (!(await commitRename(target, next))) {
+                        message.error("Couldn't rename this session")
                     }
-                    revalidate()
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [commitRename],
     )
 
     const setArchived = useCallback(
@@ -228,5 +242,5 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         [remove, rename, setArchived, togglePin],
     )
 
-    return {rename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
+    return {rename, commitRename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
 }
