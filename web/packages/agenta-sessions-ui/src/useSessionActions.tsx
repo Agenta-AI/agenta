@@ -22,6 +22,7 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {SessionMenuEntry} from "./menu"
+import {NAMED_SESSION_QUERY_KEYS, withRenamedSession} from "./renameCache"
 
 export interface SessionActionTarget {
     sessionId: string
@@ -99,10 +100,20 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                 })
                 if (!ok) return false
             }
-            revalidate()
+            // Rename is the one verb whose write the list read does not see straight away: the
+            // refetch an invalidation kicks off comes back carrying the OLD name and would undo
+            // what you just typed, leaving the row stale until the next poll. So patch the cached
+            // rows and mark the queries stale WITHOUT refetching — the next poll, focus or mount
+            // takes the server's copy once it agrees.
+            for (const key of NAMED_SESSION_QUERY_KEYS) {
+                queryClient.setQueriesData({queryKey: [key]}, (data: unknown) =>
+                    withRenamedSession(data, target.sessionId, name),
+                )
+                void queryClient.invalidateQueries({queryKey: [key], refetchType: "none"})
+            }
             return true
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, queryClient],
     )
 
     const rename = useCallback(
