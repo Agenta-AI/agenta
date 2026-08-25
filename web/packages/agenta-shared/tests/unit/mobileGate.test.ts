@@ -215,9 +215,7 @@ describe("mapMobileToDesktop", () => {
     it("maps the lists and tabs to their desktop counterparts", () => {
         expect(mapMobileToDesktop("/w/ws1/p/pr1/sessions")).toBe("/w/ws1/p/pr1/sessions")
         expect(mapMobileToDesktop("/w/ws1/p/pr1/agents")).toBe("/w/ws1/p/pr1/agents")
-        expect(mapMobileToDesktop("/w/ws1/p/pr1/agents/a1")).toBe(
-            "/w/ws1/p/pr1/apps/a1/playground",
-        )
+        expect(mapMobileToDesktop("/w/ws1/p/pr1/agents/a1")).toBe("/w/ws1/p/pr1/apps/a1/playground")
         expect(mapMobileToDesktop("/w/ws1/p/pr1/apps")).toBe("/w/ws1/p/pr1/apps")
         expect(mapMobileToDesktop("/w/ws1/p/pr1/templates")).toBe(
             "/w/ws1/p/pr1/apps/agent-templates",
@@ -232,7 +230,9 @@ describe("mapMobileToDesktop", () => {
 
 describe("decideDesktopGate — classic mode", () => {
     /** A desktop browser whose user has Classic mode off, with the device gate switched off. */
-    const classicOff = (overrides: Partial<GateInput> & {headers?: Record<string, string>} = {}) => {
+    const classicOff = (
+        overrides: Partial<GateInput> & {headers?: Record<string, string>} = {},
+    ) => {
         const i = input({gateEnabled: false, headers: docHeaders(DESKTOP_UA), ...overrides})
         i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "0" : undefined)
         return i
@@ -301,9 +301,9 @@ describe("decideDesktopGate — classic mode", () => {
         for (const pathname of ["/auth/callback", "/post-signup", "/workspaces/accept"]) {
             expect(decideDesktopGate(classicOff({pathname}))).toEqual({kind: "pass"})
         }
-        expect(
-            decideDesktopGate(classicOff({pathname: "/auth", search: "?token=abc123"})),
-        ).toEqual({kind: "pass"})
+        expect(decideDesktopGate(classicOff({pathname: "/auth", search: "?token=abc123"}))).toEqual(
+            {kind: "pass"},
+        )
         expect(
             decideDesktopGate(classicOff({pathname: "/auth", search: "?auth_error=sso_denied"})),
         ).toEqual({kind: "pass"})
@@ -311,9 +311,7 @@ describe("decideDesktopGate — classic mode", () => {
 
     it("does not touch non-document navigations", () => {
         expect(
-            decideDesktopGate(
-                classicOff({pathname: "/w/ws1/p/pr1/agents", method: "POST"}),
-            ),
+            decideDesktopGate(classicOff({pathname: "/w/ws1/p/pr1/agents", method: "POST"})),
         ).toEqual({kind: "pass"})
         expect(
             decideDesktopGate(
@@ -327,7 +325,11 @@ describe("decideDesktopGate — classic mode", () => {
 
     it("the device gate wins for a phone, mapped route or not", () => {
         // Both reasons apply; the device one is total, so an unmapped page still lands in /m.
-        const i = input({gateEnabled: true, pathname: "/w/ws1/p/pr1/testsets", headers: docHeaders(MOBILE_UA)})
+        const i = input({
+            gateEnabled: true,
+            pathname: "/w/ws1/p/pr1/testsets",
+            headers: docHeaders(MOBILE_UA),
+        })
         i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "0" : undefined)
         expect(decideDesktopGate(i)).toEqual({kind: "redirect", location: "/m/"})
     })
