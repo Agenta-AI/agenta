@@ -210,7 +210,7 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 | `identity.<provider>.{clientId,clientSecret,…}` | OAuth/OIDC provider credentials (Google, GitHub, Okta, Azure AD, …) — injected into pods as `<PROVIDER>_OAUTH_CLIENT_ID/SECRET` env vars | unset |
 | `llm.<provider>` | LLM provider API keys (`openai`, `anthropic`, `gemini`, …) — injected into pods as `<PROVIDER>_API_KEY` env vars | unset |
 
-To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `POSTGRES_PASSWORD`.
+To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `POSTGRES_PASSWORD`.
 
 If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you.
 

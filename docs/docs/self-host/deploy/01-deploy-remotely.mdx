@@ -99,7 +99,7 @@ For more advanced settings like SSL, authentication, or custom ports, see our [c
 
 ## Step 3: Secure the Deployment
 
-The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The two Agenta keys ship as the literal string `replace-me`.
+The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The three Agenta keys ship as the literal string `replace-me`.
 
 :::warning Change these before the first start
 PostgreSQL applies `POSTGRES_USER` and `POSTGRES_PASSWORD` when it initializes its data volume. Setting them after the first start does not change an existing database.
