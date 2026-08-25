@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -23,6 +25,7 @@ export const SessionTopBar = ({
     sessionId,
     workspaceId,
     projectId,
+    actions,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
@@ -30,6 +33,8 @@ export const SessionTopBar = ({
     sessionId: string
     workspaceId: string
     projectId: string
+    /** Right-edge cluster. The config reveal lands here on a surface with no tab rail to carry it. */
+    actions?: ReactNode
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
@@ -54,6 +59,7 @@ export const SessionTopBar = ({
                     />
                 ) : undefined
             }
+            actions={actions}
         />
     )
 }

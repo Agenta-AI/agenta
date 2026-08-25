@@ -142,6 +142,13 @@ export const SessionWorkspace = ({
                     sessionId={sessionId}
                     workspaceId={workspaceId}
                     projectId={projectId}
+                    // With no tab rail the reveal has nowhere to sit, so it becomes a named bar
+                    // action. Only then: the rail carries its own, and two would be one too many.
+                    actions={
+                        hideSessionTabs && !chatMaximized && configCollapsed ? (
+                            <ConfigRevealButton labelled />
+                        ) : undefined
+                    }
                 />
 
                 {/* One split at every width. On a phone the pane it does not show is CSS-hidden
@@ -197,16 +204,7 @@ export const SessionWorkspace = ({
                                             rail too and reset its scroll to 0 — you would scroll a
                                             long strip, pick a tab, and the strip snapped back to
                                             the start. Up here it simply stays put. */}
-                                        {hideSessionTabs ? (
-                                            /* No strip to carry it, so the reveal stands on its
-                                               own — otherwise collapsing the pane on this surface
-                                               would be a one-way door. */
-                                            !chatMaximized && configCollapsed ? (
-                                                <div className="flex shrink-0 items-center px-2 pt-2">
-                                                    <ConfigRevealButton />
-                                                </div>
-                                            ) : null
-                                        ) : (
+                                        {hideSessionTabs ? null : (
                                             <SessionTabs
                                                 sessionId={sessionId}
                                                 projectId={projectId}
