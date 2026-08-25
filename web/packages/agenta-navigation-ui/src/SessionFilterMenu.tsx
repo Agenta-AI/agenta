@@ -10,7 +10,7 @@ import {
     type SidebarSessionStatusFilter,
 } from "@agenta/navigation"
 import {
-    FILTER_MENU_MIN_WIDTH,
+    FILTER_MENU_FLIP_WIDTH,
     FilterMenu,
     type FilterMenuFacet,
     type FilterMenuToggle,
@@ -154,7 +154,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     // be dragged while the menu is closed.
     const measureAlign = useCallback(() => {
         const right = triggerRef.current?.getBoundingClientRect().right ?? 0
-        setAlign(right < FILTER_MENU_MIN_WIDTH ? "start" : "end")
+        setAlign(right < FILTER_MENU_FLIP_WIDTH ? "start" : "end")
     }, [])
 
     // Radix also opens on Enter, Space and ArrowDown, and a keyboard user in a narrow rail needs

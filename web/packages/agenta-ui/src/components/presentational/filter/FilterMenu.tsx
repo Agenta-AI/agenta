@@ -13,8 +13,17 @@ import {
     DropdownMenuTrigger,
 } from "../../ui/dropdown-menu"
 
-/** The menu's rendered width. Exported so an anchor can tell whether it has room to end-align. */
+/** The floor the menu is laid out against. */
 export const FILTER_MENU_MIN_WIDTH = 212
+
+/**
+ * How much room an anchor needs before it can end-align this menu.
+ *
+ * Deliberately WIDER than the min-width: a facet row carrying a long value ("Last 7 days") pushes
+ * the menu past its floor — the sessions menu measures ~245px open — so an anchor that budgets
+ * only the minimum still ends up cropped.
+ */
+export const FILTER_MENU_FLIP_WIDTH = 250
 
 export interface FilterMenuOption {
     value: string
