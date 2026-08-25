@@ -189,14 +189,15 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [visibleSections],
     )
 
-    const {selectedKey, routeOpenKeys} = useMemo(() => {
+    const {selectedKey, routeOpenKeys, pinned} = useMemo(() => {
         if (selection.mode === "controlled") {
-            return {selectedKey: selection.selectedKey, routeOpenKeys: [] as string[]}
+            return {selectedKey: selection.selectedKey, routeOpenKeys: [] as string[], pinned: true}
         }
 
         const match = findSelectedRoute(allItems, currentPath)
         // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
-        // the ephemeral playground). The override wins over the route match; open keys still follow it.
+        // the ephemeral playground, or the rail pins the open session whose row shares its agent's
+        // URL). The override wins over the route match.
         const override =
             selection.selectedKeyOverride && hasItemKey(allItems, selection.selectedKeyOverride)
                 ? selection.selectedKeyOverride
@@ -204,18 +205,19 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         return {
             selectedKey: override ?? match.selectedKey,
             routeOpenKeys: match.openKeys,
+            pinned: Boolean(override),
         }
     }, [allItems, currentPath, selection])
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
     const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
     const alwaysOpenKeys = useMemo(() => findAlwaysOpenKeys(allItems), [allItems])
+    // `routeOpenKeys` are the MATCHED row's ancestors, and a pinned key is by definition not the
+    // row the route matched — the session rail pins a row whose group the route never names. Walk
+    // to the pinned row instead, or its group stays folded around the selection.
     const activeAncestorKeys = useMemo(
-        () =>
-            selection.mode === "controlled"
-                ? findAncestorKeys(allItems, selectedKey)
-                : routeOpenKeys,
-        [allItems, routeOpenKeys, selectedKey, selection.mode],
+        () => (pinned ? findAncestorKeys(allItems, selectedKey) : routeOpenKeys),
+        [allItems, pinned, routeOpenKeys, selectedKey],
     )
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
     const openKeys = useMemo(
