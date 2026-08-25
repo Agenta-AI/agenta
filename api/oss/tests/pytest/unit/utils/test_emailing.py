@@ -1,9 +1,8 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oss.src.utils.emailing import add_contact
-from oss.src.utils.env import env
 
 
 class _FakeResponse:
@@ -30,22 +29,17 @@ class _FakeAsyncClient:
         return _FakeResponse(200)
 
 
-@pytest.fixture(autouse=True)
-def _enable_loops():
-    """Ensure Loops is enabled for these tests."""
-    original_enabled = env.loops.enabled
-    original_api_key = env.loops.api_key
-    env.loops.enabled = True
-    env.loops.api_key = "test_key"
-    yield
-    env.loops.enabled = original_enabled
-    env.loops.api_key = original_api_key
-
-
 @pytest.mark.asyncio
 async def test_add_contact_success():
+    loops_config = MagicMock()
+    loops_config.enabled = True
+    loops_config.api_key = "test-api-key"
+
     fake_client = _FakeAsyncClient([_FakeResponse(200)])
-    with patch("oss.src.utils.emailing.httpx.AsyncClient", return_value=fake_client):
+    with (
+        patch("oss.src.utils.emailing.env.loops", loops_config),
+        patch("oss.src.utils.emailing.httpx.AsyncClient", return_value=fake_client),
+    ):
         response = await add_contact("test@example.com")
         assert response is not None
         assert response.status_code == 200
@@ -54,6 +48,10 @@ async def test_add_contact_success():
 
 @pytest.mark.asyncio
 async def test_add_contact_retries_on_429_then_succeeds():
+    loops_config = MagicMock()
+    loops_config.enabled = True
+    loops_config.api_key = "test-api-key"
+
     fake_client = _FakeAsyncClient(
         [
             _FakeResponse(429),
@@ -62,6 +60,7 @@ async def test_add_contact_retries_on_429_then_succeeds():
         ]
     )
     with (
+        patch("oss.src.utils.emailing.env.loops", loops_config),
         patch("oss.src.utils.emailing.httpx.AsyncClient", return_value=fake_client),
         patch(
             "oss.src.utils.emailing.asyncio.sleep", new_callable=AsyncMock
@@ -80,6 +79,10 @@ async def test_add_contact_retries_on_429_then_succeeds():
 
 @pytest.mark.asyncio
 async def test_add_contact_exhausts_retries():
+    loops_config = MagicMock()
+    loops_config.enabled = True
+    loops_config.api_key = "test-api-key"
+
     fake_client = _FakeAsyncClient(
         [
             _FakeResponse(429),
@@ -88,6 +91,7 @@ async def test_add_contact_exhausts_retries():
         ]
     )
     with (
+        patch("oss.src.utils.emailing.env.loops", loops_config),
         patch("oss.src.utils.emailing.httpx.AsyncClient", return_value=fake_client),
         patch(
             "oss.src.utils.emailing.asyncio.sleep", new_callable=AsyncMock
