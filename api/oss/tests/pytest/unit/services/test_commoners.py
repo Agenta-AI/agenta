@@ -61,7 +61,7 @@ async def test_create_accounts_awaits_add_contact():
             new_callable=AsyncMock,
         ),
         patch(
-            "oss.src.services.commoners.AuthService.enforce_domain_policies",
+            "oss.src.core.auth.service.AuthService.enforce_domain_policies",
             new_callable=AsyncMock,
         ),
         patch("oss.src.services.commoners.is_ee", return_value=True),
