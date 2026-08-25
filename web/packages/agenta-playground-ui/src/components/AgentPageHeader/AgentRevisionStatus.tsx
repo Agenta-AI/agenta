@@ -100,9 +100,7 @@ const RevisionPicker = ({
  * A revision's committed identity: the `vN` chip (its commit message on hover) and a save-status
  * dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
  *
- * The dot reports auto-commit — Saving… / Saved — because saving happens on its own (#6126).
- * There is no Save button anywhere on this surface; the only case that needs a human is a save
- * that failed twice, and the dot itself becomes that retry.
+ * The dot reports auto-commit; there is no Save button, so a failed save makes the dot the retry.
  *
  * Rendered by every surface that shows an agent's header — the desktop playground's revision
  * selector and the mobile session workspace's top bar — so the two can never disagree about
@@ -126,10 +124,8 @@ export const AgentRevisionStatus = ({
     const commitMessage = data?.message?.trim() || null
 
     const failed = autoCommitStatus === "error"
-    // "Saving…" has to mean a save is actually coming — armed, or in the request. Reading it off
-    // `isDirty` instead was wrong for every revision auto-commit deliberately skips (a restored
-    // snapshot, an ephemeral agent, a project id that has not resolved): those are dirty with
-    // nothing scheduled, and the header sat on "Saving…" forever. They read Draft, which is true.
+    // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every
+    // revision auto-commit skips, which sat on "Saving…" forever; those read Draft.
     const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
 
     const dot = failed

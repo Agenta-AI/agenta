@@ -201,9 +201,7 @@ const PlaygroundVariantConfigHeader = ({
             <AgentConfigHeader
                 revisionId={variantId}
                 className={className}
-                // Auto-commit (#6126): the config saves itself, so this header shows no Commit
-                // button and needs no host adapter — `AgentRevisionSelector` mounts the engine
-                // and carries the host's after-commit work.
+                // Saves itself (#6126); `AgentRevisionSelector` carries the host's after-commit work.
                 autoSave
                 // Collapse, not Deploy + kebab. PR #5943 removed both from the AGENT header by
                 // design and kept them on the classic prompt header; the package extraction

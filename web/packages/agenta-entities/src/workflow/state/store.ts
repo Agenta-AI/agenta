@@ -2267,14 +2267,7 @@ export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
 // MUTATIONS (Write Atoms)
 // ============================================================================
 
-/**
- * Reactions to a draft write, registered by the layer above.
- *
- * Same single-slot shape as {@link registerWorkflowCommitCallbacks}. This exists so a behaviour
- * that belongs to "the config changed" can hang off the WRITE rather than off a mounted view:
- * the agent playground's auto-commit (#6126) subscribed from a component instead, and silently
- * did nothing whenever that component was off screen.
- */
+/** Reactions to a draft write. Single-slot, like {@link registerWorkflowCommitCallbacks}. */
 export interface WorkflowDraftCallbacks {
     /** Fires after a write that actually changed the draft. Never for a hydrating restore. */
     onDraftChange?: (workflowId: string) => void
@@ -2290,12 +2283,9 @@ export function clearWorkflowDraftCallbacks(): void {
     _draftCallbacks = {}
 }
 
-/** A write that is restoring state rather than expressing an edit. */
 export interface UpdateWorkflowDraftOptions {
-    /**
-     * Replaying a stored draft (the localStorage snapshot) rather than editing. Suppresses
-     * `onDraftChange`, so reopening a tab does not read as a fresh edit and commit itself.
-     */
+    /** Replaying a stored draft, not editing. Suppresses `onDraftChange` so a reopened tab
+     * cannot read as a fresh edit and commit itself. */
     hydrating?: boolean
 }
 

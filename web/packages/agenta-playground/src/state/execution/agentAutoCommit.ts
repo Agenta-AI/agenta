@@ -1,14 +1,11 @@
 /**
  * Agent playground auto-commit (#6126): the config saves itself, with no button and no modal.
  *
- * Driven by the WRITE, not by a view. `registerWorkflowDraftCallbacks` fires on every real edit
- * to a workflow draft, wherever it came from — a drawer, a slash command, an approval card, the
- * agent itself — so there is nothing to mount and nothing to keep on screen. The first cut
- * subscribed from a component, which meant an edit made while the config pane was hidden was
- * never saved at all, and a save parked mid-run could strand its status with no way to resume.
+ * Driven by the draft WRITE, not by a mounted view — a subscription dies with its component, and
+ * an edit made while the config pane was off screen was then never saved.
  *
- * Three states, and no fourth: `idle`, `saving`, `error`. "About to save" is not a state — a
- * dirty draft already says that, and the header reads it directly.
+ * States are `idle`, `saving`, `error`. "About to save" is not one: a dirty draft already says
+ * that, and `agentAutoCommitScheduledAtomFamily` says whether a save is actually coming.
  */
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
@@ -39,13 +36,7 @@ export const agentAutoCommitErrorAtomFamily = atomFamily((_revisionId: string) =
     atom<string | null>(null),
 )
 
-/**
- * A flush is armed for this revision.
- *
- * The header needs this to tell "about to save" apart from "dirty and nobody is coming" — a
- * hydrated snapshot, an ephemeral agent, a missing project id are all dirty but deliberately
- * skipped, and reading them as "Saving…" is how the stuck-looking header comes back.
- */
+/** A flush is armed. The header needs it to tell "about to save" from "dirty, nobody is coming". */
 export const agentAutoCommitScheduledAtomFamily = atomFamily((_revisionId: string) => atom(false))
 
 /** Commits in flight, so a second flush can never stack on the first. */
@@ -77,10 +68,8 @@ type Store = ReturnType<typeof getDefaultStore>
 /**
  * `skip` not ours · `clean` nothing to save · `busy` transient, try again shortly.
  *
- * There is deliberately no "held" any more. A run used to block the commit, because the agent's
- * own `commit_revision` sends a `base_revision_id` the server checks against HEAD — but that
- * conflict is a designed, recoverable error (the server's `next_step` tells the agent to re-read
- * and re-anchor), while holding produced a "Save pending" that could outlive its own wake-up.
+ * No "held": a run no longer blocks the commit. The conflict that guarded against is one the
+ * server tells the agent how to recover from, and holding could strand a save indefinitely.
  */
 const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "busy" | null => {
     if (!revisionId) return "skip"
@@ -152,8 +141,16 @@ const settleIdle = (store: Store, revisionId: string, blocker: "skip" | "clean")
     }
 }
 
-/** Drop a superseded revision's atoms; `atomFamily` holds a strong map and never evicts. */
-const forgetRevision = (revisionId: string) => {
+/**
+ * Drop a superseded revision's atoms and any flush still armed for it — `atomFamily` holds a
+ * strong map and never evicts, and a timer left running re-creates the very atoms just removed.
+ *
+ * A revision still holding a draft is left alone: the commit keeps the draft when it cannot carry
+ * a concurrent edit forward, and that armed flush is the edit's only way to land.
+ */
+const forgetRevision = (store: Store, revisionId: string) => {
+    if (store.get(workflowMolecule.selectors.isDirty(revisionId))) return
+    clearTimer(store, revisionId)
     agentAutoCommitStatusAtomFamily.remove(revisionId)
     agentAutoCommitErrorAtomFamily.remove(revisionId)
     agentAutoCommitScheduledAtomFamily.remove(revisionId)
@@ -190,7 +187,7 @@ const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
                 afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))
                 // Deferred a tick so subscribers reading this revision during the switch
                 // finish first. Safe: it is superseded.
-                setTimeout(() => forgetRevision(revisionId), 0)
+                setTimeout(() => forgetRevision(store, revisionId), 0)
             }
             return
         }
@@ -241,14 +238,7 @@ export const flushAgentAutoCommitAtom = atom(
     },
 )
 
-/**
- * Armed on import, for the whole session. The apps do not opt in and cannot forget to: the
- * predicate above is what decides whether a given write is one of ours, and it is evaluated
- * per write against live state.
- *
- * Module-scope registration follows `workflowEntityBridge`, which wires the commit callbacks
- * the same way.
- */
+/** Armed on import, session-wide — apps cannot forget to opt in. Follows `workflowEntityBridge`. */
 registerWorkflowDraftCallbacks({onDraftChange: scheduleAgentAutoCommit})
 
 /** Test seam: drop every timer and status between cases. */

@@ -328,27 +328,18 @@ export const commitWorkflowRevisionAtom = atom(
                 await _commitCallbacks.onNewRevision(result, params)
             }
 
-            // 4. Discard the draft — but only what this commit actually contains.
-            //
-            // The payload was snapshotted before the `await` above, so anything typed while the
-            // request was in flight is NOT in the new revision. Blanket-discarding destroyed it,
-            // with the draft as its only copy. A manual Commit made that window rare; auto-commit
-            // (#6126) fires on idle, so the user is routinely still editing when it lands.
-            //
-            // Carry that edit onto the new revision instead: the new revision's server state is
-            // exactly what we sent, so the current draft's data diffs against it as precisely the
-            // extra edit — and the draft write re-arms auto-commit for it.
+            // 4. Discard only what this commit contains. The payload was snapshotted before the
+            // `await`, so an edit typed during the request is in neither the new revision nor —
+            // once discarded — anywhere else. Carry it onto the new revision instead.
             const draftNow = get(workflowDraftAtomFamily(revisionId))
             const editedDuringCommit = !isEqual(draftNow, draftAtSend)
             let carriedForward = false
             if (editedDuringCommit && draftNow?.data) {
                 set(updateWorkflowDraftAtom, newRevisionId, {data: draftNow.data})
-                // The write is dropped when the new revision has no server baseline yet, so
-                // confirm it landed rather than assume it.
+                // Dropped when the new revision has no server baseline yet — confirm, don't assume.
                 carriedForward = get(workflowDraftAtomFamily(newRevisionId)) !== null
             }
-            // Keep the old draft when the edit could not be carried: a stranded draft is
-            // recoverable, a discarded one is not.
+            // A stranded draft is recoverable; a discarded one is not.
             if (!editedDuringCommit || carriedForward) {
                 set(discardWorkflowDraftAtom, revisionId)
             }

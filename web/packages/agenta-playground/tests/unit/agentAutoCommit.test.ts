@@ -30,6 +30,10 @@ let commitOutcome: {success: boolean; newRevisionId?: string; error?: Error} = {
     success: true,
     newRevisionId: "new-rev",
 }
+/** Runs inside the commit, so a test can edit while the request is open. */
+let duringCommit: null | (() => void) = null
+/** False models a commit that could not carry a concurrent edit forward and kept the draft. */
+let clearDirtyOnCommit = true
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     const actual = (await importOriginal()) as any
@@ -41,6 +45,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             return m.get(id)
         }
     }
+    const isDirty = mk<boolean>(true)
     return {
         ...actual,
         workflowMolecule: {
@@ -49,7 +54,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
                 ...actual.workflowMolecule.selectors,
                 data: mk<Record<string, unknown> | null>(null),
                 isAgent: mk<boolean>(true),
-                isDirty: mk<boolean>(true),
+                isDirty,
                 isEphemeral: mk<boolean>(false),
                 configuration: mk<Record<string, unknown> | null>(null),
                 serverConfiguration: mk<Record<string, unknown> | null>(null),
@@ -64,10 +69,16 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             null,
             async (
                 _g: unknown,
-                _s: unknown,
+                set: (a: unknown, v: unknown) => void,
                 params: {revisionId: string; commitMessage?: string},
             ) => {
                 commitCalls.push(params)
+                duringCommit?.()
+                // The real commit discards the draft on success, which is what lets the engine
+                // evict. Without it every case would look like the retained-draft one.
+                if (commitOutcome.success && clearDirtyOnCommit) {
+                    set(isDirty(params.revisionId), false)
+                }
                 return commitOutcome
             },
         ),
@@ -123,6 +134,8 @@ beforeEach(() => {
     vi.useFakeTimers()
     commitCalls.length = 0
     commitOutcome = {success: true, newRevisionId: "new-rev"}
+    duringCommit = null
+    clearDirtyOnCommit = true
     __resetAgentAutoCommit()
     store = getDefaultStore()
     store.set(projectIdAtom, "proj-1")
@@ -208,6 +221,43 @@ describe("cleanup", () => {
         await vi.advanceTimersByTimeAsync(10)
         // A fresh atom instance for the same key proves the old entry was dropped.
         expect(agentAutoCommitStatusAtomFamily(id)).not.toBe(before)
+    })
+
+    it("cancels a flush still armed for the settled revision", async () => {
+        // An edit landing DURING the request arms a timer for the source revision. The commit
+        // then carries that edit onto the new revision and the source goes clean — but the timer
+        // survives eviction and fires later, re-creating the atoms eviction just dropped.
+        const id = seed(nextId())
+        duringCommit = () => edit(id)
+        edit(id)
+        await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
+        expect(commitCalls).toHaveLength(1)
+
+        // Eviction is deferred one tick; by then nothing may still be armed for this revision.
+        // Assert on the timer itself — eviction drops the scheduled atom, so re-reading it
+        // returns a fresh `false` whether or not the timer was actually cancelled.
+        await vi.advanceTimersByTimeAsync(10)
+        expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it("keeps a revision that still holds a draft, so its edit can still land", async () => {
+        // The commit keeps the draft when it cannot carry a concurrent edit onto the new
+        // revision; that armed flush is then the edit's only way to be saved.
+        const id = seed(nextId())
+        // Carry-forward failed: the commit kept the draft, so the source is still dirty when
+        // eviction runs.
+        clearDirtyOnCommit = false
+        duringCommit = () => edit(id)
+        edit(id)
+        await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
+        expect(commitCalls).toHaveLength(1)
+
+        duringCommit = null
+        await vi.advanceTimersByTimeAsync(10)
+        expect(store.get(agentAutoCommitScheduledAtomFamily(id))).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(DEBOUNCE + 100)
+        expect(commitCalls).toHaveLength(2)
     })
 })
 

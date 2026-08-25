@@ -19,11 +19,7 @@ export interface AgentConfigHeaderProps {
      * them on the classic prompt playground only.
      */
     trailing?: ReactNode
-    /**
-     * The agent surface saves itself (#6126), so this bar carries no commit control at all —
-     * the page header's status dot reports saving, and a failure offers the retry. Set by the
-     * agent playgrounds; other surfaces keep the Commit button and its modal.
-     */
+    /** The surface saves itself (#6126), so drop the manual commit control. */
     autoSave?: boolean
     /** `grow` instead of sticky, for an embedded drawer or a pane that scrolls with its content. */
     embedded?: boolean
