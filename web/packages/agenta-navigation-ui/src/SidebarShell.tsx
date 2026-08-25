@@ -85,6 +85,11 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
     return {selectedKey: matched?.key, openKeys}
 }
 
+/** Whether any row carries this key — an override naming a row that is not rendered must not
+ * blank the selection out from under the route match. */
+const hasItemKey = (items: SidebarConfig[], key: string): boolean =>
+    items.some((item) => item.key === key || (item.submenu ? hasItemKey(item.submenu, key) : false))
+
 const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     if (!selectedKey) return []
 
@@ -192,8 +197,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         const match = findSelectedRoute(allItems, currentPath)
         // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
         // the ephemeral playground). The override wins over the route match; open keys still follow it.
+        const override =
+            selection.selectedKeyOverride && hasItemKey(allItems, selection.selectedKeyOverride)
+                ? selection.selectedKeyOverride
+                : undefined
         return {
-            selectedKey: selection.selectedKeyOverride ?? match.selectedKey,
+            selectedKey: override ?? match.selectedKey,
             routeOpenKeys: match.openKeys,
         }
     }, [allItems, currentPath, selection])
