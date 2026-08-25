@@ -77,16 +77,19 @@ export const FirstRunTemplates = ({
              * Two shapes, one DOM. Narrow: a snap scroller that bleeds to the screen edge.
              * From `lg`: a three-across row that fits the column, so `/m` on a desktop is a
              * desktop layout — not a phone scroller with cards running off the right edge.
-             * `pt-5` is headroom for the monogram, which straddles the card's top edge and gets
-             * clipped by the scroller without it.
+             * `pt-7` is headroom for the monogram: it overhangs the card's top edge by 20px and
+             * carries a 2px ring, so at pt-5 it sat flush against the row and the ring clipped.
              */}
-            <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-5 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0">
+            <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-7 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0">
                 {shown.map((template) => (
                     <div
                         key={template.key}
                         // Past the third card there is no room in the grid; the rest stay one tap
                         // away behind "Browse all", the same bargain the desktop pager makes.
-                        className="w-62 shrink-0 snap-start lg:w-auto lg:nth-[n+4]:hidden"
+                        // `lg:min-w-0`: a grid child defaults to min-width:auto, so the card's
+                        // long footer string sets a min-content floor and the track overflows,
+                        // clipping the cards on the right.
+                        className="w-62 shrink-0 snap-start lg:w-auto lg:min-w-0 lg:nth-[n+4]:hidden"
                     >
                         <TemplateCard
                             template={template}
