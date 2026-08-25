@@ -58,7 +58,11 @@ import {
   type KeepaliveConfig,
   type KeepaliveProviderName,
 } from "./engines/sandbox_agent/session-identity.ts";
-import { platformCredentialForRequest } from "./engines/sandbox_agent/runtime-policy.ts";
+import {
+  platformCredentialForRequest,
+  runCredential,
+} from "./engines/sandbox_agent/runtime-policy.ts";
+import { publicApiBaseConfigured } from "./tracing/otel.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { subscriptionStatusResponse } from "./subscription-status.ts";
@@ -407,10 +411,17 @@ async function runAndStreamWithApiBaseResolved(
   // append, interaction rows) must see the SAME execution id the alive-lock and records use.
   request.turnId = turnId;
 
-  // Diagnostic: surface whether the session-owned persist/alive path is entered and
-  // whether the invoke credential arrived. Empty cred => heartbeat/persist would 401.
+  // Diagnostic: surface whether the session-owned persist/alive path is entered and whether the
+  // invoke credential arrived. Empty cred => heartbeat/persist would 401. The two empty cases have
+  // different fixes, so name them apart: ABSENT means the caller sent no credential, DROPPED means
+  // one arrived but did not attribute to this platform (see `platformCredentialForRequest`).
+  const credentialState = platformCredentialForRequest(request)
+    ? "present"
+    : runCredential(request)
+      ? "DROPPED(endpoint-not-agenta-ingest)"
+      : "ABSENT(caller-sent-none)";
   process.stderr.write(
-    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${platformCredentialForRequest(request) ? "present" : "MISSING"}\n`,
+    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${credentialState}\n`,
   );
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
@@ -884,6 +895,16 @@ if (isEntrypoint(import.meta.url)) {
       process.stderr.write(
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
+      if (!publicApiBaseConfigured()) {
+        process.stderr.write(
+          "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
+            "deployment's PUBLIC api base in their trace endpoint, so without it the runner " +
+            "cannot tell its own api from a third-party collector and cannot attribute the run " +
+            "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
+            `AGENTA_API_INTERNAL_URL (${process.env.AGENTA_API_INTERNAL_URL ?? "unset"}) is the ` +
+            "in-network hop and does not substitute for it.\n",
+        );
+      }
       if (insecureEgressAllowed()) {
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCPs may " +

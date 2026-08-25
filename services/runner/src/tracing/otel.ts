@@ -352,15 +352,35 @@ export function isAgentaIngest(endpoint: string): boolean {
 
   const normalizedEndpoint = normalize(endpoint);
   if (!normalizedEndpoint) return false;
+  return configuredIngestBases().some(
+    (base) =>
+      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
+      normalizedEndpoint,
+  );
+}
+
+/** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
+ * what it compared against — the failure is always a configuration gap, never a code path. */
+export function configuredIngestBases(): string[] {
   return [
     process.env.AGENTA_API_INTERNAL_URL,
     process.env.AGENTA_API_URL,
     CLOUD_API_BASE,
-  ].some(
-    (base) =>
-      base &&
-      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
-        normalizedEndpoint,
+  ].filter((base): base is string => Boolean(base));
+}
+
+/**
+ * Has the operator told this runner its platform's PUBLIC api base?
+ *
+ * Only `AGENTA_API_URL` counts. `AGENTA_API_INTERNAL_URL` is the in-network hop and never appears
+ * in a dispatched run's trace endpoint, so it cannot settle whether a public-looking endpoint is
+ * this platform or someone else's collector. Cloud is self-describing: a runner reaching the cloud
+ * api needs no operator input, so the built-in cloud base counts as configured.
+ */
+export function publicApiBaseConfigured(): boolean {
+  return Boolean(
+    process.env.AGENTA_API_URL?.trim() ||
+    process.env.AGENTA_API_INTERNAL_URL?.trim()?.startsWith(CLOUD_API_BASE),
   );
 }
 
