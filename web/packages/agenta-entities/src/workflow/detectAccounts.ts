@@ -69,8 +69,12 @@ const NEGATIVE_CONTEXT: Record<string, {head?: RegExp; tail?: RegExp}> = {
     discord: {tail: /^\s+(between|among|amongst)\b/},
 }
 
-/** Generic default when nothing better is known — never left blank, the row needs a subtitle. */
-const genericWhy = (label: string) => `Let the agent use your ${label} account`
+/**
+ * Only a TEMPLATE has something per-account to say (its scope line). A detected or hand-added
+ * row does not: every one of them would repeat the same sentence, which is noise stacked down
+ * the card and truncates mid-word at a phone's row width. The card's lead says it once instead.
+ */
+const NO_SCOPE_LINE = ""
 
 const CONTEXT_WINDOW = 24
 
@@ -135,7 +139,7 @@ export function detectAccountsFromText(description: string): DetectedAccount[] {
             slug,
             label: PROVIDERS[slug].label,
             logo: PROVIDERS[slug].logo,
-            why: genericWhy(PROVIDERS[slug].label),
+            why: NO_SCOPE_LINE,
             origin: "text" as const,
             required: false,
         }))
@@ -196,7 +200,7 @@ export function suggestionAccounts(existing: DetectedAccount[], limit = 3): Dete
             slug,
             label: PROVIDERS[slug].label,
             logo: PROVIDERS[slug].logo,
-            why: genericWhy(PROVIDERS[slug].label),
+            why: NO_SCOPE_LINE,
             origin: "text",
             required: false,
         })

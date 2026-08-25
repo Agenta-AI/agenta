@@ -15,10 +15,23 @@ export const setupTitle = (status: AgentSetupStatus): string => {
     }
 }
 
-export const setupLead = (status: AgentSetupStatus): string =>
-    status === "empty"
-        ? "We didn't spot a specific service in your description. Add one now, or let the agent ask when it needs one."
-        : "Connect now so the agent can run the moment it's built — or skip, and it'll ask when it gets there."
+/**
+ * Where the rows came from is stated once here, not repeated as a subtitle on every row (see
+ * `NO_SCOPE_LINE` in detectAccounts).
+ *
+ * `fromTemplate` matters: a template DECLARES its accounts, so claiming they came "from your
+ * description" is simply false — and the description in that case is the template's own builder
+ * message, which the user never wrote.
+ */
+export const setupLead = (status: AgentSetupStatus, fromTemplate = false): string => {
+    if (status === "empty") {
+        return "We didn't spot a specific service in your description. Add one now, or let the agent ask when it needs one."
+    }
+    if (fromTemplate) {
+        return "This template needs these accounts. Connect them now so the agent can run the moment it's built."
+    }
+    return "From your description. Connect now so the agent can run the moment it's built — or skip, and it'll ask when it gets there."
+}
 
 /** The muted line beside the primary action. Names what is left, or what skipping costs. */
 export const setupFootnote = (
@@ -34,6 +47,9 @@ export const setupFootnote = (
     }
     if (skippedCount > 0) return "Skipped accounts are asked for later."
     if (status === "empty") return "Nothing required."
+    // "ready" means rows are still offered but none of them gate: say so, rather than the
+    // all-set line, which read as "Nothing to do here." directly under two Connect buttons.
+    if (status === "ready") return "Connect these now, or the agent will ask later."
     return "Nothing to do here."
 }
 

@@ -11,9 +11,15 @@ export const FIRST_RUN_COPY = {
     title: "What do you want to build?",
     subtitle:
         "Describe an agent in plain language — we'll create and name it, then run it right here.",
-    placeholder: "Describe the agent you want…",
+    /** The desktop's `STRIP_COPY.describeAgentPlaceholder`, verbatim — one question, one example. */
+    placeholder:
+        "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything.",
     tryLabel: "Try",
-    templates: "Or start from a template",
+    templates: "Templates",
+    browseAll: (total: number) => `Browse all ${total}`,
+    /** Header over the description once the connect step has taken over the composer (#6043). */
+    buildingLabel: "Building",
+    editLabel: "Edit",
 } as const
 
 /** Tap to fill the composer — see the note in [[FirstRunComposer]] on why they fill, not send. */

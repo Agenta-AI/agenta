@@ -87,6 +87,8 @@ const AgentSetupCard = ({
     ).length
     const badge = setupBadge(status, accounts.length, skippedCount)
     const skipped = useMemo(() => new Set(skippedSlugs), [skippedSlugs])
+    // A declared account only ever comes from a template, so its presence names the source.
+    const fromTemplate = accounts.some((account) => account.origin === "template")
 
     const permissionOptions = useMemo(
         () => PERMISSION_OPTIONS.map((option) => ({value: option.value, label: option.label})),
@@ -122,7 +124,7 @@ const AgentSetupCard = ({
 
             <div className="flex flex-col gap-2 px-4 py-3">
                 <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
-                    {setupLead(status)}
+                    {setupLead(status, fromTemplate)}
                 </p>
 
                 {accounts.map((account) => (

@@ -3,7 +3,9 @@ import {useCallback, useState} from "react"
 import {
     agentTemplateByKey,
     agentTemplateSeed,
+    appendSetupPreamble,
     invalidateWorkflowsListCache,
+    type AgentSetupSelection,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
@@ -42,6 +44,12 @@ export const useNewAgentAction = (base: string) => {
              */
             sessionId?: string
             seedParts?: FileUIPart[]
+            /**
+             * What the pre-create connect step decided (#6043) — which accounts are connected,
+             * which were skipped, how much the agent may do. Rides along on the seed so the
+             * builder knows; see `appendSetupPreamble`. Absent when the step didn't run.
+             */
+            setup?: AgentSetupSelection
         }): Promise<boolean> => {
             if (creating) return false
             setCreating(true)
@@ -55,7 +63,10 @@ export const useNewAgentAction = (base: string) => {
             // new agent is missing from the roster until something else refetches.
             void invalidateWorkflowsListCache()
 
-            const seed = params?.seedMessage?.trim() ?? ""
+            const typed = params?.seedMessage?.trim() ?? ""
+            const seed = params?.setup
+                ? appendSetupPreamble(typed, params.setup)
+                : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
             const sessionId = seeded ? (params?.sessionId ?? crypto.randomUUID()) : null
@@ -103,8 +114,18 @@ export const useNewAgentAction = (base: string) => {
      * mints its ephemeral with — naming from the prompt is the agent's job, not the composer's.
      */
     const createFromPrompt = useCallback(
-        (input: {text: string; sessionId?: string; parts?: FileUIPart[]}) =>
-            run({seedMessage: input.text, sessionId: input.sessionId, seedParts: input.parts}),
+        (input: {
+            text: string
+            sessionId?: string
+            parts?: FileUIPart[]
+            setup?: AgentSetupSelection
+        }) =>
+            run({
+                seedMessage: input.text,
+                sessionId: input.sessionId,
+                seedParts: input.parts,
+                setup: input.setup,
+            }),
         [run],
     )
 

@@ -64,6 +64,12 @@ describe("detectAccountsFromText", () => {
         }
     })
 
+    it("gives a detected row no scope line — the card's lead says where they came from once", () => {
+        for (const account of detectAccountsFromText("watch GitHub and notify Slack")) {
+            expect(account.why).toBe("")
+        }
+    })
+
     it("returns nothing for an empty or featureless description", () => {
         expect(detectAccountsFromText("")).toEqual([])
         expect(detectAccountsFromText("   ")).toEqual([])

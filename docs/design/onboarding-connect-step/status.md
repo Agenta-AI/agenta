@@ -25,6 +25,43 @@ Last updated: 2026-08-24.
 - **WP-6 DONE, uncommitted.** `tests/unit/onboardingConnectFlow.test.ts` covers both flows.
 - Flag: `NEXT_PUBLIC_AGENT_CONNECT_STEP` (`CONNECT_STEP_MODE`), default on.
 
+## Mobile (`/m`) — wired and live-verified
+
+The step now runs on mobile too (`web/mobile/src/features/onboarding/`), reading the same
+`NEXT_PUBLIC_AGENT_CONNECT_STEP` flag via `src/lib/connectStep.ts` (the `browseLayout.ts`
+precedent — mobile may not import `@/oss/*`).
+
+**First-run alignment with production.** `/m`'s first run offered three plain text chips and a
+"Browse templates" button where the desktop offers the real template strip. It now renders the
+shared `TemplateCard` (already used by `/m`'s templates screen) in a horizontally scrolling row
+with the category filter, plus the desktop's exact composer placeholder. The desktop's 3-at-a-time
+pager is the one thing not copied: a phone has no room for it, so the same cards scroll.
+
+Verified in the browser on a fresh project:
+
+- Submitting a description opens the step instead of creating.
+- Detection: brand names (GitHub, Slack) and aliases (`pull request`→GitHub, `inbox`→Gmail), in
+  mention order.
+- Skip dims the row, swaps in Undo, updates badge and footnote.
+- **Template pick opens the step with the declared account marked Required, no Skip, Create
+  disabled, footnote "Connect GitHub to create."** — D2/D3 proven end to end.
+- Create produced the agent, navigated to its session, and the seed carried
+  `I've skipped Slack for now — ask me when you need it. Ask me before you write or send anything.`
+- Connect opens the real shared `ConnectDrawer`.
+
+### Four defects live QA caught that the unit tests did not
+
+1. **Footnote "Nothing to do here." under two Connect buttons.** `setupStatus` returns `ready`
+   there and the copy fell through to the all-set line. Fixed; `setupCopy.test.ts` pins it.
+2. **Row subtitles truncated mid-word** and every detected row repeated the same sentence.
+   Detected rows now carry no subtitle (`NO_SCOPE_LINE`); the card's lead says it once. Template
+   rows keep their real scope line.
+3. **Edit silently lost the description.** The step replaces the composer, so `setMarkdown` hit an
+   unmounted editor. Fixed with a parked-refill effect in `FirstRunComposer`.
+4. **The lead claimed "From your description." for a template's declared accounts** — false, and
+   the "description" there is the template's builder message the user never wrote. `setupLead` now
+   takes `fromTemplate`.
+
 ## Verified
 
 - `@agenta/entities`: 1396/1396 unit tests pass (43 new).

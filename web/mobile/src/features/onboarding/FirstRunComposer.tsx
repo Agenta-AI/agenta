@@ -1,13 +1,18 @@
-import {useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
+import type {AgentSetupSelection} from "@agenta/entities/workflow"
+import type {AgentSetupStep} from "@agenta/entity-ui/onboarding"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+
+import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 
 import type {useNewAgentAction} from "../agents/useNewAgentAction"
 
-import {FIRST_RUN_COPY, FIRST_RUN_STARTERS} from "./copy"
+import {FIRST_RUN_COPY} from "./copy"
+import {FirstRunSetupStep} from "./FirstRunSetupStep"
 
 /**
  * The first-run composer: describe an agent, send, and it exists.
@@ -27,6 +32,7 @@ import {FIRST_RUN_COPY, FIRST_RUN_STARTERS} from "./copy"
  */
 export const FirstRunComposer = ({
     newAgent,
+    step,
 }: {
     /**
      * The screen's create hook, passed in rather than called again here. A second instance would
@@ -35,6 +41,8 @@ export const FirstRunComposer = ({
      * no sign that it had.
      */
     newAgent: ReturnType<typeof useNewAgentAction>
+    /** Owned by the screen, so the templates row can hide while the step is open. */
+    step: AgentSetupStep
 }) => {
     const inputRef = useRef<RichChatInputHandle | null>(null)
     const [sessionId] = useState(() => {
@@ -44,51 +52,75 @@ export const FirstRunComposer = ({
         return id
     })
     const attachments = useComposerAttachments({sessionId})
+    /**
+     * Text to put back once the composer is on screen again. The step REPLACES the composer, so
+     * the editor is unmounted while it is open: writing to `inputRef` at the moment Edit is
+     * pressed lands on a dead ref and the description is lost. Park it and refill on the render
+     * that remounts the editor.
+     */
+    const [refill, setRefill] = useState<string | null>(null)
+    useEffect(() => {
+        if (step.draft || refill === null) return
+        inputRef.current?.setMarkdown(refill)
+        inputRef.current?.focus()
+        setRefill(null)
+    }, [step.draft, refill])
 
-    const start = async (text: string) => {
+    const create = async (text: string, setup?: AgentSetupSelection) => {
         const staged = attachments.files
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
         // render, so reading it after the await would read the state from before the create.
-        const handedOff = await newAgent.createFromPrompt({text, sessionId, parts})
+        const handedOff = await newAgent.createFromPrompt({text, sessionId, parts, setup})
         // Cleared only once the destination is committed to. A create that failed leaves the files
         // staged and still sendable, and reports itself through `newAgent.error` below.
         if (handedOff) {
             attachments.clearAttachments(staged.map((file) => file.uid))
             return
         }
+        // A create from the step leaves the step open so the card (and `newAgent.error` below it)
+        // can be retried — the description is on the card, not in the cleared input.
+        if (setup) return
         // The input cleared itself on submit, so a failure would swallow the whole description.
         // Only refill an input the user has not started retyping in.
         if (!inputRef.current?.getMarkdown().trim()) inputRef.current?.setMarkdown(text)
     }
 
-    return (
-        <div className="flex flex-col gap-3">
-            <ChatComposer
-                inputRef={inputRef}
-                onSubmit={start}
-                attachments={attachments}
-                placeholder={FIRST_RUN_COPY.placeholder}
-                disabled={newAgent.creating}
-                composerDisabled={newAgent.creating}
+    const start = async (text: string) => {
+        // Connect step on (#6043): submitting opens the step rather than creating. The accounts
+        // this agent will need get connected while it is still a draft.
+        if (CONNECT_STEP_MODE) {
+            const typed = text.trim()
+            if (!typed) return
+            step.open({seedMessage: typed})
+            return
+        }
+        await create(text)
+    }
+
+    // The step is open: what they asked for, still editable, above the card that gates create.
+    if (step.draft) {
+        return (
+            <FirstRunSetupStep
+                step={step}
+                creating={newAgent.creating}
+                onCreate={(selection) => void create(step.draft?.seedMessage ?? "", selection)}
+                onEdit={() => {
+                    setRefill(step.draft?.seedMessage ?? "")
+                    step.close()
+                }}
             />
-            <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground text-xs">{FIRST_RUN_COPY.tryLabel}</span>
-                {FIRST_RUN_STARTERS.map((starter) => (
-                    <button
-                        key={starter}
-                        type="button"
-                        disabled={newAgent.creating}
-                        onClick={() => {
-                            inputRef.current?.setMarkdown(starter)
-                            inputRef.current?.focus()
-                        }}
-                        className="border-border text-muted-foreground hover:border-primary hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 box-border cursor-pointer rounded-full border border-solid bg-transparent px-3 py-1 text-xs outline-none transition-colors focus-visible:ring-[3px] disabled:opacity-50"
-                    >
-                        {starter}
-                    </button>
-                ))}
-            </div>
-        </div>
+        )
+    }
+
+    return (
+        <ChatComposer
+            inputRef={inputRef}
+            onSubmit={start}
+            attachments={attachments}
+            placeholder={FIRST_RUN_COPY.placeholder}
+            disabled={newAgent.creating}
+            composerDisabled={newAgent.creating}
+        />
     )
 }

@@ -96,9 +96,13 @@ const AccountRow = ({
                             </span>
                         ) : null}
                     </div>
-                    <div className="truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
-                        {skipped ? "Skipped — the agent can ask later" : account.why}
-                    </div>
+                    {/* Only a template row carries a scope line; a detected one has nothing
+                        per-account to say, so it gets no second line at all. */}
+                    {skipped || account.why ? (
+                        <div className="truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                            {skipped ? "Skipped — the agent can ask later" : account.why}
+                        </div>
+                    ) : null}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
