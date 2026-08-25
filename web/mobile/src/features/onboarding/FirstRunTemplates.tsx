@@ -7,8 +7,11 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {TemplateCard} from "@agenta/home-ui"
+import {useAtom} from "jotai"
+import {EyeOff} from "lucide-react"
 
 import {FIRST_RUN_COPY} from "./copy"
+import {templatesHiddenAtom} from "./templatesHidden"
 
 /**
  * The templates offer on first run, aligned with the desktop's strip: real template CARDS with
@@ -29,23 +32,53 @@ export const FirstRunTemplates = ({
     disabled?: boolean
 }) => {
     const [category, setCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
+    const [hidden, setHidden] = useAtom(templatesHiddenAtom)
     const categories = [ALL_TEMPLATES_CATEGORY, ...TEMPLATE_CATEGORY_ORDER]
     const shown =
         category === ALL_TEMPLATES_CATEGORY
             ? AGENT_TEMPLATES
             : AGENT_TEMPLATES.filter((template) => template.category === category)
 
+    // Dismissed: one line that says where they went and takes them back, same as the desktop.
+    if (hidden) {
+        return (
+            <div className="text-muted-foreground text-xs">
+                {FIRST_RUN_COPY.templatesHidden} ·{" "}
+                <button
+                    type="button"
+                    onClick={() => setHidden(false)}
+                    className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline underline-offset-[3px]"
+                >
+                    {FIRST_RUN_COPY.showAgain}
+                </button>
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-medium">{FIRST_RUN_COPY.templates}</span>
-                <button
-                    type="button"
-                    onClick={onBrowseAll}
-                    className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
-                >
-                    {FIRST_RUN_COPY.browseAll(AGENT_TEMPLATES.length)}
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={onBrowseAll}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
+                    >
+                        {FIRST_RUN_COPY.browseAll(AGENT_TEMPLATES.length)}
+                    </button>
+                    {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
+                        that is two taps for one action, so it is a labelled button here. */}
+                    <button
+                        type="button"
+                        onClick={() => setHidden(true)}
+                        aria-label={FIRST_RUN_COPY.hideTemplates}
+                        title={FIRST_RUN_COPY.hideTemplates}
+                        className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center border-0 bg-transparent p-0"
+                    >
+                        <EyeOff size={14} />
+                    </button>
+                </div>
             </div>
 
             {/* Negative margin + matching padding so the row bleeds to the screen edge while its

@@ -17,6 +17,10 @@ export const FIRST_RUN_COPY = {
     tryLabel: "Try",
     templates: "Templates",
     browseAll: (total: number) => `Browse all ${total}`,
+    /** The desktop strip's `STRIP_COPY` hide trio, verbatim — same action, same words. */
+    hideTemplates: "Don't show again",
+    templatesHidden: "Templates hidden",
+    showAgain: "show again",
     /** Header over the description once the connect step has taken over the composer (#6043). */
     buildingLabel: "Building",
     editLabel: "Edit",
