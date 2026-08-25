@@ -70,7 +70,17 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
     const rename = useCallback(
         (target: SessionActionTarget) => {
             let next = target.name ?? ""
-            modal.confirm({
+
+            // Enter confirms by clicking the Rename button, so submission stays on antd's own
+            // `onOk` path (loading state, close-on-success) instead of being reimplemented for
+            // the keyboard. The button is antd's, so it is reached through a marker class.
+            const okClass = "rename-session-ok"
+
+            // A blank name is not a rename, so the button is disabled — which also makes Enter
+            // a no-op while the field is empty, and keeps the dialog open either way.
+            const okButtonProps = () => ({className: okClass, disabled: !next.trim()})
+
+            const dialog = modal.confirm({
                 title: "Rename session",
                 content: (
                     <Input
@@ -80,10 +90,24 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
+                            dialog.update({okButtonProps: okButtonProps()})
+                        }}
+                        // A one-field modal has to confirm on Enter; without this the only way
+                        // out is the mouse. `Input` is a native control here, so this is
+                        // `onKeyDown` rather than antd's `onPressEnter`, and the confirm renders
+                        // as a Radix AlertDialog (`role="alertdialog"`).
+                        onKeyDown={(event) => {
+                            if (event.key !== "Enter") return
+                            event.preventDefault()
+                            event.currentTarget
+                                .closest('[role="alertdialog"],[role="dialog"]')
+                                ?.querySelector<HTMLButtonElement>(`.${okClass}`)
+                                ?.click()
                         }}
                     />
                 ),
                 okText: "Rename",
+                okButtonProps: okButtonProps(),
                 onOk: async () => {
                     const title = next.trim()
                     if (!title) return
