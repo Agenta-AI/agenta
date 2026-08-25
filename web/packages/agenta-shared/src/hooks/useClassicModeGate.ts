@@ -12,6 +12,7 @@ import {useEffect} from "react"
 
 import {useAtomValue} from "jotai"
 
+import {getEnv} from "../api/env"
 import {advancedNavHiddenAtom} from "../state/classicMode"
 import {activeUserIdAtom} from "../state/featureFlags"
 import {
@@ -36,6 +37,16 @@ const writeCookie = (name: string, value: string) => {
 const clearCookie = (name: string) => {
     document.cookie = `${name}=; path=/; max-age=0; samesite=lax`
 }
+
+/**
+ * The same kill switch the middleware reads, on the client half.
+ *
+ * `AGENTA_CLASSIC_MODE_GATE` is a bare (non-`NEXT_PUBLIC_`) variable resolved server-side, so the
+ * browser cannot see it; `entrypoint.sh` mirrors it into `__env.js` under this name. Without the
+ * mirror, turning the flag off stopped the middleware and left the client redirecting anyway,
+ * which is half a kill switch and worse than none.
+ */
+const classicGateEnabled = () => getEnv("NEXT_PUBLIC_AGENTA_CLASSIC_MODE_GATE") !== "false"
 
 /**
  * Publish the preference now, rather than waiting for the sync effect below.
@@ -86,6 +97,7 @@ export const useClassicModeRedirect = (enabled = true) => {
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
+        if (!classicGateEnabled()) return
         // No user means no preference to read — the atom reports the default, not a choice.
         if (!userId || !advancedNavHidden) return
 

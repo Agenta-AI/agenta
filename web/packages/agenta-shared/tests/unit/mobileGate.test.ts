@@ -536,6 +536,37 @@ describe("decideMobileGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
+    it("does not bounce a Classic-mode-off user out of /m", () => {
+        // The loop this prevents: the desktop gate sends them here for the preference, this gate
+        // sends them back for the device, and the cookie that started it never changes. Both
+        // gates on, desktop UA, so every other branch would redirect.
+        const i = input({
+            gateEnabled: true,
+            pathname: "/w/ws1/p/pr1/sessions",
+            headers: docHeaders(DESKTOP_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "0" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "pass"})
+
+        // The desktop half of the same request must still want them here, or the loop is only
+        // hidden rather than broken.
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "redirect",
+            location: "/m/w/ws1/p/pr1/sessions",
+        })
+    })
+
+    it("still bounces a desktop UA out of /m when the classic gate is disabled", () => {
+        const i = input({
+            gateEnabled: true,
+            classicGateEnabled: false,
+            pathname: "/w/ws1/p/pr1/sessions",
+            headers: docHeaders(DESKTOP_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "0" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "redirect", location: "/w/ws1/p/pr1/sessions"})
+    })
+
     it("reverse gate off does not touch the forward gate", () => {
         expect(
             decideDesktopGate(

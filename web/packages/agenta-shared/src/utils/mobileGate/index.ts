@@ -360,6 +360,13 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
+        // Classic mode off means /m is where this user belongs, so the device heuristic must not
+        // bounce them out of it. Without this the two gates ping-pong forever on a desktop UA:
+        // the desktop gate sends them here for the preference, this one sends them back for the
+        // device, and the cookie that started it never changes.
+        if (input.classicGateEnabled !== false && input.cookie(CLASSIC_MODE_COOKIE) === "0") {
+            return {kind: "pass"}
+        }
         // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
         if (input.reverseGateEnabled === false) return {kind: "pass"}
         if (isMobileDevice(input.header)) return {kind: "pass"}
