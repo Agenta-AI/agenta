@@ -1,4 +1,4 @@
-"""Unit tests for the D40 static field rewrite (specs-wp27.md).
+"""Unit tests for static field rewrites.
 
 Nothing running: pure functions over bytes, no I/O.
 """

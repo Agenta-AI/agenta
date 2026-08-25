@@ -197,7 +197,7 @@ def _gateway_route(name: str) -> str:
 
 
 async def test_gateway_routes_through_custom_namespace_with_our_credentials():
-    # Every author-declared server is a D30 `custom` target: the resolved URL is the
+    # Every author-declared server is a custom target: the resolved URL is the
     # gateway route, and the sole credential is OUR own (X-AG-Credentials), never the
     # upstream secret the author's `credentials` refs named.
     resolved = await MCPResolver(

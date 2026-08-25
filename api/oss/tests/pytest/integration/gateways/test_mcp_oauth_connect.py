@@ -89,7 +89,7 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
 
     monkeypatch.setattr(router_module, "check_action_access", _allow)
     # Production wires both the router and connect service from the same deployment
-    # crypt key. WP30's reusable fixture deliberately uses a deterministic test key,
+    # crypt key. The reusable fixture uses a deterministic test key,
     # so bind the router to that fixture key here rather than weakening state checks.
     monkeypatch.setattr(router_module.env.agenta, "crypt_key", oauth_service.secret_key)
 

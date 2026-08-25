@@ -5,9 +5,7 @@ service or adapter. This keeps the acceptance layer honest: every enabled case
 crosses the deployed API, and custom cases also exercise their configured mock
 server over a real socket.
 
-WP28 owns the generated catalogue and provider routing that make the non-custom
-cases resolvable.  This module owns only the test-facing description and the
-normal HTTP setup required for custom endpoints.
+This module provides test-facing route descriptions and normal HTTP setup for custom endpoints.
 """
 
 from __future__ import annotations

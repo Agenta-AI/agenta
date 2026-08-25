@@ -1,10 +1,4 @@
-"""The generated standard-endpoint catalogue (entities.md §8, D20).
-
-Two pure functions over the SDK's static provider->model map. A standard endpoint is
-derived, never stored: no id, no `Lifecycle`, code-default `settings`. Existence for a given
-project is answered by the resolver's `available_provider_keys` (R2), not by this module —
-`standard_llm_endpoint` never queries a DAO or the vault.
-"""
+"""Generate standard LLM endpoints from the provider catalogue."""
 
 from typing import List, Optional
 
@@ -26,13 +20,7 @@ _MOCK_MODEL = "mock/echo"
 
 
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
-    """Strip the provider's own litellm routing prefix, if the catalogued id carries one.
-
-    litellm's `"anthropic/claude-sonnet-5"`-style ids exist for litellm's own dispatch and
-    mean nothing to the upstream itself (open-designs.md OD16) — a relay that never touches
-    the body must advertise the id the real upstream accepts, since fixing this at relay
-    time would be the body conversion D34 forbids.
-    """
+    """Remove a provider routing prefix from a catalogued model id."""
     prefix = litellm_provider_prefixes.get(provider_key)
     if prefix and model_id.startswith(f"{prefix}/"):
         return model_id[len(prefix) + 1 :]
@@ -80,16 +68,13 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
 
 
 def _route(provider_key: str) -> LLMEndpointRoute:
-    """Every DIRECT provider OD16 clears has a known base_url (open-designs.md); one absent
-    from the table is one OD16 did not clear, and relaying to it fails at relay time rather
-    than here — this function never raises."""
+    """Return the route for a direct provider."""
     base_url = DIRECT_BASE_URLS.get(provider_key)
     return LLMEndpointRoute(base_url=base_url) if base_url else LLMEndpointRoute()
 
 
 def standard_llm_endpoints() -> List[LLMEndpoint]:
-    """All eleven, existence-unfiltered — the service intersects with the project's
-    provider keys (D20)."""
+    """Return all generated standard endpoints."""
     endpoints = (
         standard_llm_endpoint(provider_key=provider_key)
         for provider_key in supported_llm_models

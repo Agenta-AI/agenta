@@ -1,9 +1,6 @@
 """The mock upstreams answer, and can still be driven to fail and to hang.
 
-WP5's own contract (workstreams/specs-wp5.md): the mocks must run as compose services and
-be drivable to fail/hang on demand from a real HTTP client, not a mocked transport. Every
-suite that points an endpoint at them inherits that assumption, so it is checked directly
-here rather than left implicit.
+The mocks run as compose services and can fail or hang on demand through real HTTP clients.
 
 Needs the compose stack up; skips with a reason when it is not.
 """
@@ -134,6 +131,6 @@ class TestMockUpstreams:
                 },
             )
 
-        # A tool that fails is a protocol-level result, never a transport error (D16).
+        # A tool failure is a protocol-level result, not a transport error.
         assert response.status_code == 200, response.text
         assert response.json()["result"]["isError"] is True

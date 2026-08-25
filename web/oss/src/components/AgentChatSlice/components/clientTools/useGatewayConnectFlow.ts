@@ -1,27 +1,4 @@
-/**
- * The gateway-target half of the `request_connection` client tool (WP26, D35 consequence 2).
- *
- * Sibling to `useConnectFlow` (the external-integration OAuth flow), NOT a replacement: this
- * hook only runs when `meta.input.target` is present. The two flows settle the SAME tool call
- * shape (`{connected, reason?, retryable?}` | `{errorText}`) so `ConnectToolWidget`'s settled
- * chip rendering stays shared between both paths.
- *
- * `plane: "llm"` opens `ProviderDrawer` — the project's existing "connect a model provider"
- * surface — and settles on its `onSaved` callback, a real, verified signal.
- *
- * `plane: "mcp"` (WP19 repoint): a `target.name` that matches a registered `custom` MCP
- * endpoint opens `MCPConnectDialog` (the real WP18 surface) and settles on its `onSuccess`
- * callback — a real, verified signal, same footing as the LLM path. This is also the SAME
- * dialog a step-up refusal (`scope_insufficient`) points the agent back at: the request
- * carries no scope list (WP25's marker never recovers one on the MCP plane), so the dialog
- * re-runs `discover()` and re-offers the current scope checklist rather than this widget
- * guessing which ones matter (D17). A `target.name` with no matching `custom` endpoint falls
- * back to the shared tool-catalog drawer via `toolCatalogDrawerOpenAtom` and settles
- * OPTIMISTICALLY when it closes — unchanged from WP26, and still correct for a `builtin`
- * (Composio) target, the one case with no per-call completion signal to read (see
- * specs-wp26.md "Settle semantics"). Safe either way: the gateway re-checks registration and
- * scope on every call regardless of what this widget believed.
- */
+/** Manage gateway-target connection requests from the agent chat tool. */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolCatalogDrawerOpenAtom} from "@agenta/entities/gatewayTool"
@@ -71,8 +48,7 @@ export const gatewayCancelledOutput = (target: GatewayTarget): Record<string, un
 
 export type GatewayConnectPhase = "idle" | "connecting"
 
-/** The `custom` endpoint a `plane: "mcp"` target names, or `null` when it names a
- * `builtin` (Composio) server instead — the only two cases D35 registration allows. */
+/** Return the custom MCP endpoint named by a target, if any. */
 export const resolveCustomMcpEndpoint = (
     endpoints: MCPEndpoint[] | undefined,
     target: GatewayTarget,
@@ -115,10 +91,7 @@ export const useGatewayConnectFlow = (
         [settle],
     )
 
-    // Fallback only: a `plane: "mcp"` target with no matching `custom` endpoint (a `builtin`
-    // server) still goes through the shared catalog drawer, which has no per-call completion
-    // signal — the shared drawer closing (having been opened by THIS instance) is the only
-    // signal that path gets. See module doc for why "closed = done" is optimistic-but-safe.
+    // Built-in MCP targets use the shared catalog drawer and settle when their opener closes it.
     useEffect(() => {
         if (target.plane !== "mcp") return
         if (!openedCatalogRef.current) return
@@ -149,8 +122,7 @@ export const useGatewayConnectFlow = (
         if (!settledRef.current && !meta.settled) finish(gatewayCancelledOutput(target))
     }, [finish, meta.settled, target])
 
-    // Real, verified signal (MCPConnectDialog's own postMessage-checked completion) — not the
-    // catalog drawer's optimistic close, since a `custom` endpoint now has one (WP19 repoint).
+    // Custom MCP endpoint connections settle only after dialog success.
     const onMcpConnectSuccess = useCallback(() => {
         setConnectingEndpoint(null)
         finish(gatewayConnectedOutput(target))

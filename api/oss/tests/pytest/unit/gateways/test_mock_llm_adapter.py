@@ -1,4 +1,4 @@
-"""Unit tests for MockLLMAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for `MockLLMAdapter`.
 
 Nothing running: the adapter is exercised as a plain Python object.
 """
@@ -133,7 +133,7 @@ async def test_usage_populated_after_body_exhausted():
     assert result.usage.output_tokens is not None
 
 
-# --- protocol-shaped bodies (D33, WP23) --------------------------------------- #
+# Protocol-shaped bodies
 
 
 @pytest.mark.asyncio

@@ -746,8 +746,7 @@ def _interaction_parts(
                 # The tool call was already surfaced (often by the tracing tool_call event, whose
                 # name is the ACP title/kind, and often with empty input on a cold-replay resume).
                 # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
-                # args, instead of persisting the drift-prone name + `{}` input (HITL
-                # approve-empty-input / name-drift bug).
+                # args, instead of persisting a stale name with empty input.
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -944,10 +943,7 @@ def _error_parts(
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
     data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
-    # The gateway's agent-actionable envelope (WP13's AgentErrorDetail), when the runner
-    # recovered one (`AgentRunFailed.error_detail`, gateway-error.ts). Additive: a caller
-    # reading only `code`/`errorText` above sees no change, and the key is omitted entirely
-    # (never `null`) when there is nothing to carry.
+    # Include recovered gateway error details only when available.
     error_detail = getattr(error, "error_detail", None)
     if error_detail:
         data["errorDetail"] = error_detail

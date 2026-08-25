@@ -1,4 +1,4 @@
-"""Unit tests for `SecretsTokenStorage` (specs-wp17.md "The storage adapter").
+"""Unit tests for `SecretsTokenStorage`.
 
 A real `VaultService` over an in-memory fake `SecretsDAOInterface` — no Postgres, no
 encryption key, no network — matching `unit/secrets/test_services.py`'s own fake-DAO

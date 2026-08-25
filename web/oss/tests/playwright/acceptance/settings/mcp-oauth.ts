@@ -18,7 +18,7 @@ import {buildAcceptanceTags} from "../utils/tags"
 
 const scenarios = createScenarios(test)
 
-// WP30's in-process local provider covers the client/service integration. A browser
+// The local provider covers client and service integration. A browser
 // necessarily needs a reachable test authorization server, which the dev deployment
 // advertises explicitly. The test is active whenever that capability is configured.
 const oauthServerUrl = process.env.AGENTA_MCP_OAUTH_ACCEPTANCE_SERVER_URL

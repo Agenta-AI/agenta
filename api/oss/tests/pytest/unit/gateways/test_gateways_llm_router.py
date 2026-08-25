@@ -1,4 +1,4 @@
-"""Router wiring — apis/fastapi/gateways/llms/router.py (entities.md §9).
+"""LLM gateway router tests.
 
 TestClient + a hand-written mock `LLMGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
@@ -142,7 +142,7 @@ def deny(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Route table — path, method and operation_id match entities.md §9 exactly
+# Route table contract
 # ---------------------------------------------------------------------------
 
 

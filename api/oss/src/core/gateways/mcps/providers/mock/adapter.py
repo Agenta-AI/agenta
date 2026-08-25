@@ -1,10 +1,9 @@
-"""MockMCPAdapter: the in-process mock MCP upstream (entities.md §7.1, D23).
+"""In-process mock MCP upstream.
 
 Unlike the real `http`/`composio` adapters, this one *is* the upstream — it
 parses `body` (the caller's JSON-RPC payload) itself and answers in-process,
-because there is nothing behind it to relay to. This does not violate D16's
-transparency rule: D16 constrains the gateway, which still passes `body`
-through this port untouched; a mock *server* interpreting its own JSON-RPC
+because there is nothing behind it to relay to. The gateway still passes `body`
+through this port untouched; a mock server interpreting its own JSON-RPC
 input is exactly what any real MCP server does.
 
 Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
@@ -12,8 +11,7 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
 
     echo    echoes params.arguments back as the tool result content
     fail    a JSON-RPC *result* carrying isError: true — never raised. A
-            tool's own business failure is not a transport failure (D16,
-            api/AGENTS.md's pass-through rule).
+            tool's own business failure is not a transport failure.
     slow    sleeps params.arguments.seconds (default 5), then a fixed result
 
 `notifications/*` returns 202 with an empty body, matching the runner's
@@ -21,11 +19,7 @@ internal MCP server (services/runner/src/tools/tool-mcp-http.ts). Any other
 method is a transport-level failure: MCPUpstreamError(status_code=501) — there
 is no fourth method to mock.
 
-Forced scope challenges (MCPScopeInsufficientError) are explicitly not built
-here (D23's "later"): that type is unreachable until the OAuth checkpoint
-(wave 3); adding a tool that raises it now would exercise a 403-handling path
-that does not exist yet. Extension point: a `scope-challenge` tool would live
-in _TOOLS + _dispatch_tool_call once that checkpoint lands.
+The mock deliberately implements only the MCP methods and tools declared below.
 """
 
 import asyncio

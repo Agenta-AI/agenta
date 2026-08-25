@@ -1,27 +1,4 @@
-"""`MCPGatewayProxy`: the MCP data plane's protocol surface (entities.md §9).
-
-Three thin routes, one per namespace (D27); they exist because the routes carry different
-path parameters, not because the behaviour differs. Each parses the caller's routing
-headers, reads the raw body, and delegates to `MCPGatewayService.relay` (WP9), which owns
-target resolution, the allowlist check, secret resolution and the outbound guard. No
-wire models here — the data plane relays bytes (§6).
-
-**Error mapping is NOT `apis/fastapi/gateways/exceptions.py::handle_gateway_exceptions()`.**
-That decorator (seed, R1) raises a plain `HTTPException(status_code, detail=str)`, which is
-right for WP10's CRUD routers (they speak the house wire) and wrong here: it collapses every
-cause that shares a status into one indistinguishable message — `MCPEndpointNotFoundError`
-and `SecretNotFoundError` both become an opaque `HTTPException` a caller cannot tell
-apart. §9 requires the opposite of a proxy: "the MCP proxy answers protocol-shaped errors at
-the transport status the relay produced, and gateway-authored refusals as the protocol's
-error result with the same stable causes in the error data." So this module keeps its own
-exception -> response mapping, `_map_gateway_exception`, producing a JSON-RPC error result
-carrying a stable `cause` string in `error.data` — never the house `{code,message,
-retryable,...}` envelope, which must not leak onto this surface. The HTTP status each cause
-takes is still exactly what `handle_gateway_exceptions()`'s table assigns; only the body
-shape and the added cause differ. The upstream's own protocol-level error is untouched by
-any of this: `HttpMCPAdapter` never raises for a non-2xx status or a JSON-RPC `error` body
-(D16), so it reaches the caller as `MCPRelayResult` pass-through, not through this mapping.
-"""
+"""Protocol-shaped MCP gateway proxy responses."""
 
 from __future__ import annotations
 
@@ -60,16 +37,11 @@ from oss.src.utils.exceptions import intercept_exceptions
 if TYPE_CHECKING:
     from oss.src.core.gateways.mcps.service import MCPGatewayService
 
-# JSON-RPC 2.0 reserved codes: -32600 is "Invalid Request" (our own pre-relay header
-# validation); -32000 is the start of the implementation-defined "Server error" range,
-# used for every gateway-authored refusal below (the numeric code carries no further
-# meaning — the stable `cause` string in `error.data` is what a caller branches on).
+# JSON-RPC invalid-request and server-error codes.
 _JSONRPC_INVALID_REQUEST = -32600
 _JSONRPC_SERVER_ERROR = -32000
 
-# Every exception `_map_gateway_exception` knows how to translate. `_relay` catches
-# exactly this tuple; anything else is a bug, not a gateway refusal, and is left to
-# `intercept_exceptions()`'s generic path.
+# Exceptions represented as JSON-RPC gateway errors.
 _MAPPED_EXCEPTIONS = (
     GatewayEndpointInactiveError,
     ValueError,
@@ -113,8 +85,7 @@ def _protocol_error(
     need is simply unavailable — the same situation JSON-RPC 2.0 reserves a null id
     for (an error raised before the id could be read).
 
-    `message` carries the code marker (WP25, OD18; `gateways/utils.py::with_code_marker`)
-    for every cause except `upstream_error` — same reasoning and same exclusion as the LLM
+    `message` carries the code marker for every cause except `upstream_error`, as does the LLM
     plane's `_openai_error`: `cause` already rides structured in `error.data`, so the marker
     is redundant here whenever a harness's SDK keeps that structure, and load-bearing only
     for one that keeps `message` alone and discards everything else (Codex)."""
@@ -193,11 +164,7 @@ def _map_gateway_exception(e: BaseException) -> Response:
     if isinstance(e, MCPScopeInsufficientError):
         scope_data: Dict[str, Any] = {"target": e.target, "scopes": e.scopes}
         if e.endpoint_id is not None:
-            # Step-up reuses the missing-connection interaction (D17): the same
-            # connect route WP18 built, re-run with a wider scope choice. `body: {}`
-            # points at step 1 (discover) so the dialog re-offers the current scope
-            # set rather than this refusal guessing which ones matter (WP25: a
-            # marker-only recovery never carries `e.scopes` this far anyway).
+            # Reopen scope discovery so the client can request the required scopes.
             scope_data["connect"] = GatewayConnectAffordance(
                 endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect",
                 body={},
@@ -323,8 +290,7 @@ class MCPGatewayProxy:
     async def relay_builtin(
         self, request: Request, provider: str, rest: str
     ) -> Response:
-        # Each builtin provider owns the grammar under its own segment (D30): composio
-        # addresses a connection as {integration}/{connection}, agenta a bare slug.
+        # Built-in providers define the path below their provider segment.
         integration, name = split_builtin_path(provider=provider, rest=rest)
         return await self._relay(
             request=request,

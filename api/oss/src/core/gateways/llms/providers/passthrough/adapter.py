@@ -1,16 +1,4 @@
-"""RelayLLMAdapter: the one south-port relay (D34, entities.md §7.1).
-
-D34 forbids body conversion, so there is one relay for every deployment kind — the
-`passthrough`/`translated` split it replaces. `routing.py` composes the URL from route
-fields; `auth.py` presents the secret. Neither ever parses `body`. The response body is read
-only to lift `usage` for the audit record; the bytes handed back to the caller are never
-reconstructed from that parse.
-
-D40 amends D34 with one bounded exception: `static_fields.py`'s literal per-deployment table,
-applied to the request body immediately before it is sent, for Vertex only (OD19 moved
-Bedrock's Messages door to `bedrock-mantle`, which needs no rewrite). Every other
-deployment's request body still travels untouched.
-"""
+"""Relay LLM requests while preserving provider request and response bodies."""
 
 import json
 from typing import Any, AsyncIterator, Dict, Optional
@@ -32,14 +20,10 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
-# No document pins a default (specs-wp6.md: "Missing from the design, needs a ruling").
-# 60s matches the outbound timeout core/workflows/service.py already uses for its own
-# httpx calls (_post_service_json) — this package's own call, not a transcribed number.
+# Default timeout for outbound LLM requests.
 _DEFAULT_TIMEOUT_SECONDS = 60.0
 
-# Stripped from the outbound header set: hop-by-hop headers (RFC 7230 §6.1) plus our own
-# credentials header. A caller's `Authorization` is forwarded and overwritten below only
-# when a secret resolved — pass-through is what happens when nothing overwrites (OD15).
+# Strip hop-by-hop and gateway-only headers before forwarding upstream.
 _STRIPPED_HEADERS = {
     *GATEWAY_ONLY_HEADERS,
     "host",
@@ -74,9 +58,7 @@ async def _outbound_headers(
 _USAGE_TAIL_BYTES = 8192
 
 
-# Chat Completions names token counts `prompt_tokens`/`completion_tokens`; Responses and
-# Messages both name them `input_tokens`/`output_tokens` (D33, WP23) — the one place this
-# adapter branches on protocol, and only to read, never to rewrite.
+# Usage fields differ by protocol but are read without rewriting the response.
 def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[GatewayUsage]:
     if not isinstance(payload, dict):
         return None
@@ -133,8 +115,7 @@ def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayU
 
 
 class RelayLLMAdapter(LLMUpstreamInterface):
-    """Relays to any upstream a front door's protocol reaches (OD16), with the body
-    forwarded verbatim and only routing/authentication applied. One `httpx.AsyncClient`
+    """Relay requests with routing and authentication while preserving bodies. One `httpx.AsyncClient`
     per adapter instance, reused across calls (connection pooling; a streaming response
     keeps the client alive past this method's return, so it cannot be opened and closed
     per call)."""
@@ -226,9 +207,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
     async def _stream_body(
         *, response: httpx.Response, result: LLMRelayResult, protocol: LLMProtocol
     ) -> AsyncIterator[bytes]:
-        # SSE chunk boundaries pass through as httpx yields them — never
-        # recombined or re-chunked (specs-wp6.md). Chunks are only inspected for the
-        # trailing usage frame; what is yielded is always the original bytes.
+        # Preserve upstream SSE chunk boundaries while extracting trailing usage.
         tail = b""
         try:
             async for chunk in response.aiter_bytes():

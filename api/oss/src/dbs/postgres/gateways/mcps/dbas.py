@@ -1,4 +1,4 @@
-"""MCP plane DBA mixins (entities.md §2)."""
+"""MCP endpoint DBA mixins."""
 
 from sqlalchemy import UUID, Column
 from sqlalchemy import Enum as SQLEnum
@@ -30,7 +30,7 @@ class MCPEndpointDBA(
     TagsDBA,
     MetaDBA,
 ):
-    """One custom MCP server: a registered upstream (entities.md §2)."""
+    """One custom MCP server."""
 
     __abstract__ = True
 
@@ -38,4 +38,4 @@ class MCPEndpointDBA(
         SQLEnum(MCPAuthScheme, name="gatewayauthscheme_enum"), nullable=False
     )
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # data: { route, tools, settings, oauth } — MCPEndpointData (entities.md §2.4)
+    # data: route, tools, settings, and OAuth configuration.

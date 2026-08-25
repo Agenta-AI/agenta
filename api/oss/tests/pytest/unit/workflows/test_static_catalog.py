@@ -884,7 +884,7 @@ def test_id_index_maps_artifact_and_variant_to_current_across_versions():
 
 
 # ---------------------------------------------------------------------------
-# Query regression: is_static is never a stored fact, so it never filters
+# `is_static` is computed and never filters the query.
 # ---------------------------------------------------------------------------
 
 
@@ -1008,7 +1008,7 @@ def test_request_input_matches_golden_response_fixture():
 
 
 # ---------------------------------------------------------------------------
-# WP26 — request_connection widened for gateway targets
+# Gateway-target request-connection support
 # ---------------------------------------------------------------------------
 
 

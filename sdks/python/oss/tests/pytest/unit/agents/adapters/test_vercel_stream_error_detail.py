@@ -105,7 +105,7 @@ async def test_live_twin_carries_error_detail_from_a_raised_agent_run_failed():
 
 
 async def test_error_frame_and_error_text_are_unchanged_by_error_detail():
-    # A caller reading only `error`/`errorText` must see no regression.
+    # Callers reading only `error`/`errorText` retain the same behavior.
     detail = REFUSALS[0]
     parts = await _drain(agent_stream_to_vercel_stream(_failing_events(detail)))
     error_frames = [p for p in parts if p["type"] == "error"]

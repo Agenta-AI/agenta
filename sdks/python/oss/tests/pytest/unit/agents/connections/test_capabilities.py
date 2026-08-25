@@ -85,7 +85,7 @@ def test_openai_harnesses_consume_direct_and_custom_deployment_in_v1():
 
 
 def test_resolved_pair_validation_matches_decision_3_table():
-    # Every row of design Decision 3's allowed-pairs table.
+    # Every allowed credential and endpoint pairing.
     for harness in ("pi_core", "pi_agenta", "codex"):
         # OpenAI-compatible harness + openai + direct/custom -> allowed.
         assert harness_allows_pair(harness, "openai", "direct") is True

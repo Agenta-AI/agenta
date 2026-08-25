@@ -1,9 +1,4 @@
-/**
- * Gateway-target half of the connect widget (WP26). Rendered by `ConnectToolWidget` when
- * `meta.input.target` is present instead of `meta.input.integration`. Visual language matches
- * the existing chip row exactly; only the action differs (open a registration surface instead
- * of running an OAuth popup).
- */
+/** Render the gateway-target connection widget. */
 import {providerConnectionsAtom} from "@agenta/entities/secret"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {
@@ -66,9 +61,7 @@ const GatewayConnectToolWidget = ({
                         onSaved={onProviderSaved}
                     />
                 ) : (
-                    // `custom` endpoint only (WP19 repoint) — a `builtin` target has no
-                    // per-instance dialog to mount here; the shared catalog drawer it opens
-                    // instead is mounted once, globally, in Playground.tsx.
+                    // Only custom endpoints use a per-instance connection dialog.
                     <MCPConnectDialog
                         endpoint={connectingEndpoint}
                         onClose={onMcpDialogClosed}

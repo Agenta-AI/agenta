@@ -1,4 +1,4 @@
-"""MCP gateway management wire models (entities.md §6).
+"""MCP gateway management wire models.
 
 The house triple, matching `triggers/models.py`, plus the connect shapes.
 
@@ -41,8 +41,7 @@ class MCPEndpointsResponse(BaseModel):
 
 
 class MCPConnectRequest(BaseModel):
-    """Drives the two-step consent flow (specs-wp18.md). `scopes: None` (absent)
-    is the discover step — nothing chosen yet, the response carries the checklist.
+    """Request MCP OAuth scope discovery or authorization.
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
     scopes: Optional[List[str]] = None

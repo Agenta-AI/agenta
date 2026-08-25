@@ -1,6 +1,4 @@
-"""`LLMGatewayService` (entities.md §8): management CRUD, the generated-endpoint merge, and
-the relay path's policy/allowlist/ceiling/secret/adapter-selection pipeline.
-"""
+"""Manage LLM endpoints and relay requests through policy and provider adapters."""
 
 import asyncio
 import json
@@ -60,8 +58,7 @@ from oss.src.utils.context import AuthScope
 
 @dataclass
 class _ResolvedLlmTarget:
-    """The generated endpoint or the row, plus which namespace answered — service-internal,
-    never crosses a layer (entities.md §8)."""
+    """A resolved endpoint and its namespace."""
 
     namespace: GatewayEndpointNamespace
     name: str
@@ -91,8 +88,7 @@ class _ResolvedLlmTarget:
             return ProviderKeyRef(provider_key=self.provider_key)
         if self.secret_id is not None:
             return BoundSecretRef(secret_id=self.secret_id)
-        # A custom row with no bound secret is a NONE-scheme target (the mocks, D23) —
-        # nothing to resolve.
+        # Custom endpoints without a secret require no secret resolution.
         return None
 
     def route(self, context: LLMCallContext) -> LLMResolvedRoute:
@@ -110,12 +106,7 @@ class _ResolvedLlmTarget:
 
 
 def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
-    """The service's own model/stream extraction — a private duplicate of WP6's
-    `apis/fastapi/gateways/llms/utils.py::parse_llm_call_context`, not an import of it: core
-    must not import the api layer (`api/AGENTS.md`'s layering rule), and this package owns
-    `relay_chat_completion`'s full body, which needs the same two fields internally.
-    `model`/`stream` share field names across every protocol (WP23); `protocol` is stamped
-    from the caller so the ceiling check binds to the right request field."""
+    """Extract model and streaming fields without coupling the core to the API layer."""
     try:
         payload = json.loads(body) if body else {}
     except (json.JSONDecodeError, TypeError):
@@ -128,9 +119,7 @@ def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     )
 
 
-# Per-protocol ceiling field name(s) (D33, D34, specs-wp23.md): Chat Completions names it
-# `max_tokens` or `max_completion_tokens` on reasoning models; Responses `max_output_tokens`;
-# Messages `max_tokens`. The config key stays `settings.max_output_tokens` regardless.
+# Request fields that control completion-token ceilings by protocol.
 _CEILING_FIELDS: Dict[LLMProtocol, tuple] = {
     LLMProtocol.CHAT_COMPLETIONS: ("max_tokens", "max_completion_tokens"),
     LLMProtocol.RESPONSES: ("max_output_tokens",),
@@ -228,8 +217,7 @@ class LLMGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
-        """The merge (D20): generated standard endpoints, existing iff a provider_key secret
-        exists for the provider, plus every custom row. The only read that spans namespaces.
+        """List generated standard endpoints and persisted custom endpoints.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -291,7 +279,7 @@ class LLMGatewayService:
             model=model,
         )
 
-    # --- the data plane (WP6, WP7) ------------------------------------------ #
+    # Data plane
 
     async def list_models(
         self,
@@ -336,9 +324,7 @@ class LLMGatewayService:
         headers: Dict[str, str],
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
     ) -> LLMRelayResult:
-        """One method for every front door (D33, WP23): a door supplies its own
-        `protocol` from its own minimal parse; everything below stays blind to which
-        one it was, except the ceiling field name."""
+        """Relay one request for the specified protocol."""
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
         )

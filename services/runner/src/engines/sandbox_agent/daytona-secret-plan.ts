@@ -116,10 +116,7 @@ const PUBLIC_MODEL_ENVIRONMENT_BINDINGS = new Set([
 // These credentials must be read locally by the provider SDK and therefore cannot use
 // Daytona's outbound HTTP substitution. No opaque provider key belongs in this allowlist.
 //
-// Kept (WP13 Phase 3): the gateway-routed vault resolver never emits a `local_use` credential
-// any more (`platform/connections.py` `_resolve_from_secrets` discards `env` after a fail-loud
-// check and routes even Bedrock/Vertex through the gateway) — the offline standalone-SDK
-// resolvers (`connections/resolver.py`) still do, and this allowlist is theirs.
+// Offline standalone-SDK resolvers use these credentials locally.
 const LOCAL_USE_MODEL_CREDENTIAL_BINDINGS = new Set([
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",

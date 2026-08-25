@@ -1,22 +1,4 @@
-"""MCP gateway management CRUD router (entities.md §9).
-
-`MCPGatewayService` is WP9's — declared here only as a `TYPE_CHECKING` forward reference
-so this router can be built, wired and unit-tested against a mock before WP9 lands (rule
-4: "stop at the merge point"). `MCPOAuthConnectService` is WP17's, consumed the same way.
-
-`connect_endpoint` (`POST /endpoints/{endpoint_id}/connect`) and `connect_callback`
-(`GET /connect/callback`) are WP18's own two routes (specs-wp18.md) — the two-step
-consent flow (discover, then begin) and the unauthenticated authorization-server
-callback that completes it.
-
-The SSRF gate at registration (D28): every `custom` endpoint this router can create or edit
-carries a user-typed `data.route.base_url` the gateway will later connect to (`MCPEndpointCreate`/
-`MCPEndpointEdit` have no `namespace` field and no way to express `provider_key`/
-`integration_key`, so every row this router writes is `custom` by construction — same as
-the DAO's own "every row is custom by construction" invariant). Gated here with the no-DNS
-`validate_url_format_and_literal_ip` (save-time; the resolving variant runs again at relay
-time in WP8) — no new guard written, exact precedent `core/secrets/dtos.py:140`.
-"""
+"""MCP gateway management and OAuth connection router."""
 
 import html as html_lib
 import json
@@ -56,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
-    """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError."""
+    """Validate a custom MCP endpoint URL before saving it."""
     if not url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,9 +56,7 @@ def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
 def _as_edit(
     endpoint: MCPEndpoint, *, secret_id: Optional[UUID] = None
 ) -> MCPEndpointEdit:
-    """`endpoint.data` already carries any in-place mutation (e.g. the discovery
-    cache) the caller made before calling this — full-PUT through the one door
-    (entities.md §9), never a partial patch."""
+    """Create an editable copy of an endpoint."""
     return MCPEndpointEdit(
         id=endpoint.id,
         name=endpoint.name,
@@ -307,7 +287,7 @@ class MCPGatewayRouter:
                 name=str(endpoint_id),
             )
 
-    # --- the consent flow (WP18, specs-wp18.md) ------------------------------ #
+    # OAuth consent
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -320,7 +300,7 @@ class MCPGatewayRouter:
     ) -> MCPConnectResponse:
         """One route, two steps. `body.scopes is None` -> discover and cache the
         checklist onto the row; a list (possibly empty) -> begin and return the
-        authorization redirect (specs-wp18.md)."""
+        authorization redirect."""
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
@@ -386,9 +366,8 @@ class MCPGatewayRouter:
         error_description: Optional[str] = Query(default=None),
     ) -> HTMLResponse:
         """Unauthenticated: the browser lands here straight from the authorization
-        server, not from an authenticated Agenta API call — every fact needed comes
-        out of the signed `state` (specs-wp18.md, mirroring
-        `tools/router.py::callback_connection`)."""
+        server, not from an authenticated Agenta API call; all required facts come
+        from the signed state."""
         if error:
             return HTMLResponse(
                 status_code=400,
@@ -493,8 +472,7 @@ def _connect_card(
     endpoint_id: Optional[str] = None,
 ) -> str:
     """A small self-contained HTML page for the browser landing on the callback
-    directly — trimmed from `tools/router.py::_oauth_card`'s Composio card to what
-    the MCP consent flow needs (specs-wp18.md). Posts `mcp:oauth:connected` to
+    directly. Posts `mcp:oauth:connected` to
     `window.opener` so a popup-driven dashboard reacts without polling."""
     safe_error = html_lib.escape(error) if error else None
     agenta_origin = None

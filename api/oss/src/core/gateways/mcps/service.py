@@ -1,9 +1,4 @@
-"""`MCPGatewayService`: management + the transparent proxy (entities.md §8, WP9).
-
-Wave 1 fills every method except the parts
-of `relay` that would reach a brokered `builtin` target — D23: no such target is
-reachable yet, and `ComposioMCPAdapter` has no owning package in this wave.
-"""
+"""Manage MCP endpoints and transparently proxy MCP requests."""
 
 import json
 import re
@@ -68,8 +63,7 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
-# Adapter selection (§8 step 5). `builtin` dispatches on its provider segment, since
-# the namespace only says whose account pays, not which backend answers (D30).
+# Built-in endpoints select adapters by provider segment.
 _BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
     AGENTA_PROVIDER: "mock",
     MOCK_PROVIDER: "mock",
@@ -115,10 +109,7 @@ _SCOPE_PARAM_RE = re.compile(r'\bscope\s*=\s*"([^"]*)"')
 
 
 def _parse_scope_challenge(headers: Dict[str, str]) -> Optional[List[str]]:
-    """RFC 6750 `WWW-Authenticate: Bearer error="insufficient_scope", scope="a b"` —
-    the step-up challenge (D17, WP19). `None` when the response isn't one; `[]` when
-    it is but the upstream omitted `scope` (WP18's dialog re-discovers the offered set
-    either way, so a missing list degrades to "reopen the checklist", not a failure)."""
+    """Extract scopes from an RFC 6750 insufficient-scope challenge."""
     header = next(
         (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
     )
@@ -146,13 +137,6 @@ class MCPGatewayService:
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
         upstream_registry: MCPUpstreamRegistry,
-        # Not in entities.md §8's abbreviated constructor pseudocode, but §8's own prose
-        # ("connection state resolved through the existing connections service") and
-        # specs-wp9.md both require calling ConnectionsService.query_connections /
-        # get_connection for real, in list_endpoints and in relay's builtin branch alike
-        # ("the same instance list_endpoints already uses"). The abbreviated signature is
-        # a gap in the design, not a instruction to mock the integration; flagged for
-        # the M2 merge review rather than silently added.
         connections_service: ConnectionsService,
     ) -> None:
         self.mcp_endpoints_dao = mcp_endpoints_dao
@@ -161,7 +145,7 @@ class MCPGatewayService:
         self.upstream_registry = upstream_registry
         self.connections_service = connections_service
 
-    # --- management: thin DAO delegation ------------------------------------- #
+    # Management
 
     async def create_endpoint(
         self,
@@ -236,7 +220,7 @@ class MCPGatewayService:
             windowing=windowing,
         )
 
-    # --- the three-namespace merge (D27) ------------------------------------- #
+    # Endpoint listing
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[MCPEndpoint]:
         """Takes the scope rather than a bare project_id (R14). §8 derives
@@ -245,8 +229,7 @@ class MCPGatewayService:
         project_id = scope.project_id
         custom = await self.mcp_endpoints_dao.query_endpoints(project_id=project_id)
 
-        # is_active=None, like _resolve_target: D18 keeps a revoked connection's tools
-        # listed, in NEEDS_AUTH, rather than making the endpoint disappear.
+        # Include inactive connections so their endpoint can report its connection state.
         connections = await self.connections_service.query_connections(
             project_id=project_id,
             provider_key="composio",
@@ -261,8 +244,7 @@ class MCPGatewayService:
             else []
         )
 
-        # builtin's providers first, generated standard targets next, custom rows last — no
-        # ordering guarantee is promised by entities.md §8.
+        # Return built-in, standard, then custom endpoints.
         return [
             *self._agenta_endpoints(),
             *builtin,
@@ -276,12 +258,7 @@ class MCPGatewayService:
         return env.mock_gateways.enabled
 
     def _agenta_endpoints(self) -> List[MCPEndpoint]:
-        """The endpoints Agenta itself serves — the `agenta` provider inside `builtin`
-        (D23, D30). Private and
-        service-internal — entities.md names no public symbol for this, unlike the LLM
-        plane's `standard_llm_endpoint(s)`. The local member is named `mock` so its
-        route clearly denotes the development upstream rather than a product tool.
-        """
+        """Return Agenta-provided built-in MCP endpoints."""
         if not self._mocks_enabled():
             return []
         return [
@@ -320,12 +297,7 @@ class MCPGatewayService:
         )
 
     def _builtin_endpoint(self, connection: Connection) -> MCPEndpoint:
-        """One generated (never persisted, D19/D20) `MCPEndpoint` per active composio
-        `Connection`. `data.url` is a non-dialable placeholder: no document in this
-        design fixes a real Composio MCP base URL, and D23 keeps every `builtin` MCP
-        target unreachable this wave (`ComposioMCPAdapter` has no owner) — a
-        placeholder keeps the required field populated without inventing an endpoint
-        nobody owns yet."""
+        """Build one generated MCP endpoint for a Composio connection."""
         return MCPEndpoint(
             slug=connection.slug,
             name=connection.name,
@@ -347,8 +319,7 @@ class MCPGatewayService:
             ),
         )
 
-    # --- connection-state derivation (entities.md §8, "Where the state machine is
-    # computed") ---------------------------------------------------------------- #
+    # Connection state
 
     async def _connection_state(
         self,
@@ -358,11 +329,7 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpoint,
     ) -> GatewayConnectionState:
-        """Per owner, per namespace (§8, verbatim in specs-wp9.md). Not called by
-        `list_endpoints` in wave 1 — that method takes no owner, so it cannot derive a
-        per-caller state — this is exercised directly by its own unit tests and is the
-        seam a future per-owner read (the CRUD router, or the connect-affordance
-        builder, D17) calls into. Nothing here is stored (§2.6): every call recomputes."""
+        """Derive an endpoint's connection state for an owner."""
         if endpoint.auth_mode == MCPAuthScheme.NONE:
             return GatewayConnectionState.READY
 
@@ -380,11 +347,10 @@ class MCPGatewayService:
                 return GatewayConnectionState.READY
             return GatewayConnectionState.NEEDS_AUTH
 
-        # NEEDS_INPUT is reserved for the api_key scheme, deferred with its kind (D14);
-        # unreachable today because no custom endpoint can carry auth_mode=API_KEY yet.
+        # API-key endpoints require user input when no usable secret is available.
         return GatewayConnectionState.NEEDS_AUTH
 
-    # --- the data plane (WP8 calls this) --------------------------------------- #
+    # Data plane
 
     async def relay(
         self,
@@ -399,7 +365,7 @@ class MCPGatewayService:
         body: bytes,
         headers: Dict[str, str],
     ) -> MCPRelayResult:
-        """The six-step orchestration (§8, D7 applied to MCP)."""
+        """Relay an MCP request through policy and the selected upstream adapter."""
 
         # `_ResolvedTarget` is a plain dataclass, not a pydantic model, so a caller
         # passing the namespace as a bare string (the FastAPI path-param case, or a
@@ -456,7 +422,7 @@ class MCPGatewayService:
                 ),
             )
 
-        # 4. Resolve secret — the two-mechanism fork (D27, §4.4).
+        # Resolve the endpoint credentials.
         auth = await self._resolve_auth(scope=scope, target=target)
 
         # 5. Dispatch. Usage is recorded even on failure.
@@ -488,11 +454,7 @@ class MCPGatewayService:
             )
             raise
 
-        # 5b. Step-up (D17, WP19): a `custom` OAuth target's upstream answering 403 with
-        # an RFC 6750 `insufficient_scope` challenge raises an interaction instead of
-        # passing the refusal through — same treatment `_resolve_auth` already gives a
-        # missing secret, one step later (after dial, since the challenge is the
-        # upstream's to raise, not ours to predict).
+        # Convert OAuth insufficient-scope challenges into a reconnect interaction.
         if (
             namespace == GatewayEndpointNamespace.CUSTOM
             and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
@@ -517,7 +479,7 @@ class MCPGatewayService:
                     endpoint_id=target.endpoint.id,
                 )
 
-        # 6. Record, then — for a list method — filter the response body.
+        # Record the relay and filter tool listings when configured.
         await self.policy.record(
             scope=scope,
             target=policy_target,
@@ -530,7 +492,7 @@ class MCPGatewayService:
 
         return result
 
-    # --- relay step helpers ----------------------------------------------------- #
+    # Relay helpers
 
     async def _resolve_target(
         self,

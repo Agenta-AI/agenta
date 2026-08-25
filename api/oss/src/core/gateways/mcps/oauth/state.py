@@ -1,11 +1,4 @@
-"""The OAuth `state` token (specs-wp17.md "The state token").
-
-Same HMAC-signed, base64url shape as `core/gateway/connections/utils.py`'s
-`make_oauth_state`/`decode_oauth_state`, reimplemented here rather than imported to keep
-this package independent of the Composio/connections domain (specs-wp17.md: "target:
-custom only"). Carries the PKCE code_verifier across the browser round trip — there is no
-server-side session to hold it, and the request may land on any replica.
-"""
+"""Create and validate signed OAuth state tokens."""
 
 import base64
 import hashlib
@@ -40,9 +33,7 @@ def make_state(
     secret_key: str,
     strategy: str = "outbound",
 ) -> str:
-    """`strategy` ("outbound" | "document", specs-wp20.md) rides the state so
-    `complete()` rebuilds the same client_info deterministically instead of
-    re-probing reachability at callback time."""
+    """Create signed state carrying the client-registration strategy and PKCE verifier."""
     payload = {
         "project_id": str(project_id),
         "user_id": str(user_id),

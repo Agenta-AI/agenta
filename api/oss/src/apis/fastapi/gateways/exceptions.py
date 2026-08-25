@@ -1,13 +1,4 @@
-"""Gateway exception -> HTTP mapping (entities.md §9).
-
-Written once, shared by both planes' routers and both data-plane proxies — tools and
-triggers each duplicate `handle_adapter_exceptions()` per router, a habit not repeated
-here. Modelled on `apis/fastapi/tools/router.py::handle_adapter_exceptions()`.
-
-Unlike the rest of the seed this file is COMPLETE, not declared: it maps exceptions the
-seed itself defines and depends on no work package, so leaving it unimplemented would
-leave it unowned (R1).
-"""
+"""Map gateway domain exceptions to HTTP responses."""
 
 from functools import wraps
 
@@ -45,17 +36,8 @@ from oss.src.core.gateways.policy.types import (
 def handle_gateway_exceptions():
     """Map gateway domain exceptions to HTTP.
 
-    `*NotFoundError` -> 404. `PolicyDeniedError` / `EntitlementDeniedError` -> 403.
-    `*NotAllowedError` -> 403. `CeilingExceededError` -> 400, its body naming the
-    ceiling, the requested and the allowed values (D25). `MCPAuthRequiredError` ->
-    409 carrying the `GatewayConnectionRequirement` (an interaction, not a failure
-    — D17). `*UpstreamError` -> 424, or 502 when the upstream answered >=500 (the
-    424/502 split tools and triggers already use).
-
-    The three secret/step-up arms are not in §9's list but follow from §5: a
-    missing or dead secret "says you could, once someone connects", which is the
-    same interaction 409 as a required authorization (D17, D18). Confirm before
-    checkpoint A — see R11 in `open-designs.md`.
+    Not-found errors map to 404, policy errors to 403, connection requirements to
+    409, and upstream failures to 424 or 502.
     """
 
     def decorator(func):
@@ -127,8 +109,7 @@ def handle_gateway_exceptions():
                 MCPOAuthRegistrationError,
                 MCPOAuthTokenExchangeError,
             ) as e:
-                # The upstream authorization server, not our own dependency —
-                # the message carries the cause verbatim (OD21: never generic).
+                # Preserve the authorization-server failure message.
                 raise HTTPException(
                     status_code=status.HTTP_424_FAILED_DEPENDENCY,
                     detail=e.message,

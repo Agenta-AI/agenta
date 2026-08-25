@@ -1,4 +1,4 @@
-"""Wire model instantiation — apis/fastapi/gateways/mcps/models.py (entities.md §6).
+"""MCP gateway wire-model instantiation tests.
 
 C0-style: every model in the file constructs with representative values. Also confirms
 """

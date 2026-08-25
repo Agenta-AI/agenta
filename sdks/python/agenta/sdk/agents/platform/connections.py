@@ -341,8 +341,7 @@ class _ConnectionCandidate:
         )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
-        # Region is addressing, not a credential: it reaches the gateway on the endpoint row,
-        # not by riding this dict to be discarded downstream (WP24).
+        # Region is endpoint addressing, not a credential.
         env = {k: v for k, v in self.env.items() if k not in _REGION_ENV}
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
         # Bedrock's key is a bearer token with its own channel below — never the family's
@@ -415,8 +414,7 @@ def _custom_provider_candidate(
             assert_endpoint_url_allowed(raw_url)
         except ValueError:
             # Drop the blocked URL here (the candidate may not be the chosen one). A named
-            # custom connection that IS chosen fails loud in `_resolve_from_secrets` instead of
-            # continuing endpoint-less (design Decision 4); `endpoint_blocked` shapes that error.
+            # custom connection fails in `_resolve_from_secrets` when selected.
             log.warning("agent: custom_provider url blocked by egress policy, dropping")
             raw_url = None
             endpoint_blocked = True
@@ -608,10 +606,7 @@ def _resolve_from_secrets(
         raise InvalidConnectionConfigurationError(
             "Vertex API-key authentication is not supported by the agent connection contract"
         )
-    # A chosen custom connection must carry a usable base URL. Failing here (rather than
-    # returning endpoint=None) keeps the harness from falling back to a provider default and
-    # silently ignoring the user's routing choice (design Decision 4). The error names the slug
-    # and never carries the API key.
+    # Custom connections require a usable base URL and never fall back to a provider default.
     if chosen.requires_endpoint() and not (
         chosen.endpoint and chosen.endpoint.base_url
     ):
@@ -621,9 +616,7 @@ def _resolve_from_secrets(
     if not env:
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
 
-    # The gateway holds the provider's secret now (D4/D36): the connected path routes through
-    # it rather than injecting `env` into the harness. `env`'s only remaining job above is the
-    # fail-loud emptiness check; the value itself never leaves this function.
+    # Gateway-routed connections keep provider secrets out of harness configuration.
     if not gateway_base_url or not gateway_credentials_value:
         raise ConnectionResolutionError(
             "no Agenta backend configured for gateway connection resolution"

@@ -1,4 +1,4 @@
-"""Router wiring — apis/fastapi/gateways/mcps/router.py (entities.md §9).
+"""MCP gateway router tests.
 
 TestClient + a hand-written mock `MCPGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
@@ -195,7 +195,7 @@ def deny(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Route table — path, method and operation_id match entities.md §9 exactly
+# Route table contract
 # ---------------------------------------------------------------------------
 
 
@@ -211,7 +211,7 @@ def test_route_table_matches_the_design_exactly(router):
 
 
 # ---------------------------------------------------------------------------
-# POST /endpoints/{id}/connect — the two-step consent flow (specs-wp18.md)
+# Endpoint OAuth connection
 # ---------------------------------------------------------------------------
 
 
@@ -587,8 +587,4 @@ def test_delete_endpoint_false_maps_to_404(client, service, allow):
     assert response.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# Wave-1: grant methods are declared-but-NotImplementedError; the mapping
-# table does not catch it, so it propagates as an unhandled 500. Expected,
-# not a bug to fix here (specs-wp10.md, tasks-wp10.md).
-# ---------------------------------------------------------------------------
+# Grant methods are intentionally unavailable in this router contract.

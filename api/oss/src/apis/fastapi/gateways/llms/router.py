@@ -1,17 +1,4 @@
-"""LLM gateway management CRUD router (entities.md §9).
-
-`LLMGatewayService` is WP7's — declared here only as a `TYPE_CHECKING` forward reference
-so this router can be built, wired and unit-tested against a mock before WP7 lands (rule
-4: "stop at the merge point").
-
-The SSRF gate at registration (D28): `LLMEndpointData.route.base_url` is the LLM plane's
-equivalent of the MCP plane's `data.route.base_url` — a user-typed upstream URL for a custom endpoint
-(every row this router writes is custom by construction, same as MCP). Unlike the MCP url
-it is optional (only some deployments set a base URL), so the gate only runs when it is
-set. Gated with the no-DNS `validate_url_format_and_literal_ip` (save-time; the resolving
-variant runs again at relay time in WP6) — no new guard written, exact precedent
-`core/secrets/dtos.py:140`.
-"""
+"""LLM gateway management router."""
 
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -48,9 +35,7 @@ if TYPE_CHECKING:
 def _guard_custom_endpoint_base_url(
     *, deployment_kind: LLMDeploymentKind, base_url: str | None
 ) -> None:
-    """SSRF gate at registration (D28) — no-DNS variant; never a leaked ValueError.
-
-    `base_url` is optional on `LLMEndpointRoute`; only some deployments set one."""
+    """Validate an optional custom endpoint URL before saving it."""
     if not base_url:
         return
     try:

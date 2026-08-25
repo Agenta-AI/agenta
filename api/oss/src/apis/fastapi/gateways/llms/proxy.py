@@ -1,19 +1,4 @@
-"""LLM data-plane proxy (entities.md §9): the OpenAI-compatible, Responses and Messages
-surfaces (D33, WP23).
-
-No wire models: the caller's body relays byte for byte (§7.1), on every door. Each door
-only parses just enough to route (`parse_llm_call_context`, `parse_responses_call_context`,
-`parse_messages_call_context`) and puts the answer back on the wire exactly as it arrived.
-Endpoint resolution, the allowlist, ceilings, policy authorization and secret resolution all
-live inside `LLMGatewayService.relay_chat_completion` (WP7) — one method for every door —
-this file never decides whether a call is allowed, only how to shape the denial once WP7
-says no.
-
-Streaming audit timing is not this file's job either: `LLMGatewayService` wraps the
-returned iterator and records in its own `finally` once it is exhausted. This proxy drains
-`result.body` through `StreamingResponse` and holds no `GatewayPolicyService` reference —
-the constructor below takes only the one service.
-"""
+"""Protocol-shaped LLM gateway proxy responses."""
 
 from typing import TYPE_CHECKING, Any, Callable, Dict, List
 
@@ -45,13 +30,9 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.utils.context import get_auth_scope
 
 if TYPE_CHECKING:
-    # LLMGatewayService is WP7's (core/gateways/llms/service.py) and does not exist on
-    # this branch yet — a TYPE_CHECKING-only import keeps the annotation honest without
-    # making this module's import fail before WP7 lands (out of WP6's owned paths).
     from oss.src.core.gateways.llms.service import LLMGatewayService
 
-# The caller authenticates to the gateway with this header. A caller-provided
-# Authorization header is an upstream header and must stay intact on custom routes.
+# Remove only the platform credential from relayed headers.
 _STRIPPED_INBOUND_HEADERS = {"x-ag-credentials"}
 
 _DOMAIN_EXCEPTIONS = (
@@ -66,12 +47,6 @@ _DOMAIN_EXCEPTIONS = (
     LLMEndpointNotFoundError,
     LLMUpstreamError,
 )
-
-
-# The code marker is shared with the MCP plane (`gateways/mcps/proxy.py`) via
-# `gateways/utils.py::with_code_marker` — see that module for why (WP25, OD18) and why this
-# delimiter. Never applied to `upstream_error`: D16 forwards the upstream's own detail
-# untouched, and this surface must not inject text into it.
 
 
 def _openai_error(
@@ -90,15 +65,7 @@ def _openai_error(
 
 
 def _map_domain_exception(exc: Exception) -> JSONResponse:
-    """OpenAI-shaped denial (specs-wp6.md "Error shape"): `{"error": {"message",
-    "type", "code"}}`, `code` carrying the stable cause. Mirrors the mapping
-    `handle_gateway_exceptions()` (seed, apis/fastapi/gateways/exceptions.py)
-    applies for the management CRUD, but that decorator collapses distinct
-    causes sharing one HTTP status (e.g. PolicyDeniedError and
-    LLMModelNotAllowedError both 403) into a bare `detail` string — this
-    surface needs the `code` to stay distinguishable per exception type, so it
-    is not reused here (see this package's own report for the full reasoning).
-    """
+    """Map gateway failures to OpenAI-compatible error responses."""
     if isinstance(exc, (PolicyDeniedError, EntitlementDeniedError)):
         return _openai_error(
             status_code=403,
@@ -340,7 +307,7 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.MESSAGES,
         )
 
-    # --- the shared relay, one per door's parser/protocol (D33) ---------------- #
+    # Shared relay
 
     async def _relay(
         self,

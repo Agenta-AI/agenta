@@ -1,9 +1,6 @@
-"""Guard test for D34 (specs-wp24.md): no code path in the LLM plane parses a request body
-except to read the policy fields. A grep-style guard, deliberately — this is the invariant a
-future edit is most likely to break quietly (tasks-wp24.md Phase 2).
+"""Guard that LLM request bodies are parsed only for policy fields.
 
-Every `json.loads(` call site under `core/gateways/llms/` is enumerated and justified below;
-a new one anywhere else fails the test rather than silently reintroducing conversion.
+Every `json.loads(` call site under `core/gateways/llms/` is enumerated below.
 """
 
 import re
@@ -13,16 +10,16 @@ _LLM_PLANE_ROOT = Path(__file__).parents[4] / "src/core/gateways/llms"
 
 # file (relative to _LLM_PLANE_ROOT) -> why its json.loads calls are not body conversion.
 _ALLOWED = {
-    # The policy parse itself: model/stream/ceiling extraction, read-only (D33, D34).
+    # Policy parsing extracts model, streaming, and ceiling fields read-only.
     "service.py",
     # Reads the RESPONSE body to lift `usage` for the audit record; the bytes yielded to
-    # the caller are the bytes received, never reconstructed from this parse (D34).
+    # the caller are the bytes received, never reconstructed from this parse.
     "providers/passthrough/adapter.py",
     # The mock is a test double, not a relay — it never forwards bytes anywhere, so
-    # parsing its own input to fabricate a reply is not the conversion D34 forbids.
+    # parsing its own input to fabricate a reply is not request conversion.
     "providers/mock/adapter.py",
     "providers/mock/app.py",
-    # D40's carve-out: a literal per-deployment table (Vertex only, OD19), applied only
+    # A literal Vertex-only field table applies only
     # on the Messages door. Not conversion — nothing here is read to decide anything.
     "providers/passthrough/static_fields.py",
 }

@@ -1,5 +1,5 @@
 /**
- * Acceptance (WP13): a gateway-routed run reaches every harness with no provider secret in the
+ * Acceptance: a gateway-routed run reaches every harness with no provider secret in the
  * sandbox environment. No deployed stack exists in this worktree (repo policy: write, don't run),
  * so this drives the REAL environment-construction functions the runner uses for both the local
  * and the Daytona path — `materializeModelEnvironment`, `applyClaudeConnectionEnv`,
@@ -8,8 +8,7 @@
  * models.json text, the Daytona secret plan), not the resolver's intent. It does not spawn a real
  * sandbox or harness binary; that would need the deployed stack this constraint forbids running.
  *
- * launch-2.md's Checkpoint B acceptance: "no provider secret anywhere in the sandbox" and the
- * secret arrays collapsing to one set of gateway credentials (specs-wp13.md).
+ * It verifies that only gateway credentials enter sandbox configuration.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -28,7 +27,7 @@ const GOLDEN = loadGolden("model_connection.gateway.json") as ModelConnection;
 const GATEWAY_VALUE = GOLDEN.gatewayCredentials!.value; // "ApiKey mock-gateway-credentials"
 
 // A provider-secret-shaped string. If this (or anything matching the real shape a resolver would
-// have emitted pre-gateway, e.g. "sk-...") ever appeared, the wave-2 property is broken.
+// would emit directly, e.g. "sk-...") appears, the isolation invariant is broken.
 const PROVIDER_SECRET_MARKERS = ["sk-", "OPENAI_API_KEY=", "ANTHROPIC_API_KEY="];
 
 function assertNoProviderSecret(haystack: string): void {

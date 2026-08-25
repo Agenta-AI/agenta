@@ -1,4 +1,4 @@
-"""LLM plane DBE <-> DTO mappings (entities.md §2, §4.3)."""
+"""LLM endpoint DBE and DTO mappings."""
 
 from datetime import datetime, timezone
 from uuid import UUID

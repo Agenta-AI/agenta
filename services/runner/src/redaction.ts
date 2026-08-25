@@ -430,7 +430,7 @@ export function requestSecretValues(
 }
 
 /**
- * The runner's per-run deny-set (WP1.1). The run's resolved credential values ride the typed
+ * The runner's per-run deny-set. The run's resolved credential values ride the typed
  * `modelConnection` / `mcpServers` wire shapes and never appear in the sidecar's own process
  * env, so a process-env-only seed would miss exactly the highest-value secrets — they must be
  * seeded from the REQUEST (`requestSecretValues`).

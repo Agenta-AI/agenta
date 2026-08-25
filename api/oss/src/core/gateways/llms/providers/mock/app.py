@@ -1,15 +1,9 @@
-"""Deployable mock OpenAI-compatible LLM server (entities.md §0, D23, WP5).
+"""Deployable mock OpenAI-compatible LLM server.
 
-A standalone ASGI app (`uvicorn oss.src.core.gateways.llms.providers.mock.app:app`),
-not mounted into the main API process. It terminates a real HTTP connection and a
-real socket, which is what the in-process `MockLLMAdapter` cannot exercise (SSE
-framing over the wire, a genuine hang under a client-side timeout) — Checkpoint A's
-acceptance suite needs this running as its own compose service.
+This standalone ASGI app terminates real HTTP connections so tests can exercise streaming
+framing and client-side timeouts.
 
-Delegates every request straight to `MockLLMAdapter` so both tiers share one
-implementation of the control convention: a test written against the in-process
-adapter and a test written against this process see identical behavior for the
-same input.
+It delegates every request to `MockLLMAdapter` so in-process and networked tests share behavior.
 """
 
 import json
@@ -56,7 +50,7 @@ async def health() -> Response:
 
 @app.post("/__echo/v1/chat/completions")
 async def echo_headers(request: Request) -> Response:
-    """Report the headers this process received (launch-2.md D39).
+    """Report the headers this process received.
 
     On the completions path rather than a bare route so it is reachable THROUGH the gateway:
     an endpoint whose `base_url` ends in `/__echo` relays here, and the answer is the only
@@ -133,8 +127,7 @@ async def messages(request: Request) -> Response:
     return await _relay(request, protocol=LLMProtocol.MESSAGES)
 
 
-# WP32's private-cloud fixture surface. These are deliberately explicit rather
-# than a catch-all route: a test proves the real Bedrock/Vertex protocol tails
+# Private-cloud fixture routes are explicit so tests cover the real Bedrock/Vertex protocol tails.
 # composed by routing.py reached this local socket.
 @app.post("/anthropic/v1/messages")
 async def bedrock_messages(request: Request) -> Response:

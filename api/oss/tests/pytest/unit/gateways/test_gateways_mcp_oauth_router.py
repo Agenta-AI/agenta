@@ -1,4 +1,4 @@
-"""Router wiring — apis/fastapi/gateways/mcps/oauth_router.py (specs-wp20.md).
+"""MCP OAuth metadata-router tests.
 
 TestClient against a bare FastAPI app carrying only this router — no auth middleware,
 no database. The auth-exemption itself (`middlewares/auth.py`'s `_PUBLIC_ENDPOINTS`)

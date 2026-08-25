@@ -16,7 +16,7 @@ from agenta.sdk.agents.connections.endpoints import (
     gateway_target,
 )
 
-# --------------------------------------------------------------------- gateway_target (D30)
+# Gateway target routing
 
 
 def test_provider_key_routes_through_standard():
@@ -112,7 +112,7 @@ def test_build_gateway_resolved_connection_refuses_remote_http_api_route():
     ["http://localhost:8000", "http://127.0.0.1:8000"],
 )
 def test_build_gateway_resolved_connection_allows_loopback_http(gateway_base_url):
-    # D37: the https requirement is loopback-exempt, and the gateway route is no exception.
+    # The HTTPS requirement is loopback-exempt for gateway routes too.
     resolved = build_gateway_resolved_connection(
         provider="openai",
         model="gpt-5.5",

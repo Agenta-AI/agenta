@@ -1,5 +1,5 @@
 /**
- * Unit tests for the pure Pi model-config builder (design Decision 5, planning layer).
+ * Unit tests for the pure Pi model-config builder.
  *
  * Exhaustive over the applicability + completeness gate, and a no-secret-leak proof. Pure module:
  * no filesystem or sandbox dependency.

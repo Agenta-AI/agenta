@@ -511,7 +511,7 @@ export async function acquireEnvironment(
     }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
-    // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
+    // this line. `writeDaemonEnv` throws after this point.
     ctx.freezeDaemonEnv();
     const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
       plan.sandboxId,
@@ -1055,7 +1055,7 @@ export async function acquireEnvironment(
     //
     // For a managed OpenAI-compatible custom run, request the FULLY QUALIFIED
     // `<connection-slug>/<model-id>` that pi-acp advertises for this provider, not the bare wire
-    // model id (design Decision 7). `applyModel`/`pickModel` fall back to suffix matching, which
+    // model id. `applyModel`/`pickModel` fall back to suffix matching, which
     // returns the FIRST advertised id whose suffix matches — so a built-in `openai/<model>` that
     // Pi still advertises (the vault key rides in as `OPENAI_API_KEY`, keeping Pi's built-in
     // openai provider live) would be selected ahead of the custom `<slug>/<model>` when both share

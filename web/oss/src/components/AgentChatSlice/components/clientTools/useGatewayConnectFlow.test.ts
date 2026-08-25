@@ -1,8 +1,5 @@
 /**
- * Unit tests for the pure helpers in `useGatewayConnectFlow` (WP26): parsing a call's `target`
- * out of `meta.input`, and the settle-output builders for each terminal state. No React render,
- * no real drawer, no real backend — mirrors `useConnectFlow.test.ts`'s style of testing the
- * extracted pure logic directly.
+ * Unit tests for pure gateway connection-flow helpers.
  */
 import {describe, expect, it} from "vitest"
 

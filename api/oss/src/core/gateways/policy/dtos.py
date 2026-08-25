@@ -1,4 +1,4 @@
-"""The policy core's DTOs (entities.md §4.2).
+"""Gateway policy DTOs.
 
 Principal-adjacent shapes shared by both planes: what the resolver is asked for, what
 policy decides, and what audit records.
@@ -55,8 +55,7 @@ class SecretOrigin(str, Enum):
 
 
 class ProviderKeyRef(BaseModel):
-    """A builtin LLM endpoint — the standard-provider set (D27): find the
-    provider_key secret for this provider."""
+    """A built-in LLM endpoint resolved by provider key."""
 
     provider_key: str
 
@@ -90,8 +89,8 @@ class GatewayTarget(BaseModel):
     namespace: GatewayEndpointNamespace
     name: str  # last path component: a slug, a provider key, or a connection slug
     #
-    provider: Optional[str] = None  # MCP builtin: the broker segment (D27)
-    integration: Optional[str] = None  # MCP builtin: the integration segment (D27)
+    provider: Optional[str] = None  # MCP built-in provider segment.
+    integration: Optional[str] = None  # MCP built-in integration segment.
     endpoint_id: Optional[UUID] = None  # set when the target is a row
     model: Optional[str] = None  # LLM plane
     method: Optional[str] = None  # MCP plane: the protocol method

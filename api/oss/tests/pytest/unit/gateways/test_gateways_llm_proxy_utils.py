@@ -76,7 +76,7 @@ def test_chat_completions_context_is_tagged_with_its_protocol():
     assert context.protocol == LLMProtocol.CHAT_COMPLETIONS
 
 
-# --- parse_responses_call_context, parse_messages_call_context (D33, WP23) --------- #
+# Responses and Messages parsing
 
 _DOOR_PARSERS = [
     (parse_responses_call_context, LLMProtocol.RESPONSES),

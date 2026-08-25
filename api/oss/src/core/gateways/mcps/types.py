@@ -1,4 +1,4 @@
-"""MCP plane domain exceptions (entities.md §5)."""
+"""MCP gateway domain exceptions."""
 
 from typing import List, Optional
 from uuid import UUID
@@ -30,7 +30,7 @@ class MCPEndpointNotFoundError(GatewaysError):
 
 
 class MCPToolNotAllowedError(GatewaysError):
-    """The named tool is outside the endpoint's tool policy (§2.4)."""
+    """The named tool is outside the endpoint policy."""
 
     def __init__(
         self,
@@ -53,9 +53,7 @@ class MCPToolNotAllowedError(GatewaysError):
 
 
 class MCPAuthRequiredError(GatewaysError):
-    """No usable grant for this owner on an OAuth endpoint. Carries the
-    requirement so the boundary can return the connect affordance instead of a
-    bare failure (D17)."""
+    """No usable OAuth grant is available for the endpoint."""
 
     def __init__(self, *, requirement: GatewayConnectionRequirement):
         self.requirement = requirement
@@ -63,12 +61,7 @@ class MCPAuthRequiredError(GatewaysError):
 
 
 class MCPScopeInsufficientError(GatewaysError):
-    """A step-up scope challenge from the upstream (D17; `mcp.md`; WP19). Raised by
-    `MCPGatewayService.relay` when a `custom` OAuth endpoint's upstream answers 403
-    with an RFC 6750 `insufficient_scope` challenge. `endpoint_id` is optional so the
-    boundary can attach a connect affordance without widening every existing caller
-    (specs-wp17.md/wp18.md's own precedent — WP17's tests construct this with only
-    `target`/`scopes`)."""
+    """The upstream requires additional OAuth scopes."""
 
     def __init__(
         self,

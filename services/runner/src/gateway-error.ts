@@ -4,28 +4,24 @@
  * The LLM gateway's data-plane refusals (`apis/fastapi/gateways/llms/proxy.py`
  * `_map_domain_exception`) are OpenAI-shaped: `{"error": {"message", "type", "code", ...}}`.
  * A harness's provider SDK is the thing that actually receives that HTTP body. Two recovery
- * paths, tried in order (OD18, `open-designs.md`):
+ * paths, tried in order:
  *
  * 1. The JSON body, verbatim, embedded in the harness's error text (most OpenAI/Anthropic-
  *    compatible SDKs fold it into their thrown error's message). Recovers everything:
  *    `code`, `message`, `next_step`, `details`.
  * 2. A single machine-readable marker (`⟦agenta_code:<code>⟧`) the gateway appends to every
  *    TYPED refusal's `message` field specifically so `code` survives even when a harness's
- *    SDK strips the JSON structure and keeps only that one field — confirmed for Codex
- *    (`codex-rs`'s `extract_error_message` discards everything but `error.message`). Recovers
+ *    SDK strips the JSON structure and keeps only that one field. Recovers
  *    `code` only: `retryable`/`next_step`/`details` are lost on a marker-only harness, and a
- *    caller of this function (WP19's step-up interaction) must degrade to a generic prompt
+ *    caller must degrade to a generic prompt
  *    when it sees no `details`/`next_step` rather than assume one exists.
  *
  * A harness whose SDK discards BOTH — the full body and the marker inside `message` — still
- * yields `undefined`; no harness examined does this (OD18).
+ * yields `undefined`.
  */
 import type { AgentErrorDetail } from "./protocol.ts";
 
-// U+27E6/U+27E7 (MATHEMATICAL LEFT/RIGHT WHITE SQUARE BRACKET): chosen because they never
-// occur in ordinary error prose, a model's own output, JSON delimiters (`{}`/`[]`), or
-// markdown, so nothing else can produce or be mistaken for this marker. Must match the gateway
-// (`api/oss/src/apis/fastapi/gateways/llms/proxy.py` `_CODE_MARKER_OPEN`/`_CLOSE`).
+// A distinct marker preserves the error code when a harness discards the error body.
 const CODE_MARKER_RE = /⟦agenta_code:([a-z_]+)⟧/;
 
 interface GatewayErrorBody {
@@ -96,10 +92,7 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
   return {
     code,
     message,
-    // Every code the gateway raises before dialling upstream is a policy/config refusal, not a
-    // transient one; `upstream_error` (the one code that could be transient) has no reliable
-    // signal in the harness-formatted text either, so it stays conservative rather than telling
-    // a model to retry a permanent failure (api/AGENTS.md's retryable guidance).
+    // Parsed gateway refusals are non-retryable without changing the request or configuration.
     retryable: false,
     ...(NEXT_STEPS[code] ? { next_step: NEXT_STEPS[code] } : {}),
     ...(Object.keys(details).length > 0 ? { details } : {}),
@@ -109,8 +102,8 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
 /**
  * Path 2: the body is gone but the marker survived inside whatever text remains (Codex).
  * Recovers `code` only — `next_step` and `details` need the body, and are omitted rather
- * than backfilled from `NEXT_STEPS`, so a caller (WP19) can tell "only a code" from "the
- * full envelope" and degrade to a generic step-up prompt instead of a specific one.
+ * than backfilled from `NEXT_STEPS`, so callers distinguish a code-only result from a full
+ * envelope and can use a generic recovery prompt.
  */
 function parseFromMarker(raw: string): AgentErrorDetail | undefined {
   const match = raw.match(CODE_MARKER_RE);

@@ -19,7 +19,7 @@ from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolv
 from agenta.sdk.agents.platform import connections
 
 # The `connection` fixture pins base_url to this host; the gateways mount under it, so every
-# routed resolution composes its gateway route against it (D30).
+# routed resolution composes its gateway route against it.
 _GATEWAY_BASE = "https://api.x/api"
 
 
@@ -248,8 +248,7 @@ async def test_an_explicit_model_declaration_beats_a_connection_with_no_list(
 async def test_two_connections_declaring_the_same_model_stay_ambiguous(
     fake_http, connection
 ):
-    # Narrowing only resolves what is unambiguous; two connections claiming the same model still
-    # fail loud rather than picking one by iteration order.
+    # Narrowing resolves only unambiguous models; duplicate claims remain an error.
     fake_http(
         connections,
         payload=[
@@ -385,7 +384,7 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
 ):
     # A named custom record for an OpenAI-shaped family still normalizes to `deployment
     # "direct"`, but the connected path now routes it through `custom/{slug}` on the
-    # gateway rather than injecting the vault's provider-family env var (D4/D36).
+    # gateway rather than injecting the vault's provider-family env var.
     endpoint = "https://93.184.216.34/v1"
     model_id = "vendor/model-v1"
     fake_http(

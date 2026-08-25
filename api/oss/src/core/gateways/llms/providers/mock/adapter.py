@@ -1,14 +1,14 @@
-"""MockLLMAdapter: the in-process mock LLM upstream (entities.md §7.1, D23).
+"""In-process mock LLM upstream.
 
 No socket, no process. Registered once, statically, under the "mock" adapter key
-(wiring block, entities.md §9). Controllable behavior is keyed by `context.model`,
+Controllable behavior is keyed by `context.model`,
 checked as a prefix so the base model name stays free-form:
 
     mock/echo         (default; any name matching no other suffix below)
     mock/error        raises LLMUpstreamError
     mock/slow-{n}     sleeps n seconds, then answers like mock/echo
 
-`context.protocol` (D33, WP23) picks the response shape — Chat Completions, OpenAI
+`context.protocol` picks the response shape — Chat Completions, OpenAI
 Responses or Anthropic Messages — so the three front doors each have something protocol-
 shaped to relay in tests, without any of this adapter's logic branching on the door that
 called it beyond this one dispatch.
@@ -143,9 +143,9 @@ async def _empty_body() -> AsyncIterator[bytes]:
 
 
 class MockLLMAdapter(LLMUpstreamInterface):
-    """The mock upstream (D23): unauthenticated, in-process, never opens a
+    """Unauthenticated, in-process mock upstream that never opens a
     socket. `secret` may be None — targets with GatewayAuthScheme.NONE are
-    the intended callers (entities.md §2)."""
+    the intended callers."""
 
     async def relay_chat_completion(
         self,

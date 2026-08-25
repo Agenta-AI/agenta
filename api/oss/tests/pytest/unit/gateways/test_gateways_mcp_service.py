@@ -1,11 +1,10 @@
-"""Unit tests for `MCPGatewayService` (specs-wp9.md, tasks-wp9.md).
+"""Unit tests for `MCPGatewayService`.
 
 Every case runs against in-memory mocks — a dict-backed `MCPEndpointsDAOInterface`, a
 a stub `ConnectionsService`, a call-logging
 `GatewayPolicyService`, and a call-logging `SecretsResolverInterface`. No Postgres, no
-HTTP, no real upstream. Organized by the commit sections in tasks-wp9.md:
-CRUD delegation, the three-namespace merge, connection-state derivation, the declared
-grants surface, and the relay six-step orchestration.
+HTTP, or real upstream. Covers CRUD delegation, endpoint listing, connection state, grants,
+and relay orchestration.
 """
 
 from typing import Dict, List, Optional
@@ -398,7 +397,7 @@ async def test_list_endpoints_never_writes_a_generated_entry_to_the_dao():
     assert "delete_endpoint" not in dao.calls
 
 
-# --- connection-state derivation (entities.md §8) ------------------------------------- #
+# Connection-state derivation
 
 
 @pytest.mark.asyncio
@@ -419,7 +418,7 @@ async def test_connection_state_none_scheme_is_ready_unconditionally():
     assert state == GatewayConnectionState.READY
 
 
-# --- grants: declared, not implemented (WP17/WP18) ------------------------------------ #
+# Grant behavior
 
 
 @pytest.mark.asyncio
@@ -822,7 +821,7 @@ async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
     assert names == {"a", "b", "c"}
 
 
-# --- relay: step-up scope challenge (D17, WP19) ----------------------------------------- #
+# Relay scope challenge
 
 
 async def _oauth_endpoint(dao: "MockMCPEndpointsDAO") -> MCPEndpoint:
@@ -878,7 +877,7 @@ async def test_relay_scope_challenge_with_scope_param_raises_with_the_requested_
     assert excinfo.value.scopes == ["notion:write"]
     assert excinfo.value.endpoint_id == endpoint.id
     assert excinfo.value.target == "custom/acme-notion"
-    # Step-up is an interaction, not a bare failure (D17) — the outcome is still recorded.
+    # Scope challenges are interactions and still record an outcome.
     assert policy.record_calls[-1]["outcome"].status_code == 403
 
 

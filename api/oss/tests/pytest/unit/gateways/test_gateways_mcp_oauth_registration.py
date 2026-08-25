@@ -1,4 +1,4 @@
-"""Unit tests for the registration-strategy detector (specs-wp20.md "The detector").
+"""Unit tests for the registration-strategy detector.
 
 Pure functions, an injected resolver — no DNS, no network, no mock authorization
 server needed for these.

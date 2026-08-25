@@ -1,4 +1,4 @@
-"""LLM plane DBA mixins (entities.md §2)."""
+"""LLM endpoint DBA mixins."""
 
 from sqlalchemy import UUID, Column
 from sqlalchemy import Enum as SQLEnum
@@ -31,15 +31,14 @@ class LLMEndpointDBA(
     TagsDBA,
     MetaDBA,
 ):
-    """One custom LLM endpoint: a provider deployment_kind we reach (entities.md §2)."""
+    """One custom LLM endpoint."""
 
     __abstract__ = True
 
-    # Nullable (entities.md §2.4): D34 removed the one branch that read it on a stored row
-    # (select_upstream's `direct` split), so it decides nothing and is a label only.
+    # Optional provider-family label for custom endpoints.
     provider_key = Column(String, nullable=True)
     deployment_kind = Column(
         SQLEnum(LLMDeploymentKind, name="llmdeploymentkind_enum"), nullable=False
     )
     secret_id = Column(UUID(as_uuid=True), nullable=True)
-    # data: { route, models, settings } — LLMEndpointData (entities.md §2.4)
+    # data: route, models, and settings.

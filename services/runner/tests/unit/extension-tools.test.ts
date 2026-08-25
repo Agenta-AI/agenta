@@ -1,5 +1,5 @@
 /**
- * Regression: the Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
+ * The Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
  *
  * Guards QA finding F-005 (docs/design/agent-workflows/qa/findings.md): a build where the
  * extension stopped reading AGENTA_AGENT_TOOLS_PUBLIC_SPECS shipped custom tools that the model never
@@ -140,7 +140,7 @@ describe("agenta extension model provider override", () => {
 
   it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {
     // A gateway-routed connection whose original deployment is "direct" (a plain provider_key
-    // connection, WP12's majority case) never goes through the custom-provider models.json path
+    // connection) never goes through the custom-provider models.json path
     // (isPiModelConfigApplicable requires a NAMED custom-agenta connection) -- this extension
     // override is the ONLY place it can carry the header, or the run reaches the real provider
     // with no credential and no visible failure.
@@ -407,10 +407,7 @@ describe("agenta extension tool registration", () => {
 });
 
 /**
- * Regression: "Agent run failed: spawn E2BIG". The runner used to pack every hydrated tool spec
- * into AGENTA_AGENT_TOOLS_PUBLIC_SPECS; Linux rejects an execve whose env holds a string over
- * 131,072 bytes, so a large tool set killed the harness spawn. The specs now arrive in a file
- * named by AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE, and this is the read side of that contract.
+ * Tool specs arrive in a file named by AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE.
  */
 describe("agenta extension tool specs delivery", () => {
   const specsDirs: string[] = [];

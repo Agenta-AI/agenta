@@ -1,10 +1,10 @@
-"""`MCPOAuthClient` (specs-wp17.md "Why not OAuthClientProvider").
+"""OAuth client for MCP endpoint authorization.
 
 Discovery, RFC 7591 dynamic registration and authorization-code token exchange, built
 from the SDK's own wire DTOs (`mcp.shared.auth`) and PKCE generator
 (`mcp.client.auth.oauth2.PKCEParameters`) rather than from `OAuthClientProvider`, whose
 `async_auth_flow` blocks one coroutine across the whole flow — a shape a web deployment's
-two-separate-HTTP-requests callback cannot satisfy (D26).
+two-separate-HTTP-requests callback cannot satisfy.
 """
 
 import re

@@ -1,9 +1,4 @@
-"""Routing strategies (D34, OD16): compose a URL from route fields, never from the body.
-
-One function per `deployment_kind`. Each raises `LLMUpstreamError` rather than guess when a
-route lacks what it needs — the failure names the provider so the caller can fix the
-endpoint, and it happens before any I/O.
-"""
+"""Compose provider URLs from resolved routes without inspecting request bodies."""
 
 from typing import Callable, Dict
 
@@ -14,20 +9,14 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 
-# Each provider's own version segment lives in its base_url, matching the mock upstream's
-# mount (`providers/mock/app.py`: `/v1/chat/completions`, `/v1/responses`, `/v1/messages`,
-# all root-relative) — every base_url below already ends where its protocol path begins, so
-# `MESSAGES` is "/messages", not "/v1/messages": Anthropic's own base_url carries the `/v1`.
+# Provider base URLs include any required version prefix.
 _PROTOCOL_PATHS: Dict[LLMProtocol, str] = {
     LLMProtocol.CHAT_COMPLETIONS: "/chat/completions",
     LLMProtocol.RESPONSES: "/responses",
     LLMProtocol.MESSAGES: "/messages",
 }
 
-# provider_key -> fixed base URL for a DIRECT deployment whose wire needs no per-row
-# configuration (open-designs.md OD16). Every entry but `anthropic` is an OpenAI-compatible
-# endpoint the provider publishes itself; `anthropic` is its own native Messages wire, which
-# is exactly what the Messages front door relays.
+# Fixed URLs for direct providers; custom deployments supply their own base URL.
 DIRECT_BASE_URLS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
     "groq": "https://api.groq.com/openai/v1",
@@ -53,7 +42,7 @@ def _direct_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     if not base_url:
         raise _no_route(
             provider_key=route.provider_key,
-            detail=f"provider {route.provider_key!r} has no known route (OD16 did not clear it)",
+            detail=f"provider {route.provider_key!r} has no known route",
         )
     return base_url.rstrip("/") + _PROTOCOL_PATHS[protocol]
 
@@ -72,8 +61,7 @@ def _azure_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
         raise _no_route(
             provider_key=route.provider_key, detail="azure endpoint has no base_url"
         )
-    # `route.model` is the deployment name (entities.md §2.4's Azure example carries no
-    # separate deployment field).
+    # Azure uses the configured model as its deployment name.
     url = (
         f"{route.base_url.rstrip('/')}/openai/deployments/{route.model}"
         f"{_PROTOCOL_PATHS[protocol]}"
@@ -83,9 +71,7 @@ def _azure_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     return url
 
 
-# OD19: bedrock-mantle serves all three doors on one host, so `base_url` on a BEDROCK row is
-# the host alone — each door's tail is looked up here, not in the generic _PROTOCOL_PATHS
-# table (which assumes base_url already ends where the tail begins).
+# Bedrock has protocol-specific paths beneath a common host.
 _BEDROCK_PROTOCOL_PATHS: Dict[LLMProtocol, str] = {
     LLMProtocol.CHAT_COMPLETIONS: "/v1/chat/completions",
     LLMProtocol.RESPONSES: "/v1/responses",
@@ -105,9 +91,7 @@ def _bedrock_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     return base_url.rstrip("/") + _BEDROCK_PROTOCOL_PATHS[protocol]
 
 
-# OD19: base_url on a VERTEX row is the host plus the shared
-# /v1/projects/{project}/locations/{region} prefix — common to both Vertex doors, which then
-# append only their own tail (/endpoints/openapi/... here, /publishers/anthropic/... below).
+# Vertex routes share a project and location prefix.
 def _vertex_base_prefix(route: LLMResolvedRoute) -> str:
     if route.base_url:
         return route.base_url.rstrip("/")
@@ -129,11 +113,10 @@ def _vertex_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
 
 
 def _sagemaker_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:  # noqa: ARG001
-    # OD16: SageMaker has no platform-level request schema — InvokeEndpoint forwards
-    # opaque bytes to whatever container the customer deployed. Unreachable, deliberately.
+    # SageMaker has no fixed platform request schema.
     raise _no_route(
         provider_key=route.provider_key,
-        detail="sagemaker has no fixed request protocol (OD16); not reachable through the gateway",
+        detail="sagemaker has no fixed request protocol and is not reachable through the gateway",
     )
 
 
@@ -147,10 +130,7 @@ _ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, LLMProtocol], str]
 }
 
 
-# D40/OD19: Vertex's Messages door reaches the real resold-Anthropic operation
-# (rawPredict) — the OpenAI-compatible `_vertex_url` above composes a different wire and
-# stays exactly as it is. Bedrock needs no equivalent: `_bedrock_url` above already covers
-# its Messages door (bedrock-mantle takes the model in the body, not the URL).
+# Vertex Messages uses its Anthropic raw-predict operation.
 def _vertex_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
     if not route.model:
         raise _no_route(

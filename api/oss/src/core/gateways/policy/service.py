@@ -1,11 +1,4 @@
-"""GatewayPolicyService: authorize, audit, usage (entities.md §8, WP3/WP4).
-
-`authorize()` is the whole of wave 1's decision. There is no entitlement arm (D29):
-every user has both gateways, so a check here would ask a question with one answer —
-what entitlements will express here are limits, which cannot be enforced before
-anything is measured, and ship with metering and billing. `record()` builds and
-publishes the audit event via WP4's `policy/audit.py`.
-"""
+"""Authorize gateway access and publish audit events."""
 
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
@@ -30,7 +23,7 @@ class GatewayPolicyService:
     ) -> None:
         self.resolver = resolver
 
-    # --- authorization (WP3) ------------------------------------------------ #
+    # Authorization
 
     async def authorize(
         self,
@@ -39,9 +32,7 @@ class GatewayPolicyService:
         permission: Permission,
         target: GatewayTarget,
     ) -> PolicyDecision:
-        # Fails closed, and returns rather than raising (entities.md §8): an RBAC
-        # dependency blip is a denial the caller can audit, not a 500 that skips
-        # record() and loses the event.
+        # Authorization failures are recorded as denials.
         try:
             allowed = await check_action_access(
                 user_uid=str(scope.user_id),
@@ -69,7 +60,7 @@ class GatewayPolicyService:
 
         return PolicyDecision(allowed=True, permission=permission, reason=None)
 
-    # --- audit + usage (WP4, D22, §2.7) ------------------------------------- #
+    # Audit and usage
 
     async def record(
         self,
@@ -79,8 +70,7 @@ class GatewayPolicyService:
         decision: PolicyDecision,
         outcome: GatewayOutcome,
     ) -> None:
-        # Every relay in WP6/7/8/9 calls this on both the allow and deny
-        # branch; publish_gateway_call never raises (D22, specs-wp4.md).
+        # Publish audit events for both allowed and denied relays.
         await publish_gateway_call(
             scope=scope,
             target=target,

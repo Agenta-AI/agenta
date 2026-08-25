@@ -90,7 +90,7 @@ const useCanPanesCoexist = () =>
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
  * generation arm beside chat and completion).
  *
- * Single view keeps the slice's session tab bar (design decision D2): parallel conversations,
+ * Single view keeps the slice's session tab bar: parallel conversations,
  * add with `+`, close with `×`, double-click to rename — rendered as a row of status-dotted tags
  * (`SessionTagBar`) whose bottom edge aligns with the config panel header. Sessions are app-scoped
  * (shared with the rest of the playground) and persist to localStorage, so tabs survive a reload;

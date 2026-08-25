@@ -213,7 +213,7 @@ async def test_concurrent_calls_with_different_connections_do_not_cross_contamin
     order = []
 
     async def acompletion(**kwargs):
-        # The entry resolved second (openai-2) finishes first, so a shared-state bug
+        # The entry resolved second (openai-2) finishes first, exposing shared-state interference.
         # would leak "sk-second" into the first entry's in-flight call.
         if kwargs["api_key"] == "sk-second":
             await asyncio.sleep(0)

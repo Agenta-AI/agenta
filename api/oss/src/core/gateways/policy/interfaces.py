@@ -1,9 +1,4 @@
-"""The secret resolver port (entities.md §7.2).
-
-Implemented by `policy/resolution.py` over `VaultService` and the grants DAO (WP2). This
-is the signature the seed must get right (D10): the owner is in it from the first commit,
-while the only answer today is the project.
-"""
+"""Interface for resolving gateway secrets."""
 
 from abc import ABC, abstractmethod
 from typing import Set
@@ -17,8 +12,7 @@ from oss.src.utils.context import AuthScope
 
 
 class SecretsResolverInterface(ABC):
-    """One lookup, called by both planes (`secrets.md`). Mockable (D23): the
-    mock resolver answers from a dict and never touches the vault."""
+    """Resolve one secret for either gateway plane."""
 
     @abstractmethod
     async def resolve(
@@ -39,10 +33,7 @@ class SecretsResolverInterface(ABC):
                            project's; SecretNotFoundError(USER) naming the
                            narrower owner if neither exists.
 
-        User-owned secrets are out of scope (`out-of-scope.md`), so the user arm
-        of every mode finds nothing and the modes degrade to project lookup or
-        failure. The signature keeps the owner anyway, per D10: reopening this is
-        then a new table and a new arm, never a signature change.
+        User-owned secrets are not currently resolved.
 
         By ref arm:
           ProviderKeyRef -> scan the project's provider_key / custom_provider
@@ -51,7 +42,7 @@ class SecretsResolverInterface(ABC):
           BoundSecretRef -> VaultService.get_secret_by_id, scoped to the project.
                             Both planes' endpoints name their secret this way,
                             OAuth included; SecretInvalidError when the
-                            endpoint's is_valid is False (D18).
+                            endpoint's is_valid is False.
 
         Raises, never returns None: no path silently yields "no secret"
         (`secrets.md`), and the exceptions carry which owner is missing so the

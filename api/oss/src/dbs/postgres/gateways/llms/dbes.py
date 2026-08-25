@@ -1,4 +1,4 @@
-"""LLM plane DBE (entities.md §3)."""
+"""LLM endpoint DBEs."""
 
 from sqlalchemy import (
     ForeignKeyConstraint,

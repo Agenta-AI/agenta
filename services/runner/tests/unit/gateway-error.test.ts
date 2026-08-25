@@ -1,7 +1,6 @@
 /**
  * `parseGatewayErrorDetail`: best-effort recovery of the gateway's structured refusal from a
- * harness-reported error string (WP13, per launch-2.md's Checkpoint B acceptance: a model the
- * connection may not use, or a deactivated endpoint, must fail with the cause named).
+ * harness-reported error string.
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";

@@ -1,5 +1,5 @@
 /**
- * Pure Pi model-config builders (design Decision 5, planning layer).
+ * Pure Pi model-config builders.
  *
  * Translates a neutral `/run` request into Pi's native `models.json` plan, WITHOUT any filesystem
  * or sandbox dependency. The materialization (local write / Daytona upload) lives in
@@ -29,11 +29,11 @@ import type {
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
-/** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
+/** The API dialect emitted by this builder. */
 export type PiProviderApi = "openai-completions";
 
 /**
- * The canonical env var a managed OpenAI-compatible key resolves into (design Decision 2). The
+ * The canonical env var a managed OpenAI-compatible key resolves into. The
  * document references it as `$OPENAI_API_KEY`; the raw value never enters the plan or the file.
  */
 export const OPENAI_API_KEY_ENV = "OPENAI_API_KEY";
@@ -61,9 +61,8 @@ export interface PiModelConfigPlan {
   /** The exact selected model(s). v1 registers exactly one. */
   models: Array<{ id: string }>;
   /**
-   * OUR gateway credential (D31/D36), keyed by header name, valued by `$ENV_VAR` indirection
-   * (`models.json`'s own value-resolution syntax — see the bundled Pi `docs/models.md`) so the
-   * raw value never reaches this file on disk. Absent when the connection is not gateway-routed.
+   * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
+   * Absent when the connection is not gateway-routed.
    */
   headers?: Record<string, string>;
 }
@@ -222,7 +221,7 @@ export function buildPiModelRegistrationPlan(
 /**
  * Thrown when a request is APPLICABLE (a managed OpenAI-compatible custom Pi run) but INCOMPLETE:
  * a required piece (slug, base URL, env credential mode, key, or model) is missing. Fail loud —
- * a run must never silently fall back to a default provider (design Decision 5). Single line so
+ * a run must never silently fall back to a default provider. Single line so
  * `conciseError` surfaces it verbatim; it never carries the key value.
  */
 export class PiModelConfigError extends Error {
@@ -268,8 +267,7 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
  * the request is INCOMPLETE and throws `PiModelConfigError`:
  *   - a non-empty connection slug;
  *   - an endpoint base URL;
- *   - credential mode "env", OR "none" with a gateway credential (D31/D36: a gateway route
- *     carries OUR credentials instead of the provider's, so there is no API key to require);
+ *   - credential mode "env", OR "none" with a gateway credential;
  *   - `OPENAI_API_KEY` present in the materialized model environment when credential mode is
  *     "env" (`secrets` — on a Daytona Secrets run this includes the opaque credential BINDINGS,
  *     whose in-sandbox value is the Daytona placeholder);
@@ -289,10 +287,7 @@ export function buildPiModelConfigPlan(
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
   const gatewayCredentials = request.modelConnection?.gatewayCredentials;
-  // A gateway route (D31/D36) carries OUR credentials instead of a provider key: credentialMode
-  // is "none" and there is nothing in `secrets` to require. `env` mode is still the only other
-  // legal shape (the provider key itself), so this is not a third credentialMode value — it is
-  // gatewayCredentials substituting for the API-key check the same way it substitutes on the wire.
+  // Gateway routes use credential mode "none" with explicit gateway credentials.
   const credentialModeOk =
     credentialMode === "env" || (credentialMode === "none" && !!gatewayCredentials);
 

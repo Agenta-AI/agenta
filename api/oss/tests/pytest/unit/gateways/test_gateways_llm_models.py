@@ -1,4 +1,4 @@
-"""Wire model instantiation — apis/fastapi/gateways/llms/models.py (entities.md §6).
+"""LLM gateway wire-model instantiation tests.
 
 C0-style: every model in the file constructs with representative values.
 """

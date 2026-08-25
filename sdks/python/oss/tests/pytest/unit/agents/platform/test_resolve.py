@@ -36,7 +36,7 @@ async def test_resolve_mcp_empty_returns_empty():
 
 
 async def test_resolve_mcp_routes_through_the_gateway_when_configured():
-    # `resolve_mcp` is the connected default (WP15): with a backend configured, every
+    # `resolve_mcp` is the connected default: with a backend configured, every
     # server routes through `custom/{name}` with our credentials rather than dialling the
     # author's own URL with a named secret — `_EmptySecrets` proves no vault lookup happens.
     connection = PlatformConnection(

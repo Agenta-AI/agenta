@@ -50,9 +50,7 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
-# The gateways' own credentials header (D31). It wins over `Authorization` everywhere, and
-# on the gateway DATA PLANE it is the only header read at all — there `Authorization`
-# belongs to the upstream, so a fallback would read the caller's vendor auth as ours.
+# Gateway credentials use this header. Gateway data-plane Authorization belongs upstream.
 _CREDENTIALS_HEADER = "X-AG-Credentials"
 
 # `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
@@ -103,8 +101,7 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
-    # GATEWAYS — the MCP OAuth client identity document, fetched by an authorization
-    # server with no auth token (specs-wp20.md)
+    # MCP OAuth client identity document, fetched without an Agenta auth token.
     "/gateways/mcps/oauth/client-metadata.json",
     "/api/gateways/mcps/oauth/client-metadata.json",
 )
@@ -944,8 +941,7 @@ async def verify_secret_token(
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
 
     except ExpiredSignatureError as exc:
-        # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
-        # caller that never re-acquired, which is a live client bug, hence warning over debug.
+        # The signature is valid but the token has expired, so log at warning level.
         log.warn(
             "[auth] secret token unauthorized",
             path=request.url.path,

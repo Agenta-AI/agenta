@@ -1,4 +1,4 @@
-"""Unit tests for MCPGatewayProxy routing (entities.md §9, workstreams/specs-wp8.md).
+"""Unit tests for MCP gateway proxy routing.
 
 In-process ASGI against a mock `MCPGatewayService` and a mockd `get_auth_scope()` — no
 Postgres, no real service, no network. Asserts which handler each path reaches (the
@@ -276,7 +276,7 @@ def test_mapped_gateway_exceptions_carry_status_and_cause(
     assert payload["jsonrpc"] == "2.0"
     assert payload["id"] is None
     assert payload["error"]["data"]["cause"] == expected_cause
-    # never the house `{code,message,retryable,...}` envelope (entities.md §9)
+    # never the gateway error envelope.
     assert "retryable" not in payload["error"]["data"]
 
 

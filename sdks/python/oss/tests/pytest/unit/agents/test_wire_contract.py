@@ -786,8 +786,7 @@ def test_request_to_wire_codex_matches_golden(golden):
 
 
 def test_request_to_wire_codex_renders_config_toml_from_authored_options():
-    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
-    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # This test drives the pass-through directly to pin the rendering.
     # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
     # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
     # around the authored scalars (D-002 final ruling).
@@ -874,7 +873,7 @@ def test_request_to_wire_codex_subscription_renders_no_provider_block():
 
 
 def test_request_to_wire_codex_gateway_route_renders_base_url_and_headers():
-    # WP13/D31: a gateway-routed resolved connection threads endpoint.base_url and the gateway
+    # A gateway-routed resolved connection threads endpoint.base_url and the gateway
     # credential's HEADER NAME (never its value) onto config.toml.
     from agenta.sdk.agents.connections.models import GatewayCredentials
 
@@ -1171,7 +1170,7 @@ def test_result_from_wire_raises_on_failure(golden):
 
 
 def test_result_from_wire_carries_gateway_error_detail(golden):
-    # WP13: a gateway refusal survives structured onto AgentRunFailed, not only as a string.
+    # A gateway refusal survives on AgentRunFailed as structured data, not only as a string.
     with pytest.raises(AgentRunFailed) as excinfo:
         result_from_wire(golden("run_result.error_detail.json"))
     exc = excinfo.value

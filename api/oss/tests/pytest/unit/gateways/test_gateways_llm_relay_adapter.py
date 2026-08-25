@@ -1,4 +1,4 @@
-"""Unit tests for RelayLLMAdapter (entities.md §7.1, workstreams/specs-wp24.md).
+"""Unit tests for `RelayLLMAdapter`.
 
 Nothing running: httpx.MockTransport intercepts every request, no real socket.
 """

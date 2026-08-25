@@ -1,4 +1,4 @@
-"""MCP plane DBEs (entities.md §3)."""
+"""MCP endpoint DBEs."""
 
 from sqlalchemy import (
     ForeignKeyConstraint,

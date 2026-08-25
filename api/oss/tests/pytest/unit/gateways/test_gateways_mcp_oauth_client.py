@@ -1,4 +1,4 @@
-"""Unit tests for `MCPOAuthClient` (specs-wp17.md "Why not OAuthClientProvider").
+"""Unit tests for `MCPOAuthClient`.
 
 `httpx.MockTransport` stands in for a mock authorization server throughout — no real
 network, no real authorization server, no real MCP server (matching

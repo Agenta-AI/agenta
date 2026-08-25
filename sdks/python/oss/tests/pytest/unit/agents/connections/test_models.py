@@ -361,7 +361,7 @@ def test_resolved_connection_rejects_invalid_credential_combinations(
         )
 
 
-# ------------------------------------------------------- credential_mode "none" + gateway (WP12)
+# Credential mode "none" with gateway credentials
 
 
 def test_credential_mode_none_with_gateway_credentials_is_the_normal_combination():

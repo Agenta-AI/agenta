@@ -1,4 +1,4 @@
-"""LLM plane domain exceptions (entities.md §5)."""
+"""LLM gateway domain exceptions."""
 
 from typing import Optional
 
@@ -14,8 +14,7 @@ class LLMEndpointNotFoundError(GatewaysError):
 
 
 class LLMModelNotAllowedError(GatewaysError):
-    """The model is outside the endpoint's allowlist — a custom endpoint's
-    declared model allowlist, or a standard provider's catalogue (§4.3)."""
+    """The model is outside the endpoint's allowlist."""
 
     def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
         self.model = model
@@ -25,9 +24,7 @@ class LLMModelNotAllowedError(GatewaysError):
 
 
 class LLMAdapterNotFoundError(GatewaysError):
-    """No south-port adapter registered under this key (registry.py's own miss,
-    entities.md §7.1's ``ConnectionsGatewayRegistry``/``ProviderNotFoundError`` shape,
-    copied into this domain's vocabulary rather than importing the integrations one)."""
+    """No upstream adapter is registered under this key."""
 
     def __init__(self, *, key: str):
         self.key = key
@@ -35,8 +32,7 @@ class LLMAdapterNotFoundError(GatewaysError):
 
 
 class LLMUpstreamError(GatewaysError):
-    """The upstream failed after policy allowed. Carries the upstream status so
-    the proxy can relay a faithful OpenAI-shaped error (§9)."""
+    """The upstream failed after policy allowed the request."""
 
     def __init__(
         self,

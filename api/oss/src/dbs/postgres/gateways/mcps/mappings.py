@@ -1,4 +1,4 @@
-"""MCP plane DBE <-> DTO mappings (entities.md §2, §4.4)."""
+"""MCP endpoint DBE and DTO mappings."""
 
 from datetime import datetime, timezone
 from uuid import UUID

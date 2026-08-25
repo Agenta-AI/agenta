@@ -1,4 +1,4 @@
-"""The LLM plane's DTOs (entities.md §4.3)."""
+"""LLM gateway DTOs."""
 
 from enum import Enum
 from typing import Any, Dict, Optional
@@ -23,8 +23,7 @@ from oss.src.core.shared.dtos import (
 
 
 class LLMDeploymentKind(str, Enum):
-    """How a provider is reached — the wire's `deployment_kind` axis, aligned with
-    CustomProviderKind in core/secrets/enums.py (`models.md`: keep both axes)."""
+    """How an upstream model deployment is reached."""
 
     DIRECT = "direct"
     CUSTOM = "custom"  # OpenAI-compatible third party or self-hosted
@@ -32,22 +31,16 @@ class LLMDeploymentKind(str, Enum):
     BEDROCK = "bedrock"
     SAGEMAKER = "sagemaker"
     VERTEX = "vertex_ai"
-    MOCK = "mock"  # the in-process test double (D23) — a deployment kind, not a provider name
+    MOCK = "mock"  # In-process test deployment.
 
 
 class LLMEndpointRoute(GatewayEndpointRoute):
-    """The shared route plus what only a provider deployment needs, mirroring the runner
-    wire's `endpoint` object (services/runner/src/protocol.ts): apiVersion for Azure,
-    region for AWS and Vertex. Which fields matter is decided by `deployment_kind` — an
-    `api_version` on Bedrock is ignored, not an error."""
+    """Provider-specific route fields."""
 
     api_version: Optional[str] = None
     region: Optional[str] = None
     extras: Optional[Dict[str, Any]] = None
-    """Non-secret addressing a deployment needs and no named field carries —
-    `vertex_project`, `aws_bedrock_runtime_endpoint`, `aws_role_name`. Same rule as
-    `headers`: addressing, never secret material, which stays in the secret's own
-    `extras` and outranks this on collision (§2.4)."""
+    """Additional non-secret route fields."""
 
 
 # The LLM plane's name for the shared filter. Same shape, same storage.
@@ -55,9 +48,7 @@ LLMModelFilter = GatewayEndpointFilter
 
 
 class LLMEndpointSettings(GatewayEndpointSettings):
-    max_output_tokens: Optional[int] = (
-        None  # ceiling (D21); rejected, never clamped (D25)
-    )
+    max_output_tokens: Optional[int] = None
 
 
 class LLMEndpointData(BaseModel):
@@ -68,14 +59,10 @@ class LLMEndpointData(BaseModel):
 
 class LLMEndpointFlags(BaseModel):
     is_active: bool = True
-    # no is_valid: an endpoint does not authenticate; secret health lives
-    # with the secret (§2.6)
 
 
 class LLMEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
-    # Nullable (entities.md §2.4): with the passthrough/translated split gone (D34), a
-    # stored row's provider_key decides nothing — it is a label, not a routing input. A
-    # custom row pointed at a self-hosted gateway names no provider that means anything.
+    # Optional for self-hosted compatible endpoints.
     provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     namespace: GatewayEndpointNamespace = GatewayEndpointNamespace.CUSTOM
@@ -96,8 +83,6 @@ class LLMEndpointCreate(Slug, Header, Metadata):
 
 
 class LLMEndpointEdit(Identifier, Header, Metadata):
-    # no provider_key, no deployment_kind: repointing an endpoint at a different
-    # provider family is a different endpoint, not an edit (the channels rule)
     secret_id: Optional[UUID] = None
     #
     data: LLMEndpointData = Field(default_factory=LLMEndpointData)
@@ -111,9 +96,7 @@ class LLMEndpointQuery(BaseModel):
 
 
 class LLMProtocol(str, Enum):
-    """The front door a call arrived through (D33). `model`/`stream` share field
-    names across all three wires; this tag exists so the ceiling check can bind
-    to the right request field without guessing (D34, WP23)."""
+    """LLM protocol used by the request."""
 
     CHAT_COMPLETIONS = "chat_completions"
     RESPONSES = "responses"
@@ -121,8 +104,7 @@ class LLMProtocol(str, Enum):
 
 
 class LLMCallContext(BaseModel):
-    """What policy needs from the request body — parsed minimally, so the body
-    itself can relay byte for byte (`scope-checklist.md`)."""
+    """Routing fields extracted from an LLM request."""
 
     model: str
     stream: bool = False

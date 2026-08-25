@@ -1,10 +1,4 @@
-"""Shared vocabulary for both gateway planes (entities.md §4.1).
-
-The gateways are a separate domain from `core/gateway/` (the integrations surface) and
-define their own copies of the auth-scheme / connection-state vocabulary rather than
-importing the existing triplicate copies in `core/gateway/connections/dtos.py`,
-`core/tools/dtos.py` and `core/triggers/dtos.py` (OR4).
-"""
+"""Shared DTOs for the LLM and MCP gateway planes."""
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -12,15 +6,12 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# The header that authenticates the caller INTO the gateway (D31). It is ours and is
-# stripped on both planes before any relay. Nothing else of the caller's is: the data plane
-# reads no other header as ours, so `Authorization` is the caller's own and reaches the
-# upstream unless a resolved secret overwrites it — which is pass-through (OD15).
+# This platform credential is removed before relaying upstream.
 GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials"})
 
 
 class GatewayAuthScheme(str, Enum):
-    """How an upstream authenticates us. The gateways' own copy (OR4, §4.1)."""
+    """How the gateway authenticates to an upstream."""
 
     OAUTH = "oauth"
     API_KEY = "api_key"
@@ -28,7 +19,7 @@ class GatewayAuthScheme(str, Enum):
 
 
 class GatewayConnectionState(str, Enum):
-    """Derived per caller at read time — never stored (§2.6)."""
+    """Connection state for one caller and endpoint."""
 
     READY = "ready"  # a usable secret exists for this owner
     NEEDS_AUTH = "needs_auth"  # OAuth target with no usable secret; connect
@@ -36,8 +27,7 @@ class GatewayConnectionState(str, Enum):
 
 
 class GatewayConnectAffordance(BaseModel):
-    """The call to make when a secret is missing — an interaction, not a
-    failure (D17). Same shape as the tools domain's ConnectAffordance."""
+    """Connection action needed to authorize an endpoint."""
 
     endpoint: str
     body: Dict[str, Any] = Field(default_factory=dict)
@@ -53,9 +43,7 @@ class GatewayConnectionRequirement(BaseModel):
 
 
 class GatewayEndpointNamespace(str, Enum):
-    """The first URL segment under either plane — the same three words on both
-    (§2.3, D30). The namespace selects the backend, and splits on whose secret pays:
-    builtin is ours and bills through us, standard and custom are the user's."""
+    """Gateway route namespace."""
 
     BUILTIN = "builtin"  # our account; a provider segment follows (agenta, composio)
     STANDARD = "standard"  # a known shape, the user's secret; generated, never a row
@@ -63,21 +51,14 @@ class GatewayEndpointNamespace(str, Enum):
 
 
 class GatewayEndpointRoute(BaseModel):
-    """Where and how to dial an upstream — the two fields both planes share (§2.4).
-    `headers` is addressing, never a secret: `Authorization` is derived from the
-    resolved secret and overwrites whatever is set here (§7.2)."""
+    """Shared non-secret upstream address and headers."""
 
     base_url: Optional[str] = None
     headers: Optional[Dict[str, str]] = None
 
 
 class GatewayEndpointFilter(BaseModel):
-    """One name filter, the same shape for LLM models and MCP tools (§2.4).
-
-    Absent list = no constraint from that side; `allowlist: []` refuses everything;
-    `denylist` always wins. Exact names only — a glob syntax would need its own
-    decision on both planes at once.
-    """
+    """Allowlist and denylist filter for models or tools."""
 
     allowlist: Optional[List[str]] = None
     denylist: Optional[List[str]] = None
@@ -90,13 +71,11 @@ class GatewayEndpointFilter(BaseModel):
         return name in self.allowlist
 
     def enumerate(self) -> List[str]:
-        """What can be listed, which is only ever the allowlist minus the denylist —
-        with no allowlist the gateway does not know the upstream's catalogue (§2.4)."""
+        """Return the allowed names that can be listed without upstream discovery."""
         return [name for name in (self.allowlist or []) if self.allows(name)]
 
 
 class GatewayEndpointSettings(BaseModel):
-    """Per-endpoint settings, one concern for both planes (D21). Custom endpoints
-    only; generated endpoints take the code defaults."""
+    """Shared endpoint settings."""
 
     timeout_seconds: Optional[float] = None

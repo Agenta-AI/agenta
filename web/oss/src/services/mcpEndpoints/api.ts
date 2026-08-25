@@ -1,5 +1,4 @@
-// Raw axios, not the Fern client: this domain has no generated client yet
-// (specs-wp18.md "Deliberate, not an oversight"). Swap for Fern once regenerated.
+// This domain uses the shared Axios client.
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
@@ -50,7 +49,7 @@ export const deleteMcpEndpoint = async (endpointId: string, projectId?: string):
     })
 }
 
-// Step 1: discover — omit `scopes` to get the checklist (specs-wp18.md).
+// Omit scopes to discover the authorization-server scope checklist.
 export const discoverMcpConnect = async (
     endpointId: string,
     projectId?: string,

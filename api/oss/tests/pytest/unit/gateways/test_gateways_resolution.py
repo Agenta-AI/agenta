@@ -47,7 +47,7 @@ ALL_MODES = [
 ]
 
 
-# --- mocks (WP2 must not subclass the real VaultService / DAO) ---------------- #
+# Resolver test doubles
 
 
 class MockVaultService:

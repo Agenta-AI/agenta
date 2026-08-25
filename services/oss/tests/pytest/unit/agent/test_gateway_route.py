@@ -30,7 +30,7 @@ from oss.src.agent import app
 _AGENT_SRC = Path(app.__file__).resolve().parent
 
 # Names that would mean a provider secret is being read directly rather than routed through
-# the gateway (D30/D36) — the deleted whole-vault dump and its aliases.
+# the gateway rather than through provider-secret environment variables.
 _FORBIDDEN_NAMES = {"resolve_provider_keys", "resolve_secrets", "_PROVIDER_ENV_VARS"}
 
 

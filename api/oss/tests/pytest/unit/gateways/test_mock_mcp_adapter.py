@@ -1,4 +1,4 @@
-"""Unit tests for MockMCPAdapter (entities.md §7.1, workstreams/specs-wp5.md).
+"""Unit tests for `MockMCPAdapter`.
 
 Nothing running: the adapter is exercised as a plain Python object.
 """

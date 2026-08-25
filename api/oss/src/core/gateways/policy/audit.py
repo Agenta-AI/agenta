@@ -1,11 +1,4 @@
-"""Gateway call audit events (D22, specs-wp4.md).
-
-`build_gateway_call_attributes` / `publish_gateway_call` follow the shape of
-`build_trace_fetched_attributes` / `publish_trace_fetched`
-(`core/events/utils.py`) — one flat-attribute builder, one publisher, no new
-event pipeline. Every gateway relay's `record()` call, allow or deny, on
-either plane, lands here.
-"""
+"""Gateway call audit events."""
 
 from typing import Any, Dict
 
@@ -29,9 +22,7 @@ def build_gateway_call_attributes(
     decision: PolicyDecision,
     outcome: GatewayOutcome,
 ) -> Dict[str, Any]:
-    """Flat attribute map for one gateway call — the audit record, never the
-    request or response body: no prompt, no completion, no secret value, no
-    header (specs-wp4.md)."""
+    """Build non-sensitive audit attributes for one gateway call."""
     attributes: Dict[str, Any] = {
         "organization_id": str(scope.organization_id),
         "workspace_id": str(scope.workspace_id),
@@ -51,8 +42,6 @@ def build_gateway_call_attributes(
     if outcome.status_code is not None:
         attributes["status_code"] = outcome.status_code
     if outcome.origin is not None:
-        # The spend-attribution field: unset means the caller's own
-        # pass-through secret paid, not ours.
         attributes["secret_origin"] = outcome.origin.value
     return attributes
 
@@ -64,8 +53,7 @@ async def publish_gateway_call(
     decision: PolicyDecision,
     outcome: GatewayOutcome,
 ) -> None:
-    """One event per call. Never raises: `record()` runs on the deny path,
-    where an exception would turn a clean 403 into a 500."""
+    """Publish one call event without affecting relay behavior."""
     try:
         attributes = build_gateway_call_attributes(
             scope=scope, target=target, decision=decision, outcome=outcome

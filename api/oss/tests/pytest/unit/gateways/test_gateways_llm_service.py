@@ -277,7 +277,7 @@ async def test_query_endpoints_delegates_to_dao_unchanged():
     assert dao.calls == [("query_endpoints", project_id, None, None)]
 
 
-# --- list_endpoints: the merge (D20) ---------------------------------------- #
+# Endpoint listing
 
 
 @pytest.mark.asyncio
@@ -489,7 +489,7 @@ async def test_ceiling_breach_names_all_three_values():
     resolver = _MockResolver(secret=_secret())
 
     # Chat Completions' request field is `max_tokens`, not the `max_output_tokens`
-    # config key (D33: which request field varies per protocol; the ceiling itself
+    # config key; the request field varies by protocol while the ceiling itself
     # is always named `max_output_tokens` in the error).
     body = json.dumps({"model": "gpt-4o", "messages": [], "max_tokens": 200}).encode()
 
@@ -508,7 +508,7 @@ async def test_ceiling_breach_names_all_three_values():
     assert resolver.resolve_calls == []
 
 
-# --- ceiling binding is per protocol (D33, D34, WP23) ------------------------ #
+# Per-protocol ceiling binding
 
 
 @pytest.mark.parametrize(

@@ -287,7 +287,7 @@ async def test_jsonrpc_error_body_is_returned_not_raised():
 
 
 # ---------------------------------------------------------------------------
-# SSRF guard (D28) — AGENTA_INSECURE_EGRESS_ALLOWED=false via the autouse fixture above
+# SSRF guard; the autouse fixture disables insecure egress.
 # ---------------------------------------------------------------------------
 
 
@@ -440,7 +440,7 @@ async def test_endpoint_timeout_config_is_respected(monkeypatch):
 
 # ---------------------------------------------------------------------------
 # Namespace scoping: the guard is HttpMCPAdapter's, not MCPUpstreamInterface's.
-# The `agenta` namespace routes to MockMCPAdapter (WP5), which never makes an
+# The `agenta` namespace routes to MockMCPAdapter, which never makes an
 # outbound call at all, so a private-looking route.url on it is never refused.
 # ---------------------------------------------------------------------------
 
@@ -461,7 +461,7 @@ async def test_agenta_route_to_a_private_address_is_not_refused():
 
 
 # ---------------------------------------------------------------------------
-# Gateway-only headers never reach a third-party server (D31)
+# Gateway-only headers never reach a third-party server.
 # ---------------------------------------------------------------------------
 
 

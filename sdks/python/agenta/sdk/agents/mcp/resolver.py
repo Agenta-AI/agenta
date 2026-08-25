@@ -17,14 +17,12 @@ from .models import (
     ResolvedMCPServer,
 )
 
-# The header our own credentials ride, per D31 — same default as the LLM plane's
-# ``GatewayCredentials.header`` (connections/models.py), duplicated rather than imported
-# because that module belongs to a different package (WP12).
+# Default header for gateway credentials.
 _GATEWAY_CREDENTIALS_HEADER = "X-AG-Credentials"
 
 
 def _gateway_mcp_route(*, namespace: str, name: str, gateway_base_url: str) -> str:
-    """The gateway route base URL (D30): ``{gateway_base}/gateways/mcps/{namespace}/{name}``.
+    """Build ``{gateway_base}/gateways/mcps/{namespace}/{name}``.
 
     The MCP protocol POSTs to this URL directly; nothing is appended.
     """

@@ -1,16 +1,4 @@
-"""`MCPOAuthConnectService` (specs-wp17.md "The two-phase connect service").
-
-`begin()`/`complete()` are the only entry points WP18's two routes need. Neither touches
-an `MCPEndpoint` row — `complete()` returns the written secret's id, and wiring it onto
-`endpoint.secret_id` stays `edit_endpoint`'s job (entities.md §9: "the same door every
-other field uses").
-
-Client registration (specs-wp20.md) is a two-strategy choice made once per `begin()`:
-reuse a stored outbound registration if one exists, else prefer the client identity
-document, else register outbound and store the result. `complete()` never re-decides —
-the choice travels in `state` (`strategy`) so a later DNS answer can't disagree with the
-one the authorization_url was actually built from.
-"""
+"""Run the two-phase MCP OAuth connection flow."""
 
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -40,8 +28,7 @@ _CALLBACK_PATH = "/gateways/mcps/connect/callback"
 
 
 def callback_redirect_uri(*, api_url: str) -> str:
-    """The fixed redirect URI registered with every authorization server — never
-    per-flow (specs-wp17.md: disambiguated by `state`, not by the URL)."""
+    """Return the fixed OAuth callback URI."""
     return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
 
 
@@ -59,7 +46,7 @@ class MCPOAuthConnectService:
         self.client = client
         self.api_url = api_url
         self.secret_key = secret_key
-        # None -> real DNS (registration.py's own default); tests inject a fake.
+        # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
@@ -73,10 +60,7 @@ class MCPOAuthConnectService:
         redirect_uri: str,
         scopes: List[str],
     ) -> Tuple[OAuthClientInformationFull, str]:
-        """The strategy choice (specs-wp20.md). Order: reuse a stored outbound
-        registration if this authorization_server already has one (stability over
-        re-optimizing an already-working connection); else prefer the document; else
-        register outbound and store it, exactly as WP17 always did."""
+        """Reuse registration, use an identity document, or register a client."""
         stored = await storage.get_client_info()
         if stored is not None:
             return stored, "outbound"
@@ -169,7 +153,7 @@ class MCPOAuthConnectService:
         )
 
         if strategy == "document":
-            # Deterministic, never stored (specs-wp20.md) — nothing to look up.
+            # Identity-document client information is deterministic and not persisted.
             client_info = identity_document_client_info(
                 api_url=self.api_url, redirect_uri=redirect_uri
             )

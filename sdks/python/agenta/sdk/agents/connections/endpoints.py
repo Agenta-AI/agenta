@@ -25,8 +25,7 @@ _NON_SECRET_ENV = {
     "GOOGLE_CLOUD_PROJECT",
     "GOOGLE_CLOUD_LOCATION",
 }
-# The subset of _NON_SECRET_ENV that `Endpoint.region` already carries (gateways-research/v1
-# WP24) — GOOGLE_CLOUD_PROJECT has no endpoint-row field yet, so it still rides `environment`.
+# Endpoint-region environment fields; Google project remains environment-provided.
 _REGION_ENV = {"AWS_REGION", "AWS_DEFAULT_REGION", "GOOGLE_CLOUD_LOCATION"}
 _LOCAL_USE_ENV = {
     "AWS_ACCESS_KEY_ID",
@@ -60,9 +59,7 @@ def effective_endpoint(
             )
         resolved = Endpoint(base_url=base_url)
     elif deployment == "bedrock":
-        # The endpoint row is the authoritative source (gateways-research/v1 WP24): a
-        # region belongs behind the gateway, not recomputed from caller-side env.
-        # `environment` stays a fallback for a connection resolved with no endpoint at all.
+        # Prefer endpoint configuration, with environment fallback for legacy connections.
         region = (
             (endpoint.region if endpoint else None)
             or environment.get("AWS_REGION")

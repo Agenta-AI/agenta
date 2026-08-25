@@ -1,4 +1,4 @@
-"""Domain exception base for the gateways (entities.md §5).
+"""Domain exception base for gateways.
 
 One domain base so the router decorator can catch broadly; no HTTP status on any
 exception — mapping happens at the boundary (`apis/fastapi/gateways/exceptions.py`).

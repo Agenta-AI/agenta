@@ -71,11 +71,7 @@ MANAGED_PROVIDER_NAME = "Agenta OpenAI"
 # absent on subscription runs.
 MANAGED_PROVIDER_ENV_KEY = "OPENAI_API_KEY"
 
-# OUR gateway credential (D31/D36), not a provider secret: codex's `env_http_headers` maps a header
-# NAME to an env var name and reads the value from its process environment at request time (the
-# same indirection `env_key` already uses for the bearer token), so this file never carries the raw
-# value. Must match the runner's `GATEWAY_CREDENTIALS_VALUE_ENV` (services/runner/src/engines/
-# sandbox_agent/run-plan.ts) — both sides read/write the same env var name.
+# Gateway credentials are read from this environment variable at request time.
 GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE"
 
 

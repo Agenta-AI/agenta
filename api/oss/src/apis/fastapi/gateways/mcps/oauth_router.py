@@ -1,4 +1,4 @@
-"""Serves the OAuth client identity document (specs-wp20.md).
+"""Serve the OAuth client identity document.
 
 Fetched by an authorization server, never by an authenticated caller — the path is
 listed in `middlewares/auth.py`'s `_PUBLIC_ENDPOINTS`. One static, deployment-wide

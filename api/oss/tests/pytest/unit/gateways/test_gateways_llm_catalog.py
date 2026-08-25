@@ -1,4 +1,4 @@
-"""Unit tests for `catalog.py` (specs-wp7.md, tasks-wp7.md Phase 1). Nothing running."""
+"""Unit tests for the generated LLM catalog."""
 
 from agenta.sdk.utils.assets import supported_llm_models
 

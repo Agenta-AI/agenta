@@ -1,4 +1,4 @@
-"""Unit tests for `MCPUpstreamRegistry` (specs-wp9.md, tasks-wp9.md).
+"""Unit tests for `MCPUpstreamRegistry`.
 
 Shape mirrors `ConnectionsGatewayRegistry`: two mock adapters registered, `get()` returns
 the right one and raises on a miss, `keys()` lists exactly the registered set.

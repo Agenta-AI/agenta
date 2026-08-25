@@ -51,7 +51,7 @@ def test_header_lookup_is_case_insensitive():
     )
 
 
-# --- the data plane reads our header and nothing else (D31) ------------------ #
+# Data-plane credentials
 
 
 def test_data_plane_ignores_authorization_entirely():

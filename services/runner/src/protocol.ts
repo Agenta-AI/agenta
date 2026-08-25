@@ -46,7 +46,7 @@ export interface AttachmentRef {
   attachmentId: string;
   /**
    * Delivery never trusts wire display fields and re-reads them from the attachment API. Transcript
-   * replay may render the record-sourced fields the runner previously persisted for a warm turn.
+   * replay may render record-sourced fields for a warm turn.
    */
   filename?: string;
   mediaType?: string;

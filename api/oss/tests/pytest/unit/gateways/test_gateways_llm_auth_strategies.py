@@ -1,4 +1,4 @@
-"""Unit tests for auth.py's per-deployment secret presentation (specs-wp24.md Phase 1).
+"""Unit tests for per-deployment LLM authentication headers.
 
 `_vertex_auth` mints a token via litellm's Vertex credential helper — patched here so this
 stays a unit test (no real Google call, no real LLM call, per the wave's hard rule).

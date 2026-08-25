@@ -300,7 +300,7 @@ export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
 /**
  * Thrown (via the engine's named-message pattern) when a run has a `models.json` plan but the file
  * could not be materialized. Fail closed: the selected model would not be registered, so the run
- * must stop rather than fall back to a default provider (design Decision 6). Single line so
+ * must stop rather than fall back to a default provider. Single line so
  * `conciseError` surfaces it verbatim.
  */
 export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
@@ -336,7 +336,7 @@ export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
 /**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
- * managed custom run must never fall through to a default provider (design Decision 6). The file
+ * managed custom run must never fall through to a default provider. The file
  * carries only the `$OPENAI_API_KEY` reference, never the key value.
  */
 export function writePiModelsConfigLocal(
@@ -505,10 +505,7 @@ export function buildPiExtensionEnv(
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
   // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
   // two competing registrations for the same run would race for the provider. This is the
-  // path a gateway-routed connection whose ORIGINAL deployment is "direct" takes (WP12's
-  // majority case, a plain provider_key connection) — `isPiModelConfigApplicable` only covers
-  // a named custom-agenta connection, so `headers` carries OUR gateway credential here or it
-  // never reaches Pi at all for every other gateway-routed connection.
+  // Gateway-routed non-custom connections use the provider override so Pi receives their headers.
   const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
     const gatewayHeaders = materializeGatewayHeaders(request);
@@ -758,7 +755,7 @@ export interface PrepareLocalPiAssetsResult {
   /**
    * False only when a model-config plan was present but its `models.json` could not be written;
    * true when there was nothing to write or the write succeeded. The caller fails the run closed
-   * when this is false (materialization is terminal — design Decision 6).
+   * when this is false.
    */
   modelConfigWritten: boolean;
   /**

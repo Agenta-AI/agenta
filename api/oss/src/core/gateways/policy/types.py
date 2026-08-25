@@ -1,9 +1,4 @@
-"""Policy + resolution exceptions (entities.md §5).
-
-`PolicyDeniedError` and `SecretNotFoundError` are different failures on purpose: the
-first says you may not, the second says you could, once someone connects — the second maps
-to the needs-auth / needs-input interaction path (D17).
-"""
+"""Gateway policy and secret-resolution exceptions."""
 
 from typing import Optional, Union
 
@@ -13,8 +8,7 @@ from oss.src.core.gateways.types import GatewaysError
 
 
 class PolicyDeniedError(GatewaysError):
-    """The permission check refused (WP3). Carries the subject and the target so
-    the denial is explainable on a fixed-shape wire (§9)."""
+    """Permission denial with the subject and target."""
 
     def __init__(self, *, permission: Permission, target: str):
         self.permission = permission
@@ -48,8 +42,7 @@ class SecretNotFoundError(GatewaysError):
 
 
 class SecretInvalidError(GatewaysError):
-    """A secret exists and cannot be used — revoked, or refresh failed.
-    Surfaces as needs_auth with a connect affordance (D17, D18)."""
+    """A secret exists but cannot be used."""
 
     def __init__(self, *, target: str, detail: Optional[str] = None):
         self.target = target
@@ -58,9 +51,7 @@ class SecretInvalidError(GatewaysError):
 
 
 class CeilingExceededError(GatewaysError):
-    """A governance ceiling rejects; it never silently clamps (D25). Carries the
-    three facts the denial must name so a caller retries correctly the first
-    time: the ceiling, the value asked for, and the value allowed."""
+    """A request exceeds its configured governance ceiling."""
 
     def __init__(
         self,

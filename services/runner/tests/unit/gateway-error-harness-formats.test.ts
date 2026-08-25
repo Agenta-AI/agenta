@@ -1,5 +1,5 @@
 /**
- * Pins OD18's per-harness findings (open-designs.md): does a harness's SDK preserve the LLM
+ * Verifies whether a harness's SDK preserves the LLM
  * gateway's `{"error":{...}}` refusal body in the text `parseGatewayErrorDetail` scans, and —
  * when it does not — does the `⟦agenta_code:...⟧` marker the gateway now embeds in every typed
  * refusal's `message` (`gateways/utils.py::with_code_marker`, shared by both
@@ -32,8 +32,7 @@ interface Refusal {
   extra?: Record<string, unknown>;
 }
 
-// The five refusals launch-3.md names, with the codes `_map_domain_exception`
-// (api/oss/src/apis/fastapi/gateways/llms/proxy.py) actually raises for each.
+// Representative typed gateway refusals.
 const REFUSALS: Refusal[] = [
   {
     name: "missing credential",
@@ -121,9 +120,7 @@ describe("Codex shape (OD18: body is stripped -> marker fallback recovers code o
       // The marker is stripped from the recovered message for display.
       assert.equal(detail?.message, `unexpected status ${r.status}: ${r.message}`);
       assert.equal(detail?.retryable, false);
-      // What's still lost on a marker-only harness (WP25 spec): no next_step, no details --
-      // never backfilled from NEXT_STEPS, so a caller can tell "code only" from "full detail"
-      // and degrade to a generic step-up prompt (WP19) instead of a specific one.
+      // Marker-only recovery exposes the code without next steps or details.
       assert.equal(detail?.next_step, undefined);
       assert.equal(detail?.details, undefined);
     });
@@ -174,9 +171,7 @@ const MCP_REFUSALS: Refusal[] = [
     type: "invalid_request_error",
   },
   {
-    // WP19: the step-up scope challenge, MCP-only (no LLM-plane equivalent). Raised for the
-    // first time by this package (`core/gateways/mcps/service.py`'s scope-challenge detection);
-    // added here so its marker recovery is pinned same as the four pre-existing MCP causes.
+    // MCP scope challenges use the same marker recovery as other MCP causes.
     name: "insufficient scope (step-up)",
     status: 409,
     code: "scope_insufficient",

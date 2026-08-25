@@ -1,4 +1,4 @@
-"""Unit tests for `registry.py` (specs-wp24.md, tasks-wp24.md Phase 1). Nothing running."""
+"""Unit tests for LLM upstream registry selection."""
 
 import ast
 from pathlib import Path

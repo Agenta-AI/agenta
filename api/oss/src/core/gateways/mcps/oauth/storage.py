@@ -1,10 +1,4 @@
-"""`SecretsTokenStorage` (specs-wp17.md "The storage adapter").
-
-Structurally satisfies `mcp.client.auth.oauth2.TokenStorage` — a `Protocol`, so no
-subclassing is required — over `VaultService`. One instance per `(project_id,
-server_url)`. No new `SecretsDAOInterface` method: lookups are the same list+filter scan
-`SecretsResolver._match_provider_secret` already uses for `ProviderKeyRef`.
-"""
+"""Vault-backed OAuth token storage."""
 
 import time
 from typing import Optional
@@ -37,12 +31,7 @@ def _issuer_slug(issuer_url: str) -> str:
 
 
 class SecretsTokenStorage:
-    """`get_tokens`/`set_tokens` read/write an `oauth_grant` secret keyed by
-    `server_url`; `get_client_info`/`set_client_info` read/write an `oauth_provider`
-    secret keyed by the discovered `authorization_server` issuer once known, else by
-    `server_url` (specs-wp17.md's "Keys"). One `oauth_grant` per project per server —
-    entities.md's "project-owned, full stop", not per user (`SecretOwnerKind.USER` has
-    no live lookup yet)."""
+    """Store OAuth grants by server and client registration by authorization server."""
 
     def __init__(
         self,
@@ -57,7 +46,7 @@ class SecretsTokenStorage:
         self.server_url = server_url
         self.authorization_server = authorization_server
 
-    # --- tokens: keyed by server_url --------------------------------------- #
+    # Tokens
 
     async def _find_grant(self) -> Optional[SecretResponseDTO]:
         secrets = await self.vault_service.list_secrets(project_id=self.project_id)
@@ -81,8 +70,7 @@ class SecretsTokenStorage:
         )
         return OAuthToken(
             access_token=data.access_token,
-            # OAuthGrantSettingsDTO has no token_type field; MCP authorization
-            # mandates Bearer, so nothing is actually lost by fixing it here.
+            # MCP authorization uses bearer tokens.
             token_type="Bearer",
             expires_in=expires_in,
             scope=" ".join(data.scopes) if data.scopes else None,
@@ -93,9 +81,7 @@ class SecretsTokenStorage:
         await self.write_tokens(tokens)
 
     async def write_tokens(self, tokens: OAuthToken) -> SecretResponseDTO:
-        """Same write as `set_tokens`, returning the written row — the extra
-        return value `TokenStorage` has no room for but `MCPOAuthConnectService.
-        complete()` needs (the `secret_id` WP18 PUTs onto the endpoint)."""
+        """Write tokens and return the persisted secret."""
         expires_at = (
             int(time.time()) + tokens.expires_in
             if tokens.expires_in is not None
@@ -131,7 +117,7 @@ class SecretsTokenStorage:
             ),
         )
 
-    # --- client registration: keyed by issuer, falling back to server_url --- #
+    # Client registration
 
     async def _find_provider(self) -> Optional[SecretResponseDTO]:
         target = self.authorization_server or self.server_url

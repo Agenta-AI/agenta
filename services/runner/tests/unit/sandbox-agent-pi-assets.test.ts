@@ -292,7 +292,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    // The specs ride a file; env carries only its path (see the E2BIG regression below).
+    // The environment carries only the tool-spec file path.
     assert.equal(env[PUBLIC_SPECS_FILE_ENV], `${relayDir}.tool-specs.json`);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     const specs = JSON.parse(
@@ -491,10 +491,7 @@ describe("buildPiExtensionEnv", () => {
 });
 
 /**
- * Regression: "Agent run failed: spawn E2BIG". Every hydrated tool spec used to be packed into
- * ONE env var, and Linux refuses `execve` when any single env string exceeds MAX_ARG_STRLEN
- * (131,072 bytes) — a session with 44 Composio tools (~250 KB of specs) failed before the harness
- * process existed. The specs now ride a file whose path is all env carries.
+ * Tool specs are stored in a file so the environment remains bounded.
  */
 const MAX_ARG_STRLEN = 131_072;
 
@@ -1103,7 +1100,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     const sessionsDir = join(mount, "sessions");
     writeFileSync(authFile, '{"token":"live"}', "utf-8");
     mkdirSync(sessionsDir);
-    // Preserve the incomplete-mount shape from the regression: Pi can write a rollout under
+    // Pi can write a rollout under
     // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
     chmodSync(sessionsDir, 0o755);
     chmodSync(authFile, 0o444);

@@ -1,5 +1,4 @@
-"""`SecretsResolver` — the one lookup both gateways call to turn a `SecretRef`
-into a `(secret, owner, payer)` triple (`entities.md` §7.2, WP2).
+"""Resolve gateway secret references through the vault service.
 
 Pure orchestration over `VaultService`; this module never talks to Postgres or the
 vault's encryption directly.
@@ -28,7 +27,7 @@ from oss.src.utils.context import AuthScope
 
 
 class SecretsResolver(SecretsResolverInterface):
-    """`VaultService`, wrapped (D23: mockable)."""
+    """Vault-backed secret resolver."""
 
     def __init__(
         self,

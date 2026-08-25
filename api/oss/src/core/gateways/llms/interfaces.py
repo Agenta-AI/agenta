@@ -1,4 +1,4 @@
-"""LLM plane DAO interface and south port (entities.md §7, §7.1).
+"""LLM endpoint DAO interface and south port.
 
 The registry lives in `registry.py`, per §0's file layout. §7.1 shows it in the same code
 block as the port, which is presentation, not placement (R13).
@@ -26,7 +26,7 @@ from oss.src.core.shared.dtos import Windowing
 
 class LLMEndpointsDAOInterface(ABC):
     """Persistence contract for custom LLM endpoints. Standard endpoints are
-    generated (D20) and never pass through this interface — the service merges
+    generated and never pass through this interface — the service merges
     them in from catalog.py, which is why nothing here has a namespace
     parameter: every row is custom by construction (§2.3)."""
 
@@ -141,5 +141,3 @@ class LLMUpstreamInterface(ABC):
         `secret` is None only for targets whose auth scheme is NONE (the
         mocks). Raises LLMUpstreamError on upstream failure."""
         raise NotImplementedError
-
-    # async def relay_embedding(...) -> LLMRelayResult — deferred with the evaluator path (D15)

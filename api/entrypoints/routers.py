@@ -164,8 +164,7 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 
-# GATEWAYS: core/gateways/ (entities.md §9 "Wiring"). Two router objects per plane —
-# management CRUD and the data plane are separate surfaces (§1).
+# Gateway storage, services, management routers, and data-plane proxies.
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.core.gateways.policy.resolution import SecretsResolver
@@ -190,9 +189,6 @@ from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
-
-# ComposioMCPAdapter serves the builtin namespace and has no owner in wave 1: no brokered
-# target is reachable yet, so our own servers and the mocks are the whole set (D23).
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
@@ -1094,8 +1090,7 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
-# GATEWAYS: storage and the policy core (entities.md §9 "Wiring"). The plane services,
-# their registries and the routers/proxies land with WP6-WP10.
+# Gateway storage and policy services.
 llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 

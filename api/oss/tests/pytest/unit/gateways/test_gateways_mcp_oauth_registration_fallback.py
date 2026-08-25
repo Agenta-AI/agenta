@@ -1,4 +1,4 @@
-"""Unit tests for the two-strategy registration swap (specs-wp20.md).
+"""Unit tests for OAuth registration fallback.
 
 Same mock-authorization-server-behind-`httpx.MockTransport` pattern as
 `test_gateways_mcp_oauth_service.py`, with the resolver also injected — no DNS, no

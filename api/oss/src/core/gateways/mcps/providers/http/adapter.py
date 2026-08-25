@@ -1,11 +1,4 @@
-"""HttpMCPAdapter: the south-port relay for `custom` MCP servers (entities.md §7.1).
-
-Registered under the `"http"` key (WP9's `MCPUpstreamRegistry`) and reached only via the
-`custom` namespace: `agenta` targets route to the mocks/agenta adapters and `builtin`
-targets route to `ComposioMCPAdapter` (out of this wave). Because only `custom` URLs are
-ever handed to this class, the SSRF guard (D28) runs unconditionally on every call rather
-than branching on a namespace this port is never given.
-"""
+"""HTTP relay for custom MCP servers."""
 
 from typing import Dict, Optional, Set, Tuple
 from urllib.parse import urlparse, urlunparse
@@ -37,8 +30,7 @@ def _drop_header(headers: Dict[str, str], name: str) -> Dict[str, str]:
 
 
 def _drop_gateway_headers(headers: Dict[str, str]) -> Dict[str, str]:
-    """Our own credentials never reach a third-party server (D31). Everything else the
-    caller sent is forwarded, and only a resolved secret overwrites `Authorization`."""
+    """Remove gateway credentials before forwarding headers upstream."""
     return {k: v for k, v in headers.items() if k.lower() not in GATEWAY_ONLY_HEADERS}
 
 
@@ -81,14 +73,12 @@ def _authorization_header(auth: MCPDirectAuth) -> Optional[str]:
 
 
 class HttpMCPAdapter(MCPUpstreamInterface):
-    """Streamable HTTP relay for `custom` MCP servers. Transparent per D16: the body
-    and the upstream's response travel byte-for-byte; only the route and the
+    """Streamable HTTP relay for custom MCP servers. The body and upstream response
+    travel byte-for-byte; only the route and the
     authorization change."""
 
     def __init__(self, *, transport: Optional[httpx.BaseTransport] = None) -> None:
-        # Injectable seam for unit tests (an httpx.MockTransport standing in for a real
-        # upstream, per specs-wp8.md's test layer); None keeps the wiring-site
-        # `HttpMCPAdapter()` call unchanged and uses httpx's normal transport.
+        # Tests may inject an HTTP transport.
         self._transport = transport
 
     async def relay(

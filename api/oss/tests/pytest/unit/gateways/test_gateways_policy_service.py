@@ -1,4 +1,4 @@
-"""Unit tests for GatewayPolicyService (specs-wp3.md).
+"""Unit tests for GatewayPolicyService.
 
 `check_action_access` is mocked at the module boundary
 (`oss.src.core.gateways.policy.service.check_action_access`) — it is
@@ -114,7 +114,7 @@ async def test_record_publishes_one_event(monkeypatch):
     publish.assert_awaited_once()
 
 
-# --- role wiring (entities.md §9) -------------------------------------------- #
+# Role wiring
 
 
 def test_viewer_gains_view_llm_and_mcp_endpoints():

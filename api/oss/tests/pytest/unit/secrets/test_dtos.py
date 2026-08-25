@@ -488,7 +488,7 @@ def test_create_oauth_grant_rejects_missing_field(missing):
 
 
 def test_secret_kind_enum_keeps_existing_members_appended_only():
-    # Regression guard: new kinds must append, never renumber or reorder the existing set,
+    # New kinds append without renumbering or reordering the existing set,
     # so parallel work adding kinds to this same enum merges cleanly.
     expected_prefix = [
         "provider_key",

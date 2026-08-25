@@ -147,7 +147,7 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
 @pytest.mark.parametrize("adapter", _MCP_ADAPTER_PARAMS)
 @pytest.mark.parametrize("method", ["initialize", "tools/list", "tools/call"])
 async def test_relay_returns_mcp_relay_result(adapter, method, monkeypatch):
-    # HttpMCPAdapter runs the outbound guard (D28) before its transport. Model a real
+    # HttpMCPAdapter runs the outbound guard before its transport. Model a real
     # custom server: a public https host, resolver patched so no DNS is needed. The
     # guard stays on — a public target simply passes it, which is the whole point.
     monkeypatch.setattr(

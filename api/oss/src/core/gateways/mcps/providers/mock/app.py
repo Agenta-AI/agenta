@@ -1,4 +1,4 @@
-"""Deployable mock MCP Streamable HTTP server (entities.md §0, D23, WP5).
+"""Deployable mock MCP Streamable HTTP server.
 
 A standalone ASGI app (`uvicorn oss.src.core.gateways.mcps.providers.mock.app:app`),
 not mounted into the main API process. Stateless JSON mode: one JSON-RPC request in,
@@ -55,7 +55,7 @@ async def health() -> Response:
 
 @app.post("/__echo")
 async def echo_headers(request: Request) -> Response:
-    """Report the headers this process received (launch-2.md D39).
+    """Report the headers this process received.
 
     Reachable through the gateway by pointing an endpoint's `base_url` at `/__echo`: the MCP
     relay POSTs to `base_url` directly, so the answer is what the upstream really saw.

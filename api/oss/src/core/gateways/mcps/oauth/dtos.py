@@ -1,4 +1,4 @@
-"""DTOs for the MCP OAuth client (specs-wp17.md)."""
+"""DTOs for the MCP OAuth client."""
 
 from typing import List, Optional
 from uuid import UUID

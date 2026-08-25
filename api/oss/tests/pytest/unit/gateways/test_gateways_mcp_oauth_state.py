@@ -1,4 +1,4 @@
-"""Unit tests for the MCP OAuth state token (specs-wp17.md "The state token")."""
+"""Unit tests for the MCP OAuth state token."""
 
 from __future__ import annotations
 

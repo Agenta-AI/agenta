@@ -475,7 +475,7 @@ async def test_list_models_maps_domain_exception_too():
     assert json.loads(response.body)["error"]["code"] == "endpoint_not_found"
 
 
-# --- the responses and messages doors (D33, WP23) ------------------------------ #
+# Responses and Messages routes
 #
 # Same behavior as chat_completions above, exercised per door: the route reaches the
 # handler, the context carries the right model/stream/protocol, and the body passes

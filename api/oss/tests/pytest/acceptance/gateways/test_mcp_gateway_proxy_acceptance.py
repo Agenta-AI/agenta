@@ -1,14 +1,10 @@
-"""Acceptance tests for the MCP data-plane proxy (specs-wp8.md "Done test").
+"""Acceptance tests for the MCP data-plane proxy.
 
-specs-wp8.md rests WP8's done claim on two checks running against a deployment_kind: a
-byte-for-byte relay end to end, and the refusal of a tool outside the endpoint's policy.
-specs-wp9.md cross-references the same pair. Mirrors the LLM module next door.
+Covers byte-preserving relays and endpoint tool-policy refusals.
 
 Needs a real deployment_kind (api/AGENTS.md's test-layer rule). Run it with the stack up:
 
-    load-env hosting/docker-compose/ee/.env.ee.dev
-    bash hosting/docker-compose/run.sh --ee --dev --build
-    cd api && pytest oss/tests/pytest/acceptance/gateways -m acceptance
+    bash hosting/docker-compose/test.sh --ee --dev --api --acceptance
 """
 
 import json
@@ -16,8 +12,7 @@ from uuid import uuid4
 
 import pytest
 
-# Compose service name and port WP5 owns; the mock speaks Streamable HTTP in JSON mode
-# at the root path, so no trailing segment.
+# Mock MCP upstream base URL; it uses Streamable HTTP JSON at the root path.
 _MOCK_BASE_URL = "http://mock-mcp-gateway:9092/"
 
 
@@ -104,7 +99,7 @@ class TestMCPGatewayProxyAcceptance:
     def test_a_failing_tool_relays_as_a_result_not_a_transport_error(
         self, gateway_api, mock_mcp_endpoint
     ):
-        # D16: the server's own failure reason is what lets a model correct itself, so
+        # Preserve the server's failure reason so a model can correct itself.
         # it travels as the response body, never as a gateway error.
         response = _call(
             gateway_api,

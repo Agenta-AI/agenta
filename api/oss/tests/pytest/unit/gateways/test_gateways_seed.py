@@ -1,8 +1,8 @@
-"""Seed smoke test for the gateways domain (entities.md, wave 0).
+"""Import and DTO smoke tests for the gateway domain.
 
 Every function/method body in the seed is `raise NotImplementedError`; this test only
 proves the declarations import cleanly and every DTO is constructible with representative
-values — no DB, no Redis, no API. Behavioural coverage lands with each work package.
+values — no DB, no Redis, or API.
 """
 
 from dataclasses import fields
@@ -444,7 +444,7 @@ async def test_handle_gateway_exceptions_passes_through():
             ),
             404,
         ),
-        # USE_MOUNTS stands in: the six gateway members are WP3's edit, not the seed's.
+        # USE_MOUNTS provides a representative gateway permission.
         (PolicyDeniedError(permission=Permission.USE_MOUNTS, target="t"), 403),
         (EntitlementDeniedError(key="k", target="t"), 403),
         (

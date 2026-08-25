@@ -1,5 +1,5 @@
 /**
- * The gateway-credentials field, from the consumer side (wave 2's seed, D36 and D37).
+ * The gateway-credentials field from the consumer side.
  *
  * Asserts the SAME golden the SDK producer asserts in
  * `sdks/python/oss/tests/pytest/unit/agents/test_gateway_credentials.py`, so a leg that drops

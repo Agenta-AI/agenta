@@ -21,10 +21,7 @@ interface Props {
     onSuccess?: () => void
 }
 
-// specs-wp18.md: two-step consent flow. Step 1 (discover) renders the checklist,
-// step 2 (begin) opens the authorization redirect — popup with a same-tab
-// fallback and postMessage-or-poll completion, mirroring
-// `gatewayTool/drawers/ConnectDrawer.tsx`'s own OAuth mechanics.
+// Discover scopes before opening the OAuth authorization flow.
 export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) {
     const projectId = useAtomValue(projectIdAtom)
     const [loading, setLoading] = useState(false)

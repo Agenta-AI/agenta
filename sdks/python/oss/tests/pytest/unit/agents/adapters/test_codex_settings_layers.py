@@ -71,7 +71,7 @@ def test_managed_run_renders_file_free_provider_block():
 
 
 def test_gateway_route_renders_base_url_and_env_http_headers():
-    # WP13/D31: a gateway-routed managed connection carries base_url + env_http_headers, mapping
+    # A gateway-routed managed connection carries base_url + env_http_headers, mapping
     # OUR header name to the shared env var — never the raw value.
     content, config = _config(
         build_codex_settings_files(
@@ -179,7 +179,7 @@ def test_network_restriction_renders_nothing_when_not_expressible(network_mode):
     )
 
 
-# Regression (D-008 amendment): a tool-bearing run WITH permission rules never renders an
+# A tool-bearing run with permission rules never renders an
 # [mcp_servers.*] table. A transport-less server entry crashes codex at session/new; the
 # runner-side gate is the tool-permission authority.
 def test_permission_rules_render_no_mcp_servers_tables():

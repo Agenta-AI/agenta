@@ -448,12 +448,7 @@ export function materializeModelEnvironment(
           "gateway credentials require a valid header name and newline-free value",
       };
     }
-    // This is Agenta's short-lived project-scoped gateway token, not a provider key. The API
-    // core emitted this route and production ingress governs its TLS; dev intentionally uses
-    // the normal HTTP API gateway. Do not apply the provider-key transport rule here.
-    // A gateway route carries OUR credentials in place of the provider's; a request naming
-    // both is confused about which one authenticates and is rejected rather than guessed at
-    // (specs-wp13.md Phase 1).
+    // Gateway credentials replace provider credentials for a gateway-routed connection.
     if (credentials.length > 0) {
       return {
         ok: false,
@@ -534,12 +529,7 @@ export function buildRunPlan(
   const attachmentError = attachmentCountError(turn.attachments.length);
   if (attachmentError) return { ok: false, error: attachmentError };
   const prompt = turn.text;
-  // An out-of-band approval reply legitimately carries no user text: the human answered a parked
-  // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
-  // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
-  // plan is built — so rejecting here would kill the run before the conversation could be
-  // supplied. A historical user prompt also keeps structured continuation tails valid; only a
-  // request with no current attachment, no approval reply, and no user text anywhere is rejected.
+  // Approval replies may omit text; prior turns provide the required context.
   if (
     !turn.text &&
     turn.attachments.length === 0 &&
@@ -647,20 +637,12 @@ export function buildRunPlan(
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
-  // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
-  // snippets. The dispatch sites still throw per-call as a backstop, but a per-call throw
-  // becomes a tool RESULT the model launders into an `ok:true` reply ("Code tools are not
-  // supported by the sidecar."), so a removed capability reads as a SUCCESS at the response
-  // envelope (F-016). Fail loud up-front instead: refuse any run that carries a `code` tool,
-  // the way stdio MCP is gated. Keep the wire shape; the delivery is not supported.
+  // Code tools are unsupported and reject the run before execution.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
-  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
-  // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
-  // on Pi up front with a Pi-specific message.
+  // Pi does not support external user MCP servers.
   if (isPi && (request.mcpServers?.length ?? 0) > 0) {
     return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
   }

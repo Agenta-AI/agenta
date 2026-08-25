@@ -12,8 +12,7 @@ Run manually once that deployment_kind exists:
     bash hosting/docker-compose/run.sh --oss --dev --build
     cd api && py-run-tests  # or: pytest oss/tests/pytest/acceptance/gateways -m acceptance
 
-Matches `plan.md` WP6's done condition verbatim: "a streamed response is relayed unmodified
-and a hung upstream times out rather than hanging the gateway."
+Verifies transparent streaming and upstream timeouts.
 """
 
 import time
@@ -21,9 +20,7 @@ from uuid import uuid4
 
 import pytest
 
-# Compose service name and port WP5 owns (workstreams/specs-wp5.md); the trailing /v1
-# is the upstream's own path segment, appended to by RelayLLMAdapter's per-protocol
-# routing strategy (specs-wp24.md, entities.md §9's base_url note).
+# Mock LLM upstream base URL; provider routes append their protocol path.
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
 
 
@@ -85,10 +82,7 @@ class TestLLMGatewayProxyAcceptance:
         )
 
         assert response.status_code == 200
-        # Byte comparison against the mock's own framing (specs-wp6.md: "byte
-        # comparison, not a re-decoded equivalence check") — every frame is
-        # `data: ...\n\n`, terminated by the literal `data: [DONE]\n\n` sentinel
-        # MockLLMAdapter emits (core/gateways/llms/providers/mock/adapter.py).
+        # Compare upstream streaming framing byte-for-byte.
         body = response.content
         assert body.endswith(b"data: [DONE]\n\n")
         assert body.count(b"data: ") >= 2
@@ -144,7 +138,7 @@ class TestLLMGatewayProxyAcceptance:
     ):
         slug = mock_llm_endpoint["slug"]
 
-        # The auth middleware rejects before any router runs (D13) — this
+        # The auth middleware rejects before any router runs.
         # asserts the platform boundary; it has no direct handle on the mock's
         # request log to prove non-delivery any more precisely than "no
         # successful relay happened".
@@ -265,14 +259,4 @@ class TestLLMGatewayResponsesAndMessagesDoorsAcceptance:
         assert response.json()["error"]["code"] == "model_not_allowed"
 
 
-# D40/OD19 (specs-wp27.md): Vertex on the Messages door is the named byte-for-byte
-# exemption above, and it composes the real rawPredict path (routing.py), which the mock
-# upstream does not mount (`providers/mock/app.py` only serves
-# `/v1/{chat/completions,responses,messages}`). Bedrock's Messages door now composes
-# bedrock-mantle's own `/anthropic/v1/messages`, also unmounted by the mock. Proving each
-# URL (+, for Vertex, body) pair therefore stays a unit test against RelayLLMAdapter
-# directly
-# (test_gateways_llm_relay_adapter.py::test_{bedrock_messages_request_composes_mantle_url_
-# and_leaves_body_untouched,vertex_messages_request_moves_model_from_body_to_url}) rather
-# than an acceptance test here — there is no upstream in this suite's reach that speaks
-# either real wire.
+# Provider-specific private-cloud routes are covered by relay-adapter unit tests.

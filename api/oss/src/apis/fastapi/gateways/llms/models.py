@@ -1,4 +1,4 @@
-"""LLM gateway management wire models (entities.md §6).
+"""LLM gateway management wire models.
 
 The house triple, matching `triggers/models.py`: create/edit requests wrap the core DTO
 under a named field, queries add `Windowing`, responses carry `count` plus the entity.

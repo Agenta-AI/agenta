@@ -27,7 +27,7 @@ from agenta.sdk.agents.platform import PlatformConnection, resolve_mcp
 
 pytestmark = [pytest.mark.acceptance]
 
-# Compose service name and port WP5 owns; the mock speaks Streamable HTTP in JSON mode
+# The mock speaks Streamable HTTP in JSON mode.
 # at the root path (see the sibling api-layer acceptance test).
 _MOCK_BASE_URL = "http://mock-mcp-gateway:9092/"
 

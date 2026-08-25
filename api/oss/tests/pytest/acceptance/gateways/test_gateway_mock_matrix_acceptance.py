@@ -5,9 +5,7 @@ tests.  This module is the matrix proof: it invokes each generated or persisted
 entry through its public route. Generated mock entries use the in-process mock
 adapter; custom entries additionally prove the configured mock server works.
 
-WP28 supplies the generated routes, mock credential resolver, and protected
-custom mock upstream. Keeping that boundary explicit makes a stack without WP28
-skip rather than report a misleading pass.
+The suite skips when the required mock routes are unavailable.
 """
 
 from __future__ import annotations

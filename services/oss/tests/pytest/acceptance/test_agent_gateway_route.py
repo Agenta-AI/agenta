@@ -140,5 +140,5 @@ def test_agent_run_completes_through_the_gateway(
     messages = body["data"]["outputs"]["messages"]
     assert messages, "expected at least one assistant message"
     assert messages[-1]["role"] == "assistant"
-    # WP5's mock echoes the request's last message content back (specs-wp5.md).
+    # The mock echoes the request's last message content.
     assert "hi" in messages[-1]["content"]

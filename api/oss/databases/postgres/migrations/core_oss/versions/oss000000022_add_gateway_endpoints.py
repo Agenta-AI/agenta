@@ -1,26 +1,8 @@
-"""add gateway endpoints
+"""Add persisted custom LLM and MCP gateway endpoints.
 
-Creates the two tables the gateways domain persists (entities.md §1, §3):
-llms_endpoints and mcps_endpoints. Every row in both is a custom row by
-construction — standard and builtin endpoints are generated, never stored (D20).
-
-The MCP OAuth flow stores its token material in a project-owned `oauth_grant` secret, so this
-unreleased gateway migration also extends the shared `secretkind_enum` before any endpoint can
-reference that handle.
-
-The two new Postgres enum types (llmdeploymentkind_enum, gatewayauthscheme_enum)
-use the enum member NAMES (upper-case), matching this codebase's existing
-SQLAlchemy-enum convention (see secretkind_enum) rather than the lower-case
-DTO values.
-
-secret_id is SET NULL on both tables: a dead secret must not silently delete an
-endpoint's configuration (§2.1). Each endpoint names one secret, project-owned —
-user-level grants are out of scope, and reopening them adds tables rather than
-changing these (out-of-scope.md).
-
-`llms_endpoints.provider_key` is nullable. A custom endpoint can point at a
-self-hosted OpenAI-compatible gateway without claiming a provider family that
-does not describe that upstream.
+Standard and built-in endpoints are generated at read time. OAuth grants are project-owned
+secrets. Endpoint secrets use SET NULL so secret deletion preserves endpoint configuration.
+Custom LLM endpoints may omit a provider key for self-hosted compatible servers.
 
 Revision ID: oss000000022
 Revises: oss000000020
@@ -41,8 +23,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # This revision has not shipped. Keep the gateway's OAuth secret kind with the endpoint
-    # schema rather than creating a second migration that would be immediately folded back.
+    # OAuth grants are required by MCP endpoint OAuth connections.
     op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'OAUTH_GRANT'")
 
     op.create_table(
