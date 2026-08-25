@@ -41,9 +41,9 @@ import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
+import ConnectionDock from "./ConnectionDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import ConnectionDock from "./ConnectionDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 

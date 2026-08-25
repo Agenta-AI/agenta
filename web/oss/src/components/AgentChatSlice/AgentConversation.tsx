@@ -7,6 +7,7 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
+import {ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
     useComposerAttachments,
@@ -14,7 +15,6 @@ import {
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
-import {ConnectionFocusProvider} from "@agenta/chat/components"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"

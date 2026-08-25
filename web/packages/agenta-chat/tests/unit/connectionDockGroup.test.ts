@@ -17,9 +17,15 @@ describe("useConnectionDock group scoping", () => {
     it("counts only the parked group, not the turn's earlier connections", () => {
         // The reported bug: 7 settled connect calls already in this turn, 1 pending.
         const parts = [
-            ...["github", "googlecalendar", "googletasks", "youtube", "gmail-a", "gmail-b", "gmail-c"].map(
-                (k) => part(`${k}-1`, true),
-            ),
+            ...[
+                "github",
+                "googlecalendar",
+                "googletasks",
+                "youtube",
+                "gmail-a",
+                "gmail-b",
+                "gmail-c",
+            ].map((k) => part(`${k}-1`, true)),
             part("gmail-live", false),
         ]
         const {result} = renderHook(() => useConnectionDock({messages: turn(parts)}))
