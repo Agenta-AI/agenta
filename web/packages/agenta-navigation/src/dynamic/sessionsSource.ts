@@ -1,5 +1,9 @@
 import {queryInteractions, querySessions, type SessionStream} from "@agenta/entities/session"
-import {agentWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    appWorkflowsListQueryAtom,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {sessionOpenTarget} from "@agenta/sessions/row"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
@@ -302,6 +306,23 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
+ * The agents that have been archived, or `null` while the catalog is still loading.
+ *
+ * Archiving is `deleted_at` on the workflow ref, the same field every other "is this agent gone"
+ * read uses. `null` rather than an empty set while pending: an empty set would claim NOTHING is
+ * archived and let the rows render before being pulled back out.
+ */
+const archivedAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
+    const query = get(appWorkflowsListQueryAtom)
+    if (!query.data) return null
+    return new Set(
+        (query.data.refs ?? [])
+            .filter((ref: {deleted_at?: string | null}) => Boolean(ref.deleted_at))
+            .map((ref: {id: string}) => ref.id),
+    )
+})
+
+/**
  * Drop sessions whose agent has been archived (#5944) — an archived agent's conversations should
  * not keep occupying the rail. A PIN is an explicit user request and is exempt, the same exemption
  * it gets from every other list rule.
@@ -364,8 +385,12 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         // with a gate still open. That session is WAITING — the shared status rule ranks a gate
         // above liveness — so it is subtracted here. The only client-side narrowing in this file,
         // and a deliberate one: no server predicate can express "no open gate".
-        const merged =
+        const narrowed =
             filters.status === "idle" ? all.filter((ref) => !waitingIds.has(ref.sessionId)) : all
+        // Archiving an agent has to take its conversations off the rail with it (#5944). Applied
+        // to every scope, grouped or not: an archived agent's sessions are stale everywhere the
+        // rail renders, not only where headings group them by agent.
+        const merged = dropArchivedAgentSessions(narrowed, get(archivedAgentIdsAtom))
 
         // An ungrouped scope needs neither, and the artifactName read would subscribe it to the
         // workflow catalog it never asked for.
