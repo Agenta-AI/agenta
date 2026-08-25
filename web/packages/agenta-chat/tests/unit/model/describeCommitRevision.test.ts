@@ -107,7 +107,7 @@ describe("describeCommitRevision", () => {
         })
     })
 
-    it("clamps a long literal set to one line", () => {
+    it("collapses a literal set to one line but keeps the full text for expansion", () => {
         const preview = describeCommitRevision(
             ordered({
                 operation: "set",
@@ -118,8 +118,25 @@ describe("describeCommitRevision", () => {
         )
 
         expect(preview?.items[0].title).toBe("New instructions")
+        // Whitespace collapses so the collapsed row is one line, but nothing under the safety cap
+        // is truncated — the expand affordance must be able to show the whole change.
         expect(preview?.items[0].detail).not.toContain("\n")
+        expect(preview?.items[0].detail?.endsWith("…")).toBe(false)
+        expect(preview?.items[0].detail?.length).toBeGreaterThan(400)
+    })
+
+    it("clamps only a pathologically long value at the safety cap", () => {
+        const preview = describeCommitRevision(
+            ordered({
+                operation: "set",
+                target: ["parameters", "agent", "instructions"],
+                value: "y".repeat(5000),
+            }),
+            undefined,
+        )
+
         expect(preview?.items[0].detail?.endsWith("…")).toBe(true)
+        expect(preview?.items[0].detail?.length).toBeLessThan(5000)
     })
 
     it("falls back to the verb and a preview for a value it cannot read as prose", () => {

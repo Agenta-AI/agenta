@@ -3,9 +3,10 @@
  * describers and `approvalPreview` can both use it without importing each other.
  */
 
-// The row renders on ONE line and truncates with CSS, so this is only a safety net that keeps a
-// pasted file out of the DOM — it sits well past what any row can show.
-const DETAIL_CHARS = 400
+// Collapsed rows truncate to one line with CSS; expanded rows show the full string. This cap is
+// only a safety net so a pathological pasted file cannot bloat the DOM — it sits well past a normal
+// instruction or skill body, which must survive intact for the expand affordance to be useful.
+const DETAIL_CHARS = 4000
 
 /** Collapse whitespace and clamp — a value pasted from a file must not become a paragraph. */
 export const oneLine = (text: string, max = DETAIL_CHARS): string => {
