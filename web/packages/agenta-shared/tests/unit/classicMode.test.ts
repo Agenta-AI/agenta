@@ -122,13 +122,28 @@ describe("simplified cohort, derived from the account", () => {
         expect(store.get(classicModeEnabledAtom)).toBe(true)
     })
 
-    it("parses the backend's space-separated datetime", () => {
-        // `str(datetime)` in Python, not an ISO `T`. Safari refuses the space; the atom
-        // normalizes it. A regression here reads as NaN → classic mode → silently no redirect.
-        const spaced = signIn({}, "2026-08-14 09:12:33.123456+00:00")
-        const isoT = signIn({}, "2026-08-14T09:12:33.123456+00:00")
-        expect(spaced.store.get(classicModeEnabledAtom)).toBe(false)
-        expect(isoT.store.get(classicModeEnabledAtom)).toBe(false)
+    it("parses what the backend actually sends, in every shape", () => {
+        // `str(datetime)` gives a SPACE separator that Safari refuses, and SIX fractional
+        // digits where `Date.parse` is only required to accept three (more is
+        // implementation-defined, so an engine may answer NaN). Both are normalized. A
+        // regression reads as NaN, which means classic mode and silently no redirect.
+        for (const createdAt of [
+            "2026-08-14 09:12:33.123456+00:00",
+            "2026-08-14T09:12:33.123456+00:00",
+            "2026-08-14 09:12:33.123+00:00",
+            "2026-08-14 09:12:33+00:00",
+            "2026-08-14T09:12:33Z",
+        ]) {
+            expect(signIn({}, createdAt).store.get(classicModeEnabledAtom)).toBe(false)
+        }
+    })
+
+    it("keeps the millisecond precision it truncates to", () => {
+        // Truncating must not shift the instant across the cutoff.
+        const justAfter = signIn({}, "2026-08-01 00:00:00.000999+00:00")
+        const justBefore = signIn({}, "2026-07-31 23:59:59.999999+00:00")
+        expect(justAfter.store.get(classicModeEnabledAtom)).toBe(false)
+        expect(justBefore.store.get(classicModeEnabledAtom)).toBe(true)
     })
 
     it("falls back to classic mode when the date is missing or unparseable", () => {

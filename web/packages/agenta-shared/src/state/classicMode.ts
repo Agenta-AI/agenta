@@ -26,6 +26,18 @@ import {userAtom} from "./user"
 const SIMPLIFIED_SIGNUP_CUTOFF = Date.parse("2026-08-01T00:00:00Z")
 
 /**
+ * `Date.parse` on what `str(datetime)` produces: `2026-08-01 12:34:56.789012+00:00`.
+ *
+ * Two things in that string are not the format `Date.parse` is required to accept. The date and
+ * time are SPACE-separated, which Safari refuses outright. And the fraction carries six digits
+ * where the spec defines exactly three, so anything past the third is implementation-defined and
+ * an engine may answer NaN. Every major engine happens to cope today, but the failure would be
+ * silent here: NaN reads as "not in the cohort", which quietly parks the user on classic mode.
+ */
+const parseBackendTimestamp = (raw: string): number =>
+    Date.parse(raw.replace(" ", "T").replace(/\.(\d{3})\d+/, ".$1"))
+
+/**
  * Does this ACCOUNT belong to the simplified cohort?
  *
  * The stored flag below only exists on the browser the user signed up in, so on a second device
@@ -37,9 +49,7 @@ const SIMPLIFIED_SIGNUP_CUTOFF = Date.parse("2026-08-01T00:00:00Z")
 const simplifiedCohortAtom = atom((get) => {
     const createdAt = get(userAtom)?.created_at
     if (!createdAt) return false
-    // The backend stringifies a Python datetime, so the date and time are SPACE-separated.
-    // Safari refuses that; every engine accepts it once the separator is a `T`.
-    const created = Date.parse(createdAt.replace(" ", "T"))
+    const created = parseBackendTimestamp(createdAt)
     return Number.isNaN(created) ? false : created >= SIMPLIFIED_SIGNUP_CUTOFF
 })
 
