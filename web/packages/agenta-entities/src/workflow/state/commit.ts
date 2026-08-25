@@ -56,6 +56,7 @@ import {
     invalidateWorkflowRevisionsByVariantCache,
     invalidateWorkflowVariantsCache,
     primeWorkflowRevisionDetailCacheImperative,
+    primeCommittedRevisionRefLists,
     getFlatSourceData,
 } from "./store"
 
@@ -314,6 +315,9 @@ export const commitWorkflowRevisionAtom = atom(
             // synchronously with `initialData`, keeping the just-created
             // revision selected through the navigation.
             primeWorkflowRevisionDetailCacheImperative(newWorkflow)
+            // The pickers list thin refs; seed the new one so the dropdown shows it immediately
+            // rather than after the invalidation below refetches.
+            primeCommittedRevisionRefLists(newWorkflow)
 
             const result: WorkflowCommitResult = {
                 success: true,

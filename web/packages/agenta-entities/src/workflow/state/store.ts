@@ -159,6 +159,48 @@ export function primeWorkflowRevisionDetailCacheImperative(
     }
 }
 
+/**
+ * Put a just-committed revision into the ref lists the revision pickers read, so it appears at
+ * once instead of after the invalidation's refetch lands.
+ *
+ * Both lists are thin `{count, refs}` caches keyed differently — the desktop picker lists by
+ * VARIANT, the mobile top bar by WORKFLOW — so a commit has to seed both or one of them shows a
+ * dropdown whose newest entry is the revision before the one the header names.
+ */
+export function primeCommittedRevisionRefLists(
+    workflow: Workflow | null | undefined,
+    options?: StoreOptions,
+): void {
+    if (!workflow?.id) return
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+
+    const ref: WorkflowRevisionRef = {
+        id: workflow.id,
+        version: workflow.version ?? null,
+        created_at: workflow.created_at ?? null,
+    }
+
+    const seed = (queryKey: (string | null | undefined)[]) => {
+        const qc = store.get(queryClientAtom)
+        const existing = qc.getQueryData<WorkflowRevisionRefsByVariantResponse>(queryKey)
+        // No cache yet means nothing is rendering this list; the query will fetch it whole.
+        if (!existing) return
+        const refs = [ref, ...existing.refs.filter((r) => r.id !== ref.id)]
+        qc.setQueryData(queryKey, {count: refs.length, refs})
+    }
+
+    try {
+        const variantId = workflow.workflow_variant_id ?? workflow.variant_id
+        if (variantId) seed(["workflows", "revisions", variantId, projectId])
+        const workflowId = workflow.workflow_id
+        if (workflowId) seed(["workflows", "revisionsByWorkflow", workflowId, projectId])
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
 function findWorkflowRevisionInDetailCache(
     queryClient: QueryClient,
     projectId: string,
