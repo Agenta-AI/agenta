@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {ALL_TEMPLATES_CATEGORY} from "@agenta/entities/workflow"
-import {TemplateGallery} from "@agenta/home-ui"
+import {TEMPLATE_GALLERY_COPY, TemplateGallery} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useRouter} from "next/router"
 
@@ -53,12 +53,23 @@ export const AgentTemplatesScreen = ({
                         <>
                             {BROWSE_RAIL_MODE ? null : (
                                 <div
-                                    className={`${pageContentWidthClass} flex shrink-0 items-center gap-2 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
+                                    className={`${pageContentWidthClass} flex shrink-0 flex-col gap-1 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
                                 >
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
-                                        Templates
-                                    </h1>
+                                    <div className="flex items-center gap-2">
+                                        <NavDrawer
+                                            workspaceId={workspaceId}
+                                            projectId={projectId}
+                                        />
+                                        <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
+                                            {TEMPLATE_GALLERY_COPY.title}
+                                        </h1>
+                                    </div>
+                                    {/* The toolbar frame leaves identity to the host, and the
+                                        desktop's `PageLayout` renders this line — without it /m
+                                        was the only surface that never said what the page is for. */}
+                                    <p className="text-muted-foreground m-0 text-[13px]">
+                                        {TEMPLATE_GALLERY_COPY.subtitle}
+                                    </p>
                                 </div>
                             )}
                             {newAgent.creating || newAgent.error ? (
@@ -75,24 +86,36 @@ export const AgentTemplatesScreen = ({
                         </>
                     }
                 >
-                    <TemplateGallery
-                        // Toolbar by default (#5846): a rail here would be a second sidebar beside
-                        // the nav one, so identity moves to this screen's header above. With the
-                        // flag on, the rail returns and carries its own title and drawer trigger.
-                        layout={BROWSE_LAYOUT}
-                        leading={
-                            BROWSE_RAIL_MODE ? (
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                            ) : undefined
+                    {/* The toolbar frame's body shares the header's column — the page cap and the
+                        gutters go on BOTH boxes or the grid runs past the viewport with the cards
+                        clipped at the right edge. The rail frame bleeds to the edge by design. */}
+                    <div
+                        className={
+                            BROWSE_RAIL_MODE
+                                ? "flex min-h-0 flex-1 flex-col"
+                                : `${pageContentWidthClass} flex min-h-0 flex-1 flex-col px-4 pb-4 lg:px-16 lg:pb-8`
                         }
-                        category={category}
-                        onCategoryChange={setCategory}
-                        // A card OPENS the template, as on the desktop: the detail page is where you
-                        // see what it needs before committing to it.
-                        onSelectTemplate={(template) =>
-                            void router.push(`${base}/templates/${template.key}`)
-                        }
-                    />
+                    >
+                        <TemplateGallery
+                            // Toolbar by default (#5846): a rail here would be a second sidebar
+                            // beside the nav one, so identity moves to this screen's header above.
+                            // With the flag on, the rail returns and carries its own title and
+                            // drawer trigger.
+                            layout={BROWSE_LAYOUT}
+                            leading={
+                                BROWSE_RAIL_MODE ? (
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                ) : undefined
+                            }
+                            category={category}
+                            onCategoryChange={setCategory}
+                            // A card OPENS the template, as on the desktop: the detail page is
+                            // where you see what it needs before committing to it.
+                            onSelectTemplate={(template) =>
+                                void router.push(`${base}/templates/${template.key}`)
+                            }
+                        />
+                    </div>
                 </ScreenScaffold>
             </AppShell>
         </>

@@ -80,13 +80,6 @@ export const TEMPLATES_SECTION = {
     browseAll: "Browse all",
 } as const
 
-export const TEMPLATES_GALLERY = {
-    title: "Templates",
-    subtitle:
-        "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
-    searchPlaceholder: "Search templates…",
-} as const
-
 /** First-run tutorial video config. `null` hides the column (composer returns to full width). */
 export const TUTORIAL_VIDEO: {url?: string; poster?: string; durationLabel?: string} | null = {
     durationLabel: "2:04",

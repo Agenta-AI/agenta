@@ -25,6 +25,7 @@ import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {SearchInput} from "@agenta/ui/ui"
 
 import {TemplateCard} from "./TemplateCard"
+import {TEMPLATE_GALLERY_COPY} from "./templateGalleryCopy"
 
 export interface TemplateGalleryProps {
     /** Controlled so a host can keep it in the URL (the desktop does). */
@@ -105,9 +106,9 @@ export const TemplateGallery = ({
     onCategoryChange,
     onSelectTemplate,
     leading,
-    title = "Templates",
-    subtitle = "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
-    searchPlaceholder = "Search templates…",
+    title = TEMPLATE_GALLERY_COPY.title,
+    subtitle = TEMPLATE_GALLERY_COPY.subtitle,
+    searchPlaceholder = TEMPLATE_GALLERY_COPY.searchPlaceholder,
     className,
     layout = "toolbar",
 }: TemplateGalleryProps) => {
@@ -208,8 +209,10 @@ export const TemplateGallery = ({
                     ))}
                 </nav>
 
-                {/* One scroller: the sections wrapper below scrolls, so search stays pinned. */}
-                <div className="flex min-h-0 flex-1 flex-col gap-5">
+                {/* One scroller: the sections wrapper below scrolls, so search stays pinned.
+                    `min-w-0`: a flex child defaults to min-width:auto, so at `lg` the grid's
+                    min-content width would push this column past the row and clip the cards. */}
+                <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5">
                     <SearchInput
                         value={query}
                         onValueChange={setQuery}
