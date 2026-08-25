@@ -85,6 +85,9 @@ export const resolveConnectMode = (
     return hintedMode
 }
 
+/** Shown when the failure carried no usable detail of its own. */
+export const GENERIC_CONNECT_ERROR = "Connection failed. Please try again."
+
 /**
  * Prefer the backend's own `detail` on a 4xx (e.g. "telegram has no managed OAuth
  * configuration…") — Fern's default `Error.message` bundles a multi-line dump
@@ -105,7 +108,7 @@ export const extractConnectErrorMessage = (err: unknown): string => {
     ) {
         return detail
     }
-    return "Connection failed. Please try again."
+    return GENERIC_CONNECT_ERROR
 }
 
 /** Read the API origin the OAuth callback page posts from; null if it can't be resolved. */

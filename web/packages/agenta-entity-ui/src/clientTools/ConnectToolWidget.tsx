@@ -13,10 +13,10 @@
  */
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shared/clientTools"
 import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, CheckCircle, Hourglass, Spinner, Warning} from "@phosphor-icons/react"
+import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
 import {IntegrationTile} from "./IntegrationTile"
-import {useConnectFlow, type ConnectOutput} from "./useConnectFlow"
+import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 /**
  * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
@@ -56,7 +56,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "connecting") {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                <span className="text-xs text-colorTextSecondary">Connecting {label}…</span>
+                <span className="text-xs text-colorText">Connecting {label}…</span>
                 <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
                     Cancel
                 </Button>
@@ -69,10 +69,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         const output = (meta.output ?? {}) as ConnectOutput
         if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
-                <ChipRow
-                    icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
-                >
-                    <span className="text-xs text-colorText">{label} connected</span>
+                <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                    <span className="truncate text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
@@ -85,7 +83,10 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 </ChipRow>
             )
         }
-        // Declined / cancelled / timeout: quiet generic wording — these are expected, not
+        // The tile says WHICH tool and the wording says what happened, so the row stays in the
+        // neutral tone — no glyph or colour competing with the brand mark.
+        // "declined" is the user's own "Not now", so it must NOT read as a failure; cancelled and
+        // timeout did fail to reach a connection. Both stay in the quiet tint — expected, not
         // errors. Any other reason is the create call's own failure message and must be
         // shown, not swallowed behind the same generic text (it previously was).
         // A remounted part (after a reload) has no local `outcome` and usually no `meta.output`;
@@ -101,22 +102,11 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 ? reason
                 : undefined
         return (
-            <ChipRow
-                icon={
-                    <Warning
-                        size={13}
-                        weight="fill"
-                        className={failureDetail ? "text-colorError" : "text-colorWarning"}
-                    />
-                }
-            >
-                <span
-                    className={`truncate text-xs ${
-                        failureDetail ? "text-colorError" : "text-colorTextSecondary"
-                    }`}
-                    title={failureDetail}
-                >
-                    {failureDetail ?? "Connection not completed"}
+            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                <span className="shrink-0 text-xs text-colorText">{label}</span>
+                <span className="truncate text-xs text-colorText" title={failureDetail}>
+                    {failureDetail ??
+                        (reason === "declined" ? "not connected" : "connection failed")}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
@@ -125,10 +115,14 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
     // ── Error on a manual retry (create failed, popup blocked): show reason + Retry ──────────────
     if (phase === "error") {
+        // The generic fallback would read "Gmail Connection failed. Please try again." after the
+        // name; only a real backend detail earns the space.
+        const errorDetail = errorText && errorText !== GENERIC_CONNECT_ERROR ? errorText : undefined
         return (
-            <ChipRow icon={<Warning size={13} weight="fill" className="text-colorError" />}>
-                <span className="truncate text-xs text-colorError" title={errorText ?? undefined}>
-                    {errorText ?? "Connection failed."}
+            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                <span className="shrink-0 text-xs text-colorText">{label}</span>
+                <span className="truncate text-xs text-colorText" title={errorDetail}>
+                    {errorDetail ?? "connection failed"}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
@@ -137,10 +131,12 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
     // ── Pending: passive marker — the connect dock (above the composer) owns the actions ─────────
     // The brand mark, not a generic plug: the dock identifies each queued connection the same way.
+    // The dock card's ask, trimmed to its first clause plus the pointer — the row marks WHICH tool
+    // and WHERE to answer; the card below carries the reason. One span, not name + tail: the row's
+    // flex gap would split the phrase and leave "below" reading as an orphan.
     return (
         <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
-            <span className="text-xs text-colorText">Connect {label}</span>
-            <span className="text-xs text-colorTextTertiary">waiting for your response below</span>
+            <span className="truncate text-xs text-colorText">Connect to {label} below</span>
         </ChipRow>
     )
 }
