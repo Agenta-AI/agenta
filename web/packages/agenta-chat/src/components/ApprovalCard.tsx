@@ -157,10 +157,8 @@ export const ApprovalCard = ({
         <div className={`flex flex-col rounded-lg ${className}`}>
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. */}
             <div className="flex items-center gap-1.5">
-                <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorTextTertiary" />
-                <span className="text-xs font-medium text-colorTextTertiary">
-                    Needs your approval
-                </span>
+                <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
+                <span className="text-xs font-medium text-colorText">Needs your approval</span>
             </div>
 
             {/* The whole ask, in one sentence — what happens, and what it costs. */}
@@ -172,7 +170,7 @@ export const ApprovalCard = ({
             </span>
 
             {items.length ? (
-                <>
+                <div className="flex flex-col gap-2.5">
                     <button
                         type="button"
                         onClick={() => setDetailsOpen((s) => !s)}
@@ -208,13 +206,13 @@ export const ApprovalCard = ({
                             ))}
                         </div>
                     </HeightCollapse>
-                </>
+                </div>
             ) : null}
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
             <HeightCollapse open={!steerOpen} fade inert>
-                <div className="flex items-center gap-2 pt-0.5">
+                <div className="flex items-center gap-2">
                     {canAlwaysAllow ? (
                         <label className="flex cursor-pointer items-center gap-2 text-xs text-colorTextSecondary">
                             <Checkbox
