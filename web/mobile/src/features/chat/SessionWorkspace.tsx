@@ -44,6 +44,7 @@ export const SessionWorkspace = ({
     projectId,
     chat,
     bare = false,
+    hideSessionTabs = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
@@ -58,6 +59,11 @@ export const SessionWorkspace = ({
      * only Home's body) would otherwise stack a second nav rail beside the first.
      */
     bare?: boolean
+    /**
+     * Hide the session tab strip. Before the agent is created there is exactly one draft session
+     * and no history, so the strip is a rail with nothing to switch between.
+     */
+    hideSessionTabs?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
@@ -169,12 +175,14 @@ export const SessionWorkspace = ({
                                             rail too and reset its scroll to 0 — you would scroll a
                                             long strip, pick a tab, and the strip snapped back to
                                             the start. Up here it simply stays put. */}
-                                        <SessionTabs
-                                            sessionId={sessionId}
-                                            projectId={projectId}
-                                            workspaceId={workspaceId}
-                                            agentId={agentId}
-                                        />
+                                        {hideSessionTabs ? null : (
+                                            <SessionTabs
+                                                sessionId={sessionId}
+                                                projectId={projectId}
+                                                workspaceId={workspaceId}
+                                                agentId={agentId}
+                                            />
+                                        )}
                                         <div className="min-h-0 flex-1">{chat}</div>
                                     </div>
                                 }

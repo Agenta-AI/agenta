@@ -125,6 +125,8 @@ export const FirstRunScreen = ({
             chat={create}
             // Home already renders the shell around this body; a second one stacks nav rails.
             bare
+            // No session exists yet, so the tab strip has nothing to switch between.
+            hideSessionTabs
         />
     )
 }
