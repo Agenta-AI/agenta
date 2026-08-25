@@ -8,19 +8,23 @@ import {
 } from "@agenta/entities/workflow"
 import {TemplateCard} from "@agenta/home-ui"
 import {useAtom} from "jotai"
-import {EyeOff} from "lucide-react"
+import {ChevronLeft, ChevronRight, EyeOff} from "lucide-react"
 
 import {FIRST_RUN_COPY} from "./copy"
+import {TemplatePagerButton} from "./TemplatePagerButton"
 import {templatesHiddenAtom} from "./templatesHidden"
+
+/** Matches the desktop strip's `PAGE_SIZE`, and the `lg:grid-cols-3` the cards page through. */
+const TEMPLATE_PAGE_SIZE = 3
 
 /**
  * The templates offer on first run, aligned with the desktop's strip: real template CARDS with
  * their monogram, description and the connections they need — not three text chips that fill the
  * composer and teach nothing about what a template is.
  *
- * The desktop pages 3-at-a-time with arrows because it has the width. A phone does not, so the
- * same cards scroll horizontally instead; the category filter above them is the desktop's tab row
- * with the counts dropped (they need the full set on screen to mean anything).
+ * At `lg` it pages 3-at-a-time behind the desktop's arrows; narrower, where there is no width for
+ * a page, the same cards scroll horizontally and the pager hides. The category filter above them
+ * is the desktop's tab row, wrapped into chips.
  */
 export const FirstRunTemplates = ({
     onPick,
@@ -33,11 +37,21 @@ export const FirstRunTemplates = ({
 }) => {
     const [category, setCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
     const [hidden, setHidden] = useAtom(templatesHiddenAtom)
+    const [page, setPage] = useState(0)
     const categories = [ALL_TEMPLATES_CATEGORY, ...TEMPLATE_CATEGORY_ORDER]
     const shown =
         category === ALL_TEMPLATES_CATEGORY
             ? AGENT_TEMPLATES
             : AGENT_TEMPLATES.filter((template) => template.category === category)
+
+    // Clamped rather than stored raw: a narrower category can have fewer pages than the one that
+    // set `page`, and the counter would then name a window with no cards in it.
+    const pageCount = Math.max(1, Math.ceil(shown.length / TEMPLATE_PAGE_SIZE))
+    const safePage = Math.min(page, pageCount - 1)
+    const pageStart = safePage * TEMPLATE_PAGE_SIZE
+    const pageEnd = Math.min(pageStart + TEMPLATE_PAGE_SIZE, shown.length)
+    const atStart = safePage === 0
+    const atEnd = safePage >= pageCount - 1
 
     // Dismissed: one line that says where they went and takes them back, same as the desktop.
     if (hidden) {
@@ -60,6 +74,30 @@ export const FirstRunTemplates = ({
             <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-medium">{FIRST_RUN_COPY.templates}</span>
                 <div className="flex items-center gap-3">
+                    {/*
+                     * The desktop's pager, and `lg`-only on purpose: below that the cards are a
+                     * snap scroller with no discrete pages, so a "1–3 of 28" counter would name a
+                     * window the user is not in.
+                     */}
+                    <div className="hidden items-center gap-1.5 lg:flex">
+                        <span className="text-muted-foreground mr-0.5 text-xs">
+                            {FIRST_RUN_COPY.templateCounter(pageStart + 1, pageEnd, shown.length)}
+                        </span>
+                        <TemplatePagerButton
+                            label={FIRST_RUN_COPY.prevTemplates}
+                            disabled={atStart}
+                            onClick={() => setPage(safePage - 1)}
+                        >
+                            <ChevronLeft size={14} />
+                        </TemplatePagerButton>
+                        <TemplatePagerButton
+                            label={FIRST_RUN_COPY.nextTemplates}
+                            disabled={atEnd}
+                            onClick={() => setPage(safePage + 1)}
+                        >
+                            <ChevronRight size={14} />
+                        </TemplatePagerButton>
+                    </div>
                     <button
                         type="button"
                         onClick={onBrowseAll}
@@ -88,7 +126,10 @@ export const FirstRunTemplates = ({
                     <button
                         key={entry}
                         type="button"
-                        onClick={() => setCategory(entry)}
+                        onClick={() => {
+                            setCategory(entry)
+                            setPage(0)
+                        }}
                         aria-pressed={entry === category}
                         className={`box-border shrink-0 cursor-pointer rounded-full border border-solid px-3 py-1 text-xs transition-colors ${
                             entry === category
@@ -114,15 +155,17 @@ export const FirstRunTemplates = ({
              * carries a 2px ring, so at pt-5 it sat flush against the row and the ring clipped.
              */}
             <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-7 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0">
-                {shown.map((template) => (
+                {shown.map((template, index) => (
                     <div
                         key={template.key}
-                        // Past the third card there is no room in the grid; the rest stay one tap
-                        // away behind "Browse all", the same bargain the desktop pager makes.
-                        // `lg:min-w-0`: a grid child defaults to min-width:auto, so the card's
-                        // long footer string sets a min-content floor and the track overflows,
-                        // clipping the cards on the right.
-                        className="w-62 shrink-0 snap-start lg:w-auto lg:min-w-0 lg:nth-[n+4]:hidden"
+                        // Every card stays mounted so the narrow scroller keeps the whole set; at
+                        // `lg` only the current page's three are shown and the arrows move the
+                        // window. `lg:min-w-0`: a grid child defaults to min-width:auto, so the
+                        // card's long footer string sets a min-content floor and the track
+                        // overflows, clipping the cards on the right.
+                        className={`w-62 shrink-0 snap-start lg:w-auto lg:min-w-0 ${
+                            index >= pageStart && index < pageEnd ? "" : "lg:hidden"
+                        }`}
                     >
                         <TemplateCard
                             template={template}

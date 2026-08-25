@@ -17,6 +17,10 @@ export const FIRST_RUN_COPY = {
     tryLabel: "Try",
     templates: "Templates",
     browseAll: (total: number) => `Browse all ${total}`,
+    /** En dash, matching the desktop strip's counter exactly. */
+    templateCounter: (from: number, to: number, total: number) => `${from}–${to} of ${total}`,
+    prevTemplates: "Previous templates",
+    nextTemplates: "Next templates",
     /** The desktop strip's `STRIP_COPY` hide trio, verbatim — same action, same words. */
     hideTemplates: "Don't show again",
     templatesHidden: "Templates hidden",
