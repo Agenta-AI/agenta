@@ -323,9 +323,9 @@ async def add_default_simple_testsets(
                 user_id=user_uuid,
                 simple_testset_create=simple_testset_create,
             )
-        except Exception as e:
+        except Exception:
             log.error(
-                f"An error occurred in adding a default simple testset: {str(e)}",
+                "An error occurred in adding a default simple testset",
                 template_file=filename,
                 exc_info=True,
             )
@@ -399,9 +399,9 @@ async def add_default_simple_evaluators(
                 user_id=user_uuid,
                 simple_evaluator_create=simple_evaluator_create,
             )
-        except Exception as e:
+        except Exception:
             log.error(
-                f"An error occurred in adding a default simple evaluator: {str(e)}",
+                "An error occurred in adding a default simple evaluator",
                 evaluator_name=evaluator.name,
                 exc_info=True,
             )

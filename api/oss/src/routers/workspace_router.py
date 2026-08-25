@@ -1,5 +1,4 @@
 from typing import List, Dict
-from sqlalchemy.exc import SQLAlchemyError
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -99,16 +98,9 @@ async def get_all_workspace_permissions() -> List[Permission]:
     try:
         permissions = await organization_service.get_all_workspace_permissions()
         return sorted(permissions)
-    except SQLAlchemyError:
-        log.error("Database error while fetching workspace permissions", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="A database error occurred while fetching workspace permissions.",
-        )
-    except Exception as e:
+    except Exception:
         log.error(
-            f"Unexpected error while fetching workspace permissions: {str(e)}",
-            exc_info=True,
+            "Unexpected error while fetching workspace permissions", exc_info=True
         )
         raise HTTPException(
             status_code=500,
