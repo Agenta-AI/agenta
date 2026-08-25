@@ -14,6 +14,7 @@ import dynamic from "next/dynamic"
 
 import {AppShell} from "../nav/AppShell"
 
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
@@ -196,7 +197,16 @@ export const SessionWorkspace = ({
                                             rail too and reset its scroll to 0 — you would scroll a
                                             long strip, pick a tab, and the strip snapped back to
                                             the start. Up here it simply stays put. */}
-                                        {hideSessionTabs ? null : (
+                                        {hideSessionTabs ? (
+                                            /* No strip to carry it, so the reveal stands on its
+                                               own — otherwise collapsing the pane on this surface
+                                               would be a one-way door. */
+                                            !chatMaximized && configCollapsed ? (
+                                                <div className="flex shrink-0 items-center px-2 pt-2">
+                                                    <ConfigRevealButton />
+                                                </div>
+                                            ) : null
+                                        ) : (
                                             <SessionTabs
                                                 sessionId={sessionId}
                                                 projectId={projectId}
