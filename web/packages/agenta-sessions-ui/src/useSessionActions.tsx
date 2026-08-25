@@ -6,6 +6,7 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {shareUrl} from "@agenta/sessions/link"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
@@ -44,11 +45,14 @@ export interface UseSessionActionsOptions {
     /** Omit on a surface with no local tab cache — every action then goes straight to the server. */
     localCache?: SessionLocalCache
     /**
-     * Absolute link to a session, or "" where this app cannot address one. Supplying it adds
+     * The path a session is linked at, or "" where this app cannot address one. Supplying it adds
      * "Copy share link" to the menu; an app whose sessions have no URL of their own omits it and
      * the entry never appears.
+     *
+     * A path, not a URL, because the menu asks on every render whether a session can be linked.
+     * Keeping that answer pure means it never reads `window` outside the click.
      */
-    shareLinkFor?: (target: SessionActionTarget) => string
+    sharePathFor?: (target: SessionActionTarget) => string
 }
 
 /**
@@ -58,7 +62,7 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -162,7 +166,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
 
     const copyShareLink = useCallback(
         async (target: SessionActionTarget) => {
-            const link = shareLinkFor?.(target)
+            const link = shareUrl(sharePathFor?.(target) ?? "")
             if (!link) {
                 message.error("This session has no link yet")
                 return
@@ -170,7 +174,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
             if (await copyToClipboard(link)) message.success("Share link copied")
             else message.error("Couldn't copy the link")
         },
-        [shareLinkFor],
+        [sharePathFor],
     )
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
@@ -186,12 +190,12 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
                 : []),
             {key: "rename", label: "Rename"},
             {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
-            ...(shareLinkFor
+            ...(sharePathFor
                 ? [
                       {
                           key: "copy-link",
                           label: "Copy share link",
-                          disabled: !shareLinkFor(target),
+                          disabled: !sharePathFor(target),
                       },
                   ]
                 : []),
@@ -199,7 +203,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
             {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
             {key: "delete", label: "Delete", danger: true},
         ],
-        [pinnedSet, shareLinkFor],
+        [pinnedSet, sharePathFor],
     )
 
     const onMenuClick = useCallback(

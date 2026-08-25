@@ -1,13 +1,13 @@
 import {useCallback, useMemo} from "react"
 import type {ReactNode} from "react"
 
-import {playgroundSessionUrl} from "@agenta/sessions/link"
+import {playgroundSessionPath} from "@agenta/sessions/link"
 import {
     useSessionActions as useSessionActionsCore,
     type SessionActionTarget,
     type SessionLocalCache,
 } from "@agenta/sessions-ui"
-import {useAtomValue, useStore} from "jotai"
+import {useStore} from "jotai"
 
 import {urlAtom} from "@/oss/state/url"
 
@@ -36,7 +36,6 @@ export type {SessionActionTarget}
  */
 export const useSessionActions = () => {
     const store = useStore()
-    const {baseAppURL} = useAtomValue(urlAtom)
 
     const localCache = useMemo<SessionLocalCache>(
         () => ({
@@ -65,13 +64,17 @@ export const useSessionActions = () => {
 
     // A session's link is its agent's playground, deep-linked. No agent (a session with no turns
     // yet) means no link, and the menu entry disables itself.
-    const shareLinkFor = useCallback(
+    //
+    // Read through the store rather than subscribing: this hook runs once per SIDEBAR ROW, and
+    // `urlAtom` recomputes on every route change, so a subscription re-renders the whole session
+    // list each time you navigate. Same reason `localCache` above reads that way.
+    const sharePathFor = useCallback(
         ({sessionId, appId}: SessionActionTarget) =>
-            appId ? playgroundSessionUrl(baseAppURL, appId, sessionId) : "",
-        [baseAppURL],
+            appId ? playgroundSessionPath(store.get(urlAtom).baseAppURL, appId, sessionId) : "",
+        [store],
     )
 
-    const actions = useSessionActionsCore({localCache, shareLinkFor})
+    const actions = useSessionActionsCore({localCache, sharePathFor})
 
     return useMemo(
         () => ({

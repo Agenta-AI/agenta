@@ -31,10 +31,11 @@ export function useOpenAgentSession(): (target: PendingSessionOpen) => void {
 
     return useCallback(
         (target: PendingSessionOpen) => {
+            const path = playgroundSessionPath(baseAppURL, target.appId, target.sessionId)
+            if (!path) return
             addPendingOpen(target)
             // Clear on a failed navigation, or the target would be adopted by whatever agent
             // playground this browser opens next. Only OUR entry — others may be in flight.
-            const path = playgroundSessionPath(baseAppURL, target.appId, target.sessionId)
             router.push(path).catch(() => {
                 removePendingOpens([target])
             })
