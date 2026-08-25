@@ -32,6 +32,12 @@ const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
  * create failure was previously settling silently with no error surfaced at all. */
 const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 
+/** A failure detail worth the space beside the name. The flow falls back to GENERIC_CONNECT_ERROR
+ * whenever it has no real message, and that sentence says nothing the row's own wording doesn't —
+ * printed verbatim it read "Gmail Connection failed. Please try again." */
+const realFailureDetail = (text: unknown): string | undefined =>
+    typeof text === "string" && text && text !== GENERIC_CONNECT_ERROR ? text : undefined
+
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     const {
         label,
@@ -90,8 +96,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         // neutral tone — no glyph or colour competing with the brand mark.
         // "declined" is the user's own "Not now", so it must NOT read as a failure; cancelled and
         // timeout did fail to reach a connection. Both stay in the quiet tint — expected, not
-        // errors. Any other reason is the create call's own failure message and must be
-        // shown, not swallowed behind the same generic text (it previously was).
+        // errors. Any other reason is the create call's own failure message and is shown verbatim
+        // unless it is the flow's own generic fallback (see `realFailureDetail`).
         // A remounted part (after a reload) has no local `outcome` and usually no `meta.output`;
         // its failure text survives only on the part itself.
         const reason =
@@ -101,9 +107,9 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 ? partErrorText
                 : undefined)
         const failureDetail =
-            typeof reason === "string" && reason && !KNOWN_CONNECT_REASONS.has(reason)
-                ? reason
-                : undefined
+            typeof reason === "string" && KNOWN_CONNECT_REASONS.has(reason)
+                ? undefined
+                : realFailureDetail(reason)
         return (
             <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
                 <span className="shrink-0 text-xs text-colorText">{label}</span>
@@ -118,9 +124,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
     // ── Error on a manual retry (create failed, popup blocked): show reason + Retry ──────────────
     if (phase === "error") {
-        // The generic fallback would read "Gmail Connection failed. Please try again." after the
-        // name; only a real backend detail earns the space.
-        const errorDetail = errorText && errorText !== GENERIC_CONNECT_ERROR ? errorText : undefined
+        const errorDetail = realFailureDetail(errorText)
         return (
             <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
                 <span className="shrink-0 text-xs text-colorText">{label}</span>
