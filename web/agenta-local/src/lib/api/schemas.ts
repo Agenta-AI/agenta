@@ -65,7 +65,12 @@ export const sessionDetailSchema = sessionSchema.extend({messages: z.array(messa
 export const stopSchema = z.object({stopped: z.boolean()})
 export const shutdownSchema = z.object({stopping: z.literal(true)})
 export const runtimeSchema = z.object({
-    runner: z.object({ok: z.boolean()}).passthrough(),
+    // The runner health payload carries status:"ok"; the proxy's error path
+    // emits ok:false. Normalize both to `ok` for the banner.
+    runner: z
+        .object({ok: z.boolean().optional(), status: z.string().optional()})
+        .passthrough()
+        .transform((runner) => ({...runner, ok: runner.ok ?? runner.status === "ok"})),
     version: z.string(),
 })
 export const healthSchema = z.object({

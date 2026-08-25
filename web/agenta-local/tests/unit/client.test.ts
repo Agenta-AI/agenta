@@ -136,6 +136,16 @@ describe("local API client", () => {
         expect(shutdownSchema.parse({stopping: true}).stopping).toBe(true)
         expect(runtimeSchema.parse({runner: {ok: true}, version: "1"}).runner.ok).toBe(true)
         expect(
+            runtimeSchema.parse({
+                runner: {status: "ok", runner: "0.1.0", protocol: 1},
+                version: "1",
+            }).runner.ok,
+        ).toBe(true)
+        expect(
+            runtimeSchema.parse({runner: {ok: false, error: "runner unreachable"}, version: "1"})
+                .runner.ok,
+        ).toBe(false)
+        expect(
             healthSchema.parse({ok: true, version: "1", schema_version: 1, recovered_turns: 0}).ok,
         ).toBe(true)
     })

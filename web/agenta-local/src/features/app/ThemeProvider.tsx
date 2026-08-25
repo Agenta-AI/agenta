@@ -10,6 +10,20 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
+// antd tokens must be real colors: it derives surfaces via JS color math, so
+// var() strings parse as invalid and collapse to black. Values mirror the
+// generated palette (theme-variables.css / antd-overrides.generated.ts).
+const LIGHT_TOKENS = {
+    colorPrimary: "#242424",
+    colorBgBase: "#ffffff",
+    colorTextBase: "#242424",
+    colorBorder: "#d7d7d7",
+}
+const DARK_TOKENS = {
+    colorPrimary: "#f2f25c",
+    colorLink: "#8ccfff",
+}
+
 export const ThemeProvider = ({children}: PropsWithChildren) => {
     const {themeMode, resolved, setMode} = useThemeMode()
     return (
@@ -18,12 +32,9 @@ export const ThemeProvider = ({children}: PropsWithChildren) => {
                 theme={{
                     algorithm: resolved === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
                     token: {
-                        colorPrimary: "var(--ag-colorPrimary)",
-                        colorBgBase: "var(--ag-colorBgBase)",
-                        colorTextBase: "var(--ag-colorText)",
-                        colorBorder: "var(--ag-colorBorder)",
                         borderRadius: 8,
                         fontFamily: "var(--font-sans)",
+                        ...(resolved === "dark" ? DARK_TOKENS : LIGHT_TOKENS),
                     },
                 }}
             >
