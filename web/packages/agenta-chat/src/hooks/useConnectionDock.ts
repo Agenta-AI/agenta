@@ -22,7 +22,7 @@ import {
 } from "../clientTools/connectInteractions"
 import type {ClientToolMeta} from "../skin"
 
-export interface UseConnectDockArgs {
+export interface UseConnectionDockArgs {
     messages: UIMessage[]
     /**
      * False suppresses the dock entirely (still streaming, or the user stopped the run — nothing
@@ -37,7 +37,7 @@ export interface UseConnectDockArgs {
     approvalsPending?: boolean
 }
 
-export interface ConnectDockState {
+export interface ConnectionDockState {
     /** At least one connection is parked — the dock should be visible. */
     open: boolean
     /** Every parked connection, front card first (the user's pick, else the agent's order). */
@@ -57,11 +57,11 @@ export interface ConnectDockState {
     shortcutsEnabled: boolean
 }
 
-export const useConnectDock = ({
+export const useConnectionDock = ({
     messages,
     enabled = true,
     approvalsPending = false,
-}: UseConnectDockArgs): ConnectDockState => {
+}: UseConnectionDockArgs): ConnectionDockState => {
     const pending = useMemo(
         () => (enabled ? getPendingConnectInteractions(messages) : []),
         [messages, enabled],

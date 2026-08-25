@@ -13,7 +13,7 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useConnectDock, useVoiceComposer} from "@agenta/chat/hooks"
+import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -356,7 +356,7 @@ const AgentConversation = ({
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
-    const connects = useConnectDock({
+    const connects = useConnectionDock({
         messages,
         enabled: !busy && !stopped,
         approvalsPending: pendingApprovals.length > 0,

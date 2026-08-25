@@ -8,7 +8,7 @@
  * popups, and the cards behind need nothing but a name and a logo to be recognizable.
  *
  * Presentational + flow only: which card is in front, and how many are left, come from
- * `useConnectDock`; how a settle actually fires arrives as `onOutput`. Same contract as
+ * `useConnectionDock`; how a settle actually fires arrives as `onOutput`. Same contract as
  * `ApprovalCard`.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
@@ -32,7 +32,7 @@ import {
 
 import {CONNECT_PILL_SPRING} from "../assets/motion"
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
-import type {ConnectDockState} from "../hooks/useConnectDock"
+import type {ConnectionDockState} from "../hooks/useConnectionDock"
 import type {ClientToolMeta, SettleClientTool} from "../skin"
 
 /** How far each card behind the front one peeks above it. */
@@ -59,10 +59,10 @@ const DOT_PILL_PEAK_VELOCITY = 420
 const CARD_SURFACE =
     "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
 
-export interface ConnectDockProps {
-    /** The whole dock state from `useConnectDock` — passed as one object so a new field never
+export interface ConnectionDockProps {
+    /** The whole dock state from `useConnectionDock` — passed as one object so a new field never
      *  means editing every host that renders this. */
-    connects: ConnectDockState
+    connects: ConnectionDockState
     /** Settle channel — hosts map this onto their `addToolOutput`. */
     onOutput: ClientToolOutputHandler
     /** Touch mode: the actions get an invisibly extended tap area. Chrome is identical. */
@@ -76,13 +76,13 @@ export interface ConnectDockProps {
     className?: string
 }
 
-export const ConnectDock = ({
+export const ConnectionDock = ({
     connects,
     onOutput,
     touch = false,
     active = true,
     className = "",
-}: ConnectDockProps) => {
+}: ConnectionDockProps) => {
     const {stack: interactions, batch, position, total, shortcutsEnabled} = connects
     const onBringForward = connects.bringForward
     const [hovered, setHovered] = useState<string | null>(null)

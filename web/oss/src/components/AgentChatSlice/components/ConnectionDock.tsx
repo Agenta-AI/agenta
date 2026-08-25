@@ -1,5 +1,5 @@
 /**
- * Desktop shell around the shared `ConnectDock` — the persistent "the agent is waiting for you"
+ * Desktop shell around the shared `ConnectionDock` — the persistent "the agent is waiting for you"
  * band for parked CLIENT-TOOL interactions, sibling of ApprovalDock with the same placement
  * contract: it lives in the composer region (between the transcript and the input) so a paused run
  * can't scroll out of reach, and it OWNS the actions while the inline transcript row is a marker.
@@ -21,12 +21,12 @@
 import {memo} from "react"
 
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {ConnectDock} from "@agenta/chat/components"
-import type {ConnectDockState} from "@agenta/chat/hooks"
+import {ConnectionDock} from "@agenta/chat/components"
+import type {ConnectionDockState} from "@agenta/chat/hooks"
 
-interface AgentConnectDockProps {
-    /** Parked connect interactions the run is blocked on (from `useConnectDock`). */
-    connects: ConnectDockState
+interface AgentConnectionDockProps {
+    /** Parked connect interactions the run is blocked on (from `useConnectionDock`). */
+    connects: ConnectionDockState
     /** Settle channel — the panel maps this onto `addToolOutput` (marks the resume as live). */
     onOutput: ClientToolOutputHandler
     className?: string
@@ -37,8 +37,8 @@ interface AgentConnectDockProps {
  * same idiom as ApprovalDock. `inert` while closed drops the (clipped, latched) card from tab order
  * + a11y so a keyboard user can't reach hidden buttons.
  */
-const AgentConnectDock = ({connects, onOutput, className}: AgentConnectDockProps) => {
-    // `useConnectDock` latches its own view, so the card survives the collapse without a ref here.
+const AgentConnectionDock = ({connects, onOutput, className}: AgentConnectionDockProps) => {
+    // `useConnectionDock` latches its own view, so the card survives the collapse without a ref here.
     const {open, stack} = connects
 
     return (
@@ -50,7 +50,7 @@ const AgentConnectDock = ({connects, onOutput, className}: AgentConnectDockProps
         >
             <div className="min-h-0 overflow-hidden">
                 {stack.length ? (
-                    <ConnectDock
+                    <ConnectionDock
                         className="mb-2"
                         connects={connects}
                         onOutput={onOutput}
@@ -62,4 +62,4 @@ const AgentConnectDock = ({connects, onOutput, className}: AgentConnectDockProps
     )
 }
 
-export default memo(AgentConnectDock)
+export default memo(AgentConnectionDock)

@@ -11,7 +11,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
-    type ConnectDockState,
+    type ConnectionDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
@@ -43,7 +43,7 @@ import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import ConnectDock from "./ConnectDock"
+import ConnectionDock from "./ConnectionDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -99,7 +99,7 @@ const AgentComposerDock = ({
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
-    connects: ConnectDockState
+    connects: ConnectionDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
@@ -282,7 +282,7 @@ const AgentComposerDock = ({
                 {/* Parked client-tool interactions (connect): same placement contract as the
                     approval dock — the paused gate can't scroll out of reach, and "Not now"
                     is the escape hatch that resumes the run without connecting. */}
-                <ConnectDock
+                <ConnectionDock
                     className={CHAT_COLUMN}
                     connects={connects}
                     onOutput={onClientToolOutput}

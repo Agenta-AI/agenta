@@ -5,8 +5,8 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
-import {ConnectDock, RunningElsewhereStrip} from "@agenta/chat/components"
-import {useAgentConversation, useAgentModelKeyStatus, useConnectDock} from "@agenta/chat/hooks"
+import {ConnectionDock, RunningElsewhereStrip} from "@agenta/chat/components"
+import {useAgentConversation, useAgentModelKeyStatus, useConnectionDock} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
@@ -200,7 +200,7 @@ export const LiveConversation = ({
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
-    const connects = useConnectDock({
+    const connects = useConnectionDock({
         messages: conversation.messages,
         enabled: !streamingHere && !conversation.stopped,
     })
@@ -324,7 +324,7 @@ export const LiveConversation = ({
                     {connects.open ? (
                         <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                             <ContentRail>
-                                <ConnectDock
+                                <ConnectionDock
                                     connects={connects}
                                     onOutput={conversation.sendToolOutput}
                                     touch
