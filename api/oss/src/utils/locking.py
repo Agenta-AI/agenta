@@ -38,6 +38,73 @@ return 0
 """
 
 
+# TRANSITIONAL: SPANNING THE FULL-PROJECT-ID DEPLOY -----------------------------
+#
+# Scope segments in cache and lock keys used to carry only the last 12 characters of
+# an id (see `caching._scope`). During a rolling deploy, pods still on the previous
+# release take the truncated key, so a lock held only under the full-id key would not
+# exclude them and mutual exclusion would be lost for the length of the deploy.
+# Every lock operation therefore covers both keys for one release.
+#
+# REMOVE once no pod predating the full-id change is running: drop the second element
+# of `_lock_keys` and the `legacy_key` branches below. That is the whole surface.
+
+
+def _lock_keys(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> tuple[str, Optional[str]]:
+    """This release's lock key, and the previous release's key when it differs."""
+    lock_key = _pack(
+        namespace=f"lock:{namespace}",
+        key=key,
+        project_id=project_id,
+        user_id=user_id,
+    )
+    legacy_key = _pack(
+        namespace=f"lock:{namespace}",
+        key=key,
+        project_id=project_id,
+        user_id=user_id,
+        legacy_truncated_scope=True,
+    )
+
+    # Ids no longer than the segment width were never truncated, so the two shapes
+    # coincide and there is no second key to cover.
+    return lock_key, (legacy_key if legacy_key != lock_key else None)
+
+
+async def _renew_if_owner(lock_key: str, owner: Optional[str], ttl: int) -> bool:
+    if owner:
+        return bool(
+            await _lock_engine.eval(
+                _LOCK_RENEW_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+                str(ttl),
+            )
+        )
+
+    return bool(await _lock_engine.expire(lock_key, ttl))
+
+
+async def _release_if_owner(lock_key: str, owner: Optional[str]) -> bool:
+    if owner:
+        return bool(
+            await _lock_engine.eval(
+                _LOCK_RELEASE_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+            )
+        )
+
+    return bool(await _lock_engine.delete(lock_key))
+
+
 # LOCK-STORE PRIMITIVES --------------------------------------------------------
 #
 # Thin pass-throughs to the lock Redis client for callers that manage their own
@@ -117,13 +184,25 @@ async def acquire_lock(
             )
     """
     try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
+        lock_key, legacy_key = _lock_keys(
+            namespace=namespace,
             key=key,
             project_id=project_id,
             user_id=user_id,
         )
         lock_owner = uuid4().hex
+
+        # The legacy key is claimed first: a pod on the previous release sets only that
+        # one, so taking it is what makes the two generations exclude each other. Claiming
+        # it second would let both generations hold their own key and enter together.
+        if legacy_key is not None:
+            if not await _lock_engine.set(legacy_key, lock_owner, nx=True, ex=ttl):
+                if LOCK_DEBUG:
+                    log.debug(
+                        "[lock] BLOCKED",
+                        key=legacy_key,
+                    )
+                return None
 
         # Atomic SET NX: Returns True if lock acquired, False if already held
         acquired = await _lock_engine.set(lock_key, lock_owner, nx=True, ex=ttl)
@@ -137,6 +216,11 @@ async def acquire_lock(
                 )
             return lock_owner
         else:
+            # This caller is not entering the critical section, so it must not leave the
+            # legacy key held until its TTL — that would block everyone for `ttl`.
+            if legacy_key is not None:
+                await _release_if_owner(legacy_key, lock_owner)
+
             if LOCK_DEBUG:
                 log.debug(
                     "[lock] BLOCKED",
@@ -180,23 +264,19 @@ async def renew_lock(
         True if lock was renewed, False if lock has already expired or on error
     """
     try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
+        lock_key, legacy_key = _lock_keys(
+            namespace=namespace,
             key=key,
             project_id=project_id,
             user_id=user_id,
         )
 
-        if owner:
-            renewed = await _lock_engine.eval(
-                _LOCK_RENEW_IF_OWNER_SCRIPT,
-                1,
-                lock_key,
-                owner,
-                str(ttl),
-            )
-        else:
-            renewed = await _lock_engine.expire(lock_key, ttl)
+        renewed = await _renew_if_owner(lock_key, owner, ttl)
+
+        # Held for as long as the lock itself, or a pod on the previous release would
+        # take it the moment it lapsed while this holder was still inside the section.
+        if legacy_key is not None:
+            await _renew_if_owner(legacy_key, owner, ttl)
 
         if renewed:
             if LOCK_DEBUG:
@@ -250,22 +330,19 @@ async def release_lock(
                 await release_lock(namespace="account-creation", key=email)
     """
     try:
-        lock_key = _pack(
-            namespace=f"lock:{namespace}",
+        lock_key, legacy_key = _lock_keys(
+            namespace=namespace,
             key=key,
             project_id=project_id,
             user_id=user_id,
         )
 
-        if owner:
-            deleted = await _lock_engine.eval(
-                _LOCK_RELEASE_IF_OWNER_SCRIPT,
-                1,
-                lock_key,
-                owner,
-            )
-        else:
-            deleted = await _lock_engine.delete(lock_key)
+        deleted = await _release_if_owner(lock_key, owner)
+
+        # Released even when the primary was already gone: the two were taken together,
+        # so leaving this one behind would block the section for the rest of its TTL.
+        if legacy_key is not None:
+            await _release_if_owner(legacy_key, owner)
 
         if deleted:
             if LOCK_DEBUG:
