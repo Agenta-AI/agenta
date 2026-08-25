@@ -8,15 +8,18 @@
  *
  *  - **which card is in front.** Pulling one forward is a user choice; it must survive re-renders
  *    and reset itself when that call settles and leaves the pending set.
- *  - **the batch total.** The pending set SHRINKS as each connection settles, so a naive
- *    "1 of {pending}" would count down instead of up. The total is latched on the way in and
- *    released only when the batch empties, which is what makes the counter read "2 of 3".
+ *  - **the batch.** The pending set SHRINKS as each connection settles and REORDERS when a card is
+ *    pulled forward, so the progress dots read `batch` instead — every connect call on the turn,
+ *    settled included, in the agent's order.
  */
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import type {UIMessage} from "ai"
 
-import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
+import {
+    getConnectInteractions,
+    getPendingConnectInteractions,
+} from "../clientTools/connectInteractions"
 import type {ClientToolMeta} from "../skin"
 
 export interface UseConnectDockArgs {
@@ -33,6 +36,9 @@ export interface ConnectDockState {
     open: boolean
     /** Every parked connection, front card first (the user's pick, else the agent's order). */
     stack: ClientToolMeta[]
+    /** The whole turn's connect calls, settled included, in the agent's order — what the progress
+     *  dots walk. Stable: it neither shrinks on a settle nor reorders when a card is pulled up. */
+    batch: ClientToolMeta[]
     /** The card that owns the actions; null when nothing is parked. */
     front: ClientToolMeta | null
     /** 1-based position of the front card in the batch (the "N" of "N of M"). */
@@ -51,6 +57,10 @@ export const useConnectDock = ({
         () => (enabled ? getPendingConnectInteractions(messages) : []),
         [messages, enabled],
     )
+    const batch = useMemo(
+        () => (enabled ? getConnectInteractions(messages) : []),
+        [messages, enabled],
+    )
 
     // The user's pick. Cleared implicitly: once that call settles it drops out of `pending`, so
     // the lookup below misses and the front falls back to the agent's first-asked.
@@ -62,20 +72,19 @@ export const useConnectDock = ({
         return [picked, ...pending.filter((meta) => meta.toolCallId !== frontId)]
     }, [pending, frontId])
 
-    // Latched batch size — see the counter note in the module doc. Released when the batch empties
-    // so the next turn's connections start their own count.
-    const totalRef = useRef(0)
-    if (pending.length === 0) totalRef.current = 0
-    else if (pending.length > totalRef.current) totalRef.current = pending.length
-    const total = totalRef.current
-
     const bringForward = useCallback((toolCallId: string) => setFrontId(toolCallId), [])
+
+    // Derived from the real batch now, so both hold through a settle without a latch: `batch` keeps
+    // its settled entries, and the counter simply reads how many of them are done.
+    const total = batch.length
+    const settled = batch.filter((meta) => meta.settled).length
 
     return {
         open: stack.length > 0,
         stack,
+        batch,
         front: stack[0] ?? null,
-        position: total - stack.length + 1,
+        position: settled + 1,
         total,
         bringForward,
     }

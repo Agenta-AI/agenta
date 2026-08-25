@@ -320,7 +320,11 @@ export const LiveConversation = ({
                             bottomMost={false}
                         />
                     ) : null}
-                    <ConnectDock connects={connects} onOutput={conversation.sendToolOutput} />
+                    <ConnectDock
+                        connects={connects}
+                        onOutput={conversation.sendToolOutput}
+                        shortcutsEnabled={pendingApprovals.length === 0}
+                    />
                     {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                     <ContentRail>

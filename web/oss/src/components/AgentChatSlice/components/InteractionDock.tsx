@@ -29,6 +29,8 @@ interface InteractionDockProps {
     connects: ConnectDockState
     /** Settle channel — the panel maps this onto `addToolOutput` (marks the resume as live). */
     onOutput: ClientToolOutputHandler
+    /** False while an approval gate is pending — approvals own Cmd/Ctrl+Enter and Escape. */
+    shortcutsEnabled?: boolean
     className?: string
 }
 
@@ -37,11 +39,16 @@ interface InteractionDockProps {
  * same idiom as ApprovalDock. `inert` while closed drops the (clipped, latched) card from tab order
  * + a11y so a keyboard user can't reach hidden buttons.
  */
-const InteractionDock = ({connects, onOutput, className}: InteractionDockProps) => {
-    const {open, stack, position, total, bringForward} = connects
+const InteractionDock = ({
+    connects,
+    onOutput,
+    shortcutsEnabled = true,
+    className,
+}: InteractionDockProps) => {
+    const {open, stack, batch, position, total, bringForward} = connects
     // Latch the last non-empty stack (and its counter) so the card holds through the collapse.
-    const shownRef = useRef({stack, position, total})
-    if (open) shownRef.current = {stack, position, total}
+    const shownRef = useRef({stack, batch, position, total})
+    if (open) shownRef.current = {stack, batch, position, total}
     const shown = shownRef.current
 
     return (
@@ -56,11 +63,13 @@ const InteractionDock = ({connects, onOutput, className}: InteractionDockProps) 
                     <ConnectDock
                         className="mb-2"
                         interactions={shown.stack}
+                        batch={shown.batch}
                         position={shown.position}
                         total={shown.total}
                         onBringForward={bringForward}
                         onOutput={onOutput}
                         active={open}
+                        shortcutsEnabled={shortcutsEnabled}
                     />
                 ) : null}
             </div>

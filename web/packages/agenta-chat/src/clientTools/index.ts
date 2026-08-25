@@ -9,4 +9,4 @@
  */
 export {default as ClientToolPart, type ClientToolOutputHandler} from "./ClientToolPart"
 export {clientToolMeta, isClientToolPart, clientToolName} from "./meta"
-export {getPendingConnectInteractions} from "./connectInteractions"
+export {getPendingConnectInteractions, getConnectInteractions} from "./connectInteractions"

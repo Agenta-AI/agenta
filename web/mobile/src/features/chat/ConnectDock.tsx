@@ -16,9 +16,12 @@ import {ContentRail} from "@/components/ContentRail"
 export const ConnectDock = ({
     connects,
     onOutput,
+    shortcutsEnabled = true,
 }: {
     connects: ConnectDockState
     onOutput: ClientToolOutputHandler
+    /** False while an approval gate is pending — approvals own Cmd/Ctrl+Enter and Escape. */
+    shortcutsEnabled?: boolean
 }) => {
     if (!connects.open) return null
     return (
@@ -26,10 +29,12 @@ export const ConnectDock = ({
             <ContentRail>
                 <SharedConnectDock
                     interactions={connects.stack}
+                    batch={connects.batch}
                     position={connects.position}
                     total={connects.total}
                     onBringForward={connects.bringForward}
                     onOutput={onOutput}
+                    shortcutsEnabled={shortcutsEnabled}
                     touch
                 />
             </ContentRail>

@@ -36,3 +36,25 @@ export const getPendingConnectInteractions = (messages: UIMessage[]): ClientTool
     }
     return pending
 }
+
+/**
+ * EVERY connect call on the paused turn — settled ones included — in the order the agent asked.
+ * The dock's progress dots need the whole batch in a stable order: the pending set alone loses a
+ * connection the moment it settles, and reordering it (the user pulling a card forward) would walk
+ * the dots around.
+ */
+export const getConnectInteractions = (messages: UIMessage[]): ClientToolMeta[] => {
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== "assistant") return []
+    const parts = last.parts ?? []
+    const renderMap = buildRenderMap(parts as {type?: string; data?: unknown}[])
+    const batch: ClientToolMeta[] = []
+    for (const part of parts) {
+        const type = (part as {type?: string}).type
+        if (typeof type !== "string" || !(type.startsWith("tool-") || type === "dynamic-tool"))
+            continue
+        const meta = clientToolMeta(part as ToolUIPart, renderMap)
+        if (isConnectInteraction(meta)) batch.push(meta)
+    }
+    return batch
+}
