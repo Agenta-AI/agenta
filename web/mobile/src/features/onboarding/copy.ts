@@ -20,6 +20,8 @@ export const FIRST_RUN_COPY = {
     /** Header over the description once the connect step has taken over the composer (#6043). */
     buildingLabel: "Building",
     editLabel: "Edit",
+    create: "Create agent",
+    creating: "Creating agent",
 } as const
 
 /** Tap to fill the composer — see the note in [[FirstRunComposer]] on why they fill, not send. */

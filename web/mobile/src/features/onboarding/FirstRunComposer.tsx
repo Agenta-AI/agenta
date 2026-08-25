@@ -5,6 +5,8 @@ import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import type {AgentSetupSelection} from "@agenta/entities/workflow"
 import type {AgentSetupStep} from "@agenta/entity-ui/onboarding"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {Button} from "@agenta/ui/ui"
+import {ArrowRight} from "lucide-react"
 
 import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 
@@ -127,6 +129,19 @@ export const FirstRunComposer = ({
             placeholder={FIRST_RUN_COPY.placeholder}
             disabled={newAgent.creating}
             composerDisabled={newAgent.creating}
+            // The desktop names the action instead of showing a bare send arrow: this composer
+            // CREATES an agent, it does not send a message to one that exists.
+            hideSendButton
+            trailing={
+                <Button
+                    size="sm"
+                    disabled={newAgent.creating}
+                    onClick={() => void start(inputRef.current?.getMarkdown() ?? "")}
+                >
+                    {newAgent.creating ? FIRST_RUN_COPY.creating : FIRST_RUN_COPY.create}
+                    <ArrowRight size={14} />
+                </Button>
+            }
         />
     )
 }

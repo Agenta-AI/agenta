@@ -64,6 +64,11 @@ export const FirstRunTemplates = ({
                         }`}
                     >
                         {entry}
+                        <span className="ml-1.5 opacity-60">
+                            {entry === ALL_TEMPLATES_CATEGORY
+                                ? AGENT_TEMPLATES.length
+                                : AGENT_TEMPLATES.filter((t) => t.category === entry).length}
+                        </span>
                     </button>
                 ))}
             </div>

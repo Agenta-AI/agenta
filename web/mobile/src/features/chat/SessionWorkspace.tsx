@@ -43,6 +43,7 @@ export const SessionWorkspace = ({
     workspaceId,
     projectId,
     chat,
+    bare = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
@@ -52,6 +53,11 @@ export const SessionWorkspace = ({
     projectId: string
     /** The conversation, rendered embedded (it brings its own header, dock and composer). */
     chat: ReactNode
+    /**
+     * Skip the surrounding `AppShell`. A host that already renders one (first run, which swaps
+     * only Home's body) would otherwise stack a second nav rail beside the first.
+     */
+    bare?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
@@ -97,8 +103,8 @@ export const SessionWorkspace = ({
             <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
         )
 
-    return (
-        <AppShell workspaceId={workspaceId} projectId={projectId}>
+    const workspace = (
+        <>
             {/* The workspace column: the shared playground top bar, then the panes under it. The
                 column owns the top safe-area inset (the bar is the topmost chrome). */}
             <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
@@ -177,6 +183,13 @@ export const SessionWorkspace = ({
                     />
                 </div>
             </div>
+        </>
+    )
+
+    if (bare) return workspace
+    return (
+        <AppShell workspaceId={workspaceId} projectId={projectId}>
+            {workspace}
         </AppShell>
     )
 }

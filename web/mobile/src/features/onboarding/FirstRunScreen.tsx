@@ -3,7 +3,6 @@ import {useState} from "react"
 import {markSessionFresh} from "@agenta/chat/state"
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useRouter} from "next/router"
 
 import {CONNECT_STEP_MODE} from "@/lib/connectStep"
@@ -64,8 +63,11 @@ export const FirstRunScreen = ({
     }
 
     const create = (
-        <div className={`${pageContentWidthClass} overflow-y-auto px-4 pb-6 lg:px-16 lg:pt-14`}>
-            <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6">
+        // The desktop's shape: the question at the top, then the offer and the composer docked at
+        // the bottom of the panel. `min-h-0` + the flex spacer is what pins them there instead of
+        // letting the whole column sit under the hero.
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 pb-4 lg:px-8">
+            <div className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-6 pt-8 lg:pt-14">
                 <div className="flex flex-col gap-2">
                     <h1 className="m-0 text-2xl font-semibold leading-tight lg:text-[32px]">
                         {FIRST_RUN_COPY.title}
@@ -75,6 +77,17 @@ export const FirstRunScreen = ({
                     </p>
                 </div>
 
+                {/* Pushes everything below to the bottom of the panel, as the desktop does. */}
+                <div className="min-h-6 flex-1" />
+
+                {step.draft ? null : (
+                    <FirstRunTemplates
+                        onPick={pickTemplate}
+                        onBrowseAll={() => void router.push(`${base}/templates`)}
+                        disabled={newAgent.creating}
+                    />
+                )}
+
                 <FirstRunComposer
                     newAgent={newAgent}
                     step={step}
@@ -82,8 +95,8 @@ export const FirstRunScreen = ({
                     entityId={entityId}
                 />
 
-                {/* One error line for the whole screen. A failed mint is reported here too, with
-                    the retry that releases its guard — never a surface that silently spins. */}
+                {/* One error line for the whole surface. A failed mint reports here too, with the
+                    retry that releases its guard — never a surface that silently spins. */}
                 {mintError ? (
                     <p className="text-destructive m-0 text-xs">
                         {mintError}{" "}
@@ -99,14 +112,6 @@ export const FirstRunScreen = ({
                 {newAgent.error ? (
                     <p className="text-destructive m-0 text-xs">{newAgent.error}</p>
                 ) : null}
-
-                {step.draft ? null : (
-                    <FirstRunTemplates
-                        onPick={pickTemplate}
-                        onBrowseAll={() => void router.push(`${base}/templates`)}
-                        disabled={newAgent.creating}
-                    />
-                )}
             </div>
         </div>
     )
@@ -118,6 +123,8 @@ export const FirstRunScreen = ({
             workspaceId={workspaceId}
             projectId={projectId}
             chat={create}
+            // Home already renders the shell around this body; a second one stacks nav rails.
+            bare
         />
     )
 }
