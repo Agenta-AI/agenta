@@ -350,6 +350,9 @@ export const commitWorkflowRevisionAtom = atom(
             invalidateEvaluatorsListCache()
             invalidateWorkflowCache(revisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            // The picker lists by VARIANT, so without this the revision just created is missing
+            // from the dropdown until something else refetches.
+            if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }
