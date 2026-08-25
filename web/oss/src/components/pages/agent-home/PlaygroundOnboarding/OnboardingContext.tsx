@@ -1,5 +1,8 @@
 import {createContext, useContext} from "react"
 
+import type {AgentSetupSelection} from "@agenta/entities/workflow"
+import type {AgentSetupStep} from "@agenta/entity-ui/onboarding"
+
 /**
  * Shared onboarding state for the playground-native onboarding mount. The generation-panel arm is
  * injected deep in `MainLayout` (via the playground providers), so it can't receive props directly —
@@ -21,8 +24,19 @@ export interface OnboardingContextValue {
     /** The seed message of the in-flight (or just-finished) commit — the chat shows it as an
      * optimistic user turn so the switch from onboarding reads as one continuous conversation. */
     committingSeed: string | null
-    /** Commit the ephemeral into a real agent IN PLACE (no redirect) and seed the first turn. */
+    /**
+     * Commit the ephemeral into a real agent IN PLACE (no redirect) and seed the first turn.
+     * With the connect step on (#6043) this OPENS the step instead — `setup.draft` goes non-null
+     * and the commit happens on `commitWithSetup`.
+     */
     commit: (seedMessage: string, name?: string) => void
+    /**
+     * The pre-create connect step's state, or null when the step is off. `setup.draft` non-null
+     * means the card is showing in place of the composer's create action.
+     */
+    setup: AgentSetupStep | null
+    /** Commit with what the step decided — the card's "Create agent". */
+    commitWithSetup: (selection: AgentSetupSelection) => void
     /** "Browse all templates" — swaps the right-panel empty state for the full in-place template
      * gallery (set from the left config panel, read by the chat empty-state surface). */
     browseAll: boolean

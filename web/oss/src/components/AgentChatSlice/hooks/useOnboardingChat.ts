@@ -8,6 +8,7 @@ import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
 
 import {
+    CONNECT_STEP_MODE,
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
 } from "@/oss/components/pages/agent-home/assets/constants"
@@ -101,9 +102,6 @@ export const useOnboardingChat = ({
         // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
         // live text, so reading it after the clear would always see "" and never match the seed.
         const templateName = stripProvenance.resolveTemplateName(text)
-        setPendingFirstTurn(text || null)
-        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
-        richInputRef.current?.setMarkdown("")
         // Free-text submit (never a template — those go straight through `onboarding.commit` from the
         // template pickers below, source "template"), so no double-fire with those call sites.
         if (text) {
@@ -112,6 +110,17 @@ export const useOnboardingChat = ({
                 intentValue: classifyAgentIntent(text),
             })
         }
+        // Connect step on (#6043): this click opens the step, it does not send. Leave the composer
+        // alone — the description stays visible and editable above the card, and nothing may look
+        // sent until the step's own Create actually commits (which the `committingSeed` effect
+        // below then picks up, exactly as it does for a template click).
+        if (CONNECT_STEP_MODE) {
+            onboarding.commit(text, templateName)
+            return
+        }
+        setPendingFirstTurn(text || null)
+        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
+        richInputRef.current?.setMarkdown("")
         onboarding.commit(text, templateName)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
     }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])

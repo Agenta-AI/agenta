@@ -1,12 +1,19 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    AGENT_TEMPLATES,
+    templateBuilderMessage,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
+import type {AgentSetupSelection} from "@agenta/entities/workflow"
+import {AgentSetupCard, useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {HomeOverview, UsageCard} from "@agenta/home-ui"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {Button} from "@agenta/ui/ui"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import clsx from "clsx"
@@ -26,7 +33,8 @@ import StripComposer from "@/oss/components/TemplateStrip/components/StripCompos
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import useURL from "@/oss/hooks/useURL"
 
-import {HERO, RETURNING_HERO} from "./assets/constants"
+import {agentNameFromTask} from "./assets/agentName"
+import {CONNECT_STEP_MODE, HERO, RETURNING_HERO} from "./assets/constants"
 import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -119,6 +127,10 @@ const StripHome: React.FC = () => {
     // A card here IS the create action — no composer step, no second confirmation.
     const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
 
+    // The pre-create connect step (#6043). `open` replaces create; everything else on this page
+    // is untouched, so with the flag off the surface behaves exactly as it did.
+    const setup = useAgentSetupStep()
+
     const handlePick = useCallback(
         (template: AgentStarterTemplate) => {
             // On the workspace home the composer runs tasks, so a pick here has no composer to
@@ -127,9 +139,18 @@ const StripHome: React.FC = () => {
                 void router.push(`${baseAppURL}?new=1&template=${template.key}`)
                 return
             }
+            // A template declares the accounts it needs, so it always has something to connect.
+            if (CONNECT_STEP_MODE) {
+                setup.open({
+                    seedMessage: templateBuilderMessage(template),
+                    name: template.name,
+                    template,
+                })
+                return
+            }
             void createFromTemplate(template)
         },
-        [firstRun, router, baseAppURL, createFromTemplate],
+        [firstRun, router, baseAppURL, createFromTemplate, setup.open],
     )
 
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
@@ -150,12 +171,43 @@ const StripHome: React.FC = () => {
     const handleCreate = useCallback(
         async (markdown?: string) => {
             if (loading) return
+            // Connect step on: describing an agent opens the step instead of creating. The
+            // composer has already cleared itself, so the text rides in the draft.
+            if (CONNECT_STEP_MODE) {
+                const message = (markdown ?? composerRef.current?.getMarkdown() ?? "").trim()
+                if (!message) return
+                setup.open({
+                    seedMessage: message,
+                    name:
+                        provenance.resolveTemplateName() || agentNameFromTask(message) || undefined,
+                })
+                return
+            }
             setLoading(true)
             const ok = await onCreate(provenance.resolveTemplateName(), markdown)
             if (!ok) setLoading(false)
         },
-        [loading, onCreate, provenance.resolveTemplateName],
+        [loading, onCreate, provenance.resolveTemplateName, setup.open, composerRef],
     )
+
+    // Create, with the step's answers. The draft carries the description the step was opened for.
+    const handleCreateFromSetup = useCallback(
+        async (selection: AgentSetupSelection) => {
+            if (loading || !setup.draft) return
+            setLoading(true)
+            const ok = await onCreate(setup.draft.name, setup.draft.seedMessage, selection)
+            if (!ok) setLoading(false)
+        },
+        [loading, onCreate, setup.draft],
+    )
+
+    // Back to the composer, with what they wrote still in it — the step is a checkpoint, not a
+    // one-way door.
+    const handleEditDescription = useCallback(() => {
+        const text = setup.draft?.seedMessage ?? ""
+        setup.close()
+        composerRef.current?.setMarkdown(text)
+    }, [setup.draft, setup.close, composerRef])
 
     // The returning-user page IS the shared one — hero, composer, in-flight column, rail — so
     // mobile and desktop render one composition. Only the pieces this app alone owns (its
@@ -243,20 +295,60 @@ const StripHome: React.FC = () => {
                             <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
                                 {provenance.chipNode}
                             </div>
-                            {/* First run has no agent to talk to, so the composer describes one to
-                                create. Once agents exist the daily action is starting a task with
-                                one of them — that composer lives on the shared Home above. */}
-                            <StripComposer
-                                composerRef={composerRef}
-                                onCreate={handleCreate}
-                                composerClassName={provenance.composerClassName}
-                                onTextChange={provenance.onComposerTextChange}
-                                loading={loading}
-                            />
+                            {setup.draft ? (
+                                // The step is open: what they asked for settles into a line above
+                                // the card, still editable, so the description stays on screen
+                                // rather than being replaced by a form.
+                                <div className="flex items-start gap-3 text-left">
+                                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                            Building
+                                        </span>
+                                        <span className="text-sm leading-snug text-[var(--ag-colorText)]">
+                                            {setup.draft.seedMessage}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleEditDescription}
+                                        disabled={loading}
+                                    >
+                                        Edit
+                                    </Button>
+                                </div>
+                            ) : (
+                                // First run has no agent to talk to, so the composer describes one
+                                // to create. Once agents exist the daily action is starting a task
+                                // with one of them — that composer lives on the shared Home above.
+                                <StripComposer
+                                    composerRef={composerRef}
+                                    onCreate={handleCreate}
+                                    composerClassName={provenance.composerClassName}
+                                    onTextChange={provenance.onComposerTextChange}
+                                    loading={loading}
+                                />
+                            )}
                         </div>
+
+                        {setup.draft ? (
+                            <AgentSetupCard
+                                className="mt-4 text-left"
+                                accounts={setup.accounts}
+                                suggestions={setup.suggestions}
+                                skippedSlugs={setup.skippedSlugs}
+                                onSkip={setup.skip}
+                                onUndoSkip={setup.undoSkip}
+                                onAddAccount={setup.addAccount}
+                                permission={setup.permission}
+                                onPermissionChange={setup.setPermission}
+                                onCreate={handleCreateFromSetup}
+                                creating={loading}
+                            />
+                        ) : null}
                     </div>
 
-                    {blankCreate ? null : (
+                    {blankCreate || setup.draft ? null : (
                         <TemplateStrip
                             className="mt-20"
                             surface="home"

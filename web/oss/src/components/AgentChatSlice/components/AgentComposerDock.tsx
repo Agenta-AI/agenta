@@ -17,6 +17,7 @@ import {
 } from "@agenta/chat/hooks"
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -128,6 +129,8 @@ const AgentComposerDock = ({
         handleStartOver,
         showBareOnboardingHero,
     } = onboardingChat
+    // Non-null only while the pre-create connect step is open on this draft.
+    const onboardingSetup = onboarding?.setup ?? null
     const {setViewingUid, atMax} = attachments
     const {
         voiceEnabled,
@@ -295,7 +298,24 @@ const AgentComposerDock = ({
                 {/* Onboarding strip: docked directly above the composer (mb-3 gap), mirroring the
                     agent-chat strip's rhythm — hero stays top-aligned above the flex space, and
                     the strip + composer read as one bottom-anchored cluster. */}
-                {showBareOnboardingHero ? (
+                {/* Connect step (#6043): docked where the strip would be — and where the agent's own
+                    mid-run connect card appears — so "connect this" always shows up in one place. */}
+                {onboardingSetup?.draft ? (
+                    <div className={`${CHAT_COLUMN} mb-3`}>
+                        <AgentSetupCard
+                            accounts={onboardingSetup.accounts}
+                            suggestions={onboardingSetup.suggestions}
+                            skippedSlugs={onboardingSetup.skippedSlugs}
+                            onSkip={onboardingSetup.skip}
+                            onUndoSkip={onboardingSetup.undoSkip}
+                            onAddAccount={onboardingSetup.addAccount}
+                            permission={onboardingSetup.permission}
+                            onPermissionChange={onboardingSetup.setPermission}
+                            onCreate={onboarding?.commitWithSetup ?? (() => undefined)}
+                            creating={!!onboarding?.committing}
+                        />
+                    </div>
+                ) : showBareOnboardingHero ? (
                     <div className={`${CHAT_COLUMN} mb-3`}>
                         <TemplateStrip
                             surface="onboarding"

@@ -1,13 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {detectAccountsFromTemplate, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {RailField} from "@agenta/entity-ui/drawers/shared"
+import {AccountRow} from "@agenta/entity-ui/onboarding"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {FileText, Lightning, PlugsConnected, Wrench} from "@phosphor-icons/react"
 import {Button, Input, Tag, Typography} from "antd"
 
-import IntegrationRow from "./IntegrationRow"
 import ModelRow from "./ModelRow"
 import ToolsPreview from "./ToolsPreview"
 
@@ -60,9 +60,15 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
         setConnectedMap((prev) => (prev[slug] === connected ? prev : {...prev, [slug]: connected}))
     }, [])
 
+    // The same account shape the pre-create setup card renders, so both surfaces show one row.
+    const accounts = useMemo(
+        () => (template ? detectAccountsFromTemplate(template) : []),
+        [template],
+    )
+
     const leftCount = useMemo(
-        () => (template?.requiredIntegrations ?? []).filter((i) => !connectedMap[i.slug]).length,
-        [template?.requiredIntegrations, connectedMap],
+        () => accounts.filter((account) => !connectedMap[account.slug]).length,
+        [accounts, connectedMap],
     )
     const allSet = leftCount === 0
     const nameValid = name.trim().length > 0
@@ -205,10 +211,10 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
                         summary={allSet ? "All set" : `${leftCount} left`}
                     >
                         <ModelRow model={template.model} />
-                        {template.requiredIntegrations.map((integration) => (
-                            <IntegrationRow
-                                key={integration.slug}
-                                integration={integration}
+                        {accounts.map((account) => (
+                            <AccountRow
+                                key={account.slug}
+                                account={account}
                                 onConnectedChange={handleConnectedChange}
                             />
                         ))}

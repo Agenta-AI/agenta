@@ -490,4 +490,24 @@ export type {
     TemplateTool,
 } from "./agentTemplates"
 
+export {
+    detectAccounts,
+    detectAccountsFromTemplate,
+    detectAccountsFromText,
+    requiredAccounts,
+    suggestionAccounts,
+} from "./detectAccounts"
+export type {DetectedAccount} from "./detectAccounts"
+
+export {
+    DEFAULT_PERMISSION,
+    PERMISSION_OPTIONS,
+    appendSetupPreamble,
+    buildSetupPreamble,
+    canCreateAgent,
+    outstandingRequired,
+    setupStatus,
+} from "./agentSetup"
+export type {AgentPermission, AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
+
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
