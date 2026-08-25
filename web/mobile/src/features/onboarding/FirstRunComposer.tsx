@@ -2,7 +2,6 @@ import {useEffect, useRef, useState} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
-import {markSessionFresh} from "@agenta/chat/state"
 import type {AgentSetupSelection} from "@agenta/entities/workflow"
 import type {AgentSetupStep} from "@agenta/entity-ui/onboarding"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -33,6 +32,8 @@ import {FirstRunSetupStep} from "./FirstRunSetupStep"
 export const FirstRunComposer = ({
     newAgent,
     step,
+    sessionId,
+    entityId,
 }: {
     /**
      * The screen's create hook, passed in rather than called again here. A second instance would
@@ -43,14 +44,12 @@ export const FirstRunComposer = ({
     newAgent: ReturnType<typeof useNewAgentAction>
     /** Owned by the screen, so the templates row can hide while the step is open. */
     step: AgentSetupStep
+    /** Minted by the screen: the workspace keys its panes off the same id. */
+    sessionId: string
+    /** The ephemeral this surface is configuring; committed on submit. Null until it mints. */
+    entityId: string | null
 }) => {
     const inputRef = useRef<RichChatInputHandle | null>(null)
-    const [sessionId] = useState(() => {
-        const id = crypto.randomUUID()
-        // Same reason as Home's composer: a session minted here has no durable records yet.
-        markSessionFresh(id)
-        return id
-    })
     const attachments = useComposerAttachments({sessionId})
     /**
      * Text to put back once the composer is on screen again. The step REPLACES the composer, so
@@ -71,7 +70,14 @@ export const FirstRunComposer = ({
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
         // render, so reading it after the await would read the state from before the create.
-        const handedOff = await newAgent.createFromPrompt({text, sessionId, parts, setup})
+        const handedOff = await newAgent.createFromPrompt({
+            text,
+            sessionId,
+            parts,
+            setup,
+            // Commit the ephemeral the config pane has been editing, not a fresh one.
+            entityId: entityId ?? undefined,
+        })
         // Cleared only once the destination is committed to. A create that failed leaves the files
         // staged and still sendable, and reports itself through `newAgent.error` below.
         if (handedOff) {

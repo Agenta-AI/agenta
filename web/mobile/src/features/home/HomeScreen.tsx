@@ -89,7 +89,11 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 animate="animate"
                 exit="exit"
             >
-                {surface === "loading" ? <FirstRunLoading /> : <FirstRunScreen base={base} />}
+                {surface === "loading" ? (
+                    <FirstRunLoading />
+                ) : (
+                    <FirstRunScreen base={base} workspaceId={workspaceId} projectId={projectId} />
+                )}
             </motion.div>
         </AnimatePresence>
     )

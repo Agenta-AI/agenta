@@ -50,11 +50,17 @@ export const useNewAgentAction = (base: string) => {
              * builder knows; see `appendSetupPreamble`. Absent when the step didn't run.
              */
             setup?: AgentSetupSelection
+            /**
+             * Commit THIS already-minted ephemeral instead of minting a fresh one — first run
+             * configures the agent before it exists (see `useEphemeralAgent`), so the entity the
+             * user has been editing is the one that must be committed.
+             */
+            entityId?: string
         }): Promise<boolean> => {
             if (creating) return false
             setCreating(true)
             setError(null)
-            const created = await createAgent({name: params?.name})
+            const created = await createAgent({name: params?.name, entityId: params?.entityId})
             if (!created) {
                 setCreating(false)
                 return false
@@ -64,9 +70,7 @@ export const useNewAgentAction = (base: string) => {
             void invalidateWorkflowsListCache()
 
             const typed = params?.seedMessage?.trim() ?? ""
-            const seed = params?.setup
-                ? appendSetupPreamble(typed, params.setup)
-                : typed
+            const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
             const sessionId = seeded ? (params?.sessionId ?? crypto.randomUUID()) : null
@@ -119,12 +123,14 @@ export const useNewAgentAction = (base: string) => {
             sessionId?: string
             parts?: FileUIPart[]
             setup?: AgentSetupSelection
+            entityId?: string
         }) =>
             run({
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,
                 setup: input.setup,
+                entityId: input.entityId,
             }),
         [run],
     )

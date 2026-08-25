@@ -1,3 +1,5 @@
+import {useState} from "react"
+
 import {
     AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
@@ -5,7 +7,6 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {TemplateCard} from "@agenta/home-ui"
-import {useState} from "react"
 
 import {FIRST_RUN_COPY} from "./copy"
 
