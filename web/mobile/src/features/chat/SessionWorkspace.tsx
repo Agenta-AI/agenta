@@ -14,7 +14,7 @@ import dynamic from "next/dynamic"
 
 import {AppShell} from "../nav/AppShell"
 
-import {ConfigRevealButton} from "./ConfigRevealButton"
+import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
@@ -142,13 +142,6 @@ export const SessionWorkspace = ({
                     sessionId={sessionId}
                     workspaceId={workspaceId}
                     projectId={projectId}
-                    // With no tab rail the reveal has nowhere to sit, so it becomes a named bar
-                    // action. Only then: the rail carries its own, and two would be one too many.
-                    actions={
-                        hideSessionTabs && !chatMaximized && configCollapsed ? (
-                            <ConfigRevealButton labelled />
-                        ) : undefined
-                    }
                 />
 
                 {/* One split at every width. On a phone the pane it does not show is CSS-hidden
@@ -197,22 +190,35 @@ export const SessionWorkspace = ({
                                     ) : null
                                 }
                                 fill={
-                                    <div className="ag-canvas flex h-full min-h-0 flex-col">
-                                        {/* The rail belongs to the WORKSPACE, not to one
-                                            conversation. It used to live inside the conversation's
-                                            pinned header, so keying that per session remounted the
-                                            rail too and reset its scroll to 0 — you would scroll a
-                                            long strip, pick a tab, and the strip snapped back to
-                                            the start. Up here it simply stays put. */}
-                                        {hideSessionTabs ? null : (
-                                            <SessionTabs
-                                                sessionId={sessionId}
-                                                projectId={projectId}
-                                                workspaceId={workspaceId}
-                                                agentId={agentId}
-                                            />
-                                        )}
-                                        <div className="min-h-0 flex-1">{chat}</div>
+                                    <div className="ag-canvas flex h-full min-h-0">
+                                        {/* Where the collapsed pane went, on a surface with no tab
+                                            rail to carry its reveal — the empty column becomes the
+                                            pane's own edge instead of dead canvas. Needs the width
+                                            for a vertical label, so it is `md`-and-up only. */}
+                                        {hideSessionTabs &&
+                                        twoPane &&
+                                        !chatMaximized &&
+                                        configCollapsed ? (
+                                            <CollapsedConfigRail />
+                                        ) : null}
+                                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                                            {/* The rail belongs to the WORKSPACE, not to one
+                                                conversation. It used to live inside the
+                                                conversation's pinned header, so keying that per
+                                                session remounted the rail too and reset its scroll
+                                                to 0 — you would scroll a long strip, pick a tab,
+                                                and the strip snapped back to the start. Up here it
+                                                simply stays put. */}
+                                            {hideSessionTabs ? null : (
+                                                <SessionTabs
+                                                    sessionId={sessionId}
+                                                    projectId={projectId}
+                                                    workspaceId={workspaceId}
+                                                    agentId={agentId}
+                                                />
+                                            )}
+                                            <div className="min-h-0 flex-1">{chat}</div>
+                                        </div>
                                     </div>
                                 }
                             />
