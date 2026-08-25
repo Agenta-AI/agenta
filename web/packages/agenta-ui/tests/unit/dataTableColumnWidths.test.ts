@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {columnWidths} from "../../src/components/ui/data-table"
+import {columnWidths, tableMinWidth} from "../../src/components/ui/data-table"
 
 /**
  * The numbers here are the desktop app's own, measured live on the Members table at the
@@ -23,6 +23,12 @@ describe("columnWidths", () => {
 
     it("does not shrink flexible columns when the table is narrower than its columns", () => {
         expect(columnWidths(MEMBERS, 56, 400)).toEqual([280, 290, 160])
+    })
+
+    it("keeps the table at least as wide as its declared columns so overflow-x can scroll", () => {
+        const widths = columnWidths(MEMBERS, 56, 400)
+        expect(tableMinWidth(widths, 56)).toBe(280 + 290 + 160 + 56)
+        expect(tableMinWidth(widths, 56)).toBeGreaterThan(400)
     })
 
     it("honours an explicit flexible:false on a later column", () => {

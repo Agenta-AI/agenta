@@ -167,6 +167,14 @@ export const columnWidths = <T,>(
     })
 }
 
+/**
+ * Floor width of a `table-fixed` table. `w-full` alone compresses declared columns into the
+ * container, so `overflow-x-auto` on the wrapper never engages and phone users lose the
+ * columns that do not fit (Settings → AI providers on `/m`).
+ */
+export const tableMinWidth = (widths: (number | undefined)[], actionsWidth: number): number =>
+    widths.reduce((sum: number, width) => sum + (width ?? 0), 0) + actionsWidth
+
 type ActionItem<T> = DataTableAction<T> | {type: "divider"}
 
 /**
@@ -386,7 +394,12 @@ export function DataTable<T>({
                 {/* `table-fixed` honours the declared column widths. Under `auto` they are
                     only hints, so every column landed at a different x than the desktop app's
                     and the same table read differently on the two builds. */}
-                <table className="w-full table-fixed border-collapse text-left">
+                <table
+                    className="w-full table-fixed border-collapse text-left"
+                    style={{
+                        minWidth: tableMinWidth(colWidths, hasGutter ? ACTIONS_COL_WIDTH : 0),
+                    }}
+                >
                     <colgroup>
                         {colWidths.map((width, index) => (
                             <col key={columns[index].key} style={{width}} />

@@ -69,7 +69,7 @@ const SettingsPageShell = ({
         <div
             style={{"--ag-sticky-top": `${headerHeight}px`} as CSSProperties}
             className={clsx(
-                "flex flex-col self-stretch",
+                "flex min-w-0 flex-col self-stretch",
                 // Same gutters + centered column as every PageLayout page, so Settings shares
                 // Home's insets instead of keeping its own responsive scale, and `full` means
                 // "the shared column" rather than "however wide the monitor is".
@@ -88,13 +88,20 @@ const SettingsPageShell = ({
                 fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
-            <div className={clsx("flex w-full flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
+            <div
+                className={clsx(
+                    "flex w-full min-w-0 flex-col gap-6",
+                    fullHeight && "min-h-0 flex-1",
+                )}
+            >
                 {/* Pinned: the tab you are on stays named however far its sections run. `pt-4`
                     with a matching negative margin keeps the resting layout identical and buys
-                    clearance above the title once it is stuck against the container edge. */}
+                    clearance above the title once it is stuck against the container edge.
+                    Below `lg` the docs link stacks under the description so it cannot pinch
+                    the title into "AI provid…" the way a `shrink-0` sibling did on phones. */}
                 <header
                     ref={headerRef}
-                    className="sticky top-0 z-20 -mt-4 flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
+                    className="sticky top-0 z-20 -mt-4 flex flex-col items-stretch gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6"
                 >
                     <div className="flex min-w-0 flex-col gap-1">
                         {/* antd's heading-3 (24px / 1.3333 / 600) as literals, not `--ant-*`
@@ -111,7 +118,7 @@ const SettingsPageShell = ({
 
                     {docs ? (
                         <a
-                            className="mt-1 flex shrink-0 items-center gap-1 text-colorTextSecondary no-underline hover:text-colorText"
+                            className="flex shrink-0 items-center gap-1 self-start text-colorTextSecondary no-underline hover:text-colorText lg:mt-1"
                             href={docs.href}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -126,7 +133,7 @@ const SettingsPageShell = ({
                     the full shared column while the body stays left-anchored at its own width. */}
                 <div
                     className={clsx(
-                        "flex flex-col",
+                        "flex min-w-0 flex-col",
                         fullHeight && "min-h-0 flex-1",
                         variant === "form" && "max-w-[640px]",
                         variant === "table" && "max-w-[1120px]",
