@@ -14,6 +14,7 @@ import {
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
+import {ConnectionFocusProvider} from "@agenta/chat/components"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -606,142 +607,150 @@ const AgentConversation = ({
         // Ambient drive session: in-thread file cards + rail resolve files against THIS
         // conversation without prop-threading through the message tree.
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
-            <div className="ag-canvas relative flex h-full min-h-0 w-full flex-row" {...dropTarget}>
-                {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
-                {quickLookHost}
-                {uploadsEnabled ? (
-                    <AttachmentViewerDrawer
-                        uploads={files}
-                        openUid={viewingUid}
-                        onClose={() => setViewingUid(null)}
-                    />
-                ) : null}
-                {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
-                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
-                <RightPanelSplit
-                    open={inspectorOpen}
-                    // Same bar inset as the transcript column: the Inspector is a separate split pane,
-                    // so it needs its own top padding to clear the absolute session bar in build mode
-                    // (the context rail deliberately does NOT get it, so it never rides the transition).
-                    panel={
-                        <div className="box-border h-full pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                            <Inspector sessionId={sessionId} />
-                        </div>
-                    }
+            {/* Wraps transcript AND dock: a parked "Connect to X below" row links to X's card. */}
+            <ConnectionFocusProvider connects={connects}>
+                <div
+                    className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
+                    {...dropTarget}
                 >
-                    <div className="flex h-full min-h-0 w-full min-w-0">
-                        {/* Top padding tracks the session bar (--agent-bar-inset, published by
+                    {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
+                    {quickLookHost}
+                    {uploadsEnabled ? (
+                        <AttachmentViewerDrawer
+                            uploads={files}
+                            openUid={viewingUid}
+                            onClose={() => setViewingUid(null)}
+                        />
+                    ) : null}
+                    {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+                    <RightPanelSplit
+                        open={inspectorOpen}
+                        // Same bar inset as the transcript column: the Inspector is a separate split pane,
+                        // so it needs its own top padding to clear the absolute session bar in build mode
+                        // (the context rail deliberately does NOT get it, so it never rides the transition).
+                        panel={
+                            <div className="box-border h-full pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                                <Inspector sessionId={sessionId} />
+                            </div>
+                        }
+                    >
+                        <div className="flex h-full min-h-0 w-full min-w-0">
+                            {/* Top padding tracks the session bar (--agent-bar-inset, published by
                             AgentChatPanel and inherited here): the transcript eases down under the
                             absolute bar in build and reclaims the space in chat. It lives on the
                             TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
                             beside it keeps a fixed top and doesn't ride the transition upward.
                             box-border so the padding fits inside h-full (preflight is off). */}
-                        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                            {/* At the limit the overlay says so rather than inviting a drop it is
+                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                                {/* At the limit the overlay says so rather than inviting a drop it is
                             about to reject wholesale. */}
-                            {isDragging && (
-                                <div
-                                    className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                                        atMax
-                                            ? "border-colorError bg-[var(--ant-color-error-bg)]"
-                                            : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-                                    }`}
-                                >
-                                    <UploadSimple
-                                        size={26}
-                                        className={atMax ? "text-colorError" : "text-colorPrimary"}
-                                    />
-                                    <span
-                                        className={`text-sm font-medium ${
-                                            atMax ? "text-colorError" : "text-colorPrimary"
+                                {isDragging && (
+                                    <div
+                                        className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
+                                            atMax
+                                                ? "border-colorError bg-[var(--ant-color-error-bg)]"
+                                                : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
                                         }`}
                                     >
-                                        {atMax ? "Attachment limit reached" : "Drop files here"}
-                                    </span>
-                                    <span className="text-xs text-colorTextSecondary">
-                                        {atMax
-                                            ? `Remove one to add another (${limits.maxCount} max)`
-                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
-                                    </span>
-                                </div>
-                            )}
-                            {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+                                        <UploadSimple
+                                            size={26}
+                                            className={
+                                                atMax ? "text-colorError" : "text-colorPrimary"
+                                            }
+                                        />
+                                        <span
+                                            className={`text-sm font-medium ${
+                                                atMax ? "text-colorError" : "text-colorPrimary"
+                                            }`}
+                                        >
+                                            {atMax ? "Attachment limit reached" : "Drop files here"}
+                                        </span>
+                                        <span className="text-xs text-colorTextSecondary">
+                                            {atMax
+                                                ? `Remove one to add another (${limits.maxCount} max)`
+                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
+                                        </span>
+                                    </div>
+                                )}
+                                {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
-                            <AgentTranscript
-                                messages={messages}
-                                activeStart={activeStart}
-                                reserveActive={reserveActive}
-                                renderMessage={renderMessage}
-                                virt={virt}
-                                scroll={scroll}
-                                showJump={showJump}
-                                placeholder={
-                                    <TranscriptPlaceholder
-                                        entityId={entityId}
-                                        sessionId={sessionId}
-                                        pendingFirstTurn={onboardingChat.pendingFirstTurn}
-                                        pendingFirstMessage={onboardingChat.pendingFirstMessage}
-                                        onboardingActive={onboardingActive}
-                                        browseAll={onboardingChat.onboarding?.browseAll}
-                                        isHydrating={isHydrating}
-                                        hydratedEmpty={hydratedEmpty}
-                                        firstRunPrompt={firstRunPrompt}
-                                        showTemplateStrip={showTemplateStrip}
-                                        canStart={!modelBlocked}
-                                        onStart={handleSubmit}
-                                        onPrefill={(text: string) =>
-                                            richInputRef.current?.setMarkdown(text)
-                                        }
-                                        onRewind={handleRewind}
-                                        onClientToolOutput={handleClientToolOutput}
-                                    />
-                                }
-                            />
+                                <AgentTranscript
+                                    messages={messages}
+                                    activeStart={activeStart}
+                                    reserveActive={reserveActive}
+                                    renderMessage={renderMessage}
+                                    virt={virt}
+                                    scroll={scroll}
+                                    showJump={showJump}
+                                    placeholder={
+                                        <TranscriptPlaceholder
+                                            entityId={entityId}
+                                            sessionId={sessionId}
+                                            pendingFirstTurn={onboardingChat.pendingFirstTurn}
+                                            pendingFirstMessage={onboardingChat.pendingFirstMessage}
+                                            onboardingActive={onboardingActive}
+                                            browseAll={onboardingChat.onboarding?.browseAll}
+                                            isHydrating={isHydrating}
+                                            hydratedEmpty={hydratedEmpty}
+                                            firstRunPrompt={firstRunPrompt}
+                                            showTemplateStrip={showTemplateStrip}
+                                            canStart={!modelBlocked}
+                                            onStart={handleSubmit}
+                                            onPrefill={(text: string) =>
+                                                richInputRef.current?.setMarkdown(text)
+                                            }
+                                            onRewind={handleRewind}
+                                            onClientToolOutput={handleClientToolOutput}
+                                        />
+                                    }
+                                />
 
-                            <AgentComposerDock
-                                entityId={entityId}
-                                messages={messages}
-                                busy={busy}
-                                runningElsewhere={runningElsewhere}
-                                hitlPending={hitlPending}
-                                queue={{queued, removeQueued, clearQueue}}
-                                modelKey={{...modelKey, entityId}}
-                                modelBlocked={modelBlocked}
-                                contextMaxTokens={contextMaxTokens}
-                                showContextBudget={showContextBudget}
-                                showTemplateStrip={showTemplateStrip}
-                                pendingApprovals={pendingApprovals}
-                                onApprovalResponse={handleApprovalResponse}
-                                connects={connects}
-                                onClientToolOutput={handleClientToolOutput}
-                                onSubmit={handleSubmit}
-                                onStop={handleStop}
-                                richInputRef={richInputRef}
-                                composer={composer}
-                                attachments={attachments}
-                                onboardingChat={onboardingChat}
-                                voice={voice}
-                                audioPerceivable={audioPerceivable}
-                                composerDisabled={composerDisabled}
-                                attachmentsBlocked={attachmentsBlocked}
-                            />
-                        </div>
-                        {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
+                                <AgentComposerDock
+                                    entityId={entityId}
+                                    messages={messages}
+                                    busy={busy}
+                                    runningElsewhere={runningElsewhere}
+                                    hitlPending={hitlPending}
+                                    queue={{queued, removeQueued, clearQueue}}
+                                    modelKey={{...modelKey, entityId}}
+                                    modelBlocked={modelBlocked}
+                                    contextMaxTokens={contextMaxTokens}
+                                    showContextBudget={showContextBudget}
+                                    showTemplateStrip={showTemplateStrip}
+                                    pendingApprovals={pendingApprovals}
+                                    onApprovalResponse={handleApprovalResponse}
+                                    connects={connects}
+                                    onClientToolOutput={handleClientToolOutput}
+                                    onSubmit={handleSubmit}
+                                    onStop={handleStop}
+                                    richInputRef={richInputRef}
+                                    composer={composer}
+                                    attachments={attachments}
+                                    onboardingChat={onboardingChat}
+                                    voice={voice}
+                                    audioPerceivable={audioPerceivable}
+                                    composerDisabled={composerDisabled}
+                                    attachmentsBlocked={attachmentsBlocked}
+                                />
+                            </div>
+                            {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
                             pinned on top. Always mounted so hide/show SLIDES (width transition) —
                             hidden in build mode and while the Turn/Session panel owns the right
                             edge. */}
-                        <ContextRail
-                            sessionId={sessionId}
-                            busy={busy}
-                            hidden={buildMode || inspectorOpen}
-                            onOpenFiles={openFilesPane}
-                            onStageFiles={
-                                uploadsEnabled ? (files) => setFilesStaged(files) : undefined
-                            }
-                        />
-                    </div>
-                </RightPanelSplit>
-            </div>
+                            <ContextRail
+                                sessionId={sessionId}
+                                busy={busy}
+                                hidden={buildMode || inspectorOpen}
+                                onOpenFiles={openFilesPane}
+                                onStageFiles={
+                                    uploadsEnabled ? (files) => setFilesStaged(files) : undefined
+                                }
+                            />
+                        </div>
+                    </RightPanelSplit>
+                </div>
+            </ConnectionFocusProvider>
         </DriveSessionProvider>
     )
 }

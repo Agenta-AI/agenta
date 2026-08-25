@@ -15,6 +15,7 @@ import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shar
 import {Button} from "@agenta/ui/ui"
 import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
+import {useConnectFocus} from "./connectFocus"
 import {IntegrationTile} from "./IntegrationTile"
 import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
@@ -43,6 +44,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         runConnect,
         cancel,
     } = useConnectFlow(meta, settle)
+    // Non-null only while this call is still parked in the dock — see `useConnectFocus`.
+    const jumpToDock = useConnectFocus(meta.toolCallId)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
@@ -134,9 +137,21 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // The dock card's ask, trimmed to its first clause plus the pointer — the row marks WHICH tool
     // and WHERE to answer; the card below carries the reason. One span, not name + tail: the row's
     // flex gap would split the phrase and leave "below" reading as an orphan.
+    // The pointer is also the link: clicking it brings that tool's card to the front of the dock,
+    // so a turn that parked several connections doesn't make the user hunt for the right one.
     return (
         <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
-            <span className="truncate text-xs text-colorText">Connect to {label} below</span>
+            {jumpToDock ? (
+                <button
+                    type="button"
+                    onClick={jumpToDock}
+                    className="m-0 min-w-0 cursor-pointer truncate border-none bg-transparent p-0 text-left font-[inherit] text-xs leading-[inherit] text-colorText"
+                >
+                    Connect to {label} below
+                </button>
+            ) : (
+                <span className="truncate text-xs text-colorText">Connect to {label} below</span>
+            )}
         </ChipRow>
     )
 }

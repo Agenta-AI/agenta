@@ -5,7 +5,11 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
-import {ConnectionDock, RunningElsewhereStrip} from "@agenta/chat/components"
+import {
+    ConnectionDock,
+    ConnectionFocusProvider,
+    RunningElsewhereStrip,
+} from "@agenta/chat/components"
 import {useAgentConversation, useAgentModelKeyStatus, useConnectionDock} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
@@ -278,89 +282,99 @@ export const LiveConversation = ({
         )
     }
 
+    // Wraps transcript AND dock: a parked "Connect to X below" row taps through to X's card.
     const scaffold = (
-        <ScreenScaffold
-            scrollRef={autoScroll.ref}
-            onScroll={autoScroll.onScroll}
-            scrollOverlay={
-                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
-            }
-            embedded={embedded}
-            // The top edge fades as a MASK, exactly as the desktop transcript does — content
-            // dissolves under the tab bar instead of being cut by a hard line.
-            scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
-            footer={
-                <div className="relative">
-                    {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
+        <ConnectionFocusProvider connects={connects}>
+            <ScreenScaffold
+                scrollRef={autoScroll.ref}
+                onScroll={autoScroll.onScroll}
+                scrollOverlay={
+                    <ChatJumpToLatest
+                        show={autoScroll.showJump}
+                        onClick={autoScroll.jumpToLatest}
+                    />
+                }
+                embedded={embedded}
+                // The top edge fades as a MASK, exactly as the desktop transcript does — content
+                // dissolves under the tab bar instead of being cut by a hard line.
+                scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                footer={
+                    <div className="relative">
+                        {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
                         would fade any hover toolbar that scrolls into the band, and no z-index
                         escapes an ancestor's mask — the desktop learned this the same way. It sits
                         above the footer and is dropped while a turn is hovered. */}
-                    <div
-                        aria-hidden
-                        className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
-                        style={BOTTOM_FADE_OVERLAY_STYLE}
-                    />
-                    {/* A run this device is not driving. Docked with the other strips above the
+                        <div
+                            aria-hidden
+                            className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
+                            style={BOTTOM_FADE_OVERLAY_STYLE}
+                        />
+                        {/* A run this device is not driving. Docked with the other strips above the
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                    {running && !streamingHere ? (
-                        <ContentRail>
-                            <RunningElsewhereStrip
-                                action={<StopButton sessionId={sessionId} projectId={projectId} />}
-                            />
-                        </ContentRail>
-                    ) : null}
-                    {pendingApprovals.length > 0 ? (
-                        <ApprovalDock
-                            approvals={pendingApprovals}
-                            actions={approvalActions}
-                            entityId={entityId}
-                            bottomMost={false}
-                        />
-                    ) : null}
-                    {/* Parked connections. The rail and padding are all this host adds; the dock
-                        itself is the shared package component. */}
-                    {connects.open ? (
-                        <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                        {running && !streamingHere ? (
                             <ContentRail>
-                                <ConnectionDock
-                                    connects={connects}
-                                    onOutput={conversation.sendToolOutput}
-                                    touch
+                                <RunningElsewhereStrip
+                                    action={
+                                        <StopButton sessionId={sessionId} projectId={projectId} />
+                                    }
                                 />
                             </ContentRail>
-                        </div>
-                    ) : null}
-                    {/* Docked with the other strips, directly above the composer it disables —
+                        ) : null}
+                        {pendingApprovals.length > 0 ? (
+                            <ApprovalDock
+                                approvals={pendingApprovals}
+                                actions={approvalActions}
+                                entityId={entityId}
+                                bottomMost={false}
+                            />
+                        ) : null}
+                        {/* Parked connections. The rail and padding are all this host adds; the dock
+                        itself is the shared package component. */}
+                        {connects.open ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <ConnectionDock
+                                        connects={connects}
+                                        onOutput={conversation.sendToolOutput}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
+                        {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
-                    <ContentRail>
-                        <ConnectModelStrip
-                            providerEntry={modelKey.providerEntry}
-                            gateActive={modelBlocked}
-                        />
-                    </ContentRail>
-                    {/* The parked task gave up waiting for the vault. Its text is back in the
-                        composer, so this says what happened and the send is one tap away. */}
-                    {pendingTaskError ? (
                         <ContentRail>
-                            <p className="text-destructive m-0 mb-2 text-xs">{pendingTaskError}</p>
+                            <ConnectModelStrip
+                                providerEntry={modelKey.providerEntry}
+                                gateActive={modelBlocked}
+                            />
                         </ContentRail>
-                    ) : null}
-                    <Composer
-                        sessionId={sessionId}
-                        onSend={({text, parts}) => conversation.send({text, parts})}
-                        disabled={conversation.isHydrating || modelBlocked}
-                        waitingOnUser={conversation.hitlPending}
-                        streaming={streamingHere}
-                        onStop={conversation.stop}
-                        inputRef={composerRef}
-                    />
-                </div>
-            }
-        >
-            {body}
-        </ScreenScaffold>
+                        {/* The parked task gave up waiting for the vault. Its text is back in the
+                        composer, so this says what happened and the send is one tap away. */}
+                        {pendingTaskError ? (
+                            <ContentRail>
+                                <p className="text-destructive m-0 mb-2 text-xs">
+                                    {pendingTaskError}
+                                </p>
+                            </ContentRail>
+                        ) : null}
+                        <Composer
+                            sessionId={sessionId}
+                            onSend={({text, parts}) => conversation.send({text, parts})}
+                            disabled={conversation.isHydrating || modelBlocked}
+                            waitingOnUser={conversation.hitlPending}
+                            streaming={streamingHere}
+                            onStop={conversation.stop}
+                            inputRef={composerRef}
+                        />
+                    </div>
+                }
+            >
+                {body}
+            </ScreenScaffold>
+        </ConnectionFocusProvider>
     )
 
     // Embedded: the workspace owns the shell and the pane geometry.

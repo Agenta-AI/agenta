@@ -16,3 +16,4 @@ export {
     prettyIntegration,
     connectIntegrationKey,
 } from "./useIntegrationIdentity"
+export {ConnectFocusContextProvider, useConnectFocus, type ConnectFocusValue} from "./connectFocus"
