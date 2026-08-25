@@ -1,7 +1,7 @@
 /**
  * The Agenta OAuth connect flow for a `request_connection` client tool (#4920), extracted from
  * ConnectToolWidget so two surfaces share ONE implementation without double-settling:
- *  - the InteractionDock card (composer region) owns the LIVE parked call's actions — Connect,
+ *  - the connect dock card (composer region) owns the LIVE parked call's actions — Connect,
  *    "Not now" (decline), Cancel — mirroring ApprovalDock's "dock acts, inline marks" contract;
  *  - the inline transcript chip keeps the post-settle states (result chip + Retry, which re-runs
  *    the OAuth with `settleParkedCall=false` to prime the vault for the agent's re-ask).

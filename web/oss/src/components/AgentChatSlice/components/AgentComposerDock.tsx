@@ -43,7 +43,7 @@ import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import InteractionDock from "./InteractionDock"
+import ConnectDock from "./ConnectDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -282,7 +282,7 @@ const AgentComposerDock = ({
                 {/* Parked client-tool interactions (connect): same placement contract as the
                     approval dock — the paused gate can't scroll out of reach, and "Not now"
                     is the escape hatch that resumes the run without connecting. */}
-                <InteractionDock
+                <ConnectDock
                     className={CHAT_COLUMN}
                     connects={connects}
                     onOutput={onClientToolOutput}

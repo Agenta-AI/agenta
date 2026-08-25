@@ -3,7 +3,7 @@
  *
  * The agent asked for a connection it lacks (e.g. GitHub). While the call is PARKED, this inline
  * row is a passive marker only — the actions (Connect / Not now / Cancel) live in the
- * InteractionDock in the composer region, mirroring ApprovalDock's "dock acts, inline marks"
+ * connect dock in the composer region, mirroring ApprovalDock's "dock acts, inline marks"
  * contract, so the paused run can never scroll out of reach and always has an escape hatch.
  *
  * After the call settles this row owns the result UX (U1) — an inline status chip in the same

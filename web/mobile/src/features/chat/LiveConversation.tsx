@@ -5,7 +5,7 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
 } from "@agenta/chat/assets"
-import {RunningElsewhereStrip} from "@agenta/chat/components"
+import {ConnectDock, RunningElsewhereStrip} from "@agenta/chat/components"
 import {useAgentConversation, useAgentModelKeyStatus, useConnectDock} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
@@ -22,7 +22,6 @@ import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
-import {ConnectDock} from "./ConnectDock"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {
     MODEL_KEY_WAIT_LIMIT_MS,
@@ -320,7 +319,19 @@ export const LiveConversation = ({
                             bottomMost={false}
                         />
                     ) : null}
-                    <ConnectDock connects={connects} onOutput={conversation.sendToolOutput} />
+                    {/* Parked connections. The rail and padding are all this host adds; the dock
+                        itself is the shared package component. */}
+                    {connects.open ? (
+                        <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <ContentRail>
+                                <ConnectDock
+                                    connects={connects}
+                                    onOutput={conversation.sendToolOutput}
+                                    touch
+                                />
+                            </ContentRail>
+                        </div>
+                    ) : null}
                     {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                     <ContentRail>

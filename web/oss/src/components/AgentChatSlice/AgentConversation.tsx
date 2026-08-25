@@ -353,7 +353,7 @@ const AgentConversation = ({
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach).
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interactions on the paused turn → the InteractionDock owns their actions (the
+    // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
     const connects = useConnectDock({

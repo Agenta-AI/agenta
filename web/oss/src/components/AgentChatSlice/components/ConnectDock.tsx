@@ -24,7 +24,7 @@ import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {ConnectDock} from "@agenta/chat/components"
 import type {ConnectDockState} from "@agenta/chat/hooks"
 
-interface InteractionDockProps {
+interface AgentConnectDockProps {
     /** Parked connect interactions the run is blocked on (from `useConnectDock`). */
     connects: ConnectDockState
     /** Settle channel — the panel maps this onto `addToolOutput` (marks the resume as live). */
@@ -37,7 +37,7 @@ interface InteractionDockProps {
  * same idiom as ApprovalDock. `inert` while closed drops the (clipped, latched) card from tab order
  * + a11y so a keyboard user can't reach hidden buttons.
  */
-const InteractionDock = ({connects, onOutput, className}: InteractionDockProps) => {
+const AgentConnectDock = ({connects, onOutput, className}: AgentConnectDockProps) => {
     // `useConnectDock` latches its own view, so the card survives the collapse without a ref here.
     const {open, stack} = connects
 
@@ -62,4 +62,4 @@ const InteractionDock = ({connects, onOutput, className}: InteractionDockProps) 
     )
 }
 
-export default memo(InteractionDock)
+export default memo(AgentConnectDock)

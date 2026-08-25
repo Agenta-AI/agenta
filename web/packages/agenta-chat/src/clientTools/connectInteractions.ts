@@ -1,7 +1,7 @@
 /**
  * Which parked `request_connection` calls the run is currently blocked on.
  *
- * Lifted out of the oss InteractionDock so /m and oss read the SAME set. It returns every pending
+ * Lifted out of the oss dock so /m and oss read the SAME set. It returns every pending
  * connect on the paused turn, not just the first: a turn can park several browser-fulfilled client
  * tools at once (see `useConnectFlow`'s per-flow popup naming, and the all-settled resume rule in
  * @agenta/playground `agentShouldResumeAfterApproval`), and the dock stacks them.
