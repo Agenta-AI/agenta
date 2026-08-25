@@ -65,6 +65,7 @@ export const PasswordlessRequestForm = ({
             {message.type === "error" && <ShowErrorMessage info={message} />}
             <input
                 type="email"
+                autoFocus={!lockEmail}
                 autoComplete="email"
                 aria-label="Email address"
                 placeholder="Enter valid email address"

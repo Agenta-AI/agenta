@@ -111,6 +111,7 @@ export const EmailPasswordForm = ({
         <form className="flex w-full flex-col gap-4" onSubmit={submit} noValidate>
             <input
                 type="email"
+                autoFocus={!lockEmail}
                 autoComplete="email"
                 aria-label="Email address"
                 placeholder="Enter valid email address"
@@ -125,6 +126,7 @@ export const EmailPasswordForm = ({
             />
             <input
                 type="password"
+                autoFocus={lockEmail}
                 autoComplete="current-password"
                 aria-label="Password"
                 placeholder="Enter your password"

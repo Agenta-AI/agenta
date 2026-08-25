@@ -54,6 +54,7 @@ export const EmailFirstForm = ({
             <div className="relative">
                 <input
                     type="email"
+                    autoFocus
                     autoComplete="email"
                     aria-label="Email address"
                     placeholder="Enter your email address"
