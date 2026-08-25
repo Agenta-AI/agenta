@@ -12,7 +12,7 @@
  *    pulled forward, so the progress dots read `batch` instead — every connect call on the turn,
  *    settled included, in the agent's order.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import type {UIMessage} from "ai"
 
@@ -29,6 +29,12 @@ export interface UseConnectDockArgs {
      * is really parked). Hosts pass their own gate; the pending set alone can't tell.
      */
     enabled?: boolean
+    /**
+     * An approval gate is pending. Approvals win: they bind the same Cmd/Ctrl+Enter and Escape, and
+     * both docks can be open on one turn, so this parks the connect shortcuts rather than letting
+     * one key fire two decisions. The rule lives here so neither host has to re-derive it.
+     */
+    approvalsPending?: boolean
 }
 
 export interface ConnectDockState {
@@ -47,11 +53,14 @@ export interface ConnectDockState {
     total: number
     /** Pull a card behind the front one forward. */
     bringForward: (toolCallId: string) => void
+    /** Whether the dock may bind its keyboard shortcuts (see `approvalsPending`). */
+    shortcutsEnabled: boolean
 }
 
 export const useConnectDock = ({
     messages,
     enabled = true,
+    approvalsPending = false,
 }: UseConnectDockArgs): ConnectDockState => {
     const pending = useMemo(
         () => (enabled ? getPendingConnectInteractions(messages) : []),
@@ -74,18 +83,26 @@ export const useConnectDock = ({
 
     const bringForward = useCallback((toolCallId: string) => setFrontId(toolCallId), [])
 
-    // Derived from the real batch now, so both hold through a settle without a latch: `batch` keeps
-    // its settled entries, and the counter simply reads how many of them are done.
+    // Derived from the real batch: it keeps its settled entries, so the counter simply reads how
+    // many are done rather than watching the pending set shrink.
     const total = batch.length
     const settled = batch.filter((meta) => meta.settled).length
+    const open = stack.length > 0
+
+    // Hold the last non-empty view so a host can animate the dock closed around content that is
+    // already gone. It lives here rather than as a `useRef` copy-pasted into each host.
+    const shownRef = useRef({stack, batch, position: 1, total})
+    if (open) shownRef.current = {stack, batch, position: settled + 1, total}
+    const shown = shownRef.current
 
     return {
-        open: stack.length > 0,
-        stack,
-        batch,
-        front: stack[0] ?? null,
-        position: settled + 1,
-        total,
+        open,
+        stack: shown.stack,
+        batch: shown.batch,
+        front: shown.stack[0] ?? null,
+        position: shown.position,
+        total: shown.total,
         bringForward,
+        shortcutsEnabled: !approvalsPending,
     }
 }

@@ -32,6 +32,7 @@ import {
 
 import {CONNECT_PILL_SPRING} from "../assets/motion"
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
+import type {ConnectDockState} from "../hooks/useConnectDock"
 import type {ClientToolMeta, SettleClientTool} from "../skin"
 
 /** How far each card behind the front one peeks above it. */
@@ -59,16 +60,9 @@ const CARD_SURFACE =
     "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
 
 export interface ConnectDockProps {
-    /** Parked connections, front card first (from `useConnectDock`). */
-    interactions: ClientToolMeta[]
-    /** The turn's whole connect batch in the agent's order — what the progress dots walk. */
-    batch: ClientToolMeta[]
-    /** 1-based position of the front card in the batch. */
-    position: number
-    /** Connections the batch started with; the counter is hidden when it is 1. */
-    total: number
-    /** Pull one of the cards behind the front one forward. */
-    onBringForward: (toolCallId: string) => void
+    /** The whole dock state from `useConnectDock` — passed as one object so a new field never
+     *  means editing every host that renders this. */
+    connects: ConnectDockState
     /** Settle channel — hosts map this onto their `addToolOutput`. */
     onOutput: ClientToolOutputHandler
     /** Touch mode: the actions get an invisibly extended tap area. Chrome is identical. */
@@ -79,27 +73,18 @@ export interface ConnectDockProps {
      * hosts that unmount the dock instead can leave it alone.
      */
     active?: boolean
-    /**
-     * False parks the keyboard shortcuts. Approvals win: an approval gate binds the SAME
-     * Cmd/Ctrl+Enter and Escape, and both docks can be open on one turn, so the host silences this
-     * one while any gate is pending rather than letting a single key fire two decisions.
-     */
-    shortcutsEnabled?: boolean
     className?: string
 }
 
 export const ConnectDock = ({
-    interactions,
-    batch,
-    position,
-    total,
-    onBringForward,
+    connects,
     onOutput,
     touch = false,
     active = true,
-    shortcutsEnabled = true,
     className = "",
 }: ConnectDockProps) => {
+    const {stack: interactions, batch, position, total, shortcutsEnabled} = connects
+    const onBringForward = connects.bringForward
     const [hovered, setHovered] = useState<string | null>(null)
     // Picking a card ends the fan: the stack reorders under the pointer, so whatever was lifted is
     // no longer what sits there.

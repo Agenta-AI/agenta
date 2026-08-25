@@ -286,7 +286,6 @@ const AgentComposerDock = ({
                     className={CHAT_COLUMN}
                     connects={connects}
                     onOutput={onClientToolOutput}
-                    shortcutsEnabled={pendingApprovals.length === 0}
                 />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
                     (unlike the home surface) — the strip card's own selected state is the
