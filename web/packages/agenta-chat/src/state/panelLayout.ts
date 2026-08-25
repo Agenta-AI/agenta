@@ -55,16 +55,19 @@ export const configPanelCollapsedPreferenceAtom = atomWithStorage<boolean | null
 )
 
 /**
- * The default when nothing is stored: hidden on a phone, visible everywhere else.
+ * The default when nothing is stored: hidden on a phone, visible everywhere else — and hidden
+ * anywhere a surface asks for it via `hostCollapsed` (first run, which leads with the question
+ * rather than a form for an agent that does not exist yet).
  *
  * A stored preference always wins, in both directions. Collapsing the pane on a phone is one tap
- * on the `»` reveal button in the chat header, and that tap stores `false`, so the phone default
- * never fights a user who wants the config pane.
+ * on the `»` reveal button in the chat header, and that tap stores `false`, so neither the phone
+ * default nor a host's default ever fights a user who wants the config pane.
  */
 export const resolveConfigPanelCollapsed = (
     stored: boolean | null,
     phoneViewport: boolean,
-): boolean => stored ?? phoneViewport
+    hostCollapsed = false,
+): boolean => stored ?? (phoneViewport || hostCollapsed)
 
 /** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
  * in Build is not the same as switching to Chat. */

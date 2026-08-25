@@ -127,6 +127,8 @@ export const FirstRunScreen = ({
             bare
             // No session exists yet, so the tab strip has nothing to switch between.
             hideSessionTabs
+            // Lead with the question, not the form — the configuration is one `»` away.
+            collapseConfigByDefault
         />
     )
 }

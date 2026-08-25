@@ -1,6 +1,11 @@
 import {useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedPreferenceAtom,
+    phoneViewportAtom,
+    resolveConfigPanelCollapsed,
+} from "@agenta/chat/state"
 import {SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
@@ -45,6 +50,7 @@ export const SessionWorkspace = ({
     chat,
     bare = false,
     hideSessionTabs = false,
+    collapseConfigByDefault = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
@@ -64,12 +70,27 @@ export const SessionWorkspace = ({
      * and no history, so the strip is a rail with nothing to switch between.
      */
     hideSessionTabs?: boolean
+    /**
+     * Start with the config pane collapsed, the way a phone already does. First run leads with the
+     * question and the composer; the configuration is one `»` away rather than half the screen
+     * before there is anything to configure.
+     *
+     * Only the DEFAULT — a stored preference still wins in both directions, so someone who opens
+     * the pane here keeps it open, and this never writes over what they chose elsewhere.
+     */
+    collapseConfigByDefault?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
-    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
+    // for a device, and this surface gets to answer too. A stored preference still beats both.
+    const configCollapsed = resolveConfigPanelCollapsed(
+        useAtomValue(configPanelCollapsedPreferenceAtom),
+        useAtomValue(phoneViewportAtom),
+        collapseConfigByDefault,
+    )
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
