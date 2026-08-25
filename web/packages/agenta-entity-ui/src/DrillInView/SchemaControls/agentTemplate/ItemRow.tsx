@@ -88,6 +88,9 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
  * `locked` renders a read-only variant (muted fill, a "Locked" tag, no chevron/remove and no
  * interaction) — used for platform-owned items that can be shown but not edited, e.g. the
  * playground build kit. Passing no `onEdit` also makes the row non-interactive.
+ *
+ * `extra` slots a control (e.g. a per-item switch) ahead of the tags; `inactive` dims the identity
+ * half so a switched-off row reads as off without going fully `locked`.
  */
 export function ItemRow({
     descriptor,
@@ -95,6 +98,8 @@ export function ItemRow({
     onRemove,
     disabled,
     locked,
+    inactive,
+    extra,
     status,
 }: {
     descriptor: ItemDescriptor
@@ -102,6 +107,8 @@ export function ItemRow({
     onRemove?: () => void
     disabled?: boolean
     locked?: boolean
+    inactive?: boolean
+    extra?: ReactNode
     status?: ItemRowStatus
 }) {
     const interactive = Boolean(onEdit) && !locked
@@ -134,7 +141,10 @@ export function ItemRow({
                           }
                         : undefined
                 }
-                className="flex min-w-0 flex-1 items-center gap-2.5"
+                className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    inactive && "opacity-50",
+                )}
             >
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
@@ -160,6 +170,7 @@ export function ItemRow({
                     </Tag>
                 ))}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
+                {extra}
                 {onRemove && !disabled && !locked ? (
                     <button
                         type="button"
