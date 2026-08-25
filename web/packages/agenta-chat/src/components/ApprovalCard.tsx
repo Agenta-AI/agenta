@@ -211,7 +211,7 @@ export const ApprovalCard = ({
 
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
-            <HeightCollapse open={!steerOpen} fade inert>
+            <HeightCollapse className="-mt-1" open={!steerOpen} fade inert>
                 <div className="flex items-center gap-2">
                     {canAlwaysAllow ? (
                         <label className="flex cursor-pointer items-center gap-2 text-xs text-colorTextSecondary">
