@@ -72,4 +72,43 @@ describe("deriveTurnStatus", () => {
         expect(status.showError).toBe(false)
         expect(status.isError).toBe(false)
     })
+
+    it("carries the failure class alongside a shown error", () => {
+        const message = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
+        const status = deriveTurnStatus(message, {
+            isUser: false,
+            isStreaming: false,
+            runError: "out of credits",
+            errorCode: "starter_credits_exhausted",
+        })
+        expect(status.showError).toBe(true)
+        expect(status.errorCode).toBe("starter_credits_exhausted")
+    })
+
+    it("drops the failure class while the turn is still streaming", () => {
+        const message = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
+        const status = deriveTurnStatus(message, {
+            isUser: false,
+            isStreaming: true,
+            runError: "out of credits",
+            errorCode: "starter_credits_exhausted",
+        })
+        expect(status.showError).toBe(false)
+        expect(status.errorCode).toBeNull()
+    })
+
+    it("drops the failure class when no error is surfaced", () => {
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "text", text: "all good"}],
+        } as unknown as UIMessage
+        const status = deriveTurnStatus(message, {
+            isUser: false,
+            isStreaming: false,
+            errorCode: "starter_credits_exhausted",
+        })
+        expect(status.showError).toBe(false)
+        expect(status.errorCode).toBeNull()
+    })
 })

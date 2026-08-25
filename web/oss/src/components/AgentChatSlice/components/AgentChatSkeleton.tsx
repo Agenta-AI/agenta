@@ -1,4 +1,4 @@
-import {Skeleton} from "antd"
+import {SkeletonAvatar, SkeletonBlock} from "@agenta/ui/ui"
 
 /**
  * Region skeletons for the agent chat pane. Each region (session bar / transcript /
@@ -7,16 +7,25 @@ import {Skeleton} from "antd"
  * component, and a region hydrating never shifts or restyles its neighbours.
  */
 
+/** A run of shimmering text lines (the antd `Skeleton paragraph` shape). */
+const SkeletonLines = ({widths}: {widths: string[]}) => (
+    <div className="flex flex-col gap-3" aria-hidden>
+        {widths.map((width, i) => (
+            <SkeletonBlock key={i} active className="h-3.5 rounded" style={{width}} />
+        ))}
+    </div>
+)
+
 /** Session tab strip: tab pills left, add/search/history actions right. Matches the
  * real bar's 48px lane and h-7 pills. */
 export const SessionBarSkeleton = () => (
     <div className="flex h-12 w-full items-center gap-2 px-4">
-        <Skeleton.Button active style={{width: 150, height: 28, borderRadius: 6}} />
-        <Skeleton.Button active style={{width: 120, height: 28, borderRadius: 6}} />
+        <SkeletonBlock active className="h-7 w-[150px] rounded-md" />
+        <SkeletonBlock active className="h-7 w-[120px] rounded-md" />
         <div className="ml-auto flex items-center gap-3">
-            <Skeleton.Avatar active size={22} shape="circle" />
-            <Skeleton.Avatar active size={22} shape="circle" />
-            <Skeleton.Avatar active size={22} shape="circle" />
+            <SkeletonAvatar active className="size-[22px]" />
+            <SkeletonAvatar active className="size-[22px]" />
+            <SkeletonAvatar active className="size-[22px]" />
         </div>
     </div>
 )
@@ -27,28 +36,24 @@ export const TranscriptSkeleton = () => (
     <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-1 flex-col gap-8 overflow-hidden p-3 pt-10">
         <div className="flex items-start justify-end gap-3">
             <div className="w-[45%] max-w-[420px]">
-                <Skeleton.Button active block style={{height: 72, borderRadius: 20}} />
+                <SkeletonBlock active className="h-[72px] w-full rounded-[20px]" />
             </div>
-            <Skeleton.Avatar active size={36} shape="circle" />
+            <SkeletonAvatar active className="size-9" />
         </div>
         <div className="flex items-start gap-3">
-            <Skeleton.Avatar active size={36} shape="square" />
+            <SkeletonAvatar active shape="square" className="size-9" />
             <div className="min-w-0 flex-1 pt-1.5">
-                <Skeleton
-                    active
-                    title={false}
-                    paragraph={{rows: 4, width: ["30%", "58%", "62%", "38%"]}}
-                />
+                <SkeletonLines widths={["30%", "58%", "62%", "38%"]} />
             </div>
         </div>
         <div className="flex items-start justify-end gap-3">
-            <Skeleton.Button active style={{width: 180, height: 44, borderRadius: 20}} />
-            <Skeleton.Avatar active size={36} shape="circle" />
+            <SkeletonBlock active className="h-11 w-[180px] rounded-[20px]" />
+            <SkeletonAvatar active className="size-9" />
         </div>
         <div className="flex items-start gap-3">
-            <Skeleton.Avatar active size={36} shape="square" />
+            <SkeletonAvatar active shape="square" className="size-9" />
             <div className="min-w-0 flex-1 pt-1.5">
-                <Skeleton active title={false} paragraph={{rows: 2, width: ["64%", "42%"]}} />
+                <SkeletonLines widths={["64%", "42%"]} />
             </div>
         </div>
     </div>
@@ -59,7 +64,7 @@ export const TranscriptSkeleton = () => (
  * or the real composer's slot (`CHAT_COLUMN mb-3`). */
 export const ComposerSkeleton = ({className}: {className?: string}) => (
     <div className={className}>
-        <Skeleton.Button active block style={{height: 114, borderRadius: 8}} />
+        <SkeletonBlock active className="h-[114px] w-full rounded-lg" />
     </div>
 )
 

@@ -40,6 +40,13 @@ export {
     type SubscriptionStatusTone,
 } from "./subscriptionStatus"
 
+export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -288,3 +295,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

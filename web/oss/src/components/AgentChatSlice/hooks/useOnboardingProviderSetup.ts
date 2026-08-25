@@ -14,38 +14,41 @@
  * vault refetch lands, so the new connection does not exist yet at that moment. The save arms; the
  * list growing is what fires.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {subscriptionPairModelsAtom, type ProviderConnection} from "@agenta/entities/secret"
 import {
-    providerConnectionsAtom,
-    vaultSecretsQueryAtom,
-    type ProviderConnection,
-} from "@agenta/entities/secret"
-import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    modelLabel,
+    modelDisplayName,
     providerForModel,
     readHarnessKind,
-    selectableHarnesses,
     withHarnessKind,
     withModel,
 } from "@agenta/entity-ui/drill-in"
-import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {
+    draftConfigChangeSignalAtom,
+    openAgentConfigSectionAtom,
+    projectIdAtom,
+    userAtom,
+} from "@agenta/shared/state"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {onboardingModelSwitch} from "../assets/onboardingModelSwitch"
 
 /** Narrowed to the refetch handle — the raw query atom churns identity on every fetch-state flip. */
-const vaultRefetchAtom = atom((get) => get(vaultSecretsQueryAtom).refetch)
-
 export interface OnboardingProviderSetup {
     open: boolean
     /** Opens the drawer, recording whether this counts as the onboarding path. */
     openDrawer: () => void
     closeDrawer: () => void
     /** Hand to `ProviderDrawer.onSaved`. */
-    onSaved: () => void
+    onSaved: (savedConnectionId?: string) => void
     /** Every connection in the project, for the drawer's Connected section. */
     connections: ProviderConnection[]
 }
@@ -54,19 +57,22 @@ export function useOnboardingProviderSetup(
     entityId: string,
     {gateActive}: {gateActive: boolean},
 ): OnboardingProviderSetup {
-    const connections = useAtomValue(providerConnectionsAtom)
-    const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
-    const refetchVault = useAtomValue(vaultRefetchAtom)
+    const candidateAtom = agentModelCandidatesAtomFamily(true)
+    const candidateState = useAtomValue(candidateAtom)
+    const connections = candidateState.connections
+    const projectId = useAtomValue(projectIdAtom)
+    const userId = useAtomValue(userAtom)?.id
+    const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
 
     const [open, setOpen] = useState(false)
-    // Armed on a save that came from the onboarding path; disarmed by the switch it triggers.
-    const armedRef = useRef(false)
     const onboardingRef = useRef(false)
     const knownKeysRef = useRef<string[]>([])
 
@@ -74,11 +80,6 @@ export function useOnboardingProviderSetup(
     // not against the snapshot from the render that opened the drawer.
     const configRef = useRef(config)
     configRef.current = config
-
-    const harnessIds = useMemo(
-        () => selectableHarnesses(capabilities ? Object.keys(capabilities) : []),
-        [capabilities],
-    )
 
     const openDrawer = useCallback(() => {
         onboardingRef.current = gateActive
@@ -88,73 +89,119 @@ export function useOnboardingProviderSetup(
 
     const closeDrawer = useCallback(() => setOpen(false), [])
 
-    const onSaved = useCallback(() => {
-        armedRef.current = onboardingRef.current
-        refetchVault()
-    }, [refetchVault])
+    const onSaved = useCallback(
+        async (savedConnectionId?: string) => {
+            const onboarding = onboardingRef.current
+            if (!onboarding || !projectId || !userId) return
 
-    useEffect(() => {
-        if (!armedRef.current) return
-        const rows = buildConnectionPickerRows({
-            connections,
-            capabilities,
-            harnessIds,
-            showSubscriptions: true,
-        })
-        // Nothing new yet: the refetch has not landed. Stay armed and wait for the next list.
-        const appeared = rows.some(
-            (row) => row.kind === "connection" && !knownKeysRef.current.includes(row.key),
-        )
-        if (!appeared) return
-        armedRef.current = false
+            const fresh = await loadAgentModelCandidates({
+                projectId,
+                userId,
+                pairModelSelection,
+                refreshVault: true,
+            })
+            if (fresh.status !== "ready") return
+            const rows = buildConnectionPickerRows({
+                candidates: fresh.candidates,
+                connections: fresh.connections,
+                capabilities: fresh.capabilities,
+            })
+            const appeared = savedConnectionId
+                ? rows.some((row) => row.kind === "connection" && row.key === savedConnectionId)
+                : rows.some(
+                      (row) => row.kind === "connection" && !knownKeysRef.current.includes(row.key),
+                  )
+            if (!appeared) return
 
-        const selection = onboardingModelSwitch({
-            onboarding: true,
-            previousConnectionKeys: knownKeysRef.current,
-            rows,
-        })
-        if (!selection) {
-            // The connection serves no model we can name. Open the picker rather than switch
-            // blindly — the Model section IS the picker now.
-            openConfigSection("model-harness")
-            return
-        }
+            const current = configRef.current as Record<string, unknown> | null
+            const currentLlm =
+                current?.llm && typeof current.llm === "object" && !Array.isArray(current.llm)
+                    ? (current.llm as Record<string, unknown>)
+                    : null
+            const currentConnection =
+                currentLlm?.connection &&
+                typeof currentLlm.connection === "object" &&
+                !Array.isArray(currentLlm.connection)
+                    ? (currentLlm.connection as Record<string, unknown>)
+                    : null
+            const currentHarness = readHarnessKind(current)
+            const currentModel =
+                typeof currentLlm?.model === "string" && currentLlm.model ? currentLlm.model : null
+            const currentSelection =
+                currentModel && currentHarness
+                    ? {
+                          modelId: currentModel,
+                          provider:
+                              typeof currentLlm?.provider === "string" ? currentLlm.provider : null,
+                          mode:
+                              currentConnection?.mode === "self_managed"
+                                  ? ("self_managed" as const)
+                                  : ("agenta" as const),
+                          slug:
+                              typeof currentConnection?.slug === "string"
+                                  ? currentConnection.slug
+                                  : null,
+                          harness: currentHarness,
+                      }
+                    : null
 
-        const current = configRef.current as Record<string, unknown> | null
-        const currentHarness = readHarnessKind(current)
-        const harness = selection.harness ?? currentHarness
-        // Same single-dispatch write a `/model` pick performs: harness first, model onto that base,
-        // so one update carries both and neither composes from a stale copy of the other.
-        const base =
-            selection.harness && selection.harness !== currentHarness
-                ? (withHarnessKind(current, selection.harness) ?? current)
-                : current
-        const next = withModel(base, {
-            modelId: selection.modelId,
-            provider:
-                selection.provider ?? providerForModel(capabilities, harness, selection.modelId),
-            mode: selection.mode,
-            slug: selection.slug,
-        })
-        if (!next) return
-        setConfiguration(entityId, next)
-        const label = modelLabel(capabilities, harness, selection.modelId) ?? selection.modelId
-        raiseDraftSignal({
-            revisionId: entityId,
-            sectionKeys: ["model-harness"],
-            origin: "provider-onboarding",
-            summary: `Model set to ${label}`,
-            at: Date.now(),
-        })
-    }, [
-        connections,
-        capabilities,
-        harnessIds,
-        entityId,
-        openConfigSection,
-        raiseDraftSignal,
-        setConfiguration,
-    ])
+            const selection = onboardingModelSwitch({
+                onboarding: true,
+                replaceable: entityId.startsWith("local-"),
+                savedConnectionId: savedConnectionId ?? null,
+                current: currentSelection,
+                // This drawer was opened only while the resolved candidate set was empty. The template
+                // tuple can become runnable because of the key just saved, but that does not turn the
+                // automatic placeholder into a user choice made before the save.
+                currentWasRunnable: false,
+                previousConnectionKeys: knownKeysRef.current,
+                rows,
+            })
+            if (!selection) {
+                setChatMaximized(false)
+                setConfigPanelCollapsed(false)
+                openConfigSection("model-harness")
+                return
+            }
+
+            const harness = selection.harness ?? currentHarness
+            // Same single-dispatch write a `/model` pick performs: harness first, model onto that base,
+            // so one update carries both and neither composes from a stale copy of the other.
+            const base =
+                selection.harness && selection.harness !== currentHarness
+                    ? (withHarnessKind(current, selection.harness) ?? current)
+                    : current
+            const next = withModel(base, {
+                modelId: selection.modelId,
+                provider:
+                    selection.provider ??
+                    providerForModel(fresh.capabilities, harness, selection.modelId),
+                mode: selection.mode,
+                slug: selection.slug,
+            })
+            if (!next) return
+            setConfiguration(entityId, next)
+            const label = modelDisplayName(fresh.capabilities, harness, selection.modelId)
+            raiseDraftSignal({
+                revisionId: entityId,
+                sectionKeys: ["model-harness"],
+                origin: "provider-onboarding",
+                summary: `Model set to ${label}`,
+                at: Date.now(),
+            })
+        },
+        [
+            entityId,
+            openConfigSection,
+            pairModelSelection,
+            projectId,
+            raiseDraftSignal,
+            setChatMaximized,
+            setConfigPanelCollapsed,
+            setConfiguration,
+            userId,
+        ],
+    )
 
     return {open, openDrawer, closeDrawer, onSaved, connections}
 }

@@ -52,6 +52,8 @@ spec:
               value: {{ $agenta.servicesUrl | default "" | quote }}
             - name: AGENTA_API_URL
               value: {{ $agenta.apiUrl | default "" | quote }}
+            - name: AGENTA_MOBILE_GATE
+              value: {{ eq (include "agenta.webMobile.enabled" .) "true" | quote }}
             - name: AGENTA_AUTH_KEY
               valueFrom:
                 secretKeyRef:

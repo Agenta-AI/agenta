@@ -5,42 +5,66 @@ import type {WorkspaceGroup} from "./workspaceGroups"
 export interface ContextTargetInput {
     /** False until the router has parsed the query string. */
     ready: boolean
-    /** `?switch=1` — the user asked for the picker, so every shortcut is off. */
-    switching: boolean
     /** Pair remembered from a previous visit. */
     shortcut: LastContext | null
     groups: WorkspaceGroup[]
+    /**
+     * True once the projects fetch has answered. Explicit, not `groups.length > 0`: an empty
+     * `groups` means "not fetched yet" far more often than it means "no projects", and the
+     * shortcut's fast path must survive the former.
+     */
+    groupsLoaded: boolean
     /** Desktop's last-used project per workspace. */
     desktopLastUsed: Record<string, string>
+    /**
+     * Set by the `/w/:workspace_id[/p]` gates: confine resolution to the workspace the URL
+     * names, so a link into a workspace lands in THAT workspace rather than the remembered
+     * one. Unset (`/m/`, `/m/w`) resolves across the whole tree.
+     */
+    workspaceId?: string | null
 }
 
+const contains = (groups: WorkspaceGroup[], {workspaceId, projectId}: LastContext) =>
+    groups.some(
+        (group) =>
+            group.workspaceId === workspaceId &&
+            group.projects.some((project) => project.project_id === projectId),
+    )
+
 /**
- * Which project `/m/` should forward to, or `null` to show the picker.
- *
- * Ordering is the whole point: `ready` gates everything because a forward decided before the
- * query string is parsed would blow straight past `?switch=1`, making the picker unreachable
- * once any context is stored.
+ * Which project `/m/` forwards to. Mirrors the desktop: remembered pair, then desktop
+ * continuity, then the first project — switching happens in the drawer, never on a page,
+ * so there is no picker to fall back to. `null` only while unresolvable (not ready, or the
+ * account has no projects).
  */
 export const selectContextTarget = ({
     ready,
-    switching,
     shortcut,
     groups,
+    groupsLoaded,
     desktopLastUsed,
+    workspaceId,
 }: ContextTargetInput): LastContext | null => {
-    if (!ready || switching) return null
-    if (shortcut) return shortcut
-    if (groups.length === 0) return null
-    // Nothing to choose between.
-    if (groups.length === 1 && groups[0].projects.length === 1) {
-        return {workspaceId: groups[0].workspaceId, projectId: groups[0].projects[0].project_id}
-    }
+    if (!ready) return null
+
+    const inScope = workspaceId ? groups.filter((g) => g.workspaceId === workspaceId) : groups
+    // A URL naming a workspace the loaded tree does not hold — typo, deleted, access revoked —
+    // is not a dead end: resolve it across the whole tree, exactly as `/m/` would.
+    const pool = workspaceId && groupsLoaded && inScope.length === 0 ? groups : inScope
+
+    // Scoped routes may only use the remembered pair when it belongs to the named workspace.
+    const usable = shortcut && (!workspaceId || shortcut.workspaceId === workspaceId)
+    // The remembered pair forwards on sight; only a fetched tree that no longer holds it —
+    // project deleted, access revoked — is grounds to drop it and resolve again.
+    if (usable && shortcut && (!groupsLoaded || contains(pool, shortcut))) return shortcut
+    if (pool.length === 0) return null
     // Desktop continuity: the desktop's last-used pair, when it still exists in the fetched tree.
-    for (const group of groups) {
+    for (const group of pool) {
         const projectId = desktopLastUsed[group.workspaceId]
         if (projectId && group.projects.some((p) => p.project_id === projectId)) {
             return {workspaceId: group.workspaceId, projectId}
         }
     }
-    return null
+    const first = pool[0]
+    return {workspaceId: first.workspaceId, projectId: first.projects[0]?.project_id ?? ""}
 }

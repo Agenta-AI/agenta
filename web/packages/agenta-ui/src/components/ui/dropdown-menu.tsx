@@ -20,6 +20,16 @@ import {cn} from "./utils"
  *   open→open · getPopupContainer→container · trigger→Radix defaults · danger→variant="destructive"
  */
 
+/**
+ * A host scrollbar-fade rule matches our overflow utility and hands this node a scroll-driven
+ * animation. Radix Presence then waits for an animationend that a scroll timeline never fires, so
+ * a closed menu stays mounted and painted. Opting out restores unmount-on-close.
+ */
+// The global scroll-fade rule (globals.css) drives a scroll-timeline animation that never fires
+// `animationend`, so Radix Presence waits forever and closed content stays mounted, aria-hiding
+// the page. Killing the name AND resetting the timeline is what actually releases it.
+const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
+
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
     return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
@@ -67,11 +77,7 @@ function DropdownMenuContent({
                     // portals to <body>, escaping the app font scope. box-border: preflight is off.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
-                    // `.overflow-y-auto` matches the global scroll-fade rule (globals.css), whose
-                    // scroll-driven animation never fires `animationend` — Radix Presence then
-                    // waits forever and the closed content stays mounted, aria-hiding the page.
-                    // `animate-none` outranks the `:where()` rule; no other animation exists here.
-                    "animate-none",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}
@@ -239,8 +245,7 @@ function DropdownMenuSubContent({
                     // Same overlay chrome as DropdownMenuContent / SelectContent.
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-control-lg p-1",
-                    // See DropdownMenuContent: the scroll-fade animation deadlocks Presence unmount.
-                    "animate-none",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}

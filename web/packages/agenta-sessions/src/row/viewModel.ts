@@ -4,7 +4,7 @@ import type {SessionPending} from "../state/useSessionList"
 
 import {sessionAgentId} from "./sessionAgent"
 import {sessionPreviewText} from "./sessionPreview"
-import {pendingGateLabel, sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
+import {sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
 import {sessionRowTitle} from "./sessionRowTitle"
 import {
     isAutomationSession,
@@ -51,16 +51,11 @@ export function sessionRowVm(
         sessionPreviewText(row),
         automation ? sessionAutomationTitle(automation) : null,
     )
-    const status = sessionRowStatus(row, pending?.count)
     return {
         id: row.session_id,
         title,
         subtitle,
-        // One source for the chip text: a waiting chip names WHAT is being asked, so surfaces
-        // render `status.chipLabel` and never re-derive it from the gate kinds themselves.
-        status: status.chipLabel
-            ? {...status, chipLabel: pendingGateLabel(pending?.kinds)}
-            : status,
+        status: sessionRowStatus(row, pending?.count),
         pending,
         agentId: sessionAgentId(row),
         activityAt: row.updated_at ?? row.created_at ?? null,

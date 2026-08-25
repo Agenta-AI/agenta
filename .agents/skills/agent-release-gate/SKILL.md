@@ -31,7 +31,7 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug> --require-store  # everything
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name "<display-name>" --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
@@ -40,12 +40,16 @@ uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-stor
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
-`--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
-via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
+`--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
+running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver fails
+fast if it's missing. `--custom-name` is also required because `model_keys` is built from the
+display name rather than the stable slug. Custom-provider cells skip the credential-rotation
+journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
+additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
-have permission to manage Secrets, because credential hiding is on by default; without it those
-cells fail at sandbox creation with an error naming the permission.
+each cell requires. The Daytona cells (C2, C4, P3, X2) additionally run the `secret_opaque`
+journey and need the runner's Daytona API key to manage Secrets, because credential hiding is on
+by default; without it those cells fail at sandbox creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
@@ -119,18 +123,16 @@ proves nothing about the durable working directory (LESSONS #16).
   approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys). **Currently broken**: two
-  unresolved git merge conflicts sit inside the `CELLS` dict (P2/P3 definitions), a SyntaxError
-  that fails the whole file on import, not just those cells. Needs a human to pick the correct
-  side per cell before this driver runs again; do not resolve it blind.
+- `resources/qa_product.py` — the gate driver (cells × journeys).
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`, so it still runs
-  while that file is broken.
+  round trip (see above). Self-contained; does not import `qa_product.py`.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
-  only, no CLI.
+  only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its
+  verdict — `check_no_blank_success_on_refusal` and `check_no_silent_turn` (see below). **If you
+  write a new cell, wire `check_no_silent_turn` into its PASS condition.**
 - `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
   disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
   Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
@@ -206,6 +208,21 @@ proves nothing about the durable working directory (LESSONS #16).
   A reliable deterministic trigger (e.g. a genuine cold-resume stale-approval replay, or a crafted
   duplicate `toolCallId`) is an open follow-up; until then, treat any SKIP from this cell as "the
   invariant was not tested this run," never as green.
+- `qa_matrix_lib.check_no_silent_turn(turns)` — **[mechanism-level invariant; no cell of its
+  own]** no turn may come back completely bare: no text, no tool call, no approval gate, no file
+  or data payload, and no error. That combination is a swallowed provider failure (ASD-EST100) —
+  the model call is rejected, the error is dropped on the way back, and the turn is reported as a
+  clean empty finish, so the user sees a blank bubble with no reason anywhere. It matters most in
+  cells whose PASS depends on something NOT appearing (no error, no leak, no blank success): a
+  turn that produced nothing satisfies those by doing nothing at all. Its content definition
+  deliberately mirrors `content_parts_emitted` in the product's own Vercel egress
+  (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`) — reasoning does NOT count, so a
+  turn that only thought is still a violation. Wired into `matrix_w7*.py`, `matrix_t8_saved_files.py`,
+  `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`,
+  `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py` and `matrix_w5.py` as
+  `... and not silent["violations"]`; add the same conjunct to any new cell. The one thing a cell
+  must exclude itself is a turn it deliberately aborted or interrupted, which legitimately ends
+  bare — `matrix_w5.py` shows the pattern (it checks only its post-interrupt turns).
 - `resources/matrix_g1_guidance_discovery.py` — **[mechanism-blind]** does the platform guidance
   actually change what the model does? The trial prompt is Mahmoud's own verbatim phrasing from
   the live session that found the bug ("can you add gstack-autoplan skill to your skills (i saved

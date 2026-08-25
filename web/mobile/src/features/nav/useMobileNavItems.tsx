@@ -1,0 +1,171 @@
+import {createElement, useMemo} from "react"
+
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {
+    AGENTS_SIDEBAR_KEY,
+    buildHelpDocsNavItem,
+    buildInviteTeammateNavItem,
+    defineSidebarEntity,
+    resolveChildren,
+    SESSIONS_SIDEBAR_KEY,
+    sidebarSessionsListAtom,
+    type SessionSidebarRef,
+    type SidebarConfig,
+} from "@agenta/navigation"
+import {atom, useAtomValue} from "jotai"
+import {unwrap} from "jotai/utils"
+import {
+    Activity,
+    Bot,
+    CalendarClock,
+    Circle,
+    HelpCircle,
+    Github,
+    House,
+    MessagesSquare,
+    Pin,
+    ScrollText,
+    Send,
+    Settings,
+    Slack,
+} from "lucide-react"
+
+/** The drawer's scope id — its open-groups persistence bucket. */
+export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+
+/**
+ * Mobile's registration over the SHARED machinery: same gated sessions source, same
+ * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
+ * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
+ */
+const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
+    MOBILE_NAV_SCOPE_ID,
+    SESSIONS_SIDEBAR_KEY,
+    {
+        kind: "app",
+        icon: createElement(MessagesSquare, {size: 14}),
+        listAtom: sidebarSessionsListAtom,
+        getLabel: (session) => session.name || "Untitled session",
+        childPath: (session) => `/sessions/${session.sessionId}`,
+        emptyLabel: "No sessions yet",
+        showAllPath: "/sessions",
+        getIcon: (session) =>
+            session.pinned
+                ? createElement(Pin, {size: 12})
+                : createElement(Circle, {
+                      size: 8,
+                      fill: session.alive ? "currentColor" : "none",
+                  }),
+    },
+)
+
+/**
+ * Same shape for agents, over the roster query the Agents screen already reads — so opening the
+ * group costs nothing once that screen has run. Children land on mobile's own agent overview.
+ */
+const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
+    kind: "app",
+    icon: createElement(Bot, {size: 14}),
+    listAtom: agentWorkflowsListQueryStateAtom,
+    getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
+    childPath: (workflow) => `/agents/${workflow.id}`,
+    emptyLabel: "No agents",
+    showAllPath: "/agents",
+})
+
+/**
+ * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
+ * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
+ * forking a component.
+ */
+export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    const source = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const agentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
+
+    return useMemo(
+        () => [
+            {
+                key: "mobile-home",
+                title: "Home",
+                icon: createElement(House, {size: 16}),
+                link: `${projectURL}/apps`,
+            },
+            {
+                key: AGENTS_SIDEBAR_KEY,
+                title: "Agents",
+                icon: createElement(Bot, {size: 16}),
+                link: `${projectURL}/agents`,
+                submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
+            },
+            {
+                key: SESSIONS_SIDEBAR_KEY,
+                title: "Sessions",
+                icon: createElement(MessagesSquare, {size: 16}),
+                link: `${projectURL}/sessions`,
+                defaultOpen: true,
+                submenu: resolveChildren(mobileSessionsEntity, source, projectURL),
+            },
+            {
+                key: "mobile-observability",
+                title: "Observability",
+                icon: createElement(Activity, {size: 16}),
+                link: `${projectURL}/observability`,
+            },
+        ],
+        [agentsSource, source, projectURL],
+    )
+}
+
+/**
+ * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
+ * Settings is a placeholder screen until its surfaces land; Help & Docs and Invite Teammate are
+ * the SHARED entries, so both apps point at the same destinations. Invite was omitted here while
+ * this app had no workspace settings tab to deep-link into; it has one now.
+ */
+// Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
+// `unwrap` yields undefined until the import settles, which is all the suffix below needs.
+const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
+
+export const useMobileBottomNavItems = (
+    projectURL: string,
+    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
+): SidebarConfig[] => {
+    const version = useAtomValue(versionAtom)
+
+    return useMemo(
+        () => [
+            // The settings scope drops it: the rail IS settings there, as on the desktop.
+            ...(includeSettingsLink
+                ? [
+                      {
+                          key: "mobile-settings",
+                          title: "Settings",
+                          icon: createElement(Settings, {size: 16}),
+                          link: `${projectURL}/settings`,
+                      },
+                  ]
+                : []),
+            buildInviteTeammateNavItem({
+                projectURL,
+                icon: createElement(Send, {size: 16}),
+            }),
+            buildHelpDocsNavItem({
+                icons: {
+                    help: createElement(HelpCircle, {size: 16}),
+                    docs: createElement(ScrollText, {size: 14}),
+                    github: createElement(Github, {size: 14}),
+                    slack: createElement(Slack, {size: 14}),
+                    bookCall: createElement(CalendarClock, {size: 14}),
+                },
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          `v${version}`,
+                      )
+                    : undefined,
+            }),
+        ],
+        [includeSettingsLink, projectURL, version],
+    )
+}

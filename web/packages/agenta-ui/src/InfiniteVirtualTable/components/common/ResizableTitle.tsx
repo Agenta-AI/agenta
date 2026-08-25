@@ -1,9 +1,9 @@
 import {memo, useMemo, useState} from "react"
 import type {ThHTMLAttributes} from "react"
 
-import {Skeleton} from "antd"
 import {Resizable, type ResizeCallbackData} from "react-resizable"
 
+import {SkeletonBlock} from "../../../components/ui/skeleton"
 import {cn} from "../../../utils/styles"
 
 type ResizeHandler = (e: React.SyntheticEvent, data: ResizeCallbackData) => void
@@ -84,7 +84,9 @@ export const ResizableTitle = memo((props: ResizableTitleProps) => {
 })
 
 export const SkeletonCell = memo(() => (
-    <div className="min-h-[32px] flex justify-center [&_*]:!min-w-full [&_*]:!w-full [&_*]:!max-w-full">
-        <Skeleton.Input active style={{minHeight: 24, margin: 0, padding: 0}} />
+    <div className="min-h-[32px] flex justify-center">
+        {/* antd's Skeleton.Input, which the @agenta/ui port deliberately omits: a full-width
+            block at antd's controlHeight. */}
+        <SkeletonBlock active className="w-full h-6 rounded-control-sm" />
     </div>
 ))

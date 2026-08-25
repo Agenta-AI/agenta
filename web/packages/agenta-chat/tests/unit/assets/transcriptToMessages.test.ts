@@ -6,7 +6,10 @@ import type {
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {describe, expect, it} from "vitest"
 
-import {transcriptToMessages} from "../../../src/assets/transcriptToMessages"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    transcriptToMessages,
+} from "../../../src/assets/transcriptToMessages"
 
 import abandonedFormSession from "./__fixtures__/abandonedFormSession.json"
 
@@ -22,6 +25,42 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
 })
 
 describe("transcriptToMessages", () => {
+    it("replays the approved-content manifest as the egress's sibling data part", () => {
+        // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
+        // itself; replay must mirror the live data part or a reload loses the card.
+        const manifest = {
+            version: 1,
+            files: [{relativePath: "notes.md", bytes: 12, digest: "abc", executableBit: false}],
+            diffs: [],
+            totalBytes: 12,
+            contentDigest: "def",
+        }
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "commit_revision",
+                input: {},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", manifest},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0].state).toBe("approval-requested")
+        const data = parts.find((p) => p.type === "data-approval-manifest")?.data as Record<
+            string,
+            unknown
+        >
+        expect(data).toBeDefined()
+        expect(data.toolCallId).toBe("tool-1")
+        expect(data.manifest).toEqual(manifest)
+    })
+
     it("returns null for an empty transcript", () => {
         expect(transcriptToMessages([])).toBeNull()
     })
@@ -144,8 +183,8 @@ const approvalRecords = (): SessionRecord[] => [
 ]
 
 /**
- * Ported from the OSS original (see the copy header): a resumed turn must not replay as still
- * parked, or a reload keeps the approval dock up on a turn the user already answered.
+ * A resumed turn must not replay as still parked, or a reload keeps the approval dock up on a
+ * turn the user already answered.
  */
 describe("transcriptToMessages approval resume", () => {
     it("merges a paused turn with its resume into one message and settles the re-emitted call once", () => {
@@ -942,5 +981,26 @@ describe("transcriptToMessages MCP argument wrapper", () => {
             server: 42,
             arguments: {a: 1},
         })
+    })
+})
+
+/** The durable `error` event carries the failure class (`protocol.ts` `error.code`); replay must
+ * keep it or a reload loses the callout's action. */
+describe("transcriptToMessages run-error code", () => {
+    const runErrorOf = (payload: Record<string, unknown>): unknown =>
+        (
+            transcriptToMessages([record("r-error", payload)])?.[0].metadata as
+                | Record<string, unknown>
+                | undefined
+        )?.runError
+
+    it("replays the code next to the message", () => {
+        expect(
+            runErrorOf({type: "error", message: "boom", code: "starter_credits_exhausted"}),
+        ).toEqual({message: "boom", code: "starter_credits_exhausted"})
+    })
+
+    it("omits the code when an older runner sends none", () => {
+        expect(runErrorOf({type: "error", message: "boom"})).toEqual({message: "boom"})
     })
 })

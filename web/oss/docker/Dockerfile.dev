@@ -95,6 +95,7 @@ COPY --chown=agenta:agenta packages/agenta-chat/tsconfig.json ./packages/agenta-
 
 COPY --chown=agenta:agenta oss/src ./oss/src
 COPY --chown=agenta:agenta oss/public ./oss/public
+COPY --chown=agenta:agenta oss/scripts ./oss/scripts
 COPY --chown=agenta:agenta oss/tsconfig.json ./oss
 
 COPY --chown=agenta:agenta oss/postcss.config.mjs ./oss/postcss.config.mjs

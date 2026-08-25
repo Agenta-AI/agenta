@@ -1,4 +1,5 @@
-import {inferReferenceOptionKey} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
+import {inferReferenceOptionKey} from "@agenta/observability"
+
 import type {Filter, FilterConditions, FilterValue} from "@/oss/lib/Types"
 
 import type {

@@ -1,6 +1,6 @@
 import {memo, type ReactNode} from "react"
 
-import {type SessionRowVm} from "@agenta/sessions/row"
+import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     Button,
@@ -83,8 +83,13 @@ const SessionRowImpl = ({
                     </span>
                     {row.automation ? <SessionAutomationKind kind={row.automation.kind} /> : null}
                 </span>
+                {/* `leading-4` on the subtitle is load-bearing: an arbitrary `text-[13px]` emits a
+                    font-size and NO line-height, so the line box fell through to whatever the host
+                    app's base layer left on this button — `normal` (~15.7px) where preflight is off,
+                    19.5px where it is on. That rendered the same row at two different heights in the
+                    two apps. 16px states it once, and matches the height oss already renders. */}
                 {row.subtitle ? (
-                    <span className="w-full truncate text-[13px] text-colorTextTertiary">
+                    <span className="w-full truncate text-[13px] leading-4 text-colorTextTertiary">
                         {row.subtitle}
                     </span>
                 ) : null}
@@ -100,7 +105,7 @@ const SessionRowImpl = ({
                             row.status.chipClassName,
                         )}
                     >
-                        {row.status.chipLabel}
+                        {pendingGateLabel(row.pending?.kinds)}
                     </span>
                 ) : null}
 

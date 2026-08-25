@@ -30,6 +30,7 @@ export {
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
 export {Tooltip, TooltipTrigger, TooltipContent, TooltipProvider} from "./tooltip"
+export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {
     Combobox,
@@ -41,6 +42,14 @@ export {Switch, type SwitchProps} from "./switch"
 export {Divider, type DividerProps} from "./divider"
 export {Slider} from "./slider"
 export {Cascader, type CascaderOption, type CascaderProps} from "./cascader"
+export {
+    DateRangePicker,
+    DateRangeCalendar,
+    type DateRangeValue,
+    type DateRangePickerProps,
+    type DateRangeCalendarProps,
+} from "./date-range-picker"
+export {TreeSelect, type TreeSelectOption, type TreeSelectProps} from "./tree-select"
 export {Toast, ToastViewport, type ToastProps, type ToastType} from "./toast"
 export {
     Notification,
@@ -70,6 +79,21 @@ export {
     DropdownMenuSubContent,
     DropdownMenuPortal,
 } from "./dropdown-menu"
+export {
+    ContextMenu,
+    ContextMenuTrigger,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+} from "./context-menu"
+export {
+    SplitPane,
+    paneSlideHoldMs,
+    usePaneSlide,
+    paneSlideMs,
+    PANE_SLIDE_MS,
+    type SplitPaneProps,
+} from "./split-pane"
 export {Accordion, AccordionItem, AccordionTrigger, AccordionContent} from "./accordion"
 export {
     Skeleton,
@@ -169,3 +193,9 @@ export {DatePicker, type DatePickerProps} from "./date-picker"
 export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
 export {TimePicker, type TimePickerProps} from "./time-picker"
 export {cn} from "./utils"
+export {
+    DataTable,
+    type DataTableProps,
+    type DataTableColumn,
+    type DataTableAction,
+} from "./data-table"

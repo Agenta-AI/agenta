@@ -1,6 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/trace.ts (2026-07-25); the
-// OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it. Keep
-// byte-parity if either side changes.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 
 /**
@@ -46,6 +44,24 @@ export const getMessageRunError = (message: UIMessage): string | undefined => {
     const runError = (message.metadata as {runError?: {message?: string}} | undefined)?.runError
     const msg = runError?.message
     return typeof msg === "string" && msg.trim() ? msg : undefined
+}
+
+/**
+ * The failure CLASS behind a run error — the runner's stable `code` (never a display string), so a
+ * callout can offer a purposeful action instead of parsing the message. Read from
+ * `metadata.runError.code` (replayed transcripts stamp it there) or the live stream's
+ * `data-agent-error` part. `ParsedRunError.code` is an HTTP-ish NUMBER on the same field, so only a
+ * string counts here.
+ */
+export const getMessageRunErrorCode = (message: UIMessage): string | undefined => {
+    const metaCode = (message.metadata as {runError?: {code?: unknown}} | undefined)?.runError?.code
+    if (typeof metaCode === "string" && metaCode.trim()) return metaCode
+
+    const errorPart = message.parts.find((p) => p.type === "data-agent-error") as
+        | {type: "data-agent-error"; data?: {code?: unknown}}
+        | undefined
+    const partCode = errorPart?.data?.code
+    return typeof partCode === "string" && partCode.trim() ? partCode : undefined
 }
 
 /** Token/cost fields in `ExecutionMetricsDisplay`'s shape. */

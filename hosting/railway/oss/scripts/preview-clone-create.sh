@@ -13,7 +13,7 @@
 #      template with skipInitialDeploys. environmentCreate can 504 while the
 #      environment is still created in the background, so an ambiguous failure
 #      is reconciled by polling environments-by-name, never by re-creating.
-#   2. Patches the eight app-service images to the run's pinned tag with ONE
+#   2. Patches the nine app-service images to the run's pinned tag with ONE
 #      environmentPatchCommit; Railway auto-deploys every service whose config
 #      actually CHANGED. Services whose image already equals the target are
 #      deployed explicitly instead, because environmentPatchCommit silently
@@ -62,8 +62,8 @@
 #                             RAILWAY_TOKEN, the CLI treats that name as
 #                             project-scoped).
 #   AGENTA_API_IMAGE_REPO / AGENTA_WEB_IMAGE_REPO /
-#   AGENTA_SERVICES_IMAGE_REPO / AGENTA_RUNNER_IMAGE_REPO
-#                             Image repository overrides.
+#   AGENTA_WEB_MOBILE_IMAGE_REPO / AGENTA_SERVICES_IMAGE_REPO /
+#   AGENTA_RUNNER_IMAGE_REPO  Image repository overrides.
 #   RW_INFRA_WAIT_SECONDS     Postgres wait per attempt (default 420).
 #   RW_ALEMBIC_WAIT_SECONDS   Alembic wait (default 420).
 #   RW_DEPLOY_WAIT_SECONDS    Late-services wait (default 900).
@@ -118,16 +118,27 @@ fi
 
 API_REPO="${AGENTA_API_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-api}"
 WEB_REPO="${AGENTA_WEB_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web}"
+WEB_MOBILE_REPO="${AGENTA_WEB_MOBILE_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web-mobile}"
 SERVICES_REPO="${AGENTA_SERVICES_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-services}"
 RUNNER_REPO="${AGENTA_RUNNER_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-runner}"
 
-# The eight image-patched app services; the api image backs five of them.
-APP_SERVICES=(api worker-streams worker-queues cron alembic web services runner)
+# The nine image-patched app services; the api image backs five of them.
+APP_SERVICES=(api worker-streams worker-queues cron alembic web web-mobile services runner)
 # supertokens must deploy AFTER alembic: it needs the agenta_oss_supertokens
 # database that alembic's startCommand creates (spike finding Q12).
 INFRA_SERVICES=(Postgres redis seaweedfs)
-LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web gateway)
+LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web web-mobile gateway)
 ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
+
+# Services a clone may legitimately not have yet. Adding a service to the
+# template only reaches clones once apply.sh has converged the template
+# environment (template/README.md step 4, "Apply on merge"), so during that
+# window a clone of the OLD template has no such service. A preview must
+# deploy anyway instead of dying on a missing serviceId; every other service
+# staying absent is still fatal.
+OPTIONAL_SERVICES=(web-mobile)
+# Filled in by patch_commit_images / deploy_all for the run summary.
+MISSING_SERVICES=""
 
 Q_ENV_SERVICES='query($id: String!) { environment(id: $id) { serviceInstances { edges { node { serviceId serviceName source { image } latestDeployment { status } domains { serviceDomains { domain } } } } } } }'
 Q_ENVS='query($p: String!) { environments(projectId: $p, first: 100) { edges { node { id name } } } }'
@@ -148,6 +159,7 @@ image_for() {
     case "$1" in
         api | worker-streams | worker-queues | cron | alembic) printf '%s:%s' "$API_REPO" "$IMAGE_TAG" ;;
         web) printf '%s:%s' "$WEB_REPO" "$IMAGE_TAG" ;;
+        web-mobile) printf '%s:%s' "$WEB_MOBILE_REPO" "$IMAGE_TAG" ;;
         services) printf '%s:%s' "$SERVICES_REPO" "$IMAGE_TAG" ;;
         runner) printf '%s:%s' "$RUNNER_REPO" "$IMAGE_TAG" ;;
         *) return 1 ;;
@@ -218,17 +230,49 @@ apply_ci_auth_key() {
     local svc svc_id
     # Every service legacy configure.sh gave the key to: the workers use it for
     # internal calls while processing evaluation runs, so partial coverage
-    # split-brains auth and evaluations finish with status "errors".
-    for svc in web api services worker-queues worker-streams cron alembic; do
+    # split-brains auth and evaluations finish with status "errors". web-mobile
+    # carries AGENTA_AUTH_KEY for the same reason web does (same image
+    # entrypoint, same runtime config), so it needs the CI key too.
+    for svc in web web-mobile api services worker-queues worker-streams cron alembic; do
         svc_id="$(clone_service_id "$svc")"
-        [ -n "$svc_id" ] || { printf "No serviceId for '%s' while applying the CI auth key.\n" "$svc" >&2; return 1; }
+        if [ -z "$svc_id" ]; then
+            # A service the clone does not have yet (see OPTIONAL_SERVICES) is
+            # skipped here too; anything else missing is still fatal.
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
         rw_graphql \
             'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
             "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$AGENTA_AUTH_KEY" \
                 '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_AUTH_KEY: $v}}}')" \
             >/dev/null || return 1
     done
-    printf "CI auth key applied to api and services.\n"
+    printf "CI auth key applied to every service that consumes it.\n"
+}
+
+# A write-only vault connection can be resolved only by the trusted platform
+# runtime. Give API and Services one ephemeral shared proof before deploy; do
+# not reuse the admin key and do not expose this proof to any other service.
+# Disposable previews need no stored secret, so always generate a fresh proof.
+apply_ci_runtime_key() {
+    command -v openssl >/dev/null 2>&1 || {
+        printf "missing required command: openssl\n" >&2
+        return 1
+    }
+    local runtime_key
+    runtime_key="$(openssl rand -hex 32)" || return 1
+
+    local svc svc_id
+    for svc in api services; do
+        svc_id="$(clone_service_id "$svc")"
+        [ -n "$svc_id" ] || return 1
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$runtime_key" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_SERVICES_INTERNAL_KEY: $v}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI runtime key applied to API and Services.\n"
 }
 
 clone_service_id() {
@@ -249,17 +293,57 @@ clone_service_image() {
         <<<"$CLONE_SERVICES_JSON" | head -n1
 }
 
+clone_has_service() {
+    [ -n "$(clone_service_id "$1")" ]
+}
+
+# skip_absent_service <service>: 0 when the service may be missing (recorded
+# and skipped), 1 when its absence is fatal.
+skip_absent_service() {
+    local svc="$1"
+    if contains_word "${OPTIONAL_SERVICES[*]}" "$svc"; then
+        contains_word "$MISSING_SERVICES" "$svc" || {
+            MISSING_SERVICES="$MISSING_SERVICES $svc"
+            printf "Service '%s' is not in this clone; skipping it. The template environment has not been converged yet (template/README.md 'Apply on merge').\n" "$svc" >&2
+        }
+        return 0
+    fi
+    printf "No serviceId for '%s'.\n" "$svc" >&2
+    return 1
+}
+
+# required_missing_services: the required services absent from the clone, as a
+# leading-space-separated list. Empty means the clone is fully materialized.
+required_missing_services() {
+    local svc out=""
+    for svc in "${ALL_SERVICES[@]}"; do
+        if contains_word "${OPTIONAL_SERVICES[*]}" "$svc"; then
+            continue
+        fi
+        if ! clone_has_service "$svc"; then
+            out="$out $svc"
+        fi
+    done
+    printf '%s' "$out"
+}
+
 # Wait until the clone's serviceInstances are fully materialized (reads can
 # lag writes right after environmentCreate).
+#
+# Checks every REQUIRED service by name rather than counting instances. A count
+# is unsound once the set has an optional member: a converged clone that has
+# web-mobile plus 12 of its 13 required services also totals 13, so a count
+# check would return while a required service was still missing and the deploy
+# loop would fail instead of waiting.
 wait_clone_populated() {
-    local waited=0 interval=5 max="${RW_CLONE_POPULATE_SECONDS:-120}" count
+    local waited=0 interval=5 max="${RW_CLONE_POPULATE_SECONDS:-120}" missing
     while :; do
         refresh_clone_services || return 1
-        count="$(jq -r '[.data.environment.serviceInstances.edges[].node] | length' <<<"$CLONE_SERVICES_JSON")"
-        [ "$count" -ge "${#ALL_SERVICES[@]}" ] && return 0
+        missing="$(required_missing_services)"
+        [ -z "$missing" ] && return 0
         waited=$((waited + interval))
         if [ "$waited" -ge "$max" ]; then
-            printf 'Environment has %s/%s service instances after %ss.\n' "$count" "${#ALL_SERVICES[@]}" "$max" >&2
+            printf 'Environment is still missing required service(s) after %ss:%s\n' "$max" "$missing" >&2
             return 1
         fi
         sleep "$interval"
@@ -362,7 +446,10 @@ patch_commit_images() {
     UNCHANGED_SERVICES=""
     for svc in "${APP_SERVICES[@]}"; do
         svc_id="$(clone_service_id "$svc")"
-        [ -n "$svc_id" ] || { printf "No serviceId for '%s'.\n" "$svc" >&2; return 1; }
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
         img="$(image_for "$svc")"
         live="$(clone_service_image "$svc")"
         if [ "$live" = "$img" ]; then
@@ -409,6 +496,7 @@ deploy_all() {
     # Infra first. In an existing environment green services are left alone.
     refresh_clone_services || return 1
     for svc in "${INFRA_SERVICES[@]}"; do
+        clone_has_service "$svc" || { skip_absent_service "$svc" || return 1; continue; }
         if needs_explicit_deploy "$svc"; then
             deploy_service "$svc" || return 1
         fi
@@ -432,6 +520,7 @@ deploy_all() {
 
     # alembic must be green before supertokens deploys.
     refresh_clone_services || return 1
+    clone_has_service alembic || { skip_absent_service alembic || return 1; }
     if needs_explicit_deploy alembic; then
         deploy_service alembic || return 1
     fi
@@ -443,12 +532,15 @@ deploy_all() {
     # deploying; deploy the rest that are not green (supertokens, gateway, and
     # any app service the patch skipped because its image was unchanged).
     refresh_clone_services || return 1
+    local present_late=()
     for svc in "${LATE_SERVICES[@]}"; do
+        clone_has_service "$svc" || { skip_absent_service "$svc" || return 1; continue; }
         if needs_explicit_deploy "$svc"; then
             deploy_service "$svc" || return 1
         fi
+        present_late+=("$svc")
     done
-    wait_services_success "${RW_DEPLOY_WAIT_SECONDS:-900}" "${LATE_SERVICES[@]}"
+    wait_services_success "${RW_DEPLOY_WAIT_SECONDS:-900}" "${present_late[@]}"
 }
 
 check_endpoint() {
@@ -505,6 +597,7 @@ main() {
         fi
         wait_clone_populated || die "environment '$ENV_NAME' never fully materialized"
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
+        apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render
@@ -524,6 +617,9 @@ main() {
     local preview_url="https://${GATEWAY_DOMAIN}/w"
     local logs_url="https://railway.com/project/${PROJECT_ID}/logs?environmentId=${CLONE_ENV_ID}"
     printf 'Preview ready (%s): %s\n' "$clone_mode" "$preview_url"
+    if [ -n "$MISSING_SERVICES" ]; then
+        printf 'Skipped (not in this clone):%s\n' "$MISSING_SERVICES"
+    fi
     printf 'Timings: created=%ss deployed=%ss smoked=%ss total=%ss api_calls=%s\n' \
         "$t_created" "$t_deployed" "$t_smoked" "$total_s" "$calls"
     rw_report_calls "preview-clone-create ($clone_mode)"

@@ -1,3 +1,4 @@
+import {sessionListPolicies} from "@agenta/sessions/state"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const {fernQuerySessions} = vi.hoisted(() => ({fernQuerySessions: vi.fn()}))
@@ -8,8 +9,6 @@ vi.mock("@agenta/sdk/resources", () => ({
     getMountsClient: vi.fn(),
     getLowPriorityMountsClient: vi.fn(),
 }))
-
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
 import {
     SIDEBAR_SESSION_LIMIT,

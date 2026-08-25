@@ -1,4 +1,4 @@
-import {WebhookFormValues, WebhookEventType} from "@/oss/services/webhooks/types"
+import {WebhookFormValues, WebhookEventType} from "@agenta/entities/webhook"
 
 import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../assets/constants"
 

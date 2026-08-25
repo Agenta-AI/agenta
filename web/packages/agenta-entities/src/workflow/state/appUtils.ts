@@ -14,12 +14,14 @@
 
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {catalogPersister} from "@agenta/shared/api/persist"
-import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom, userAtom} from "@agenta/shared/state"
 import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
+import {resolveAgentModelSelection} from "../../secret/core"
+import {subscriptionPairModelsAtom} from "../../secret/state"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
 import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
@@ -27,10 +29,12 @@ import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
-    applyAgentCreationPrefs,
+    applyAgentModelSelection,
     agentCreationPrefsAtom,
     ensureEnabledSandbox,
+    selectionFromAgentCreationPrefs,
 } from "./agentCreationPrefs"
+import {loadAgentModelCandidates} from "./agentModelCandidates"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -90,6 +94,7 @@ export interface CreateEphemeralAppFromTemplateParams {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
+const USER_HYDRATION_TIMEOUT_MS = 10_000
 
 /**
  * Match a template to the requested app type. The catalog returns templates
@@ -113,6 +118,35 @@ function matchTemplateForType(
             return normalizedKey === lowerType
         }) ?? null
     )
+}
+
+/** Wait for auth hydration instead of turning a pending user into a terminal creation failure. */
+async function waitForAgentCreationUserId(signal?: AbortSignal): Promise<string | null> {
+    const store = getDefaultStore()
+    const current = store.get(userAtom)?.id
+    if (current) return current
+    if (signal?.aborted) return null
+
+    return new Promise((resolve) => {
+        let unsubscribe: () => void = () => undefined
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        const finish = (userId: string | null) => {
+            unsubscribe()
+            if (timeout) clearTimeout(timeout)
+            signal?.removeEventListener("abort", onAbort)
+            resolve(userId)
+        }
+        const onAbort = () => finish(null)
+        unsubscribe = store.sub(userAtom, () => {
+            const userId = store.get(userAtom)?.id
+            if (userId) finish(userId)
+        })
+        signal?.addEventListener("abort", onAbort, {once: true})
+        // Close the subscribe/read race if hydration landed between the first read and `sub`.
+        const hydrated = store.get(userAtom)?.id
+        if (hydrated) finish(hydrated)
+        else timeout = setTimeout(() => finish(null), USER_HYDRATION_TIMEOUT_MS)
+    })
 }
 
 /**
@@ -190,23 +224,36 @@ export async function createEphemeralAppFromTemplate({
         (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
         rawParameters
 
-    // New agents default to the user's last-used harness/model/connection instead of only the
-    // template default. Both agent-create paths (home composer + onboarding) mint through this one
-    // factory, so overlaying here covers both without duplicating the logic at each call site.
+    // Both agent-create paths (home composer + onboarding) use this resolver. The static v0 template
+    // route is only a replaceable placeholder: complete last-used, managed, and deterministic-first
+    // candidates take precedence in that order.
     if (type === "agent") {
-        const agentPrefs = store.get(agentCreationPrefsAtom)
+        const userId = await waitForAgentCreationUserId(signal)
+        if (!userId || signal?.aborted) return null
         const agentConfig =
             parameters.agent &&
             typeof parameters.agent === "object" &&
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
+        const candidateState = await loadAgentModelCandidates({
+            projectId,
+            userId,
+            pairModelSelection: store.get(subscriptionPairModelsAtom),
+        })
+        if (signal?.aborted || candidateState.status !== "ready") return null
+        const selected = resolveAgentModelSelection({
+            candidates: candidateState.candidates,
+            last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
+        })
+        const resolvedAgent = selected
+            ? applyAgentModelSelection(agentConfig, selected)
+            : agentConfig
         // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
         // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
-        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
         parameters = {
             ...parameters,
-            agent: ensureEnabledSandbox(withPrefs, getEnabledSandboxProviders()),
+            agent: ensureEnabledSandbox(resolvedAgent, getEnabledSandboxProviders()),
         }
     }
 

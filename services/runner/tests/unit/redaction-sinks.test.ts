@@ -14,7 +14,11 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
-import { seedForRun } from "../../src/redaction.ts";
+import {
+  Redactor,
+  sandboxVisibleSecretValues,
+  seedForRun,
+} from "../../src/redaction.ts";
 import { buildPersistingEmitter } from "../../src/sessions/persist.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 
@@ -24,6 +28,12 @@ const PER_RUN_KEY = "sk-per-run-fake-key-DO-NOT-USE-a1b2c3d4e5f6";
 const MCP_HEADER_KEY = "Bearer mcp-per-run-fake-DO-NOT-USE-f6e5d4";
 /** The invoke caller's credential, which rides the OTLP auth header. */
 const RUN_CREDENTIAL = "ApiKey ag-run-cred-9f8e7d6c5b4a";
+const MOUNT_ACCESS_KEY = "mount-access-key-a1b2c3d4";
+const MOUNT_SECRET_KEY = "mount-secret-placeholder-placeholder";
+const MOUNT_SESSION_TOKEN = "mount-session-token-i9j0k1l2";
+const AGENT_MOUNT_ACCESS_KEY = "agent-mount-access-key-m3n4o5p6";
+const AGENT_MOUNT_SECRET_KEY = "agent-mount-secret-key-q7r8s9t0";
+const AGENT_MOUNT_SESSION_TOKEN = "agent-mount-session-token-u1v2w3x4";
 
 /** A request carrying this run's resolved typed credentials + run credential. */
 const runRequest = {
@@ -77,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 /** The shared base prototype real exporters inherit `export` from (see otel-flush-export.test). */
@@ -139,6 +150,47 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
     expect(
       redactor.redactString(`header was ${MCP_HEADER_KEY}`, "test"),
     ).not.toContain(MCP_HEADER_KEY);
+  });
+});
+
+describe("sandbox-visible redaction inputs", () => {
+  it("returns all three credentials from both mount sets", () => {
+    const values = sandboxVisibleSecretValues({
+      mountCreds: {
+        accessKey: MOUNT_ACCESS_KEY,
+        secretKey: MOUNT_SECRET_KEY,
+        sessionToken: MOUNT_SESSION_TOKEN,
+      },
+      agentMountCreds: {
+        accessKey: AGENT_MOUNT_ACCESS_KEY,
+        secretKey: AGENT_MOUNT_SECRET_KEY,
+        sessionToken: AGENT_MOUNT_SESSION_TOKEN,
+      },
+    });
+
+    expect(values).toEqual([
+      MOUNT_ACCESS_KEY,
+      MOUNT_SECRET_KEY,
+      MOUNT_SESSION_TOKEN,
+      AGENT_MOUNT_ACCESS_KEY,
+      AGENT_MOUNT_SECRET_KEY,
+      AGENT_MOUNT_SESSION_TOKEN,
+    ]);
+  });
+
+  it("forces known-value redaction even when the process-wide mode is off", () => {
+    vi.stubEnv("AGENTA_REDACTION_MODE", "off");
+    const inherited = new Redactor().withKnownSecrets([MOUNT_SECRET_KEY]);
+    const alwaysOn = new Redactor({ mode: "known" }).withKnownSecrets([
+      MOUNT_SECRET_KEY,
+    ]);
+
+    expect(
+      inherited.redactString(`credential=${MOUNT_SECRET_KEY}`, "test"),
+    ).toContain(MOUNT_SECRET_KEY);
+    expect(
+      alwaysOn.redactString(`credential=${MOUNT_SECRET_KEY}`, "test"),
+    ).not.toContain(MOUNT_SECRET_KEY);
   });
 });
 
@@ -322,7 +374,9 @@ describe("exported span sink (WP1.5)", () => {
     const agentSpan = exported.find((s) => s.name === "invoke_agent");
     expect(agentSpan).toBeTruthy();
 
-    const eventAttrs = JSON.stringify(agentSpan!.events.map((e) => e.attributes));
+    const eventAttrs = JSON.stringify(
+      agentSpan!.events.map((e) => e.attributes),
+    );
     expect(eventAttrs).not.toContain(PER_RUN_KEY);
     expect(eventAttrs).toContain("[ag:redacted");
 
@@ -375,7 +429,11 @@ describe("exported span sink (WP1.5)", () => {
 
     expect(exported.length).toBeGreaterThanOrEqual(2);
     const allText = JSON.stringify(
-      exported.map((s) => ({ attrs: s.attributes, events: s.events, status: s.status })),
+      exported.map((s) => ({
+        attrs: s.attributes,
+        events: s.events,
+        status: s.status,
+      })),
     );
     expect(allText).not.toContain(SECRET_A);
     expect(allText).not.toContain(SECRET_B);

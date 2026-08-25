@@ -1,7 +1,13 @@
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {fileKind, fileParts, filePartName, filesToParts} from "../../../src/assets/files"
+import {
+    attachmentRefsToParts,
+    fileKind,
+    fileParts,
+    filePartName,
+    filesToParts,
+} from "../../../src/assets/files"
 
 // `filesToParts`/`fileToPart` read a `File` via `FileReader.readAsDataURL`, which the node
 // vitest environment (`environment: "node"` in vitest.config.ts) does not provide — no DOM,
@@ -144,5 +150,46 @@ describe("filesToParts", () => {
             expect(parts).toHaveLength(2)
             expect(rejections).toEqual([])
         })
+    })
+})
+
+const firstAttachmentId = "019c1e0a-f911-7000-8000-000000000001"
+
+describe("attachment reference parts", () => {
+    it("stores size under providerMetadata.agenta", () => {
+        const part = attachmentRefsToParts(
+            [
+                {
+                    attachmentId: firstAttachmentId,
+                    filename: "notes.txt",
+                    mediaType: "text/plain",
+                    size: 42,
+                },
+            ],
+            "session-1",
+        )[0]
+
+        expect(part).toMatchObject({
+            type: "file",
+            filename: "notes.txt",
+            providerMetadata: {
+                agenta: {attachmentId: firstAttachmentId, size: 42},
+            },
+        })
+        expect(part).not.toHaveProperty("size")
+        expect(part.url).toContain(
+            `/sessions/attachments/${firstAttachmentId}/content?session_id=session-1`,
+        )
+    })
+
+    it("labels an unnamed reference part 'attachment', not its URL tail", () => {
+        expect(
+            filePartName({
+                type: "file",
+                mediaType: "text/plain",
+                url: "https://api.example.test/sessions/attachments/id/content?session_id=s",
+                providerMetadata: {agenta: {attachmentId: firstAttachmentId, size: 42}},
+            }),
+        ).toBe("attachment")
     })
 })

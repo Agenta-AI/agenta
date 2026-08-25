@@ -64,7 +64,7 @@ export {
 export type {TemplateVariableValidation} from "./templateVariable"
 
 // Type narrowing utilities
-export {asRecord, safeStringify} from "./typeNarrowing"
+export {asRecord, getStringOrJson, safeStringify} from "./typeNarrowing"
 
 // Chat message utilities
 export {
@@ -159,6 +159,8 @@ export {generateId} from "./generateId"
 
 // Data URI / Base64 / URL detection utilities
 export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
+export {sanitizeDataWithBlobUrls, type FileAttachment} from "./attachments"
+export {downloadCsv, downloadText} from "./download"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {
@@ -278,3 +280,11 @@ export type {
     ParseResult,
     SourceSpan,
 } from "./mustache"
+
+export {
+    DEFAULT_PAGE_TITLE,
+    SESSION_TITLE_MAX_LENGTH,
+    formatPageTitle,
+    normalizeTitlePart,
+    truncateTitlePart,
+} from "./pageTitle"

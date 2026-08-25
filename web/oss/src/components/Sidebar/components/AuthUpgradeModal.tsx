@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {LAST_SSO_ORG_SLUG_KEY} from "@agenta/auth"
 import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
@@ -39,7 +40,6 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
     const {user} = useProfileData()
     const {authnEmail, authEmailEnabled, authOidcEnabled, oidcProviders} = getEffectiveAuthConfig()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
-    const [isLoading, setIsLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isSsoAuthLoading, setIsSsoAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
@@ -108,7 +108,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
         slug: string
         third_party_id?: string
     }) => {
-        if (isSsoAuthLoading || isLoading || isSocialAuthLoading || ssoRedirectInFlight.current) {
+        if (isSsoAuthLoading || isSocialAuthLoading || ssoRedirectInFlight.current) {
             return
         }
         ssoRedirectInFlight.current = true
@@ -122,7 +122,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
             // intended SSO org instead of briefly landing on Personal.
             const orgSlug = parseSsoOrgSlug(provider.third_party_id)
             if (orgSlug && typeof window !== "undefined") {
-                window.localStorage.setItem("lastSsoOrgSlug", orgSlug)
+                window.localStorage.setItem(LAST_SSO_ORG_SLUG_KEY, orgSlug)
             }
             const callbackUrl = `${getAgentaWebUrl()}/auth/callback/${provider.third_party_id}`
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
@@ -179,7 +179,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                                     className="w-full"
                                     onClick={() => redirectToSsoProvider(provider)}
                                     loading={isSsoAuthLoading}
-                                    disabled={isLoading || isSocialAuthLoading}
+                                    disabled={isSocialAuthLoading}
                                 >
                                     Continue with SSO ({formatSsoProviderLabel(provider)})
                                 </Button>
@@ -193,7 +193,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                     <>
                         <SocialAuth
                             authErrorMsg={authErrorMsg}
-                            disabled={isLoading}
+                            disabled={false}
                             isLoading={isSocialAuthLoading}
                             setIsLoading={setIsSocialAuthLoading}
                             providers={providersToShow}
@@ -205,13 +205,11 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
                 {showEmail && authnEmail === "otp" && !isLoginCodeVisible && (
                     <PasswordlessAuth
                         message={message}
-                        isLoading={isLoading}
                         email={email}
                         setEmail={setEmail}
                         setMessage={setMessage}
                         authErrorMsg={authErrorMsg}
                         setIsLoginCodeVisible={setIsLoginCodeVisible}
-                        setIsLoading={setIsLoading}
                         disabled={false}
                         lockEmail={Boolean(user?.email)}
                     />

@@ -94,6 +94,10 @@ describe("resolveRunLimits", () => {
         assert.equal(limits.ttfbMs, DEFAULT_TTFB_TIMEOUT_MS);
         assert.equal(limits.toolCallMs, DEFAULT_TOOL_CALL_TIMEOUT_MS);
         assert.ok(limits.idleMs < limits.totalMs);
+        assert.ok(
+          limits.totalMs > 45 * 60_000,
+          "the default total deadline must not reap legitimate runs at the former 45-minute cutoff",
+        );
       },
     );
   });
@@ -143,6 +147,25 @@ describe("resolveRunLimits", () => {
 });
 
 describe("createRunLimits", () => {
+  it("does not trip a progressing default run at the former 45-minute cutoff", () => {
+    const { clock, advance } = fakeClock();
+    let resolved!: ReturnType<typeof resolveRunLimits>;
+    withEnv({ [TOTAL_DEADLINE_ENV]: undefined }, () => {
+      resolved = resolveRunLimits();
+    });
+    const limits = createRunLimits(resolved, { clock });
+    const trips: string[] = [];
+    limits.onTrip((reason) => trips.push(reason));
+    const emit = limits.wrapEmit(() => {});
+
+    for (let elapsed = 0; elapsed <= 45 * 60_000; elapsed += 60_000) {
+      advance(60_000);
+      emit({ type: "message_delta", id: "m1", delta: "x" });
+    }
+
+    assert.deepEqual(trips, []);
+  });
+
   it("trips the total deadline and reports the reason exactly once", () => {
     const { clock, advance } = fakeClock();
     const limits = createRunLimits(

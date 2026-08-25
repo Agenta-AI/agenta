@@ -19,22 +19,11 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {experimental_createQueryPersister} from "@tanstack/query-persist-client-core"
 import type {PersistedQuery} from "@tanstack/query-persist-client-core"
 
-import {VAULT_PERSIST_REDACTED, type NamedSecretRow} from "../core/types"
+import {SECRET_VALUE_FIELDS, VAULT_PERSIST_REDACTED, type NamedSecretRow} from "../core/types"
 
 export {VAULT_PERSIST_REDACTED}
 
 const VAULT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
-
-/** Every `LlmProvider` field that can carry actual secret material. */
-const SECRET_VALUE_FIELDS = [
-    "key",
-    "apiKey",
-    "accessKeyId",
-    "accessKey",
-    "sessionToken",
-    "bearerToken",
-    "vertexCredentials",
-] as const
 
 /** Redact one vault row: sentinel for non-empty secret values, metadata kept. */
 export const redactVaultSecretRow = (row: LlmProvider): LlmProvider => {

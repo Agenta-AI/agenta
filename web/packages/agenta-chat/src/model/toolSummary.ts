@@ -111,3 +111,35 @@ export const rowSummary = (part: ToolUIPart, display?: ToolSummaryDisplay): stri
     if (part.state === "output-denied") return "denied"
     return null
 }
+
+/** A runner error that reports a call never RAN, rather than a call that ran and failed. Those
+ * keep the present tense: nothing happened yet. */
+const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
+    !!errorText &&
+    (errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
+        errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX))
+
+const errorTextOf = (part: ToolUIPart): string | undefined =>
+    (part as {errorText?: string}).errorText
+
+const partHasFailed = (part: ToolUIPart): boolean =>
+    (part.state as string) === "output-error" && !isNonFinalRunnerError(errorTextOf(part))
+
+/** Whether the call actually ran — a denial or a deferral never did, so neither takes past tense. */
+const partHasLanded = (part: ToolUIPart): boolean =>
+    (part.state as string) === "output-available" || partHasFailed(part)
+
+/**
+ * What ONE tool row says, in the tense the part is actually in.
+ *
+ * Shared because both chat surfaces render the same row: a failure reads as one thought
+ * ("Reading a file failed") rather than claiming the action completed and contradicting it a few
+ * words later. /m rendered the raw wire name here until this moved out of the desktop app layer.
+ */
+export const partSentence = (
+    part: ToolUIPart,
+    activity: {running: string; done: string},
+): string => {
+    if (partHasFailed(part)) return `${activity.running} failed`
+    return partHasLanded(part) ? activity.done : activity.running
+}

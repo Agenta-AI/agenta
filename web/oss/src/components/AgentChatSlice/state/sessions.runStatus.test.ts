@@ -2,14 +2,13 @@
  * The local run-state record and its settle stamp — the input the running-elsewhere derivation
  * uses to distrust a liveness snapshot older than this browser's own turn (#5844).
  */
-import {createStore} from "jotai"
-import {describe, expect, it} from "vitest"
-
 import {
     sessionLocalSettledAtAtomFamily,
     sessionStatusAtomFamily,
     setSessionStatusAtom,
-} from "./sessions"
+} from "@agenta/chat/state"
+import {createStore} from "jotai"
+import {describe, expect, it} from "vitest"
 
 describe("setSessionStatusAtom", () => {
     it("stamps the settle time only on a non-idle → idle transition", () => {
