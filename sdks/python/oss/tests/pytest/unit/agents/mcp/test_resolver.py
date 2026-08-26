@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from agenta.sdk.agents.mcp import (
     MCPConnection,
+    MCPGatewayConnection,
+    MCPGatewayUnavailableError,
     MCPHeaderSecretRefs,
     MCPPolicy,
     MCPResolver,
@@ -233,6 +235,65 @@ async def test_gateway_routes_through_custom_namespace_with_our_credentials():
     assert "upstream-secret" not in repr(resolved[0])
     assert "upstream-secret" not in resolved[0].model_dump_json()
     assert "Access tok" not in resolved[0].model_dump_json()
+
+
+@pytest.mark.parametrize(
+    ("connection", "expected_route"),
+    [
+        (
+            MCPGatewayConnection(namespace="builtin", provider="mock"),
+            f"{_GATEWAY_BASE}/gateways/mcps/builtin/mock/mock",
+        ),
+        (
+            MCPGatewayConnection(namespace="standard", provider="mock"),
+            f"{_GATEWAY_BASE}/gateways/mcps/standard/mock",
+        ),
+        (
+            MCPGatewayConnection(namespace="custom", slug="mock-custom"),
+            f"{_GATEWAY_BASE}/gateways/mcps/custom/mock-custom",
+        ),
+    ],
+)
+async def test_gateway_connection_selects_each_public_mcp_namespace(
+    connection, expected_route
+):
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve([server(name="mock-mcp", connection=connection)])
+
+    assert resolved[0].url == expected_route
+    assert resolved[0].headers == {}
+    assert [credential.binding.name for credential in resolved[0].credentials] == [
+        "X-AG-Credentials"
+    ]
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"type": "gateway", "namespace": "builtin"},
+        {"type": "gateway", "namespace": "standard", "provider": "mock", "slug": "x"},
+        {"type": "gateway", "namespace": "custom", "provider": "mock"},
+    ],
+)
+def test_gateway_connection_requires_one_unambiguous_route_identity(connection):
+    with pytest.raises(ValidationError):
+        server(connection=connection)
+
+
+async def test_gateway_connection_requires_platform_connection():
+    with pytest.raises(MCPGatewayUnavailableError, match="gateway connection"):
+        await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+            [
+                server(
+                    connection=MCPGatewayConnection(
+                        namespace="builtin", provider="mock"
+                    )
+                )
+            ]
+        )
 
 
 async def test_gateway_collapses_every_servers_array_to_one_credential_each():

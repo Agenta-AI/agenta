@@ -55,3 +55,25 @@ async def test_resolve_mcp_routes_through_the_gateway_when_configured():
     assert len(resolved) == 1
     assert resolved[0].url == "https://api.x/api/gateways/mcps/custom/notion"
     assert [c.binding.name for c in resolved[0].credentials] == ["X-AG-Credentials"]
+
+
+async def test_resolve_mcp_selects_a_platform_mcp_route_when_declared():
+    connection = PlatformConnection(
+        base_url="https://api.x/api", authorization="Access tok"
+    )
+    resolved = await resolve_mcp(
+        [
+            {
+                "name": "mock-tools",
+                "connection": {
+                    "type": "gateway",
+                    "namespace": "standard",
+                    "provider": "mock",
+                },
+            }
+        ],
+        secret_provider=_EmptySecrets(),
+        connection=connection,
+    )
+    assert resolved[0].url == "https://api.x/api/gateways/mcps/standard/mock"
+    assert [c.binding.name for c in resolved[0].credentials] == ["X-AG-Credentials"]

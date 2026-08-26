@@ -35,6 +35,7 @@ from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 _ERROR_PREFIX = "mock/error"
 _SLOW_RE = re.compile(r"^mock/slow-(\d+)")
+_MCP_MARKER_RE = re.compile(r"WP33-MCP-[A-Za-z0-9-]+")
 
 
 def _parse_slow_seconds(model: str) -> Optional[int]:
@@ -68,6 +69,123 @@ def _last_message_content(body: bytes) -> str:
 
 def _word_count(text: str) -> int:
     return len(text.split())
+
+
+def _mcp_marker(body: bytes) -> str | None:
+    """Return the deterministic acceptance marker requested by a harness test."""
+    match = _MCP_MARKER_RE.search(body.decode(errors="replace"))
+    return match.group(0) if match else None
+
+
+def _contains_tool_result(body: bytes) -> bool:
+    text = body.decode(errors="replace").replace(" ", "")
+    return any(
+        token in text
+        for token in (
+            '"role":"tool"',
+            '"type":"tool_result"',
+            '"type":"function_call_output"',
+        )
+    )
+
+
+def _echo_tool_name(body: bytes) -> str | None:
+    """Find the harness-rendered MCP echo tool name from the provider tool list."""
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    def visit(value: Any) -> str | None:
+        if isinstance(value, dict):
+            name = value.get("name")
+            if isinstance(name, str) and "echo" in name.lower():
+                return name
+            for child in value.values():
+                found = visit(child)
+                if found:
+                    return found
+        elif isinstance(value, list):
+            for child in value:
+                found = visit(child)
+                if found:
+                    return found
+        return None
+
+    return visit(payload.get("tools", []))
+
+
+def _chat_tool_call_payload(
+    *, completion_id: str, created: int, model: str, tool_name: str, marker: str
+) -> Dict[str, Any]:
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_mock_mcp_echo",
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": json.dumps({"marker": marker}),
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+
+def _messages_tool_call_payload(
+    *, message_id: str, model: str, tool_name: str, marker: str
+) -> Dict[str, Any]:
+    return {
+        "id": message_id,
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [
+            {
+                "type": "tool_use",
+                "id": "toolu_mock_mcp_echo",
+                "name": tool_name,
+                "input": {"marker": marker},
+            }
+        ],
+        "stop_reason": "tool_use",
+    }
+
+
+def _responses_tool_call_payload(
+    *, response_id: str, created: int, model: str, tool_name: str, marker: str
+) -> Dict[str, Any]:
+    return {
+        "id": response_id,
+        "object": "response",
+        "created_at": created,
+        "model": model,
+        "status": "completed",
+        "output": [
+            {
+                "id": "fc_mock_mcp_echo",
+                "type": "function_call",
+                "call_id": "call_mock_mcp_echo",
+                "name": tool_name,
+                "arguments": json.dumps({"marker": marker}),
+                "status": "completed",
+            }
+        ],
+    }
 
 
 def _completion_payload(
@@ -169,6 +287,11 @@ class MockLLMAdapter(LLMUpstreamInterface):
             await asyncio.sleep(slow_seconds)
 
         content = _last_message_content(body)
+        marker = _mcp_marker(body)
+        tool_name = _echo_tool_name(body)
+        needs_tool_call = bool(marker and tool_name and not _contains_tool_result(body))
+        if marker and _contains_tool_result(body):
+            content = f"mock MCP echo: {marker}"
         input_tokens = _word_count(body.decode(errors="replace")) if body else 0
         output_tokens = _word_count(content)
         completion_id = f"chatcmpl-mock-{uuid.uuid4().hex}"
@@ -191,7 +314,87 @@ class MockLLMAdapter(LLMUpstreamInterface):
                     "output_tokens": output_tokens,
                     "total_tokens": input_tokens + output_tokens,
                 }
-                if context.stream:
+                if needs_tool_call:
+                    assert marker is not None and tool_name is not None
+                    payload = _responses_tool_call_payload(
+                        response_id=completion_id,
+                        created=created,
+                        model=model,
+                        tool_name=tool_name,
+                        marker=marker,
+                    )
+                    payload["usage"] = usage
+                    if context.stream:
+                        sequence_number = 0
+
+                        def _responses_event(
+                            event: str, event_payload: Dict[str, Any]
+                        ) -> bytes:
+                            nonlocal sequence_number
+                            framed = _sse_event(
+                                event,
+                                {"sequence_number": sequence_number, **event_payload},
+                            )
+                            sequence_number += 1
+                            return framed
+
+                        item = payload["output"][0]
+                        yield _responses_event(
+                            "response.created",
+                            {
+                                "type": "response.created",
+                                "response": {
+                                    **payload,
+                                    "status": "in_progress",
+                                    "output": [],
+                                },
+                            },
+                        )
+                        yield _responses_event(
+                            "response.output_item.added",
+                            {
+                                "type": "response.output_item.added",
+                                "output_index": 0,
+                                "item": {
+                                    **item,
+                                    "status": "in_progress",
+                                    "arguments": "",
+                                },
+                            },
+                        )
+                        yield _responses_event(
+                            "response.function_call_arguments.delta",
+                            {
+                                "type": "response.function_call_arguments.delta",
+                                "item_id": item["id"],
+                                "output_index": 0,
+                                "delta": item["arguments"],
+                            },
+                        )
+                        yield _responses_event(
+                            "response.function_call_arguments.done",
+                            {
+                                "type": "response.function_call_arguments.done",
+                                "item_id": item["id"],
+                                "output_index": 0,
+                                "arguments": item["arguments"],
+                            },
+                        )
+                        yield _responses_event(
+                            "response.output_item.done",
+                            {
+                                "type": "response.output_item.done",
+                                "output_index": 0,
+                                "item": item,
+                            },
+                        )
+                        yield _responses_event(
+                            "response.completed",
+                            {"type": "response.completed", "response": payload},
+                        )
+                    else:
+                        yield json.dumps(payload).encode()
+                elif context.stream:
                     sequence_number = 0
 
                     def _responses_event(event: str, payload: Dict[str, Any]) -> bytes:
@@ -318,7 +521,63 @@ class MockLLMAdapter(LLMUpstreamInterface):
 
             elif context.protocol == LLMProtocol.MESSAGES:
                 usage = {"input_tokens": input_tokens, "output_tokens": output_tokens}
-                if context.stream:
+                if needs_tool_call:
+                    assert marker is not None and tool_name is not None
+                    payload = _messages_tool_call_payload(
+                        message_id=completion_id,
+                        model=model,
+                        tool_name=tool_name,
+                        marker=marker,
+                    )
+                    payload["usage"] = usage
+                    if context.stream:
+                        block = payload["content"][0]
+                        yield _sse_event(
+                            "message_start",
+                            {
+                                "type": "message_start",
+                                "message": {
+                                    **payload,
+                                    "content": [],
+                                    "stop_reason": None,
+                                },
+                            },
+                        )
+                        yield _sse_event(
+                            "content_block_start",
+                            {
+                                "type": "content_block_start",
+                                "index": 0,
+                                "content_block": {**block, "input": {}},
+                            },
+                        )
+                        yield _sse_event(
+                            "content_block_delta",
+                            {
+                                "type": "content_block_delta",
+                                "index": 0,
+                                "delta": {
+                                    "type": "input_json_delta",
+                                    "partial_json": json.dumps(block["input"]),
+                                },
+                            },
+                        )
+                        yield _sse_event(
+                            "content_block_stop",
+                            {"type": "content_block_stop", "index": 0},
+                        )
+                        yield _sse_event(
+                            "message_delta",
+                            {
+                                "type": "message_delta",
+                                "delta": {"stop_reason": "tool_use"},
+                                "usage": usage,
+                            },
+                        )
+                        yield _sse_event("message_stop", {"type": "message_stop"})
+                    else:
+                        yield json.dumps(payload).encode()
+                elif context.stream:
                     message = {
                         "id": completion_id,
                         "type": "message",
@@ -368,7 +627,59 @@ class MockLLMAdapter(LLMUpstreamInterface):
                     yield json.dumps(payload).encode()
 
             else:
-                if context.stream:
+                if needs_tool_call:
+                    assert marker is not None and tool_name is not None
+                    payload = _chat_tool_call_payload(
+                        completion_id=completion_id,
+                        created=created,
+                        model=model,
+                        tool_name=tool_name,
+                        marker=marker,
+                    )
+                    payload["usage"] = {
+                        "prompt_tokens": input_tokens,
+                        "completion_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens,
+                    }
+                    if context.stream:
+                        tool_call = payload["choices"][0]["message"]["tool_calls"][0]
+                        yield _sse(
+                            _chunk_payload(
+                                completion_id=completion_id,
+                                created=created,
+                                model=model,
+                                delta={
+                                    "role": "assistant",
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": tool_call["id"],
+                                            "type": "function",
+                                            "function": {
+                                                "name": tool_call["function"]["name"],
+                                                "arguments": tool_call["function"][
+                                                    "arguments"
+                                                ],
+                                            },
+                                        }
+                                    ],
+                                },
+                                finish=None,
+                            )
+                        )
+                        yield _sse(
+                            _chunk_payload(
+                                completion_id=completion_id,
+                                created=created,
+                                model=model,
+                                delta={},
+                                finish="tool_calls",
+                            )
+                        )
+                        yield b"data: [DONE]\n\n"
+                    else:
+                        yield json.dumps(payload).encode()
+                elif context.stream:
                     yield _sse(
                         _chunk_payload(
                             completion_id=completion_id,

@@ -230,3 +230,64 @@ async def test_messages_streaming_ends_with_message_stop_and_usage_on_message_de
     delta_frame = next(c for c in chunks if c.startswith(b"event: message_delta\n"))
     payload = json.loads(delta_frame.split(b"data: ", 1)[1])
     assert payload["usage"]["output_tokens"] == result.usage.output_tokens
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "protocol",
+    [LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.RESPONSES, LLMProtocol.MESSAGES],
+)
+async def test_mcp_marker_requests_the_harness_rendered_echo_tool(protocol):
+    marker = "WP33-MCP-unit-marker"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "messages": [{"role": "user", "content": f"Use echo {marker}"}],
+            "tools": [{"name": "mcp__mock__echo"}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=protocol),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    if protocol == LLMProtocol.CHAT_COMPLETIONS:
+        call = payload["choices"][0]["message"]["tool_calls"][0]
+        assert call["function"]["name"] == "mcp__mock__echo"
+        assert json.loads(call["function"]["arguments"])["marker"] == marker
+    elif protocol == LLMProtocol.RESPONSES:
+        call = payload["output"][0]
+        assert call["name"] == "mcp__mock__echo"
+        assert json.loads(call["arguments"])["marker"] == marker
+    else:
+        call = payload["content"][0]
+        assert call["name"] == "mcp__mock__echo"
+        assert call["input"]["marker"] == marker
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_result_returns_the_marker_to_the_harness():
+    marker = "WP33-MCP-unit-result"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "messages": [
+                {"role": "user", "content": f"Use echo {marker}"},
+                {"role": "tool", "content": json.dumps({"marker": marker})},
+            ],
+            "tools": [{"name": "mcp__mock__echo"}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo"),
+        body=body,
+        headers={},
+    )
+    payload = json.loads((await _drain(result.body))[0])
+    assert marker in payload["choices"][0]["message"]["content"]

@@ -7,10 +7,16 @@ from typing import Mapping, Optional, Sequence
 from agenta.sdk.agents.tools.models import MissingSecretPolicy
 from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
-from .errors import MCPServerURLBlockedError, MissingMCPSecretError
+from .errors import (
+    MCPGatewayUnavailableError,
+    MCPServerURLBlockedError,
+    MissingMCPSecretError,
+)
 from .interfaces import MCPSecretProvider
 from .models import (
     HeaderCredentialBinding,
+    MCPConnection,
+    MCPGatewayConnection,
     MCPHeaderSecretRefs,
     MCPServerConfig,
     ResolvedMCPCredential,
@@ -21,12 +27,28 @@ from .models import (
 _GATEWAY_CREDENTIALS_HEADER = "X-AG-Credentials"
 
 
-def _gateway_mcp_route(*, namespace: str, name: str, gateway_base_url: str) -> str:
-    """Build ``{gateway_base}/gateways/mcps/{namespace}/{name}``.
+def _gateway_mcp_route(
+    *,
+    connection: MCPGatewayConnection | None,
+    name: str,
+    gateway_base_url: str,
+) -> str:
+    """Build the selected public MCP gateway route.
 
-    The MCP protocol POSTs to this URL directly; nothing is appended.
+    A plain author-owned HTTP connection keeps the established
+    ``custom/{name}`` route. A platform gateway connection selects a builtin,
+    standard, or persisted custom route explicitly.
     """
-    return f"{gateway_base_url.rstrip('/')}/gateways/mcps/{namespace}/{name}"
+    base = f"{gateway_base_url.rstrip('/')}/gateways/mcps"
+    if connection is None:
+        return f"{base}/custom/{name}"
+    if connection.namespace == "custom":
+        assert connection.slug is not None
+        return f"{base}/custom/{connection.slug}"
+    assert connection.provider is not None
+    if connection.namespace == "builtin":
+        return f"{base}/builtin/{connection.provider}/mock"
+    return f"{base}/standard/{connection.provider}"
 
 
 class MCPResolver:
@@ -57,7 +79,18 @@ class MCPResolver:
         self,
         server_configs: Sequence[MCPServerConfig],
     ) -> list[ResolvedMCPServer]:
-        if self._gateway_base_url and self._gateway_credentials_value:
+        has_gateway = bool(self._gateway_base_url and self._gateway_credentials_value)
+        gateway_selection = next(
+            (
+                server
+                for server in server_configs
+                if isinstance(server.connection, MCPGatewayConnection)
+            ),
+            None,
+        )
+        if gateway_selection and not has_gateway:
+            raise MCPGatewayUnavailableError(server_name=gateway_selection.name)
+        if has_gateway:
             return [
                 self._resolve_gateway(server_config) for server_config in server_configs
             ]
@@ -73,11 +106,19 @@ class MCPResolver:
         return ResolvedMCPServer(
             name=server_config.name,
             url=_gateway_mcp_route(
-                namespace="custom",
+                connection=(
+                    server_config.connection
+                    if isinstance(server_config.connection, MCPGatewayConnection)
+                    else None
+                ),
                 name=server_config.name,
                 gateway_base_url=self._gateway_base_url,
             ),
-            headers=dict(server_config.connection.headers),
+            headers=(
+                dict(server_config.connection.headers)
+                if isinstance(server_config.connection, MCPConnection)
+                else {}
+            ),
             credentials=[
                 ResolvedMCPCredential(
                     binding=HeaderCredentialBinding(name=_GATEWAY_CREDENTIALS_HEADER),
@@ -95,7 +136,10 @@ class MCPResolver:
             {
                 secret_name
                 for server_config in server_configs
-                if isinstance(server_config.connection.credentials, MCPHeaderSecretRefs)
+                if isinstance(server_config.connection, MCPConnection)
+                and isinstance(
+                    server_config.connection.credentials, MCPHeaderSecretRefs
+                )
                 for secret_name in server_config.connection.credentials.headers.values()
             }
         )
@@ -105,6 +149,8 @@ class MCPResolver:
 
         resolved: list[ResolvedMCPServer] = []
         for server_config in server_configs:
+            if isinstance(server_config.connection, MCPGatewayConnection):
+                raise MCPGatewayUnavailableError(server_name=server_config.name)
             credentials = server_config.connection.credentials
             secret_refs = (
                 credentials.headers

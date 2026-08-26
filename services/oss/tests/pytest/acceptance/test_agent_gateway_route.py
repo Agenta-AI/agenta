@@ -20,6 +20,7 @@ branch yet. Extend this test once that surface lands.
 
 from __future__ import annotations
 
+import os
 from uuid import uuid4
 
 import pytest
@@ -27,6 +28,9 @@ import pytest
 pytestmark = [pytest.mark.acceptance]
 
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
+_MOCK_MCP_BASE_URL = "http://mock-mcp-gateway:9092/"
+_MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
+_MOCK_UPSTREAM_TOKEN = os.getenv("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN")
 _HARNESS_CONNECTIONS = {
     "pi_core": ("openai", "mock/echo"),
     # Codex validates a model against its built-in selectable set before it makes the request.
@@ -41,6 +45,89 @@ _HARNESS_CONNECTIONS = {
 def _assert_ok(response):
     assert response.status_code == 200, response.text
     return response.json()
+
+
+@pytest.fixture
+def mcp_gateway_connection(request, mod_api):
+    """Provision the selected mock MCP route as normal project resources.
+
+    Builtin and standard routes are catalogue entries.  The custom route is an
+    ordinary endpoint row with a project-owned secret, exactly as production
+    agent configuration uses it.
+    """
+    namespace = request.param
+    if not _MOCKS_ENABLED:
+        pytest.skip("gateway mock services are disabled")
+
+    cleanup: list[tuple[str, str]] = []
+    try:
+        if namespace == "builtin":
+            yield {"type": "gateway", "namespace": "builtin", "provider": "mock"}
+            return
+        if namespace == "standard":
+            if not _MOCK_UPSTREAM_TOKEN:
+                pytest.skip("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN is not configured")
+            secret = _assert_ok(
+                mod_api(
+                    "POST",
+                    "/secrets/",
+                    json={
+                        "header": {"name": f"wp33-mock-{uuid4().hex[:8]}"},
+                        "secret": {
+                            "kind": "provider_key",
+                            "data": {
+                                "kind": "mock",
+                                "provider": {"key": _MOCK_UPSTREAM_TOKEN},
+                            },
+                        },
+                    },
+                )
+            )
+            cleanup.append(("/secrets", secret["id"]))
+            yield {"type": "gateway", "namespace": "standard", "provider": "mock"}
+            return
+        if namespace != "custom":
+            raise AssertionError(f"unknown mock MCP namespace: {namespace}")
+        if not _MOCK_UPSTREAM_TOKEN:
+            pytest.skip("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN is not configured")
+        secret = _assert_ok(
+            mod_api(
+                "POST",
+                "/secrets/",
+                json={
+                    "header": {"name": f"wp33-mock-{uuid4().hex[:8]}"},
+                    "secret": {
+                        "kind": "custom_provider",
+                        "data": {
+                            "kind": "custom",
+                            "provider": {"key": _MOCK_UPSTREAM_TOKEN},
+                            "models": [],
+                        },
+                    },
+                },
+            )
+        )
+        cleanup.append(("/secrets", secret["id"]))
+        slug = f"wp33-mock-mcp-{uuid4().hex[:8]}"
+        endpoint = _assert_ok(
+            mod_api(
+                "POST",
+                "/gateways/mcps/endpoints/",
+                json={
+                    "endpoint": {
+                        "slug": slug,
+                        "auth_mode": "api_key",
+                        "secret_id": secret["id"],
+                        "data": {"route": {"base_url": _MOCK_MCP_BASE_URL}},
+                    }
+                },
+            )
+        )["endpoint"]
+        cleanup.append(("/gateways/mcps/endpoints", endpoint["id"]))
+        yield {"type": "gateway", "namespace": "custom", "slug": slug}
+    finally:
+        for collection, resource_id in reversed(cleanup):
+            mod_api("DELETE", f"{collection}/{resource_id}")
 
 
 @pytest.fixture
@@ -89,37 +176,30 @@ def mock_custom_connection(harness, mod_api):
     return {"slug": slug, "model": model}
 
 
+@pytest.mark.parametrize("harness", ["codex", "claude"])
 @pytest.mark.parametrize(
-    "harness",
-    [
-        "pi_core",
-        "codex",
-        pytest.param(
-            "claude",
-            marks=pytest.mark.xfail(
-                run=False,
-                reason=(
-                    "Claude Code is proprietary and intentionally not baked into the "
-                    "runner image; its gateway route is live-tested only where the "
-                    "locally provisioned Claude runtime is available."
-                ),
-            ),
-        ),
-    ],
+    "mcp_gateway_connection", ["builtin", "standard", "custom"], indirect=True
 )
-def test_agent_run_completes_through_the_gateway(
-    harness, mock_custom_connection, mod_services_api
+def test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route(
+    harness, mock_custom_connection, mcp_gateway_connection, mod_services_api
 ):
-    """POST /agent/v0/invoke with a named connection routes the model call through the
-    gateway's `custom/{slug}` route rather than a direct provider socket. Success (and the
-    mock's echoed content) is only reachable this way: no key for a real provider is
-    configured anywhere in this run."""
+    """The real service -> runner -> harness path calls a gateway-backed mock MCP tool."""
+    marker = f"WP33-MCP-{harness}-{uuid4().hex[:12]}"
     resp = mod_services_api(
         "POST",
         "/agent/v0/invoke",
         json={
             "data": {
-                "inputs": {"messages": [{"role": "user", "content": "hi"}]},
+                "inputs": {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Use the echo tool with marker {marker}, then state its result."
+                            ),
+                        }
+                    ]
+                },
                 "parameters": {
                     "agent": {
                         "harness": {"kind": harness},
@@ -130,6 +210,12 @@ def test_agent_run_completes_through_the_gateway(
                                 "slug": mock_custom_connection["slug"],
                             },
                         },
+                        "mcps": [
+                            {
+                                "name": "mock-mcp",
+                                "connection": mcp_gateway_connection,
+                            }
+                        ],
                     }
                 },
             },
@@ -140,5 +226,6 @@ def test_agent_run_completes_through_the_gateway(
     messages = body["data"]["outputs"]["messages"]
     assert messages, "expected at least one assistant message"
     assert messages[-1]["role"] == "assistant"
-    # The mock echoes the request's last message content.
-    assert "hi" in messages[-1]["content"]
+    # The deterministic mock model emits a tool call only when the harness receives the MCP
+    # tool. It returns this marker only after the MCP tool result re-enters the model turn.
+    assert marker in messages[-1]["content"]
