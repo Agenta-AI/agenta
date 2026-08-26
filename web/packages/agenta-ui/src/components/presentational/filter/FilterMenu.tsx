@@ -150,7 +150,7 @@ export const FilterMenu = ({
                                     {summary}
                                 </span>
                             </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent className="max-h-[280px] min-w-[176px] overflow-y-auto">
+                            <DropdownMenuSubContent className="max-h-[280px] min-w-[176px] max-w-[248px] overflow-y-auto">
                                 {facet.options.map((option) => (
                                     <DropdownMenuItem
                                         key={option.value}
@@ -169,7 +169,12 @@ export const FilterMenu = ({
                                             )
                                         }}
                                     >
-                                        <span className="flex-1 truncate">{option.label}</span>
+                                        <span
+                                            className="min-w-0 flex-1 truncate"
+                                            title={option.label}
+                                        >
+                                            {option.label}
+                                        </span>
                                         {isOn(option.value) ? (
                                             <Check className="ml-2 size-3.5 shrink-0" />
                                         ) : null}

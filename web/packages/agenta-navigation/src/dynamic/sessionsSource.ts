@@ -12,7 +12,11 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
-import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "../state"
+import {
+    sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarOpenGroupsAtomFamily,
+    sidebarPopupGroupsAtomFamily,
+} from "../state"
 
 import {
     PINNED_GROUP_KEY,
@@ -88,10 +92,11 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         // for sessions belonging to BOTH agents. Selecting several means one request each.
         agentIds: filters.agentIds,
         flags: Object.keys(flags).length ? flags : undefined,
-        archivedOnly: filters.archivedOnly,
-        // `querySessions` defaults this to true; the rail must hide archived rows unless the
-        // archived view is on, and `archived_only` is what narrows to them.
-        includeArchived: filters.archivedOnly,
+        // The rail never lists archived sessions; the sessions page owns the archive.
+        includeArchived: false,
+        // Automations are hidden unless asked for — a schedule running hourly would otherwise
+        // bury the conversations you are having. `origin` is the server's own predicate.
+        excludeOrigin: filters.showAutomations ? undefined : ("trigger" as const),
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
 }
@@ -177,7 +182,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, archivedOnly, includeArchived, oldest} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, excludeOrigin, oldest} = requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
         const waitingIds = waitingQuery.data ?? null
@@ -188,7 +193,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.agentIds,
                 filters.status,
                 filters.activity,
-                filters.archivedOnly,
+                filters.showAutomations,
                 waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
@@ -197,8 +202,8 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         projectId: projectId ?? "",
                         references,
                         flags,
-                        archivedOnly,
                         includeArchived,
+                        excludeOrigin,
                         oldest,
                         // No server predicate for "awaiting input" — ids are pushed down instead.
                         sessionIds: waiting ? (waitingIds ?? []) : undefined,
@@ -207,10 +212,8 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         lowPriority: true,
                     }),
                 ),
-            // Pinned-only keeps this query MOUNTED but disabled. Unmounting it would flip the source
-            // to `loading`, and the idle-fallback cache only rescues `idle` — the list would blank.
-            // "Awaiting input" additionally waits for the id set, or it would ask for everything.
-            enabled: Boolean(projectId) && !filters.pinnedOnly && (!waiting || waitingIds !== null),
+            // "Awaiting input" waits for the id set, or it would ask for everything.
+            enabled: Boolean(projectId) && (!waiting || waitingIds !== null),
             // Without this every facet click is a cache miss that empties the group
             // mid-interaction. Held ONLY within a project: the key carries the project id too, so
             // an unconditional carry-over shows the previous project's sessions in a new one.
@@ -227,7 +230,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const allPinnedIds = get(pinnedSessionIdsAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, archivedOnly, includeArchived} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, excludeOrigin} = requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingIds = get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? null
         // "Awaiting input" has no server predicate — it is an id set — so a pin has to be
@@ -244,7 +247,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 pinnedIds,
                 filters.agentIds,
                 filters.status,
-                filters.archivedOnly,
+                filters.showAutomations,
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
@@ -254,8 +257,8 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         projectId: projectId ?? "",
                         references,
                         flags,
-                        archivedOnly,
                         includeArchived,
+                        excludeOrigin,
                         sessionIds: pinnedIds,
                         abortSignal: signal,
                         lowPriority: true,
@@ -364,23 +367,20 @@ export const withLocalSessions = (
 const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
     atom<SessionSidebarRef[]>((get) => {
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const pinnedOnly = filters.pinnedOnly
         const pinned = new Set(get(pinnedSessionIdsAtom))
         const waitingIds = new Set(get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? [])
         const pinnedRows = get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []
         // Pins come from their own by-id query; the recent window drops them so nothing shows twice.
-        const recentRows = pinnedOnly
-            ? []
-            : (get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
-                  (row) => !pinned.has(row.session_id),
-              )
+        const recentRows = (get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => !pinned.has(row.session_id),
+        )
 
         const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
         const server = [
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
-        const all = withLocalSessions(server, pinnedOnly ? [] : get(localSessionRefsAtom))
+        const all = withLocalSessions(server, get(localSessionRefsAtom))
         // "Idle" is `is_alive: false` on the server, which also matches a session whose turn ended
         // with a gate still open. That session is WAITING — the shared status rule ranks a gate
         // above liveness — so it is subtracted here. The only client-side narrowing in this file,
@@ -462,7 +462,7 @@ export const sidebarSessionGroup = (
     now: number,
 ): {key: string; label: string} => {
     if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned"}
-    if (groupBy === "pinned") return {key: "recent", label: "Recent"}
+    if (groupBy === "none") return {key: "recent", label: "Recent"}
     if (groupBy === "date") return dateBucket(ref.activityAt, now)
     if (groupBy === "status") {
         if (ref.running) return {key: "status:running", label: "Running"}
@@ -490,11 +490,22 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             const key = sidebarSessionGroupKey(ref)
             if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
         }
-        const groups: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
+        const all: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        // "None" still separates the pins — a pinned conversation is one you keep coming back to,
+        // and burying it in the run of recent rows is what the heading exists to prevent. With no
+        // pins there is nothing to separate, so the list goes fully flat.
+        //
+        // ALL of the row keys or NONE of them: `groupedChildren` renders group by group and drops
+        // any row whose key it was not given, so emitting just the pinned group hid every other
+        // row (the rail showed pins alone). Rows carry `pinned` or `recent` under this grouping,
+        // and both are in `labels` already — the filter below only decides between the two.
+        const groups: SidebarEntityGroup[] =
+            groupBy === "none" && !labels.has(PINNED_GROUP_KEY) ? [] : all
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
         // The stored set flips a heading away from its grouping's default, so a regrouping keeps
         // whatever you chose without carrying the previous grouping's keys.
-        const folded = groupingStartsFolded(get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy)
+        const folded = groupingStartsFolded(groupBy)
         const toggled = new Set(get(sidebarSessionToggledGroupsAtomFamily(scopeId)))
         return {
             groups,
@@ -563,11 +574,17 @@ export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
+        // `alwaysOpen` HAS to be in this test: Sessions is rendered always-open, so its key is
+        // never written to the persisted open set — reading only that set left this empty, and
+        // the Agent facet had no options to offer.
+        const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
+            SESSIONS_SIDEBAR_KEY,
+        )
         const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
             SESSIONS_SIDEBAR_KEY,
         )
         const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
-        if ((!inlineOpen && !popupOpen) || !get(idleReadyAtom)) return []
+        if ((!alwaysOpen && !inlineOpen && !popupOpen) || !get(idleReadyAtom)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({

@@ -25,8 +25,11 @@ export const ACTIVITY_WINDOW_HOURS: Record<SidebarSessionActivityFilter, number 
     "30d": 24 * 30,
 }
 
-/** What the headings bucket by. Pins always lead in their own heading, whichever is chosen. */
-export type SidebarSessionGroupBy = "agent" | "date" | "status" | "pinned"
+/** What the headings bucket by. `none` is a flat list. Pins always lead in their own heading. */
+export type SidebarSessionGroupBy = "none" | "agent" | "date" | "status"
+
+/** Everything the menu offers. A stored value outside this set is stale and falls back. */
+const GROUP_BY_VALUES = new Set<string>(["none", "agent", "date", "status"])
 
 export interface SidebarSessionFilters {
     groupBy: SidebarSessionGroupBy
@@ -34,20 +37,22 @@ export interface SidebarSessionFilters {
     agentIds: string[]
     status: SidebarSessionStatusFilter
     activity: SidebarSessionActivityFilter
-    pinnedOnly: boolean
-    /** The archived VIEW: only archived sessions, never a widening of the active list. */
-    archivedOnly: boolean
+    /**
+     * Whether trigger-originated runs are listed. Off by default, matching the sessions page:
+     * a schedule that runs hourly would otherwise bury the conversations you are having.
+     */
+    showAutomations: boolean
 }
 
 export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
-    groupBy: "agent",
+    // A flat list is the behaviour the rail shipped with; headings are opt-in.
+    groupBy: "none",
     agentIds: [],
     status: "all",
     // A WEEK, not everything: the rail is for what you are working on, and the sessions page owns
     // the archive. It also narrows the fetch, which no render-side cap can do.
     activity: "7d",
-    pinnedOnly: false,
-    archivedOnly: false,
+    showAutomations: false,
 }
 
 // Persisted, not in-memory: a hot module swap re-creates every atomFamily instance, so an
@@ -73,10 +78,14 @@ export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
             const scope = storageScope(scopeId, get(projectIdAtom))
             // MERGED, not `??`: state persisted before a field existed would otherwise come back
             // missing it, and the facet would render with no value.
-            return {
-                ...DEFAULT_SIDEBAR_SESSION_FILTERS,
-                ...(get(sessionFiltersStorageAtom)[scope] ?? {}),
-            }
+            const stored = get(sessionFiltersStorageAtom)[scope] ?? {}
+            const merged = {...DEFAULT_SIDEBAR_SESSION_FILTERS, ...stored}
+            // "Pinned first" was retired — pins lead under every grouping, so it grouped by
+            // nothing. Anyone still holding it reads as the default rather than as a value the
+            // menu cannot show or the grouper understands.
+            return GROUP_BY_VALUES.has(merged.groupBy)
+                ? merged
+                : {...merged, groupBy: DEFAULT_SIDEBAR_SESSION_FILTERS.groupBy}
         },
         (get, set, next: Partial<SidebarSessionFilters>) => {
             const scope = storageScope(scopeId, get(projectIdAtom))

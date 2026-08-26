@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useRef, useState, type KeyboardEvent} from "react"
 
 import {
+    DEFAULT_SIDEBAR_SESSION_FILTERS,
     sidebarSessionAgentOptionsAtomFamily,
     sidebarSessionFiltersAtomFamily,
     sidebarSessionFiltersDirtyAtomFamily,
@@ -15,21 +16,20 @@ import {
     type FilterMenuToggle,
 } from "@agenta/ui/components/presentational"
 import {
-    ArchiveIcon,
     ClockIcon,
     FadersHorizontalIcon,
+    LightningIcon,
     ListBulletsIcon,
     PulseIcon,
-    PushPinIcon,
     RobotIcon,
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
 const GROUP_BY_OPTIONS = [
+    {value: "none", label: "None"},
     {value: "agent", label: "Agent"},
     {value: "date", label: "Date"},
     {value: "status", label: "Status"},
-    {value: "pinned", label: "Pinned first"},
 ]
 
 const STATUS_OPTIONS = [
@@ -65,7 +65,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 label: "Group by",
                 icon: <ListBulletsIcon size={14} />,
                 value: filters.groupBy,
-                defaultValue: "agent",
+                defaultValue: "none",
                 options: GROUP_BY_OPTIONS,
             },
             {
@@ -93,7 +93,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 label: "Last activity",
                 icon: <ClockIcon size={14} />,
                 value: filters.activity,
-                defaultValue: "all",
+                defaultValue: "7d",
                 options: ACTIVITY_OPTIONS,
             },
         ],
@@ -103,19 +103,15 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     const toggles = useMemo<FilterMenuToggle[]>(
         () => [
             {
-                key: "pinnedOnly",
-                label: "Pinned only",
-                on: filters.pinnedOnly,
-                icon: <PushPinIcon size={14} />,
-            },
-            {
-                key: "archivedOnly",
-                label: "Archived only",
-                on: filters.archivedOnly,
-                icon: <ArchiveIcon size={14} />,
+                key: "showAutomations",
+                label: "Show automations",
+                on: filters.showAutomations,
+                // A bolt, not the robot: the robot means AGENT throughout the rail, and an
+                // automation is a trigger that ran one — reusing it would conflate the two.
+                icon: <LightningIcon size={14} />,
             },
         ],
-        [filters.pinnedOnly, filters.archivedOnly],
+        [filters.showAutomations],
     )
 
     const onFacetChange = useCallback(
@@ -167,10 +163,14 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [measureAlign],
     )
 
+    const onReset = useCallback(() => setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS), [setFilters])
+
     return (
         <FilterMenu
             facets={facets}
             toggles={toggles}
+            dirty={dirty}
+            onReset={onReset}
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
             onToggleChange={onToggleChange}
@@ -185,7 +185,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 type="button"
                 aria-label="Filter sessions"
                 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
-                className="relative mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
+                className="mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
                 // Radix opens on pointer down, so the measurement has to land in the same
                 // event — by click the menu is already positioned.
                 onPointerDown={measureAlign}
@@ -197,9 +197,6 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 }}
             >
                 <FadersHorizontalIcon size={14} />
-                {dirty ? (
-                    <span className="absolute right-0 top-0 h-[5px] w-[5px] rounded-full bg-colorPrimary" />
-                ) : null}
             </button>
         </FilterMenu>
     )
