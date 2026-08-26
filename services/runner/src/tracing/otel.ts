@@ -58,6 +58,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
+import { createStreamTrace } from "./stream-trace.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -1468,6 +1469,7 @@ export function createSandboxAgentOtel(
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
+  const streamTrace = createStreamTrace({ harness: init.harness });
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -1699,6 +1701,7 @@ export function createSandboxAgentOtel(
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
+      streamTrace?.record("message", t.length);
       // Pi streams pure deltas; Claude streams deltas plus a cumulative snapshot.
       // Replace when a chunk is a superset of what we have, append otherwise.
       if (t.startsWith(accumulated)) accumulated = t;
@@ -1714,6 +1717,7 @@ export function createSandboxAgentOtel(
     if (kind === "agent_thought_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
+      streamTrace?.record("thought", t.length);
       if (t.startsWith(reasoningAccumulated)) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);

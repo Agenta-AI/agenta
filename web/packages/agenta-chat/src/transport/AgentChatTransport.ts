@@ -3,6 +3,8 @@ import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground/
 import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
 
+import {installStreamTraceHelper, traceStreamChunks} from "./streamTrace"
+
 /**
  * Agent chat transport.
  *
@@ -222,6 +224,8 @@ export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
         if (this.negotiator.resolvedMode(stream) === "batch")
             return batchJsonToUiMessageStream(stream)
         // Deltas pass through untouched: typing cadence is paced at paint by `useTypewriter`.
-        return super.processResponseStream(stream)
+        // The trace only timestamps them — see `streamTrace.ts` for why the cadence is measured.
+        installStreamTraceHelper()
+        return traceStreamChunks(super.processResponseStream(stream))
     }
 }
