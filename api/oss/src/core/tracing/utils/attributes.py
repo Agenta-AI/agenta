@@ -461,17 +461,26 @@ def parse_from_attributes(
     Optional[Data],  # data
     Optional[Dict[str, Dict[str, Any]]],  # references
 ]:
-    # TODO - add error handling
-    ag: dict = attributes.get("ag", {})  # type: ignore
-    type: dict = ag.get("type", {})  # type: ignore
-    flags: dict = ag.get("flags")  # type: ignore
-    tags: dict = ag.get("tags")  # type: ignore
-    meta: dict = ag.get("meta")  # type: ignore
-    data: dict = ag.get("data")  # type: ignore
-    references = ag.get("references")  # type: ignore
+    _none_result = (None, None, None, None, None, None)
+
+    if not isinstance(attributes, dict):
+        return _none_result
+
+    ag = attributes.get("ag")
+    if not isinstance(ag, dict):
+        return _none_result
+
+    type_ = ag.get("type") if isinstance(ag.get("type"), dict) else None
+    flags = ag.get("flags") if isinstance(ag.get("flags"), dict) else None
+    tags = ag.get("tags") if isinstance(ag.get("tags"), dict) else None
+    meta = ag.get("meta") if isinstance(ag.get("meta"), dict) else None
+    data = ag.get("data") if isinstance(ag.get("data"), dict) else None
+    references = (
+        ag.get("references") if isinstance(ag.get("references"), dict) else None
+    )
 
     return (
-        type,
+        type_,
         flags,
         tags,
         meta,

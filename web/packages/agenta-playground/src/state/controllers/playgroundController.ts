@@ -1700,7 +1700,8 @@ const openFromTraceAtom = atom(
  */
 const invalidateQueriesAtom = atom(null, async () => {
     const _t0 = performance.now()
-    const {queryClient} = await import("@agenta/shared/api")
+    const {getHostQueryClient} = await import("@agenta/shared/api/hostQueryClient")
+    const queryClient = getHostQueryClient()
 
     const queryKeys = [
         ["variants"],

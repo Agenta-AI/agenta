@@ -1,18 +1,17 @@
 import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
 
+import {
+    AGENT_TEMPLATES,
+    ALL_TEMPLATES_CATEGORY,
+    templateCategories,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {HeightCollapse} from "@agenta/ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
 import {ChevronLeft, ChevronRight} from "lucide-react"
-
-import {
-    AGENT_TEMPLATES,
-    ALL_TEMPLATES_CATEGORY,
-    templateCategories,
-    type AgentTemplate,
-} from "@/oss/components/pages/agent-home/assets/templates"
 
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
@@ -26,12 +25,12 @@ const LIST_SIZE = 5
 
 export interface TemplateStripProps {
     /** Template registry (defaults to AGENT_TEMPLATES). */
-    templates?: AgentTemplate[]
+    templates?: AgentStarterTemplate[]
     /** Controlled provenance selection (highlights the picked card). */
     selectedTemplateKey: string | null
     /** Selects header affordances: playground surfaces get the hide menu; home never hides. */
     surface: "home" | "onboarding" | "agent-chat"
-    onPick: (template: AgentTemplate) => void
+    onPick: (template: AgentStarterTemplate) => void
     /** Called after the hidden atom is set (playground surfaces only). */
     onHide?: () => void
     /** CSS variable the right-edge fade blends into (defaults to the container surface). */
@@ -185,9 +184,8 @@ const TemplateStrip = ({
                                 label: `${category} · ${countFor(category)}`,
                                 onClick: () => {
                                     setActiveCategory(category)
-                                    // A new category starts folded; grid/scroll calls don't
-                                    // apply in this list layout.
-                                    setShowAllRows(false)
+                                    setGridPage(0)
+                                    resetScroll()
                                 },
                             })),
                         }}

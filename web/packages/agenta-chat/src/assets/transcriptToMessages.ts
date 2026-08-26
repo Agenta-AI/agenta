@@ -1,5 +1,5 @@
-// Copied from web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
+// (Was a copy of web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts.)
 //
 // Re-synced 2026-08-03 to full parity with the original: the approval-resume handling (pause
 // folding, the resumed settle pass, tool-call dedup, re-raise under a new toolCallId) — without
@@ -66,6 +66,11 @@ interface DraftMessage {
     paused?: boolean
     /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
     resumed?: boolean
+    /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
+     *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
+    runError?: string
+    /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
+    runErrorCode?: string
 }
 
 interface TranscriptIndex {
@@ -439,6 +444,19 @@ function applyEvent(
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }
+            // Mirrors the live egress's sibling data part, so a reloaded transcript renders the
+            // same card. `tool-approval-request` is a strict object and cannot carry this.
+            if (reqPayload.manifest !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-manifest",
+                    id: toolCallId,
+                    data: {
+                        toolCallId,
+                        approvalId: str(payload.id),
+                        manifest: reqPayload.manifest,
+                    },
+                })
+            }
             return
         }
         case "interaction_response": {
@@ -482,8 +500,16 @@ function applyEvent(
             return
         }
         case "error": {
-            // No error part in the renderer; surface the text so the failure stays visible.
-            draft.parts.push({type: "text", text: str(payload.message)})
+            // Stamp the run failure, don't push it as text: a replayed error must render through
+            // the same red bubble as a live one. First non-empty wins — a cascading later error
+            // must not mask the root cause.
+            const message = str(payload.message).trim()
+            if (message && !draft.runError) {
+                draft.runError = message
+                // Code rides the same event; an older runner omits it (protocol.ts `error.code`).
+                if (typeof payload.code === "string" && payload.code.trim())
+                    draft.runErrorCode = payload.code
+            }
             return
         }
         case "usage": {
@@ -583,7 +609,8 @@ export function transcriptToMessages(
     applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
-        .filter((d) => d.parts.length > 0)
+        // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
+        .filter((d) => d.parts.length > 0 || d.runError)
         .map((d) => {
             // `getMessageTraceId`/`getMessageUsage` read exactly these, so the hover trace actions
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
@@ -592,6 +619,11 @@ export function transcriptToMessages(
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
+            if (d.runError)
+                metadata.runError = {
+                    message: d.runError,
+                    ...(d.runErrorCode ? {code: d.runErrorCode} : {}),
+                }
             return {
                 id: d.id,
                 role: d.role,

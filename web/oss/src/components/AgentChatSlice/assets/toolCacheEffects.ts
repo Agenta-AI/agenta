@@ -4,10 +4,10 @@
  * is the only signal available. The durable fix is a backend `data-*` signal like
  * `data-committed-revision`; until the runner can emit one, this registry stands in.
  */
+import {isToolPart, partToolName} from "@agenta/chat/model"
 import type {ToolUIPart, UIMessage} from "ai"
 
-import {isToolPart} from "./messageParts"
-import {canonicalToolName, partToolName} from "./toolDisplay"
+import {canonicalToolName} from "./toolDisplay"
 
 export type ToolCacheEffect = "trigger-schedules" | "trigger-subscriptions"
 
@@ -38,7 +38,7 @@ export function collectToolCacheEffects(
 ): Set<ToolCacheEffect> {
     const effects = new Set<ToolCacheEffect>()
     for (const part of message.parts) {
-        if (!isToolPart(part)) continue
+        if (!isToolPart(part.type as string)) continue
         const tool = part as {toolCallId?: string; state?: string}
         // Successful only — a failed create must not invalidate.
         if (tool.state !== "output-available") continue

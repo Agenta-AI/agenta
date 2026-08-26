@@ -1,7 +1,7 @@
+import type {ProjectsResponse} from "@agenta/entities/project"
 import {getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
-import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
 import {
     orgsAtom,

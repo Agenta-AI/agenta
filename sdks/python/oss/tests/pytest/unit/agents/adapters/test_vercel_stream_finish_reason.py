@@ -149,6 +149,27 @@ async def test_handler_does_not_duplicate_done_when_result_agrees() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handler_records_terminal_runner_usage() -> None:
+    usage = {"input": 100, "output": 20, "total": 120, "cost": 0.0042}
+    records = _paused_records(done_stop_reason="stop", result_stop_reason="stop")
+    records[-1]["result"]["usage"] = usage
+    harness = _FakeHarness(records)
+    recorded = []
+
+    _ = [
+        event
+        async for event in agent_event_stream(
+            harness,
+            object(),
+            [],
+            record_usage=recorded.append,
+        )
+    ]
+
+    assert recorded == [usage]
+
+
+@pytest.mark.asyncio
 async def test_handler_stream_then_adapter_carries_paused_end_to_end() -> None:
     """End to end: the handler's neutral stream fed straight into the live adapter yields a
     finish frame with the paused reason, proving the two halves compose."""

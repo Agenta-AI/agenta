@@ -1,3 +1,4 @@
+import {projectIdAtom} from "@agenta/shared/state"
 import {createStore} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -48,6 +49,7 @@ describe("queryProjectSessions", () => {
         }))
         const scope = `reconcile-full-${Date.now()}`
         const store = createStore()
+        store.set(projectIdAtom, "proj-test")
         store.set(reconcileServerSessionsAtomFamily(scope), rows.map(projectSessionSummary))
 
         const fetched = await queryProjectSessions({projectId: "project-1", appId: "agent-1"})

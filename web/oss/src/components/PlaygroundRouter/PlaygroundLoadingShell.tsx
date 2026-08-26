@@ -27,7 +27,7 @@ const PlaygroundLoadingShell = ({agent, children}: PlaygroundLoadingShellProps =
     const earlyAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
     const isAgent = agent ?? earlyAgent
     return (
-        <div className="flex flex-col w-full h-dvh overflow-hidden">
+        <div className="flex flex-col w-full h-[var(--ag-viewport-height,100dvh)] overflow-hidden">
             <div
                 className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >

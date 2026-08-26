@@ -21,13 +21,18 @@ WORKDIR /app
 # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
 # commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
 # so the symlink below is what makes the command agents actually type resolve.
+# libnss-unknown + the nsswitch edit: keep dev parity with Dockerfile.gh — the documented
+# subscription self-host scheme runs the container as the operator's uid, and fusermount aborts
+# ("could not determine username") for a uid with no passwd entry, killing every geesefs mount.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates git python3 python-is-python3 unzip zip fuse curl \
-        ripgrep fd-find jq procps file tree \
+        ripgrep fd-find jq procps file tree libnss-unknown \
     && ln -s "$(which fdfind)" /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/* \
-    && echo "user_allow_other" >> /etc/fuse.conf
+    && echo "user_allow_other" >> /etc/fuse.conf \
+    && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
+    && grep -E "^(passwd|group):.* unknown$" /etc/nsswitch.conf
 
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0

@@ -13,6 +13,7 @@ export interface SessionQueryRequest {
     turn_references?: AgentaApi.Reference[] | null;
     include_ended?: boolean;
     include_archived?: boolean;
+    archived_only?: boolean;
     include_total?: boolean;
     expand?: AgentaApi.SessionExpansion[];
     windowing?: AgentaApi.Windowing | null;

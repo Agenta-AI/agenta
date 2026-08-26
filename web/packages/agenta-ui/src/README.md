@@ -55,6 +55,7 @@ Reusable UI components organized by domain. See [components/README.md](./compone
 #### Selection Components (`components/selection/`)
 
 Building blocks for list selection UIs:
+
 - **SearchInput**: Search input with clear button
 - **ListItem**: Generic list item with click/navigate variants
 - **VirtualList**: Virtualized list using @tanstack/react-virtual
@@ -65,6 +66,7 @@ Building blocks for list selection UIs:
 #### Presentational Components (`components/presentational/`)
 
 Pure display components for entity information:
+
 - **VersionBadge**: Version number in "vX" format
 - **RevisionLabel**: Revision details (version, date, message, author)
 - **EntityPathLabel**: Hierarchical paths ("App / Variant / v1")
@@ -120,6 +122,7 @@ See [SelectLLMProvider/README.md](./SelectLLMProvider/README.md) for details.
 ### Utilities (`utils/`)
 
 Generic utilities:
+
 - **copyToClipboard**: Clipboard operations
 - **cn**: Class name concatenation utility
 - **sizeClasses, flexLayouts, textColors, bgColors**: Styling constants
@@ -132,65 +135,67 @@ See [utils/README.md](./utils/README.md) for details.
 ```typescript
 // Import from main entry
 import {
-  // Table
-  InfiniteVirtualTable,
-  useTableManager,
-  createPaginatedEntityStore,
+    // Table
+    InfiniteVirtualTable,
+    useTableManager,
+    createPaginatedEntityStore,
 
-  // Selection components
-  SearchInput,
-  ListItem,
-  VirtualList,
-  LoadMoreButton,
-  Breadcrumb,
+    // Selection components
+    SearchInput,
+    ListItem,
+    VirtualList,
+    LoadMoreButton,
+    Breadcrumb,
 
-  // Presentational components
-  VersionBadge,
-  RevisionLabel,
-  EntityPathLabel,
-  EntityNameWithVersion,
-  CopyButton,
-  SectionCard,
-  MetadataHeader,
-  EditableText,
-  ExecutionMetricsDisplay,
-  MappingStatusTag,
-  PathSelectorDropdown,
+    // Presentational components
+    VersionBadge,
+    RevisionLabel,
+    EntityPathLabel,
+    EntityNameWithVersion,
+    CopyButton,
+    SectionCard,
+    MetadataHeader,
+    EditableText,
+    ExecutionMetricsDisplay,
+    MappingStatusTag,
+    PathSelectorDropdown,
 
-  // Modal
-  EnhancedModal,
-  ModalContent,
-  ModalFooter,
+    // Modal
+    EnhancedModal,
+    ModalContent,
+    ModalFooter,
 
-  // Editor
-  Editor,
-  SharedEditor,
-  DiffView,
+    // Editor
+    Editor,
+    SharedEditor,
+    DiffView,
 
-  // Chat
-  ChatMessageEditor,
-  ChatMessageList,
+    // Chat
+    ChatMessageEditor,
+    ChatMessageList,
 
-  // LLM
-  LLMIconMap,
-  SelectLLMProviderBase,
+    // LLM
+    LLMIconMap,
+    SelectLLMProviderBase,
 
-  // Utilities
-  copyToClipboard,
-  cn,
-  sizeClasses,
-  flexLayouts,
-  textColors,
-  message,
-  modal,
-  notification,
-} from '@agenta/ui'
+    // Utilities
+    copyToClipboard,
+    cn,
+    sizeClasses,
+    flexLayouts,
+    textColors,
+    message,
+    modal,
+    notification,
+} from "@agenta/ui"
 ```
 
 ## Adding New Features
 
 ### Table-related features
+
 Add to `InfiniteVirtualTable/` in the appropriate subfolder:
+
 - New hooks → `hooks/`
 - New components → `components/`
 - New store factories → `helpers/` or `paginated/`
@@ -200,7 +205,9 @@ Add to `InfiniteVirtualTable/` in the appropriate subfolder:
 Add to `components/presentational/` with its own subfolder if needed.
 
 ### Generic utilities
+
 Add to `utils/` and export from `index.ts`.
 
 ### New major modules
+
 Create a new folder at the `src/` level with its own README and export from `index.ts`.

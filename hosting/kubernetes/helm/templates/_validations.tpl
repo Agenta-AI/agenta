@@ -96,11 +96,10 @@ absolute-URL builder in the app.
    Validate that the canonical app secrets are provided when the chart
    is creating the Secret itself (i.e. secrets.existingSecret is unset).
    Without this guard the chart renders, the pods start, and the app
-   crashes on first request because AGENTA_AUTH_KEY / AGENTA_CRYPT_KEY
-   are empty. Fail at install time instead.
+   crashes on first request because required credentials are empty.
 
    Also rejects the literal placeholder "replace-me" shipped in
-   values.yaml's defaults for authKey/cryptKey/runnerToken — otherwise
+   values.yaml's defaults for authKey/cryptKey/servicesInternalKey/runnerToken — otherwise
    a stock `helm install` with no overrides silently deploys with a
    publicly-known secret instead of failing.
 
@@ -124,6 +123,7 @@ absolute-URL builder in the app.
 {{- $missing := list -}}
 {{- if or (not $agenta.authKey) (eq $agenta.authKey $placeholder) -}}{{- $missing = append $missing "agenta.authKey" -}}{{- end -}}
 {{- if or (not $agenta.cryptKey) (eq $agenta.cryptKey $placeholder) -}}{{- $missing = append $missing "agenta.cryptKey" -}}{{- end -}}
+{{- if or (not $agenta.servicesInternalKey) (eq $agenta.servicesInternalKey $placeholder) -}}{{- $missing = append $missing "agenta.servicesInternalKey" -}}{{- end -}}
 {{- if not $runnerAuth.tokenSecretRef -}}
 {{- if or (not $agenta.runnerToken) (eq $agenta.runnerToken $placeholder) -}}{{- $missing = append $missing "agenta.runnerToken" -}}{{- end -}}
 {{- end -}}
@@ -151,6 +151,7 @@ Generate real values and set them in your values file:
   agenta:
     authKey:     "<32+ random bytes hex>"
     cryptKey:    "<32+ random bytes hex>"
+    servicesInternalKey: "<32+ random bytes hex>"
     runnerToken: "<32+ random bytes hex>"
   postgres:
     password: "<your-postgres-password>"
@@ -160,6 +161,7 @@ Or pass them on the command line:
   helm install agenta hosting/kubernetes/helm \
     --set agenta.authKey=$(openssl rand -hex 32) \
     --set agenta.cryptKey=$(openssl rand -hex 32) \
+    --set agenta.servicesInternalKey=$(openssl rand -hex 32) \
     --set agenta.runnerToken=$(openssl rand -hex 32) \
     --set postgres.password=<your-postgres-password>
 
@@ -168,7 +170,7 @@ Or provide a pre-created Kubernetes Secret and point the chart at it:
   secrets:
     existingSecret: my-agenta-secret
 
-The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, AGENTA_RUNNER_TOKEN, POSTGRES_PASSWORD.
+The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, AGENTA_SERVICES_INTERNAL_KEY, AGENTA_RUNNER_TOKEN, POSTGRES_PASSWORD.
 
 agenta.runnerToken alone can also be satisfied by pointing the runner at your own Secret:
 

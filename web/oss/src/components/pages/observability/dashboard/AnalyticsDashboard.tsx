@@ -1,11 +1,16 @@
 import {useMemo, type ComponentProps} from "react"
 
-import {formatCompactNumber, formatCurrency, formatNumber} from "@agenta/shared/utils"
+import {RangePicker} from "@agenta/observability-ui"
+import {
+    formatCompactNumber,
+    formatCurrency,
+    formatNumber,
+    formatPercent,
+} from "@agenta/shared/utils"
 import {ChartLineIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
 
-import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -72,11 +77,12 @@ const AnalyticsDashboard = ({
         <div>
             {showTimeRangeSelector ? (
                 <div className="flex justify-end mb-4">
-                    <Sort
+                    <RangePicker
                         type="text"
                         disabled={loading || isFetching}
-                        onSortApply={setTimeRange}
-                        defaultSortValue={timeRange.label || "1 month"}
+                        value={timeRange}
+                        onChange={setTimeRange}
+                        fallbackLabel="1 month"
                         exclude={["all time"]}
                         ariaLabel="Usage date range"
                     />
@@ -99,8 +105,10 @@ const AnalyticsDashboard = ({
                                 <div className={`${statTextClass} danger`}>
                                     <span className="label">Failed:</span>
                                     <span className="value">
+                                        {/* `failure_rate` is a 0-1 fraction, not a percentage —
+                                            `formatPercent` does the scaling and the suffix. */}
                                         {data?.failure_rate
-                                            ? `${formatNumber(data?.failure_rate)}%`
+                                            ? formatPercent(data.failure_rate)
                                             : "-"}
                                     </span>
                                 </div>

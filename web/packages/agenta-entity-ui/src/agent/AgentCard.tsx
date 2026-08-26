@@ -31,8 +31,9 @@ const AVATAR_COLORS = [
  * avatar exists to solve. */
 export const agentAvatar = (name: string, id: string) => {
     const words = name.trim().split(/\s+/).filter(Boolean)
+    // From the SPLIT words, never the raw name: " solo" would otherwise initial as " s".
     const initials =
-        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "").slice(0, 2)) || "?"
+        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2)) || "?"
     let hash = 0
     for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
     return {initials: initials.toUpperCase(), color: AVATAR_COLORS[hash % AVATAR_COLORS.length]}
@@ -58,9 +59,11 @@ export interface AgentCardProps {
     activity?: ReactNode
     owner?: ReactNode
     onOpenOverview: () => void
-    onOpenPlayground: () => void
-    onRename: () => void
-    onArchive: () => void
+    /** Omit any of these and its menu entry disappears — a surface that cannot do it must not
+     * offer it. With none of them the card opens the overview and carries no menu at all. */
+    onOpenPlayground?: () => void
+    onRename?: () => void
+    onArchive?: () => void
 }
 
 /**
@@ -131,6 +134,10 @@ export const AgentCard = ({
         </span>
     ) : null
 
+    // The card's default open affordance is the playground where there is one; otherwise the
+    // overview is the only thing this surface can open.
+    const hasMenu = Boolean(onOpenPlayground || onRename || onArchive)
+
     const menu = (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -149,19 +156,27 @@ export const AgentCard = ({
                     <Note size={16} />
                     Open overview
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onOpenPlayground}>
-                    <Rocket size={16} />
-                    Open in playground
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onRename}>
-                    <PencilSimple size={16} />
-                    Rename
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                    <Trash size={16} />
-                    Archive
-                </DropdownMenuItem>
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        Open in playground
+                    </DropdownMenuItem>
+                ) : null}
+                {onRename ? (
+                    <DropdownMenuItem onSelect={onRename}>
+                        <PencilSimple size={16} />
+                        Rename
+                    </DropdownMenuItem>
+                ) : null}
+                {onArchive ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                            <Trash size={16} />
+                            Archive
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )
@@ -178,7 +193,7 @@ export const AgentCard = ({
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
                     if (isGrid) onOpenOverview()
-                    else onOpenPlayground()
+                    else onOpenPlayground?.()
                 }
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
@@ -197,7 +212,7 @@ export const AgentCard = ({
                 <>
                     <div className="flex items-start justify-between gap-2">
                         {title}
-                        {menu}
+                        {hasMenu ? menu : null}
                     </div>
                     {description}
                     {/* Footer: who made it and when it last ran. The design's integration badges
@@ -222,7 +237,7 @@ export const AgentCard = ({
                         {title}
                         {description}
                     </div>
-                    {menu}
+                    {hasMenu ? menu : null}
                 </div>
             )}
         </div>

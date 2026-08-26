@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.112.1"
+version = "0.114.1"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -72,7 +72,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.112.1"
+version = "0.114.1"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -86,7 +86,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8,<9" }]
+dev = [{ name = "pytest", specifier = ">=9.0.3,<10" }]
 
 [[package]]
 name = "aiofile"
@@ -276,7 +276,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.112.1"
+version = "0.114.1"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },

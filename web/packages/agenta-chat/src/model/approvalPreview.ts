@@ -1,0 +1,117 @@
+/**
+ * What an approval gate SAYS, in plain language.
+ *
+ * The card shows one sentence and a short list of readable rows — never the payload, a diff, or a
+ * digest — and it shows the same thing to everyone, in every mode. That is only possible if the
+ * per-tool knowledge is DATA rather than a React body, so this module resolves a gate to an
+ * {@link ApprovalPreview}: registered describer first, generic fallback second.
+ *
+ * The generic fallback is not a placeholder. Most gates are ordinary tool calls, and
+ * `resolveToolDisplay` already turns a raw tool name and its arguments into a sentence the
+ * transcript rows use; reusing it here keeps the card and the row saying the same thing.
+ */
+import {
+    canonicalToolName,
+    inSentence,
+    resolveApprovalDescriber,
+    resolveToolDisplay,
+} from "../skin/registry"
+import type {ApprovalPreview, ApprovalPreviewItem} from "../skin/types"
+
+import {BUILTIN_APPROVAL_DESCRIBERS} from "./approvalDescribers"
+import {asSentence, oneLine} from "./approvalDescribers/approvalText"
+import {summarizeApprovalInput} from "./approvalInputSummary"
+import type {PendingApproval} from "./approvals"
+
+export type {ApprovalPreview, ApprovalPreviewItem}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value && typeof value === "object" && !Array.isArray(value))
+
+/** `file_path` → `File path`. Field names are the only labels an unregistered tool gives us. */
+const fieldLabel = (field: string): string => {
+    const words = field
+        .replace(/[_-]+/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .trim()
+    return words ? `${words[0].toUpperCase()}${words.slice(1).toLowerCase()}` : field
+}
+
+/** A scalar rendered for a human: strings as-is, arrays joined, everything else skipped. */
+const readableValue = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value.trim() || undefined
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    if (Array.isArray(value)) {
+        const parts = value.filter((item) => typeof item === "string" || typeof item === "number")
+        return parts.length === value.length && parts.length ? parts.join(", ") : undefined
+    }
+    return undefined
+}
+
+/**
+ * Rows for a tool with no describer: one per readable top-level argument, labelled by its field
+ * name. Nested objects are skipped rather than stringified — a row of JSON is exactly what this
+ * card exists to remove, and no row at all is more honest than one saying `{…}`.
+ */
+const genericItems = (input: unknown): ApprovalPreviewItem[] => {
+    if (typeof input === "string" && input.trim()) return [{title: "Input", detail: oneLine(input)}]
+    if (!isRecord(input)) return []
+    const items: ApprovalPreviewItem[] = []
+    for (const [field, value] of Object.entries(input)) {
+        const readable = readableValue(value)
+        if (readable) items.push({title: fieldLabel(field), detail: oneLine(readable)})
+    }
+    if (items.length) return items
+    // Nothing structured was readable — fall back to the payload's single primary field, if it
+    // has one (a bash gate is its command, not a bag of arguments).
+    const summary = summarizeApprovalInput(input)
+    return summary.text && summary.label !== "Input"
+        ? [{title: fieldLabel(summary.label), detail: oneLine(summary.text)}]
+        : []
+}
+
+/**
+ * The preview for any tool without a describer: the humanized activity as the sentence, and the
+ * payload's readable arguments as rows.
+ */
+const genericPreview = (approval: PendingApproval): ApprovalPreview => {
+    const display = resolveToolDisplay(approval.toolName, approval.input)
+    const source = display.source ? ` from ${display.source}` : ""
+    return {
+        sentence: asSentence(
+            `The agent wants your approval before ${inSentence(display.activity.running)}${source}`,
+        ),
+        items: genericItems(approval.input),
+    }
+}
+
+/** The plain-English copy for one gate. Never throws: a describer that fails falls back. */
+export const describeApproval = (approval: PendingApproval): ApprovalPreview => {
+    // Canonical for the lookup: the same platform tool must resolve under every harness, so a
+    // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.
+    const name = canonicalToolName(approval.toolName)
+    const describer = resolveApprovalDescriber(name) ?? BUILTIN_APPROVAL_DESCRIBERS[name]
+    if (describer) {
+        try {
+            const preview = describer(approval.input, approval.manifest)
+            if (preview) return preview
+        } catch {
+            // A describer that cannot read its own payload must not take the card down with it.
+        }
+    }
+    return genericPreview(approval)
+}
+
+/**
+ * One row per pending gate, for a turn that parked several at once. This is what makes
+ * "Approve all" an informed click now that the batch peek is gone: the same toggle that shows a
+ * single gate's changes shows the whole batch's actions.
+ */
+export const describeBatchItems = (approvals: PendingApproval[]): ApprovalPreviewItem[] =>
+    approvals.map((approval) => {
+        const display = resolveToolDisplay(approval.toolName, approval.input)
+        return {
+            title: display.activity.running || display.label,
+            detail: describeApproval(approval).items[0]?.detail,
+        }
+    })

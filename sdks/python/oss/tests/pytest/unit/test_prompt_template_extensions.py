@@ -325,6 +325,141 @@ async def test_prompt_runner_moves_to_fallback_after_candidate_failure(monkeypat
     assert calls == ["primary", "fallback"]
 
 
+@pytest.mark.parametrize(
+    ("standard_data", "custom_data"),
+    [
+        pytest.param(
+            {},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-missing",
+        ),
+        pytest.param(
+            {"models": None},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-null",
+        ),
+        pytest.param(
+            {"models": []},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-empty",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-populated",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]}, {}, id="custom-model-keys-missing"
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": None},
+            id="custom-model-keys-null",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": []},
+            id="custom-model-keys-empty",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="custom-model-keys-unrelated",
+        ),
+    ],
+)
+@pytest.mark.parametrize("handler_name", ["completion", "chat"])
+@pytest.mark.asyncio
+async def test_prompt_handlers_accept_provider_model_list_wire_shapes(
+    monkeypatch, standard_data, custom_data, handler_name
+):
+    from types import SimpleNamespace
+
+    from agenta.sdk.engines.running import handlers as running_handlers
+
+    secrets = [
+        {
+            "kind": "provider_key",
+            "slug": "openai",
+            "data": {
+                "kind": "openai",
+                "provider": {"key": "sk-openai"},
+                **standard_data,
+            },
+        },
+        {
+            "kind": "custom_provider",
+            "slug": "legacy-gateway",
+            "data": {
+                "kind": "custom",
+                "provider_slug": "legacy-gateway",
+                "provider": {"extras": {"api_key": "sk-gateway"}},
+                **custom_data,
+            },
+        },
+    ]
+    monkeypatch.setattr(
+        "agenta.sdk.managers.secrets.RunningContext",
+        SimpleNamespace(
+            get=lambda: SimpleNamespace(
+                secrets=secrets, vault_secrets=secrets, local_secrets=[]
+            )
+        ),
+    )
+
+    async def ensure_secrets(*args, **kwargs):
+        del args, kwargs
+
+    calls = []
+
+    async def acompletion(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="Paris",
+                        model_dump=lambda exclude_none=True: {
+                            "role": "assistant",
+                            "content": "Paris",
+                        },
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        running_handlers.SecretsManager,
+        "ensure_secrets_in_workflow",
+        ensure_secrets,
+    )
+    monkeypatch.setattr(running_handlers.mockllm, "acompletion", acompletion)
+    monkeypatch.setattr(
+        running_handlers.mockllm,
+        "user_aws_credentials_from",
+        lambda _settings: nullcontext(),
+    )
+
+    parameters = {
+        "prompt": {
+            "messages": [{"role": "user", "content": "Name Paris."}],
+            "llm_config": {"model": "gpt-4o-mini"},
+        }
+    }
+    if handler_name == "completion":
+        result = await running_handlers.completion_v0.__wrapped__(
+            parameters=parameters, inputs={}
+        )
+        assert result == "Paris"
+    else:
+        result = await running_handlers.chat_v0.__wrapped__(
+            parameters=parameters, inputs={}, messages=[]
+        )
+        assert result == {"role": "assistant", "content": "Paris"}
+    assert calls[0]["model"] == "gpt-4o-mini"
+    assert calls[0]["api_key"] == "sk-openai"
+
+
 @pytest.mark.asyncio
 async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypatch):
     calls = []

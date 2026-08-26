@@ -1,8 +1,8 @@
 import {testset} from "../../../../../oss/src/lib/Types"
 
-type APP_TYPE = "completion" | "chat" | "custom"
+export type APP_TYPE = "completion" | "chat" | "custom"
 
-interface ListAppsItem {
+export interface ListAppsItem {
     id: string
     name: string
     app_type: APP_TYPE
@@ -11,6 +11,7 @@ interface ListAppsItem {
         is_custom?: boolean
         is_application?: boolean
         is_evaluator?: boolean
+        is_agent?: boolean
     } | null
     created_at: string | null
     [key: string]: any
@@ -55,6 +56,7 @@ export interface ApiHelpers {
     waitForApiResponse: <T>(options: ApiHandlerOptions<T>) => Promise<T>
     createApp: (type?: APP_TYPE) => Promise<ListAppsItem>
     getApp: (type?: APP_TYPE) => Promise<ListAppsItem>
+    archiveApp: (appId: string) => Promise<void>
     getAppById: (appId: string) => Promise<ListAppsItem>
     getTestsets: () => Promise<testset[]>
     createTestset: (input: CreateTestsetInput) => Promise<CreatedTestset>

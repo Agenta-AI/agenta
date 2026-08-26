@@ -1,4 +1,25 @@
 export type {
+    AgentConnectionMode,
+    AgentModelCandidate,
+    AgentModelSelection,
+    BuildAgentModelCandidatesArgs,
+} from "./agentModelCandidates"
+export {
+    agentFamilyFromModelId,
+    agentModelSelectionIsRunnable,
+    agentModelSelectionMode,
+    agentVaultProviderFamily,
+    buildAgentModelCandidates,
+    connectionModelIds,
+    effectiveHarnesses,
+    firstAgentModelForConnection,
+    isAgentDeploymentProviderKind,
+    resolveAgentModelSelection,
+    selectableAgentHarnesses,
+    soleAgentHarnessProviderFamily,
+} from "./agentModelCandidates"
+
+export type {
     CreateSecretDto,
     CustomModelSettingsDto,
     CustomProviderDto,
@@ -24,11 +45,13 @@ export {
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
     SecretKind,
+    SecretManagementPolicy,
     StandardProviderKind,
     VAULT_PERSIST_REDACTED,
 } from "./types"
 
 export {
+    hasStoredKey,
     transformSecret,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
@@ -83,6 +106,9 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    probeFailureMessage,
+    probeRequestFor,
+    storedCredentialFields,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,

@@ -1,6 +1,6 @@
 [project]
 name = "agenta-client"
-version = "0.112.1"
+version = "0.114.1"
 description = "Fern-generated Python client for the Agenta API."
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8,<9"]
+dev = ["pytest>=9.0.3,<10"]
 
 [tool.uv.build-backend]
 module-name = "agenta_client"

@@ -13,41 +13,30 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {
-    providerConnectionsAtom,
-    subscriptionPairModelsAtom,
-    subscriptionPairsFrom,
-    vaultSecretsQueryAtom,
-} from "@agenta/entities/secret"
-import {
-    SUBSCRIPTION_STATUS_QUERY_HARNESS,
-    subscriptionStatusQueryAtomFamily,
-} from "@agenta/entities/workflow"
+import {subscriptionPairModelsAtom} from "@agenta/entities/secret"
+import {agentModelCandidatesAtomFamily, loadAgentModelCandidates} from "@agenta/entities/workflow"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {
     HarnessTooltip,
     ManageProvidersRow,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
-import {atom, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
 import {
     buildConnectionPickerRows,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
     pickerSelectionFrom,
     selectedModelRowKey,
     type PickerSelection,
 } from "../connectionPicker"
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
-
-/** Narrowed to the refetch handle — the raw query atom churns identity on every fetch-state flip. */
-const vaultRefetchAtom = atom((get) => get(vaultSecretsQueryAtom).refetch)
-
-/** Only claim "nothing connected" once the vault has answered; before that it is just unknown. */
-const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 export interface ModelPickerControlProps {
     capabilities: HarnessCapabilitiesMap | null | undefined
@@ -56,10 +45,13 @@ export interface ModelPickerControlProps {
     /** The stored harness, so the row the config points at is the one marked. */
     harness: string | null
     modelId: string | null
+    provider: string | null
     /** The stored connection mode, so a subscription-only project still gets a menu. */
     mode: ConnectionMode
     /** The stored connection slug, so the right connection's row shows as selected. */
     slug: string | null
+    /** Only an uncommitted local agent may replace its automatic template placeholder. */
+    replaceable: boolean
     disabled?: boolean
     /**
      * Whether subscription rows belong here — false on cloud, where no provider login can be
@@ -77,47 +69,37 @@ const ModelPickerControl = ({
     harnessIds,
     harness,
     modelId,
+    provider,
     mode,
     slug,
+    replaceable,
     disabled,
     showSubscriptions = true,
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const connections = useAtomValue(providerConnectionsAtom)
-    const vaultLoaded = useAtomValue(vaultLoadedAtom)
-    const refetchVault = useAtomValue(vaultRefetchAtom)
-    const [drawerOpen, setDrawerOpen] = useState(false)
-
-    // The runner's live answer, filed under the shared key so the drawer and both pickers ride ONE
-    // query rather than polling the deployment once per surface.
-    const subscriptionStatus = useAtomValue(
-        subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS),
-    )
+    const candidateAtom = agentModelCandidatesAtomFamily(showSubscriptions)
+    const candidateState = useAtomValue(candidateAtom)
+    const connections = candidateState.connections
+    const projectId = useAtomValue(projectIdAtom)
+    const userId = useAtomValue(userAtom)?.id
     const pairModelSelection = useAtomValue(subscriptionPairModelsAtom)
-    const subscriptionPairs = useMemo(
-        () => subscriptionPairsFrom(subscriptionStatus.data?.harnesses),
-        [subscriptionStatus.data?.harnesses],
+    const [drawerOpen, setDrawerOpen] = useState(false)
+    const drawerConnectionKeysRef = useRef<string[]>([])
+    const candidates = useMemo(
+        () =>
+            candidateState.candidates.filter((candidate) => harnessIds.includes(candidate.harness)),
+        [candidateState.candidates, harnessIds],
     )
 
     const rows = useMemo(
         () =>
             buildConnectionPickerRows({
+                candidates,
                 connections,
                 capabilities,
-                harnessIds,
-                showSubscriptions,
-                subscriptionPairs,
-                pairModelSelection,
             }),
-        [
-            connections,
-            capabilities,
-            harnessIds,
-            showSubscriptions,
-            subscriptionPairs,
-            pairModelSelection,
-        ],
+        [candidates, connections, capabilities],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
@@ -127,6 +109,59 @@ const ModelPickerControl = ({
         [rows, modelId, slug, mode, harness],
     )
     const groups = useMemo(() => buildPickerGroupsWithSections(rows), [rows])
+    const allSourcesResolved = candidateState.status === "ready"
+
+    const currentSelection = useMemo<PickerSelection | null>(
+        () => (modelId && harness ? {modelId, provider, mode, slug, harness} : null),
+        [modelId, provider, mode, slug, harness],
+    )
+    const openProviderDrawer = useCallback(() => {
+        drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+        setDrawerOpen(true)
+    }, [connections])
+    const providerSaved = useCallback(
+        async (savedConnectionId?: string) => {
+            const previousConnectionKeys = drawerConnectionKeysRef.current
+            const currentWasRunnable = pickerSelectionIsRunnable(rows, currentSelection)
+            if (!projectId || !userId) return
+
+            const fresh = await loadAgentModelCandidates({
+                projectId,
+                userId,
+                pairModelSelection,
+                showSubscriptions,
+                refreshVault: true,
+            })
+            if (!replaceable || fresh.status !== "ready") return
+            const freshRows = buildConnectionPickerRows({
+                candidates: fresh.candidates.filter((candidate) =>
+                    harnessIds.includes(candidate.harness),
+                ),
+                connections: fresh.connections,
+                capabilities: fresh.capabilities,
+            })
+            const selection = pickerSelectionAfterProviderSave({
+                rows: freshRows,
+                replaceable,
+                savedConnectionId: savedConnectionId ?? null,
+                previousConnectionKeys,
+                current: currentSelection,
+                currentWasRunnable,
+            })
+            if (selection) onSelect(selection)
+        },
+        [
+            currentSelection,
+            harnessIds,
+            onSelect,
+            pairModelSelection,
+            projectId,
+            replaceable,
+            rows,
+            showSubscriptions,
+            userId,
+        ],
+    )
 
     const drawer = (
         <ProviderDrawer
@@ -135,19 +170,27 @@ const ModelPickerControl = ({
             context="playground"
             connections={connections}
             showSubscriptions={showSubscriptions}
-            onSaved={() => refetchVault()}
+            onSaved={providerSaved}
         />
     )
 
+    if (!allSourcesResolved) {
+        return (
+            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
+                Loading models…
+            </div>
+        )
+    }
+
     // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
     // already running on a subscription keeps its menu — it has models without a stored key.
-    if (vaultLoaded && !connections.length && mode !== "self_managed") {
+    if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
         return (
             <>
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => setDrawerOpen(true)}
+                    onClick={openProviderDrawer}
                     className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
@@ -164,9 +207,11 @@ const ModelPickerControl = ({
         <>
             <SelectLLMProviderBase
                 showGroup
-                // The one model-picker geometry, shared with the completion playground.
-                providerDropdownWidth={560}
-                connectionColumnWidth={290}
+                // Spans the trigger (minus PopoverContent's own `p-1`), with a floor: the two
+                // columns need 460px, and the config pane is often narrower than that.
+                providerDropdownWidth="max(calc(var(--radix-popover-trigger-width) - 0.5rem), 460px)"
+                // Provider names are short; the saved width goes to the model column.
+                connectionColumnWidth={200}
                 searchPlaceholder="Search models"
                 sectionTooltip={<HarnessTooltip />}
                 options={groups}
@@ -181,7 +226,7 @@ const ModelPickerControl = ({
                 disabled={disabled}
                 placeholder="Select a model…"
                 className="w-full"
-                footerContent={<ManageProvidersRow onClick={() => setDrawerOpen(true)} />}
+                footerContent={<ManageProvidersRow onClick={openProviderDrawer} />}
             />
             {drawer}
         </>

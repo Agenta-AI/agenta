@@ -8,9 +8,8 @@
  * demo orgs, which orgsAtom already hides).
  */
 
+import type {ProjectsResponse} from "@agenta/entities/project"
 import {describe, expect, it} from "vitest"
-
-import type {ProjectsResponse} from "@/oss/services/project/types"
 
 import {filterOutDemoProjects} from "./project"
 

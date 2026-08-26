@@ -1,6 +1,5 @@
+import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {atomWithStorage} from "jotai/utils"
-
-import {SIDEBAR_DEFAULT_WIDTH} from "@/oss/lib/atoms/sidebar"
 
 /**
  * Dock geometry for the chat's right split (RightPanelSplit) — now hosting the Inspector. The

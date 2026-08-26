@@ -29,6 +29,8 @@ SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
+# Optional: the mobile app is opt-in (see bootstrap.sh AGENTA_RAILWAY_WITH_MOBILE).
+AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
 
@@ -208,6 +210,19 @@ CMD ["sh", "-lc", "/app/entrypoint.sh node /app/oss/server.js"]
 EOF
 }
 
+render_web_mobile_wrapper() {
+    local dir="$TMP_DIR/web-mobile"
+    mkdir -p "$dir"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${AGENTA_WEB_MOBILE_IMAGE}
+
+ENV HOSTNAME=0.0.0.0
+ENV AGENTA_LICENSE=oss
+
+CMD ["sh", "-lc", "/app/entrypoint.sh node /app/mobile/server.js"]
+EOF
+}
+
 render_alembic_wrapper() {
     local dir="$TMP_DIR/alembic"
     mkdir -p "$dir"
@@ -259,6 +274,9 @@ render_api_wrapper
 render_services_wrapper
 render_runner_wrapper
 render_web_wrapper
+if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ]; then
+    render_web_mobile_wrapper
+fi
 render_alembic_wrapper
 render_redis_wrapper
 render_seaweedfs_wrapper
@@ -299,6 +317,10 @@ railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway_call up "$TMP_DIR/web" --path-as-root --service web --detach
+# Deploy the mobile app only when both the image and the service are present.
+if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ] && railway_call service web-mobile >/dev/null 2>&1; then
+    railway_call up "$TMP_DIR/web-mobile" --path-as-root --service web-mobile --detach
+fi
 
 sleep "$APP_SETTLE_SECONDS"
 "$ROOT_DIR/hosting/railway/oss/scripts/deploy-gateway.sh"
