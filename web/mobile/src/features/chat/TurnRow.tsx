@@ -2,10 +2,10 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {CollapsibleMessageBody, StartupActivity, TurnFooter} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
-import {useStartupPhase} from "@agenta/chat/state"
+import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
@@ -300,6 +300,15 @@ export const TurnRow = ({
         </div>
     )
 
+    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    const content = turn.isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
+            {body}
+        </CollapsibleMessageBody>
+    ) : (
+        body
+    )
+
     return (
         <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
@@ -317,7 +326,7 @@ export const TurnRow = ({
                     content: "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                content={content}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same
                 lane the desktop transcript reserves, so a settled turn reads quietly until you
