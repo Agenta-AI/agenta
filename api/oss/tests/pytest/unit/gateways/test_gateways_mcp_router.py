@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.models import MCPAgentaCredentialRequest
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
@@ -37,6 +38,7 @@ FIXED_SCOPE = AuthScope(
 )
 
 EXPECTED_ROUTES = {
+    ("/credentials/agenta", "POST"): "issue_agenta_mcp_credential",
     ("/endpoints/", "POST"): "create_mcp_endpoint",
     ("/endpoints/", "GET"): "list_mcp_endpoints",
     ("/endpoints/query", "POST"): "query_mcp_endpoints",
@@ -208,6 +210,38 @@ def test_route_table_matches_the_design_exactly(router):
             actual[(route.path, method)] = route.operation_id
 
     assert actual == EXPECTED_ROUTES
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_requires_an_invocation_nonce(router, monkeypatch):
+    request = type("Request", (), {"state": type("State", (), {})()})()
+    with pytest.raises(Exception, match="invocation credential"):
+        await router.issue_agenta_credential(
+            request=request,
+            body=MCPAgentaCredentialRequest(tools=[]),
+        )
+
+    request.state.gateway_run_id = "run-1"
+    signed = AsyncMock(return_value="signed")
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.sign_secret_token", signed
+    )
+    response = await router.issue_agenta_credential(
+        request=request,
+        body=MCPAgentaCredentialRequest(
+            tools=[
+                {
+                    "name": "rename_session",
+                    "call_ref": "agenta.rename_session",
+                    "input_schema": {"type": "object"},
+                }
+            ]
+        ),
+    )
+
+    assert response.credentials == "Secret signed"
+    assert signed.await_args.kwargs["gateway_run_id"] == "run-1"
+    assert signed.await_args.kwargs["gateway_tools"][0]["name"] == "rename_session"
 
 
 # ---------------------------------------------------------------------------
