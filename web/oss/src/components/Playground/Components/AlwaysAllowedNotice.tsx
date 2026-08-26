@@ -51,10 +51,10 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                         </span>
                         <div className="flex min-w-0 flex-col gap-0.5">
                             <span className="truncate text-xs font-medium leading-5 text-colorText">
-                                Always allowing <span className="font-semibold">{label}</span>
+                                Auto-approving <span className="font-semibold">{label}</span>
                             </span>
                             <span className="text-xs leading-4 text-colorTextSecondary">
-                                Saved to this draft — this tool won&apos;t ask again.
+                                Saved to this draft — it runs without asking from now on.
                             </span>
                         </div>
                     </div>

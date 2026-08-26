@@ -1,5 +1,5 @@
 /**
- * The card's "don't ask again" row, which exists only when the grant would actually do something.
+ * The card's auto-approve row, which exists only when the grant would actually do something.
  *
  * Worth its own test because the rule is invisible from the outside: a `commit_revision` gate never
  * shows the row (platform ops are never grantable), so a card missing it looks like a bug until you
@@ -34,20 +34,60 @@ const render = () =>
         />,
     )
 
-describe("the don't-ask-again row", () => {
+describe("the auto-approve row", () => {
     it("appears for a tool whose permission can actually be granted", () => {
         grantState.eligible = true
-        expect(render()).toContain("ask again")
+        expect(render()).toContain("Auto-approve this tool")
     })
 
     it("stays hidden for an ineligible gate (platform ops like commit_revision)", () => {
-        expect(render()).not.toContain("ask again")
+        expect(render()).not.toContain("Auto-approve this tool")
     })
 
     it("stays hidden once the tool is already allowed — the row would be a no-op", () => {
         grantState.eligible = true
         grantState.alreadyAllowed = true
-        expect(render()).not.toContain("ask again")
+        expect(render()).not.toContain("Auto-approve this tool")
+    })
+
+    // The label forwards a click on the wording to the nested Radix <button>. Pinned because a
+    // hand-rolled onClick here reads like the missing piece and silently double-toggles.
+    it("toggles once when the wording next to the box is clicked", () => {
+        grantState.eligible = true
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        act(() => {
+            root.render(
+                <ApprovalCard
+                    approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                    entityId="rev-1"
+                    onRespond={() => undefined}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        })
+
+        const box = host.querySelector('[role="checkbox"]')!
+        const wording = [...host.querySelectorAll("span")].find(
+            (node) => node.textContent === "Auto-approve this tool from now on",
+        )!
+        expect(box.getAttribute("data-state")).toBe("unchecked")
+
+        act(() => {
+            wording.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(box.getAttribute("data-state")).toBe("checked")
+
+        act(() => {
+            wording.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(box.getAttribute("data-state")).toBe("unchecked")
+
+        act(() => {
+            root.unmount()
+            host.remove()
+        })
     })
 })
 

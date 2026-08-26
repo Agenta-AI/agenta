@@ -8,7 +8,7 @@
  * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
  * card exists to remove.
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
@@ -67,8 +67,11 @@ export const ApprovalCard = ({
             else next.add(index)
             return next
         })
-    // Armed "don't ask again" intent — applied only when the user approves, never on its own.
+    // Armed auto-approve intent — applied only when the user approves, never on its own.
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
+    const alwaysAllowId = useId()
+    const alwaysAllowLabelId = `${alwaysAllowId}-label`
+    const alwaysAllowHintId = `${alwaysAllowId}-hint`
     // Which button fired, so the spinner lands on it (the hosts only report "busy").
     const [firedAction, setFiredAction] = useState<"approve" | "deny" | null>(null)
     const [steerOpen, setSteerOpen] = useState(false)
@@ -246,18 +249,37 @@ export const ApprovalCard = ({
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
             <HeightCollapse className="-mt-1" open={!steerOpen} fade inert>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2">
+                    {/* Own row, not inline with the buttons: the grant needs two lines to say
+                        both halves — it approves automatically AND stops asking. */}
                     {canAlwaysAllow ? (
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-colorTextSecondary">
+                        <label className="flex cursor-pointer items-start gap-2 self-start">
                             <Checkbox
                                 checked={alwaysAllowArmed}
                                 disabled={responding}
                                 onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
+                                aria-labelledby={alwaysAllowLabelId}
+                                aria-describedby={alwaysAllowHintId}
+                                className="mt-px shrink-0"
                             />
-                            Don&apos;t ask again for this
+                            <span className="flex flex-col gap-0.5">
+                                <span
+                                    id={alwaysAllowLabelId}
+                                    className="text-xs leading-snug text-colorText"
+                                >
+                                    Auto-approve this tool from now on
+                                </span>
+                                <span
+                                    id={alwaysAllowHintId}
+                                    className="text-[11px] leading-snug text-colorTextSecondary"
+                                >
+                                    This agent runs it without asking, on this run and every future
+                                    one.
+                                </span>
+                            </span>
                         </label>
                     ) : null}
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 self-end">
                         {steerEnabled ? (
                             <Button
                                 variant="ghost"
