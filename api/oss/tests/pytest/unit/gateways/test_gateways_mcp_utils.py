@@ -1,51 +1,67 @@
-"""Unit tests for parse_mcp_call_context (entities.md §9, workstreams/specs-wp8.md).
+"""Unit tests for MCP JSON-RPC policy context extraction."""
 
-Pure function: header dicts in, MCPCallContext out. Header names pinned against the
-2026-07-28 MCP revision: `MCP-Method` (required), `MCP-Name` (target, absent for
-target-less methods).
-"""
-
+import json
 import pytest
 
 from oss.src.apis.fastapi.gateways.mcps.utils import parse_mcp_call_context
 from oss.src.core.gateways.mcps.dtos import MCPCallContext
 
 
-def test_both_headers_present():
-    context = parse_mcp_call_context(
-        headers={"MCP-Method": "tools/call", "MCP-Name": "echo"}
-    )
+def _request(*, method="tools/list", params=None):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
+    if params is not None:
+        payload["params"] = params
+    return json.dumps(payload).encode()
 
-    assert context == MCPCallContext(method="tools/call", target="echo")
 
-
-def test_target_absent_for_a_target_less_method():
-    context = parse_mcp_call_context(headers={"MCP-Method": "tools/list"})
+def test_json_rpc_body_is_sufficient_without_private_headers():
+    context = parse_mcp_call_context(headers={}, body=_request())
 
     assert context == MCPCallContext(method="tools/list", target=None)
 
 
-def test_header_names_are_case_insensitive():
+def test_tool_name_comes_from_tools_call_params():
     context = parse_mcp_call_context(
-        headers={"mcp-method": "tools/call", "MCP-NAME": "echo"}
+        headers={}, body=_request(method="tools/call", params={"name": "echo"})
     )
 
     assert context == MCPCallContext(method="tools/call", target="echo")
 
 
-def test_missing_method_header_raises_value_error():
-    with pytest.raises(ValueError):
-        parse_mcp_call_context(headers={"MCP-Name": "echo"})
-
-
-def test_blank_method_header_raises_value_error():
-    with pytest.raises(ValueError):
-        parse_mcp_call_context(headers={"MCP-Method": "   "})
-
-
-def test_blank_target_header_is_treated_as_absent():
+def test_matching_legacy_headers_are_accepted():
     context = parse_mcp_call_context(
-        headers={"MCP-Method": "tools/list", "MCP-Name": "  "}
+        headers={"mcp-method": "tools/call", "MCP-NAME": "echo"},
+        body=_request(method="tools/call", params={"name": "echo"}),
     )
 
-    assert context.target is None
+    assert context == MCPCallContext(method="tools/call", target="echo")
+
+
+@pytest.mark.parametrize(
+    ("headers", "message"),
+    [
+        ({"MCP-Method": "tools/list"}, "MCP-Method does not match"),
+        ({"MCP-Name": "other"}, "MCP-Name does not match"),
+    ],
+)
+def test_conflicting_legacy_headers_are_rejected(headers, message):
+    with pytest.raises(ValueError, match=message):
+        parse_mcp_call_context(
+            headers=headers,
+            body=_request(method="tools/call", params={"name": "echo"}),
+        )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"not-json",
+        b"[]",
+        b"{}",
+        b'{"method": ""}',
+        b'{"method": "tools/call", "params": {"name": 3}}',
+    ],
+)
+def test_invalid_json_rpc_context_is_rejected(body):
+    with pytest.raises(ValueError):
+        parse_mcp_call_context(headers={}, body=body)

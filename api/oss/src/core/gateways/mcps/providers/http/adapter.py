@@ -87,7 +87,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
         route: MCPResolvedRoute,
         auth: MCPRelayAuth,
         #
-        context: MCPCallContext,  # unused: no JSON-RPC parsing here (§7.1)
+        context: MCPCallContext,  # parsed by the gateway for policy; body stays raw
         body: bytes,
         headers: Dict[str, str],
     ) -> MCPRelayResult:

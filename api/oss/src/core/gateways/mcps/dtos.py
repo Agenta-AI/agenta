@@ -100,7 +100,7 @@ class MCPEndpointQuery(BaseModel):
 
 
 class MCPCallContext(BaseModel):
-    """MCP method and target extracted from request headers."""
+    """MCP method and target extracted from the JSON-RPC request."""
 
     method: str
     target: Optional[str] = None

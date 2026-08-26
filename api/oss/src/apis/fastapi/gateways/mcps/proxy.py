@@ -80,10 +80,8 @@ def _protocol_error(
     data: Optional[Dict[str, Any]] = None,
     marked: bool = True,
 ) -> Response:
-    """A JSON-RPC error result. `id` is always `null`: this proxy never parses the
-    caller's body, only its headers (§9), so the request id a spec-faithful echo would
-    need is simply unavailable — the same situation JSON-RPC 2.0 reserves a null id
-    for (an error raised before the id could be read).
+    """A JSON-RPC error result. `id` is always `null`: malformed or conflicting
+    request metadata is rejected before a trustworthy request id is available.
 
     `message` carries the code marker for every cause except `upstream_error`, as does the LLM
     plane's `_openai_error`: `cause` already rides structured in `error.data`, so the marker
@@ -263,8 +261,8 @@ class MCPGatewayProxy:
         headers = _forwarded_headers(request)
 
         try:
-            context = parse_mcp_call_context(headers=headers)
             body = await request.body()
+            context = parse_mcp_call_context(headers=headers, body=body)
 
             result = await self.service.relay(
                 scope=scope,

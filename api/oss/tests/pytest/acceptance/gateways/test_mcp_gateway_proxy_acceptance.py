@@ -45,15 +45,8 @@ def _create_custom_endpoint(authed_api, *, tools=None):
 
 
 def _call(gateway_api, slug, payload):
-    """Route by header, the way a client does: the gateway never parses the body."""
-    headers = {"MCP-Method": payload["method"]}
-    target = (payload.get("params") or {}).get("name")
-    if target:
-        headers["MCP-Name"] = target
-
-    return gateway_api(
-        "POST", f"/gateways/mcps/custom/{slug}", json=payload, headers=headers
-    )
+    """Use only the standard JSON-RPC request shape; no Agenta headers are needed."""
+    return gateway_api("POST", f"/gateways/mcps/custom/{slug}", json=payload)
 
 
 @pytest.fixture(scope="class")

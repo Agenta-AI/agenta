@@ -15,8 +15,9 @@ green. This package makes the data plane interoperable and makes acceptance evid
 - Replace prompt-echo assertions with a deterministic mock-model tool-call exchange: discover a
   mock tool, call `echo` with a unique marker, feed its result back to the model, and only then
   return the marker.
-- Re-enable Claude only with a deterministic fixture that fixes its independent mock-LLM timeout;
-  until then, mark its case as a named expected limitation rather than a passing test.
+- Re-enable Claude only with a deterministic fixture that fixes its independent mock-LLM harness
+  behaviour; it currently returns a system reminder rather than the deterministic tool-call
+  exchange. Until then, mark its case as a named expected limitation rather than a passing test.
 
 ## Required verification
 

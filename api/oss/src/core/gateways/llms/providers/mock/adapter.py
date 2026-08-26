@@ -35,7 +35,7 @@ from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 _ERROR_PREFIX = "mock/error"
 _SLOW_RE = re.compile(r"^mock/slow-(\d+)")
-_MCP_MARKER_RE = re.compile(r"WP33-MCP-[A-Za-z0-9-]+")
+_MCP_MARKER_RE = re.compile(r"MCP-ACCEPTANCE-[A-Za-z0-9-]+")
 
 
 def _parse_slow_seconds(model: str) -> Optional[int]:
@@ -87,6 +87,17 @@ def _contains_tool_result(body: bytes) -> bool:
             '"type":"function_call_output"',
         )
     )
+
+
+def _contains_successful_mcp_echo_result(body: bytes, marker: str) -> bool:
+    """Recognize the mock MCP adapter's successful echo result in a tool turn.
+
+    The marker also appears in the user prompt and generated tool-call arguments, so
+    it alone cannot prove that a harness reached the MCP server.  The mock adapter's
+    result includes ``isError: false``; failed gateway responses do not.
+    """
+    normalized = body.decode(errors="replace").replace(" ", "").replace("\\", "")
+    return marker in normalized and '"isError":false' in normalized
 
 
 def _echo_tool_name(body: bytes) -> str | None:
@@ -291,7 +302,11 @@ class MockLLMAdapter(LLMUpstreamInterface):
         tool_name = _echo_tool_name(body)
         needs_tool_call = bool(marker and tool_name and not _contains_tool_result(body))
         if marker and _contains_tool_result(body):
-            content = f"mock MCP echo: {marker}"
+            content = (
+                f"mock MCP echo: {marker}"
+                if _contains_successful_mcp_echo_result(body, marker)
+                else "mock MCP tool call failed"
+            )
         input_tokens = _word_count(body.decode(errors="replace")) if body else 0
         output_tokens = _word_count(content)
         completion_id = f"chatcmpl-mock-{uuid.uuid4().hex}"

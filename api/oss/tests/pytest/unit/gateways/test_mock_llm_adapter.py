@@ -238,7 +238,7 @@ async def test_messages_streaming_ends_with_message_stop_and_usage_on_message_de
     [LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.RESPONSES, LLMProtocol.MESSAGES],
 )
 async def test_mcp_marker_requests_the_harness_rendered_echo_tool(protocol):
-    marker = "WP33-MCP-unit-marker"
+    marker = "MCP-ACCEPTANCE-unit-marker"
     body = json.dumps(
         {
             "model": "mock/echo",
@@ -271,13 +271,23 @@ async def test_mcp_marker_requests_the_harness_rendered_echo_tool(protocol):
 
 @pytest.mark.asyncio
 async def test_mcp_tool_result_returns_the_marker_to_the_harness():
-    marker = "WP33-MCP-unit-result"
+    marker = "MCP-ACCEPTANCE-unit-result"
     body = json.dumps(
         {
             "model": "mock/echo",
             "messages": [
                 {"role": "user", "content": f"Use echo {marker}"},
-                {"role": "tool", "content": json.dumps({"marker": marker})},
+                {
+                    "role": "tool",
+                    "content": json.dumps(
+                        {
+                            "content": [
+                                {"type": "text", "text": json.dumps({"marker": marker})}
+                            ],
+                            "isError": False,
+                        }
+                    ),
+                },
             ],
             "tools": [{"name": "mcp__mock__echo"}],
         }
@@ -291,3 +301,28 @@ async def test_mcp_tool_result_returns_the_marker_to_the_harness():
     )
     payload = json.loads((await _drain(result.body))[0])
     assert marker in payload["choices"][0]["message"]["content"]
+
+
+@pytest.mark.asyncio
+async def test_failed_tool_result_cannot_prove_mock_mcp_delivery():
+    marker = "MCP-ACCEPTANCE-unit-failure"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "messages": [
+                {"role": "user", "content": f"Use echo {marker}"},
+                {"role": "tool", "content": '{"error":{"code":-32600}}'},
+            ],
+            "tools": [{"name": "mcp__mock__echo"}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo"),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    assert payload["choices"][0]["message"]["content"] == "mock MCP tool call failed"

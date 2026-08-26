@@ -220,11 +220,7 @@ def _llm_payload(*, stream: bool = False, model: str = "mock/echo") -> dict[str,
 
 
 def _mcp_call(gateway_api, route: str, payload: dict[str, Any]):
-    headers = {"MCP-Method": payload["method"]}
-    name = (payload.get("params") or {}).get("name")
-    if name:
-        headers["MCP-Name"] = name
-    return gateway_api("POST", route, json=payload, headers=headers)
+    return gateway_api("POST", route, json=payload)
 
 
 @pytest.mark.parametrize("gateway_mock_case", GATEWAY_MOCK_CASES, indirect=True)
@@ -264,7 +260,6 @@ def test_every_dev_mock_case_rejects_an_unauthenticated_caller(
             "POST",
             route,
             json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-            headers={"MCP-Method": "tools/list"},
         )
     assert response.status_code in (401, 403), response.text
 

@@ -92,7 +92,6 @@ def test_oauth_grant_handle_relays_through_the_real_mcp_gateway(
         response = gateway_api(
             "POST",
             f"/gateways/mcps/custom/{endpoint['slug']}",
-            headers={"MCP-Method": "tools/call"},
             json={
                 "jsonrpc": "2.0",
                 "id": 1,
