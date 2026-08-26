@@ -20,6 +20,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
+import {useSessionSearchRequest} from "../hooks/useSessionSearchRequest"
 import {useChatScopeKey} from "../state/scope"
 import {
     type AgentChatSession,
@@ -88,6 +90,7 @@ const SessionRailRow = memo(function SessionRailRow({
     archived = false,
 }: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "rail")
     // Hide the action cluster while the inline rename input owns the row, so it gets full width.
     const [renaming, setRenaming] = useState(false)
     // The rename/delete cluster is hover-only. Mount it on hover/focus instead of rendering it
@@ -308,6 +311,8 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     // so pinning here reorders those surfaces too (and vice versa).
     const {isPinned, toggle: togglePin} = useSessionPins()
     const [query, setQuery] = useState("")
+    const searchRef = useRef<HTMLInputElement>(null)
+    useSessionSearchRequest(searchRef)
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
@@ -376,6 +381,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
 
                 <div className="shrink-0 px-2 pt-2">
                     <SearchInput
+                        ref={searchRef}
                         allowClear
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
