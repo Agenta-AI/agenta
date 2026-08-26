@@ -150,3 +150,7 @@ while the shared cases prove unauthenticated refusal, LLM streaming, and MCP too
 WP29 depends on WP28; WP33 depends on both; WP34 depends on WP33's shared fixtures. Neither
 package changes the two existing mock processes' public
 protocols except for the safe credential/profile observability required here.
+
+The API mock matrix does not prove a harness tool call. WP35 replaces the current marker-only
+harness assertion with protocol-compatible, tool-result evidence before any mock-MCP harness
+result is considered acceptance evidence.
