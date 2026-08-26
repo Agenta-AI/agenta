@@ -42,6 +42,13 @@ regexes = [
   # Fake token in the runner's redaction test — the test asserts this marker never
   # reaches the transcript. Named to be obviously synthetic; not a credential.
   '''marker-live-secret-42bd''',
+  # Two dead fixture strings from the write-only vault work. The fixtures themselves were
+  # rewritten to digit-free names, but these spellings survive in commits whose amend
+  # could not be replayed, and both scans read history rather than the tree. Exempted by
+  # VALUE, not by path, and deliberately not by fingerprint: a fingerprint names the
+  # commit it was seen in, so it goes stale every time a lane below is rebased.
+  '''sk-live-1234567890abc''',
+  '''sk-mine-9876543210xyz''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG

@@ -13,428 +13,791 @@ from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.header import Header
 from ..types.http_validation_error import HttpValidationError
+from ..types.probe_provider_response import ProbeProviderResponse
+from ..types.provider_credentials import ProviderCredentials
+from ..types.public_secret_response_dto import PublicSecretResponseDto
 from ..types.secret_dto import SecretDto
-from ..types.secret_response_dto import SecretResponseDto
+from ..types.update_secret_payload_dto import UpdateSecretPayloadDto
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
+
+
 class RawSecretsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
-    
-    def list_secrets(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[SecretResponseDto]]:
+
+    def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.List[PublicSecretResponseDto]]:
         """
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        HttpResponse[typing.List[SecretResponseDto]]
+        HttpResponse[typing.List[PublicSecretResponseDto]]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "secrets/",method="GET",
-            request_options=request_options,)
+            "secrets/",
+            method="GET",
+            request_options=request_options,
+        )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[SecretResponseDto],
+                    typing.List[PublicSecretResponseDto],
                     parse_obj_as(
-                        type_ =typing.List[SecretResponseDto],  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=typing.List[PublicSecretResponseDto],  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def create_secret(
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        slug: typing.Optional[str] = OMIT,
+        write_only: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         header : Header
-        
+
         secret : SecretDto
-        
+
         slug : typing.Optional[str]
-        
+
+        write_only : typing.Optional[bool]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        HttpResponse[SecretResponseDto]
+        HttpResponse[PublicSecretResponseDto]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "secrets/",method="POST",
+            "secrets/",
+            method="POST",
             json={
                 "slug": slug,
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
-                "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=Header, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
+                "write_only": write_only,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SecretResponseDto,
+                    PublicSecretResponseDto,
                     parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return HttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def read_secret(
+        self,
+        secret_id_or_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         secret_id_or_slug : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        HttpResponse[SecretResponseDto]
+        HttpResponse[PublicSecretResponseDto]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id_or_slug)}",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SecretResponseDto,
-                    parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
-        """
-        Parameters
-        ----------
-        secret_id : str
-        
-        header : typing.Optional[Header]
-        
-        secret : typing.Optional[SecretDto]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[SecretResponseDto]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="PUT",
-            json={
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=typing.Optional[Header], direction="write"),
-                "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=typing.Optional[SecretDto], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
+            f"secrets/{jsonable_encoder(secret_id_or_slug)}",
+            method="GET",
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SecretResponseDto,
+                    PublicSecretResponseDto,
                     parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return HttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def update_secret(
+        self,
+        secret_id: str,
+        *,
+        header: typing.Optional[Header] = OMIT,
+        secret: typing.Optional[UpdateSecretPayloadDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         secret_id : str
-        
+
+        header : typing.Optional[Header]
+
+        secret : typing.Optional[UpdateSecretPayloadDto]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
+        Returns
+        -------
+        HttpResponse[PublicSecretResponseDto]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"secrets/{jsonable_encoder(secret_id)}",
+            method="PUT",
+            json={
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header,
+                    annotation=typing.Optional[Header],
+                    direction="write",
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret,
+                    annotation=typing.Optional[UpdateSecretPayloadDto],
+                    direction="write",
+                ),
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    PublicSecretResponseDto,
+                    parse_obj_as(
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[None]:
+        """
+        Parameters
+        ----------
+        secret_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
         Returns
         -------
         HttpResponse[None]
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="DELETE",
-            request_options=request_options,)
+            f"secrets/{jsonable_encoder(secret_id)}",
+            method="DELETE",
+            request_options=request_options,
+        )
         try:
             if 200 <= _response.status_code < 300:
                 return HttpResponse(response=_response, data=None)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def probe_provider(
+        self,
+        *,
+        kind: typing.Optional[str] = OMIT,
+        provider: typing.Optional[ProviderCredentials] = OMIT,
+        secret_id: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[ProbeProviderResponse]:
+        """
+        Parameters
+        ----------
+        kind : typing.Optional[str]
+            Provider kind, e.g. 'openai', 'azure', 'custom'. Optional when `secret_id` is given: the stored kind is used unless this overrides it.
+
+        provider : typing.Optional[ProviderCredentials]
+
+        secret_id : typing.Optional[str]
+            Test the credential stored under this secret, in the caller's project. Fields sent in `provider` override the stored ones.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[ProbeProviderResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "providers/probe",
+            method="POST",
+            json={
+                "kind": kind,
+                "provider": convert_and_respect_annotation_metadata(
+                    object_=provider, annotation=ProviderCredentials, direction="write"
+                ),
+                "secret_id": secret_id,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ProbeProviderResponse,
+                    parse_obj_as(
+                        type_=ProbeProviderResponse,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+
 class AsyncRawSecretsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
-    
-    async def list_secrets(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[SecretResponseDto]]:
+
+    async def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.List[PublicSecretResponseDto]]:
         """
         Parameters
         ----------
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        AsyncHttpResponse[typing.List[SecretResponseDto]]
+        AsyncHttpResponse[typing.List[PublicSecretResponseDto]]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "secrets/",method="GET",
-            request_options=request_options,)
+            "secrets/",
+            method="GET",
+            request_options=request_options,
+        )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[SecretResponseDto],
+                    typing.List[PublicSecretResponseDto],
                     parse_obj_as(
-                        type_ =typing.List[SecretResponseDto],  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=typing.List[PublicSecretResponseDto],  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def create_secret(
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        slug: typing.Optional[str] = OMIT,
+        write_only: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> AsyncHttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         header : Header
-        
+
         secret : SecretDto
-        
+
         slug : typing.Optional[str]
-        
+
+        write_only : typing.Optional[bool]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        AsyncHttpResponse[SecretResponseDto]
+        AsyncHttpResponse[PublicSecretResponseDto]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "secrets/",method="POST",
+            "secrets/",
+            method="POST",
             json={
                 "slug": slug,
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
-                "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=Header, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
+                "write_only": write_only,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SecretResponseDto,
+                    PublicSecretResponseDto,
                     parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def read_secret(
+        self,
+        secret_id_or_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> AsyncHttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         secret_id_or_slug : str
-        
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
         Returns
         -------
-        AsyncHttpResponse[SecretResponseDto]
+        AsyncHttpResponse[PublicSecretResponseDto]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id_or_slug)}",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SecretResponseDto,
-                    parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def update_secret(self, secret_id: str, *, header: typing.Optional[Header] = OMIT, secret: typing.Optional[SecretDto] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
-        """
-        Parameters
-        ----------
-        secret_id : str
-        
-        header : typing.Optional[Header]
-        
-        secret : typing.Optional[SecretDto]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[SecretResponseDto]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="PUT",
-            json={
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=typing.Optional[Header], direction="write"),
-                "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=typing.Optional[SecretDto], direction="write"),
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
+            f"secrets/{jsonable_encoder(secret_id_or_slug)}",
+            method="GET",
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SecretResponseDto,
+                    PublicSecretResponseDto,
                     parse_obj_as(
-                        type_ =SecretResponseDto,  # type: ignore
-                        object_ =_response.json()
-                    )
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def update_secret(
+        self,
+        secret_id: str,
+        *,
+        header: typing.Optional[Header] = OMIT,
+        secret: typing.Optional[UpdateSecretPayloadDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> AsyncHttpResponse[PublicSecretResponseDto]:
         """
         Parameters
         ----------
         secret_id : str
-        
+
+        header : typing.Optional[Header]
+
+        secret : typing.Optional[UpdateSecretPayloadDto]
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
-        
+
+        Returns
+        -------
+        AsyncHttpResponse[PublicSecretResponseDto]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"secrets/{jsonable_encoder(secret_id)}",
+            method="PUT",
+            json={
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header,
+                    annotation=typing.Optional[Header],
+                    direction="write",
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret,
+                    annotation=typing.Optional[UpdateSecretPayloadDto],
+                    direction="write",
+                ),
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    PublicSecretResponseDto,
+                    parse_obj_as(
+                        type_=PublicSecretResponseDto,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[None]:
+        """
+        Parameters
+        ----------
+        secret_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
         Returns
         -------
         AsyncHttpResponse[None]
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="DELETE",
-            request_options=request_options,)
+            f"secrets/{jsonable_encoder(secret_id)}",
+            method="DELETE",
+            request_options=request_options,
+        )
         try:
             if 200 <= _response.status_code < 300:
                 return AsyncHttpResponse(response=_response, data=None)
             if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def probe_provider(
+        self,
+        *,
+        kind: typing.Optional[str] = OMIT,
+        provider: typing.Optional[ProviderCredentials] = OMIT,
+        secret_id: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> AsyncHttpResponse[ProbeProviderResponse]:
+        """
+        Parameters
+        ----------
+        kind : typing.Optional[str]
+            Provider kind, e.g. 'openai', 'azure', 'custom'. Optional when `secret_id` is given: the stored kind is used unless this overrides it.
+
+        provider : typing.Optional[ProviderCredentials]
+
+        secret_id : typing.Optional[str]
+            Test the credential stored under this secret, in the caller's project. Fields sent in `provider` override the stored ones.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        AsyncHttpResponse[ProbeProviderResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "providers/probe",
+            method="POST",
+            json={
+                "kind": kind,
+                "provider": convert_and_respect_annotation_metadata(
+                    object_=provider, annotation=ProviderCredentials, direction="write"
+                ),
+                "secret_id": secret_id,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ProbeProviderResponse,
+                    parse_obj_as(
+                        type_=ProbeProviderResponse,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

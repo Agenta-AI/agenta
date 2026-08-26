@@ -40,6 +40,13 @@ export {
     type SubscriptionStatusTone,
 } from "./subscriptionStatus"
 
+export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -88,6 +95,8 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations

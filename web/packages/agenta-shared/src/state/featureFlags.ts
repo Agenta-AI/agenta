@@ -53,8 +53,5 @@ const userScopedFlagAtom = (key: string) => {
     )
 }
 
-/** Experimental switch for the chat composer's dictation + voice-message controls. */
-export const agentVoiceInputEnabledAtom = userScopedFlagAtom("agent-voice-input")
-
 /** Experimental switch for the Playground's session/turn inspector controls. */
 export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-inspector")

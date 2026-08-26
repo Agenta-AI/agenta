@@ -12,6 +12,7 @@
  * ```
  */
 
+import Agenta from "./assets/Agenta"
 import AlephAlpha from "./assets/AlephAlpha"
 import Anthropic from "./assets/Anthropic"
 import AnyScale from "./assets/AnyScale"
@@ -42,6 +43,7 @@ export type {IconProps} from "./assets/types"
  * Use this to look up icons by provider name.
  */
 export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
+    Agenta: Agenta,
     OpenAI: OpenAi,
     Cohere: Cerebus,
     Anyscale: AnyScale,
@@ -67,6 +69,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
 
 // Export individual icons for direct use
 export {
+    Agenta,
     AlephAlpha,
     Anthropic,
     AnyScale,

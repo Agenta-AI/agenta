@@ -76,6 +76,13 @@ export {
 } from "./state/subscriptionStatus"
 
 export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./state/agentModelCandidates"
+
+export {
     type SubscriptionStatusResponse,
     type SubscriptionRunnerState,
     type SubscriptionHarnessState,
@@ -84,6 +91,8 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
 } from "./state"

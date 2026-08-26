@@ -1458,6 +1458,17 @@ export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string
     atom<boolean>(true),
 )
 
+/** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
+export interface BuildKitUiState {
+    enabled: boolean
+    disabledOps: string[]
+}
+
+/** Platform ops switched off individually, by `op`. Empty = all on. In-memory like the master flag. */
+export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((_revisionId: string) =>
+    atom<string[]>([]),
+)
+
 /**
  * Has the build-kit overlay for this revision settled? True once the overlay is either resolved
  * (present) or definitively absent — i.e. the underlying fetch(es) are no longer pending. The

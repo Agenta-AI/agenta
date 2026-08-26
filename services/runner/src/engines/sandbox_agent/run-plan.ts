@@ -137,6 +137,8 @@ export interface RunPlanCredentials {
 export interface RunPlanWorkspace {
   cwd: string;
   relayDir: string;
+  /** Ephemeral Pi telemetry IPC, sibling to relay and keyed to the same conversation cwd. */
+  telemetryDir: string;
   /**
    * Where the in-sandbox stdio MCP shim assets (bundle + public-specs file) are uploaded on
    * the Daytona non-Pi executable-tools path (`uploadToolMcpAssets`). An ephemeral in-VM
@@ -649,6 +651,10 @@ export function buildRunPlan(
     ? "/home/sandbox/agenta/relay"
     : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
+  const telemetryBase = isDaytona
+    ? "/home/sandbox/agenta/telemetry"
+    : join(tmpdir(), "agenta", "telemetry");
+  const telemetryDir = join(telemetryBase, basename(cwd));
   // The in-sandbox stdio MCP shim assets live in an ephemeral SIBLING of the relay dir, keyed
   // the same way (stable across turns of one conversation). Never inside the relay dir — the
   // relay loop sweeps/watches it — and never on the geesefs mount (see `toolMcpDir` docs).
@@ -683,6 +689,13 @@ export function buildRunPlan(
     `relay dir '${relayDir}' must be a distinct ephemeral dir, not the durable cwd`,
   );
   assert(
+    !!telemetryDir &&
+      telemetryDir !== cwd &&
+      telemetryDir !== relayDir &&
+      !telemetryDir.startsWith(`${relayDir}/`),
+    `telemetry dir '${telemetryDir}' must be an ephemeral sibling of the relay dir`,
+  );
+  assert(
     !!toolMcpDir &&
       toolMcpDir !== cwd &&
       toolMcpDir !== relayDir &&
@@ -715,10 +728,14 @@ export function buildRunPlan(
       workspace: {
         cwd,
         relayDir,
+        telemetryDir,
         toolMcpDir,
         // Usage capture is ephemeral runner output, not durable session data — keep it off the
-        // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
-        usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
+        // geesefs mount in Pi's always-created telemetry dir. A plain chat has no tool relay, so
+        // the relay dir may not exist at all.
+        usageOutPath: isPi
+          ? join(telemetryDir, ".agenta-usage.json")
+          : undefined,
         skillDirs,
         skillsCleanup,
         sourcePiAgentDir:

@@ -159,7 +159,7 @@ class SecretsManager:
         *, model: str, secrets: list[dict], key: str, from_provider: bool = True
     ):
         for secret in secrets:
-            models = secret.get("data", {}).get("models", [])
+            models = secret.get("data", {}).get("models") or []
             if model in models:
                 if from_provider:
                     return secret.get("data", {}).get("provider", {}).get(key)

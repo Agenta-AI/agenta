@@ -983,3 +983,24 @@ describe("transcriptToMessages MCP argument wrapper", () => {
         })
     })
 })
+
+/** The durable `error` event carries the failure class (`protocol.ts` `error.code`); replay must
+ * keep it or a reload loses the callout's action. */
+describe("transcriptToMessages run-error code", () => {
+    const runErrorOf = (payload: Record<string, unknown>): unknown =>
+        (
+            transcriptToMessages([record("r-error", payload)])?.[0].metadata as
+                | Record<string, unknown>
+                | undefined
+        )?.runError
+
+    it("replays the code next to the message", () => {
+        expect(
+            runErrorOf({type: "error", message: "boom", code: "starter_credits_exhausted"}),
+        ).toEqual({message: "boom", code: "starter_credits_exhausted"})
+    })
+
+    it("omits the code when an older runner sends none", () => {
+        expect(runErrorOf({type: "error", message: "boom"})).toEqual({message: "boom"})
+    })
+})

@@ -1,13 +1,18 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
-import {getMessageRunError, getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {
+    getMessageRunError,
+    getMessageRunErrorCode,
+    getMessageTraceId,
+    getMessageUsage,
+} from "@agenta/chat/assets"
 import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
-import {AudioPlayer, StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {AudioPlayer, StartupActivity, TurnFooter} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
@@ -20,9 +25,9 @@ import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
+import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatActionIconButton,
     ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
@@ -30,17 +35,8 @@ import {
     turnToolbarClass,
     turnToolbarRevealClass,
 } from "@agenta/ui/components/presentational"
-import {
-    ArrowUUpLeft,
-    Brain,
-    CaretRight,
-    Check,
-    Copy,
-    Robot,
-    TreeStructure,
-    User,
-    XCircle,
-} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -126,6 +122,12 @@ const ReasoningPart = ({
     )
 }
 
+/** Failure classes the user can clear themselves by adding their own provider key. */
+const STARTER_CREDIT_CODES = new Set([
+    "starter_credits_exhausted",
+    "starter_credits_program_paused",
+])
+
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
 
@@ -134,11 +136,22 @@ const isBigError = (text: string) => text.length > 240 || text.split("\n").lengt
  * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
  * can't drown the chat.
  */
-const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
+export const RunErrorBody = ({
+    text,
+    stateKey,
+    code,
+}: {
+    text: string
+    stateKey: string
+    /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
+    code?: string
+}) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
+    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
     const expanded = stored ?? false
     const big = isBigError(text)
+    const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -168,6 +181,17 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
+                )}
+                {offerOwnKey && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => requestProviderDrawer(true)}
+                    >
+                        {/* TODO(copy: owner) */}
+                        Add your key
+                    </Button>
                 )}
             </div>
         </div>
@@ -301,8 +325,6 @@ const AgentMessage = ({
     // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
     // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
     const detailed = !useAtomValue(chatPanelMaximizedAtom)
-    const [copied, setCopied] = useState(false)
-    const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
@@ -314,6 +336,7 @@ const AgentMessage = ({
     // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
     // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
+    const runErrorCode = getMessageRunErrorCode(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -361,17 +384,6 @@ const AgentMessage = ({
     // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
     // failure) so the button isn't a no-op when the agent only returned an error.
     const copyText = [fullText, errorText].filter(Boolean).join("\n\n")
-    const handleCopy = async () => {
-        if (!copyText) return
-        try {
-            await navigator.clipboard.writeText(copyText)
-            setCopied(true)
-            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
-            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-        } catch {
-            setCopied(false)
-        }
-    }
 
     // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
@@ -555,7 +567,11 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // RunErrorBody shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunErrorBody text={errorText || "The agent run failed."} stateKey={errorKey(message.id)} />
+        <RunErrorBody
+            text={errorText || "The agent run failed."}
+            stateKey={errorKey(message.id)}
+            code={runErrorCode}
+        />
     )
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the
@@ -572,62 +588,16 @@ const AgentMessage = ({
             defaultBody
         )
 
-    // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
-    // `pb-10` on the row), so it never overlays the last content line and never reaches the next
-    // turn. The lane is always present (stable height), so revealing it only fades opacity — no
-    // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
-    // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
-    // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
-    // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
-    // safe). The item `label` renders as the hover tooltip.
+    // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
+    // never overlays the last content line and never reaches the next turn. The lane is always
+    // present (stable height), so revealing it only fades opacity — no layout shift either way (the
+    // scroll engineering is sensitive to hover-driven reflow). `pointer-events-none` while hidden
+    // keeps the invisible buttons unclickable. The buttons carry no `disabled`, so the busy guard
+    // lives in the handlers: `onRewind` → `handleRewind` early-returns while a stream is in flight.
     const toolbarReveal = turnToolbarRevealClass
-    // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
-    const rewindButton = isLastMessage ? null : (
-        <ChatActionIconButton
-            label={
-                isUser
-                    ? "Rewind here — edit and re-run the conversation from this message"
-                    : "Rewind here — re-run this turn"
-            }
-            icon={<ArrowUUpLeft size={14} />}
-            onClick={() => onRewind(message)}
-        />
-    )
-
-    const timestamp = (
-        <TurnTimestamp messageId={message.id} traceId={traceId} turnTraceId={turnTraceId} />
-    )
-
-    const toolbar = isUser ? (
-        <>
-            {timestamp}
-            {rewindButton}
-        </>
-    ) : (
-        <>
-            {timestamp}
-            {/* Show run metrics (tokens/cost, + latency when traced). Usage is stamped on the
-                settled message itself, so surface it even on the no-trace playground path instead
-                of leaving the turn with no data. */}
-            <TurnMetrics traceId={traceId} usage={usage} />
-            <ChatActionIconButton
-                label={copied ? "Copied" : "Copy"}
-                icon={copied ? <Check size={14} /> : <Copy size={14} />}
-                onClick={handleCopy}
-            />
-            {rewindButton}
-            {traceId ? (
-                <ChatActionIconButton
-                    label="View trace"
-                    icon={<TreeStructure size={14} />}
-                    onClick={() => openTraceDrawer({traceId})}
-                />
-            ) : null}
-        </>
-    )
 
     // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
-    // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
+    // to the reserved lane (`pb-8`) at the row's bottom. The row is a flex that justifies the
     // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
     // the left, user bubbles the right, neither spans the full column.
     // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
@@ -654,9 +624,20 @@ const AgentMessage = ({
                 content={body}
             />
             <div
-                className={`${turnToolbarClass} ${isUser ? "right-2" : "left-10"} ${toolbarReveal}`}
+                className={`${turnToolbarClass} ${isUser ? "right-11" : "left-11"} ${toolbarReveal}`}
             >
-                {toolbar}
+                <TurnFooter
+                    messageId={message.id}
+                    traceId={traceId}
+                    turnTraceId={turnTraceId}
+                    isUser={isUser}
+                    isStreaming={isStreaming}
+                    usage={usage}
+                    copyText={copyText}
+                    // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.
+                    onRewind={isLastMessage ? undefined : () => onRewind(message)}
+                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
+                />
             </div>
         </div>
     )

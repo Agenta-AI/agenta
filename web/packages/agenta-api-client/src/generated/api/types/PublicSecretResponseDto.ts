@@ -2,16 +2,22 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SecretResponseDto {
-    kind: AgentaApi.SecretKind;
-    data: SecretResponseDto.Data;
+/**
+ * Caller-facing representation after grant-aware value projection.
+ */
+export interface PublicSecretResponseDto {
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
+    kind: AgentaApi.SecretKind;
+    data: PublicSecretResponseDto.Data;
     header: AgentaApi.Header;
     lifecycle?: (AgentaApi.LegacyLifecycleDto | null) | undefined;
+    write_only?: boolean | undefined;
+    management?: (AgentaApi.PublicSecretManagementDto | null) | undefined;
+    value_status: AgentaApi.SecretValueStatus;
 }
 
-export namespace SecretResponseDto {
+export namespace PublicSecretResponseDto {
     export type Data =
         | AgentaApi.StandardProviderDto
         | AgentaApi.CustomProviderDto
