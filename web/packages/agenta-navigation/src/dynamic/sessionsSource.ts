@@ -52,6 +52,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     groupKey?: string
     /** That heading's text. Carried here so the headings atom needs no second derivation. */
     groupLabel?: string
+    /** Where that heading sorts, ascending. Resolved with the bucket — see `sidebarSessionGroup`. */
+    groupRank?: number
 }
 
 /** Deliberately small — the sidebar shows the top of the list, and the sessions page owns
@@ -434,12 +436,30 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
                     : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
-            return {...named, groupKey: group.key, groupLabel: group.label}
+            return {
+                ...named,
+                groupKey: group.key,
+                groupLabel: group.label,
+                groupRank: group.rank,
+            }
         })
     }),
 )
 
 const UNASSIGNED_GROUP_KEY = "agent:none"
+
+/** Below every other rank: pins lead under every grouping. Finite, so ranks subtract cleanly. */
+const PINNED_GROUP_RANK = Number.MIN_SAFE_INTEGER
+
+/** Above every other rank, for a bucket with no date to sort on. */
+const UNDATED_GROUP_RANK = Number.MAX_SAFE_INTEGER
+
+/** A heading, plus where it sorts — ascending, ties broken by label. */
+interface SessionGroupBucket {
+    key: string
+    label: string
+    rank: number
+}
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -459,18 +479,21 @@ const startOfDay = (time: number) => {
  * supposed to settle. Only today and yesterday keep words, because those are the two dates people
  * read faster as names. The year is added once it is not the current one.
  */
-const dateBucket = (activityAt: string | null | undefined, now: number) => {
-    if (!activityAt) return {key: "date:unknown", label: "No activity"}
+const dateBucket = (activityAt: string | null | undefined, now: number): SessionGroupBucket => {
+    if (!activityAt) return {key: "date:unknown", label: "No activity", rank: UNDATED_GROUP_RANK}
     const at = new Date(activityAt)
-    const days = Math.round((startOfDay(now) - startOfDay(at.getTime())) / DAY)
-    if (days <= 0) return {key: "date:today", label: "Today"}
-    if (days === 1) return {key: "date:yesterday", label: "Yesterday"}
+    const day = startOfDay(at.getTime())
+    // NEGATED so the newest day sorts first, in the one ascending order every grouping shares.
+    const rank = -day
+    const days = Math.round((startOfDay(now) - day) / DAY)
+    if (days <= 0) return {key: "date:today", label: "Today", rank}
+    if (days === 1) return {key: "date:yesterday", label: "Yesterday", rank}
     const year = at.getFullYear()
     const label = `${MONTHS[at.getMonth()]} ${at.getDate()}${
         year === new Date(now).getFullYear() ? "" : `, ${year}`
     }`
     // Keyed by the calendar day, not the label: two Augusts a year apart must not share a heading.
-    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label}
+    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label, rank}
 }
 
 /**
@@ -483,38 +506,51 @@ export const sidebarSessionGroup = (
     ref: SessionSidebarRef,
     groupBy: SidebarSessionGroupBy,
     now: number,
-): {key: string; label: string} => {
-    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned"}
-    if (groupBy === "none") return {key: "recent", label: "Recent"}
+): SessionGroupBucket => {
+    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned", rank: PINNED_GROUP_RANK}
+    if (groupBy === "none") return {key: "recent", label: "Recent", rank: 1}
     if (groupBy === "date") return dateBucket(ref.activityAt, now)
     if (groupBy === "status") {
-        if (ref.running) return {key: "status:running", label: "Running"}
-        return ref.alive ? {key: "status:live", label: "Live"} : {key: "status:idle", label: "Idle"}
+        if (ref.running) return {key: "status:running", label: "Running", rank: 0}
+        return ref.alive
+            ? {key: "status:live", label: "Live", rank: 1}
+            : {key: "status:idle", label: "Idle", rank: 2}
     }
-    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet"}
+    // Agents share a rank and sort by name; only "No agent yet" is pushed past them.
+    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet", rank: 1}
     // `||`, not `??`: an artifact whose name resolves to "" must still get a heading you can read.
-    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent"}
+    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent", rank: 0}
 }
+
+/** Ascending by rank, ties broken by label. */
+const compareGroups = (a: {label: string; rank: number}, b: {label: string; rank: number}) =>
+    a.rank - b.rank || a.label.localeCompare(b.label)
 
 /** The entity reads the bucket off the row — resolved upstream, so a `groupBy` change flows. */
 export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
     ref.groupKey ?? PINNED_GROUP_KEY
 
 /**
- * The group headings the Sessions rows sit under: Pinned first, then each agent in order of its
- * most recent session. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
+ * The group headings the Sessions rows sit under, in a fixed order: Pinned first, then whatever
+ * the grouping ranks. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
  * all fall outside it is dropped there rather than here.
  */
 export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const refs = get(sidebarSessionRefsAtomFamily(scopeId))
-        const labels = new Map<string, string>()
+        const labels = new Map<string, {label: string; rank: number}>()
         for (const ref of refs) {
             const key = sidebarSessionGroupKey(ref)
-            if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
+            if (!labels.has(key)) {
+                labels.set(key, {label: ref.groupLabel ?? "Other", rank: ref.groupRank ?? 0})
+            }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
-        const all: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        // SORTED, not first-seen: the rows arrive in activity order, so taking their order made the
+        // headings reshuffle every time you worked in a session. Only the rows under a heading move.
+        const all: SidebarEntityGroup[] = [...labels]
+            .sort(([, a], [, b]) => compareGroups(a, b))
+            .map(([key, {label}]) => ({key, label}))
         // "None" still separates the pins — a pinned conversation is one you keep coming back to,
         // and burying it in the run of recent rows is what the heading exists to prevent. With no
         // pins there is nothing to separate, so the list goes fully flat.

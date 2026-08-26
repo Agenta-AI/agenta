@@ -10,6 +10,7 @@ import {
     withRefsByRecency,
     type SessionSidebarRef,
     type SidebarEntity,
+    type SidebarSessionGroupBy,
     type SidebarEntityRef,
     type SidebarEntitySource,
 } from "../../src"
@@ -209,7 +210,7 @@ describe("sidebarSessionGroup", () => {
     })
 
     it("buckets by the owning agent's name", () => {
-        expect(sidebarSessionGroup(row(), "agent", NOW)).toEqual({
+        expect(sidebarSessionGroup(row(), "agent", NOW)).toMatchObject({
             key: "agent:a1",
             label: "Ops Assistant",
         })
@@ -220,7 +221,7 @@ describe("sidebarSessionGroup", () => {
     })
 
     it("labels a session with no agent yet", () => {
-        expect(sidebarSessionGroup(row({agentId: null}), "agent", NOW)).toEqual({
+        expect(sidebarSessionGroup(row({agentId: null}), "agent", NOW)).toMatchObject({
             key: "agent:none",
             label: "No agent yet",
         })
@@ -228,7 +229,7 @@ describe("sidebarSessionGroup", () => {
 
     it("puts pins in their own heading whichever grouping is active", () => {
         for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
-            expect(sidebarSessionGroup(row({pinned: true}), groupBy, NOW)).toEqual({
+            expect(sidebarSessionGroup(row({pinned: true}), groupBy, NOW)).toMatchObject({
                 key: "pinned",
                 label: "Pinned",
             })
@@ -265,19 +266,53 @@ describe("sidebarSessionGroup", () => {
     })
 
     it("puts every unpinned row under Recent when nothing groups them", () => {
-        expect(sidebarSessionGroup(row(), "none", NOW)).toEqual({key: "recent", label: "Recent"})
+        expect(sidebarSessionGroup(row(), "none", NOW)).toMatchObject({
+            key: "recent",
+            label: "Recent",
+        })
     })
 
     // "Pinned first" was retired: pins lead under every grouping, so it grouped by nothing. A
     // stored value from before that is not a grouping the menu can show OR the grouper knows.
     it("pins lead whichever grouping is active", () => {
-        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toEqual({
+        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toMatchObject({
             key: "pinned",
             label: "Pinned",
         })
-        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toEqual({
+        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toMatchObject({
             key: "pinned",
             label: "Pinned",
+        })
+    })
+
+    // The headings are sorted on this rank. Working in a session reorders the ROWS, and used to
+    // reorder the sections with them, because the headings followed the rows' own order.
+    describe("rank", () => {
+        const rank = (over: Partial<SessionSidebarRef>, groupBy: SidebarSessionGroupBy) =>
+            sidebarSessionGroup(row(over), groupBy, NOW).rank
+
+        it("sorts pins below everything, under every grouping", () => {
+            for (const groupBy of ["none", "agent", "date", "status"] as const) {
+                expect(rank({pinned: true}, groupBy)).toBeLessThan(rank({}, groupBy))
+            }
+        })
+
+        it("sorts the newest day first and no-activity last", () => {
+            const at = (iso?: string) => rank({activityAt: iso}, "date")
+            expect(at(noon(2026, 8, 21))).toBeLessThan(at(noon(2026, 8, 20)))
+            expect(at(noon(2026, 8, 20))).toBeLessThan(at(noon(2025, 12, 24)))
+            expect(at()).toBeGreaterThan(at(noon(2026, 8, 21)))
+        })
+
+        it("sorts liveness Running, Live, Idle", () => {
+            expect(rank({running: true}, "status")).toBeLessThan(rank({alive: true}, "status"))
+            expect(rank({alive: true}, "status")).toBeLessThan(rank({}, "status"))
+        })
+
+        // Agents tie on rank and are separated by name; only the unassigned heading is pushed past.
+        it("sorts named agents together, ahead of No agent yet", () => {
+            expect(rank({agentId: "a2"}, "agent")).toBe(rank({agentId: "a1"}, "agent"))
+            expect(rank({agentId: "a1"}, "agent")).toBeLessThan(rank({agentId: null}, "agent"))
         })
     })
 })
