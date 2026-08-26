@@ -86,8 +86,11 @@ def _adapter_key(
         return key
     if namespace == GatewayEndpointNamespace.CUSTOM:
         return "http"
-    if namespace == GatewayEndpointNamespace.STANDARD and provider == MOCK_PROVIDER:
-        return "mock"
+    if namespace == GatewayEndpointNamespace.STANDARD:
+        if provider == MOCK_PROVIDER:
+            return "mock"
+        if provider == COMPOSIO_PROVIDER:
+            return "composio_standard"
     raise MCPEndpointNotFoundError(namespace=namespace, name=provider or "")
 
 
@@ -244,11 +247,11 @@ class MCPGatewayService:
         builtin = [self._builtin_endpoint(connection) for connection in connections]
 
         provider_keys = await self.resolver.available_provider_keys(scope=scope)
-        standard = (
-            [self._standard_mock_endpoint()]
-            if self._mocks_enabled() and MOCK_PROVIDER in provider_keys
-            else []
-        )
+        standard = []
+        if self._mocks_enabled() and MOCK_PROVIDER in provider_keys:
+            standard.append(self._standard_mock_endpoint())
+        if COMPOSIO_PROVIDER in provider_keys:
+            standard.append(self._standard_composio_endpoint())
 
         # Return built-in, standard, then custom endpoints.
         return [
@@ -297,6 +300,16 @@ class MCPGatewayService:
             auth_mode=MCPAuthScheme.API_KEY,
             namespace=GatewayEndpointNamespace.STANDARD,
             provider_key=MOCK_PROVIDER,
+            data=MCPEndpointData(route=MCPEndpointRoute()),
+        )
+
+    def _standard_composio_endpoint(self) -> MCPEndpoint:
+        return MCPEndpoint(
+            slug=COMPOSIO_PROVIDER,
+            name="Composio",
+            auth_mode=MCPAuthScheme.API_KEY,
+            namespace=GatewayEndpointNamespace.STANDARD,
+            provider_key=COMPOSIO_PROVIDER,
             data=MCPEndpointData(route=MCPEndpointRoute()),
         )
 
@@ -454,7 +467,7 @@ class MCPGatewayService:
         auth = await self._resolve_auth(scope=scope, target=target)
 
         # 5. Dispatch. Usage is recorded even on failure.
-        route = self._route_for(target)
+        route = self._route_for(target=target, project_id=scope.project_id)
         adapter_key = _adapter_key(namespace=namespace, provider=provider)
         # A stored custom endpoint can deliberately target the development mock.
         # Keep it on the real socket adapter so its credential/profile assertion is
@@ -561,6 +574,13 @@ class MCPGatewayService:
                 namespace=namespace, name=name, endpoint=self._standard_mock_endpoint()
             )
 
+        if namespace == GatewayEndpointNamespace.STANDARD and name == COMPOSIO_PROVIDER:
+            return _ResolvedTarget(
+                namespace=namespace,
+                name=name,
+                endpoint=self._standard_composio_endpoint(),
+            )
+
         if namespace == GatewayEndpointNamespace.BUILTIN:
             connections = await self.connections_service.query_connections(
                 project_id=project_id,
@@ -624,7 +644,10 @@ class MCPGatewayService:
     async def _resolve_auth(
         self, *, scope: AuthScope, target: _ResolvedTarget
     ) -> MCPRelayAuth:
-        if target.provider == COMPOSIO_PROVIDER:
+        if (
+            target.namespace == GatewayEndpointNamespace.BUILTIN
+            and target.provider == COMPOSIO_PROVIDER
+        ):
             # the broker's secret never enters our vault
             # (§4.4) — never routed through the resolver.
             connection = target.connection
@@ -691,8 +714,13 @@ class MCPGatewayService:
 
         raise AssertionError(f"unsupported MCP auth mode: {endpoint.auth_mode!r}")
 
-    def _route_for(self, target: _ResolvedTarget) -> MCPResolvedRoute:
-        if target.provider == COMPOSIO_PROVIDER:
+    def _route_for(
+        self, *, target: _ResolvedTarget, project_id: UUID
+    ) -> MCPResolvedRoute:
+        if (
+            target.namespace == GatewayEndpointNamespace.BUILTIN
+            and target.provider == COMPOSIO_PROVIDER
+        ):
             return MCPResolvedRoute(
                 url=_builtin_placeholder_url(
                     provider=target.provider or "",
@@ -705,6 +733,12 @@ class MCPGatewayService:
             url=endpoint.data.route.base_url or "",
             headers=endpoint.data.route.headers or {},
             settings=endpoint.data.settings,
+            project_id=(
+                project_id
+                if target.namespace == GatewayEndpointNamespace.STANDARD
+                and target.name == COMPOSIO_PROVIDER
+                else None
+            ),
         )
 
     def _outcome_for(

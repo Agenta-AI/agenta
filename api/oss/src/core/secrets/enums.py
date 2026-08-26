@@ -18,6 +18,7 @@ class CustomSecretFormat(str, Enum):
 
 class StandardProviderKind(str, Enum):
     MOCK = "mock"  # local gateway development catalogue only
+    COMPOSIO = "composio"
     OPENAI = "openai"
     COHERE = "cohere"
     ANYSCALE = "anyscale"
@@ -39,6 +40,7 @@ class StandardProviderKind(str, Enum):
 # (`web/packages/agenta-shared/src/utils/llmProviders.ts`); MOCK is development-only.
 STANDARD_PROVIDER_DISPLAY_NAMES = {
     StandardProviderKind.MOCK: "Mock",
+    StandardProviderKind.COMPOSIO: "Composio",
     StandardProviderKind.OPENAI: "OpenAI",
     StandardProviderKind.COHERE: "Cohere",
     StandardProviderKind.ANYSCALE: "Anyscale",

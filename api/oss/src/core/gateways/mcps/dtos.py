@@ -110,6 +110,8 @@ class MCPResolvedRoute(BaseModel):
     url: str
     headers: Dict[str, str] = Field(default_factory=dict)
     settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
+    # Standard Composio sessions bind external accounts to this project scope.
+    project_id: Optional[UUID] = None
 
 
 class MCPDirectAuth(BaseModel):

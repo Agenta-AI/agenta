@@ -18,6 +18,7 @@ from oss.src.core.gateway.connections.dtos import Connection, ConnectionProvider
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
     MCPCallContext,
+    MCPDirectAuth,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointData,
@@ -55,8 +56,14 @@ from oss.src.core.secrets.dtos import (
     CustomSecretDTO,
     CustomSecretSettingsDTO,
     SecretResponseDTO,
+    StandardProviderDTO,
+    StandardProviderSettingsDTO,
 )
-from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind
+from oss.src.core.secrets.enums import (
+    CustomSecretFormat,
+    SecretKind,
+    StandardProviderKind,
+)
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
@@ -328,6 +335,21 @@ async def test_list_endpoints_adds_standard_mock_only_with_project_credential(
 
 
 @pytest.mark.asyncio
+async def test_list_endpoints_adds_standard_composio_only_with_project_credential():
+    service = _service(resolver=MockResolver(provider_keys={"composio"}))
+
+    endpoints = await service.list_endpoints(scope=_scope())
+
+    standard = [
+        endpoint
+        for endpoint in endpoints
+        if endpoint.namespace.value == "standard" and endpoint.slug == "composio"
+    ]
+    assert len(standard) == 1
+    assert standard[0].provider_key == "composio"
+
+
+@pytest.mark.asyncio
 async def test_list_endpoints_omits_generated_mocks_when_disabled(monkeypatch):
     monkeypatch.setattr(env.mock_gateways, "enabled", False)
     service = _service(resolver=MockResolver(provider_keys={"mock"}))
@@ -473,12 +495,14 @@ class MockUpstreamAdapter:
     def __init__(self, *, result=None, raise_exc=None) -> None:
         self.relay_calls = 0
         self.last_auth = None
+        self.last_route = None
         self._result = result
         self._raise = raise_exc
 
     async def relay(self, *, route, auth, context, body, headers):
         self.relay_calls += 1
         self.last_auth = auth
+        self.last_route = route
         if self._raise is not None:
             raise self._raise
         return self._result or MCPRelayResult(
@@ -547,6 +571,23 @@ def _resolved_secret(*, user_id: Optional[UUID] = None) -> ResolvedSecret:
             kind=SecretOwnerKind.USER if user_id else SecretOwnerKind.PROJECT,
             user_id=user_id,
         ),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+def _composio_resolved_secret() -> ResolvedSecret:
+    return ResolvedSecret(
+        secret=SecretResponseDTO(
+            id=uuid4(),
+            slug="composio",
+            header=Header(name="Composio"),
+            kind=SecretKind.PROVIDER_KEY,
+            data=StandardProviderDTO(
+                kind=StandardProviderKind.COMPOSIO,
+                provider=StandardProviderSettingsDTO(key="project-composio-key"),
+            ),
+        ),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
         origin=SecretOrigin.VAULT,
     )
 
@@ -680,6 +721,33 @@ async def test_relay_builtin_agenta_rejects_unscoped_or_mismatched_tool():
             headers={},
             request=request,
         )
+
+
+@pytest.mark.asyncio
+async def test_relay_standard_composio_resolves_only_the_project_provider_key():
+    adapter = MockUpstreamAdapter()
+    resolver = MockResolver(secret=_composio_resolved_secret())
+    service = _relay_service(
+        resolver=resolver,
+        adapters={"composio_standard": adapter},
+    )
+    scope = _scope()
+
+    result = await service.relay(
+        scope=scope,
+        namespace="standard",
+        provider="composio",
+        name="composio",
+        context=MCPCallContext(method="tools/list"),
+        body=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert resolver.resolve_calls == 1
+    assert resolver.last_mode.value == "project_only"
+    assert isinstance(adapter.last_auth, MCPDirectAuth)
+    assert adapter.last_route.project_id == scope.project_id
 
 
 @pytest.mark.asyncio

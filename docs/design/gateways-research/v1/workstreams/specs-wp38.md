@@ -10,8 +10,10 @@ Composio has two credential modes. WP36 covers the platform-managed Composio acc
   `provider_key=composio` secret.
 - Use that project secret for all Composio catalogue, connection, and MCP data-plane requests for
   the selected standard endpoint. Never read or fall back to `COMPOSIO_API_KEY`.
-- Define how its connected-account IDs and callback URLs are scoped to the project and Composio
-  account. The agent and runner receive only an Agenta gateway URL and short-lived gateway token.
+- Scope each Tool Router session with `user_id=<project UUID>`. The project developer key owns
+  its Composio account and hosted connection/callback state; `standard/composio` neither reads
+  nor reuses deployment-owned connection rows. The agent and runner receive only an Agenta
+  gateway URL and short-lived gateway token.
 - Reuse protocol-compatible MCP relay behavior from WP35; preserve JSON-RPC bodies and errors.
 - Keep third-party account credentials in Composio's hosted connection flow. The project Composio
   developer key remains vault-resolved and never reaches the runner or agent.

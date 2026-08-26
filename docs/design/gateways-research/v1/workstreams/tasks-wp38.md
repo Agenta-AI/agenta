@@ -1,10 +1,10 @@
 # WP38 tasks — Project-key Composio standard MCP
 
-- [ ] Define the endpoint path, project-owned Composio key representation, connection ownership,
+- [x] Define the endpoint path, project-owned Composio key representation, connection ownership,
       and callback contract independently from builtin Composio.
-- [ ] Implement standard endpoint selection and strict project-key resolution with **unit tests**
+- [x] Implement standard endpoint selection and strict project-key resolution with **unit tests**
       proving no deployment-key fallback.
-- [ ] Implement the project-key Composio connection and MCP adapter path with **integration tests**
+- [x] Implement the project-key Composio MCP adapter path with **local broker tests**
       for isolation, missing keys, and disconnected accounts.
 - [ ] Add a local broker double and **OSS/EE acceptance** covering `tools/list`, `tools/call`, and
       the negative fallback case.
