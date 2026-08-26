@@ -80,7 +80,7 @@ export const TurnFooter = ({
         <>
             <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
             {isUser ? null : <TurnMetrics traceId={traceId} usage={usage} separator />}
-            {hasActions ? <MetaSeparator /> : null}
+            {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (
                 <ChatActionIconButton
                     label={copied ? "Copied" : "Copy"}

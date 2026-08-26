@@ -1,5 +1,5 @@
 import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
-import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
+import {ExecutionMetricsDisplay, MetaSeparator} from "@agenta/ui/components/presentational"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Tag, Tooltip} from "antd"
@@ -120,13 +120,13 @@ export const Plain: Story = {
                 }}
                 variant="plain"
             />
-            {/* `separator` in context: the leading `·` ties the row to the segment before it. */}
+            {/* In a meta row: the caller owns the `·` before it, so an empty row leaves none. */}
             <div className="flex items-center gap-1">
                 <span className="text-[12px] text-colorTextTertiary">3h ago</span>
+                <MetaSeparator className="first:hidden" />
                 <ExecutionMetricsDisplay
                     metrics={{durationMs: 46_380, totalTokens: 117_800, totalCost: 0.00891}}
                     variant="plain"
-                    separator
                 />
             </div>
             <ExecutionMetricsDisplay

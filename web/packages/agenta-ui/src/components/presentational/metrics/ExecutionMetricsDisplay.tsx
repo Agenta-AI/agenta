@@ -62,8 +62,6 @@ export interface ExecutionMetricsDisplayProps {
     size?: "small" | "default"
     /** `badge` tags each metric; `plain` renders one line of dot-separated muted text. */
     variant?: "badge" | "plain"
-    /** `plain` only — prepend a separator, so this row reads as part of the segment before it. */
-    separator?: boolean
     /** Which metrics to show (defaults to all available) */
     show?: ("latency" | "tokens" | "cost")[]
 }
@@ -72,9 +70,14 @@ export interface ExecutionMetricsDisplayProps {
 // COMPONENT
 // ============================================================================
 
-/** The `·` between two segments of a meta row. Muted a step below the values it separates. */
-export const MetaSeparator = () => (
-    <span aria-hidden className="text-colorTextQuaternary">
+/**
+ * The `·` between two segments of a meta row. Muted a step below the values it separates.
+ *
+ * A separator that leads its segment should carry `first:hidden`: a segment whose neighbour
+ * rendered nothing then drops its dot instead of leaving one with nothing to separate.
+ */
+export const MetaSeparator = ({className}: {className?: string}) => (
+    <span aria-hidden className={cn("text-colorTextQuaternary", className)}>
         ·
     </span>
 )
@@ -88,7 +91,6 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     className,
     size = "default",
     variant = "badge",
-    separator = false,
     show,
 }: ExecutionMetricsDisplayProps) {
     // Calculate what to show
@@ -170,7 +172,6 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                     className,
                 )}
             >
-                {separator ? <MetaSeparator /> : null}
                 <TooltipProvider>
                     {segments.map((segment, index) => (
                         <Fragment key={segment.key}>

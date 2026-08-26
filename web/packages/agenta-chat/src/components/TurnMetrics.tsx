@@ -26,31 +26,41 @@ export const TurnMetrics = ({
 }: {
     traceId?: string | null
     usage?: MessageUsageMetrics
-    /** Prepend a `·`, so these figures read as part of the segment before them. */
+    /**
+     * Draw a leading `·` when these figures render. It carries `first:hidden`, so it disappears
+     * when nothing precedes it in the row (a turn whose timestamp resolved to nothing).
+     */
     separator?: boolean
 }) => {
     const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
+    const lead = separator ? <MetaSeparator className="first:hidden" /> : null
+
     if (!traceId) {
         return usage ? (
-            <ExecutionMetricsDisplay metrics={usage} variant="plain" separator={separator} />
+            <>
+                {lead}
+                <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+            </>
         ) : null
     }
     if (summary.isPending) {
         return (
-            <div className="flex items-center gap-1">
-                {separator ? <MetaSeparator /> : null}
+            <>
+                {lead}
                 <SkeletonBlock active className="h-4 w-10 rounded-control-sm" />
                 {usage ? (
-                    <ExecutionMetricsDisplay metrics={usage} variant="plain" separator />
+                    <>
+                        <MetaSeparator />
+                        <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+                    </>
                 ) : null}
-            </div>
+            </>
         )
     }
     return (
-        <ExecutionMetricsDisplay
-            metrics={{...summary.metrics, ...usage}}
-            variant="plain"
-            separator={separator}
-        />
+        <>
+            {lead}
+            <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} variant="plain" />
+        </>
     )
 }
