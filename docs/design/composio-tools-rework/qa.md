@@ -176,7 +176,7 @@ write a fallback path or a test for one.
 | ID | Case | Expected |
 | --- | --- | --- |
 | A10 | A caller without `RUN_TOOLS` | 403. Extend `api/oss/tests/pytest/unit/tools/test_platform_handlers.py`. |
-| A11 | A tool key that belongs to another integration | Rejected. The tool must belong to the selected integration. |
+| A11 | A tool key that belongs to another integration | Rejected. A key that names a different integration and matches nothing in this one returns `tool_not_in_integration`; any other unknown key returns `tool_not_found` with suggestions. |
 | A12 | A connection from another project | Rejected. |
 | A13 | A revoked connection | Rejected at execution time. |
 | A14 | An inactive or invalid connection | Rejected at execution time. |
@@ -185,7 +185,7 @@ write a fallback path or a test for one.
 | A17 | `arguments` is a string, an array, or `null` | Actionable error. Never replaced with `{}`. |
 | A18 | `arguments` is a valid object | Forwarded byte-for-byte to the provider adapter. |
 | A19 | The provider action ID | Read from the catalog. Never rebuilt by string concatenation from integration and tool strings. |
-| A20 | A provider rejection | The provider detail survives into the error so the model can correct the request. |
+| A20 | A provider rejection | The provider detail survives into the error so the model can correct the request. Both shapes: an answered failure, and a raised transport failure as `tool_execution_failed`. |
 | A21 | Private callback context | The route reads provider, integration, connection, and tool from the context, not from the function arguments. |
 
 A17 and A19 are both regressions of named current defects. Write them first.

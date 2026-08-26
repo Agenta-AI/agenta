@@ -322,9 +322,20 @@ the model.
 | Tool key not in that integration | `tool_not_in_integration` | `false` |
 | Arguments are not an object | `invalid_arguments` | `false` |
 | Connection revoked or invalid | `connection_unavailable` | `false` |
+| The provider could not run the tool | `tool_execution_failed` | provider 4xx `false`, otherwise `true` |
 
 For `tool_not_found`, `details` carries at most five close keys from the same configured
 integration, under `suggestions`. Never replace malformed arguments with `{}`.
+
+The API separates the two tool-key cases only as far as it can prove. It holds the named
+integration's catalog and nothing else, so it answers `tool_not_in_integration` when the
+key is no near miss of any key in that catalog and its own prefix names a different
+integration, and `tool_not_found` with suggestions in every other case. The runner's
+policy gate catches a tool of another configured integration before the callback is made.
+
+`tool_execution_failed` carries the provider's own detail in `message`. It rides HTTP 200
+like every other case here, because the runner hides a non-2xx body from the model and
+that detail is what lets the model correct a rejected request.
 
 ## 9. The permission compiler
 
