@@ -14,6 +14,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useSessionActions, type SessionMenuItem} from "../hooks/useSessionActions"
 import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
@@ -127,6 +128,7 @@ const SessionTag = memo(function SessionTag({
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "strip")
     // Hide the hover actions while the inline rename input owns the row. The chip itself owns the
     // hover/focus state that decides whether they're mounted at all (see SessionTab).
     const [renaming, setRenaming] = useState(false)
