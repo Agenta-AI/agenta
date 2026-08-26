@@ -365,7 +365,7 @@ const NavMenuImpl = ({
                             className={clsx(
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the <div> rows around it render Inter.
-                                "mx-auto flex items-center rounded-md border-0 bg-transparent [font-family:inherit]",
+                                "mx-auto flex min-w-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
@@ -374,7 +374,12 @@ const NavMenuImpl = ({
                             )}
                         >
                             {item.icon}
-                            {!collapsed ? <span>{item.title}</span> : null}
+                            {/* Allow the flex item to shrink so the title truncates instead of wrapping. */}
+                            {!collapsed ? (
+                                <span className="min-w-0 flex-1 truncate text-left">
+                                    {item.title}
+                                </span>
+                            ) : null}
                             {/* A group in a vertical section (the bottom rail) renders HERE, not
                                 through RowLabel — the suffix has to be drawn on both paths or
                                 Help & Docs loses its version label. The caret stands in for
