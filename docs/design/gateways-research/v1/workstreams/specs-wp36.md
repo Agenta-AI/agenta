@@ -11,8 +11,9 @@ does not exist. This package completes the brokered builtin provider.
   do not copy a Composio or user upstream secret into the agent, runner, or general vault path.
 - Relay Streamable HTTP MCP traffic, preserve JSON-RPC responses, and map broker authentication,
   disconnected-account, and upstream failures to the gateway error contract.
-- Keep Composio in `builtin`: it is a brokered project connection, not a `standard` provider-key
-  endpoint. Do not add a fake standard-Composio route.
+- Keep this package strictly to `builtin`: it uses the deployment's `COMPOSIO_API_KEY` and an
+  Agenta-managed Composio project. Project-owned Composio developer keys are the separate
+  `standard` mode in WP38; never silently fall back between the two.
 
 ## Required verification
 
@@ -26,4 +27,4 @@ does not exist. This package completes the brokered builtin provider.
 ## Done when
 
 A connected Composio builtin MCP endpoint performs a real gateway relay through a registered
-adapter, while no standard-Composio provider is implied or exposed.
+adapter using the deployment credential only.

@@ -21,9 +21,9 @@ explicit static field rewrite; all other supported routes preserve request bytes
 | --- | --- | --- |
 | Builtin `agenta` | Development-only generated `mock` endpoint mapped to `MockMCPAdapter`. | No production Agenta tool server or Agenta MCP adapter exists. |
 | Builtin `mock` | Development-only generated mock endpoint. | Test provider only. |
-| Builtin `composio` | Catalogue browsing and project connection/OAuth management exist. The data-plane service selects a `composio` adapter that is not implemented or registered. | A real MCP call fails at adapter dispatch. |
+| Builtin `composio` | Catalogue browsing and project connection/OAuth management use the deployment's `COMPOSIO_API_KEY`. The data-plane service selects a `composio` adapter that is not implemented or registered. | A real MCP call fails at adapter dispatch. |
 | Standard `mock` | Development-only generated endpoint, requiring a project mock provider key. | Test provider only. |
-| Standard `composio` | Not implemented and not intended by the current model. | Composio is brokered project-connection functionality in the builtin namespace, not a provider-key standard endpoint. |
+| Standard `composio` | Not implemented. A project-owned Composio developer key has no endpoint, connection, or adapter path. | This is the bring-your-own-Composio mode and belongs in `standard`; it must never fall back to the deployment key. |
 | Custom | Persisted Streamable HTTP endpoint with direct secret or MCP OAuth grant support. | Requires WP35 before standard clients can relay because the current gateway relies on non-standard routing headers. |
 
 ## Harness MCP acceptance
@@ -38,4 +38,6 @@ The current harness test is not valid acceptance evidence:
   involved. It must not be presented as an MCP failure or a passing MCP case.
 
 WP35 closes the first two points. The Claude mock-LLM problem needs a deterministic harness
-fixture before Claude joins the automated matrix again.
+fixture before Claude joins the automated matrix again. WP36 implements platform-key builtin
+Composio, WP38 implements project-key standard Composio, and WP37 implements production Agenta
+builtin MCP.
