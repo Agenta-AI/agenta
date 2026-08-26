@@ -25,6 +25,11 @@ def _empty_object_schema() -> Dict[str, Any]:
 Permission = Literal["allow", "ask", "deny"]
 PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
 
+# The four values a gateway connection policy saves. ``inherit`` is explicit here: an absent
+# tool key uses the connection default, while ``inherit`` skips that default and defers to
+# the agent-wide mode. The compiler applies it, so ``inherit`` never reaches the runner.
+GatewayPermission = Literal["inherit", "allow", "ask", "deny"]
+
 # The deleted pre-redesign vocabulary, still present in old dev-DB drafts. These literals
 # are the only place the SDK may spell them.
 _LEGACY_PERMISSION_KEYS = frozenset(
@@ -62,7 +67,7 @@ def effective_permission(
 
 
 class ToolConfigBase(BaseModel):
-    """Fields shared by every persisted tool declaration."""
+    """Fields shared by every persisted declaration of a single tool."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -99,6 +104,64 @@ class GatewayToolConfig(ToolConfigBase):
         return (
             f"tools.{self.provider}.{self.integration}.{self.action}.{self.connection}"
         )
+
+
+class GatewayConnectionRef(BaseModel):
+    """The shared project connection a gateway entry points at.
+
+    A resource reference, never a credential: the project owns the connection and several
+    agents can reuse it, each with its own policy.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Only `composio` is supported, per contracts section 1, so an unsupported provider is
+    # refused when the revision is parsed rather than at run start.
+    provider: Literal["composio"] = "composio"
+    integration: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+
+
+class GatewayPermissions(BaseModel):
+    """What the agent may do through one connection, per tool key."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default: GatewayPermission
+    tools: Dict[Annotated[str, Field(min_length=1)], GatewayPermission] = Field(
+        default_factory=dict
+    )
+
+
+class GatewayConnectionPolicy(BaseModel):
+    """The ``policy`` node of the saved entry. It mirrors the saved nesting and holds one
+    field on purpose, so a later policy of a different kind has a place to go."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    permissions: GatewayPermissions
+
+
+class GatewayConnectionToolConfig(BaseModel):
+    """One whole integration, with a policy the SDK compiles into per-tool decisions.
+
+    Replaces the one-entry-per-tool :class:`GatewayToolConfig`, which stays readable while
+    saved revisions migrate. The entry carries no credentials, provider account IDs, tool
+    schemas, or read-only hints: those are resolved data, not authored configuration.
+
+    It does not extend :class:`ToolConfigBase`. That base carries a per-tool ``render`` and
+    ``permission``, and an entry that covers a whole integration has no single tool to apply
+    either to. Every permission here lives in ``policy``, so a top-level one is refused
+    instead of accepted and then ignored, which would let an author believe a `deny` applies
+    when nothing reads it. The deleted legacy permission spellings are refused here for the
+    same reason, rather than dropped in silence as they are on the other arms.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["gateway_connection"] = "gateway_connection"
+    connection: GatewayConnectionRef
+    policy: GatewayConnectionPolicy
 
 
 class CodeToolConfig(ToolConfigBase):
@@ -231,6 +294,7 @@ ToolConfig = Annotated[
     Union[
         BuiltinToolConfig,
         GatewayToolConfig,
+        GatewayConnectionToolConfig,
         CodeToolConfig,
         ClientToolConfig,
         ReferenceToolConfig,

@@ -189,9 +189,11 @@ to change the model, provider, or connection. The rules below matter only when t
 
 ### tools
 
-A list of tool entries, each discriminated on `type`. Every entry may also carry two shared
-optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`, overriding the
-runner default for that one tool). The six `type` values:
+A list of tool entries, each discriminated on `type`. Every entry except `gateway_connection`
+may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
+`ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
+covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
+a top-level `permission` on one is refused. The seven `type` values:
 
 - `builtin` — legacy, accepted and ignored. The harness built-ins (`read`, `bash`, `edit`,
   `write`, `grep`, `find`, `ls`) are always available and are never listed in `tools`, so do not
@@ -203,6 +205,15 @@ runner default for that one tool). The six `type` values:
   and copy what it returns, adding the `connection` slug once the connection is ready.
   `{ "type": "gateway", "provider": "composio", "integration": "github",
      "action": "GET_AN_ISSUE", "connection": "<connection-slug>" }`. `name` is optional.
+- `gateway_connection` — one whole gateway integration with one permission policy, which
+  replaces a list of per-tool `gateway` entries. The Playground writes it when an author adds an
+  integration, so do not hand-write one: keep using `discover_tools` and `gateway` entries. Read
+  it, and keep it, when a revision already carries one.
+  `{ "type": "gateway_connection", "connection": { "provider": "composio", "integration":
+     "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "inherit",
+     "tools": { "DELETE_REPOSITORY": "deny" } } } }`. Each permission is `inherit` / `allow` /
+  `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
+  agent-wide runner policy.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":
