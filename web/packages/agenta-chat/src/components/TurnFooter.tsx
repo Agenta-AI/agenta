@@ -73,7 +73,7 @@ export const TurnFooter = ({
     }
 
     const showTrace = !!traceId && !!onViewTrace && inspectorEnabled
-    const showCopy = !isUser && !!copyText
+    const showCopy = !!copyText
     const hasActions = showCopy || !!onRewind || showTrace
 
     return (
