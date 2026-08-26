@@ -11,7 +11,7 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretDown, Microphone, Waveform} from "@phosphor-icons/react"
+import {CaretDown, Microphone, StopCircle, Waveform} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -215,15 +215,15 @@ const VoiceInputButton = ({
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
                     aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
-                    className={
-                        dictating
-                            ? "animate-pulse text-colorError"
-                            : audioPending
-                              ? "animate-pulse"
-                              : undefined
-                    }
+                    className={highlighted ? "animate-pulse" : undefined}
                 >
-                    {modeIcon(effective, highlighted)}
+                    {/* While dictating the button's job is to stop, so it shows that instead of
+                        the mode it was started from. */}
+                    {dictating ? (
+                        <StopCircle size={16} weight="fill" />
+                    ) : (
+                        modeIcon(effective, highlighted)
+                    )}
                 </Button>
             </SimpleTooltip>
             {available.length > 1 && !dictating && !audioPending ? (
