@@ -94,8 +94,11 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         flags: Object.keys(flags).length ? flags : undefined,
         // The rail never lists archived sessions; the sessions page owns the archive.
         includeArchived: false,
-        // Automations are hidden unless asked for — a schedule running hourly would otherwise
-        // bury the conversations you are having. `origin` is the server's own predicate.
+        // A SWAP, not a widening — the same contract the sessions page's toggle has: off lists
+        // what you started, on lists what your triggers ran. Mixing the two would bury the
+        // conversations you are having under a schedule that runs hourly. Both directions are the
+        // server's own `origin` predicate, so neither narrows a page after fetching it.
+        origin: filters.showAutomations ? ("trigger" as const) : undefined,
         excludeOrigin: filters.showAutomations ? undefined : ("trigger" as const),
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
@@ -182,7 +185,8 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, includeArchived, excludeOrigin, oldest} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
+            requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
         const waitingIds = waitingQuery.data ?? null
@@ -203,6 +207,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         references,
                         flags,
                         includeArchived,
+                        origin,
                         excludeOrigin,
                         oldest,
                         // No server predicate for "awaiting input" — ids are pushed down instead.
@@ -230,7 +235,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const allPinnedIds = get(pinnedSessionIdsAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, includeArchived, excludeOrigin} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, origin, excludeOrigin} = requestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingIds = get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? null
         // "Awaiting input" has no server predicate — it is an id set — so a pin has to be
@@ -258,6 +263,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         references,
                         flags,
                         includeArchived,
+                        origin,
                         excludeOrigin,
                         sessionIds: pinnedIds,
                         abortSignal: signal,
