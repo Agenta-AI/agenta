@@ -332,6 +332,7 @@ export const TurnRow = ({
                     traceId={traceId}
                     turnTraceId={turn.turnTraceId}
                     isUser={turn.isUser}
+                    isStreaming={turn.isStreamingTurn}
                     usage={usage}
                     copyText={copyText}
                     // Rewinding the LAST turn just re-runs the turn that is already current, so the

@@ -631,6 +631,7 @@ const AgentMessage = ({
                     traceId={traceId}
                     turnTraceId={turnTraceId}
                     isUser={isUser}
+                    isStreaming={isStreaming}
                     usage={usage}
                     copyText={copyText}
                     // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.

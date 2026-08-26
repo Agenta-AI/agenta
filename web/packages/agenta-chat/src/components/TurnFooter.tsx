@@ -29,6 +29,7 @@ export const TurnFooter = ({
     traceId,
     turnTraceId,
     isUser,
+    isStreaming = false,
     usage,
     copyText,
     onRewind,
@@ -40,6 +41,8 @@ export const TurnFooter = ({
     /** The trace of the turn this message belongs to — the user turn's only source of time. */
     turnTraceId?: string | null
     isUser: boolean
+    /** The answer is still arriving. Hides copy, which would take a half-written reply. */
+    isStreaming?: boolean
     usage?: MessageUsageMetrics
     /** What the copy button puts on the clipboard. Omitted (or empty) hides the button. */
     copyText?: string
@@ -73,7 +76,7 @@ export const TurnFooter = ({
     }
 
     const showTrace = !!traceId && !!onViewTrace && inspectorEnabled
-    const showCopy = !!copyText
+    const showCopy = !!copyText && !isStreaming
     const hasActions = showCopy || !!onRewind || showTrace
 
     return (
