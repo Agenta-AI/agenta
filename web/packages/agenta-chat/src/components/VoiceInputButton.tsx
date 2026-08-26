@@ -103,22 +103,25 @@ const VoiceInputButton = ({
     // Push the transcript through the editor's dictation session: committed words land as normal
     // text, the provisional tail is styled as unsettled. No document rewrite, so the undo history
     // and anything already typed survive.
+    //
+    // Unguarded: the browser can deliver a last final result in the same commit that ends the
+    // session, and skipping the write there would drop exactly the words `active` exists to save.
+    // Writing once the session is over is already a no-op — `endDictation` clears its ref.
     useEffect(() => {
-        if (!transcribe.recording) return
         inputRef.current?.updateDictation(transcribe.finalText, transcribe.interimText)
-    }, [transcribe.recording, transcribe.finalText, transcribe.interimText, inputRef])
+    }, [transcribe.active, transcribe.finalText, transcribe.interimText, inputRef])
 
     // Settle the editor session once the recogniser actually stops (it emits a last final result
     // on the way out, so ending earlier would drop those words).
-    const wasRecording = useRef(false)
+    const wasActive = useRef(false)
     useEffect(() => {
-        if (wasRecording.current && !transcribe.recording) {
+        if (wasActive.current && !transcribe.active) {
             inputRef.current?.endDictation()
             inputRef.current?.focus()
         }
-        wasRecording.current = transcribe.recording
-        onDictatingChange(transcribe.recording)
-    }, [transcribe.recording, inputRef, onDictatingChange])
+        wasActive.current = transcribe.active
+        onDictatingChange(transcribe.active)
+    }, [transcribe.active, inputRef, onDictatingChange])
 
     // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; supported: boolean}[] = [
@@ -134,13 +137,14 @@ const VoiceInputButton = ({
     // takeover bar (which covers this button while active).
     const dictating = effective === "transcribe" && transcribe.recording
 
-    // Guarded because `beginDictation` would otherwise orphan the live session's node pair,
-    // stranding its interim text at reduced opacity forever.
+    // The editor session follows whether `start` actually opened one — rendered state lags a press
+    // by a commit, and opening a second session over a running recogniser replays its whole
+    // transcript into the new node. A press while the LAST session is merely closing does open one:
+    // `beginDictation` settles the outgoing nodes rather than orphaning them, and the recogniser
+    // queues the start across that teardown.
     const startDictation = useCallback(() => {
-        if (transcribe.recording) return
-        inputRef.current?.beginDictation()
-        transcribe.start()
-    }, [transcribe.recording, transcribe.start, inputRef])
+        if (transcribe.start()) inputRef.current?.beginDictation()
+    }, [transcribe.start, inputRef])
 
     // Resolved after mount so SSR can't mismatch the glyph.
     const [holdLabel, setHoldLabel] = useState("Ctrl+Alt")
