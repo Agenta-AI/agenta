@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {useStartupPhase} from "@agenta/chat/state"
@@ -37,9 +38,18 @@ import {isLiveTextItem} from "./markdownStream"
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
 /** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
-const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) => {
+const ReasoningFold = ({
+    text,
+    streaming,
+    urgent,
+}: {
+    text: string
+    streaming: boolean
+    urgent?: boolean
+}) => {
     const [manual, setManual] = useState<boolean | null>(null)
     const open = manual ?? streaming
+    const {text: revealed} = useTypewriter(text, {urgent})
     return (
         <div className="flex max-w-full flex-col">
             <button
@@ -56,7 +66,7 @@ const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) =>
             </button>
             {open ? (
                 <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {text}
+                    {revealed}
                 </div>
             ) : null}
         </div>
@@ -261,6 +271,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 streaming={isLiveTextItem(turn, position)}
                                 text={item.part.text}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
@@ -273,6 +284,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 text={item.part.text}
                                 streaming={isLiveTextItem(turn, position)}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
