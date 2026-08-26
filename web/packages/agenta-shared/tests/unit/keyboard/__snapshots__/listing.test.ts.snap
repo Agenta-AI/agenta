@@ -938,7 +938,6 @@ exports[`the reference listing > matches its snapshot on a Mac 1`] = `
       {
         "chords": [
           "⇧⌘Z",
-          "⌃Y",
         ],
         "id": "composer.redo",
         "label": "Redo",

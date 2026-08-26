@@ -93,7 +93,7 @@ export const COMPOSER_SHORTCUTS = defineShortcuts([
         section: SECTION_IDS.composer,
         chords: [
             modChord(key("z"), {shift: "required"}),
-            bare(key("y"), {ctrl: "required"}),
+            bare(key("y"), {ctrl: "required", only: "other"}),
         ],
         label: "Redo",
         inlineHint: "never",

@@ -7,9 +7,7 @@
  */
 
 /** How a chord names its non-modifier key. */
-export type KeyRef =
-    | {kind: "logical"; key: string}
-    | {kind: "physical"; code: string}
+export type KeyRef = {kind: "logical"; key: string} | {kind: "physical"; code: string}
 
 /**
  * A modifier requirement. Unspecified means FORBIDDEN, deliberately: `Escape` denies an approval
@@ -28,6 +26,9 @@ export interface Chord {
     ctrl?: ModState
     /** Literal Meta, distinct from `mod`. Overrides the `mod` derivation for this modifier. */
     meta?: ModState
+    /** Restricts the chord to one platform. Lexical binds redo as Ctrl+Y off Apple hardware
+     * only, so listing it everywhere would advertise a key the editor never answers. */
+    only?: "apple" | "other"
 }
 
 /** The minimum event shape the matcher needs. A DOM `KeyboardEvent` satisfies it structurally,

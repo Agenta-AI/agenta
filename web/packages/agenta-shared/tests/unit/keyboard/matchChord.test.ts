@@ -1,8 +1,8 @@
 import {describe, expect, it} from "vitest"
 
+import {SHORTCUTS} from "../../../src/keyboard/catalog"
 import {altChord, bare, code, key, modChord} from "../../../src/keyboard/chord"
 import {matchesChord, passesGuards} from "../../../src/keyboard/matchChord"
-import {SHORTCUTS} from "../../../src/keyboard/catalog"
 import type {KeyEventLike, ShortcutDefinition} from "../../../src/keyboard/types"
 
 const event = (over: Partial<KeyEventLike> = {}): KeyEventLike => ({
@@ -116,8 +116,24 @@ describe("passesGuards", () => {
 describe("the catalog's own chords", () => {
     it("names a physical key for every Alt chord", () => {
         const offenders = SHORTCUTS.filter((def) =>
-            def.chords.some((chord) => chord.alt === "required" && chord.target.kind !== "physical"),
+            def.chords.some(
+                (chord) => chord.alt === "required" && chord.target.kind !== "physical",
+            ),
         ).map((def) => def.id)
         expect(offenders).toEqual([])
+    })
+})
+
+describe("a chord limited to one platform", () => {
+    // Lexical answers Ctrl+Y off Apple hardware only; listing it everywhere would advertise a
+    // key the editor ignores.
+    const ctrlY = bare(key("y"), {ctrl: "required", only: "other"})
+
+    it("matches off Apple hardware", () => {
+        expect(matchesChord(ctrlY, event({key: "y", ctrlKey: true}), false)).toBe(true)
+    })
+
+    it("never matches on a Mac", () => {
+        expect(matchesChord(ctrlY, event({key: "y", ctrlKey: true}), true)).toBe(false)
     })
 })

@@ -9,7 +9,7 @@
 
 export {altChord, bare, code, key, modChord} from "./chord"
 export {formatChord} from "./format"
-export {isAltChord, matchesChord, matchesShortcut, passesGuards} from "./matchChord"
+export {chordAppliesTo, isAltChord, matchesChord, matchesShortcut, passesGuards} from "./matchChord"
 export type {MatchContext} from "./matchChord"
 export {SECTION_IDS, SECTIONS, SECTIONS_BY_ID} from "./sections"
 export {MAX_DIGIT_ROWS, SESSION_SHORTCUT_MAX, SHORTCUTS} from "./catalog"

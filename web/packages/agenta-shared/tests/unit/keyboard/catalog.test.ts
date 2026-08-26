@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import {SHORTCUTS} from "../../../src/keyboard/catalog"
-import {matchesChord} from "../../../src/keyboard/matchChord"
+import {chordAppliesTo, matchesChord} from "../../../src/keyboard/matchChord"
 import {validateCatalog} from "../../../src/keyboard/registry"
 import {SECTIONS_BY_ID} from "../../../src/keyboard/sections"
 import type {Chord, KeyEventLike, ShortcutDefinition} from "../../../src/keyboard/types"
@@ -71,9 +71,12 @@ describe.each([
 
     it("matches each entry's own chords back to itself", () => {
         SHORTCUTS.forEach((def) => {
-            def.chords.forEach((chord) => {
-                expect(matchesChord(chord, synthesize(chord, isMac), isMac)).toBe(true)
-            })
+            // A platform-limited chord is absent here by design, not unmatched.
+            def.chords
+                .filter((chord) => chordAppliesTo(chord, isMac))
+                .forEach((chord) => {
+                    expect(matchesChord(chord, synthesize(chord, isMac), isMac)).toBe(true)
+                })
         })
     })
 })

@@ -314,8 +314,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
                                     advertise themselves; the send/newline pair is the only pair
                                     you need told to you. */}
-                                <ShortcutHint id={SHORTCUT_IDS["composer.send"]} />
-                                <ShortcutHint id={SHORTCUT_IDS["composer.newline"]} />
+                                <ShortcutHint id={SHORTCUT_IDS["composer.send"]} label="Send" />
+                                <ShortcutHint
+                                    id={SHORTCUT_IDS["composer.newline"]}
+                                    label="Newline"
+                                />
                             </div>
                         )}
                         <div className="ml-auto flex items-center gap-2">

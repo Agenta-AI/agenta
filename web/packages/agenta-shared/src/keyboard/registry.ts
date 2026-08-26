@@ -1,5 +1,6 @@
 import {SHORTCUTS} from "./catalog"
 import {formatChord} from "./format"
+import {chordAppliesTo} from "./matchChord"
 import {SECTIONS, SECTIONS_BY_ID} from "./sections"
 import type {
     ShortcutDefinition,
@@ -25,14 +26,13 @@ const toListing = (def: ShortcutDefinition, isMac: boolean): ShortcutListing => 
     id: def.id,
     label: def.label,
     ...(def.context ? {context: def.context} : {}),
-    chords: def.chords.map((chord) => formatChord(chord, {isMac})),
+    chords: def.chords
+        .filter((chord) => chordAppliesTo(chord, isMac))
+        .map((chord) => formatChord(chord, {isMac})),
 })
 
 /** One entry, ready to render beside its own control or in a tooltip. */
-export function describeShortcut(
-    id: ShortcutId,
-    opts: {isMac: boolean},
-): ShortcutListing | null {
+export function describeShortcut(id: ShortcutId, opts: {isMac: boolean}): ShortcutListing | null {
     const def = SHORTCUTS_BY_ID.get(id)
     return def ? toListing(def, opts.isMac) : null
 }
@@ -50,9 +50,7 @@ export interface ListShortcutsOptions {
  * reference renders verbatim. Empty sections are dropped, so a filtered call never leaves a
  * bare heading behind.
  */
-export function listShortcutSections(
-    opts: ListShortcutsOptions,
-): ShortcutSectionListing[] {
+export function listShortcutSections(opts: ListShortcutsOptions): ShortcutSectionListing[] {
     const {isMac, sections, includeHidden = false} = opts
     const wanted = sections ? new Set(sections) : null
 
@@ -74,10 +72,7 @@ export function listShortcutSections(
             // snapshotted.
             const ordered = entries
                 .map((def, index) => ({def, index}))
-                .sort(
-                    (a, b) =>
-                        (a.def.order ?? 0) - (b.def.order ?? 0) || a.index - b.index,
-                )
+                .sort((a, b) => (a.def.order ?? 0) - (b.def.order ?? 0) || a.index - b.index)
                 .map(({def}) => toListing(def, isMac))
             return [
                 {

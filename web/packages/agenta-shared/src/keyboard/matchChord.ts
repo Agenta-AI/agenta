@@ -21,7 +21,12 @@ const normalizeKey = (raw: string): string => {
 const satisfies = (state: ModState | undefined, held: boolean): boolean =>
     state === "required" ? held : !held
 
+/** Does this chord exist on the platform in play at all? */
+export const chordAppliesTo = (chord: Chord, isMac: boolean): boolean =>
+    chord.only === undefined || (chord.only === "apple") === isMac
+
 export function matchesChord(chord: Chord, event: KeyEventLike, isMac: boolean): boolean {
+    if (!chordAppliesTo(chord, isMac)) return false
     const {target} = chord
     if (target.kind === "physical") {
         if (event.code !== target.code) return false
@@ -48,7 +53,11 @@ export interface MatchContext {
     typingTarget: boolean
 }
 
-export function passesGuards(def: ShortcutDefinition, event: KeyEventLike, ctx: MatchContext): boolean {
+export function passesGuards(
+    def: ShortcutDefinition,
+    event: KeyEventLike,
+    ctx: MatchContext,
+): boolean {
     const guards = def.guards
     if (event.repeat && !guards?.allowRepeat) return false
     if (event.isComposing && !guards?.allowComposing) return false
