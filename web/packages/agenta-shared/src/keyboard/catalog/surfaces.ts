@@ -81,6 +81,7 @@ export const SURFACE_SHORTCUTS = defineShortcuts([
     },
 ])
 
+/** The agent's config panel — the surface Alt+B opens. Activation keys, mostly. */
 export const CONFIG_PANEL_SHORTCUTS = defineShortcuts([
     {
         id: id("config.activate"),

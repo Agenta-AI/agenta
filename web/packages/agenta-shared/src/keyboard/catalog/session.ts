@@ -6,6 +6,8 @@ import {defineShortcuts, id} from "./helpers"
 /** How many open sessions the digit row can reach. */
 export const SESSION_SHORTCUT_MAX = 9
 
+// Nine near-identical entries rather than one ranged entry: the resolver matches a single chord,
+// and collapsing them for display is the reference's job, not the catalog's.
 const digitJump = Array.from({length: SESSION_SHORTCUT_MAX}, (_, index) => ({
     id: id(`session.jump.${index + 1}`),
     section: SECTION_IDS.sessions,
@@ -16,6 +18,8 @@ const digitJump = Array.from({length: SESSION_SHORTCUT_MAX}, (_, index) => ({
     order: 10 + index,
 }))
 
+/** Session management, driven by useSessionShortcuts in the agent chat panel. Alt alone,
+ * because ⌘/Ctrl+digit is browser tab switching on every OS. */
 export const SESSION_SHORTCUTS = defineShortcuts([
     ...digitJump,
     {

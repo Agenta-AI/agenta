@@ -3,6 +3,8 @@ import {SECTION_IDS} from "../sections"
 
 import {defineShortcuts, id} from "./helpers"
 
+/** The slash menu, and the pickers a command opens. The two sets differ: the menu binds only
+ * arrows, Enter, Tab and Escape — the rest belong to whatever panel it hands off to. */
 export const SLASH_COMMAND_SHORTCUTS = defineShortcuts([
     {
         // Typing `/` opens the menu from an editor update, not from a keydown — pasting one, or

@@ -3,6 +3,8 @@ import {SECTION_IDS} from "../sections"
 
 import {defineShortcuts, id} from "./helpers"
 
+/** The message composer. Implemented by RichChatInput's Lexical plugins, plus what
+ * RichTextExtension and HistoryExtension bind for free. */
 export const COMPOSER_SHORTCUTS = defineShortcuts([
     {
         id: id("composer.send"),

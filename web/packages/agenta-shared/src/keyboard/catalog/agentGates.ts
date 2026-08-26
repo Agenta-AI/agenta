@@ -16,6 +16,8 @@ const digitPick = Array.from({length: MAX_DIGIT_ROWS}, (_, index) => ({
     order: 60 + index,
 }))
 
+/** The three docks that interrupt a run — approval, question, connection — plus the recording
+ * bar. One section because they are one moment to a user, whatever the component tree says. */
 export const AGENT_GATE_SHORTCUTS = defineShortcuts([
     {
         id: id("gate.approve"),

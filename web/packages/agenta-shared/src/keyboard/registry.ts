@@ -14,7 +14,8 @@ export const SHORTCUTS_BY_ID: ReadonlyMap<ShortcutId, ShortcutDefinition> = new 
     SHORTCUTS.map((entry) => [entry.id, entry]),
 )
 
-/** Every id, as a lookup for call sites: `SHORTCUT_IDS["gate.approve"]`. */
+/** Every id, as a lookup for call sites: `SHORTCUT_IDS["gate.approve"]`. Derived from the
+ * catalog rather than hand-listed, so an id cannot exist here without a definition behind it. */
 export const SHORTCUT_IDS = Object.freeze(
     Object.fromEntries(SHORTCUTS.map((entry) => [entry.id, entry.id])),
 ) as Readonly<Record<string, ShortcutId>>
