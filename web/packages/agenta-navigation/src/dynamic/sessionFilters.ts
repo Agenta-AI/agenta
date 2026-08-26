@@ -28,6 +28,9 @@ export const ACTIVITY_WINDOW_HOURS: Record<SidebarSessionActivityFilter, number 
 /** What the headings bucket by. `none` is a flat list. Pins always lead in their own heading. */
 export type SidebarSessionGroupBy = "none" | "agent" | "date" | "status"
 
+/** Which sessions the rail lists. `chat` and `automation` swap the list; `all` mixes both. */
+export type SidebarSessionTypeFilter = "all" | "chat" | "automation"
+
 /** Everything the menu offers. A stored value outside this set is stale and falls back. */
 const GROUP_BY_VALUES = new Set<string>(["none", "agent", "date", "status"])
 
@@ -37,11 +40,7 @@ export interface SidebarSessionFilters {
     agentIds: string[]
     status: SidebarSessionStatusFilter
     activity: SidebarSessionActivityFilter
-    /**
-     * Whether trigger-originated runs are listed. Off by default, matching the sessions page:
-     * a schedule that runs hourly would otherwise bury the conversations you are having.
-     */
-    showAutomations: boolean
+    type: SidebarSessionTypeFilter
 }
 
 export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
@@ -52,7 +51,8 @@ export const DEFAULT_SIDEBAR_SESSION_FILTERS: SidebarSessionFilters = {
     // A WEEK, not everything: the rail is for what you are working on, and the sessions page owns
     // the archive. It also narrows the fetch, which no render-side cap can do.
     activity: "7d",
-    showAutomations: false,
+    // CHAT, not all: a schedule that runs hourly would bury the conversations you are having.
+    type: "chat",
 }
 
 // Persisted, not in-memory: a hot module swap re-creates every atomFamily instance, so an

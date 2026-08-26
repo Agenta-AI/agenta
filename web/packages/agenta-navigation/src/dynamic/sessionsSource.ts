@@ -94,12 +94,10 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         flags: Object.keys(flags).length ? flags : undefined,
         // The rail never lists archived sessions; the sessions page owns the archive.
         includeArchived: false,
-        // A SWAP, not a widening — the same contract the sessions page's toggle has: off lists
-        // what you started, on lists what your triggers ran. Mixing the two would bury the
-        // conversations you are having under a schedule that runs hourly. Both directions are the
-        // server's own `origin` predicate, so neither narrows a page after fetching it.
-        origin: filters.showAutomations ? ("trigger" as const) : undefined,
-        excludeOrigin: filters.showAutomations ? undefined : ("trigger" as const),
+        // Chat and automation SWAP the list; `all` mixes them. Every direction is the server's
+        // own `origin` predicate, so none of them narrows a page after fetching it.
+        origin: filters.type === "automation" ? ("trigger" as const) : undefined,
+        excludeOrigin: filters.type === "chat" ? ("trigger" as const) : undefined,
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
 }
@@ -197,7 +195,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.agentIds,
                 filters.status,
                 filters.activity,
-                filters.showAutomations,
+                filters.type,
                 waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
@@ -252,7 +250,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 pinnedIds,
                 filters.agentIds,
                 filters.status,
-                filters.showAutomations,
+                filters.type,
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.

@@ -8,12 +8,12 @@ import {
     type SidebarSessionActivityFilter,
     type SidebarSessionGroupBy,
     type SidebarSessionStatusFilter,
+    type SidebarSessionTypeFilter,
 } from "@agenta/navigation"
 import {
     FILTER_MENU_FLIP_WIDTH,
     FilterMenu,
     type FilterMenuFacet,
-    type FilterMenuToggle,
 } from "@agenta/ui/components/presentational"
 import {
     ClockIcon,
@@ -30,6 +30,12 @@ const GROUP_BY_OPTIONS = [
     {value: "agent", label: "Agent"},
     {value: "date", label: "Date"},
     {value: "status", label: "Status"},
+]
+
+const TYPE_OPTIONS = [
+    {value: "all", label: "All"},
+    {value: "chat", label: "Chat"},
+    {value: "automation", label: "Automation"},
 ]
 
 const STATUS_OPTIONS = [
@@ -69,6 +75,16 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 options: GROUP_BY_OPTIONS,
             },
             {
+                key: "type",
+                label: "Type",
+                // A bolt, not the robot: the robot means AGENT throughout the rail, and an
+                // automation is a trigger that ran one — reusing it would conflate the two.
+                icon: <LightningIcon size={14} />,
+                value: filters.type,
+                defaultValue: "chat",
+                options: TYPE_OPTIONS,
+            },
+            {
                 key: "agentIds",
                 label: "Agent",
                 icon: <RobotIcon size={14} />,
@@ -97,21 +113,14 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 options: ACTIVITY_OPTIONS,
             },
         ],
-        [agentOptions, filters.activity, filters.agentIds, filters.groupBy, filters.status],
-    )
-
-    const toggles = useMemo<FilterMenuToggle[]>(
-        () => [
-            {
-                key: "showAutomations",
-                label: "Show automations",
-                on: filters.showAutomations,
-                // A bolt, not the robot: the robot means AGENT throughout the rail, and an
-                // automation is a trigger that ran one — reusing it would conflate the two.
-                icon: <LightningIcon size={14} />,
-            },
+        [
+            agentOptions,
+            filters.activity,
+            filters.agentIds,
+            filters.groupBy,
+            filters.status,
+            filters.type,
         ],
-        [filters.showAutomations],
     )
 
     const onFacetChange = useCallback(
@@ -119,6 +128,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             if (key === "status") setFilters({status: value as SidebarSessionStatusFilter})
             if (key === "groupBy") setFilters({groupBy: value as SidebarSessionGroupBy})
             if (key === "activity") setFilters({activity: value as SidebarSessionActivityFilter})
+            if (key === "type") setFilters({type: value as SidebarSessionTypeFilter})
         },
         [setFilters],
     )
@@ -133,11 +143,6 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             })
         },
         [filters.agentIds, setFilters],
-    )
-
-    const onToggleChange = useCallback(
-        (key: string, on: boolean) => setFilters({[key]: on}),
-        [setFilters],
     )
 
     const triggerRef = useRef<HTMLButtonElement>(null)
@@ -168,12 +173,10 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     return (
         <FilterMenu
             facets={facets}
-            toggles={toggles}
             dirty={dirty}
             onReset={onReset}
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
-            onToggleChange={onToggleChange}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
             // otherwise move the menu somewhere different depending on scroll position. The side
             // it anchors to comes from `measureAlign` instead.
