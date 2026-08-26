@@ -2,41 +2,18 @@
  * Resolve an agent's invoke endpoint from workflow references alone — ONE Fern revision fetch,
  * no molecule hydration. Pairs with `buildAgentResumeRequest` for the lite resume path.
  *
- * The URL rule mirrors `@agenta/entities` `workflow/state/runnableSetup.ts`
- * (`invocationUrlAtomFamily`): prefer the stored `data.url`, else build from the agenta
- * `data.uri` (`agenta:{kind}:{key}:{version}` → `{origin}/services/{key}/{version}`), then
- * append `/invoke`. Kept local because the state atom needs a seeded molecule store.
+ * The URL rule is `@agenta/entities`' `resolveServiceUrl` — the SAME function the playground's
+ * `invocationUrlAtomFamily` calls, not a copy of it. It used to be a copy, and the copy drifted:
+ * both preferred a stored `data.url` whose origin is stamped at creation, so a deployment that
+ * moved its public URL sent every invoke to a host that no longer served it.
  */
-import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
-import {getAgentaApiUrl} from "@agenta/shared/api"
-
-/** `agenta:{kind}:{key}:{version}` → `{origin}/services/{key}/{version}`, or null. */
-const serviceUrlFromUri = (uri: string | null | undefined): string | null => {
-    if (!uri || !uri.startsWith("agenta:")) return null
-    const apiUrl = getAgentaApiUrl()
-    if (!apiUrl) return null
-    const origin = apiUrl.replace(/\/api\/?$/, "")
-    const parts = uri.replace(/^agenta:/, "").split(":")
-    if (parts.length < 3) return null
-    const [, ...rest] = parts
-    return `${origin}/services/${rest.join("/")}`
-}
-
-/** Strip trailing '/' in a single linear scan — NOT `/\/+$/`, whose end-anchored `+` backtracks
- * quadratically on a backend-supplied URL with many '/' (CodeQL polynomial-ReDoS). `47` is '/'. */
-const stripTrailingSlashes = (s: string): string => {
-    let end = s.length
-    while (end > 0 && s.charCodeAt(end - 1) === 47) end--
-    return end === s.length ? s : s.slice(0, end)
-}
+import {resolveServiceUrl, retrieveWorkflowRevision} from "@agenta/entities/workflow"
 
 /** Apply the `data.url|uri → /invoke` rule to a fetched revision. Exported for tests. */
 export const invocationUrlFromRevisionData = (
     data: {url?: string | null; uri?: string | null} | null | undefined,
 ): string | null => {
-    // `!= null` not a truthiness check: an empty `data.url` must NOT fall back to `uri`.
-    const serviceUrl =
-        data?.url != null ? stripTrailingSlashes(data.url) : serviceUrlFromUri(data?.uri)
+    const serviceUrl = resolveServiceUrl(data)
     return serviceUrl ? `${serviceUrl}/invoke` : null
 }
 

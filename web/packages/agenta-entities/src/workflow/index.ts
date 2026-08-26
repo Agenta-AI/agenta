@@ -457,6 +457,7 @@ export {
     requestPayloadAtomFamily,
     // Helpers
     resolveBuiltinAppServiceUrl,
+    resolveServiceUrl,
 } from "./state"
 
 // ============================================================================
