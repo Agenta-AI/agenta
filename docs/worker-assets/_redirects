@@ -1,0 +1,8 @@
+# Cloudflare Workers Static Assets redirects for the docs site.
+# https://developers.cloudflare.com/workers/static-assets/redirects/
+#
+# The docs are staged under dist/docs, so the bare root of the assets directory
+# holds no page. In production the Worker only ever sees /docs* (that is its
+# route), so this rule exists for the preview and local `wrangler dev` hosts,
+# where opening the root should land on the docs home page.
+/ /docs 302

@@ -18,3 +18,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Worker build output (Cloudflare Workers Static Assets)
+/dist
