@@ -27,6 +27,11 @@ log = get_module_logger(__name__)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 1000
+# Composio clamps larger page limits to 50, so ask for exactly that.
+ALL_ACTIONS_PAGE_SIZE = 50
+# Runaway-cursor guard for the full-catalog crawl. 50 pages covers every toolkit
+# Composio publishes today by a wide margin.
+ALL_ACTIONS_MAX_PAGES = 50
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +279,52 @@ class ComposioCatalogClient:
             total=total_items,
         )
 
+    async def list_all_actions(
+        self,
+        *,
+        integration_key: str,
+    ) -> List[ToolCatalogAction]:
+        """Fetch one integration's whole catalog, following ``next_cursor`` to exhaustion.
+
+        A crawl that stops early would drop tools, and the caller caches what it gets,
+        so a cursor that repeats or never ends raises instead of returning a partial
+        catalog.
+        """
+        actions: List[ToolCatalogAction] = []
+        cursor: Optional[str] = None
+        seen_cursors: set = set()
+
+        for _ in range(ALL_ACTIONS_MAX_PAGES):
+            page = await self.list_actions(
+                integration_key=integration_key,
+                limit=ALL_ACTIONS_PAGE_SIZE,
+                cursor=cursor,
+            )
+            actions.extend(page.actions)
+            cursor = page.next_cursor
+            if not cursor:
+                break
+            if cursor in seen_cursors:
+                raise AdapterError(
+                    provider_key="composio",
+                    operation="list_all_actions",
+                    detail=f"{integration_key} catalog repeated a cursor",
+                )
+            seen_cursors.add(cursor)
+        else:
+            raise AdapterError(
+                provider_key="composio",
+                operation="list_all_actions",
+                detail=f"{integration_key} catalog did not end within {ALL_ACTIONS_MAX_PAGES} pages",
+            )
+
+        log.debug(
+            "[composio] list_all_actions(%s) items=%d",
+            integration_key,
+            len(actions),
+        )
+        return actions
+
 
 # ---------------------------------------------------------------------------
 # Parsers (module-level — no instance state needed)
@@ -401,5 +452,6 @@ def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogActi
         name=item.get("name", ""),
         description=item.get("description"),
         categories=categories,
+        provider_action_id=composio_slug,
         read_only=_derive_read_only(raw_tags),
     )

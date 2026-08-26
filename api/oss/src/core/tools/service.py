@@ -1,7 +1,9 @@
+import asyncio
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.gateway.catalog.service import CatalogService
@@ -13,11 +15,15 @@ from oss.src.core.tools.dtos import (
     ComposioTool,
     ConnectAffordance,
     ConnectionRequirement,
+    GatewayConnectionTool,
+    ResolvedGatewayConnection,
+    ResolvedGatewayTool,
     ResolvedTool,
     ToolAuthScheme,
     ToolCatalogActionDetails,
     ToolCatalogActionsPage,
     ToolCatalogCategory,
+    ToolCatalogEntry,
     ToolCatalogIntegration,
     ToolCatalogIntegrationsPage,
     ToolCatalogProvider,
@@ -37,6 +43,7 @@ from oss.src.core.tools.discovery import (
 )
 from oss.src.core.tools.exceptions import (
     ActionNotFoundError,
+    AdapterError,
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
@@ -52,11 +59,29 @@ log = get_module_logger(__name__)
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
 
+
+def _validate_slug_segments(provider_key: str, segments: Iterable[str]) -> None:
+    """Refuse a routing segment outside the safe allowlist before it reaches a provider."""
+    segments = list(segments)
+    for segment in segments:
+        if not _SLUG_SEGMENT_RE.match(segment):
+            raise ToolSlugInvalidError(
+                slug=".".join([provider_key, *segments]),
+                detail=f"Invalid slug segment: {segment!r}",
+            )
+
+
 # Discovery (discover_tools): cache the tool/schema half, recompute connection
 # state fresh (D6). Project-agnostic key — the search is global, only the
 # connection-state join is project-scoped.
 _DISCOVERY_CACHE_NAMESPACE = "tools:discover"
 _DEFAULT_LIMIT_ALTERNATIVES = 3
+
+# Whole-catalog cache: one entry holds every tool of one integration. The router's
+# ``tools:catalog:*`` entries cannot serve this — each holds one page of one query,
+# and they sit above the service. Shares the trigger catalog's TTL and deadline:
+# both are the same project-agnostic Composio catalog data.
+_CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 
 
 class ToolsService:
@@ -168,6 +193,76 @@ class ToolsService:
             cursor=cursor,
         )
 
+    async def list_all_actions(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+    ) -> List[ToolCatalogEntry]:
+        """Return every tool of one integration, as identity plus the read-only hint.
+
+        Resolution, action detail, and execution all read tool identity from here, so
+        a tool key maps to exactly one provider action ID on every path. The provider
+        crawl is bounded by a deadline and its result is cached whole; a crawl that
+        cannot finish raises, so a partial catalog never reaches the cache.
+        """
+        cache_key = {"provider": provider_key, "integration": integration_key}
+        cached = await get_cache(
+            namespace=_CATALOG_CACHE_NAMESPACE,
+            key=cache_key,
+            model=ToolCatalogEntry,
+            is_list=True,
+        )
+        if cached is not None:
+            return cached
+
+        adapter = self.adapter_registry.get(provider_key)
+        try:
+            actions = await asyncio.wait_for(
+                adapter.list_all_actions(integration_key=integration_key),
+                timeout=env.composio.catalog_fetch_deadline_seconds,
+            )
+        except asyncio.TimeoutError as e:
+            raise AdapterError(
+                provider_key=provider_key,
+                operation="list_all_actions",
+                detail="catalog fetch deadline exceeded",
+            ) from e
+
+        entries = [
+            ToolCatalogEntry(
+                key=action.key,
+                provider_action_id=action.provider_action_id,
+                read_only=action.read_only,
+            )
+            for action in actions
+            if action.provider_action_id
+        ]
+        await set_cache(
+            namespace=_CATALOG_CACHE_NAMESPACE,
+            key=cache_key,
+            value=entries,
+            ttl=env.composio.catalog_cache_ttl_seconds,
+        )
+        return entries
+
+    async def _provider_action_id(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+        action_key: str,
+    ) -> Optional[str]:
+        """Look one tool key up in the catalog, or None when the integration lacks it."""
+        actions = await self.list_all_actions(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        for action in actions:
+            if action.key == action_key:
+                return action.provider_action_id
+        return None
+
     async def get_action(
         self,
         *,
@@ -176,10 +271,18 @@ class ToolsService:
         action_key: str,
     ) -> Optional[ToolCatalogActionDetails]:
         """Return full action detail including input/output schema, or None if not found."""
-        adapter = self.adapter_registry.get(provider_key)
-        return await adapter.get_action(
+        provider_action_id = await self._provider_action_id(
+            provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+        )
+        if not provider_action_id:
+            return None
+
+        adapter = self.adapter_registry.get(provider_key)
+        return await adapter.get_action(
+            action_key=action_key,
+            provider_action_id=provider_action_id,
         )
 
     # -----------------------------------------------------------------------
@@ -325,13 +428,30 @@ class ToolsService:
         user_id: Optional[str] = None,
         arguments: Dict[str, Any],
     ) -> ToolExecutionResponse:
-        """Execute a tool action using the provider adapter."""
+        """Execute a tool action using the provider adapter.
+
+        Both call paths, the legacy five-segment reference and the gateway route,
+        reach the provider through this one lookup.
+        """
+        provider_action_id = await self._provider_action_id(
+            provider_key=provider_key,
+            integration_key=integration_key,
+            action_key=action_key,
+        )
+        if not provider_action_id:
+            raise ActionNotFoundError(
+                provider_key=provider_key,
+                integration_key=integration_key,
+                action_key=action_key,
+            )
+
         adapter = self.adapter_registry.get(provider_key)
 
         return await adapter.execute(
             request=ToolExecutionRequest(
                 integration_key=integration_key,
                 action_key=action_key,
+                provider_action_id=provider_action_id,
                 provider_connection_id=provider_connection_id,
                 user_id=user_id,
                 arguments=arguments,
@@ -409,14 +529,26 @@ class ToolsService:
         validated against the project's connections up front and enriched from the
         catalog (description + input schema), so the model never sees a stale schema
         and the invoke fails fast on a missing/invalid connection rather than mid-loop.
+        A ``gateway_connection`` entry validates the same connection and answers with
+        the whole catalog slice instead. One request may carry both formats.
         """
         builtins: List[str] = []
         custom: List[ResolvedTool] = []
+        gateway_connections: List[ResolvedGatewayConnection] = []
 
         for ref in tools:
             if isinstance(ref, BuiltinTool):
                 if ref.name:
                     builtins.append(ref.name)
+                continue
+
+            if isinstance(ref, GatewayConnectionTool):
+                gateway_connections.append(
+                    await self._resolve_gateway_connection(
+                        project_id=project_id,
+                        ref=ref,
+                    )
+                )
                 continue
 
             if isinstance(ref, ComposioTool):
@@ -427,7 +559,50 @@ class ToolsService:
                     )
                 )
 
-        return ToolsResolution(builtins=builtins, custom=custom)
+        return ToolsResolution(
+            builtins=builtins,
+            custom=custom,
+            gateway_connections=gateway_connections,
+        )
+
+    async def _resolve_gateway_connection(
+        self,
+        *,
+        project_id: UUID,
+        ref: GatewayConnectionTool,
+    ) -> ResolvedGatewayConnection:
+        """Validate one connection entry and return its whole catalog slice.
+
+        Permission lives in the entry's ``policy`` and is compiled by the SDK, so this
+        returns tool identity and ``read_only`` only.
+        """
+        provider_key = ref.connection.provider
+        integration_key = ref.connection.integration
+        connection_slug = ref.connection.slug
+
+        _validate_slug_segments(provider_key, (integration_key, connection_slug))
+
+        await self.resolve_connection_by_slug(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            connection_slug=connection_slug,
+        )
+
+        actions = await self.list_all_actions(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+
+        return ResolvedGatewayConnection(
+            provider=provider_key,
+            integration=integration_key,
+            connection=connection_slug,
+            tools=[
+                ResolvedGatewayTool(key=action.key, read_only=action.read_only)
+                for action in actions
+            ],
+        )
 
     async def _resolve_composio_tool(
         self,
@@ -437,12 +612,9 @@ class ToolsService:
     ) -> ResolvedTool:
         provider_key = ToolProviderKind.COMPOSIO.value
 
-        for segment in (ref.integration, ref.action, ref.connection):
-            if not _SLUG_SEGMENT_RE.match(segment):
-                raise ToolSlugInvalidError(
-                    slug=f"{provider_key}.{ref.integration}.{ref.action}.{ref.connection}",
-                    detail=f"Invalid slug segment: {segment!r}",
-                )
+        _validate_slug_segments(
+            provider_key, (ref.integration, ref.action, ref.connection)
+        )
 
         # Fail fast if the connection is missing/inactive/invalid for this project.
         await self.resolve_connection_by_slug(

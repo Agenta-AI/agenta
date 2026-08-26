@@ -2,7 +2,11 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
+from agenta.sdk.agents.tools import (
+    BuiltinToolConfig,
+    GatewayConnectionToolConfig,
+    GatewayToolConfig,
+)
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,6 +61,10 @@ class ToolCatalogAction(BaseModel):
     categories: List[str] = []
     logo: Optional[str] = None
     #
+    # The provider's own action ID, kept exactly as the provider spells it. Execution
+    # reads it from here; no call path may rebuild it from the integration and the key.
+    provider_action_id: Optional[str] = None
+    #
     # From the MCP behavioral hints: True (read-only), False (mutating), None (unknown).
     read_only: Optional[bool] = None
 
@@ -103,6 +111,19 @@ class ToolCatalogActionsPage(BaseModel):
     actions: List[ToolCatalogAction] = []
     next_cursor: Optional[str] = None
     total: int = 0
+
+
+class ToolCatalogEntry(BaseModel):
+    """One catalog tool reduced to what the platform itself needs.
+
+    This is what the whole-integration catalog cache holds, so an entry stays small
+    enough to read on the execution path. Descriptions and schemas are display data
+    and are fetched per action instead.
+    """
+
+    key: str
+    provider_action_id: str
+    read_only: Optional[bool] = None
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +201,7 @@ class ToolExecutionRequest(BaseModel):
 
     integration_key: str
     action_key: str
+    provider_action_id: str  # read from the catalog, never rebuilt from the two above
     provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
@@ -205,7 +227,12 @@ class ToolExecutionResponse(BaseModel):
 
 BuiltinTool = BuiltinToolConfig
 ComposioTool = GatewayToolConfig
-ToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
+GatewayConnectionTool = GatewayConnectionToolConfig
+ToolReference = Union[
+    BuiltinToolConfig,
+    GatewayToolConfig,
+    GatewayConnectionToolConfig,
+]
 
 
 class ResolvedTool(BaseModel):
@@ -222,15 +249,37 @@ class ResolvedTool(BaseModel):
     read_only: Optional[bool] = None
 
 
+class ResolvedGatewayTool(BaseModel):
+    """One catalog tool as the SDK permission compiler reads it (contracts section 2)."""
+
+    key: str
+    read_only: Optional[bool] = None
+
+
+class ResolvedGatewayConnection(BaseModel):
+    """The catalog slice for one validated connection entry (contracts section 3).
+
+    The whole integration is returned in one round trip, so the SDK compiles its
+    per-tool policy without asking for each tool separately.
+    """
+
+    provider: str
+    integration: str
+    connection: str
+    tools: List[ResolvedGatewayTool] = Field(default_factory=list)
+
+
 class ToolsResolution(BaseModel):
     """Outcome of resolving a ``tools`` list.
 
     ``builtins`` pass straight into Pi's ``tools: string[]``; ``custom`` become Pi
     ``customTools`` whose ``execute`` routes through ``/tools/call``.
+    ``gateway_connections`` carries one catalog slice per connection entry.
     """
 
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
+    gateway_connections: List[ResolvedGatewayConnection] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

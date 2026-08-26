@@ -101,9 +101,10 @@ log = get_module_logger(__name__)
 def handle_adapter_exceptions():
     """Map provider/adapter failures to HTTP, surfacing the upstream detail.
 
-    Unknown providers → 404. A recognized provider missing required
-    configuration (e.g. composio without COMPOSIO_API_KEY) → 503, naming the
-    env var, so a self-hoster can tell "not set up" from "endpoint missing".
+    Unknown providers, and tool keys the integration's catalog does not hold → 404.
+    A recognized provider missing required configuration (e.g. composio without
+    COMPOSIO_API_KEY) → 503, naming the env var, so a self-hoster can tell
+    "not set up" from "endpoint missing".
     Any upstream failure (Composio 4xx such as a rejected argument set, or a
     malformed response) → 424 carrying the provider's own message so the
     client can show it instead of a generic 500. A true upstream 5xx → 502.
@@ -120,6 +121,11 @@ def handle_adapter_exceptions():
                     detail=str(e),
                 ) from e
             except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                ) from e
+            except ActionNotFoundError as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=str(e),
@@ -1115,13 +1121,14 @@ class ToolsRouter:
             raise HTTPException(status_code=400, detail=e.message) from e
         except ToolSlugInvalidError as e:
             raise HTTPException(status_code=400, detail=e.message) from e
-        except ActionNotFoundError as e:
-            raise HTTPException(status_code=404, detail=e.message) from e
 
         return ToolResolveResponse(
+            # ``count`` keeps its original meaning: the model-ready tools resolved.
+            # A connection group is one policy input, not a tool the model can call.
             count=len(resolution.builtins) + len(resolution.custom),
             builtins=resolution.builtins,
             custom=resolution.custom,
+            gateway_connections=resolution.gateway_connections,
         )
 
     @intercept_exceptions()

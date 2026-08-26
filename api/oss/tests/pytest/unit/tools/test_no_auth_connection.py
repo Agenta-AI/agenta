@@ -108,6 +108,7 @@ async def test_execute_omits_connected_account_for_no_auth(monkeypatch):
         request=ToolExecutionRequest(
             integration_key="codeinterpreter",
             action_key="EXECUTE_CODE",
+            provider_action_id="CODEINTERPRETER_EXECUTE_CODE",
             provider_connection_id=None,
             arguments={"code_to_execute": "print(6*7)"},
         ),
@@ -133,6 +134,7 @@ async def test_execute_sends_connected_account_when_present(monkeypatch):
         request=ToolExecutionRequest(
             integration_key="github",
             action_key="GET_THE_AUTHENTICATED_USER",
+            provider_action_id="GITHUB_GET_THE_AUTHENTICATED_USER",
             provider_connection_id="acc_123",
             arguments={},
         ),

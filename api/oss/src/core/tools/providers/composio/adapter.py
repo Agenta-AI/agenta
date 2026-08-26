@@ -117,16 +117,11 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     async def get_action(
         self,
         *,
-        integration_key: str,
         action_key: str,
+        provider_action_id: str,
     ) -> Optional[ToolCatalogActionDetails]:
-        composio_slug = self._to_composio_slug(
-            integration_key=integration_key,
-            action_key=action_key,
-        )
-
         try:
-            item = await self._get(f"/tools/{composio_slug}")
+            item = await self._get(f"/tools/{provider_action_id}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
@@ -147,6 +142,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
 
         return ToolCatalogActionDetails(
             key=action_key,
+            provider_action_id=provider_action_id,
             name=item.get("name", ""),
             description=item.get("description"),
             schemas=JsonSchemas(
@@ -168,10 +164,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         *,
         request: ToolExecutionRequest,
     ) -> ToolExecutionResponse:
-        composio_slug = self._to_composio_slug(
-            integration_key=request.integration_key,
-            action_key=request.action_key,
-        )
+        composio_slug = request.provider_action_id
 
         payload: Dict[str, Any] = {"arguments": request.arguments}
         # No-auth toolkits run without a connected account; only send the id when set.
@@ -296,28 +289,3 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 operation="search_capabilities",
                 detail=f"malformed tool search response: {e}",
             ) from e
-
-    # -----------------------------------------------------------------------
-    # Slug mapping helpers
-    # -----------------------------------------------------------------------
-
-    @staticmethod
-    def _to_composio_slug(
-        *,
-        integration_key: str,
-        action_key: str,
-    ) -> str:
-        """Agenta → Composio: gmail + SEND_EMAIL → GMAIL_SEND_EMAIL"""
-        return f"{integration_key.upper()}_{action_key}"
-
-    @staticmethod
-    def _extract_action_key(
-        *,
-        composio_slug: str,
-        integration_key: str,
-    ) -> str:
-        """Composio → Agenta: GMAIL_SEND_EMAIL → SEND_EMAIL"""
-        prefix = f"{integration_key.upper()}_"
-        if composio_slug.startswith(prefix):
-            return composio_slug[len(prefix) :]
-        return composio_slug
