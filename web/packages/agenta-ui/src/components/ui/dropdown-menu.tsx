@@ -91,8 +91,9 @@ const itemBase = [
     // antd `.ant-dropdown-menu-item` geometry (NOT SelectItem's): 30px tall = 5px×12px padding
     // + 20px line-height, min-height 0, radius 6px. py-input-y-ghost = 5px (reused 5px token).
     "box-border rounded-control-sm px-3 py-input-y-ghost text-field-md",
-    // Hover = antd controlItemBgHover (bg-muted); disabled skin — matches SelectItem.
-    "[&[data-highlighted]]:bg-muted",
+    // Hover = `accent`, NOT `muted`: in dark both `--popover` and `--muted` are #242424, so a
+    // muted highlight paints the menu's own background and the row reads as unhoverable.
+    "[&[data-highlighted]]:bg-accent",
     "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     "data-[inset]:pl-8",
@@ -220,7 +221,7 @@ function DropdownMenuSubTrigger({
         <DropdownMenuPrimitive.SubTrigger
             data-slot="dropdown-menu-sub-trigger"
             data-inset={inset ? "" : undefined}
-            className={cn(itemBase, "data-[state=open]:bg-muted", className)}
+            className={cn(itemBase, "data-[state=open]:bg-accent", className)}
             {...props}
         >
             {children}

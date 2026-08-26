@@ -112,6 +112,9 @@ class SessionStreamQuery(BaseModel):
     # Include archived (deliberately-hidden) rows — off by default so archive hides; on for the
     # archived view. Orthogonal to `include_ended` (a row can be killed OR archived).
     include_archived: bool = False
+    # Restrict to archived rows. Wins over `include_archived` — this is the archived VIEW, not a
+    # widening of the active one.
+    archived_only: bool = False
     # Case-insensitive substring match over `name` (the session title).
     search: Optional[str] = None
     origins: Optional[list[SessionOrigin]] = None

@@ -108,12 +108,62 @@ const tabLocalStorage = <T>() => {
     return storage
 }
 
-/** Full per-scope session history (open AND closed). */
-const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
+/**
+ * Storage keys written before the store was partitioned by project. They carried session history
+ * and message bodies keyed by AGENT ID alone — no project, workspace or user — so they survived a
+ * sign-out and were readable by whoever signed in next on that browser. Dropped rather than
+ * migrated: attributing them to whichever project happens to be active would carry the leak
+ * forward one more time, and the reconciler already re-adopts anything the server knows (the
+ * "post-localStorage-wipe" path below).
+ */
+const LEGACY_UNSCOPED_KEYS = [
     "agenta:agent-chat:sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
+    "agenta:agent-chat:deleted-sessions",
+    "agenta:agent-chat:open-sessions",
+    "agenta:agent-chat:active-session",
+]
+
+if (typeof window !== "undefined") {
+    try {
+        for (const key of LEGACY_UNSCOPED_KEYS) window.localStorage.removeItem(key)
+    } catch {
+        // Storage disabled (private mode, blocked cookies) — nothing persisted there to drop.
+    }
+}
+
+/**
+ * A per-scope record, partitioned by PROJECT underneath.
+ *
+ * Consumers still see `Record<scopeKey, T>` and are unchanged; only the persisted shape gains the
+ * project dimension. Project alone is enough to isolate an account: switching workspace mints a
+ * new project id, so there is nothing a workspace key would separate that this does not.
+ *
+ * With no project resolved yet the read is empty and the write is dropped. Persisting under a
+ * blank key would build a bucket that every project sees — the leak this exists to close.
+ */
+const projectScopedRecordAtom = <T>(storageKey: string) => {
+    const byProject = atomWithStorage<Record<string, Record<string, T>>>(
+        storageKey,
+        {},
+        tabLocalStorage(),
+        STORAGE_OPTS,
+    )
+    return atom(
+        (get) => {
+            const projectId = get(projectIdAtom)
+            return projectId ? (get(byProject)[projectId] ?? {}) : {}
+        },
+        (get, set, next: Record<string, T>) => {
+            const projectId = get(projectIdAtom)
+            if (!projectId) return
+            set(byProject, {...get(byProject), [projectId]: next})
+        },
+    )
+}
+
+/** Full per-scope session history (open AND closed). */
+const sessionsByAppAtom = projectScopedRecordAtom<AgentChatSession[]>(
+    "agenta:agent-chat:sessions:v2",
 )
 
 /**
@@ -137,11 +187,8 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
  * scopes either, so a tombstone has nothing to guard there; it is simply never pruned. Bounded by
  * how many sessions a user deletes in that scope, so it is left as-is rather than special-cased.
  */
-const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
-    "agenta:agent-chat:deleted-sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
+const deletedIdsByAppAtom = projectScopedRecordAtom<string[]>(
+    "agenta:agent-chat:deleted-sessions:v2",
 )
 
 /**
@@ -151,19 +198,9 @@ const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
  * history — every pre-upgrade session was an open tab (see `currentOpenIds`). Once any tab op
  * writes an explicit list, that list is authoritative.
  */
-const openIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
-    "agenta:agent-chat:open-sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
-)
+const openIdsByAppAtom = projectScopedRecordAtom<string[]>("agenta:agent-chat:open-sessions:v2")
 
-const activeByAppAtom = atomWithStorage<Record<string, string>>(
-    "agenta:agent-chat:active-session",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
-)
+const activeByAppAtom = projectScopedRecordAtom<string>("agenta:agent-chat:active-session:v2")
 
 /** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
  * for the writers below — never mutates. */

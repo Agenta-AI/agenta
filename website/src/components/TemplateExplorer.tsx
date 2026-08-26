@@ -31,7 +31,7 @@ const LOGO: Record<string, string> = {
 type Harness = { name: string; logo: string | null; soon?: boolean };
 const HARNESSES: Harness[] = [
   { name: "Claude Code", logo: "/logos/tools/anthropic.svg" },
-  { name: "Codex", logo: "/logos/tools/openai.svg", soon: true },
+  { name: "Codex", logo: "/logos/tools/openai.svg", soon: false },
   { name: "pi.dev", logo: "/logos/tools/pidev.svg" },
 ];
 

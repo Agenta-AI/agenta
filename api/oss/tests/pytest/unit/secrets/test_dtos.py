@@ -299,6 +299,26 @@ def test_response_round_trips_a_standard_connection_through_read():
     assert response.data.harnesses == ["pi_core"]
 
 
+def test_standard_response_serializes_default_models_as_explicit_null():
+    response = SecretResponseDTO.model_validate(
+        {
+            "id": uuid4(),
+            "slug": "openai-abcdef123456",
+            "kind": "provider_key",
+            "header": {"name": "OpenAI"},
+            "data": {
+                "kind": "openai",
+                "provider": {"key": "sk-openai"},
+            },
+        }
+    )
+
+    payload = response.model_dump(mode="json")
+
+    assert "models" in payload["data"]
+    assert payload["data"]["models"] is None
+
+
 def _payload_without_a_header(kind):
     payloads = {
         "custom_provider": _custom_provider_payload("https://93.184.216.34/v1"),

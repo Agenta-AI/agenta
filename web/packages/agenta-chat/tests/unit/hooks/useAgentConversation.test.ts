@@ -83,9 +83,14 @@ let seq = 0
 const nextSessionId = () => `conv-test-${Date.now()}-${(seq += 1)}`
 
 const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionId: string) =>
-    renderHook(() => useAgentConversation({entityId, sessionId}), {
-        wrapper: ({children}: {children: ReactNode}) => createElement(Provider, {store}, children),
-    })
+    renderHook(
+        ({entityId: id}: {entityId: string}) => useAgentConversation({entityId: id, sessionId}),
+        {
+            initialProps: {entityId},
+            wrapper: ({children}: {children: ReactNode}) =>
+                createElement(Provider, {store}, children),
+        },
+    )
 
 beforeEach(() => {
     fetchMock.mockReset()
@@ -145,6 +150,54 @@ describe("useAgentConversation", () => {
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
         expect(result.current.runStatus).toBe("idle")
         expect(result.current.isEmpty).toBe(false)
+    })
+
+    it("survives a revision switch mid-stream instead of aborting the turn", async () => {
+        // Auto-commit (#6126) mints a new revision while the agent is running, and the surface
+        // follows it. If that arrives as a REMOUNT the unmount teardown calls stop() and kills the
+        // live turn — which is what a revision in the mount key did on /m. The engine is built to
+        // take it as a prop: `useChat` is pinned to `sessionId` and the request builder reads the
+        // revision through a ref.
+        let releaseStream: () => void = () => {}
+        const streamOpen = new Promise<void>((resolve) => {
+            releaseStream = resolve
+        })
+        fetchMock.mockImplementation(
+            async () =>
+                new Response(
+                    new ReadableStream({
+                        async start(controller) {
+                            controller.enqueue(new TextEncoder().encode(sseBody("done")))
+                            await streamOpen
+                            controller.close()
+                        },
+                    }),
+                    {status: 200, headers: {"content-type": "text/event-stream"}},
+                ),
+        )
+
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result, rerender} = mount(store, "rev-before", sessionId)
+
+        act(() => {
+            void result.current.send({text: "go"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("running"))
+
+        // The commit lands: the surface re-renders with the new revision.
+        rerender({entityId: "rev-after"})
+
+        // Still the same live turn — not aborted, not restarted.
+        expect(result.current.runStatus).toBe("running")
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            releaseStream()
+            await streamOpen
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("idle"), {timeout: 5000})
     })
 
     it("rewinding a user message truncates the conversation and hands back its text", async () => {

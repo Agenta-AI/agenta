@@ -65,8 +65,10 @@ class SessionQueryRequest(BaseModel):
     turn_references: Optional[List[SessionReference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
-    # Include archived sessions — off by default (archive hides); on for the archived view.
+    # Include archived sessions — off by default (archive hides); on to widen the active list.
     include_archived: bool = False
+    # Return ONLY archived sessions. Wins over `include_archived`: this is the archived view.
+    archived_only: bool = False
     # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
     include_total: bool = False
     expand: List[SessionExpansion] = Field(default_factory=list)

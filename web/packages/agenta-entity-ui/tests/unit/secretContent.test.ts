@@ -1,7 +1,7 @@
 import {CustomSecretFormat} from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
 
-import {buildSecretContent} from "./content"
+import {buildSecretContent} from "../../src/secret/SecretForm/content"
 
 const hiddenJsonInput = {
     format: CustomSecretFormat.Json,

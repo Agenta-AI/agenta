@@ -45,6 +45,9 @@ export const SessionRowContextMenu = ({
                             variant={entry.danger ? "destructive" : undefined}
                             onSelect={() => onSelect?.(entry.key)}
                         >
+                            {entry.icon ? (
+                                <span className="flex shrink-0 items-center">{entry.icon}</span>
+                            ) : null}
                             {entry.label}
                         </ContextMenuItem>
                     ),

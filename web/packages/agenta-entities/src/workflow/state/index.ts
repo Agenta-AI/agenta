@@ -95,10 +95,15 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
+    type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,

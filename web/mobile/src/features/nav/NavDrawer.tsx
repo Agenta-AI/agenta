@@ -50,7 +50,8 @@ export const NavDrawer = ({
                 </button>
             </SheetTrigger>
             <SheetContent side="left" showCloseButton={false} className="w-[236px] gap-0 p-0">
-                {/* Dismissal is tap-outside / swipe — a close X is not a rail affordance. */}
+                {/* The sheet's own X is off: the rail's header already has the button, and
+                    `onDismiss` turns it into this sheet's close. */}
                 <SheetHeader className="sr-only">
                     <SheetTitle>Navigation</SheetTitle>
                 </SheetHeader>
@@ -61,6 +62,7 @@ export const NavDrawer = ({
                     openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
                     scope={scope}
                     onNavigate={() => setOpen(false)}
+                    onDismiss={() => setOpen(false)}
                 />
             </SheetContent>
         </Sheet>
