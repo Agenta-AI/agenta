@@ -6,16 +6,20 @@ import {useState} from "react"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {
     Badge,
+    Button,
     Input,
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {CreateSecretDrawer} from "../../secret"
 
 type Dict = Record<string, string>
 type CredentialType = "none" | "header_secret_refs"
@@ -62,6 +66,10 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
         name: initialSecretHeader[0],
         slug: initialSecretHeader[1],
     })
+    const [secretSelectOpen, setSecretSelectOpen] = useState(false)
+    const [createSecretOpen, setCreateSecretOpen] = useState(false)
+    // Latches on first open so the create drawer's hooks stay unmounted until it is needed.
+    const [createSecretMounted, setCreateSecretMounted] = useState(false)
 
     const name = server.name ?? ""
     const invalidName = Boolean(name) && !MCP_SERVER_NAME_PATTERN.test(name)
@@ -193,6 +201,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         <Select
                             value={selectedSecretExists ? secretHeader.slug : undefined}
                             onValueChange={(slug) => writeSecretHeader({...secretHeader, slug})}
+                            open={secretSelectOpen}
+                            onOpenChange={setSecretSelectOpen}
                             disabled={disabled}
                         >
                             <SelectTrigger className="w-full" aria-label="Project secret">
@@ -216,9 +226,39 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                                         </SelectItem>
                                     ))
                                 )}
+                                <SelectSeparator />
+                                {/* Not a SelectItem: it is an action, not a value. Controlled-open
+                                    lets it close the dropdown and open the drawer cleanly. */}
+                                {/* Without a header name `writeSecretHeader` stores `headers: {}`,
+                                    so the new secret would not reach the draft. */}
+                                <Button
+                                    variant="ghost"
+                                    disabled={disabled || !secretHeader.name}
+                                    onClick={() => {
+                                        setCreateSecretMounted(true)
+                                        setSecretSelectOpen(false)
+                                        setCreateSecretOpen(true)
+                                    }}
+                                    className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
+                                >
+                                    <Plus size={13} className="shrink-0" />
+                                    Create secret
+                                </Button>
                             </SelectContent>
                         </Select>
                     </RailField>
+
+                    {createSecretMounted ? (
+                        <CreateSecretDrawer
+                            open={createSecretOpen}
+                            onClose={() => setCreateSecretOpen(false)}
+                            headerName={secretHeader.name}
+                            serverName={name}
+                            onCreated={(row) =>
+                                writeSecretHeader({...secretHeader, slug: row.slug})
+                            }
+                        />
+                    ) : null}
                 </>
             ) : null}
         </div>

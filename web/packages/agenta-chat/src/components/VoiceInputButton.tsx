@@ -1,5 +1,6 @@
-import {useEffect, useRef, type RefObject} from "react"
+import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import {pushToTalkLabel} from "@agenta/shared/utils"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {
     Button,
@@ -14,6 +15,7 @@ import {CaretDown, Microphone, Waveform} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {usePushToTalk} from "../hooks/usePushToTalk"
 import {useVoiceInput} from "../hooks/useVoiceInput"
 
 /**
@@ -25,6 +27,13 @@ import {useVoiceInput} from "../hooks/useVoiceInput"
  */
 
 type VoiceMode = "transcribe" | "audio"
+
+/**
+ * Voice messages are hidden from the UI until the agent service accepts audio attachments (D14).
+ * The recorder, the recording takeover and the send-vs-attach path all stay wired — flip this to
+ * bring the mode back. With it off there is one mode left, so the picker collapses to a bare mic.
+ */
+const VOICE_MESSAGE_MODE_ENABLED = false
 
 /** `null` = the person has not picked a mode, so capability decides which one leads. An explicit
  * choice always wins and is never overridden. */
@@ -113,28 +122,46 @@ const VoiceInputButton = ({
 
     // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; supported: boolean}[] = [
-        {key: "audio", supported: audioSupported},
+        {key: "audio", supported: VOICE_MESSAGE_MODE_ENABLED && audioSupported},
         {key: "transcribe", supported: transcribe.supported},
     ]
     const available = modes.filter((m) => m.supported)
-    if (!available.length) return null
-    const effective: VoiceMode = available.some((m) => m.key === mode) ? mode : available[0].key
+    // A mode the person picked before it was withdrawn falls back to the first available one.
+    const effective: VoiceMode | null =
+        (available.find((m) => m.key === mode) ?? available[0])?.key ?? null
 
     // The mic only reflects a recording state for transcribe; audio recording is the parent's
     // takeover bar (which covers this button while active).
     const dictating = effective === "transcribe" && transcribe.recording
+
+    // Guarded because `beginDictation` would otherwise orphan the live session's node pair,
+    // stranding its interim text at reduced opacity forever.
+    const startDictation = useCallback(() => {
+        if (transcribe.recording) return
+        inputRef.current?.beginDictation()
+        transcribe.start()
+    }, [transcribe.recording, transcribe.start, inputRef])
+
+    // Resolved after mount so SSR can't mismatch the glyph.
+    const [holdLabel, setHoldLabel] = useState("Ctrl+Alt")
+    useEffect(() => setHoldLabel(pushToTalkLabel()), [])
+
+    // Hold ⌃⌥ / Ctrl+Alt to dictate. Same start/stop the button's own click drives.
+    usePushToTalk({
+        enabled: effective === "transcribe" && !disabled && !audioPending,
+        onStart: startDictation,
+        onStop: transcribe.stop,
+    })
+
+    if (!effective) return null
 
     const toggle = () => {
         if (effective === "audio") {
             onStartAudio()
             return
         }
-        if (transcribe.recording) {
-            transcribe.stop()
-        } else {
-            inputRef.current?.beginDictation()
-            transcribe.start()
-        }
+        if (transcribe.recording) transcribe.stop()
+        else startDictation()
     }
 
     // A voice message on a model that can't take audio still records and attaches (the agent can
@@ -168,7 +195,9 @@ const VoiceInputButton = ({
           ? "Attachment limit reached — remove a file to record a voice message"
           : dictating
             ? "Stop dictation"
-            : MODE_HINT[effective]
+            : effective === "transcribe"
+              ? `Hold ${holdLabel} to dictate`
+              : null
 
     const highlighted = dictating || audioPending
 
@@ -181,7 +210,7 @@ const VoiceInputButton = ({
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
-                    aria-label={dictating ? "Stop voice input" : title}
+                    aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
                     className={
                         dictating
                             ? "animate-pulse text-colorError"

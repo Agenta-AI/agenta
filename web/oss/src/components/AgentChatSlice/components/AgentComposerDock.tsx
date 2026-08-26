@@ -11,6 +11,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
+    type ConnectionDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
@@ -40,9 +41,9 @@ import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
+import ConnectionDock from "./ConnectionDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -66,8 +67,7 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
-    onViewTrace,
-    pendingInteraction,
+    connects,
     onClientToolOutput,
     onSubmit,
     onStop,
@@ -99,8 +99,7 @@ const AgentComposerDock = ({
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
-    onViewTrace?: () => void
-    pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
+    connects: ConnectionDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
@@ -130,7 +129,6 @@ const AgentComposerDock = ({
     } = onboardingChat
     const {setViewingUid, atMax} = attachments
     const {
-        voiceEnabled,
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
@@ -278,15 +276,14 @@ const AgentComposerDock = ({
                     className={CHAT_COLUMN}
                     approvals={pendingApprovals}
                     onApprovalResponse={onApprovalResponse}
-                    onViewTrace={onViewTrace}
                     entityId={entityId}
                 />
                 {/* Parked client-tool interactions (connect): same placement contract as the
                     approval dock — the paused gate can't scroll out of reach, and "Not now"
                     is the escape hatch that resumes the run without connecting. */}
-                <InteractionDock
+                <ConnectionDock
                     className={CHAT_COLUMN}
-                    pending={pendingInteraction}
+                    connects={connects}
                     onOutput={onClientToolOutput}
                 />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
@@ -308,14 +305,12 @@ const AgentComposerDock = ({
                 {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                     same skeleton the pane-level gates render for this slot, so the box never
                     changes shape — the editor just materializes inside it. */}
-                {voiceEnabled ? (
-                    <MicPermissionNotice
-                        className={CHAT_COLUMN}
-                        open={!!micError && !voiceRecorder.active}
-                        message={micError}
-                        onDismiss={dismissMicError}
-                    />
-                ) : null}
+                <MicPermissionNotice
+                    className={CHAT_COLUMN}
+                    open={!!micError && !voiceRecorder.active}
+                    message={micError}
+                    onDismiss={dismissMicError}
+                />
                 {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
                 <div className="relative mb-3" ref={composerBoxRef}>
@@ -384,7 +379,7 @@ const AgentComposerDock = ({
                     <ChatComposer
                         inputRef={richInputRef}
                         autoFocus={composer.autoFocusComposer}
-                        dictating={voiceEnabled && dictating}
+                        dictating={dictating}
                         className={CHAT_COLUMN}
                         fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
                         // Onboarding: submit = commit the ephemeral — Enter creates the agent
@@ -413,27 +408,21 @@ const AgentComposerDock = ({
                         onViewAttachment={setViewingUid}
                         extraPrefix={
                             <>
-                                {voiceEnabled ? (
-                                    <VoiceInputButton
-                                        inputRef={richInputRef}
-                                        onStartAudio={startVoiceMessage}
-                                        // During onboarding the composer commits the ephemeral via
-                                        // handleCreateAgent, but a voice MESSAGE routes through
-                                        // handleSubmit → submit, bypassing that commit. So offer
-                                        // dictation only — voice-message returns once the agent exists.
-                                        audioSupported={
-                                            !onboardingActive && voiceRecorder.supported
-                                        }
-                                        audioPending={voiceRecorder.pending}
-                                        audioPerceivable={audioPerceivable}
-                                        attachmentsFull={atMax}
-                                        onDictationError={setDictationError}
-                                        onDictatingChange={setDictating}
-                                        disabled={
-                                            onboardingActive ? ideHandoffActive : modelBlocked
-                                        }
-                                    />
-                                ) : null}
+                                <VoiceInputButton
+                                    inputRef={richInputRef}
+                                    onStartAudio={startVoiceMessage}
+                                    // During onboarding the composer commits the ephemeral via
+                                    // handleCreateAgent, but a voice MESSAGE routes through
+                                    // handleSubmit → submit, bypassing that commit. So offer
+                                    // dictation only — voice-message returns once the agent exists.
+                                    audioSupported={!onboardingActive && voiceRecorder.supported}
+                                    audioPending={voiceRecorder.pending}
+                                    audioPerceivable={audioPerceivable}
+                                    attachmentsFull={atMax}
+                                    onDictationError={setDictationError}
+                                    onDictatingChange={setDictating}
+                                    disabled={onboardingActive ? ideHandoffActive : modelBlocked}
+                                />
                                 {/* Context-budget meter temporarily hidden from the UI.
                                     Logic is retained — flip `showContextBudget` to re-enable. */}
                                 {showContextBudget && !onboardingActive ? (
@@ -487,7 +476,7 @@ const AgentComposerDock = ({
                     {/* Cross-fades over the composer instead of popping; same spring
                     as the rest of the slice's chrome. */}
                     <AnimatePresence initial={false}>
-                        {voiceEnabled && voiceRecorder.takeoverVisible && (
+                        {voiceRecorder.takeoverVisible && (
                             <motion.div
                                 key="recording"
                                 initial={{opacity: 0, y: 4}}

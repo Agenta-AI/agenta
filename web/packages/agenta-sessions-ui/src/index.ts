@@ -60,4 +60,6 @@ export {
     type SessionAutomationDrawerOpeners,
 } from "./sessionAutomationActions"
 export {default as SessionRowActions, type SessionRowTarget} from "./SessionRowActions"
+export {default as InlineRenameInput} from "./InlineRenameInput"
+export {useInlineRename, type InlineRename} from "./useInlineRename"
 export {useSessionRowChrome, type SessionRowChrome} from "./useSessionRowChrome"

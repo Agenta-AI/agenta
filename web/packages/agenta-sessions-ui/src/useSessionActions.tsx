@@ -9,7 +9,6 @@ import {
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
-import {Input} from "@agenta/ui/ui"
 import {
     ArchiveIcon,
     ArrowSquareOutIcon,
@@ -81,10 +80,9 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
     )
 
     /**
-     * The headless half of `rename`: writes to the local cache when the session is open there and
-     * to the server otherwise, then revalidates. The rail renames INLINE, with no modal, and has
-     * to take the same cache-or-server branch the modal does — otherwise a rename from the rail
-     * leaves an open tab showing the old title.
+     * Commits a rename: writes to the local cache when the session is open there and to the
+     * server otherwise. Every surface renames in place through `useInlineRename`, and they all
+     * land here so a rename from any list also retitles an open chat tab.
      */
     const commitRename = useCallback(
         async (target: SessionActionTarget, title: string) => {
@@ -114,35 +112,6 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
             return true
         },
         [isCached, localCache, projectId, queryClient],
-    )
-
-    const rename = useCallback(
-        (target: SessionActionTarget) => {
-            let next = target.name ?? ""
-            modal.confirm({
-                centered: true,
-                title: "Rename session",
-                content: (
-                    <Input
-                        autoFocus
-                        defaultValue={next}
-                        aria-label="Session name"
-                        className="mt-2"
-                        onChange={(event) => {
-                            next = event.target.value
-                        }}
-                    />
-                ),
-                okText: "Rename",
-                onOk: async () => {
-                    if (!next.trim()) return
-                    if (!(await commitRename(target, next))) {
-                        message.error("Couldn't rename this session")
-                    }
-                },
-            })
-        },
-        [commitRename],
     )
 
     const setArchived = useCallback(
@@ -245,13 +214,12 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         (target: SessionActionTarget, options?: {onOpen?: () => void}) =>
             ({key}: {key: string}) => {
                 if (key === "open") options?.onOpen?.()
-                if (key === "rename") rename(target)
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [remove, rename, setArchived, togglePin],
+        [remove, setArchived, togglePin],
     )
 
-    return {rename, commitRename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
+    return {commitRename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
 }

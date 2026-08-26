@@ -12,7 +12,6 @@ import {
     type ReactNode,
 } from "react"
 
-import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,8 +22,10 @@ import {
 import {DotsThreeVerticalIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
+import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider} from "./menu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
+import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
 
 /** What a row needs from its session — structural, so this stays off `@agenta/navigation`. */
@@ -62,10 +63,6 @@ const SessionRowActions = ({
     const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
     const [open, setOpen] = useState(false)
-    const [renaming, setRenaming] = useState(false)
-    const [draft, setDraft] = useState("")
-    // Enter commits and blurs; without this the blur would commit a second time.
-    const committedRef = useRef(false)
     // Navigation is held for one double-click window so a rename doesn't also open the session.
     const navTimerRef = useRef<number | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
@@ -78,20 +75,6 @@ const SessionRowActions = ({
 
     useEffect(() => cancelPendingNav, [cancelPendingNav])
 
-    // `autoFocus` on the input wins the first focus; this re-claims it afterwards. Radix restores
-    // focus to the menu trigger when the menu closes, and the row's own navigation lands late
-    // too — both would otherwise take the caret straight back out of the input.
-    useEffect(() => {
-        if (!renaming) return
-        const claim = () => {
-            inputRef.current?.focus()
-            inputRef.current?.select()
-        }
-        claim()
-        const timer = window.setTimeout(claim, 80)
-        return () => window.clearTimeout(timer)
-    }, [renaming])
-
     const target = useMemo(
         () => ({
             sessionId: session.sessionId,
@@ -102,39 +85,41 @@ const SessionRowActions = ({
         [session.sessionId, session.appId, session.name, session.archived],
     )
 
+    const rename = useInlineRename({
+        current: session.name,
+        // The same target the menu verbs get, so a cached session renames its open tab too.
+        onCommit: (name) => renameSession(target, name),
+    })
+
+    // `autoFocus` on the input wins the first focus; this re-claims it afterwards. Radix restores
+    // focus to the menu trigger when the menu closes, and the row's own navigation lands late
+    // too — both would otherwise take the caret straight back out of the input.
+    useEffect(() => {
+        if (!rename.renaming) return
+        const claim = () => {
+            inputRef.current?.focus()
+            inputRef.current?.select()
+        }
+        claim()
+        const timer = window.setTimeout(claim, 80)
+        return () => window.clearTimeout(timer)
+    }, [rename.renaming])
+
     // The row IS a link — offering "Open" in its own menu restates the click.
     const entries = useMemo(() => menuItems(target), [menuItems, target])
     const runAction = useMemo(() => onMenuClick(target), [onMenuClick, target])
-
-    const startRename = useCallback(() => {
-        committedRef.current = false
-        setDraft(session.name ?? "")
-        setRenaming(true)
-    }, [session.name])
 
     const onSelect = useCallback(
         (key: string) => {
             if (key === RENAME) {
                 setOpen(false)
-                startRename()
+                rename.start()
                 return
             }
             runAction({key})
         },
-        [runAction, startRename],
+        [rename, runAction],
     )
-
-    const commit = useCallback(async () => {
-        if (committedRef.current) return
-        committedRef.current = true
-        const name = draft.trim()
-        setRenaming(false)
-        if (!name || name === (session.name ?? "")) return
-
-        // The same target the menu verbs get, so a cached session renames its open tab too.
-        const ok = await renameSession(target, name)
-        if (!ok) message.error("Couldn't rename this session")
-    }, [draft, renameSession, session.name, target])
 
     // The row's link stretches a ::before over the whole item — swallow presses on the controls
     // so they don't also navigate into the session.
@@ -183,25 +168,10 @@ const SessionRowActions = ({
         })
     }, [children, router])
 
-    if (renaming)
+    if (rename.renaming)
         return (
             <span className="flex w-full min-w-0 items-center" onClick={swallow}>
-                <input
-                    ref={inputRef}
-                    autoFocus
-                    value={draft}
-                    aria-label="Session name"
-                    onChange={(event) => setDraft(event.target.value)}
-                    onBlur={() => void commit()}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter") void commit()
-                        if (event.key === "Escape") {
-                            committedRef.current = true
-                            setRenaming(false)
-                        }
-                    }}
-                    className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-[13px] leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
-                />
+                <InlineRenameInput rename={rename} inputRef={inputRef} />
             </span>
         )
 
@@ -214,7 +184,7 @@ const SessionRowActions = ({
                     cancelPendingNav()
                     // Archived rows cannot be renamed — the menu drops the verb, so the
                     // double-click shortcut into it has to go too.
-                    if (!session.archived) startRename()
+                    if (!session.archived) rename.start()
                 }}
             >
                 {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and

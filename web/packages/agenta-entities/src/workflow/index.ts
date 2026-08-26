@@ -91,6 +91,8 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
 } from "./state"
@@ -275,6 +277,8 @@ export {
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
