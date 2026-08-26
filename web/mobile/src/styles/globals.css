@@ -140,6 +140,7 @@
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
     /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). */
+    --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
     --spacing-control-sm: 24px;
     --spacing-control: 28px;
