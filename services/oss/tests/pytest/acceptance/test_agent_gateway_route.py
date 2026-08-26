@@ -176,7 +176,7 @@ def mock_custom_connection(harness, mod_api):
     return {"slug": slug, "model": model}
 
 
-@pytest.mark.parametrize("harness", ["codex", "claude"])
+@pytest.mark.parametrize("harness", ["pi_core", "codex", "claude"])
 @pytest.mark.parametrize(
     "mcp_gateway_connection", ["builtin", "standard", "custom"], indirect=True
 )

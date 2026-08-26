@@ -8,7 +8,7 @@ import {
 } from "../../src/engines/sandbox_agent/mcp.ts";
 import type { McpServerHttp } from "../../src/engines/sandbox_agent/mcp.ts";
 
-const gatewayCredential = "ApiKey gateway-credential-not-an-upstream-secret";
+const gatewayCredential = "ApiKey gateway-credential";
 const gatewayBase = "https://93.184.216.34/gateways/mcps";
 const cases = [
   ["builtin", `${gatewayBase}/builtin/mock/mock`],

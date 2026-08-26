@@ -22,6 +22,11 @@ import {
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
 import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  piGatewayMcpServersFromWire,
+  serializePiGatewayMcpConfig,
+} from "../../extensions/pi-mcp.ts";
+import {
   advertisedToolSpecs,
   type AdvertisedToolSpec,
 } from "../../tools/public-spec.ts";
@@ -537,6 +542,10 @@ export function buildPiExtensionEnv(
       process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
+  }
+  const mcpServers = piGatewayMcpServersFromWire(request.mcpServers);
+  if (mcpServers.length > 0) {
+    env[PI_GATEWAY_MCP_SERVERS_ENV] = serializePiGatewayMcpConfig(mcpServers);
   }
   // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
   // activates all seven builtins.

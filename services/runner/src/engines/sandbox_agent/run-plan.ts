@@ -13,7 +13,7 @@ import {
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
+import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
 import {
   INTERNAL_TOOL_MCP_SERVER_NAME,
   RESERVED_MCP_SERVER_NAME_MESSAGE,
@@ -642,9 +642,18 @@ export function buildRunPlan(
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
-  // Pi does not support external user MCP servers.
-  if (isPi && (request.mcpServers?.length ?? 0) > 0) {
-    return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
+  // Pi's native extension can register HTTP MCP tools, but only for the already-resolved
+  // Agenta gateway route shape.  Validate before allocating any run state so a forged direct
+  // upstream URL cannot become a Pi extension input.
+  if (isPi) {
+    try {
+      piGatewayMcpServersFromWire(request.mcpServers);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // The internal gateway-tool channel's name is reserved on every transport: the Python

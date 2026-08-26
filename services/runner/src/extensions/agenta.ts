@@ -61,6 +61,10 @@ import {
   decodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "./model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  registerPiGatewayMcpTools,
+} from "./pi-mcp.ts";
 
 /** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
 export function readOtlpAuthFile(path?: string): string | undefined {
@@ -434,6 +438,7 @@ const factory = (pi: ExtensionAPI): void => {
   const hasBuiltinGating = isTruthyFlag(
     process.env.AGENTA_AGENT_BUILTIN_GATING,
   );
+  const gatewayMcpServers = process.env[PI_GATEWAY_MCP_SERVERS_ENV];
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (
     !modelProviderOverride &&
@@ -441,6 +446,7 @@ const factory = (pi: ExtensionAPI): void => {
     !hasTools &&
     !hasBuiltinActivation &&
     !hasBuiltinGating &&
+    !gatewayMcpServers &&
     !usageOut
   )
     return;
@@ -459,6 +465,11 @@ const factory = (pi: ExtensionAPI): void => {
   }
 
   if (hasTools) registerTools(pi);
+  if (gatewayMcpServers) {
+    pi.on("before_agent_start", async () => {
+      await registerPiGatewayMcpTools(pi, gatewayMcpServers, log);
+    });
+  }
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).

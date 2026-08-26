@@ -21,6 +21,7 @@ import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../src/extensions/pi-mcp.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
@@ -103,6 +104,49 @@ afterEach(() => {
 });
 
 describe("buildPiExtensionEnv", () => {
+  it("renders only the gateway route and short-lived gateway credential for Pi MCP", () => {
+    const env = buildPiExtensionEnv(
+      {
+        mcpServers: [
+          {
+            name: "mock",
+            connection: {
+              type: "http",
+              url: "https://api.example.test/gateways/mcps/custom/mock",
+              headers: { "X-Agenta-Mock-Profile": "mcp-custom-mock" },
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
+      } as AgentRunRequest,
+      false,
+    );
+    const rendered = env[PI_GATEWAY_MCP_SERVERS_ENV] ?? "";
+    assert.deepEqual(JSON.parse(rendered), {
+      version: 1,
+      servers: [
+        {
+          name: "mock",
+          url: "https://api.example.test/gateways/mcps/custom/mock",
+          headers: {
+            "X-Agenta-Mock-Profile": "mcp-custom-mock",
+            "X-AG-Credentials": "short-lived-gateway-token",
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    });
+    assert.equal(rendered.includes("upstream-secret"), false);
+    assert.equal(rendered.includes("mock-mcp-gateway"), false);
+  });
+
   it("carries only public provider endpoint config for Pi", () => {
     const request = {
       modelConnection: {
