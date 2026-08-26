@@ -4,6 +4,7 @@ import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
     sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
@@ -178,6 +179,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
     const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
     const setAlwaysOpenGroups = useSetAtom(sidebarAlwaysOpenGroupsAtomFamily(scope.id))
+    const setCollapsedScope = useSetAtom(sidebarCollapsedScopeAtomFamily(scope.id))
     const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
@@ -244,6 +246,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             haveSameKeys(current, alwaysOpenKeys) ? current : alwaysOpenKeys,
         )
     }, [alwaysOpenKeys, setAlwaysOpenGroups])
+
+    // The gate has to know the rail is collapsed: nothing renders inline there, so an open (or
+    // always-open) group must not keep its query subscribed.
+    useEffect(() => {
+        setCollapsedScope(collapsed)
+    }, [collapsed, setCollapsedScope])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return

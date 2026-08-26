@@ -69,6 +69,15 @@ export const sidebarWidthAtom = atomWithStorage<number>(
 export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
 
 /**
+ * Whether the shell is rendering this scope as a collapsed icon rail, published per scope.
+ *
+ * Per scope rather than read off a global: each host hands `SidebarShell` its OWN collapsed atom
+ * (the mobile drawer passes an expanded flag that is never the desktop rail's), so only the shell
+ * knows which state a given scope is in.
+ */
+export const sidebarCollapsedScopeAtomFamily = atomFamily((_scopeId: string) => atom(false))
+
+/**
  * The `defaultOpen` keys the shell is currently displaying as expanded, published per scope.
  * Not persisted: it mirrors what the user SEES so the gated entity sources agree with the
  * screen. Seeding the persisted atom instead would clobber it before storage hydrates.

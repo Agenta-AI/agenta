@@ -4,6 +4,7 @@ import {atom, type Atom} from "jotai"
 
 import {
     sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
@@ -31,7 +32,12 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
         // OR, not a fallback: an `alwaysOpen` group is expanded on screen with no way to collapse
         // it, so it counts as open whether or not the scope has a persisted record.
         const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(parentKey)
-        const inlineOpen = alwaysOpen || effectiveOpen.includes(parentKey)
+        // A collapsed rail renders NO inline children — a group is either a flyout there or a
+        // plain link. So inline open-state cannot keep a query alive while collapsed; only a
+        // flyout that is actually open can. Without this an `alwaysOpen` group (Sessions) kept
+        // fetching and polling a list with nowhere to render.
+        const collapsed = get(sidebarCollapsedScopeAtomFamily(scopeId))
+        const inlineOpen = !collapsed && (alwaysOpen || effectiveOpen.includes(parentKey))
         const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(parentKey)
 
         if (!inlineOpen && !popupOpen) {
