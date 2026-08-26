@@ -1,7 +1,6 @@
 import {useCallback, useMemo, useRef, useState, type KeyboardEvent} from "react"
 
 import {
-    DEFAULT_SIDEBAR_SESSION_FILTERS,
     sidebarSessionAgentOptionsAtomFamily,
     sidebarSessionFiltersAtomFamily,
     sidebarSessionFiltersDirtyAtomFamily,
@@ -168,17 +167,13 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [measureAlign],
     )
 
-    const onReset = useCallback(() => setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS), [setFilters])
-
     return (
         <FilterMenu
             facets={facets}
             toggles={toggles}
-            dirty={dirty}
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
             onToggleChange={onToggleChange}
-            onReset={onReset}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
             // otherwise move the menu somewhere different depending on scroll position. The side
             // it anchors to comes from `measureAlign` instead.
