@@ -358,7 +358,21 @@ export const withLocalSessions = (
     const fresh = local.filter((ref) => !known.has(ref.sessionId))
     const pinned = server.filter((ref) => ref.pinned)
     const rest = server.filter((ref) => !ref.pinned)
-    return [...pinned, ...fresh, ...rest]
+    // Deduped: a row key is its session id, so a session reaching this twice renders two rows that
+    // BOTH match the selected key — the rail's white pill landing on rows nobody selected.
+    return uniqueBySession([...pinned, ...fresh, ...rest])
+}
+
+/** First occurrence wins — the merge above already put every row in the order it should hold. */
+const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[] => {
+    const seen = new Set<string>()
+    const unique: SessionSidebarRef[] = []
+    for (const ref of refs) {
+        if (seen.has(ref.sessionId)) continue
+        seen.add(ref.sessionId)
+        unique.push(ref)
+    }
+    return unique
 }
 
 /**
@@ -373,7 +387,12 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pinned = new Set(get(pinnedSessionIdsAtom))
         const waitingIds = new Set(get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? [])
-        const pinnedRows = get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []
+        // Filtered by the CURRENT pin set, not taken as the query left it: unpinning mints a new
+        // query key, and the placeholder hands back the previous rows (forever, once the last pin
+        // goes and the query disables) — rows the recent window now returns too.
+        const pinnedRows = (get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => pinned.has(row.session_id),
+        )
         // Pins come from their own by-id query; the recent window drops them so nothing shows twice.
         const recentRows = (get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
             (row) => !pinned.has(row.session_id),

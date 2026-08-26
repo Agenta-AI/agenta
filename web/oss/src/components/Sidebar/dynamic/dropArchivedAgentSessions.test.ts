@@ -119,4 +119,17 @@ describe("withLocalSessions", () => {
 
         expect(withLocalSessions(refs, []).map((r) => r.id)).toEqual(["a", "b"])
     })
+
+    // A row key IS the session id, so a twin renders two rows that both take the selected pill.
+    it("keeps one row when the same session arrives twice", () => {
+        const merged = withLocalSessions([ref({id: "twin"}), ref({id: "twin"})], [])
+
+        expect(merged.map((r) => r.id)).toEqual(["twin"])
+    })
+
+    it("keeps one row when a local session repeats", () => {
+        const merged = withLocalSessions([], [ref({id: "local"}), ref({id: "local"})])
+
+        expect(merged.map((r) => r.id)).toEqual(["local"])
+    })
 })
