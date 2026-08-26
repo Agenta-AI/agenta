@@ -79,6 +79,7 @@ def test_chat_completions_context_is_tagged_with_its_protocol():
 # Responses and Messages parsing
 
 _DOOR_PARSERS = [
+    (parse_llm_call_context, LLMProtocol.CHAT_COMPLETIONS),
     (parse_responses_call_context, LLMProtocol.RESPONSES),
     (parse_messages_call_context, LLMProtocol.MESSAGES),
 ]
@@ -123,3 +124,10 @@ def test_door_parser_does_not_mutate_input_bytes(parser):
     parser(body=body)
 
     assert body == original
+
+
+@pytest.mark.parametrize("parser,protocol", _DOOR_PARSERS)
+@pytest.mark.parametrize("stream", ["false", "true", 0, 1, None, []])
+def test_door_parser_rejects_non_boolean_stream(parser, protocol, stream):
+    with pytest.raises(ValueError, match="stream must be a boolean"):
+        parser(body=_encode({"model": "claude-3", "stream": stream}))

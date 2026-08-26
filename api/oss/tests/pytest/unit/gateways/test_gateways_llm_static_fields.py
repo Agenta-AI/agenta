@@ -10,6 +10,7 @@ import pytest
 
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMProtocol
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
+    LLMStaticFieldRewrite,
     STATIC_FIELD_REWRITES,
     apply_static_fields,
 )
@@ -50,6 +51,23 @@ def test_existing_anthropic_version_is_not_overwritten():
     )
 
     assert json.loads(result)["anthropic_version"] == "caller-supplied-value"
+
+
+def test_vertex_rewrite_preserves_json_meaning_not_source_formatting():
+    body = b'{  "model" : "claude-3-5-sonnet", "note": "\\u00e9", "messages" : [] }'
+
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.MESSAGES,
+        body=body,
+    )
+
+    assert result != body
+    assert json.loads(result) == {
+        "note": "é",
+        "messages": [],
+        "anthropic_version": "vertex-2023-10-16",
+    }
 
 
 def test_non_messages_protocol_leaves_vertex_body_untouched():
@@ -113,6 +131,17 @@ def test_table_has_exactly_vertex():
     """OD19: Bedrock's entry came out — its Messages door moved to bedrock-mantle, which
     needs no rewrite."""
     assert set(STATIC_FIELD_REWRITES.keys()) == {LLMDeploymentKind.VERTEX}
+
+
+def test_rewrite_defaults_are_not_shared_between_instances():
+    first = LLMStaticFieldRewrite()
+    second = LLMStaticFieldRewrite()
+
+    first.fields_added["field"] = "value"
+    first.fields_removed.append("other_field")
+
+    assert second.fields_added == {}
+    assert second.fields_removed == []
 
 
 def test_table_entries_are_literal_data_only():

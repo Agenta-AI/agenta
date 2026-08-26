@@ -4,8 +4,8 @@ The gateway contracts are intentionally thin: external protocols determine most
 of the wire shape, while Agenta owns authentication, target resolution and secret
 injection.
 
-**Status: as built for this increment.** Future protocol-version policy is open;
-the current routes are documented below.
+**Status: as built for this increment.** The routes follow the upstream protocol conventions
+documented below.
 
 ## North ports — what callers speak
 
@@ -59,8 +59,3 @@ are in-process adapter boundaries; neither is an external plugin contract.
 - There is no out-of-process adapter ABI.
 - Alias/fallback, embeddings and static/stdio MCP support are not silently
   promised by the current route families.
-
-## Still open
-
-The public north-port compatibility/versioning policy, policy-decision caching,
-and the semantics of a policy expiry during a stream are future design work.

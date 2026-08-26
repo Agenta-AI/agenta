@@ -67,9 +67,10 @@ public only where MCP authorization servers must fetch it. HTTP authentication
 supports the Agenta credentials header so upstream bearer credentials can remain
 pass-through content when necessary.
 
-Policy decisions are evaluated for each request. There is no decision cache or
-mid-stream reauthorization in this increment; their semantics remain open design
-work rather than an implied guarantee.
+Policy decisions run when a gateway request starts. Their underlying project permission check
+uses the shared Redis cache, keyed by project, user, permission, role, and access-control
+configuration; membership and role changes invalidate it. A stream authorized at its start runs
+to completion without mid-stream reauthorization.
 
 ## 6. Deliberately later
 

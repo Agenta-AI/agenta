@@ -1,12 +1,40 @@
 # Review findings
 
-**No gateway review findings are active.** MCP OAuth and its `TokenStorage` implementation
-landed through WP30/WP31, and Bedrock/Vertex endpoint base-URL coverage landed through WP32.
-All remaining non-goals are in `out-of-scope.md`; the entries below are the closed review record.
+## Active review findings
 
 ---
 
 ## Closed review record
+
+### OR18. SDK malformed error detail — CLOSED
+
+`result_from_wire()` now accepts `errorDetail` only when it is a JSON object. Any other value is
+discarded while the original run failure is preserved. Regression cases cover strings, arrays, and
+numbers.
+
+### OR19. Static rewrite mutable defaults — CLOSED
+
+`LLMStaticFieldRewrite` now uses Pydantic `Field(default_factory=...)` for both mutable fields.
+The unit suite proves two instances cannot share either collection.
+
+### OR21. IPv6 SSRF range — CLOSED, no code change required
+
+`::/3` covers addresses beginning `000` through `1fff`; public IPv6 begins at `2000::/3`, so it is
+not blocked. The API uses Python `ipaddress` directly. The runner table and boundary vectors are
+generated from the same Python source; fixture regeneration and 82 TypeScript vector checks pass,
+including public IPv6 addresses.
+
+### OR22. Non-boolean LLM `stream` — CLOSED
+
+All three LLM protocol parsers now reject a non-boolean `stream` value rather than applying Python
+truthiness. The shared unit cases cover strings, numbers, null, and arrays on every door.
+
+### OR20. Static rewrite serialization — CLOSED
+
+The Vertex Messages rewrite has a semantic JSON contract. It removes `model`, adds
+`anthropic_version` when absent, and preserves every other JSON value. Whitespace, escaping, and
+object-key order are not preserved because the request is parsed and serialized. Regression
+coverage makes the non-byte-preserving behavior explicit.
 
 ### OR4. Three duplicated auth-scheme enums — ANSWERED, and the question was mis-framed
 

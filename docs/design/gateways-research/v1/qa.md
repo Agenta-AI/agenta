@@ -40,8 +40,10 @@ agent/run configuration:
    unmistakable echo response, for example `Reply with exactly: gateway-live-qa`.
 3. Run it from the dashboard. Record the run link/id and confirm the response is exactly the
    expected mock response. This proves the browser → API → runner → harness → gateway path.
-4. Repeat with the local builtin MCP mock (`builtin/mock`) and ask the agent to invoke its `echo`
-   tool with `gateway-live-qa`. Confirm the tool result is shown in the run transcript.
+4. For Claude Code and Codex, repeat with the local builtin MCP mock (`builtin/mock`) and ask the
+   agent to invoke its `echo` tool with `gateway-live-qa`. Confirm the tool result is shown in the
+   run transcript. Pi cannot yet receive an author-supplied external MCP server; WP34 must land
+   before this step applies to Pi.
 5. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a
    missing/disabled endpoint or an endpoint for which the selected project lacks permission. Do
    not use an arbitrary upstream failure: that is intentionally forwarded as `upstream_error`.
@@ -53,7 +55,7 @@ agent/run configuration:
 
 | Harness | Happy LLM | Happy MCP | Typed refusal surfaced | Required evidence |
 | --- | --- | --- | --- | --- |
-| Pi | echo response | `echo` tool result | record all visible fields | run link/id + screenshot |
+| Pi | echo response | unavailable until WP34 | record all visible fields | run link/id + screenshot |
 | Claude Code | echo response | `echo` tool result | record all visible fields | run link/id + screenshot |
 | Codex | echo response | `echo` tool result | record all visible fields | run link/id + screenshot |
 

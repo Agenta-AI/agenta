@@ -13,7 +13,9 @@ def _parse(*, body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     if not model or not isinstance(model, str):
         raise ValueError("request body names no model")
 
-    stream = bool(payload.get("stream", False)) if isinstance(payload, dict) else False
+    stream = payload.get("stream", False) if isinstance(payload, dict) else False
+    if not isinstance(stream, bool):
+        raise ValueError("request body stream must be a boolean")
 
     return LLMCallContext(model=model, stream=stream, protocol=protocol)
 

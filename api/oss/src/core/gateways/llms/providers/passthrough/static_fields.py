@@ -3,14 +3,14 @@
 import json
 from typing import Any, Dict, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMProtocol
 
 
 class LLMStaticFieldRewrite(BaseModel):
-    fields_added: Dict[str, Any] = {}
-    fields_removed: List[str] = []
+    fields_added: Dict[str, Any] = Field(default_factory=dict)
+    fields_removed: List[str] = Field(default_factory=list)
 
 
 # Vertex Anthropic Messages uses `anthropic_version` in the body and the model in the URL.

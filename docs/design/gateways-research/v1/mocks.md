@@ -142,6 +142,11 @@ while the shared cases prove unauthenticated refusal, LLM streaming, and MCP too
   entries and all six route families.
 - **WP29 — Gateway mock acceptance matrix** implements the fixtures and the unit, integration,
   and compose-acceptance coverage described above.
+- **WP33 — Mock MCP harness acceptance for Claude Code and Codex** proves that those harnesses
+  discover and call the gateway-backed mock MCP tools in full-stack runs.
+- **WP34 — Pi external mock MCP delivery and acceptance** replaces Pi's current author-MCP
+  refusal with native external-MCP delivery, then proves the same mock routes.
 
-WP29 depends on WP28.  Neither package changes the two existing mock processes' public
+WP29 depends on WP28; WP33 depends on both; WP34 depends on WP33's shared fixtures. Neither
+package changes the two existing mock processes' public
 protocols except for the safe credential/profile observability required here.
