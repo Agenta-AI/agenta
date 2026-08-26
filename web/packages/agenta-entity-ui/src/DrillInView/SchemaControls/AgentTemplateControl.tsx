@@ -589,8 +589,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
                 const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
-                    return {tone: "new", label: "New", tooltip: "Added since the last commit."}
-                return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+                    return {tone: "new", label: "New", tooltip: "Added since the last version."}
+                return {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
             },
         [committed, baseMaps],
     )
@@ -734,7 +734,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
-                tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
+                tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
             }
         return undefined
     }
@@ -755,7 +755,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ) : null
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
-        ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+        ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
