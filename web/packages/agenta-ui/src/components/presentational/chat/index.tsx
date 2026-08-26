@@ -279,7 +279,9 @@ export const ChatAttachmentCard = ({
  * keeps its own `-translate-x-1/2` (Tailwind composes the x and y translate into one transform, so
  * dropping it while hidden would slide the pill off-centre).
  *
- * Solid elevated surface, border and shadow: a transparent pill let streamed text bleed through it.
+ * Default control size (28px, 15px padding, 14px text) on the scale's 8px radius — the pill shape
+ * shrank the label into the corners. Solid elevated surface, border and a light shadow: a
+ * transparent pill let streamed text bleed through it.
  * `z-10` puts it above a transcript's bottom fade — source order alone left the gradient painting
  * over the pill whenever no turn was hovered to suppress the fade.
  */
@@ -305,18 +307,17 @@ export const ChatJumpToLatest = ({
         <Button
             ref={ref}
             variant="outline"
-            size="sm"
             onClick={onClick}
             tabIndex={show ? 0 : -1}
             aria-hidden={!show}
             aria-label="Jump to latest message"
             className={cn(
-                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
+                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 shadow-sm transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,
             )}
         >
-            <ArrowDown size={14} />
+            <ArrowDown size={16} />
             Jump to latest
         </Button>
     )
