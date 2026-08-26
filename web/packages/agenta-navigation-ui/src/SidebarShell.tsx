@@ -6,6 +6,7 @@ import {
     sidebarAlwaysOpenGroupsAtomFamily,
     sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
+    sidebarRouteOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
     type SidebarSection,
@@ -180,6 +181,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
     const setAlwaysOpenGroups = useSetAtom(sidebarAlwaysOpenGroupsAtomFamily(scope.id))
     const setCollapsedScope = useSetAtom(sidebarCollapsedScopeAtomFamily(scope.id))
+    const setRouteOpenGroups = useSetAtom(sidebarRouteOpenGroupsAtomFamily(scope.id))
     const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
@@ -252,6 +254,14 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     useEffect(() => {
         setCollapsedScope(collapsed)
     }, [collapsed, setCollapsedScope])
+
+    // Same contract for the route: these ancestors render expanded without touching the persisted
+    // set, so the gate would otherwise hold their queries idle under an already-open group.
+    useEffect(() => {
+        setRouteOpenGroups((current) =>
+            haveSameKeys(current, activeAncestorKeys) ? current : activeAncestorKeys,
+        )
+    }, [activeAncestorKeys, setRouteOpenGroups])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return

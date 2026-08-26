@@ -8,6 +8,7 @@ import {
     sidebarDefaultOpenGroupsAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
+    sidebarRouteOpenGroupsAtomFamily,
 } from "../state"
 
 import type {SidebarEntityRef, SidebarEntitySource} from "./types"
@@ -37,7 +38,10 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
         // flyout that is actually open can. Without this an `alwaysOpen` group (Sessions) kept
         // fetching and polling a list with nowhere to render.
         const collapsed = get(sidebarCollapsedScopeAtomFamily(scopeId))
-        const inlineOpen = !collapsed && (alwaysOpen || effectiveOpen.includes(parentKey))
+        // The route opens a group too, without persisting anything — see the atom's note.
+        const routeOpen = get(sidebarRouteOpenGroupsAtomFamily(scopeId)).includes(parentKey)
+        const inlineOpen =
+            !collapsed && (alwaysOpen || routeOpen || effectiveOpen.includes(parentKey))
         const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(parentKey)
 
         if (!inlineOpen && !popupOpen) {

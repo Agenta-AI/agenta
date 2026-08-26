@@ -1,5 +1,7 @@
 import {createElement} from "react"
 
+import {describe, expect, it} from "vitest"
+
 import {
     defineSidebarEntity,
     groupingStartsFolded,
@@ -11,7 +13,6 @@ import {
     type SidebarEntityRef,
     type SidebarEntitySource,
 } from "../../src"
-import {describe, expect, it} from "vitest"
 
 const ref = (id: string, name: string): SidebarEntityRef => ({id, name})
 
@@ -108,6 +109,31 @@ describe("resolveChildren grouping", () => {
             ["Daily update", false],
             ["Docs audit", false],
         ])
+    })
+
+    // The "Group by: None" regression: the source emitted only the groups it wanted headings for,
+    // and every row whose key was left out silently vanished — the rail showed pins and nothing
+    // else. An entity that groups must either declare a group for every row it renders, or
+    // declare none and fall through to the flat list.
+    it("renders every row flat when the source declares no groups", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups: []}), "/w/w1/p/p1")
+
+        expect(children.map((child) => child.title)).toEqual([
+            "Morning poem",
+            "Daily update",
+            "Docs audit",
+        ])
+        expect(children.some((child) => child.isGroupLabel)).toBe(false)
+    })
+
+    it("drops rows whose group the source never declared", () => {
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups: [{key: "pinned", label: "Pinned"}]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children.map((child) => child.title)).toEqual(["Pinned", "Morning poem"])
     })
 
     it("keeps a collapsed group's heading but drops its rows", () => {
@@ -238,8 +264,21 @@ describe("sidebarSessionGroup", () => {
         expect(label({})).toBe("Idle")
     })
 
-    it("splits pinned from the rest", () => {
-        expect(sidebarSessionGroup(row(), "pinned", NOW)).toEqual({key: "recent", label: "Recent"})
+    it("puts every unpinned row under Recent when nothing groups them", () => {
+        expect(sidebarSessionGroup(row(), "none", NOW)).toEqual({key: "recent", label: "Recent"})
+    })
+
+    // "Pinned first" was retired: pins lead under every grouping, so it grouped by nothing. A
+    // stored value from before that is not a grouping the menu can show OR the grouper knows.
+    it("pins lead whichever grouping is active", () => {
+        expect(sidebarSessionGroup(row({pinned: true}), "none", NOW)).toEqual({
+            key: "pinned",
+            label: "Pinned",
+        })
+        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toEqual({
+            key: "pinned",
+            label: "Pinned",
+        })
     })
 })
 
