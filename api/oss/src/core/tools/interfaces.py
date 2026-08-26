@@ -12,6 +12,11 @@ from oss.src.core.tools.dtos import (
     ToolExecutionResponse,
 )
 
+# The search result keeps its provider-shaped model: it is the only search
+# implementation, and the whole discovery pipeline is typed on it. A neutral
+# shape would be a translation layer with one caller on each side.
+from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
+
 
 class ToolsGatewayInterface(ABC):
     """Port for external tool providers (Composio, Agenta, etc.).
@@ -86,4 +91,20 @@ class ToolsGatewayInterface(ABC):
         request: ToolExecutionRequest,
     ) -> ToolExecutionResponse:
         """Execute a tool action."""
+        ...
+
+    @abstractmethod
+    async def search_capabilities(
+        self,
+        *,
+        use_cases: List[str],
+        user_id: str,
+        toolkits: Optional[List[str]] = None,
+    ) -> ComposioSearchResult:
+        """Search the provider's catalog semantically.
+
+        On the port rather than reached by attribute lookup, so a provider that cannot
+        search fails when its class is built instead of on a live agent turn.
+        ``toolkits`` scopes the search to those integrations natively.
+        """
         ...

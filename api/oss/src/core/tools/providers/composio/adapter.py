@@ -220,6 +220,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         *,
         use_cases: List[str],
         user_id: str,
+        toolkits: Optional[List[str]] = None,
     ) -> ComposioSearchResult:
         """Semantic tool search via the COMPOSIO_SEARCH_TOOLS meta-tool.
 
@@ -227,11 +228,19 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         pitfalls + per-user connection state. ``user_id`` is the Composio user the
         connection state is read for; Agenta passes ``str(project_id)`` so the
         result reflects the calling project's connections.
+
+        ``toolkits`` scopes every query to those integrations natively. Scoping was
+        measured at the same latency as an unscoped search, so the query text is never
+        enriched to imitate a filter.
         """
+        query: Dict[str, Any] = {}
+        if toolkits:
+            query["toolkits"] = list(toolkits)
+
         payload: Dict[str, Any] = {
             "user_id": user_id,
             "arguments": {
-                "queries": [{"use_case": use_case} for use_case in use_cases],
+                "queries": [{"use_case": use_case, **query} for use_case in use_cases],
                 "session": {"generate_id": True},
             },
         }

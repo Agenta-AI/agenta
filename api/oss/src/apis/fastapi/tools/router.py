@@ -48,6 +48,9 @@ from oss.src.core.tools.dtos import (
     ToolResult,
     ToolResultData,
     #
+    AgentError,
+    GatewaySearchResults,
+    #
     CapabilitiesResult,
 )
 from oss.src.core.tools.exceptions import (
@@ -59,6 +62,8 @@ from oss.src.core.tools.exceptions import (
     DiscoveryUnsupportedError,
     ProviderNotConfiguredError,
     ProviderNotFoundError,
+    ToolKeyNotFoundError,
+    ToolNotInIntegrationError,
     ToolSlugInvalidError,
 )
 from oss.src.core.tools.service import (
@@ -93,9 +98,28 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
 _WORKFLOW_CALL_REF_PREFIX = "workflow."
 
+# The two runtime gateway tools. The names carry no integration, connection, action or
+# policy: the caller sends resource identity in ``context`` instead (contracts §6).
+_GATEWAY_SEARCH_CALL_REF = "gateway.search"
+_GATEWAY_RUN_CALL_REF = "gateway.run"
+
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
 log = get_module_logger(__name__)
+
+
+def _upstream_status(error: AdapterError) -> Optional[int]:
+    """The provider's own HTTP status, when the failure carries one."""
+    cause = error.__cause__
+    if isinstance(cause, httpx.HTTPStatusError) and cause.response is not None:
+        return cause.response.status_code
+    return None
+
+
+def _is_retryable_upstream(error: AdapterError) -> bool:
+    """A provider 4xx means the request itself was wrong, so repeating it cannot work."""
+    upstream_status = _upstream_status(error)
+    return upstream_status is None or upstream_status >= 500
 
 
 def handle_adapter_exceptions():
@@ -132,13 +156,7 @@ def handle_adapter_exceptions():
                 ) from e
             except AdapterError as e:
                 detail = e.detail or e.message
-                cause = e.__cause__
-                upstream_status = (
-                    cause.response.status_code
-                    if isinstance(cause, httpx.HTTPStatusError)
-                    and cause.response is not None
-                    else None
-                )
+                upstream_status = _upstream_status(e)
                 if upstream_status is not None and upstream_status >= 500:
                     raise HTTPException(
                         status_code=status.HTTP_502_BAD_GATEWAY,
@@ -152,6 +170,62 @@ def handle_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+def _tool_result(
+    *,
+    body: ToolCall,
+    content: str,
+    successful: bool,
+    message: Optional[str] = None,
+) -> ToolCallResponse:
+    """Wrap a tool result for the caller, echoing the call id it must be matched to."""
+    return ToolCallResponse(
+        call=ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=content,
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK" if successful else "STATUS_CODE_ERROR",
+                message=message,
+            ),
+        )
+    )
+
+
+def _invalid_arguments(
+    *,
+    body: ToolCall,
+    message: str,
+    next_step: str,
+) -> ToolCallResponse:
+    """Refuse a malformed argument payload. Never repaired, never coerced to ``{}``."""
+    return _agent_error_result(
+        body=body,
+        error=AgentError(
+            code="invalid_arguments",
+            message=message,
+            retryable=False,
+            next_step=next_step,
+        ),
+    )
+
+
+def _agent_error_result(*, body: ToolCall, error: AgentError) -> ToolCallResponse:
+    """An expected failure the model can act on, over HTTP 200.
+
+    The runner hides a non-2xx body from the model, so an error that must reach the
+    model rides a 200 with ``STATUS_CODE_ERROR`` and the envelope as the content.
+    """
+    return _tool_result(
+        body=body,
+        content=error.model_dump_json(exclude_none=True),
+        successful=False,
+        message=error.message,
+    )
 
 
 class ToolsRouter:
@@ -1192,6 +1266,12 @@ class ToolsRouter:
             )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
+        # The two runtime gateway tools route on a stable name and read their identity
+        # from the private context, so they are matched before the five-segment parse.
+        if call_ref == _GATEWAY_SEARCH_CALL_REF:
+            return await self._call_gateway_search(request=request, body=body)
+        if call_ref == _GATEWAY_RUN_CALL_REF:
+            return await self._call_gateway_run(request=request, body=body)
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1354,6 +1434,195 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
+
+    async def _call_gateway_search(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """``gateway.search`` — find integration tools for a task description.
+
+        The provider comes from the trusted context; the query and the optional
+        integration come from the model. Agent permission is deliberately absent: the
+        configured set lives in the runner's private policy, so the runner filters what
+        this returns and rejects an integration the agent never configured.
+        """
+        context = body.context
+        if context is None or not context.provider:
+            raise HTTPException(
+                status_code=400,
+                detail="gateway.search requires a context carrying a provider.",
+            )
+
+        arguments = body.data.function.arguments
+        if not isinstance(arguments, dict):
+            return _invalid_arguments(
+                body=body,
+                message="Tool arguments must be a JSON object.",
+                next_step="Send an object with a non-empty `query`.",
+            )
+
+        query = arguments.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return _invalid_arguments(
+                body=body,
+                message="`query` must be a non-empty description of the task.",
+                next_step="Search again with a concrete task description.",
+            )
+
+        integration = arguments.get("integration")
+        if integration is not None and (
+            not isinstance(integration, str) or not integration.strip()
+        ):
+            return _invalid_arguments(
+                body=body,
+                message="`integration` must be the name of one integration.",
+                next_step="Search again without `integration`, or name one.",
+            )
+
+        try:
+            results = await self.tools_service.search_gateway_tools(
+                project_id=UUID(request.state.project_id),
+                provider_key=context.provider,
+                query=query.strip(),
+                integration_key=integration.strip() if integration else None,
+            )
+        except AdapterError:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_search_unavailable",
+                    message="Tool search is temporarily unavailable.",
+                    retryable=True,
+                    next_step="Retry the search once.",
+                ),
+            )
+
+        return _tool_result(
+            body=body,
+            content=GatewaySearchResults(results=results).model_dump_json(),
+            successful=True,
+        )
+
+    async def _call_gateway_run(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """``gateway.run`` — run one integration tool through its selected connection.
+
+        Every routing value is read from the trusted context, never from the model's
+        arguments, and the arguments are forwarded exactly as they arrive. The caller
+        has already applied the agent's policy; this route checks identity and access.
+        """
+        context = body.context
+        if context is None or not (
+            context.provider
+            and context.integration
+            and context.connection
+            and context.tool
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "gateway.run requires a context carrying a provider, an "
+                    "integration, a connection, and a tool."
+                ),
+            )
+
+        arguments = body.data.function.arguments
+        if not isinstance(arguments, dict):
+            # An empty argument set is a different call, and one that can still succeed
+            # against the provider with the wrong effect.
+            return _invalid_arguments(
+                body=body,
+                message="`arguments` must be a JSON object.",
+                next_step="Send `arguments` as an object matching the tool's input schema.",
+            )
+
+        try:
+            execution_result = await self.tools_service.run_gateway_tool(
+                project_id=UUID(request.state.project_id),
+                provider_key=context.provider,
+                integration_key=context.integration,
+                connection_slug=context.connection,
+                tool_key=context.tool,
+                arguments=arguments,
+            )
+        except ToolKeyNotFoundError as e:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_not_found",
+                    message=f"{e.tool_key} is not a tool of {e.integration_key}.",
+                    retryable=False,
+                    next_step="Call the tool by a key that search returned.",
+                    # From the whole integration catalog, so a key here may be one the
+                    # agent denied. The caller holds the policy and sanitizes the list.
+                    details={"suggestions": e.suggestions} if e.suggestions else None,
+                ),
+            )
+        except ToolNotInIntegrationError as e:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_not_in_integration",
+                    message=(
+                        f"{e.tool_key} is not a tool of {e.integration_key}. It names "
+                        "a different integration."
+                    ),
+                    retryable=False,
+                    next_step="Search again and run the tool from the integration search returned.",
+                ),
+            )
+        except (
+            ConnectionNotFoundError,
+            ConnectionInactiveError,
+            ConnectionInvalidError,
+        ) as e:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="connection_unavailable",
+                    message=e.message,
+                    retryable=False,
+                    next_step=(
+                        "Ask the user to reconnect this integration in Agenta, then "
+                        "try again."
+                    ),
+                ),
+            )
+        except AdapterError as e:
+            # Not a 424: the runner hides a non-2xx body from the model, and this
+            # detail is exactly what the model needs to correct a rejected request.
+            detail = e.detail or e.message
+            retryable = _is_retryable_upstream(e)
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_execution_failed",
+                    message=f"The provider could not run the tool: {detail}",
+                    retryable=retryable,
+                    next_step=(
+                        "Retry the call once."
+                        if retryable
+                        else "Correct the arguments against the tool's schema, then try again."
+                    ),
+                ),
+            )
+        except ToolSlugInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+
+        # The provider's own failure passes through with its detail intact, which is
+        # what lets the model correct a rejected but well-formed request.
+        return _tool_result(
+            body=body,
+            content=json.dumps(execution_result.model_dump()),
+            successful=execution_result.successful,
+            message=execution_result.error,
+        )
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:

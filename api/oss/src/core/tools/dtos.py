@@ -170,10 +170,26 @@ class ToolCallData(BaseModel):
     function: ToolCallFunction
 
 
+class ToolCallContext(BaseModel):
+    """Trusted routing the caller adds beside the model's arguments (contracts section 6).
+
+    The runner reads every field from its private resolved policy, so none of it is
+    model input. ``connection`` and ``tool`` are absent for ``gateway.search``. The
+    gateway routes refuse a call whose context is missing or incomplete; there is no
+    default connection to fall back to.
+    """
+
+    provider: Optional[str] = None
+    integration: Optional[str] = None
+    connection: Optional[str] = None
+    tool: Optional[str] = None
+
+
 class ToolCall(BaseModel):
     """Request envelope — wraps the raw OpenAI tool call."""
 
     data: ToolCallData
+    context: Optional[ToolCallContext] = None
 
 
 class ToolResultData(BaseModel):
@@ -267,6 +283,27 @@ class ResolvedGatewayConnection(BaseModel):
     integration: str
     connection: str
     tools: List[ResolvedGatewayTool] = Field(default_factory=list)
+
+
+class GatewaySearchResult(BaseModel):
+    """One translated search hit as the model reads it (contracts section 7).
+
+    It never carries the connection slug, the provider account ID, the provider action
+    ID, a permission value, or ``read_only``: the runner already owns the policy and
+    the model needs none of them to call the tool.
+    """
+
+    integration: str
+    tool: str
+    name: str
+    description: Optional[str] = None
+    input_schema: Dict[str, Any]
+
+
+class GatewaySearchResults(BaseModel):
+    """The ``gateway.search`` result body. The runner filters and caps ``results``."""
+
+    results: List[GatewaySearchResult] = Field(default_factory=list)
 
 
 class ToolsResolution(BaseModel):

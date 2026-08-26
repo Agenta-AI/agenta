@@ -1,6 +1,8 @@
 import asyncio
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from difflib import get_close_matches
+from time import perf_counter
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.utils.env import env
@@ -16,6 +18,7 @@ from oss.src.core.tools.dtos import (
     ConnectAffordance,
     ConnectionRequirement,
     GatewayConnectionTool,
+    GatewaySearchResult,
     ResolvedGatewayConnection,
     ResolvedGatewayTool,
     ResolvedTool,
@@ -39,6 +42,8 @@ from oss.src.core.tools.dtos import (
 from oss.src.core.tools.discovery import (
     looks_like_trigger,
     referenced_integrations,
+    split_composio_slug,
+    translate_runtime_search,
     translate_search_result,
 )
 from oss.src.core.tools.exceptions import (
@@ -47,7 +52,9 @@ from oss.src.core.tools.exceptions import (
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
-    DiscoveryUnsupportedError,
+    ToolKeyNotFoundError,
+    ToolNotInIntegrationError,
+    ToolsError,
     ToolSlugInvalidError,
 )
 from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
@@ -82,6 +89,9 @@ _DEFAULT_LIMIT_ALTERNATIVES = 3
 # and they sit above the service. Shares the trigger catalog's TTL and deadline:
 # both are the same project-agnostic Composio catalog data.
 _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
+
+# Enough to correct a typo without turning the error into a menu.
+_MAX_TOOL_KEY_SUGGESTIONS = 5
 
 
 class ToolsService:
@@ -206,6 +216,7 @@ class ToolsService:
         crawl is bounded by a deadline and its result is cached whole; a crawl that
         cannot finish raises, so a partial catalog never reaches the cache.
         """
+        started = perf_counter()
         cache_key = {"provider": provider_key, "integration": integration_key}
         cached = await get_cache(
             namespace=_CATALOG_CACHE_NAMESPACE,
@@ -214,6 +225,13 @@ class ToolsService:
             is_list=True,
         )
         if cached is not None:
+            log.info(
+                "[tools.catalog] catalog slice returned",
+                integration=integration_key,
+                tool_count=len(cached),
+                latency_ms=round((perf_counter() - started) * 1000),
+                cache_hit=True,
+            )
             return cached
 
         adapter = self.adapter_registry.get(provider_key)
@@ -243,6 +261,13 @@ class ToolsService:
             key=cache_key,
             value=entries,
             ttl=env.composio.catalog_cache_ttl_seconds,
+        )
+        log.info(
+            "[tools.catalog] catalog slice returned",
+            integration=integration_key,
+            tool_count=len(entries),
+            latency_ms=round((perf_counter() - started) * 1000),
+            cache_hit=False,
         )
         return entries
 
@@ -653,6 +678,145 @@ class ToolsService:
         )
 
     # -----------------------------------------------------------------------
+    # Runtime gateway tools (gateway.search / gateway.run)
+    # -----------------------------------------------------------------------
+
+    async def search_gateway_tools(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        query: str,
+        integration_key: Optional[str] = None,
+    ) -> List[GatewaySearchResult]:
+        """Search the provider and answer in Agenta integration and tool keys.
+
+        Permission is not applied here and cannot be: the agent's configured set lives
+        in the runner's private policy, so the runner filters the list it gets back.
+        """
+        started = perf_counter()
+        try:
+            search, cache_hit = await self._cached_search(
+                provider_key=provider_key,
+                project_id=project_id,
+                use_cases=[query],
+                toolkits=[integration_key] if integration_key else None,
+            )
+        except AdapterError as e:
+            log.warning(
+                "[gateway.search] provider search failed",
+                error=type(e).__name__,
+                detail=e.detail,
+                retryable=True,
+                integration=integration_key,
+            )
+            raise
+
+        results = translate_runtime_search(search, integration=integration_key)
+        log.info(
+            "[gateway.search] provider search returned",
+            latency_ms=round((perf_counter() - started) * 1000),
+            cache_hit=cache_hit,
+            result_count=len(results),
+            integration=integration_key,
+        )
+        return results
+
+    @staticmethod
+    def _unknown_tool_key(
+        *,
+        integration_key: str,
+        tool_key: str,
+        catalog: List[ToolCatalogEntry],
+    ) -> ToolsError:
+        """Say which of the two mistakes a key that is not in this catalog looks like.
+
+        A near miss of a real key is a typo, and close keys are what fixes it. A key
+        that resembles nothing here and whose own prefix names something other than
+        this integration is the other mistake: a tool of a different integration. That
+        is the only cross-integration claim the API can prove, because it holds one
+        integration's catalog and never the agent's configured set.
+        """
+        suggestions = get_close_matches(
+            tool_key,
+            [entry.key for entry in catalog],
+            n=_MAX_TOOL_KEY_SUGGESTIONS,
+        )
+        if not suggestions:
+            prefix, _ = split_composio_slug(tool_key, [integration_key])
+            if prefix != integration_key.lower():
+                return ToolNotInIntegrationError(
+                    integration_key=integration_key,
+                    tool_key=tool_key,
+                )
+        return ToolKeyNotFoundError(
+            integration_key=integration_key,
+            tool_key=tool_key,
+            suggestions=suggestions,
+        )
+
+    async def run_gateway_tool(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+        connection_slug: str,
+        tool_key: str,
+        arguments: Dict[str, Any],
+    ) -> ToolExecutionResponse:
+        """Run one integration tool through the selected connection.
+
+        Identity only: the caller has already decided that the agent may run this tool.
+        The connection must be usable and the tool key must belong to that integration's
+        catalog, which is also where the canonical provider action ID comes from.
+        """
+        _validate_slug_segments(provider_key, (integration_key, connection_slug))
+
+        connection = await self.resolve_connection_by_slug(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            connection_slug=connection_slug,
+        )
+
+        catalog = await self.list_all_actions(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        if not any(entry.key == tool_key for entry in catalog):
+            raise self._unknown_tool_key(
+                integration_key=integration_key,
+                tool_key=tool_key,
+                catalog=catalog,
+            )
+
+        # The Composio user is the project the connection was initiated under.
+        user_id = (
+            connection.data.get("project_id")
+            if isinstance(connection.data, dict)
+            else None
+        )
+
+        started = perf_counter()
+        result = await self.execute_tool(
+            provider_key=provider_key,
+            integration_key=integration_key,
+            action_key=tool_key,
+            provider_connection_id=connection.provider_connection_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+        log.info(
+            "[gateway.run] provider execution finished",
+            integration=integration_key,
+            tool=tool_key,
+            outcome="successful" if result.successful else "failed",
+            latency_ms=round((perf_counter() - started) * 1000),
+        )
+        return result
+
+    # -----------------------------------------------------------------------
     # Tool discovery (discover_tools)
     # -----------------------------------------------------------------------
 
@@ -671,7 +835,7 @@ class ToolsService:
         recomputed fresh from the project's ``gateway_connections`` rows every call,
         so it never goes stale when a user finishes connecting.
         """
-        search = await self._cached_search(
+        search, _ = await self._cached_search(
             provider_key=provider_key,
             project_id=project_id,
             use_cases=use_cases,
@@ -702,10 +866,15 @@ class ToolsService:
         provider_key: str,
         project_id: UUID,
         use_cases: List[str],
-    ) -> ComposioSearchResult:
+        toolkits: Optional[List[str]] = None,
+    ) -> Tuple[ComposioSearchResult, bool]:
+        """Run one provider search, or replay the cached one. True means it was cached."""
         cache_key = {
             "provider": provider_key,
             "use_cases": "\x1f".join(use_cases),
+            # A scoped search answers a different question from an unscoped one, so it
+            # needs its own entry rather than replaying the wider result.
+            "toolkits": "\x1f".join(toolkits or []),
         }
         cached = await get_cache(
             namespace=_DISCOVERY_CACHE_NAMESPACE,
@@ -713,14 +882,14 @@ class ToolsService:
             model=ComposioSearchResult,
         )
         if cached is not None:
-            return cached
+            return cached, True
 
         adapter = self.adapter_registry.get(provider_key)
-        search_fn = getattr(adapter, "search_capabilities", None)
-        if search_fn is None:
-            raise DiscoveryUnsupportedError(provider_key)
-
-        search = await search_fn(use_cases=use_cases, user_id=str(project_id))
+        search = await adapter.search_capabilities(
+            use_cases=use_cases,
+            user_id=str(project_id),
+            toolkits=toolkits,
+        )
 
         # Cache only the tool/schema half (D6): drop the per-project connection
         # state so the cached blob is project-agnostic and never makes a later
@@ -731,7 +900,7 @@ class ToolsService:
             key=cache_key,
             value=cacheable,
         )
-        return cacheable
+        return cacheable, False
 
     async def _discovery_connection_state(
         self,

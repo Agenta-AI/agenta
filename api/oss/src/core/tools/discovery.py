@@ -21,6 +21,7 @@ from oss.src.core.tools.dtos import (
     ConnectionRequirement,
     DiscoveredAlternative,
     DiscoveredTool,
+    GatewaySearchResult,
     ToolConnectionState,
 )
 from oss.src.core.tools.providers.composio.dtos import (
@@ -102,6 +103,60 @@ def split_composio_slug(
 
     integration, _, action = composio_slug.partition("_")
     return integration.lower(), action or composio_slug
+
+
+def translate_runtime_search(
+    search: ComposioSearchResult,
+    *,
+    integration: Optional[str] = None,
+) -> List[GatewaySearchResult]:
+    """Translate a provider search into the ``gateway.search`` result (contracts §7).
+
+    Same splitter as discovery, so one provider slug maps to one Agenta integration and
+    tool key everywhere. Two kinds of hit are dropped: one whose slug yields no tool key,
+    and one with no object input schema, because the model would have nothing to fill in
+    and contracts §7 requires the schema. Nothing here reads permission: the runner
+    filters the list against its private policy and caps it.
+    """
+    wanted = integration.lower() if integration else None
+
+    results: List[GatewaySearchResult] = []
+    seen: Set[Tuple[str, str]] = set()
+    for result in search.results:
+        for slug in list(result.primary_tool_slugs) + list(result.related_tool_slugs):
+            integration_key, tool_key = split_composio_slug(slug, result.toolkits)
+            if not integration_key or not tool_key:
+                continue
+            if wanted is not None and integration_key != wanted:
+                continue
+            if (integration_key, tool_key) in seen:
+                continue
+
+            schema = search.tool_schemas.get(slug)
+            input_schema = schema.input_schema if schema else None
+            if not _is_object_schema(input_schema):
+                continue
+
+            seen.add((integration_key, tool_key))
+            results.append(
+                GatewaySearchResult(
+                    integration=integration_key,
+                    tool=tool_key,
+                    name=tool_key.replace("_", " ").capitalize(),
+                    description=schema.description if schema else None,
+                    input_schema=input_schema,
+                )
+            )
+    return results
+
+
+def _is_object_schema(schema: Optional[Dict]) -> bool:
+    """A schema the model can fill in as the ``arguments`` object, and nothing else.
+
+    ``properties`` alone does not make a schema an object: an array schema can carry
+    properties too, and the run route accepts only an object.
+    """
+    return isinstance(schema, dict) and schema.get("type") == "object"
 
 
 def map_guidance_text(text: str, toolkits: List[str]) -> str:
