@@ -1,0 +1,1409 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the reference listing > matches its snapshot on Windows 1`] = `
+[
+  {
+    "id": "sessions",
+    "shortcuts": [
+      {
+        "chords": [
+          "Alt+1",
+        ],
+        "id": "session.jump.1",
+        "label": "Jump to session 1",
+      },
+      {
+        "chords": [
+          "Alt+2",
+        ],
+        "id": "session.jump.2",
+        "label": "Jump to session 2",
+      },
+      {
+        "chords": [
+          "Alt+3",
+        ],
+        "id": "session.jump.3",
+        "label": "Jump to session 3",
+      },
+      {
+        "chords": [
+          "Alt+4",
+        ],
+        "id": "session.jump.4",
+        "label": "Jump to session 4",
+      },
+      {
+        "chords": [
+          "Alt+5",
+        ],
+        "id": "session.jump.5",
+        "label": "Jump to session 5",
+      },
+      {
+        "chords": [
+          "Alt+6",
+        ],
+        "id": "session.jump.6",
+        "label": "Jump to session 6",
+      },
+      {
+        "chords": [
+          "Alt+7",
+        ],
+        "id": "session.jump.7",
+        "label": "Jump to session 7",
+      },
+      {
+        "chords": [
+          "Alt+8",
+        ],
+        "id": "session.jump.8",
+        "label": "Jump to session 8",
+      },
+      {
+        "chords": [
+          "Alt+9",
+        ],
+        "id": "session.jump.9",
+        "label": "Jump to session 9",
+      },
+      {
+        "chords": [
+          "Alt+Z",
+        ],
+        "id": "session.previous",
+        "label": "Previous session",
+      },
+      {
+        "chords": [
+          "Alt+X",
+        ],
+        "id": "session.next",
+        "label": "Next session",
+      },
+      {
+        "chords": [
+          "Alt+C",
+        ],
+        "id": "session.new",
+        "label": "New session",
+      },
+      {
+        "chords": [
+          "Alt+R",
+        ],
+        "id": "session.rename",
+        "label": "Rename session",
+      },
+      {
+        "chords": [
+          "Alt+A",
+        ],
+        "id": "session.archive",
+        "label": "Archive session",
+      },
+      {
+        "chords": [
+          "Alt+W",
+        ],
+        "context": "needs a second session to fall back to",
+        "id": "session.close",
+        "label": "Close session",
+      },
+      {
+        "chords": [
+          "Alt+F",
+        ],
+        "id": "session.search",
+        "label": "Search sessions",
+      },
+      {
+        "chords": [
+          "Alt+B",
+        ],
+        "id": "session.toggleConfigPanel",
+        "label": "Toggle config panel",
+      },
+      {
+        "chords": [
+          "Enter",
+          "Space",
+        ],
+        "context": "on a focused tab, rail row, or history row",
+        "id": "session.open",
+        "label": "Open session",
+      },
+      {
+        "chords": [
+          "ContextMenu",
+          "Shift+F10",
+        ],
+        "context": "on a focused tab or row",
+        "id": "session.menu",
+        "label": "Open the session menu",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "while renaming",
+        "id": "session.renameCommit",
+        "label": "Save the name",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "while renaming",
+        "id": "session.renameCancel",
+        "label": "Discard the rename",
+      },
+    ],
+    "summary": "Managing the conversations open in the agent playground.",
+    "title": "Sessions",
+  },
+  {
+    "id": "composer",
+    "shortcuts": [
+      {
+        "chords": [
+          "Enter",
+        ],
+        "id": "composer.send",
+        "label": "Send message",
+      },
+      {
+        "chords": [
+          "Shift+Enter",
+          "Ctrl+Enter",
+        ],
+        "id": "composer.newline",
+        "label": "Insert newline",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "on a line holding only a fence",
+        "id": "composer.codeBlock",
+        "label": "Start a code block",
+      },
+      {
+        "chords": [
+          "Tab",
+        ],
+        "id": "composer.indent",
+        "label": "Indent a list item",
+      },
+      {
+        "chords": [
+          "Shift+Tab",
+        ],
+        "id": "composer.outdent",
+        "label": "Outdent a list item",
+      },
+      {
+        "chords": [
+          "Ctrl+B",
+        ],
+        "id": "composer.bold",
+        "label": "Bold",
+      },
+      {
+        "chords": [
+          "Ctrl+I",
+        ],
+        "id": "composer.italic",
+        "label": "Italic",
+      },
+      {
+        "chords": [
+          "Ctrl+U",
+        ],
+        "id": "composer.underline",
+        "label": "Underline",
+      },
+      {
+        "chords": [
+          "Ctrl+Z",
+        ],
+        "id": "composer.undo",
+        "label": "Undo",
+      },
+      {
+        "chords": [
+          "Ctrl+Shift+Z",
+          "Ctrl+Y",
+        ],
+        "id": "composer.redo",
+        "label": "Redo",
+      },
+      {
+        "chords": [
+          "Ctrl+V",
+        ],
+        "context": "with files on the clipboard",
+        "id": "composer.attachFromClipboard",
+        "label": "Attach files from the clipboard",
+      },
+      {
+        "chords": [
+          "Ctrl+V",
+        ],
+        "context": "with a lone URL on the clipboard, over a selection",
+        "id": "composer.linkSelection",
+        "label": "Link the selection",
+      },
+    ],
+    "title": "Writing a message",
+  },
+  {
+    "id": "slashCommands",
+    "shortcuts": [
+      {
+        "chords": [],
+        "context": "type / at the start of a line or after a space",
+        "id": "slash.open",
+        "label": "Open the command menu",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "slash.move",
+        "label": "Move through commands",
+      },
+      {
+        "chords": [
+          "Enter",
+          "Tab",
+        ],
+        "context": "declines when nothing matches, so the message sends",
+        "id": "slash.run",
+        "label": "Run the highlighted command",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "id": "slash.dismiss",
+        "label": "Dismiss the menu",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "context": "inside the panel a command opened",
+        "id": "slash.picker.move",
+        "label": "Move through a picker's options",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "context": "inside a picker",
+        "id": "slash.picker.edge",
+        "label": "First or last option",
+      },
+      {
+        "chords": [
+          "←",
+        ],
+        "context": "inside a picker, and only while its search box is empty",
+        "id": "slash.picker.back",
+        "label": "Back to commands",
+      },
+      {
+        "chords": [
+          "→",
+          "Enter",
+        ],
+        "context": "on a provider row in the model picker",
+        "id": "slash.picker.intoModels",
+        "label": "Step into the model column",
+      },
+    ],
+    "title": "Slash commands",
+  },
+  {
+    "id": "agentGates",
+    "shortcuts": [
+      {
+        "chords": [
+          "Ctrl+Enter",
+        ],
+        "context": "while an approval is waiting",
+        "id": "gate.approve",
+        "label": "Approve",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "while an approval is waiting",
+        "id": "gate.deny",
+        "label": "Deny",
+      },
+      {
+        "chords": [
+          "Ctrl+Enter",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.primary",
+        "label": "Next question, or accept",
+      },
+      {
+        "chords": [
+          "Ctrl+←",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.back",
+        "label": "Previous question",
+      },
+      {
+        "chords": [
+          "Ctrl+→",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.forward",
+        "label": "Next question",
+      },
+      {
+        "chords": [
+          "Ctrl+Backspace",
+          "Ctrl+Delete",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.skip",
+        "label": "Skip question",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "while a pick is held",
+        "id": "gate.question.cancelHold",
+        "label": "Cancel a pending pick",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "in a question card — does not answer it",
+        "id": "gate.question.blur",
+        "label": "Back out of a field",
+      },
+      {
+        "chords": [
+          "1",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.1",
+        "label": "Pick option 1",
+      },
+      {
+        "chords": [
+          "2",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.2",
+        "label": "Pick option 2",
+      },
+      {
+        "chords": [
+          "3",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.3",
+        "label": "Pick option 3",
+      },
+      {
+        "chords": [
+          "4",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.4",
+        "label": "Pick option 4",
+      },
+      {
+        "chords": [
+          "5",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.5",
+        "label": "Pick option 5",
+      },
+      {
+        "chords": [
+          "6",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.6",
+        "label": "Pick option 6",
+      },
+      {
+        "chords": [
+          "7",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.7",
+        "label": "Pick option 7",
+      },
+      {
+        "chords": [
+          "8",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.8",
+        "label": "Pick option 8",
+      },
+      {
+        "chords": [
+          "9",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.9",
+        "label": "Pick option 9",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.move",
+        "label": "Move through options",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.edge",
+        "label": "First or last option",
+      },
+      {
+        "chords": [
+          "Space",
+        ],
+        "context": "multi-select lists only",
+        "id": "gate.option.toggle",
+        "label": "Toggle option",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.choose",
+        "label": "Choose the highlighted option",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "in a single-line answer field",
+        "id": "gate.answer.submit",
+        "label": "Submit answer",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "on the review screen",
+        "id": "gate.review.edit",
+        "label": "Edit an answer",
+      },
+      {
+        "chords": [
+          "Ctrl+Enter",
+        ],
+        "context": "while a connection is requested",
+        "id": "gate.connect",
+        "label": "Connect",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "while a connection is requested",
+        "id": "gate.connect.decline",
+        "label": "Decline, or cancel connecting",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "context": "while recording",
+        "id": "gate.recording.discard",
+        "label": "Discard recording",
+      },
+    ],
+    "summary": "If several prompts are waiting, the topmost one answers first.",
+    "title": "When the agent asks you something",
+  },
+  {
+    "id": "contextAndFiles",
+    "shortcuts": [
+      {
+        "chords": [
+          "Enter",
+          "Space",
+        ],
+        "context": "on the collapsed rail",
+        "id": "context.expandRail",
+        "label": "Expand the context rail",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "files.move",
+        "label": "Move through rows",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "id": "files.edge",
+        "label": "First or last row",
+      },
+      {
+        "chords": [
+          "→",
+        ],
+        "id": "files.expand",
+        "label": "Expand a folder, or step into it",
+      },
+      {
+        "chords": [
+          "←",
+        ],
+        "id": "files.collapse",
+        "label": "Collapse a folder, or step to its parent",
+      },
+      {
+        "chords": [
+          "Ctrl+↓",
+        ],
+        "id": "files.openTile",
+        "label": "Open the focused tile",
+      },
+      {
+        "chords": [
+          "Ctrl+↑",
+        ],
+        "id": "files.parentFolder",
+        "label": "Go to the parent folder",
+      },
+      {
+        "chords": [
+          "Enter",
+          "Space",
+        ],
+        "context": "on a focused preview",
+        "id": "files.zoomPreview",
+        "label": "Zoom an image preview",
+      },
+      {
+        "chords": [
+          "ContextMenu",
+          "Shift+F10",
+        ],
+        "id": "files.menu",
+        "label": "Open the file menu",
+      },
+    ],
+    "title": "Context rail and files",
+  },
+  {
+    "id": "configPanel",
+    "shortcuts": [
+      {
+        "chords": [
+          "Enter",
+          "Space",
+        ],
+        "context": "on a field, section, skill, or trigger row",
+        "id": "config.activate",
+        "label": "Open the highlighted item",
+      },
+      {
+        "chords": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+        ],
+        "id": "config.choiceCard.pick",
+        "label": "Pick a choice card by number",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "config.choiceCard.move",
+        "label": "Move through choice cards",
+      },
+      {
+        "chords": [
+          "Space",
+          "Enter",
+        ],
+        "context": "on a focused card",
+        "id": "config.choiceCard.select",
+        "label": "Select a choice card",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "in a tags field",
+        "id": "config.chip.add",
+        "label": "Add a chip",
+      },
+      {
+        "chords": [
+          "Backspace",
+        ],
+        "context": "on an empty input",
+        "id": "config.chip.removeLast",
+        "label": "Remove the last chip",
+      },
+      {
+        "chords": [
+          "Enter",
+        ],
+        "context": "in a name or key field",
+        "id": "config.commit",
+        "label": "Save a rename or provider key",
+      },
+      {
+        "chords": [
+          "Esc",
+        ],
+        "id": "config.closeDrawer",
+        "label": "Close a drawer",
+      },
+    ],
+    "title": "Agent configuration",
+  },
+]
+`;
+
+exports[`the reference listing > matches its snapshot on a Mac 1`] = `
+[
+  {
+    "id": "sessions",
+    "shortcuts": [
+      {
+        "chords": [
+          "⌥1",
+        ],
+        "id": "session.jump.1",
+        "label": "Jump to session 1",
+      },
+      {
+        "chords": [
+          "⌥2",
+        ],
+        "id": "session.jump.2",
+        "label": "Jump to session 2",
+      },
+      {
+        "chords": [
+          "⌥3",
+        ],
+        "id": "session.jump.3",
+        "label": "Jump to session 3",
+      },
+      {
+        "chords": [
+          "⌥4",
+        ],
+        "id": "session.jump.4",
+        "label": "Jump to session 4",
+      },
+      {
+        "chords": [
+          "⌥5",
+        ],
+        "id": "session.jump.5",
+        "label": "Jump to session 5",
+      },
+      {
+        "chords": [
+          "⌥6",
+        ],
+        "id": "session.jump.6",
+        "label": "Jump to session 6",
+      },
+      {
+        "chords": [
+          "⌥7",
+        ],
+        "id": "session.jump.7",
+        "label": "Jump to session 7",
+      },
+      {
+        "chords": [
+          "⌥8",
+        ],
+        "id": "session.jump.8",
+        "label": "Jump to session 8",
+      },
+      {
+        "chords": [
+          "⌥9",
+        ],
+        "id": "session.jump.9",
+        "label": "Jump to session 9",
+      },
+      {
+        "chords": [
+          "⌥Z",
+        ],
+        "id": "session.previous",
+        "label": "Previous session",
+      },
+      {
+        "chords": [
+          "⌥X",
+        ],
+        "id": "session.next",
+        "label": "Next session",
+      },
+      {
+        "chords": [
+          "⌥C",
+        ],
+        "id": "session.new",
+        "label": "New session",
+      },
+      {
+        "chords": [
+          "⌥R",
+        ],
+        "id": "session.rename",
+        "label": "Rename session",
+      },
+      {
+        "chords": [
+          "⌥A",
+        ],
+        "id": "session.archive",
+        "label": "Archive session",
+      },
+      {
+        "chords": [
+          "⌥W",
+        ],
+        "context": "needs a second session to fall back to",
+        "id": "session.close",
+        "label": "Close session",
+      },
+      {
+        "chords": [
+          "⌥F",
+        ],
+        "id": "session.search",
+        "label": "Search sessions",
+      },
+      {
+        "chords": [
+          "⌥B",
+        ],
+        "id": "session.toggleConfigPanel",
+        "label": "Toggle config panel",
+      },
+      {
+        "chords": [
+          "↵",
+          "Space",
+        ],
+        "context": "on a focused tab, rail row, or history row",
+        "id": "session.open",
+        "label": "Open session",
+      },
+      {
+        "chords": [
+          "ContextMenu",
+          "⇧F10",
+        ],
+        "context": "on a focused tab or row",
+        "id": "session.menu",
+        "label": "Open the session menu",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "while renaming",
+        "id": "session.renameCommit",
+        "label": "Save the name",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "while renaming",
+        "id": "session.renameCancel",
+        "label": "Discard the rename",
+      },
+    ],
+    "summary": "Managing the conversations open in the agent playground.",
+    "title": "Sessions",
+  },
+  {
+    "id": "composer",
+    "shortcuts": [
+      {
+        "chords": [
+          "↵",
+        ],
+        "id": "composer.send",
+        "label": "Send message",
+      },
+      {
+        "chords": [
+          "⇧↵",
+          "⌘↵",
+        ],
+        "id": "composer.newline",
+        "label": "Insert newline",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "on a line holding only a fence",
+        "id": "composer.codeBlock",
+        "label": "Start a code block",
+      },
+      {
+        "chords": [
+          "⇥",
+        ],
+        "id": "composer.indent",
+        "label": "Indent a list item",
+      },
+      {
+        "chords": [
+          "⇧⇥",
+        ],
+        "id": "composer.outdent",
+        "label": "Outdent a list item",
+      },
+      {
+        "chords": [
+          "⌘B",
+        ],
+        "id": "composer.bold",
+        "label": "Bold",
+      },
+      {
+        "chords": [
+          "⌘I",
+        ],
+        "id": "composer.italic",
+        "label": "Italic",
+      },
+      {
+        "chords": [
+          "⌘U",
+        ],
+        "id": "composer.underline",
+        "label": "Underline",
+      },
+      {
+        "chords": [
+          "⌘Z",
+        ],
+        "id": "composer.undo",
+        "label": "Undo",
+      },
+      {
+        "chords": [
+          "⇧⌘Z",
+          "⌃Y",
+        ],
+        "id": "composer.redo",
+        "label": "Redo",
+      },
+      {
+        "chords": [
+          "⌘V",
+        ],
+        "context": "with files on the clipboard",
+        "id": "composer.attachFromClipboard",
+        "label": "Attach files from the clipboard",
+      },
+      {
+        "chords": [
+          "⌘V",
+        ],
+        "context": "with a lone URL on the clipboard, over a selection",
+        "id": "composer.linkSelection",
+        "label": "Link the selection",
+      },
+    ],
+    "title": "Writing a message",
+  },
+  {
+    "id": "slashCommands",
+    "shortcuts": [
+      {
+        "chords": [],
+        "context": "type / at the start of a line or after a space",
+        "id": "slash.open",
+        "label": "Open the command menu",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "slash.move",
+        "label": "Move through commands",
+      },
+      {
+        "chords": [
+          "↵",
+          "⇥",
+        ],
+        "context": "declines when nothing matches, so the message sends",
+        "id": "slash.run",
+        "label": "Run the highlighted command",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "id": "slash.dismiss",
+        "label": "Dismiss the menu",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "context": "inside the panel a command opened",
+        "id": "slash.picker.move",
+        "label": "Move through a picker's options",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "context": "inside a picker",
+        "id": "slash.picker.edge",
+        "label": "First or last option",
+      },
+      {
+        "chords": [
+          "←",
+        ],
+        "context": "inside a picker, and only while its search box is empty",
+        "id": "slash.picker.back",
+        "label": "Back to commands",
+      },
+      {
+        "chords": [
+          "→",
+          "↵",
+        ],
+        "context": "on a provider row in the model picker",
+        "id": "slash.picker.intoModels",
+        "label": "Step into the model column",
+      },
+    ],
+    "title": "Slash commands",
+  },
+  {
+    "id": "agentGates",
+    "shortcuts": [
+      {
+        "chords": [
+          "⌘↵",
+        ],
+        "context": "while an approval is waiting",
+        "id": "gate.approve",
+        "label": "Approve",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "while an approval is waiting",
+        "id": "gate.deny",
+        "label": "Deny",
+      },
+      {
+        "chords": [
+          "⌘↵",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.primary",
+        "label": "Next question, or accept",
+      },
+      {
+        "chords": [
+          "⌘←",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.back",
+        "label": "Previous question",
+      },
+      {
+        "chords": [
+          "⌘→",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.forward",
+        "label": "Next question",
+      },
+      {
+        "chords": [
+          "⌘⌫",
+          "⌘⌦",
+        ],
+        "context": "in a question card",
+        "id": "gate.question.skip",
+        "label": "Skip question",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "while a pick is held",
+        "id": "gate.question.cancelHold",
+        "label": "Cancel a pending pick",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "in a question card — does not answer it",
+        "id": "gate.question.blur",
+        "label": "Back out of a field",
+      },
+      {
+        "chords": [
+          "1",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.1",
+        "label": "Pick option 1",
+      },
+      {
+        "chords": [
+          "2",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.2",
+        "label": "Pick option 2",
+      },
+      {
+        "chords": [
+          "3",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.3",
+        "label": "Pick option 3",
+      },
+      {
+        "chords": [
+          "4",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.4",
+        "label": "Pick option 4",
+      },
+      {
+        "chords": [
+          "5",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.5",
+        "label": "Pick option 5",
+      },
+      {
+        "chords": [
+          "6",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.6",
+        "label": "Pick option 6",
+      },
+      {
+        "chords": [
+          "7",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.7",
+        "label": "Pick option 7",
+      },
+      {
+        "chords": [
+          "8",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.8",
+        "label": "Pick option 8",
+      },
+      {
+        "chords": [
+          "9",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.pick.9",
+        "label": "Pick option 9",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.move",
+        "label": "Move through options",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.edge",
+        "label": "First or last option",
+      },
+      {
+        "chords": [
+          "Space",
+        ],
+        "context": "multi-select lists only",
+        "id": "gate.option.toggle",
+        "label": "Toggle option",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "in the option list",
+        "id": "gate.option.choose",
+        "label": "Choose the highlighted option",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "in a single-line answer field",
+        "id": "gate.answer.submit",
+        "label": "Submit answer",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "on the review screen",
+        "id": "gate.review.edit",
+        "label": "Edit an answer",
+      },
+      {
+        "chords": [
+          "⌘↵",
+        ],
+        "context": "while a connection is requested",
+        "id": "gate.connect",
+        "label": "Connect",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "while a connection is requested",
+        "id": "gate.connect.decline",
+        "label": "Decline, or cancel connecting",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "context": "while recording",
+        "id": "gate.recording.discard",
+        "label": "Discard recording",
+      },
+    ],
+    "summary": "If several prompts are waiting, the topmost one answers first.",
+    "title": "When the agent asks you something",
+  },
+  {
+    "id": "contextAndFiles",
+    "shortcuts": [
+      {
+        "chords": [
+          "↵",
+          "Space",
+        ],
+        "context": "on the collapsed rail",
+        "id": "context.expandRail",
+        "label": "Expand the context rail",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "files.move",
+        "label": "Move through rows",
+      },
+      {
+        "chords": [
+          "Home",
+          "End",
+        ],
+        "id": "files.edge",
+        "label": "First or last row",
+      },
+      {
+        "chords": [
+          "→",
+        ],
+        "id": "files.expand",
+        "label": "Expand a folder, or step into it",
+      },
+      {
+        "chords": [
+          "←",
+        ],
+        "id": "files.collapse",
+        "label": "Collapse a folder, or step to its parent",
+      },
+      {
+        "chords": [
+          "⌘↓",
+        ],
+        "id": "files.openTile",
+        "label": "Open the focused tile",
+      },
+      {
+        "chords": [
+          "⌘↑",
+        ],
+        "id": "files.parentFolder",
+        "label": "Go to the parent folder",
+      },
+      {
+        "chords": [
+          "↵",
+          "Space",
+        ],
+        "context": "on a focused preview",
+        "id": "files.zoomPreview",
+        "label": "Zoom an image preview",
+      },
+      {
+        "chords": [
+          "ContextMenu",
+          "⇧F10",
+        ],
+        "id": "files.menu",
+        "label": "Open the file menu",
+      },
+    ],
+    "title": "Context rail and files",
+  },
+  {
+    "id": "configPanel",
+    "shortcuts": [
+      {
+        "chords": [
+          "↵",
+          "Space",
+        ],
+        "context": "on a field, section, skill, or trigger row",
+        "id": "config.activate",
+        "label": "Open the highlighted item",
+      },
+      {
+        "chords": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+        ],
+        "id": "config.choiceCard.pick",
+        "label": "Pick a choice card by number",
+      },
+      {
+        "chords": [
+          "↓",
+          "↑",
+        ],
+        "id": "config.choiceCard.move",
+        "label": "Move through choice cards",
+      },
+      {
+        "chords": [
+          "Space",
+          "↵",
+        ],
+        "context": "on a focused card",
+        "id": "config.choiceCard.select",
+        "label": "Select a choice card",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "in a tags field",
+        "id": "config.chip.add",
+        "label": "Add a chip",
+      },
+      {
+        "chords": [
+          "⌫",
+        ],
+        "context": "on an empty input",
+        "id": "config.chip.removeLast",
+        "label": "Remove the last chip",
+      },
+      {
+        "chords": [
+          "↵",
+        ],
+        "context": "in a name or key field",
+        "id": "config.commit",
+        "label": "Save a rename or provider key",
+      },
+      {
+        "chords": [
+          "esc",
+        ],
+        "id": "config.closeDrawer",
+        "label": "Close a drawer",
+      },
+    ],
+    "title": "Agent configuration",
+  },
+]
+`;

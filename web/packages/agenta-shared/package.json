@@ -27,6 +27,7 @@
         "./utils": "./src/utils/index.ts",
         "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
         "./hooks": "./src/hooks/index.ts",
+        "./keyboard": "./src/keyboard/index.ts",
         "./schemas": "./src/schemas/index.ts",
         "./state": "./src/state/index.ts",
         "./types": "./src/types/index.ts",
