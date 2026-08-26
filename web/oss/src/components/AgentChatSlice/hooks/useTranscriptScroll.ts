@@ -2,8 +2,9 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {type ChatStatus, type UIMessage} from "ai"
 
+import {shouldRevealJump} from "@agenta/chat/assets"
+
 import {CONTENT_VISIBILITY_ENABLED} from "../assets/conversationLayout"
-import {atLiveEdge} from "../assets/scrollGeometry"
 
 import {type ScrollIntent} from "./useScrollIntent"
 
@@ -44,6 +45,9 @@ export const useTranscriptScroll = ({
     // rAF handle coalescing the jump-pill measurement (querySelectorAll + getBoundingClientRect) to once
     // per frame — a fast wheel/drag and every streamed render would otherwise re-measure a dirtied layout.
     const showJumpRafRef = useRef(0)
+    // Newest turn id, in a ref so the pill measurement can read it from listeners bound once.
+    const newestIdRef = useRef<string | undefined>(undefined)
+    newestIdRef.current = messages[messages.length - 1]?.id
 
     // ── SC-3: anchor-based scroll preservation ──
     // We do scroll-anchoring ourselves (Safari has no CSS overflow-anchor, and it would fight our
@@ -93,16 +97,17 @@ export const useTranscriptScroll = ({
         if (el.scrollTop < target - 0.5) el.scrollTop = target
     }, [])
 
-    // Recompute jump-pill visibility, coalesced to one rAF per frame. The measurement (atLiveEdge →
-    // querySelectorAll + getBoundingClientRect) is display-only, so a one-frame lag is invisible; the
-    // correctness-critical follow decision (stickRef) and SC-3 anchor stay synchronous in onScroll.
+    // Recompute jump-pill visibility, coalesced to one rAF per frame. The measurement
+    // (shouldRevealJump → querySelectorAll + getBoundingClientRect) is display-only, so a one-frame
+    // lag is invisible; the correctness-critical follow decision (stickRef) and the SC-3 anchor stay
+    // synchronous in onScroll.
     const scheduleShowJump = useCallback(() => {
         if (showJumpRafRef.current) return
         showJumpRafRef.current = requestAnimationFrame(() => {
             showJumpRafRef.current = 0
             const el = scrollRef.current
             if (!el) return
-            setShowJump(!stickRef.current && !atLiveEdge(el))
+            setShowJump(!stickRef.current && shouldRevealJump(el, newestIdRef.current))
         })
     }, [])
 
@@ -321,7 +326,7 @@ export const useTranscriptScroll = ({
         const release = () => {
             if (!stickRef.current) return
             stickRef.current = false
-            setShowJump(!atLiveEdge(el))
+            setShowJump(shouldRevealJump(el, newestIdRef.current))
         }
         const onSelectionChange = () => {
             if (!stickRef.current) return

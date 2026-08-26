@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {shouldRevealJump} from "@agenta/chat/assets"
 import {type ChatStatus, type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -92,6 +93,13 @@ export const useVirtuosoTranscript = ({
     // resolves against its content-sized list, not the viewport), so measure the scroller's height and
     // reserve it explicitly on the active-turn Footer — that's what lets a sent question pin to the top.
     const virtRoRef = useRef<ResizeObserver | null>(null)
+    // Teardown for the pill's scroll listener on the current scroller (Virtuoso swaps the node).
+    const virtScrollCleanupRef = useRef<(() => void) | null>(null)
+    // Newest turn id, in a ref so the pill measurement can read it from a listener bound once.
+    // Load-bearing under windowing: scrolled far up on a settled thread the newest row is not
+    // rendered, and measuring the last rendered one would under-report the distance.
+    const newestIdRef = useRef<string | undefined>(undefined)
+    newestIdRef.current = messages[messages.length - 1]?.id
     const [virtViewportH, setVirtViewportH] = useState(0)
     // One-shot restore clamp: `restoreStateFrom` puts back the PREVIOUS scrollTop verbatim, so a
     // session that was left with its last message hugging the bottom edge restores exactly there —
@@ -100,12 +108,30 @@ export const useVirtuosoTranscript = ({
     const restoreClampedRef = useRef(false)
     const setVirtScroller = useCallback((el: HTMLElement | Window | null) => {
         virtRoRef.current?.disconnect()
+        virtScrollCleanupRef.current?.()
         const node = el instanceof HTMLElement ? el : null
         if (!node) return
         setVirtViewportH(node.clientHeight)
         const ro = new ResizeObserver(() => setVirtViewportH(node.clientHeight))
         ro.observe(node)
         virtRoRef.current = ro
+        // The pill needs a DISTANCE, and `atBottomStateChange` only reports a boolean against
+        // Virtuoso's own edge threshold — so measure the scroller ourselves, on the same shared
+        // rule the plain engine uses. Coalesced to one rAF, exactly like `scheduleShowJump`.
+        let raf = 0
+        const onScroll = () => {
+            if (raf) return
+            raf = requestAnimationFrame(() => {
+                raf = 0
+                setShowJump(!virtFollowRef.current && shouldRevealJump(node, newestIdRef.current))
+            })
+        }
+        node.addEventListener("scroll", onScroll, {passive: true})
+        virtScrollCleanupRef.current = () => {
+            if (raf) cancelAnimationFrame(raf)
+            node.removeEventListener("scroll", onScroll)
+            virtScrollCleanupRef.current = null
+        }
         if (!restoreClampedRef.current) {
             restoreClampedRef.current = true
             // Two frames: let Virtuoso apply the restored state / first measurement first.
@@ -122,6 +148,7 @@ export const useVirtuosoTranscript = ({
     useEffect(
         () => () => {
             virtRoRef.current?.disconnect()
+            virtScrollCleanupRef.current?.()
             window.clearTimeout(virtSmoothTimerRef.current)
         },
         [],
@@ -155,10 +182,11 @@ export const useVirtuosoTranscript = ({
         virtuosoRef.current?.scrollTo({top: 1e9, behavior: "smooth"})
     }, [])
     // Virtuoso's own edge detection is the follow signal here (the manual effect above only acts
-    // while following), and it doubles as the pill's visibility.
+    // while following). It no longer doubles as the pill: reaching the edge always hides it, but
+    // LEAVING the edge is not enough to show it — that is the distance rule in the scroll handler.
     const onAtBottomStateChange = useCallback((atBottom: boolean) => {
         virtFollowRef.current = atBottom
-        setShowJump(!atBottom)
+        if (atBottom) setShowJump(false)
     }, [])
     // Stable component identities (Virtuoso remounts these if their identity changes). They read live
     // content from `context`, which we pass fresh each render — so they re-render without remounting.

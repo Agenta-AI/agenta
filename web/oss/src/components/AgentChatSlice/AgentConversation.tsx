@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject
 import {
     describeAccepted,
     filesToParts,
+    jumpGateOpen,
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -362,6 +363,13 @@ const AgentConversation = ({
         enabled: !busy && !stopped,
         approvalsPending: pendingApprovals.length > 0,
     })
+    // A docked gate holds the jump pill back: same bottom corner, and a paused run has nothing
+    // arriving below to jump to.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
+    })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -683,6 +691,7 @@ const AgentConversation = ({
                                     virt={virt}
                                     scroll={scroll}
                                     showJump={showJump}
+                                    gateOpen={gateOpen}
                                     placeholder={
                                         <TranscriptPlaceholder
                                             entityId={entityId}
