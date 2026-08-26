@@ -11,6 +11,8 @@ from fastapi.responses import HTMLResponse
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
 from oss.src.apis.fastapi.gateways.mcps.models import (
+    MCPAgentaCredentialRequest,
+    MCPAgentaCredentialResponse,
     MCPConnectRequest,
     MCPConnectResponse,
     MCPEndpointCreateRequest,
@@ -29,6 +31,7 @@ from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
+from oss.src.middlewares.auth import sign_secret_token
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -79,6 +82,13 @@ class MCPGatewayRouter:
         self.oauth_connect_service = oauth_connect_service
         self.router = APIRouter()
 
+        self.router.add_api_route(
+            "/credentials/agenta",
+            self.issue_agenta_credential,
+            methods=["POST"],
+            operation_id="issue_agenta_mcp_credential",
+            response_model=MCPAgentaCredentialResponse,
+        )
         self.router.add_api_route(
             "/endpoints/",
             self.create_endpoint,
@@ -150,6 +160,39 @@ class MCPGatewayRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+    @intercept_exceptions()
+    async def issue_agenta_credential(
+        self,
+        request: Request,
+        *,
+        body: MCPAgentaCredentialRequest,
+    ) -> MCPAgentaCredentialResponse:
+        """Narrow an invocation credential to its resolved callback tools.
+
+        Only the API-created service token contains ``gateway_run_id``.  Browser
+        and API-key callers therefore cannot mint a credential for arbitrary
+        Agenta tools, and the runner receives no credential capable of listing
+        tools outside the invoking run.
+        """
+        run_id = getattr(request.state, "gateway_run_id", None)
+        if not isinstance(run_id, str) or not run_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Agenta MCP credentials require an invocation credential",
+            )
+
+        scope = get_auth_scope()
+        tools = [tool.model_dump(mode="json") for tool in body.tools]
+        token = await sign_secret_token(
+            user_id=str(scope.user_id),
+            project_id=str(scope.project_id),
+            workspace_id=str(scope.workspace_id),
+            organization_id=str(scope.organization_id),
+            gateway_run_id=run_id,
+            gateway_tools=tools,
+        )
+        return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 
     @intercept_exceptions()
     @handle_gateway_exceptions()

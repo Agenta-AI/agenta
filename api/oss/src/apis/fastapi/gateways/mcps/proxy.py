@@ -274,6 +274,7 @@ class MCPGatewayProxy:
                 context=context,
                 body=body,
                 headers=headers,
+                request=request,
             )
         except _MAPPED_EXCEPTIONS as e:
             return _map_gateway_exception(e)

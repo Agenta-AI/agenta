@@ -3,7 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.access.permissions.types import Permission
@@ -64,8 +64,12 @@ from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
 # Built-in endpoints select adapters by provider segment.
+if TYPE_CHECKING:
+    from fastapi import Request
+
+
 _BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
-    AGENTA_PROVIDER: "mock",
+    AGENTA_PROVIDER: "agenta",
     MOCK_PROVIDER: "mock",
 }
 
@@ -138,12 +142,14 @@ class MCPGatewayService:
         resolver: SecretsResolverInterface,
         upstream_registry: MCPUpstreamRegistry,
         connections_service: ConnectionsService,
+        agenta_tools_router: Optional[Any] = None,
     ) -> None:
         self.mcp_endpoints_dao = mcp_endpoints_dao
         self.policy = policy
         self.resolver = resolver
         self.upstream_registry = upstream_registry
         self.connections_service = connections_service
+        self.agenta_tools_router = agenta_tools_router
 
     # Management
 
@@ -259,11 +265,9 @@ class MCPGatewayService:
 
     def _agenta_endpoints(self) -> List[MCPEndpoint]:
         """Return Agenta-provided built-in MCP endpoints."""
-        if not self._mocks_enabled():
-            return []
         return [
             MCPEndpoint(
-                slug="mock",
+                slug="run",
                 name="Agenta Tools",
                 auth_mode=MCPAuthScheme.NONE,
                 namespace=GatewayEndpointNamespace.BUILTIN,
@@ -364,6 +368,7 @@ class MCPGatewayService:
         context: MCPCallContext,
         body: bytes,
         headers: Dict[str, str],
+        request: Optional["Request"] = None,
     ) -> MCPRelayResult:
         """Relay an MCP request through policy and the selected upstream adapter."""
 
@@ -421,6 +426,29 @@ class MCPGatewayService:
                     name=name,
                 ),
             )
+
+        # The builtin Agenta bridge never dials an upstream.  It exposes only
+        # the callback tools carried in the invocation-scoped credential and
+        # reuses the normal ToolsRouter permission/approval dispatch.
+        if provider == AGENTA_PROVIDER:
+            if self.agenta_tools_router is None or request is None:
+                raise MCPEndpointNotFoundError(namespace=namespace, name=name)
+            from oss.src.core.gateways.mcps.providers.agenta.adapter import (
+                AgentaMCPAdapter,
+            )
+
+            result = await AgentaMCPAdapter(
+                tools_router=self.agenta_tools_router
+            ).relay(request=request, body=body)
+            await self.policy.record(
+                scope=scope,
+                target=policy_target,
+                decision=decision,
+                outcome=self._outcome_for(
+                    result=result, auth=MCPDirectAuth(secret=None)
+                ),
+            )
+            return result
 
         # Resolve the endpoint credentials.
         auth = await self._resolve_auth(scope=scope, target=target)

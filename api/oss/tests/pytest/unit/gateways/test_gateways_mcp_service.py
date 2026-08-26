@@ -18,7 +18,6 @@ from oss.src.core.gateway.connections.dtos import Connection, ConnectionProvider
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
     MCPCallContext,
-    MCPDirectAuth,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointData,
@@ -296,17 +295,15 @@ async def test_query_endpoints_delegates_to_dao_and_returns_its_rows():
 
 @pytest.mark.asyncio
 async def test_list_endpoints_agenta_entry_has_no_id_and_builtin_namespace(monkeypatch):
-    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
     service = _service()
 
     endpoints = await service.list_endpoints(scope=_scope())
 
-    agenta = [e for e in endpoints if e.slug == "mock" and e.provider_key == "agenta"]
+    agenta = [e for e in endpoints if e.slug == "run" and e.provider_key == "agenta"]
     assert len(agenta) == 1
     assert agenta[0].id is None
     assert agenta[0].namespace.value == "builtin"
-    # The provider segment selects the in-process mock adapter; no dialable URL is
-    # involved for a generated mock entry.
     assert agenta[0].provider_key == "agenta"
     assert agenta[0].data.route.base_url is None
 
@@ -335,7 +332,10 @@ async def test_list_endpoints_omits_generated_mocks_when_disabled(monkeypatch):
     monkeypatch.setattr(env.mock_gateways, "enabled", False)
     service = _service(resolver=MockResolver(provider_keys={"mock"}))
 
-    assert await service.list_endpoints(scope=_scope()) == []
+    endpoints = await service.list_endpoints(scope=_scope())
+    assert [(endpoint.provider_key, endpoint.slug) for endpoint in endpoints] == [
+        ("agenta", "run")
+    ]
 
 
 @pytest.mark.asyncio
@@ -581,31 +581,105 @@ def _relay_service(
 async def test_relay_builtin_agenta_none_scheme_dispatches_without_touching_resolver(
     monkeypatch,
 ):
-    monkeypatch.setattr(env.mock_gateways, "enabled", True)
-    adapter = MockUpstreamAdapter()
+    from types import SimpleNamespace
+
+    from starlette.requests import Request
+
     resolver = MockResolver()
     policy = MockPolicyService()
-    service = _relay_service(
-        resolver=resolver, policy=policy, adapters={"mock": adapter}
+    service = _relay_service(resolver=resolver, policy=policy, adapters={})
+
+    class ToolsRouter:
+        async def call_tool(self, *, request, body):
+            assert body.data.function.name == "agenta.rename_session"
+            return SimpleNamespace(
+                call=SimpleNamespace(data=SimpleNamespace(content='{"ok":true}'))
+            )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "headers": [],
+            "state": {
+                "gateway_run_id": "run-1",
+                "gateway_tools": [
+                    {
+                        "name": "rename_session",
+                        "call_ref": "agenta.rename_session",
+                        "input_schema": {"type": "object"},
+                    }
+                ],
+            },
+        }
     )
+    service.agenta_tools_router = ToolsRouter()
 
     result = await service.relay(
         scope=_scope(),
         namespace="builtin",
         provider="agenta",
-        name="mock",
-        context=MCPCallContext(method="tools/call", target="echo"),
-        body=b"{}",
+        name="run",
+        context=MCPCallContext(method="tools/call", target="rename_session"),
+        body=(
+            b'{"jsonrpc":"2.0","id":1,"method":"tools/call",'
+            b'"params":{"name":"rename_session","arguments":{}}}'
+        ),
         headers={},
+        request=request,
     )
 
     assert result.status_code == 200
-    assert adapter.relay_calls == 1
     assert resolver.resolve_calls == 0
-    assert isinstance(adapter.last_auth, MCPDirectAuth)
-    assert adapter.last_auth.secret is None
     assert len(policy.record_calls) == 1
     assert policy.record_calls[0]["outcome"].status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_relay_builtin_agenta_rejects_unscoped_or_mismatched_tool():
+    from starlette.requests import Request
+
+    service = _relay_service(adapters={})
+    service.agenta_tools_router = object()
+    request = Request({"type": "http", "method": "POST", "headers": [], "state": {}})
+
+    with pytest.raises(ValueError, match="scoped invocation credential"):
+        await service.relay(
+            scope=_scope(),
+            namespace="builtin",
+            provider="agenta",
+            name="run",
+            context=MCPCallContext(method="tools/list"),
+            body=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+            headers={},
+            request=request,
+        )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "headers": [],
+            "state": {
+                "gateway_run_id": "run-1",
+                "gateway_tools": [{"name": "allowed", "call_ref": "agenta.allowed"}],
+            },
+        }
+    )
+    with pytest.raises(ValueError, match="not available for this invocation"):
+        await service.relay(
+            scope=_scope(),
+            namespace="builtin",
+            provider="agenta",
+            name="run",
+            context=MCPCallContext(method="tools/call", target="other"),
+            body=(
+                b'{"jsonrpc":"2.0","id":1,"method":"tools/call",'
+                b'"params":{"name":"other","arguments":{}}}'
+            ),
+            headers={},
+            request=request,
+        )
 
 
 @pytest.mark.asyncio

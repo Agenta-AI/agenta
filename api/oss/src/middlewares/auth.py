@@ -939,6 +939,13 @@ async def verify_secret_token(
         request.state.organization_id = auth_context.get("organization_id")
         request.state.organization_name = auth_context.get("organization_name")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
+        # A workflow invocation receives a nonce before it is forwarded to the
+        # agent service.  A derived gateway credential is restricted to that
+        # nonce and to the callback tools resolved for the invocation.  Keep
+        # these claims separate from the ordinary tenant scope: they are not
+        # general-purpose authorization attributes.
+        request.state.gateway_run_id = auth_context.get("gateway_run_id")
+        request.state.gateway_tools = auth_context.get("gateway_tools")
 
     except ExpiredSignatureError as exc:
         # The signature is valid but the token has expired, so log at warning level.
@@ -998,6 +1005,8 @@ async def sign_secret_token(
     workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    gateway_run_id: Optional[str] = None,
+    gateway_tools: Optional[list[dict]] = None,
 ):
     try:
         if not _SECRET_KEY:
@@ -1014,6 +1023,8 @@ async def sign_secret_token(
             "workspace_id": workspace_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            "gateway_run_id": gateway_run_id,
+            "gateway_tools": gateway_tools,
             "exp": _exp,
         }
 

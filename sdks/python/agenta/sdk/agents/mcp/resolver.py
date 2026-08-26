@@ -47,7 +47,11 @@ def _gateway_mcp_route(
         return f"{base}/custom/{connection.slug}"
     assert connection.provider is not None
     if connection.namespace == "builtin":
-        return f"{base}/builtin/{connection.provider}/mock"
+        # Agenta's builtin is the run-scoped bridge to the callback tools already
+        # resolved for this turn.  Other builtin providers keep their stable
+        # generated endpoint name.
+        endpoint = "run" if connection.provider == "agenta" else "mock"
+        return f"{base}/builtin/{connection.provider}/{endpoint}"
     return f"{base}/standard/{connection.provider}"
 
 

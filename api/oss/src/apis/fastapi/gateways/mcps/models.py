@@ -4,7 +4,7 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -66,3 +66,20 @@ class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
     scopes_offered: List[str] = Field(default_factory=list)
+
+
+class MCPAgentaToolDescriptor(BaseModel):
+    """One callback tool selected by the agent service for a single run."""
+
+    name: str = Field(min_length=1, max_length=128)
+    call_ref: str = Field(min_length=1, max_length=512)
+    description: Optional[str] = Field(default=None, max_length=4096)
+    input_schema: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MCPAgentaCredentialRequest(BaseModel):
+    tools: List[MCPAgentaToolDescriptor] = Field(default_factory=list, max_length=128)
+
+
+class MCPAgentaCredentialResponse(BaseModel):
+    credentials: str

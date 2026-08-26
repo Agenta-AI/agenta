@@ -240,7 +240,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
         resolved_tools = await comp.resolve_tools(agent_template.tools)
-        resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
+        resolved_mcp = await comp.resolve_mcp_servers(
+            agent_template.mcp_servers,
+            tool_specs=resolved_tools.tool_specs,
+        )
 
         model_ref = _agent_model_ref(agent_template)
         resolved_connection: Optional[ResolvedConnection] = None

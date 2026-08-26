@@ -2804,14 +2804,21 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
+        # The initial service credential is bound to this invocation.  The agent
+        # service may exchange it for a narrower MCP credential after it resolves
+        # the callback tools for the run.
+        gateway_run_id = uuid4().hex
         secret_token = await sign_secret_token(
             user_id=str(user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            gateway_run_id=gateway_run_id,
         )
 
         credentials = f"Secret {secret_token}"
+
+        request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
         await self._ensure_request_revision(
             project_id=project_id,
