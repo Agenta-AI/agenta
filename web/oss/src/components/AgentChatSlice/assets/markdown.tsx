@@ -1,5 +1,6 @@
 import {memo, type ReactNode} from "react"
 
+import {useTypewriter} from "@agenta/chat/hooks"
 import {useDriveSessionId} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
@@ -226,7 +227,6 @@ const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
  * Memoized on `content`/`className`: within the one message that re-renders per streamed token
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-highlighting them each token. */
-/** Word-level fade-in for freshly streamed tokens — chunks type in instead of popping. */
 const Markdown = ({
     content,
     className,
@@ -234,12 +234,10 @@ const Markdown = ({
 }: {
     content: string
     className?: string
-    /** The part is being generated right now: keep incomplete-markdown healing on. The typing
-     * feel comes from the transport's word-paced deltas (AgentChatTransport smoothTextStream) —
-     * streamdown's own fade animator is deliberately OFF: it re-animates a part's entire
-     * initial content on mount (fresh reasoning parts arrive with text) and its shared-counter
-     * bookkeeping re-animates settled blocks on paragraph splits, so several paragraphs "type"
-     * at once. Paced data + instant render is strictly serial by construction. */
+    /** Text is still growing OR still being revealed: keep incomplete-markdown healing on. The
+     * typing feel comes from `StreamingMarkdown` below; streamdown's own animator stays off (it
+     * is gated on an `isAnimating` prop we never pass, and its shared per-instance character
+     * counter re-animates settled blocks on paragraph splits). */
     streaming?: boolean
 }) => (
     <Streamdown
@@ -257,4 +255,32 @@ const Markdown = ({
     </Streamdown>
 )
 
-export default memo(Markdown)
+const MemoMarkdown = memo(Markdown)
+
+/**
+ * Markdown whose text is revealed on the frame clock ({@link useTypewriter}) rather than in one
+ * lump per commit. Owning the per-frame state HERE keeps it out of `AgentMessage`, which regroups
+ * every part on each render.
+ *
+ * `streaming` stays on until the reveal has drained, not until the stream ends — the visible text
+ * is a truncated prefix, so healing must outlive the last delta or a half-written fence renders
+ * raw for the last frames of every turn.
+ */
+export const StreamingMarkdown = ({
+    content,
+    className,
+    streaming = false,
+    urgent = false,
+}: {
+    content: string
+    className?: string
+    /** The part is still receiving text. */
+    streaming?: boolean
+    /** The part is no longer last: finish fast so a tool card below never outruns its prose. */
+    urgent?: boolean
+}) => {
+    const {text, settled} = useTypewriter(content, {urgent})
+    return <MemoMarkdown content={text} className={className} streaming={streaming || !settled} />
+}
+
+export default MemoMarkdown
