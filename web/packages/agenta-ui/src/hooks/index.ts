@@ -6,6 +6,9 @@
 
 export {useSelectionState, type UseSelectionStateResult} from "./useSelectionState"
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
+export {useShortcutPlatform} from "./useShortcutPlatform"
+export {useShortcutHint, useShortcutSections} from "./useShortcutHint"
+export {isOverlayOpen, isTypingTarget, matchesEvent, readMatchContext} from "./shortcutDom"
 export {useDefaultStoreAtomValue} from "./useDefaultStoreAtomValue"
 export {useMediaQuery, useIsNarrowScreen, NARROW_SCREEN_QUERY} from "./useMediaQuery"
 export {

@@ -29,6 +29,7 @@ import {
 } from "lexical"
 import {createPortal} from "react-dom"
 
+import {ShortcutHint} from "../../components/ui/shortcut-hint"
 import {
     filterSections,
     flattenSections,
@@ -370,10 +371,11 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                 )}
             </div>
             <div className="flex items-center gap-4 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[13px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
-                <HintKey keys="↑↓" label="navigate" />
+                <ShortcutHint size="xs" keys="↑↓" label="navigate" />
                 {/* Names what Enter actually does, including the empty state where the menu
                     declines it and the message sends. */}
-                <HintKey
+                <ShortcutHint
+                    size="xs"
                     keys="↵"
                     label={
                         !activeItem
@@ -385,20 +387,9 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                                 : "insert"
                     }
                 />
-                <HintKey keys="esc" label="dismiss" />
+                <ShortcutHint size="xs" keys="esc" label="dismiss" />
             </div>
         </div>,
         document.body,
-    )
-}
-
-function HintKey({keys, label}: {keys: string; label: string}) {
-    return (
-        <span className="flex items-center gap-[5px]">
-            <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
-                {keys}
-            </span>
-            {label}
-        </span>
     )
 }

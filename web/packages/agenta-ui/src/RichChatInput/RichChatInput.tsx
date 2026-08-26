@@ -1,6 +1,6 @@
 import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
 
-import {modifierKeyLabel} from "@agenta/shared/utils"
+import {SHORTCUT_IDS} from "@agenta/shared/keyboard"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
 import {LinkNode} from "@lexical/link"
@@ -24,6 +24,8 @@ import {
     defineExtension,
     type LexicalEditor,
 } from "lexical"
+
+import {ShortcutHint} from "../components/ui/shortcut-hint"
 
 import type {SlashCommandSection} from "./assets/slashCommands"
 import {chatInputTheme} from "./assets/theme"
@@ -126,17 +128,6 @@ const chatInputExtension = defineExtension({
     theme: chatInputTheme,
 })
 
-export function ShortcutHint({keys, label}: {keys: string; label: string}) {
-    return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
-                {keys}
-            </kbd>
-            {label}
-        </span>
-    )
-}
-
 export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>(
     function RichChatInput(
         {
@@ -173,12 +164,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         // The `/` palette spans this box and floats above it.
         const boxRef = useRef<HTMLDivElement | null>(null)
         const [focused, setFocused] = useState(false)
-        // Resolved after mount: SSR has no platform, and answering during render would mismatch on
-        // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
-        const [modKey, setModKey] = useState("⌘")
-
-        useEffect(() => setModKey(modifierKeyLabel()), [])
-
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
         // ref freezes the first value so a re-render can't re-apply it over user edits.
@@ -329,8 +314,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
                                     advertise themselves; the send/newline pair is the only pair
                                     you need told to you. */}
-                                <ShortcutHint keys="↵" label="Send" />
-                                <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
+                                <ShortcutHint id={SHORTCUT_IDS["composer.send"]} />
+                                <ShortcutHint id={SHORTCUT_IDS["composer.newline"]} />
                             </div>
                         )}
                         <div className="ml-auto flex items-center gap-2">
