@@ -47,6 +47,12 @@ export const useSessionRowMenu = (base: string) => {
         [actions, open],
     )
 
+    // Rename happens IN the row; the hook only supplies the commit.
+    const onRenameRow = useCallback(
+        (vm: SessionRowVm, name: string) => actions.commitRename(targetFor(vm), name),
+        [actions],
+    )
+
     const entriesForStream = useCallback(
         (session: SessionStream) =>
             actions.menuItems(targetForStream(session), {
@@ -61,5 +67,5 @@ export const useSessionRowMenu = (base: string) => {
         [actions],
     )
 
-    return {open, menuFor, onMenuSelect, entriesForStream, selectForStream}
+    return {open, menuFor, onMenuSelect, onRenameRow, entriesForStream, selectForStream}
 }

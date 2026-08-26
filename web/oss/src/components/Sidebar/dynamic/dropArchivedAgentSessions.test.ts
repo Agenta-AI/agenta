@@ -6,9 +6,11 @@ const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef
     sessionId: over.id,
     name: over.id,
     appId: null,
+    agentId: null,
     pinned: false,
     alive: false,
     running: false,
+    archived: false,
     agentName: null,
     ...over,
 })

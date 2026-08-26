@@ -1,7 +1,7 @@
 import type {ReactElement, ReactNode} from "react"
 
 import type {ListQueryState} from "@agenta/entities/shared"
-import type {Atom} from "jotai"
+import type {Atom, WritableAtom} from "jotai"
 
 /** Entity kind for icon/tone selection. Mirrors oss ReferenceTone — keep the literals in sync. */
 export type SidebarEntityKind =
@@ -33,6 +33,18 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
     status: "idle" | "loading" | "error" | "ready"
     refs: TRef[]
     error?: unknown
+    /** Headings the rows sit under, in render order. Absent for an ungrouped entity. */
+    groups?: SidebarEntityGroup[]
+    /** Keys of groups whose rows are folded away. */
+    collapsedKeys?: string[]
+    /** Overrides the entity's static `emptyLabel` — e.g. "nothing matches these filters". */
+    emptyLabel?: string
+}
+
+/** One heading in a grouped entity list. */
+export interface SidebarEntityGroup {
+    key: string
+    label: string
 }
 
 /**
@@ -63,12 +75,24 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     getIcon?: (ref: TRef) => ReactElement
     /** Optional row tooltip for context not shown by the label. */
     getTooltip?: (ref: TRef) => string | undefined
+    /** Per-row classes, for state the label cannot carry (an archived session fades). */
+    getRowClassName?: (ref: TRef) => string | undefined
     /** Extra work on click, alongside following `childPath` — e.g. handing the target to the
      * surface being navigated to. Runs in the default jotai store, not a hook. */
     getOnClick?: (ref: TRef) => () => void
     /** Wraps the rendered row so an entity can add per-row chrome (a kebab menu, a right-click
      * menu). Returns an ELEMENT, so the wrapper component — not this closure — owns the hooks. */
     wrapRow?: (ref: TRef, node: ReactNode) => ReactElement
+    /** Which heading a row belongs under. Omit and the entity renders an ungrouped flat list. */
+    getGroupKey?: (ref: TRef) => string
+    /** Heading order and collapse state. Required alongside `getGroupKey`. */
+    groupsAtom?: Atom<{
+        groups: SidebarEntityGroup[]
+        collapsedKeys: string[]
+        emptyLabel?: string
+    }>
+    /** Toggles a heading's collapse state. */
+    toggleGroupAtom?: WritableAtom<string[], [string], void>
 }
 
 /**
@@ -89,6 +113,14 @@ export interface SidebarEntity {
     showAllLink?: (projectURL: string) => string
     getIcon?: (ref: SidebarEntityRef) => ReactElement
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
+    getRowClassName?: (ref: SidebarEntityRef) => string | undefined
     getOnClick?: (ref: SidebarEntityRef) => () => void
     wrapRow?: (ref: SidebarEntityRef, node: ReactNode) => ReactElement
+    getGroupKey?: (ref: SidebarEntityRef) => string
+    groupsAtom?: Atom<{
+        groups: SidebarEntityGroup[]
+        collapsedKeys: string[]
+        emptyLabel?: string
+    }>
+    toggleGroupAtom?: WritableAtom<string[], [string], void>
 }
