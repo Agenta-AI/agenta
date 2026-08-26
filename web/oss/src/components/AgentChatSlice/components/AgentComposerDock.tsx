@@ -11,6 +11,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
+    type ConnectionDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
@@ -40,9 +41,9 @@ import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
+import ConnectionDock from "./ConnectionDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -66,7 +67,7 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
-    pendingInteraction,
+    connects,
     onClientToolOutput,
     onSubmit,
     onStop,
@@ -98,7 +99,7 @@ const AgentComposerDock = ({
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
-    pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
+    connects: ConnectionDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
@@ -280,9 +281,9 @@ const AgentComposerDock = ({
                 {/* Parked client-tool interactions (connect): same placement contract as the
                     approval dock — the paused gate can't scroll out of reach, and "Not now"
                     is the escape hatch that resumes the run without connecting. */}
-                <InteractionDock
+                <ConnectionDock
                     className={CHAT_COLUMN}
-                    pending={pendingInteraction}
+                    connects={connects}
                     onOutput={onClientToolOutput}
                 />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
