@@ -204,72 +204,6 @@ function batchJsonToUiMessageStream(
     })
 }
 
-/** Per-piece pacing for the smooth stream: base cadence, and a per-chunk time budget so a
- * huge delta (multiple paragraphs in one SSE event) still lands within about a second instead
- * of faking a minute of typing. */
-const SMOOTH_BASE_MS = 18
-const SMOOTH_CHUNK_BUDGET_MS = 1200
-
-/**
- * Smooth the text stream: the backend emits deltas at whatever granularity it batches (often
- * several sentences or paragraphs per event), which makes the UI "type" whole paragraphs at
- * once. This re-emits each text delta as word-sized pieces on a timed cadence, so downstream
- * consumers (streamdown's token animation) see genuinely incremental text. Non-text chunks
- * pass through in order (the pump is sequential, so a tool call never overtakes its preceding
- * prose). The budget cap keeps total added latency bounded per chunk.
- */
-function smoothTextStream(upstream: ReadableStream<AnyChunk>): ReadableStream<AnyChunk> {
-    const reader = upstream.getReader()
-    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-    // The pieces of the delta currently being paced out, CARRIED ACROSS `pull()` calls. A delta
-    // used to be flushed entirely within the pull that read it, which was fine only because the
-    // per-piece sleep yielded between pieces — and past ~1,200 pieces the budget share drops below
-    // a millisecond, the sleep is skipped, and the whole thing became one synchronous burst of
-    // thousands of enqueues that never yielded and never re-consulted the consumer. Keeping the
-    // leftovers here lets a pull stop the moment the consumer is full and resume when it asks again.
-    let pending: AnyChunk[] = []
-    let pendingDelay = 0
-    return new ReadableStream<AnyChunk>({
-        async pull(controller) {
-            if (pending.length === 0) {
-                const {done, value} = await reader.read()
-                if (done) {
-                    controller.close()
-                    return
-                }
-                const chunk = value as {type?: string; delta?: string}
-                // Pace every delta-carrying chunk kind (text-delta, reasoning-delta, and any other
-                // alias the projection uses) — matching exact names is how thinking slipped through.
-                const paced = typeof chunk?.type === "string" && chunk.type.endsWith("-delta")
-                if (!paced || typeof chunk.delta !== "string") {
-                    controller.enqueue(value)
-                    return
-                }
-                // Split keeping whitespace attached to the preceding word, so reassembly is exact.
-                const pieces = chunk.delta.match(/\S+\s*|\s+/g) ?? [chunk.delta]
-                if (pieces.length <= 1) {
-                    controller.enqueue(value)
-                    return
-                }
-                pending = pieces.map((piece) => ({...(value as object), delta: piece}) as AnyChunk)
-                pendingDelay = Math.min(SMOOTH_BASE_MS, SMOOTH_CHUNK_BUDGET_MS / pieces.length)
-            }
-            // Emit until the delta runs out or the consumer stops asking for more. Returning with
-            // pieces still pending is the backpressure: the stream calls `pull` again once its
-            // queue drains, and the cadence below is unchanged for normal-sized deltas.
-            do {
-                controller.enqueue(pending.shift() as AnyChunk)
-                if (pending.length === 0) return
-                if (pendingDelay >= 1) await sleep(pendingDelay)
-            } while ((controller.desiredSize ?? 1) > 0)
-        },
-        cancel(reason) {
-            pending = []
-            return reader.cancel(reason)
-        },
-    })
-}
-
 export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
     private readonly negotiator: NegotiatingFetch
 
@@ -287,7 +221,7 @@ export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
         // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
         if (this.negotiator.resolvedMode(stream) === "batch")
             return batchJsonToUiMessageStream(stream)
-        // Live stream: smooth coarse backend deltas into word-paced pieces (typing feel).
-        return smoothTextStream(super.processResponseStream(stream))
+        // Deltas pass through untouched: typing cadence is paced at paint by `useTypewriter`.
+        return super.processResponseStream(stream)
     }
 }
