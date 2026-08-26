@@ -7,13 +7,8 @@
  * change-set engine; a second implementation here would drift from it, and a commit card that
  * confidently shows the wrong result is worse than one that shows none.
  *
- * The one thing it does read from the current config is the value already sitting at a target,
- * so a `set` of a literal string can show old text beside new. That is a plain path walk with no
- * merge semantics, so it cannot disagree with the engine. When the old value does not resolve,
- * the caller shows the new value alone and says so.
- *
- * Legacy `{set, remove}` deltas do not come here: they keep going through
- * `classifyRevisionDeltaChanges` in @agenta/entities.
+ * The card no longer shows a before/after pair, so nothing here reads the current configuration.
+ * Legacy `{set, remove}` deltas return null and are described from their key paths instead.
  */
 
 /** Marker the runner replaces with workspace bytes; the approval manifest carries the content. */
@@ -27,12 +22,15 @@ export interface RevisionOperationPreview {
     targetLabel: string
     /** New value, when the operation carries a literal string. */
     newText?: string
-    /** Value already at the target, when it resolves to a string. */
-    oldText?: string
     /** The value as JSON, when it is not a literal string. */
     valueJson?: string
+    /** The value exactly as sent — describers read `name`/`description` off list entries. */
+    value?: unknown
     /** The value comes from a workspace file, so the manifest holds the bytes. */
     fromFile: boolean
+    /** The entry a selector segment picks (`{key}`/`{name}`), preserved verbatim so a key with a
+     * space survives — `targetLabel` joins segments and cannot be split back apart safely. */
+    selectorKey?: string
     /** Number of anchored edits, for `edit_text`. */
     editCount?: number
 }
@@ -62,51 +60,6 @@ export const readableTarget = (target: unknown[]): string => {
     return parts.join(" / ") || "configuration"
 }
 
-/**
- * Walk one path segment. A selector segment stands in place of the LIST NAME, so it carries both
- * the list to enter and the item to pick: `{list: "skills", key: "pdf-tools"}` means `skills`,
- * then the entry named `pdf-tools`.
- */
-const step = (node: unknown, segment: unknown): unknown => {
-    if (typeof segment === "string") return isRecord(node) ? node[segment] : undefined
-    if (!isRecord(segment)) return undefined
-    const list = segment.list ?? segment.field
-    const key = segment.key ?? segment.name
-    if (typeof key !== "string") return undefined
-    const collection = Array.isArray(node)
-        ? node
-        : isRecord(node) && typeof list === "string"
-          ? node[list]
-          : undefined
-    if (!Array.isArray(collection)) return undefined
-    return collection.find(
-        (item) =>
-            isRecord(item) &&
-            [item.name, item.key, item.slug, item.id].some((candidate) => candidate === key),
-    )
-}
-
-const walk = (root: unknown, target: unknown[]): unknown =>
-    target.reduce<unknown>(
-        (node, segment) => (node === undefined ? undefined : step(node, segment)),
-        root,
-    )
-
-/**
- * The string currently at `target`, or undefined.
- *
- * Targets are rooted at the revision DATA tree (`parameters.agent...`) while the card holds only
- * `parameters`, so this tries the wrapped tree first and the bare parameters second. Both are
- * plain lookups: a miss returns undefined and the caller shows no old side.
- */
-export const resolveCurrentText = (params: unknown, target: unknown[]): string | undefined => {
-    for (const root of [{parameters: params}, params]) {
-        const found = walk(root, target)
-        if (typeof found === "string") return found
-    }
-    return undefined
-}
-
 const toJson = (value: unknown): string => {
     try {
         return JSON.stringify(value, null, 2)
@@ -119,10 +72,7 @@ const toJson = (value: unknown): string => {
  * Read the ordered operations of a delta, or null when it carries none (a legacy delta, or a
  * malformed one). Null is the caller's signal to keep its existing rendering.
  */
-export const parseRevisionOperations = (
-    delta: unknown,
-    currentParams: unknown,
-): RevisionOperationPreview[] | null => {
+export const parseRevisionOperations = (delta: unknown): RevisionOperationPreview[] | null => {
     if (!isRecord(delta) || !Array.isArray(delta.operations)) return null
     const previews: RevisionOperationPreview[] = []
     delta.operations.forEach((raw, index) => {
@@ -131,16 +81,23 @@ export const parseRevisionOperations = (
         const target = Array.isArray(raw.target) ? raw.target : []
         const value = raw.value
         const fromFile = isRecord(value) && typeof value[FILE_MARKER] === "string"
+        const selector = target.find(
+            (seg): seg is Record<string, unknown> =>
+                isRecord(seg) && (typeof seg.key === "string" || typeof seg.name === "string"),
+        )
+        const selectorKey = selector
+            ? ((selector.key ?? selector.name) as string | undefined)
+            : undefined
         const preview: RevisionOperationPreview = {
             index,
             operation,
             targetLabel: readableTarget(target),
             fromFile,
+            value,
+            ...(selectorKey ? {selectorKey} : {}),
         }
         if (typeof value === "string") {
             preview.newText = value
-            const current = resolveCurrentText(currentParams, target)
-            if (current !== undefined && current !== value) preview.oldText = current
         } else if (value !== undefined && !fromFile) {
             preview.valueJson = toJson(value)
         }

@@ -106,7 +106,6 @@ export const Composer = ({
         onSendVoiceMessage: (file) => void submit("", [file]),
     })
     const {
-        voiceEnabled,
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
@@ -124,13 +123,11 @@ export const Composer = ({
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
-                {voiceEnabled ? (
-                    <MicPermissionNotice
-                        open={!!micError && !voiceRecorder.active}
-                        message={micError}
-                        onDismiss={dismissMicError}
-                    />
-                ) : null}
+                <MicPermissionNotice
+                    open={!!micError && !voiceRecorder.active}
+                    message={micError}
+                    onDismiss={dismissMicError}
+                />
                 <div className="relative">
                     <ChatComposer
                         inputRef={richInputRef}
@@ -139,30 +136,28 @@ export const Composer = ({
                         attachmentsBlocked={attachmentsBlocked}
                         disabled={disabled}
                         composerDisabled={disabled}
-                        dictating={voiceEnabled && dictating}
+                        dictating={dictating}
                         waitingOnUser={waitingOnUser}
                         streaming={streaming}
                         onStop={onStop}
                         extraPrefix={
-                            voiceEnabled ? (
-                                <VoiceInputButton
-                                    inputRef={richInputRef}
-                                    onStartAudio={startVoiceMessage}
-                                    audioSupported={voiceRecorder.supported}
-                                    audioPending={voiceRecorder.pending}
-                                    // This surface reads no model catalog, so it does not claim
-                                    // the agent can or cannot hear — the menu stays neutral.
-                                    audioPerceivable={null}
-                                    attachmentsFull={attachments.atMax}
-                                    onDictationError={setDictationError}
-                                    onDictatingChange={setDictating}
-                                    disabled={disabled}
-                                />
-                            ) : null
+                            <VoiceInputButton
+                                inputRef={richInputRef}
+                                onStartAudio={startVoiceMessage}
+                                audioSupported={voiceRecorder.supported}
+                                audioPending={voiceRecorder.pending}
+                                // This surface reads no model catalog, so it does not claim
+                                // the agent can or cannot hear — the menu stays neutral.
+                                audioPerceivable={null}
+                                attachmentsFull={attachments.atMax}
+                                onDictationError={setDictationError}
+                                onDictatingChange={setDictating}
+                                disabled={disabled}
+                            />
                         }
                     />
                     <AnimatePresence initial={false}>
-                        {voiceEnabled && voiceRecorder.takeoverVisible ? (
+                        {voiceRecorder.takeoverVisible ? (
                             <motion.div
                                 key="recording"
                                 variants={presets.crossfade}

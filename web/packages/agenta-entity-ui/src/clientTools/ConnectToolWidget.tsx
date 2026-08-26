@@ -3,7 +3,7 @@
  *
  * The agent asked for a connection it lacks (e.g. GitHub). While the call is PARKED, this inline
  * row is a passive marker only — the actions (Connect / Not now / Cancel) live in the
- * InteractionDock in the composer region, mirroring ApprovalDock's "dock acts, inline marks"
+ * connect dock in the composer region, mirroring ApprovalDock's "dock acts, inline marks"
  * contract, so the paused run can never scroll out of reach and always has an escape hatch.
  *
  * After the call settles this row owns the result UX (U1) — an inline status chip in the same
@@ -13,16 +13,11 @@
  */
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "@agenta/shared/clientTools"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowClockwise,
-    CheckCircle,
-    Hourglass,
-    Plugs,
-    Spinner,
-    Warning,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, Hourglass, Spinner} from "@phosphor-icons/react"
 
-import {useConnectFlow, type ConnectOutput} from "./useConnectFlow"
+import {useConnectFocus} from "./connectFocus"
+import {IntegrationTile} from "./IntegrationTile"
+import {GENERIC_CONNECT_ERROR, useConnectFlow, type ConnectOutput} from "./useConnectFlow"
 
 /**
  * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
@@ -37,9 +32,26 @@ const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
  * create failure was previously settling silently with no error surfaced at all. */
 const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 
+/** A failure detail worth the space beside the name. The flow falls back to GENERIC_CONNECT_ERROR
+ * whenever it has no real message, and that sentence says nothing the row's own wording doesn't —
+ * printed verbatim it read "Gmail Connection failed. Please try again." */
+const realFailureDetail = (text: unknown): string | undefined =>
+    typeof text === "string" && text && text !== GENERIC_CONNECT_ERROR ? text : undefined
+
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
-    const {label, phase, errorText, outcome, manuallyConnected, modeResolving, runConnect, cancel} =
-        useConnectFlow(meta, settle)
+    const {
+        label,
+        logo,
+        phase,
+        errorText,
+        outcome,
+        manuallyConnected,
+        modeResolving,
+        runConnect,
+        cancel,
+    } = useConnectFlow(meta, settle)
+    // Non-null only while this call is still parked in the dock — see `useConnectFocus`.
+    const jumpToDock = useConnectFocus(meta.toolCallId)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
@@ -53,7 +65,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     if (phase === "connecting") {
         return (
             <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                <span className="text-xs text-colorTextSecondary">Connecting {label}…</span>
+                <span className="text-xs text-colorText">Connecting {label}…</span>
                 <Button variant="ghost" size="sm" onClick={cancel} className="px-2">
                     Cancel
                 </Button>
@@ -66,10 +78,8 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         const output = (meta.output ?? {}) as ConnectOutput
         if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
-                <ChipRow
-                    icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
-                >
-                    <span className="text-xs text-colorText">{label} connected</span>
+                <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                    <span className="truncate text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
@@ -82,9 +92,12 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 </ChipRow>
             )
         }
-        // Declined / cancelled / timeout: quiet generic wording — these are expected, not
-        // errors. Any other reason is the create call's own failure message and must be
-        // shown, not swallowed behind the same generic text (it previously was).
+        // The tile says WHICH tool and the wording says what happened, so the row stays in the
+        // neutral tone — no glyph or colour competing with the brand mark.
+        // "declined" is the user's own "Not now", so it must NOT read as a failure; cancelled and
+        // timeout did fail to reach a connection. Both stay in the quiet tint — expected, not
+        // errors. Any other reason is the create call's own failure message and is shown verbatim
+        // unless it is the flow's own generic fallback (see `realFailureDetail`).
         // A remounted part (after a reload) has no local `outcome` and usually no `meta.output`;
         // its failure text survives only on the part itself.
         const reason =
@@ -94,26 +107,15 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 ? partErrorText
                 : undefined)
         const failureDetail =
-            typeof reason === "string" && reason && !KNOWN_CONNECT_REASONS.has(reason)
-                ? reason
-                : undefined
+            typeof reason === "string" && KNOWN_CONNECT_REASONS.has(reason)
+                ? undefined
+                : realFailureDetail(reason)
         return (
-            <ChipRow
-                icon={
-                    <Warning
-                        size={13}
-                        weight="fill"
-                        className={failureDetail ? "text-colorError" : "text-colorWarning"}
-                    />
-                }
-            >
-                <span
-                    className={`truncate text-xs ${
-                        failureDetail ? "text-colorError" : "text-colorTextSecondary"
-                    }`}
-                    title={failureDetail}
-                >
-                    {failureDetail ?? "Connection not completed"}
+            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                <span className="shrink-0 text-xs text-colorText">{label}</span>
+                <span className="truncate text-xs text-colorText" title={failureDetail}>
+                    {failureDetail ??
+                        (reason === "declined" ? "not connected" : "connection failed")}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
@@ -122,21 +124,38 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
     // ── Error on a manual retry (create failed, popup blocked): show reason + Retry ──────────────
     if (phase === "error") {
+        const errorDetail = realFailureDetail(errorText)
         return (
-            <ChipRow icon={<Warning size={13} weight="fill" className="text-colorError" />}>
-                <span className="truncate text-xs text-colorError" title={errorText ?? undefined}>
-                    {errorText ?? "Connection failed."}
+            <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+                <span className="shrink-0 text-xs text-colorText">{label}</span>
+                <span className="truncate text-xs text-colorText" title={errorDetail}>
+                    {errorDetail ?? "connection failed"}
                 </span>
                 <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
         )
     }
 
-    // ── Pending: passive marker — the InteractionDock (above the composer) owns the actions ──────
+    // ── Pending: passive marker — the connect dock (above the composer) owns the actions ─────────
+    // The brand mark, not a generic plug: the dock identifies each queued connection the same way.
+    // The dock card's ask, trimmed to its first clause plus the pointer — the row marks WHICH tool
+    // and WHERE to answer; the card below carries the reason. One span, not name + tail: the row's
+    // flex gap would split the phrase and leave "below" reading as an orphan.
+    // The pointer is also the link: clicking it brings that tool's card to the front of the dock,
+    // so a turn that parked several connections doesn't make the user hunt for the right one.
     return (
-        <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
-            <span className="text-xs text-colorText">Connect {label}</span>
-            <span className="text-xs text-colorTextTertiary">waiting for your response below</span>
+        <ChipRow icon={<IntegrationTile label={label} logo={logo} size={16} />}>
+            {jumpToDock ? (
+                <button
+                    type="button"
+                    onClick={jumpToDock}
+                    className="m-0 min-w-0 cursor-pointer truncate border-none bg-transparent p-0 text-left font-[inherit] text-xs leading-[inherit] text-colorText"
+                >
+                    Connect to {label} below
+                </button>
+            ) : (
+                <span className="truncate text-xs text-colorText">Connect to {label} below</span>
+            )}
         </ChipRow>
     )
 }

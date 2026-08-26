@@ -19,14 +19,29 @@ import {isValidUUID} from "@/oss/lib/helpers/validators"
  *
  * `error` is settled, not live: an errored empty session is as abandoned as an untouched one.
  */
+/**
+ * The session the playground is actually showing, with the panel's own stale-id fallback applied.
+ *
+ * Both the local refs below and the rail's selected row read it: a session row's LINK is its
+ * agent's playground URL (which session opens is handed over by the click, not by the route), so
+ * route matching alone can never tell a session row from its agent row.
+ */
+export const activePlaygroundSessionIdAtom = atom<string | null>((get) => {
+    const scope = get(defaultScopeKeyAtom)
+    if (!isValidUUID(scope)) return null
+    const sessions = get(sessionsListAtomFamily(scope))
+    const rawActiveId = get(activeSessionIdAtomFamily(scope))
+    // Same fallback the panel applies to a stale active id (its tab was closed).
+    return (sessions.find((session) => session.id === rawActiveId) ?? sessions[0])?.id ?? null
+})
+
 export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const scope = get(defaultScopeKeyAtom)
     // The scope key doubles as the app id for the row's link, so it must be a real one.
     if (!isValidUUID(scope)) return []
     const sessions = get(sessionsListAtomFamily(scope))
-    const rawActiveId = get(activeSessionIdAtomFamily(scope))
-    // Same fallback the panel applies to a stale active id (its tab was closed).
-    const active = sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+    const activeId = get(activePlaygroundSessionIdAtom)
+    const active = sessions.find((session) => session.id === activeId) ?? null
     const pinned = get(pinnedSessionIdsAtom)
     const isLive = (id: string) => {
         const status = get(sessionStatusAtomFamily(id))
@@ -39,8 +54,11 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             sessionId: session.id,
             name: session.title?.trim() || null,
             appId: scope,
+            agentId: scope,
             pinned: pinned.includes(session.id),
             alive: false,
+            // A client-created session has no server row yet, so it cannot be archived.
+            archived: false,
             running: isLive(session.id),
         }))
 })

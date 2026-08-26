@@ -7,13 +7,14 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
+import {ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
     useComposerAttachments,
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useVoiceComposer} from "@agenta/chat/hooks"
+import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -28,7 +29,6 @@ import {
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
-import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
@@ -49,7 +49,6 @@ import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import {Inspector} from "./components/Inspector/Inspector"
-import {getPendingConnectInteraction} from "./components/InteractionDock"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
@@ -353,23 +352,16 @@ const AgentConversation = ({
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
-    // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
-    // opens the paused turn's own trace drawer.
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    // composer (not inline in the transcript, so a paused run can't scroll out of reach).
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
-    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
+    // Parked connect interactions on the paused turn → the connect dock owns their actions (the
+    // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
-    const pendingInteraction = useMemo(
-        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
-        [messages, busy, stopped],
-    )
-    const openPausedTurnTrace = useMemo(() => {
-        const last = messages[messages.length - 1]
-        const traceId = last ? getMessageTraceId(last) : undefined
-        return traceId ? () => openTraceDrawer({traceId}) : undefined
-    }, [messages, openTraceDrawer])
-
+    const connects = useConnectionDock({
+        messages,
+        enabled: !busy && !stopped,
+        approvalsPending: pendingApprovals.length > 0,
+    })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -615,143 +607,150 @@ const AgentConversation = ({
         // Ambient drive session: in-thread file cards + rail resolve files against THIS
         // conversation without prop-threading through the message tree.
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
-            <div className="ag-canvas relative flex h-full min-h-0 w-full flex-row" {...dropTarget}>
-                {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
-                {quickLookHost}
-                {uploadsEnabled ? (
-                    <AttachmentViewerDrawer
-                        uploads={files}
-                        openUid={viewingUid}
-                        onClose={() => setViewingUid(null)}
-                    />
-                ) : null}
-                {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
-                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
-                <RightPanelSplit
-                    open={inspectorOpen}
-                    // Same bar inset as the transcript column: the Inspector is a separate split pane,
-                    // so it needs its own top padding to clear the absolute session bar in build mode
-                    // (the context rail deliberately does NOT get it, so it never rides the transition).
-                    panel={
-                        <div className="box-border h-full pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                            <Inspector sessionId={sessionId} />
-                        </div>
-                    }
+            {/* Wraps transcript AND dock: a parked "Connect to X below" row links to X's card. */}
+            <ConnectionFocusProvider connects={connects}>
+                <div
+                    className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
+                    {...dropTarget}
                 >
-                    <div className="flex h-full min-h-0 w-full min-w-0">
-                        {/* Top padding tracks the session bar (--agent-bar-inset, published by
+                    {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
+                    {quickLookHost}
+                    {uploadsEnabled ? (
+                        <AttachmentViewerDrawer
+                            uploads={files}
+                            openUid={viewingUid}
+                            onClose={() => setViewingUid(null)}
+                        />
+                    ) : null}
+                    {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+                    <RightPanelSplit
+                        open={inspectorOpen}
+                        // Same bar inset as the transcript column: the Inspector is a separate split pane,
+                        // so it needs its own top padding to clear the absolute session bar in build mode
+                        // (the context rail deliberately does NOT get it, so it never rides the transition).
+                        panel={
+                            <div className="box-border h-full pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                                <Inspector sessionId={sessionId} />
+                            </div>
+                        }
+                    >
+                        <div className="flex h-full min-h-0 w-full min-w-0">
+                            {/* Top padding tracks the session bar (--agent-bar-inset, published by
                             AgentChatPanel and inherited here): the transcript eases down under the
                             absolute bar in build and reclaims the space in chat. It lives on the
                             TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
                             beside it keeps a fixed top and doesn't ride the transition upward.
                             box-border so the padding fits inside h-full (preflight is off). */}
-                        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                            {/* At the limit the overlay says so rather than inviting a drop it is
+                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                                {/* At the limit the overlay says so rather than inviting a drop it is
                             about to reject wholesale. */}
-                            {isDragging && (
-                                <div
-                                    className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                                        atMax
-                                            ? "border-colorError bg-[var(--ant-color-error-bg)]"
-                                            : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-                                    }`}
-                                >
-                                    <UploadSimple
-                                        size={26}
-                                        className={atMax ? "text-colorError" : "text-colorPrimary"}
-                                    />
-                                    <span
-                                        className={`text-sm font-medium ${
-                                            atMax ? "text-colorError" : "text-colorPrimary"
+                                {isDragging && (
+                                    <div
+                                        className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
+                                            atMax
+                                                ? "border-colorError bg-[var(--ant-color-error-bg)]"
+                                                : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
                                         }`}
                                     >
-                                        {atMax ? "Attachment limit reached" : "Drop files here"}
-                                    </span>
-                                    <span className="text-xs text-colorTextSecondary">
-                                        {atMax
-                                            ? `Remove one to add another (${limits.maxCount} max)`
-                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
-                                    </span>
-                                </div>
-                            )}
-                            {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+                                        <UploadSimple
+                                            size={26}
+                                            className={
+                                                atMax ? "text-colorError" : "text-colorPrimary"
+                                            }
+                                        />
+                                        <span
+                                            className={`text-sm font-medium ${
+                                                atMax ? "text-colorError" : "text-colorPrimary"
+                                            }`}
+                                        >
+                                            {atMax ? "Attachment limit reached" : "Drop files here"}
+                                        </span>
+                                        <span className="text-xs text-colorTextSecondary">
+                                            {atMax
+                                                ? `Remove one to add another (${limits.maxCount} max)`
+                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
+                                        </span>
+                                    </div>
+                                )}
+                                {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
-                            <AgentTranscript
-                                messages={messages}
-                                activeStart={activeStart}
-                                reserveActive={reserveActive}
-                                renderMessage={renderMessage}
-                                virt={virt}
-                                scroll={scroll}
-                                showJump={showJump}
-                                placeholder={
-                                    <TranscriptPlaceholder
-                                        entityId={entityId}
-                                        sessionId={sessionId}
-                                        pendingFirstTurn={onboardingChat.pendingFirstTurn}
-                                        pendingFirstMessage={onboardingChat.pendingFirstMessage}
-                                        onboardingActive={onboardingActive}
-                                        browseAll={onboardingChat.onboarding?.browseAll}
-                                        isHydrating={isHydrating}
-                                        hydratedEmpty={hydratedEmpty}
-                                        firstRunPrompt={firstRunPrompt}
-                                        showTemplateStrip={showTemplateStrip}
-                                        canStart={!modelBlocked}
-                                        onStart={handleSubmit}
-                                        onPrefill={(text: string) =>
-                                            richInputRef.current?.setMarkdown(text)
-                                        }
-                                        onRewind={handleRewind}
-                                        onClientToolOutput={handleClientToolOutput}
-                                    />
-                                }
-                            />
+                                <AgentTranscript
+                                    messages={messages}
+                                    activeStart={activeStart}
+                                    reserveActive={reserveActive}
+                                    renderMessage={renderMessage}
+                                    virt={virt}
+                                    scroll={scroll}
+                                    showJump={showJump}
+                                    placeholder={
+                                        <TranscriptPlaceholder
+                                            entityId={entityId}
+                                            sessionId={sessionId}
+                                            pendingFirstTurn={onboardingChat.pendingFirstTurn}
+                                            pendingFirstMessage={onboardingChat.pendingFirstMessage}
+                                            onboardingActive={onboardingActive}
+                                            browseAll={onboardingChat.onboarding?.browseAll}
+                                            isHydrating={isHydrating}
+                                            hydratedEmpty={hydratedEmpty}
+                                            firstRunPrompt={firstRunPrompt}
+                                            showTemplateStrip={showTemplateStrip}
+                                            canStart={!modelBlocked}
+                                            onStart={handleSubmit}
+                                            onPrefill={(text: string) =>
+                                                richInputRef.current?.setMarkdown(text)
+                                            }
+                                            onRewind={handleRewind}
+                                            onClientToolOutput={handleClientToolOutput}
+                                        />
+                                    }
+                                />
 
-                            <AgentComposerDock
-                                entityId={entityId}
-                                messages={messages}
-                                busy={busy}
-                                runningElsewhere={runningElsewhere}
-                                hitlPending={hitlPending}
-                                queue={{queued, removeQueued, clearQueue}}
-                                modelKey={{...modelKey, entityId}}
-                                modelBlocked={modelBlocked}
-                                contextMaxTokens={contextMaxTokens}
-                                showContextBudget={showContextBudget}
-                                showTemplateStrip={showTemplateStrip}
-                                pendingApprovals={pendingApprovals}
-                                onApprovalResponse={handleApprovalResponse}
-                                onViewTrace={openPausedTurnTrace}
-                                pendingInteraction={pendingInteraction}
-                                onClientToolOutput={handleClientToolOutput}
-                                onSubmit={handleSubmit}
-                                onStop={handleStop}
-                                richInputRef={richInputRef}
-                                composer={composer}
-                                attachments={attachments}
-                                onboardingChat={onboardingChat}
-                                voice={voice}
-                                audioPerceivable={audioPerceivable}
-                                composerDisabled={composerDisabled}
-                                attachmentsBlocked={attachmentsBlocked}
-                            />
-                        </div>
-                        {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
+                                <AgentComposerDock
+                                    entityId={entityId}
+                                    messages={messages}
+                                    busy={busy}
+                                    runningElsewhere={runningElsewhere}
+                                    hitlPending={hitlPending}
+                                    queue={{queued, removeQueued, clearQueue}}
+                                    modelKey={{...modelKey, entityId}}
+                                    modelBlocked={modelBlocked}
+                                    contextMaxTokens={contextMaxTokens}
+                                    showContextBudget={showContextBudget}
+                                    showTemplateStrip={showTemplateStrip}
+                                    pendingApprovals={pendingApprovals}
+                                    onApprovalResponse={handleApprovalResponse}
+                                    connects={connects}
+                                    onClientToolOutput={handleClientToolOutput}
+                                    onSubmit={handleSubmit}
+                                    onStop={handleStop}
+                                    richInputRef={richInputRef}
+                                    composer={composer}
+                                    attachments={attachments}
+                                    onboardingChat={onboardingChat}
+                                    voice={voice}
+                                    audioPerceivable={audioPerceivable}
+                                    composerDisabled={composerDisabled}
+                                    attachmentsBlocked={attachmentsBlocked}
+                                />
+                            </div>
+                            {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
                             pinned on top. Always mounted so hide/show SLIDES (width transition) —
                             hidden in build mode and while the Turn/Session panel owns the right
                             edge. */}
-                        <ContextRail
-                            sessionId={sessionId}
-                            busy={busy}
-                            hidden={buildMode || inspectorOpen}
-                            onOpenFiles={openFilesPane}
-                            onStageFiles={
-                                uploadsEnabled ? (files) => setFilesStaged(files) : undefined
-                            }
-                        />
-                    </div>
-                </RightPanelSplit>
-            </div>
+                            <ContextRail
+                                sessionId={sessionId}
+                                busy={busy}
+                                hidden={buildMode || inspectorOpen}
+                                onOpenFiles={openFilesPane}
+                                onStageFiles={
+                                    uploadsEnabled ? (files) => setFilesStaged(files) : undefined
+                                }
+                            />
+                        </div>
+                    </RightPanelSplit>
+                </div>
+            </ConnectionFocusProvider>
         </DriveSessionProvider>
     )
 }
