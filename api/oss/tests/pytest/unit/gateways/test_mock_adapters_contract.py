@@ -33,16 +33,6 @@ from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 
 
-def _optional_instance(module_path: str, class_name: str):
-    """None when the module/class doesn't exist yet — the real adapters land
-    with WP6/WP7 (LLM) and WP8/WP9 (MCP), after this package."""
-    try:
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)()
-    except (ImportError, AttributeError):
-        return None
-
-
 def _adapter_param(instance, *, name: str):
     if instance is None:
         return pytest.param(
@@ -102,13 +92,6 @@ _LLM_ADAPTER_PARAMS = [
 _MCP_ADAPTER_PARAMS = [
     _adapter_param(MockMCPAdapter(), name="MockMCPAdapter"),
     _adapter_param(_http_mcp_adapter(), name="HttpMCPAdapter"),
-    _adapter_param(
-        _optional_instance(
-            "oss.src.core.gateways.mcps.providers.composio.adapter",
-            "ComposioMCPAdapter",
-        ),
-        name="ComposioMCPAdapter",
-    ),
 ]
 
 

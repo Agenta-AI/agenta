@@ -7,12 +7,12 @@ HTTP, or real upstream. Covers CRUD delegation, endpoint listing, connection sta
 and relay orchestration.
 """
 
+import json
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
-
-import json
 
 from oss.src.core.gateway.connections.dtos import Connection, ConnectionProviderKind
 from oss.src.core.gateways.mcps.dtos import (
@@ -33,6 +33,7 @@ from oss.src.core.gateways.mcps.interfaces import (
     MCPRelayResult,
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.types import (
     MCPEndpointNotFoundError,
@@ -740,6 +741,60 @@ async def test_relay_builtin_never_touches_resolver_only_connections_service():
     assert adapter.relay_calls == 1
     assert isinstance(adapter.last_auth, MCPBrokeredAuth)
     assert adapter.last_auth.connection is connection
+
+
+@pytest.mark.asyncio
+async def test_relay_builtin_composio_uses_jsonrpc_body_and_brokered_connection():
+    connection = _connection(slug="my-notion", integration_key="notion")
+    connection.data = {
+        "project_id": "project-composio-user",
+        "connected_account_id": "ca_notion_123",
+    }
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/api/v3.1/tool_router/session":
+            return httpx.Response(
+                201,
+                json={"mcp": {"url": "https://app.composio.test/mcp/trs_123"}},
+            )
+        return httpx.Response(
+            200,
+            content=b'{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}',
+        )
+
+    resolver = MockResolver()
+    policy = MockPolicyService()
+    service = _relay_service(
+        connections_service=MockConnectionsService([connection]),
+        resolver=resolver,
+        policy=policy,
+        adapters={
+            "composio": ComposioMCPAdapter(
+                api_key="platform-key",
+                api_url="https://backend.composio.test/api/v3.1",
+                transport=httpx.MockTransport(handler),
+            )
+        },
+    )
+    body = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="builtin",
+        name="my-notion",
+        provider="composio",
+        integration="notion",
+        context=MCPCallContext(method="tools/list"),
+        body=body,
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert requests[1].content == body
+    assert resolver.resolve_calls == 0
+    assert policy.record_calls[0]["outcome"].status_code == 200
 
 
 @pytest.mark.asyncio

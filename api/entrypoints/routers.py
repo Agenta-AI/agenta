@@ -181,6 +181,7 @@ from oss.src.core.gateways.mcps.providers.mock.adapter import (
     DeployableMockMCPAdapter,
     MockMCPAdapter,
 )
+from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
@@ -1122,6 +1123,16 @@ mcp_gateway_service = MCPGatewayService(
             "http": HttpMCPAdapter(),
             "mock": MockMCPAdapter(),
             "mock_http": DeployableMockMCPAdapter(),
+            **(
+                {
+                    "composio": ComposioMCPAdapter(
+                        api_key=env.composio.api_key,  # type: ignore[arg-type] # .enabled
+                        api_url=env.composio.api_url,
+                    )
+                }
+                if env.composio.enabled
+                else {}
+            ),
         }
     ),
 )
