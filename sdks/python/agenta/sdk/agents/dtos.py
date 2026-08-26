@@ -35,7 +35,7 @@ from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
-from .tools.models import PermissionMode, coerce_tool_spec
+from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
 
 
 # ---------------------------------------------------------------------------
@@ -722,6 +722,11 @@ class HarnessAgentTemplate(BaseModel):
     # resolver. It serializes as one consumer-owned ``modelConnection`` object.
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
+    # The compiled gateway connection policy, carried from the tool resolver. Private to the
+    # runner: it never reaches the harness, the sandbox, or a tool name. Every harness
+    # adapter threads it: a seam that drops it fails silently as an absent policy, which the
+    # runner reads as deny.
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
@@ -764,6 +769,22 @@ class HarnessAgentTemplate(BaseModel):
         if rules:
             permissions["rules"] = rules
         return {"permissions": permissions}
+
+    def wire_gateway_policy(self) -> Dict[str, Any]:
+        """The ``gatewayPolicy`` field for the ``/run`` payload (contracts section 5).
+
+        One top-level field, not one per specification: both derived tools read the same
+        table, and the runner filters search results before it knows which tool the model
+        will run. Omitted when the agent has no ``gateway_connection`` entry, so a run
+        without one is byte-identical to before (the golden wire contract).
+
+        It sits beside :meth:`wire_permissions` rather than inside it: that plan is the
+        coarse harness-tool posture, while this is the per-integration table the runner's own
+        semantic gate reads. The two are different layers and neither can express the other.
+        """
+        if self.gateway_policy is None:
+            return {}
+        return {"gatewayPolicy": self.gateway_policy.to_wire()}
 
     def wire_tools(self) -> Dict[str, Any]:
         """The tool + permission fields this harness contributes to the ``/run`` payload."""
@@ -1120,6 +1141,10 @@ class SessionConfig(BaseModel):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     tool_callback: Optional[ToolCallback] = None
+    # The compiled gateway connection policy the tool resolver produced. It rides through to
+    # the harness config and out on the wire as ``gatewayPolicy``; ``None`` when the agent has
+    # no connection entry.
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
 
     @field_validator("tool_specs", mode="before")

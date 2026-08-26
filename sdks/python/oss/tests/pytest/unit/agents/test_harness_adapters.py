@@ -35,8 +35,14 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     GETTING_STARTED_WITH_AGENTA_SKILL,
     AGENTA_PREAMBLE,
     force_skills,
+    gateway_guidance,
 )
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+)
 
 _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorization=None)
 
@@ -422,6 +428,203 @@ def test_make_harness_maps_string_to_class(make_env):
     assert isinstance(make_harness(HarnessKind.CODEX, env), CodexHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
+
+
+# ------------------------------------------------- gateway connection prompt guidance
+
+
+_GATEWAY_POLICY = ResolvedGatewayPolicy(
+    integrations={
+        "github": ResolvedGatewayIntegration(
+            provider="composio",
+            connection="github-work",
+            tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
+        ),
+        "slack": ResolvedGatewayIntegration(
+            provider="composio",
+            connection="slack-main",
+            tools={"SEND_MESSAGE": CompiledTool(permission="ask", read_only=False)},
+        ),
+    }
+)
+
+# Which prompt layer each harness puts the guidance in, and the author's own text on that
+# layer. Pi's AGENTS.md stays purely authored, so its carrier is `append_system`; the
+# file-based harnesses carry it in the instructions file.
+_AUTHOR_APPEND = "Be terse."
+_AUTHOR_INSTRUCTIONS = "My project rules."
+_HARNESS_CASES = [
+    (PiHarness, HarnessKind.PI, "append_system", _AUTHOR_APPEND),
+    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", _AUTHOR_INSTRUCTIONS),
+    (CodexHarness, HarnessKind.CODEX, "agents_md", _AUTHOR_INSTRUCTIONS),
+    (AgentaHarness, HarnessKind.AGENTA, "agents_md", _AUTHOR_INSTRUCTIONS),
+]
+
+
+def test_every_registered_harness_declares_a_guidance_carrier():
+    """A new harness must not silently get the two tools with no instructions.
+
+    The cases above are hand-written, so without this the fifth harness someone registers
+    gets `search_tools` and `run_tool`, no guidance, and a green test run.
+    """
+    from agenta.sdk.agents.adapters.harnesses import _HARNESSES
+
+    assert {kind for _cls, kind, _carrier, _author in _HARNESS_CASES} == set(_HARNESSES)
+
+
+def _guidance_agent() -> AgentTemplate:
+    return AgentTemplate(
+        instructions=_AUTHOR_INSTRUCTIONS,
+        model="m",
+        harness_extras={"append_system": _AUTHOR_APPEND},
+    )
+
+
+@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+def test_gateway_guidance_reaches_every_harness(
+    make_env, harness_cls, kind, carrier, author_text
+):
+    """Every harness gets the same two derived tools, so every one gets the instructions.
+
+    A section added to the Agenta preamble alone would leave Pi, Claude, and Codex holding
+    `search_tools` and `run_tool` with nothing telling them how to use them.
+    """
+    harness = harness_cls(make_env(supported=[kind]))
+    config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
+
+    result = harness._to_harness_config(config)
+
+    text = getattr(result, carrier)
+    assert "search_tools" in text
+    assert "run_tool" in text
+    # The configured integration names, and only those.
+    assert "github, slack" in text
+    # The author's own text on that layer still comes last: the guidance is the platform half.
+    assert text.endswith(author_text)
+    assert text.index("search_tools") < text.index(author_text)
+
+
+@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+def test_no_gateway_guidance_without_a_connection(
+    make_env, harness_cls, kind, carrier, author_text
+):
+    """G6's prompt half: an agent with no connection entry gets no gateway section."""
+    harness = harness_cls(make_env(supported=[kind]))
+    config = _session_config(agent=_guidance_agent())
+
+    result = harness._to_harness_config(config)
+
+    text = getattr(result, carrier) or ""
+    assert "search_tools" not in text
+    assert "run_tool" not in text
+
+
+def test_pi_agents_md_stays_purely_authored(make_env):
+    """Pi's carrier is ``append_system``; AGENTS.md keeps only what the author wrote.
+
+    AGENTS.md is the project-conventions layer and a bare Pi run has no platform half of it,
+    so injecting there would put platform text in a file the author owns outright.
+    """
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
+
+    result = harness._to_harness_config(config)
+
+    assert result.agents_md == _AUTHOR_INSTRUCTIONS
+    assert "search_tools" in result.append_system
+
+
+def test_agenta_keeps_its_preamble_first_with_guidance(make_env):
+    """The existing prefix rule survives: preamble, then guidance, then the author."""
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
+    config = _session_config(
+        agent=AgentTemplate(instructions="My project rules.", model="m"),
+        gateway_policy=_GATEWAY_POLICY,
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert result.agents_md.startswith(AGENTA_PREAMBLE)
+    assert result.agents_md.endswith("My project rules.")
+    assert result.agents_md.index(AGENTA_PREAMBLE) < result.agents_md.index(
+        "search_tools"
+    )
+
+
+def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
+    """It is derived at resolve time, like the two tools it describes."""
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    agent = _guidance_agent()
+    config = _session_config(agent=agent, gateway_policy=_GATEWAY_POLICY)
+
+    result = harness._to_harness_config(config)
+
+    assert "search_tools" in result.append_system
+    assert agent.instructions == _AUTHOR_INSTRUCTIONS
+    assert agent.harness_extras == {"append_system": _AUTHOR_APPEND}
+
+
+def test_gateway_guidance_carries_all_six_prompt_items():
+    """Every item runtime-tools.md "Prompt guidance" fixes for V1, in one focused test.
+
+    The per-harness tests above prove the section REACHES each prompt surface; this proves
+    the section actually says the six things. A rewrite that drops one, for example the
+    single-retry rule, changes model behavior in a way no placement test would catch.
+    """
+    section = gateway_guidance(_GATEWAY_POLICY)
+
+    # 1. The configured integration names.
+    assert "Configured integrations: github, slack." in section
+    # 2. Search once, with a concrete task description.
+    assert "Search once, with a concrete description of the task" in section
+    # 3. Use only a returned integration and tool key.
+    assert (
+        "Use only an integration and a tool key that a search result returned"
+        in section
+    )
+    assert "Never invent one." in section
+    # 4. Copy the arguments from the returned schema.
+    assert (
+        "Copy the arguments from the input schema the search result returned" in section
+    )
+    # 5. Retry a temporary search failure at most once.
+    assert "retry it once and no more" in section
+    # 6. Stop searching once a result is usable.
+    assert "Stop searching once a result is usable" in section
+    # And the two tools the six items are about.
+    assert "`search_tools`" in section
+    assert "`run_tool`" in section
+
+
+def test_gateway_guidance_is_absent_for_an_empty_policy():
+    assert gateway_guidance(None) is None
+    assert gateway_guidance(ResolvedGatewayPolicy()) is None
+
+
+@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+def test_gateway_policy_reaches_every_harness_config(
+    make_env, harness_cls, kind, carrier, author_text
+):
+    """The propagation seam itself: a config that drops it fails silently as a deny."""
+    harness = harness_cls(make_env(supported=[kind]))
+    config = _session_config(gateway_policy=_GATEWAY_POLICY)
+
+    result = harness._to_harness_config(config)
+
+    assert result.gateway_policy is _GATEWAY_POLICY
+    assert result.wire_gateway_policy()["gatewayPolicy"]["integrations"].keys() == {
+        "github",
+        "slack",
+    }
+
+
+def test_no_gateway_policy_emits_no_wire_field(make_env):
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+
+    result = harness._to_harness_config(_session_config())
+
+    assert result.gateway_policy is None
+    assert result.wire_gateway_policy() == {}
 
 
 def test_make_harness_unsupported_backend_raises(make_env):

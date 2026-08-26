@@ -12,7 +12,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessKind
+from agenta.sdk.agents import AgentResult, HarnessKind, Message
 from agenta.sdk.agents.connections import (
     ConnectionResolutionError,
     ResolvedConnection,
@@ -22,6 +22,13 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+    ResolvedToolSet,
+)
+from agenta.sdk.agents.utils.wire import request_to_wire
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
 
@@ -84,6 +91,9 @@ class _FakeBackend(Backend):
         self._output = output
         self.created_run_contexts: List[Any] = []
         self.created_effective_parameters: List[Any] = []
+        # The per-harness config the adapter built. It is what the wire is serialized from,
+        # so capturing it is how a test checks a whole propagation path rather than one hop.
+        self.created_configs: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -102,6 +112,7 @@ class _FakeBackend(Backend):
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
         self.created_effective_parameters.append(effective_parameters)
+        self.created_configs.append(config)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -569,6 +580,102 @@ async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
         )
 
     assert ran == []
+
+
+# --------------------------------------------------------------------------- #
+# The gateway connection propagation path: resolver -> SessionConfig -> harness -> wire
+# --------------------------------------------------------------------------- #
+def _gateway_policy() -> ResolvedGatewayPolicy:
+    return ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
+            )
+        }
+    )
+
+
+async def test_gateway_policy_and_mode_cross_from_the_resolver_to_the_run_request():
+    """Both propagation lines in the handler, checked end to end on the real wire payload.
+
+    The two are easy to drop and each fails SILENTLY rather than loudly:
+
+    - the agent-wide mode reaches the permission compiler only through the ``resolve_tools``
+      call, so losing it compiles the wrong policy while every unit test of the compiler
+      still passes;
+    - the compiled policy reaches the wire only through ``SessionConfig``, and the runner
+      reads an ABSENT policy as deny, so losing it looks like an agent whose tools quietly
+      stopped working.
+
+    Asserting on ``request_to_wire`` output rather than on an intermediate object is what
+    makes deleting either line fail here: the whole path is exercised, not one hop of it.
+    """
+    policy = _gateway_policy()
+    seen_modes: List[Any] = []
+    backend = _FakeBackend()
+
+    async def _tools_with_policy(tools, **kwargs):
+        seen_modes.append(kwargs.get("permission_default"))
+        return ResolvedToolSet(gateway_policy=policy)
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+        resolve_tools=_tools_with_policy,
+    )
+    handler = make_agent_handler(comp)
+    params = _params()
+    # NOT the ``allow_reads`` default: a dropped kwarg would otherwise still read as "deny".
+    params["agent"]["runner"] = {"permissions": {"default": "deny"}}
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    # Line 1: the agent-wide mode reached the resolver, which hands it to the compiler.
+    assert seen_modes == ["deny"]
+
+    # Line 2: the compiled policy reached the harness config, and out onto the run request.
+    config = backend.created_configs[0]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["gatewayPolicy"] == policy.to_wire()
+    # The same mode also rides the coarse permission plan the harness gate reads.
+    assert payload["permissions"]["default"] == "deny"
+
+
+async def test_no_gateway_policy_leaves_the_run_request_field_absent():
+    """The other half: a resolver that reports no policy emits no field at all."""
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    config = backend.created_configs[0]
+    assert config.gateway_policy is None
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "gatewayPolicy" not in payload
 
 
 if __name__ == "__main__":

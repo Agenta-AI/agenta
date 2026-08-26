@@ -34,6 +34,7 @@ from agenta.sdk.agents.mcp import (
 )
 from agenta.sdk.agents.tools import (
     MissingSecretPolicy,
+    PermissionMode,
     ResolvedToolSet,
     ToolResolver,
     coerce_tool_configs,
@@ -63,20 +64,27 @@ async def resolve_tools(
     workflow_resolver: Optional[WorkflowToolResolver] = None,
     platform_resolver: Optional[PlatformToolResolver] = None,
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
+    permission_default: PermissionMode = "allow_reads",
 ) -> ResolvedToolSet:
     """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters.
 
     A ``type:"reference"`` workflow tool resolves through the ``workflow_resolver`` into a
     ``callback`` spec (server-side workflow execute), the same executor a gateway tool uses. A
     ``type:"platform"`` tool resolves through the ``platform_resolver`` into a ``callback`` spec
-    carrying a direct ``call`` to the exposed Agenta endpoint."""
+    carrying a direct ``call`` to the exposed Agenta endpoint.
+
+    ``permission_default`` is the agent-wide mode the gateway permission compiler applies to an
+    ``inherit`` value on a ``gateway_connection`` entry. It is ignored by every other arm."""
     return await ToolResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
         gateway_resolver=gateway_resolver or AgentaGatewayToolResolver(),
         workflow_resolver=workflow_resolver or AgentaWorkflowToolResolver(),
         platform_resolver=platform_resolver or AgentaPlatformToolResolver(),
         missing_secret_policy=missing_secret_policy,
-    ).resolve(coerce_tool_configs(tools).tool_configs)
+    ).resolve(
+        coerce_tool_configs(tools).tool_configs,
+        permission_default=permission_default,
+    )
 
 
 async def resolve_mcp(

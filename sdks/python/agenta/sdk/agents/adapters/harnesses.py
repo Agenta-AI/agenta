@@ -34,6 +34,7 @@ from ..interfaces import Environment, Harness
 from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
     compose_append_system,
+    compose_gateway_guidance,
     compose_instructions,
     force_skills,
 )
@@ -62,6 +63,10 @@ class PiHarness(Harness):
         # prompt, `append_system` extends it (both leave AGENTS.md untouched).
         extras = config.agent.harness_extras
         return PiAgentTemplate(
+            # Purely authored: Pi's carrier for the gateway guidance is `append_system`, not
+            # AGENTS.md. AGENTS.md is the author's project-conventions layer, and a bare Pi
+            # run has no platform half of it to add to; `append_system` is the layer the
+            # platform already extends without replacing what the author wrote.
             agents_md=config.agent.instructions,
             model=config.agent.model,
             # Thread the structured ref so the author's connection {mode, slug} reaches the
@@ -71,13 +76,16 @@ class PiHarness(Harness):
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
-            append_system=_opt_str(extras.get("append_system")),
+            append_system=compose_gateway_guidance(
+                _opt_str(extras.get("append_system")), config.gateway_policy
+            ),
         )
 
 
@@ -94,11 +102,14 @@ class ClaudeHarness(Harness):
         # adapter) renders `.claude/settings.json` as a generic `harnessFiles` entry. No
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
-            agents_md=config.agent.instructions,
+            agents_md=compose_gateway_guidance(
+                config.agent.instructions, config.gateway_policy
+            ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
@@ -120,11 +131,14 @@ class CodexHarness(Harness):
         # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
         # codex-specific parsing happens here; the runner just writes the files into the cwd.
         return CodexAgentTemplate(
-            agents_md=config.agent.instructions,
+            agents_md=compose_gateway_guidance(
+                config.agent.instructions, config.gateway_policy
+            ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
@@ -149,7 +163,9 @@ class AgentaHarness(Harness):
         # `extras` as PiHarness (it drives Pi) and layers its forced extras on top.
         extras = config.agent.harness_extras
         return AgentaAgentTemplate(
-            agents_md=compose_instructions(config.agent.instructions),
+            agents_md=compose_instructions(
+                config.agent.instructions, config.gateway_policy
+            ),
             model=config.agent.model,
             # See PiHarness: thread the structured ref so a named custom connection's {mode, slug}
             # reaches the /run wire and the runner can build its models.json plan.
@@ -157,6 +173,7 @@ class AgentaHarness(Harness):
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             # Force the platform skill(s) into every run, de-duped by name. A custom config that
             # drops the default template's `_agenta` embed still gets the platform skill.

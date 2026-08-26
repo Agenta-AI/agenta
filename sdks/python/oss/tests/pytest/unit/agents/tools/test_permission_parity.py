@@ -19,9 +19,17 @@ do not bend the fixture to make it pass.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from agenta.sdk.agents.tools.models import effective_permission
+from agenta.sdk.agents.tools.models import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+    effective_permission,
+)
+from agenta.sdk.agents.wire_models import WireRunRequest
 
 
 def test_fixture_has_at_least_36_cases(golden):
@@ -62,4 +70,73 @@ def test_effective_permission_matches_fixture(golden):
             f"spec_permission={gate.get('specPermission')!r}, "
             f"read_only={gate.get('readOnlyHint')!r}, mode={plan['default']!r}) "
             f"== {got!r}, expected {case['expected']['effective']!r}"
+        )
+
+
+# --------------------------------------------------------------------------- C27
+#
+# The second cross-language shape, added by the gateway connection rework: the compiled
+# ``gatewayPolicy`` object. The TS half is a COMPILE-TIME assertion in
+# ``services/runner/tests/unit/wire-contract.test.ts`` (a value of type
+# ``AgentRunRequest["gatewayPolicy"]`` carrying the same three tools), because ``protocol.ts``
+# is types only and erases at runtime. This is the Python half.
+
+
+def test_gateway_policy_round_trips_with_a_null_read_only(golden):
+    """``readOnly`` is tri-state and unknown must survive the wire in BOTH directions.
+
+    The catalog hint is absent for some provider tools, and absent is not the same as a write
+    to a reader. A dropped key and a null value must therefore not come to mean different
+    things: the producer emits the null, and the consumer model parses it back as ``None``.
+
+    The expectation is the shared golden, the same file the TypeScript side asserts, so this
+    file states the contract in one place rather than carrying its own copy of the table.
+    """
+    expected = golden("run_request.gateway_connection.json")["gatewayPolicy"]
+    policy = ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                tools={
+                    "GET_ISSUE": CompiledTool(permission="allow", read_only=True),
+                    "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
+                    "RUN_WORKFLOW": CompiledTool(permission="deny"),
+                },
+            )
+        }
+    )
+
+    wire = policy.to_wire()
+    assert wire == expected
+    # Through real JSON, not only the in-memory dict: this is where a dropped null would show.
+    assert json.loads(json.dumps(wire)) == expected
+
+    parsed = WireRunRequest.model_validate({"gatewayPolicy": wire})
+    tools = parsed.gateway_policy.integrations["github"].tools
+    assert tools["RUN_WORKFLOW"].read_only is None
+    assert tools["GET_ISSUE"].read_only is True
+    assert tools["CREATE_ISSUE"].read_only is False
+
+
+def test_gateway_policy_never_carries_inherit():
+    """``inherit`` is an authoring value the compiler applies; it never crosses this boundary."""
+    with pytest.raises(ValueError):
+        WireRunRequest.model_validate(
+            {
+                "gatewayPolicy": {
+                    "integrations": {
+                        "github": {
+                            "provider": "composio",
+                            "connection": "github-work",
+                            "tools": {
+                                "GET_ISSUE": {
+                                    "permission": "inherit",
+                                    "readOnly": True,
+                                }
+                            },
+                        }
+                    }
+                }
+            }
         )

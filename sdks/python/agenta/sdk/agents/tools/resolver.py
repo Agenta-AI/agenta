@@ -27,10 +27,13 @@ from .models import (
     ClientToolSpec,
     CodeToolConfig,
     CodeToolSpec,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     MissingSecretPolicy,
+    PermissionMode,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ResolvedGatewayPolicy,
     ResolvedToolSet,
     ToolCallback,
     ToolConfig,
@@ -167,7 +170,17 @@ class ToolResolver:
         self._platform_resolver = platform_resolver
         self._missing_secret_policy = missing_secret_policy
 
-    async def resolve(self, tool_configs: Sequence[ToolConfig]) -> ResolvedToolSet:
+    async def resolve(
+        self,
+        tool_configs: Sequence[ToolConfig],
+        *,
+        # The agent-wide mode the gateway permission compiler applies to an ``inherit``
+        # value. A per-RUN value, so it is an argument here rather than constructor state:
+        # one resolver reused across agents must not pin the first agent's mode. Every
+        # other arm ignores it. ``AgentTemplate.permission_default`` owns the real default;
+        # this one only keeps a resolver usable without an agent template.
+        permission_default: PermissionMode = "allow_reads",
+    ) -> ResolvedToolSet:
         _validate_declared_config_names(tool_configs)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):
@@ -191,6 +204,11 @@ class ToolResolver:
             tool_config
             for tool_config in tool_configs
             if isinstance(tool_config, GatewayToolConfig)
+        ]
+        connection_configs = [
+            tool_config
+            for tool_config in tool_configs
+            if isinstance(tool_config, GatewayConnectionToolConfig)
         ]
         reference_configs = [
             tool_config
@@ -300,9 +318,34 @@ class ToolResolver:
                 tool_callback = gateway_resolution.tool_callback or tool_callback
             tool_specs = [*gateway_specs, *tool_specs]
 
+        # A ``type:"gateway_connection"`` entry covers a whole integration. It never produces a
+        # tool per action: the agent gets the same two derived tools whatever it configures, and
+        # the per-tool decisions ride the run request as the private resolved policy instead. The
+        # branch sits beside the legacy one rather than replacing it, because one revision may
+        # hold both formats for the whole migration window (plan decision 3).
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None
+        if connection_configs:
+            if self._gateway_resolver is None:
+                raise UnsupportedToolProviderError(
+                    connection_configs[0].connection.provider
+                )
+            # One request for every connection entry, not one per entry: the API answers each
+            # with a whole catalog slice, so a second round trip would buy nothing. A failure
+            # here fails the run — unlike the legacy 404 case, there is no single dead action to
+            # drop, and a dropped integration would silently become an unconfigured one.
+            connection_resolution = await self._gateway_resolver.resolve_connections(
+                connection_configs,
+                mode=permission_default,
+            )
+            tool_specs = [*connection_resolution.tool_specs, *tool_specs]
+            tool_callback = connection_resolution.tool_callback or tool_callback
+            gateway_policy = connection_resolution.gateway_policy
+            warnings.extend(connection_resolution.warnings)
+
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(
             tool_specs=tool_specs,
             tool_callback=tool_callback,
             warnings=warnings,
+            gateway_policy=gateway_policy,
         )

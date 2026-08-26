@@ -39,6 +39,12 @@ Each slice names the [qa.md](qa.md) test IDs it implements. It does not restate 
 Slice 6 splits. Its pure parts need only Slice 1 and can start at once. Its client
 regeneration needs Slice 3, because the generator rebuilds the client from a running API.
 
+Do not deploy the mid-branch state. Slices 4 and 5 ship together in one pull request, which is
+the atomic-landing option [plan.md](plan.md) allows in place of a flag on the two derived
+tools: Slice 4 alone hands the model a `run_tool` that reaches the provider with no policy
+applied, because the gate that reads the policy is Slice 5. Nothing deploys from an
+intermediate commit, so the two slices carry no feature flag.
+
 ## Decisions taken during review
 
 All six former open questions are resolved and recorded in [plan.md](plan.md). One external

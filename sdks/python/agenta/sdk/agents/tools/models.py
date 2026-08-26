@@ -164,6 +164,57 @@ class GatewayConnectionToolConfig(BaseModel):
     policy: GatewayConnectionPolicy
 
 
+class CompiledTool(BaseModel):
+    """One tool key after the compiler has applied the policy and the agent-wide mode.
+
+    Lives here rather than beside the compiler because two readers share it: the compiler
+    produces it, and :class:`ResolvedGatewayIntegration` carries it to the runner.
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    permission: Permission
+    # Tri-state, and unknown must survive to the runner: the catalog hint is absent for some
+    # provider tools, and absent is not the same as a write for a reader.
+    read_only: Optional[bool] = Field(
+        default=None,
+        validation_alias=AliasChoices("read_only", "readOnly"),
+        serialization_alias="readOnly",
+    )
+
+
+class ResolvedGatewayIntegration(BaseModel):
+    """One configured integration, compiled. Private to the runner; never model-facing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider: str = Field(min_length=1)
+    connection: str = Field(min_length=1)
+    tools: Dict[str, CompiledTool] = Field(default_factory=dict)
+
+
+class ResolvedGatewayPolicy(BaseModel):
+    """The compiled per-tool decisions for every configured integration.
+
+    Rides the run request as the single top-level ``gatewayPolicy`` field. It never reaches
+    the harness or the sandbox: the runner reads it to gate ``gateway.run`` and to filter
+    ``gateway.search`` results.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    integrations: Dict[str, ResolvedGatewayIntegration] = Field(default_factory=dict)
+
+    def to_wire(self) -> Dict[str, Any]:
+        """Serialize to the camelCase wire shape.
+
+        No ``exclude_none`` here, unlike :meth:`ToolSpecBase.to_wire`: ``readOnly`` must be
+        PRESENT and null when the catalog hint is unknown, because a dropped key and a null
+        value would mean different things to the runner.
+        """
+        return self.model_dump(mode="json", by_alias=True)
+
+
 class CodeToolConfig(ToolConfigBase):
     type: Literal["code"] = "code"
     name: str = Field(min_length=1)
@@ -514,6 +565,9 @@ class ResolvedToolSet(BaseModel):
     # gateway tool dropped because its action 404s. Each names the affected tool. Surfaced so
     # a degraded resolution is never silent; empty on a fully clean resolve.
     warnings: List[str] = Field(default_factory=list)
+    # The compiled per-tool decisions for the agent's ``gateway_connection`` entries. ``None``
+    # when the agent has none, which keeps that run's wire payload byte-identical.
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None
 
     @field_validator("tool_specs", mode="before")
     @classmethod
@@ -533,3 +587,26 @@ class GatewayToolResolution(BaseModel):
 
     tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
     tool_callback: ToolCallback
+
+
+class GatewayConnectionResolution(BaseModel):
+    """Result returned by an injected gateway adapter for ``gateway_connection`` entries.
+
+    Deliberately NOT a subclass of :class:`GatewayToolResolution`. The two are never used
+    interchangeably — the resolver reads each arm in its own branch, and the protocol
+    declares a separate method per arm — and the meaning of ``tool_specs`` differs: there it
+    is one specification per configured entry, here it is the fixed derived pair.
+
+    ``gateway_policy`` is required rather than defaulted, so "no policy" has exactly one
+    spelling: a ``None`` on :class:`ResolvedToolSet`. An empty policy that reached the wire
+    would emit ``{"integrations": {}}`` and break the byte-identical payload rule for a run
+    with no connection.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
+    tool_callback: ToolCallback
+    gateway_policy: ResolvedGatewayPolicy
+    # Configured keys the catalog no longer carries, ready for the resolver's warning list.
+    warnings: List[str] = Field(default_factory=list)

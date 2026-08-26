@@ -7,8 +7,8 @@ from typing import Dict, List, Optional, Sequence
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from .models import (
+    CompiledTool,
     GatewayPermissions,
-    Permission,
     PermissionMode,
     effective_permission,
 )
@@ -28,13 +28,6 @@ class CatalogToolInfo(BaseModel):
     # same as a write to a reader, so it stays tri-state all the way to the runner. Strict,
     # because the value arrives from a provider catalog over HTTP.
     read_only: Optional[StrictBool] = None
-
-
-class CompiledTool(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    permission: Permission
-    read_only: Optional[bool] = None
 
 
 class CompiledGatewayPolicy(BaseModel):

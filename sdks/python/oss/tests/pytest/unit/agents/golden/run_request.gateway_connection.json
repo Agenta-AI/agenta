@@ -1,0 +1,103 @@
+{
+  "harness": "pi_core",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "gpt-5.5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "close issue 12"
+    }
+  ],
+  "context": null,
+  "telemetry": null,
+  "tools": [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "customTools": [
+    {
+      "name": "search_tools",
+      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "integration": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "readOnly": true,
+      "permission": "allow",
+      "kind": "callback",
+      "callRef": "gateway.search"
+    },
+    {
+      "name": "run_tool",
+      "description": "Run one integration tool returned by search_tools. Pass the integration and tool key exactly as they were returned, and arguments matching the returned input schema.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "integration": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "integration",
+          "tool",
+          "arguments"
+        ]
+      },
+      "permission": "allow",
+      "kind": "callback",
+      "callRef": "gateway.run"
+    }
+  ],
+  "toolCallback": {
+    "endpoint": "https://api.example/tools/call",
+    "authorization": "Access tok-123"
+  },
+  "permissions": {
+    "default": "allow_reads"
+  },
+  "gatewayPolicy": {
+    "integrations": {
+      "github": {
+        "provider": "composio",
+        "connection": "github-work",
+        "tools": {
+          "GET_ISSUE": {
+            "permission": "allow",
+            "readOnly": true
+          },
+          "CREATE_ISSUE": {
+            "permission": "ask",
+            "readOnly": false
+          },
+          "RUN_WORKFLOW": {
+            "permission": "deny",
+            "readOnly": null
+          }
+        }
+      }
+    }
+  }
+}

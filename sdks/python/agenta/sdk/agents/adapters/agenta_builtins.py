@@ -22,6 +22,12 @@ Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAge
 the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
 belong in ``AGENTS.md``. ``AGENTA_PREAMBLE`` is the AGENTS.md layer; ``AGENTA_FORCED_APPEND_SYSTEM``
 is the persona layer.
+
+One exception to "the Agenta harness's defaults": :func:`gateway_guidance` and
+:func:`compose_gateway_guidance` are cross-harness. Every harness gets the same two derived
+gateway tools, so every harness gets their instructions, and all four adapters import from
+here. They live beside :func:`compose_instructions` because that function has to interleave
+them with ``AGENTA_PREAMBLE``, which no other module owns.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from typing import List, Optional
 
 from ..flags import ordered_operations_enabled
 from ..skills import SkillFile, SkillTemplate
+from ..tools.models import ResolvedGatewayPolicy
 from .agent_templates import build_agent_template_skill_files
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
@@ -1137,10 +1144,54 @@ def _join(*parts: Optional[str]) -> Optional[str]:
     return "\n\n".join(kept)
 
 
-def compose_instructions(user: Optional[str]) -> Optional[str]:
-    """The AGENTS.md the harness ships: the base preamble with the author's instructions
-    appended after it."""
-    return _join(AGENTA_PREAMBLE, user)
+def gateway_guidance(policy: Optional[ResolvedGatewayPolicy]) -> Optional[str]:
+    """The runtime instruction section for the two derived gateway tools.
+
+    Built only when the agent has at least one ``gateway_connection`` entry, and never stored
+    in the agent revision: the tools are derived at resolve time, so their instructions are
+    too. It names the configured integrations and the six V1 rules from
+    ``runtime-tools.md``, "Prompt guidance". Capability grouping is deferred; V1 lists the
+    integration names and invents no second classification.
+    """
+    if policy is None or not policy.integrations:
+        return None
+    integrations = ", ".join(sorted(policy.integrations))
+    return f"""\
+## Connected integrations
+
+You can reach these integrations with two tools: `search_tools` and `run_tool`.
+Configured integrations: {integrations}.
+
+- Search once, with a concrete description of the task you want to perform.
+- Use only an integration and a tool key that a search result returned. Never invent one.
+- Copy the arguments from the input schema the search result returned.
+- If a search fails temporarily, retry it once and no more.
+- Stop searching once a result is usable, and run it."""
+
+
+def compose_gateway_guidance(
+    user: Optional[str],
+    policy: Optional[ResolvedGatewayPolicy] = None,
+) -> Optional[str]:
+    """One prompt layer with the gateway guidance placed before the author's own text.
+
+    Every harness carries the guidance, not only the Agenta one: each gets the same two
+    derived tools, so a section added to one prompt surface would leave the others holding
+    two tools and no instructions for using them. Which layer carries it is the adapter's
+    choice, so ``user`` is whatever text that adapter puts the guidance in front of: the
+    instructions file for the file-based harnesses, and ``append_system`` for Pi, whose
+    AGENTS.md is purely authored.
+    """
+    return _join(gateway_guidance(policy), user)
+
+
+def compose_instructions(
+    user: Optional[str],
+    policy: Optional[ResolvedGatewayPolicy] = None,
+) -> Optional[str]:
+    """The AGENTS.md the Agenta harness ships: the base preamble, then the gateway guidance
+    when the agent has a connection, then the author's instructions."""
+    return _join(AGENTA_PREAMBLE, compose_gateway_guidance(user, policy))
 
 
 def compose_append_system(user: Optional[str]) -> Optional[str]:

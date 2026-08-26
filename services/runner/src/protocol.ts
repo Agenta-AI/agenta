@@ -587,6 +587,31 @@ export interface ModelConnection {
   credentials: ModelCredential[];
 }
 
+/**
+ * One compiled tool decision inside `gatewayPolicy`.
+ *
+ * `readOnly` is TRI-STATE and `null` is a real value: `true` is a read, `false` is a write,
+ * and `null` means the provider catalog carries no hint. It is `boolean | null`, never
+ * `boolean | undefined` — the Python producer emits the key with a null value rather than
+ * dropping it, so a missing key and a null value must not come to mean different things.
+ */
+export interface GatewayToolPolicy {
+  permission: "allow" | "ask" | "deny";
+  readOnly: boolean | null;
+}
+
+/** One configured integration inside `gatewayPolicy`: its routing plus its tool table. */
+export interface GatewayIntegrationPolicy {
+  provider: string;
+  connection: string;
+  tools: Record<string, GatewayToolPolicy>;
+}
+
+/** The private compiled gateway policy, keyed by integration. */
+export interface GatewayPolicy {
+  integrations: Record<string, GatewayIntegrationPolicy>;
+}
+
 export interface AgentRunRequest {
   /**
    * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
@@ -661,6 +686,20 @@ export interface AgentRunRequest {
   toolCallback?: ToolCallbackContext;
   /** Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config). */
   permissions?: PermissionsConfig;
+  /**
+   * The private compiled policy for the agent's gateway connections. The SDK compiled it from
+   * each saved `gateway_connection` entry and the agent-wide permission mode, so `inherit`
+   * never appears here. Omitted when the agent configures no connection.
+   *
+   * Private on purpose: it never reaches the harness, the sandbox, a tool name, or a
+   * `callRef`. The two derived tools (`gateway.search` / `gateway.run`) both read this one
+   * table, which is why it is top level rather than attached to a tool spec — the runner
+   * filters search results before it knows which tool the model will run.
+   *
+   * Declared here ahead of the enforcement that reads it; nothing in the runner consumes it
+   * yet.
+   */
+  gatewayPolicy?: GatewayPolicy;
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under

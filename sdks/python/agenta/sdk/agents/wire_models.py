@@ -321,6 +321,40 @@ class WireResolvedToolSpec(_WireModel):
     permission: Optional[str] = None
 
 
+class WireGatewayTool(_WireModel):
+    """One compiled tool decision inside ``gatewayPolicy`` (contracts section 5).
+
+    ``readOnly`` is TRI-STATE: ``true`` is a read, ``false`` is a write, and ``null`` is
+    unknown because the provider catalog carries no hint. The producer emits the key with a
+    null value rather than dropping it, and the TypeScript mirror declares
+    ``boolean | null``, so a missing key and a null value cannot come to mean different
+    things on the two sides.
+    """
+
+    permission: Literal["allow", "ask", "deny"]
+    read_only: Optional[bool] = Field(default=None, alias="readOnly")
+
+
+class WireGatewayIntegration(_WireModel):
+    """One configured integration inside ``gatewayPolicy``: its routing plus its tool table."""
+
+    provider: str
+    connection: str
+    tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
+
+
+class WireGatewayPolicy(_WireModel):
+    """The private compiled gateway policy (``gatewayPolicy`` on the request).
+
+    Read only by the runner, which gates ``gateway.run`` and filters ``gateway.search``
+    results against it. It never reaches the harness or the sandbox, and ``inherit`` never
+    crosses this boundary: the SDK compiler has already applied it. Omitted entirely when the
+    agent has no ``gateway_connection`` entry.
+    """
+
+    integrations: Dict[str, WireGatewayIntegration] = Field(default_factory=dict)
+
+
 class WirePermissionRule(_WireModel):
     pattern: str
     permission: str
@@ -515,6 +549,11 @@ class WireRunRequest(_WireModel):
     skills: Optional[List[WireSkill]] = None
     # Policy + prompt overrides + files.
     permissions: Optional[WirePermissions] = None
+    # The private compiled policy for the agent's gateway connections. Top level, because both
+    # derived tools read the same table. Omitted when the agent configures no connection.
+    gateway_policy: Optional[WireGatewayPolicy] = Field(
+        default=None, alias="gatewayPolicy"
+    )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(
         default=None, alias="appendSystemPrompt"
