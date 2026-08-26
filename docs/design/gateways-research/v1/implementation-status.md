@@ -19,7 +19,7 @@ explicit static field rewrite; all other supported routes preserve request bytes
 
 | Namespace/provider | Current implementation | Limit |
 | --- | --- | --- |
-| Builtin `agenta` | Development-only generated `mock` endpoint mapped to `MockMCPAdapter`. | No production Agenta tool server or Agenta MCP adapter exists. |
+| Builtin `agenta` | Development-only generated `mock` endpoint mapped to `MockMCPAdapter`. Existing production Agenta tools are resolved per run and delivered as `customTools` — natively to Pi and through the runner's loopback `agenta-tools` MCP server to Claude/Codex. | The gateway has not adapted that existing tool resolver and dispatch path, so `builtin/agenta` does not expose it. |
 | Builtin `mock` | Development-only generated mock endpoint. | Test provider only. |
 | Builtin `composio` | Catalogue browsing and project connection/OAuth management use the deployment's `COMPOSIO_API_KEY`. The data-plane service selects a `composio` adapter that is not implemented or registered. | A real MCP call fails at adapter dispatch. |
 | Standard `mock` | Development-only generated endpoint, requiring a project mock provider key. | Test provider only. |
