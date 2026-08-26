@@ -5,11 +5,13 @@ import {describe, expect, it} from "vitest"
 import {
     defineSidebarEntity,
     groupingStartsFolded,
+    localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
     withRefsByRecency,
     type SessionSidebarRef,
     type SidebarEntity,
+    type SidebarSessionFilters,
     type SidebarSessionGroupBy,
     type SidebarEntityRef,
     type SidebarEntitySource,
@@ -370,5 +372,81 @@ describe("groupingStartsFolded", () => {
         for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
             expect(groupingStartsFolded(groupBy)).toBe(false)
         }
+    })
+})
+
+
+// The rail's filters are server predicates, and a host-contributed row never went through the
+// query — so each one has to be re-applied here or the row survives a filter that hid its peers.
+describe("localSessionRefsMatching", () => {
+    const local = (over: Partial<SessionSidebarRef> = {}): SessionSidebarRef => ({
+        id: over.id ?? "local",
+        sessionId: over.id ?? "local",
+        appId: "a1",
+        agentId: "a1",
+        pinned: false,
+        alive: false,
+        running: false,
+        archived: false,
+        ...over,
+    })
+
+    const filters = (over: Partial<SidebarSessionFilters> = {}): SidebarSessionFilters => ({
+        groupBy: "none",
+        agentIds: [],
+        status: "all",
+        activity: "7d",
+        type: "chat",
+        ...over,
+    })
+
+    const ids = (rows: SessionSidebarRef[]) => rows.map((row) => row.id)
+    const NONE: ReadonlySet<string> = new Set()
+
+    it("keeps every row when nothing is filtered", () => {
+        expect(ids(localSessionRefsMatching([local()], filters(), NONE))).toEqual(["local"])
+    })
+
+    // A client-created chat is never a trigger run, so Automation must not list one.
+    it("drops every local row under Automation", () => {
+        expect(localSessionRefsMatching([local()], filters({type: "automation"}), NONE)).toEqual([])
+    })
+
+    it("keeps local rows when both types are listed", () => {
+        expect(ids(localSessionRefsMatching([local()], filters({type: "all"}), NONE))).toEqual([
+            "local",
+        ])
+    })
+
+    it("drops a row belonging to an agent the filter excludes", () => {
+        const rows = [local({id: "mine"}), local({id: "theirs", agentId: "a2"})]
+
+        expect(ids(localSessionRefsMatching(rows, filters({agentIds: ["a1"]}), NONE))).toEqual([
+            "mine",
+        ])
+    })
+
+    it("applies the liveness facet", () => {
+        const running = local({id: "running", running: true})
+        const idle = local({id: "idle"})
+        const rows = [running, idle]
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "running"}), NONE))).toEqual([
+            "running",
+        ])
+        expect(ids(localSessionRefsMatching(rows, filters({status: "idle"}), NONE))).toEqual([
+            "idle",
+        ])
+    })
+
+    // A gate ranks above liveness, the same rule the server rows follow.
+    it("counts a gated row as awaiting input, not idle", () => {
+        const rows = [local({id: "gated"})]
+        const gated: ReadonlySet<string> = new Set(["gated"])
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "waiting"}), gated))).toEqual([
+            "gated",
+        ])
+        expect(localSessionRefsMatching(rows, filters({status: "idle"}), gated)).toEqual([])
     })
 })

@@ -6,7 +6,10 @@ import {atom} from "jotai"
 import {
     activeSessionIdAtomFamily,
     defaultScopeKeyAtom,
+    isSessionHusk,
+    sessionHasMessagesAtomFamily,
     sessionsListAtomFamily,
+    type AgentChatSession,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 
@@ -32,7 +35,11 @@ export const activePlaygroundSessionIdAtom = atom<string | null>((get) => {
     const sessions = get(sessionsListAtomFamily(scope))
     const rawActiveId = get(activeSessionIdAtomFamily(scope))
     // Same fallback the panel applies to a stale active id (its tab was closed).
-    return (sessions.find((session) => session.id === rawActiveId) ?? sessions[0])?.id ?? null
+    const active = sessions.find((session) => session.id === rawActiveId) ?? sessions[0]
+    if (!active) return null
+    // A husk has no row to select — see `localPlaygroundSessionRefsAtom`. Naming one here left the
+    // rail pinning a selection onto a row it does not render, which then fell back to the agent.
+    return isSessionHusk(active, get(sessionHasMessagesAtomFamily(active.id))) ? null : active.id
 })
 
 export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
@@ -47,8 +54,13 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
         const status = get(sessionStatusAtomFamily(id))
         return status === "running" || status === "awaiting"
     }
+    // Husks stay off the rail — the same rule the sessions list applies with `isStartedSession`,
+    // and what keeps the blank tab the panel seeds after an archive from taking the selection.
+    const isHusk = (session: AgentChatSession) =>
+        isSessionHusk(session, get(sessionHasMessagesAtomFamily(session.id)))
     return sessions
         .filter((session) => session.id === active?.id || isLive(session.id))
+        .filter((session) => !isHusk(session))
         .map((session) => ({
             id: session.id,
             sessionId: session.id,

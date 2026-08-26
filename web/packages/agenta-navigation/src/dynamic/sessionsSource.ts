@@ -347,6 +347,31 @@ export const dropArchivedAgentSessions = (
         : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
 
 /**
+ * The rail's filters, applied to the rows the HOST contributes.
+ *
+ * Every filter is a server predicate, and a local row never went through the query — so without
+ * this a chat stayed listed, and selected, under Automation or under another agent's filter. The
+ * activity window is the one exemption: a session you have open is current by definition.
+ */
+export const localSessionRefsMatching = (
+    local: readonly SessionSidebarRef[],
+    filters: SidebarSessionFilters,
+    waitingIds: ReadonlySet<string>,
+): SessionSidebarRef[] =>
+    local.filter((ref) => {
+        // A client-created chat is never a trigger run.
+        if (filters.type === "automation") return false
+        if (filters.agentIds.length > 0) {
+            if (!ref.agentId || !filters.agentIds.includes(ref.agentId)) return false
+        }
+        const waiting = waitingIds.has(ref.sessionId)
+        if (filters.status === "running") return ref.running
+        if (filters.status === "waiting") return waiting
+        if (filters.status === "idle") return !ref.running && !waiting && !ref.alive
+        return true
+    })
+
+/**
  * Host-local rows lead the RECENT rows but never displace pins: pins are pulled to the top because
  * they are conversations you return to over days, and a session you happen to have open must not
  * push them down. A server row for the same session wins once it exists — it carries the resolved
@@ -405,7 +430,10 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
-        const all = withLocalSessions(server, get(localSessionRefsAtom))
+        const all = withLocalSessions(
+            server,
+            localSessionRefsMatching(get(localSessionRefsAtom), filters, waitingIds),
+        )
         // "Idle" is `is_alive: false` on the server, which also matches a session whose turn ended
         // with a gate still open. That session is WAITING — the shared status rule ranks a gate
         // above liveness — so it is subtracted here. The only client-side narrowing in this file,
