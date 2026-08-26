@@ -364,7 +364,7 @@ export const localSessionRefsMatching = (
         if (filters.agentIds.length > 0) {
             if (!ref.agentId || !filters.agentIds.includes(ref.agentId)) return false
         }
-        const waiting = waitingIds.has(ref.sessionId)
+        const waiting = waitingIds.has(ref.sessionId) || Boolean(ref.waiting)
         if (filters.status === "running") return ref.running
         if (filters.status === "waiting") return waiting
         if (filters.status === "idle") return !ref.running && !waiting && !ref.alive
@@ -383,8 +383,21 @@ export const withLocalSessions = (
 ): SessionSidebarRef[] => {
     const known = new Set(server.map((ref) => ref.sessionId))
     const fresh = local.filter((ref) => !known.has(ref.sessionId))
-    const pinned = server.filter((ref) => ref.pinned)
-    const rest = server.filter((ref) => !ref.pinned)
+    const hosted = new Map(local.map((ref) => [ref.sessionId, ref]))
+    // The server row wins on identity and LOSES on liveness: `is_running` is mirrored onto a row
+    // this rail polls, so a turn running in this very browser read as idle until the poll caught
+    // up — which is why only one session ever appeared to be running.
+    const live = server.map((ref) => {
+        const host = hosted.get(ref.sessionId)
+        if (!host) return ref
+        return {
+            ...ref,
+            running: ref.running || host.running,
+            waiting: ref.waiting || host.waiting,
+        }
+    })
+    const pinned = live.filter((ref) => ref.pinned)
+    const rest = live.filter((ref) => !ref.pinned)
     // Deduped: a row key is its session id, so a session reaching this twice renders two rows that
     // BOTH match the selected key — the rail's white pill landing on rows nobody selected.
     return uniqueBySession([...pinned, ...fresh, ...rest])
@@ -458,7 +471,9 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         return merged.map((ref) => {
             const named = {
                 ...ref,
-                waiting: waitingIds.has(ref.sessionId),
+                // OR, not a replacement: a gate the host already knows about is open before the
+                // interactions query has a row for it.
+                waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
                 agentName: ref.agentId
                     ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
                     : null,

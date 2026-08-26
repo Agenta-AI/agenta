@@ -439,6 +439,16 @@ describe("localSessionRefsMatching", () => {
         ])
     })
 
+    // The host knows a gate is open before the interactions query has a row for it.
+    it("honours a gate the row reports itself", () => {
+        const rows = [local({id: "gated", waiting: true})]
+
+        expect(ids(localSessionRefsMatching(rows, filters({status: "waiting"}), NONE))).toEqual([
+            "gated",
+        ])
+        expect(localSessionRefsMatching(rows, filters({status: "idle"}), NONE)).toEqual([])
+    })
+
     // A gate ranks above liveness, the same rule the server rows follow.
     it("counts a gated row as awaiting input, not idle", () => {
         const rows = [local({id: "gated"})]

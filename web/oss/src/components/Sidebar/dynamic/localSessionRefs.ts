@@ -50,8 +50,9 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
     const activeId = get(activePlaygroundSessionIdAtom)
     const active = sessions.find((session) => session.id === activeId) ?? null
     const pinned = get(pinnedSessionIdsAtom)
+    const statusOf = (id: string) => get(sessionStatusAtomFamily(id))
     const isLive = (id: string) => {
-        const status = get(sessionStatusAtomFamily(id))
+        const status = statusOf(id)
         return status === "running" || status === "awaiting"
     }
     // Husks stay off the rail — the same rule the sessions list applies with `isStartedSession`,
@@ -71,7 +72,10 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             alive: false,
             // A client-created session has no server row yet, so it cannot be archived.
             archived: false,
-            running: isLive(session.id),
+            // Running and awaiting are DIFFERENT signals — one spins, the other goes amber — so
+            // the row cannot report the "either" that decides whether it is listed at all.
+            running: statusOf(session.id) === "running",
+            waiting: statusOf(session.id) === "awaiting",
         }))
 })
 

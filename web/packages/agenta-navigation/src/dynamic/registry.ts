@@ -8,7 +8,7 @@ import {
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
-import {ChatsCircleIcon, CircleIcon} from "@phosphor-icons/react"
+import {ChatsCircleIcon, CircleIcon, CircleNotchIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
@@ -109,17 +109,23 @@ const ENTITIES: SidebarEntity[] = [
                 title: session.name ?? undefined,
             })
         },
+        // A turn in flight SPINS, the same signal the mobile rail paints — `alive` alone left a
+        // running session showing the idle hollow dot.
         // Amber for a session blocked on you, the same signal the sessions list and the home
         // panel paint. `--ag-run-status-warning` rather than `colorWarning`: the semantic token's
         // light step is a muddy #8a6400 that reads as disabled at this size.
         // Every row gets the same status dot, pinned included: the Pinned heading already says a
         // row is pinned, and a pin glyph in its place hid whether that session was waiting on you.
         getIcon: (session) =>
-            createElement(CircleIcon, {
-                size: 10,
-                weight: session.waiting || session.alive ? "fill" : "regular",
-                className: session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined,
-            }),
+            session.running
+                ? createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+                : createElement(CircleIcon, {
+                      size: 10,
+                      weight: session.waiting || session.alive ? "fill" : "regular",
+                      className: session.waiting
+                          ? "text-[var(--ag-run-status-warning)]"
+                          : undefined,
+                  }),
         emptyLabel: "No sessions",
         // Grouped by owning agent, with the same headings and filters the mobile rail uses —
         // one model, two hosts. The row menu stays mobile-only for now.

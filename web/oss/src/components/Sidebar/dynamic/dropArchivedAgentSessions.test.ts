@@ -127,6 +127,16 @@ describe("withLocalSessions", () => {
         expect(merged.map((r) => r.id)).toEqual(["twin"])
     })
 
+    // The server row is polled, so a turn running in THIS browser reads as idle on it.
+    it("takes liveness from the host row when the server already knows the session", () => {
+        const merged = withLocalSessions(
+            [ref({id: "shared"})],
+            [ref({id: "shared", running: true})],
+        )
+
+        expect(merged.map((r) => [r.id, r.running])).toEqual([["shared", true]])
+    })
+
     it("keeps one row when a local session repeats", () => {
         const merged = withLocalSessions([], [ref({id: "local"}), ref({id: "local"})])
 
