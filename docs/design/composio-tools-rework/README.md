@@ -28,7 +28,11 @@ Then read the working documents.
    point at those IDs instead of restating them.
 9. [release-gate-changes.md](release-gate-changes.md). How the standing agent release gate
    should change to cover gateway tools.
-10. [status.md](status.md). Progress.
+10. [status.md](status.md). Progress and the decisions taken during review.
+
+The authoring surface has its own specification, copied into this workspace so it is
+versioned on this branch: [ui-handoff.md](ui-handoff.md) and the design board
+[ui-handoff-board.html](ui-handoff-board.html). Section 2a of the board is the specification.
 
 ## Words used in these documents
 

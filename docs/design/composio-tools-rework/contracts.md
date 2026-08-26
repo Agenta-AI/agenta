@@ -128,12 +128,21 @@ The SDK derives exactly two `CallbackToolSpec` values when the agent has at leas
 | --- | --- | --- |
 | `name` | `search_tools` | `run_tool` |
 | `call_ref` | `gateway.search` | `gateway.run` |
-| `permission` | `allow` | absent |
+| `permission` | `allow` | `allow` |
 | `read_only` | `true` | absent |
 
-`run_tool` carries no `permission`, so the runner falls through to the compiled per-tool
-value. `search_tools` carries `allow` because search reads nothing outside the catalog and
-the runner filters its results.
+Both carry `permission: "allow"`. This is not an authorization decision. It only opens the
+coarse harness gate so the call reaches the runner at all.
+
+Without it, the harness gate resolves `run_tool` through the agent-wide mode. Under
+`allow_reads` a tool with no `read_only` hint resolves to `ask`, so every gateway call would
+raise a second, meaningless approval card named `run_tool` before the runner ever saw the
+integration and the tool key. A compiled `allow` would never run unprompted.
+
+The authorization boundary is the runner's semantic gate, keyed on the `gateway.run` call
+reference, applied on every delivery path. It reads the integration and the tool key from
+the arguments and looks them up in the resolved policy. A coarse `allow` here never reaches
+a provider without passing that gate.
 
 The model-facing input schemas are fixed by `runtime-tools.md`.
 
@@ -194,9 +203,20 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 | `.provider` | Routing | Selects the provider adapter at the API. |
 | `.connection` | Routing | The selected connection slug. |
 | `.tools[key].permission` | Policy | One of `allow`, `ask`, `deny`. Never `inherit`. |
-| `.tools[key].readOnly` | Data | Carried for the approval card and for logs. |
+| `.tools[key].readOnly` | Data | `true`, `false`, or `null`. Carried for the approval card and for logs. |
 
 `inherit` never crosses this boundary. The compiler has already applied it.
+
+`readOnly` is tri-state and unknown must survive the wire. The catalog hint is absent for
+some provider tools, and absent is not the same as `false` for a reader. Both languages
+represent unknown as JSON `null`, and both must test it:
+
+- Python: `Optional[bool]`, serialized with `exclude_none=False` for this field so the key is
+  present and null rather than dropped.
+- TypeScript: `boolean | null`, not `boolean | undefined`.
+
+A missing key and a null value must not mean different things. Pin the null form and test a
+round trip in each language.
 
 The field is top level, not per specification, because both derived tools read the same
 table and because the runner filters search results before it knows which tool the model
@@ -317,8 +337,19 @@ def compile_gateway_permissions(
     policy: GatewayPermissions,
     catalog: Sequence[CatalogToolInfo],
     mode: PermissionMode,
-) -> Dict[str, CompiledTool]:
+) -> CompiledGatewayPolicy:
 ```
+
+The result is one explicit type, not a bare mapping, because the caller needs two lists:
+
+```python
+class CompiledGatewayPolicy(BaseModel):
+    tools: Dict[str, CompiledTool]   # executable, one of allow, ask, deny
+    stale_keys: List[str]            # configured keys absent from the catalog
+```
+
+`tools` feeds the resolved policy in section 5. `stale_keys` feeds the resolver warnings and
+the authoring surface. A stale key never appears in `tools`.
 
 Order, for each catalog tool:
 
@@ -332,7 +363,7 @@ runner type. `mode` comes from `permission_default` on the harness template, whi
 to `allow_reads`.
 
 A configured tool key that is not in the catalog does not appear in the output. The compiler
-returns it separately as a stale key so the authoring surface can report it.
+returns it in `stale_keys` so the authoring surface can report it.
 
 ## 10. Authoring presets
 
@@ -360,3 +391,16 @@ question 1 in [plan.md](plan.md) for what to show when an author changes that mo
 
 Setting any per-tool value switches the shown preset to Custom, because `tools` is no longer
 empty. Picking a preset clears `tools`.
+
+**The override count is the number of saved entries in `tools`.** There is one rule and both
+this file and [qa.md](qa.md) case F7 state it the same way.
+
+Do not compute the count by comparing each entry against the value the preset would have
+produced. That second rule disagrees with the first whenever an entry is redundant, for
+example a tool explicitly set to `ask` under a `default` of `ask`. Under the comparison rule
+that entry counts as zero overrides while the preset still reads Custom, so the drawer would
+show "Custom" with a count of 0.
+
+The writer keeps the two consistent: when a per-tool change makes an entry equal to the
+current default, still save the entry. The author set it deliberately, and the saved value
+survives a later change of default. Redundancy is intended here, not a bug to normalize away.

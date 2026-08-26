@@ -103,8 +103,15 @@ runtime tool descriptions consistent with each other.
 ## 5. API: the catalog
 
 `api/oss/src/core/tools/providers/composio/catalog.py` reads the provider catalog over HTTP.
-There is no cache in the adapter or the service. Caching lives in the router, keyed globally,
-with a five-minute lifetime.
+There is no cache in the adapter or the service. Caching lives in the router, under the
+`tools:catalog:*` namespaces, with a five-minute lifetime.
+
+**That cache is not reusable by the service.** It sits above the service, in the HTTP layer,
+and each entry is keyed to one page of one request's query. So no entry holds a complete
+catalog, and the service cannot read any of them. A helper that needs a whole integration's
+catalog has to page the provider itself and cache the assembled result under its own key.
+Slice 2 adds exactly that. The service's only existing cache is the search cache described in
+section 7, under `tools:discover`.
 
 The action parser is at `catalog.py:382-405`. It reads the provider slug into a local
 variable at `catalog.py:391`, strips the integration prefix at `catalog.py:392-397`, and then
@@ -112,8 +119,13 @@ returns a `ToolCatalogAction` at `catalog.py:399-405` that does not carry the sl
 canonical ID is lost there.
 
 `ToolCatalogAction` is at `api/oss/src/core/tools/dtos.py:51-66`, with `read_only` at
-`dtos.py:61`. `ToolCatalogActionDetails` adds `schemas` and `scopes` at `dtos.py:64-66`. It
-relists fields flat instead of extending, so a new field must be added in both places.
+`dtos.py:61`. `ToolCatalogActionDetails` subclasses it at `dtos.py:64` and adds only `schemas`
+and `scopes`, so a new field added to `ToolCatalogAction` reaches both Python models with one
+edit.
+
+The generated TypeScript is the opposite. `ToolCatalogActionDetails.ts` relists every field
+flat with no `extends`, so both generated interfaces gain the field. That is automatic on
+regeneration and needs no hand edit.
 
 The provider slug is rebuilt by concatenation at
 `api/oss/src/core/tools/providers/composio/adapter.py:304-311`, and used on both
@@ -331,10 +343,18 @@ indistinguishable from model-written arguments once they arrive. That is the sea
 
 There are three distinct keys. The interaction token, built from the gate ID. The harness
 tool-call ID. The cold-replay content anchor, `approvedCallKey` at
-`services/runner/src/engines/sandbox_agent/responder.ts:70-81`, which is the tool name joined
-with the canonical arguments. That third key is why the gateway approval identity must carry
-the integration and the tool key. Two integration tools called through one coarse `run_tool`
-name with the same arguments would otherwise share one stored approval.
+`services/runner/src/responder.ts:70`, which is the tool name joined with the canonical
+arguments.
+
+Note the path. There is no `responder.ts` under `engines/sandbox_agent/`; the module sits at
+the `src/` root and is imported from there, for example at
+`services/runner/src/engines/sandbox_agent/client-tools.ts:19`.
+
+That third key needs no gateway-specific change. For `run_tool` the canonical arguments
+already contain the integration and the tool key, so two integration tools produce two keys
+on their own, as long as the full outer arguments are used to compute it. Approval identity
+is therefore already distinct; the new work is showing the integration and the tool key on
+the card instead of the coarse name.
 
 The Sessions API calls are in `services/runner/src/sessions/interactions.ts`.
 `createInteraction` posts to `/sessions/interactions/` at `:143`. `resolveInteraction` posts

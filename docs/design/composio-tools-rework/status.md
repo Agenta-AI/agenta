@@ -1,10 +1,26 @@
 # Status
 
 **Date:** 2026-08-26
-**State:** planning complete
+**State:** planning complete, plan reviewed by Codex, 33 findings addressed
 
 The three design documents are decided. The plan, the contracts, the research, the test
 specification, and the release gate proposal are written. No product code has changed.
+
+Codex reviewed the workspace at high reasoning effort and returned 33 findings: 14 at P1, 15
+at P2, and 4 at P3. All 33 are applied. The changes that moved the plan most:
+
+- Slice 2 now owns one cached, fully paginated catalog helper. The earlier plan reused a
+  cache that cannot be reused, because it lives in the HTTP router and is keyed per page.
+- Migration moved out of Python entirely. The frontend owns it, in TypeScript, in Slice 6.
+- Slice 4 now lands the passive TypeScript field before the Python emitter, so no
+  intermediate commit breaks the runner's compile-time key guard.
+- Slice 5 grew three obligations the earlier plan missed: the relay path must be able to
+  pause and create a Sessions interaction, the operator switch must be read at decision time
+  in a path every tool family shares, and `gateway.run` error suggestions must be sanitized.
+- Both runtime tools carry `permission: "allow"` to open the coarse harness gate. Without it
+  a compiled `allow` would still raise a card named `run_tool`.
+- The user interface handoff is copied into this workspace, so the specification is versioned
+  on this branch instead of living in another checkout.
 
 ## Slices
 
@@ -12,29 +28,33 @@ Each slice names the [qa.md](qa.md) test IDs it implements. It does not restate 
 
 | Slice | Name | Test IDs | State |
 | --- | --- | --- | --- |
-| 1 | SDK configuration model and permission compiler | C1 to C34 | not started |
-| 2 | API catalog tool identity and connection resolve | A19, part of A23 | not started |
-| 3 | API gateway search and run routes | A1 to A18, A20 to A23 | not started |
+| 1 | SDK configuration model and permission compiler | C1 to C26, C28 to C30, C34 | not started |
+| 2 | API catalog tool identity and connection resolve | A19, G11 (API half) | not started |
+| 3 | API gateway search and run routes | A1 to A5, A7 to A18, A20 to A23 | not started |
 | 4 | SDK gateway resolver, resolved policy, prompt guidance | C27, G6, G11 | not started |
-| 5 | Runner policy gate, search filtering, approval | R1 to R28, N1 to N11 | not started |
-| 6 | Frontend integration rows and permission drawer | F1 to F15, G5 | not started |
-| 7 | End-to-end wiring and local deployment check | the live journey, W1 to W6, G1 to G11, N12 to N14 | not started |
+| 5 | Runner policy gate, search filtering, approval | A6, R1 to R30, N1 to N11 | not started |
+| 6 | Frontend integration rows and permission drawer | C31 to C33, F1 to F17, G5 | not started |
+| 7 | End-to-end wiring and local deployment check | the live journey, W1 to W6, G1 to G12, N12 to N14 | not started |
 
-Slice 6 needs only the saved format from Slice 1. It can run beside slices 2 to 5.
+Slice 6 splits. Its pure parts need only Slice 1 and can start at once. Its client
+regeneration needs Slice 3, because the generator rebuilds the client from a running API.
 
-## Open questions
+## Decisions taken during review
 
-Six are recorded in [plan.md](plan.md), each with a recommendation. Two need an answer before
-the slice that depends on them starts.
+All six former open questions are resolved and recorded in [plan.md](plan.md). One external
+sign-off is still outstanding.
 
-| Question | Blocks | State |
+| Decision | Blocks | State |
 | --- | --- | --- |
-| 1. What "Ask for write and delete" means when the agent-wide mode changes | Slice 6 | open |
-| 2. How the drawer shows a tool set to `inherit` | Slice 6 | open, needs design sign-off |
-| 3. Whether an agent may hold both entry formats at once | Slice 4 | open, recommendation is to allow it |
-| 4. Whether the provider search accepts a toolkit filter | Slice 3 | open, Slice 3 checks it |
-| 5. Latency of the catalog slice at run start | Slice 7 | open, Slice 7 measures it |
-| 6. Scope of the new result-processing step | Slice 5 | open, recommendation is to keep it narrow |
+| 1. "Ask for write and delete" saves `inherit`, with a line shown when the agent mode differs | Slice 6 | adopted |
+| 2. A fourth per-tool option, "Follow agent policy" | Slice 6 | adopted, **needs design sign-off before Slice 6 starts** |
+| 3. An agent may hold both entry formats, and each surface keeps its own rule | Slice 4 | adopted, tested by G12 |
+| 4. The provider search takes a native toolkit filter | Slice 3 | resolved by measurement on 2026-08-26 |
+| 5. Catalog latency is served by the new Slice 2 helper | Slice 2, Slice 7 | resolved |
+| 6. Result transformation applies to `gateway.search` alone | Slice 5 | resolved |
+
+Decision 2 is the only item that needs a person outside this workspace. It departs from the
+handoff, and the per-tool select is built once, so get the sign-off before Slice 6 begins.
 
 ## Branch
 
@@ -44,6 +64,12 @@ The two superseded pull requests stay open for reference. This work does not bui
 
 ## Log
 
+- 2026-08-26. Codex reviewed the workspace. Applied all 33 findings across `plan.md`,
+  `contracts.md`, `qa.md`, `research.md`, and `release-gate-changes.md`. Resolved the six
+  open questions. Copied the user interface handoff into the workspace as
+  [ui-handoff.md](ui-handoff.md) and [ui-handoff-board.html](ui-handoff-board.html). Added
+  test cases R8b, R29, R30, F16, F17, and G12, and moved A6 from the API to the runner.
+  Corrected two stale code claims in `research.md`.
 - 2026-08-26. Wrote [qa.md](qa.md) and [release-gate-changes.md](release-gate-changes.md).
 - 2026-08-26. Read the three design documents and the user interface handoff. Researched the
   SDK, the API, the runner, and the frontend. Wrote the plan, the contracts, and the

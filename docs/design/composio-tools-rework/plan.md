@@ -22,18 +22,20 @@ Slice 1  SDK configuration model and permission compiler
    |        |
    |        +--> Slice 3  API gateway search and run routes
    |                 |
-   |        +--------+
-   |        |
-   |     Slice 4  SDK gateway resolver, resolved policy, prompt guidance
+   |                 +--> Slice 4  SDK resolver, resolved policy, prompt guidance
+   |                 |        |
+   |                 |     Slice 5  Runner policy gate, search filtering, approval
    |                 |
-   |              Slice 5  Runner policy gate, search filtering, approval
-   |                 |
-   +--> Slice 6  Frontend integration rows and permission drawer
-                     |
-                  Slice 7  End-to-end wiring and local deployment check
+   +-----------------+--> Slice 6  Frontend rows and permission drawer
+                                       |
+                                    Slice 7  End-to-end wiring and deploy check
 ```
 
-Slice 6 needs only the saved format from Slice 1. It can run beside slices 2 to 5.
+Slice 6 splits in two. Its pure parts, the config parser, the preset translation, the
+migration, and the local types, need only the saved format from Slice 1 and can start
+immediately. Its generated-client regeneration needs Slice 3, because the script rebuilds
+the whole client from a running API's OpenAPI document, and that document must already carry
+the new resolve arm and the new catalog field. Do not regenerate before Slice 3 lands.
 
 ## Rules that apply to every slice
 
@@ -59,8 +61,10 @@ in this slice makes a network call.
 - `sdks/python/agenta/sdk/agents/tools/models.py`. Add `GatewayConnectionRef`,
   `GatewayPermissions`, `GatewayConnectionToolConfig`. Add the new arm to the `ToolConfig`
   union and its `TypeAdapter`.
-- `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`. New file. The compiler, its two
-  input models (`CatalogToolInfo`, `CompiledTool`), and the migration function.
+- `sdks/python/agenta/sdk/agents/tools/compat.py`. Validate the revision-level rule inside
+  `coerce_tool_configs`. See below.
+- `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`. New file. The compiler, its input
+  model `CatalogToolInfo`, and its result models `CompiledTool` and `CompiledGatewayPolicy`.
 - `sdks/python/agenta/sdk/agents/tools/__init__.py`. Export the new names.
 
 ### Contract it implements
@@ -74,18 +78,23 @@ The configuration model, exactly as contracts section 1 describes. Validation ru
 `data-model.md`, "Validation": non-empty routing fields, a required `default`, the four
 permission values, non-empty tool keys, and `extra="forbid"`.
 
-The compiler, exactly as contracts section 9 describes. It returns compiled tools and stale
-keys separately.
+The compiler, exactly as contracts section 9 describes. It returns one
+`CompiledGatewayPolicy` carrying `tools` and `stale_keys`.
 
-The migration function. It reads a list of raw tool entries and returns a list where legacy
-gateway entries are grouped into `gateway_connection` entries. Group by provider,
-integration, and connection. Set the new default to `deny`. Copy each old `permission` into
-the tool map. An old entry with no `permission` becomes `inherit`.
+The revision-level validator that rejects two `gateway_connection` entries for the same
+provider and integration. **It cannot live in `TOOL_CONFIG_ADAPTER`.** That adapter validates
+one entry at a time and never sees the list, so a cross-entry rule is invisible to it. Put
+the check in `coerce_tool_configs` in `compat.py`, which already receives the whole list and
+is the single entry point both the SDK resolver and the API use.
 
-The migration must read both legacy encodings, not just one. See the conflict note below.
+This slice writes **no migration function in Python.** Migration is an authoring action that
+happens in the drawer, so the frontend owns it in TypeScript, in Slice 6. A Python helper
+here would have no caller: the SDK only ever reads saved revisions, and it must keep reading
+legacy entries either way. Adding an uncalled migration path would be a second
+implementation to keep in step with the real one.
 
-A validator that rejects two `gateway_connection` entries for the same provider and
-integration in one revision.
+The SDK's obligation is narrower and unchanged: a legacy `gateway` entry must keep parsing,
+resolving, and running.
 
 ### What it must not touch
 
@@ -97,30 +106,31 @@ integration in one revision.
 
 ### Tests
 
-[qa.md](qa.md) already specifies these. This slice implements cases **C1 to C34**. Do not
-restate them here. Read the tables in `qa.md`, "SDK compiler tests".
+[qa.md](qa.md) already specifies these. This slice implements cases **C1 to C26, C28 to C30,
+and C34**. Do not restate them here. Read the tables in `qa.md`, "SDK compiler tests".
+
+C27, the cross-language wire shape, belongs to Slice 4, which owns the wire model. This
+slice owns no wire field, so it cannot test one.
+
+C31 to C33, the migration cases, belong to Slice 6 as TypeScript cases, because the frontend
+owns migration.
 
 Add to `sdks/python/oss/tests/pytest/unit/agents/tools/`.
 
 - `test_gateway_policy.py`. The compiler truth table, C1 to C17, and the other compiler
-  cases, C18 to C27. C13 is the case the format exists for, so write it first. C26 is a
+  cases, C18 to C26. C13 is the case the format exists for, so write it first. C26 is a
   security rule: catalog metadata never overrides an authored `deny`.
-- `test_gateway_connection_config.py`. The parse and validation cases, C20 to C24 and C28 to
-  C30.
-- `test_gateway_migration.py`. The migration cases, C31 to C34. Cover both legacy encodings.
-  See the conflict note below.
-
-Extend `sdks/python/oss/tests/pytest/unit/agents/tools/test_permission_parity.py` only if
-the compiler adds a case the shared golden file must hold, which is C27. Do not bend an
-existing case.
+- `test_gateway_connection_config.py`. The parse and validation cases, C20 to C24, C28 to
+  C30, and C34. C24, the duplicate-entry rule, must be driven through `coerce_tool_configs`
+  with a list, not through the single-entry adapter.
 
 Run: `cd sdks/python && py-run-tests`.
 
 ### Done when
 
-The three test files pass. `ruff format --check` and `ruff check` are clean. A legacy
-`gateway` entry still parses through `TOOL_CONFIG_ADAPTER`. No other test in the repository
-changed behavior.
+Both test files pass. `ruff format --check` and `ruff check` are clean. A legacy `gateway`
+entry still parses through `TOOL_CONFIG_ADAPTER`. No other test in the repository changed
+behavior.
 
 ### Wire ownership
 
@@ -155,18 +165,47 @@ resolution and catalog DTOs. [contracts.md](contracts.md) sections 2 and 3.
 
 ### What it must build
 
-The catalog parser keeps the provider slug it already reads. Today it strips a prefix from
-it and throws the original away. Keep both: the stripped Agenta key and the provider slug.
+**One cached, fully paginated catalog helper.** This is the load-bearing piece of the slice.
+Everything else depends on it.
 
-Every place that rebuilds the provider slug from the integration and the tool key reads the
-stored value instead. There are two such places on the resolve and execute paths, and one
-correct longest-prefix splitter on the search path. Keep the splitter, because search
-results arrive as bare provider slugs with no catalog row.
+Add one service method that returns the complete catalog for one integration, as a list of
+key, provider action ID, and `read_only`. It pages through the provider until the cursor is
+exhausted, and it caches the assembled whole under its own namespace with a time limit.
 
-`/tools/resolve` accepts a `gateway_connection` entry. For each one it validates the
-connection exactly as the per-tool arm does today, then lists that integration's catalog and
-returns key and `read_only` for every tool. Reuse the existing router cache. Do not add a
-second cache.
+Do not try to reuse the existing five-minute cache. That cache lives in the HTTP router and
+is keyed per page of a per-request query, so the service cannot read it and no single entry
+holds a whole catalog. Reusing it is not possible, and an earlier draft of this plan was
+wrong to say so.
+
+This one helper serves four callers:
+
+1. The `gateway_connections` arm of `/tools/resolve`, which returns key and `read_only`.
+2. `get_action`, which needs the canonical provider action ID.
+3. `execute`, on both the new `gateway.run` route and the legacy five-segment route.
+4. The close-key suggestions in Slice 3.
+
+**The provider action ID path.** The catalog parser keeps the provider slug it already reads.
+Today it strips a prefix and throws the original away. Keep both, the stripped Agenta key and
+the provider slug, and store the provider slug on the catalog model.
+
+Then remove the rebuild. `get_action` and `execute` currently reconstruct the slug by
+concatenation because neither has a catalog row in hand, and neither `ToolExecutionRequest`
+nor the gateway port can carry a canonical ID today. So this slice also:
+
+- adds the canonical provider action ID field to `ToolExecutionRequest` and to the
+  `ToolsGatewayInterface` execute signature;
+- has `get_action` and `execute` look the ID up through the catalog helper before calling the
+  provider;
+- routes the legacy five-segment call path through the same lookup, so both call paths
+  resolve identity the same way.
+
+Keep the longest-prefix splitter in `discovery.py`. Search results arrive as bare provider
+slugs with no catalog row, so that path still needs it. It is the only correct splitter of
+the three; the two naive ones go away with the rebuild.
+
+**The resolve arm.** `/tools/resolve` accepts a `gateway_connection` entry. For each one it
+validates the connection exactly as the per-tool arm does today, then reads the catalog
+helper and returns key and `read_only` for every tool.
 
 The endpoint keeps answering legacy `gateway` entries in `custom`. A single request may hold
 both arms.
@@ -180,19 +219,26 @@ both arms.
 
 ### Tests
 
-This slice implements case **A19** from [qa.md](qa.md), and the resolve half of A23.
+This slice implements case **A19** from [qa.md](qa.md), and the API half of **G11**.
+
+A23 is not this slice. It is one regression test that the `/tools/connections` contract is
+unchanged, and it belongs to Slice 3.
 
 Add to `api/oss/tests/pytest/unit/tools/`.
 
+- `test_catalog_helper.py`. The helper assembles a catalog that spans several provider
+  pages into one complete list. A second call inside the time limit does not call the
+  provider again. A cursor that ends on an exact page boundary terminates. Multi-page
+  coverage is the point: a helper tested only against a one-page fake will look correct and
+  silently truncate a 200-tool integration in production.
 - `test_catalog_action_identity.py`. A19. A parsed action keeps the provider slug.
-  `get_action` and `execute` use the stored value, never a rebuilt string. An integration
-  whose provider slug is not a plain uppercase prefix still resolves. Use a hyphenated
-  integration such as `google-calendar` and a prefix-overlap pair such as `slack` and
-  `slackbot`.
+  `get_action` and `execute` read the ID through the helper, never from a rebuilt string.
+  The legacy five-segment path resolves the same ID as the new route. An integration whose
+  provider slug is not a plain uppercase prefix still resolves. Use a hyphenated integration
+  such as `google-calendar` and a prefix-overlap pair such as `slack` and `slackbot`.
 - `test_resolve_gateway_connection.py`. A connection entry returns the catalog slice. A
-  missing connection returns 404. An inactive or invalid connection returns 400. A request
-  holding a legacy entry and a connection entry returns both arms, which is the API half of
-  G11.
+  missing connection returns 404. An inactive or invalid connection returns 400. G11: a
+  request holding a legacy entry and a connection entry returns both arms.
 
 Extend `api/oss/tests/pytest/unit/tools/test_resolution.py` so the existing five-segment
 call reference assertion still passes.
@@ -204,8 +250,9 @@ Run: `cd api && uv run --no-sync python -m pytest oss/tests/pytest/unit/tools -q
 
 ### Done when
 
-Both test files pass, the existing tools suite passes, and ruff is clean. The generated
-frontend client is regenerated in Slice 6, not here.
+The three test files pass, the existing tools suite passes, and ruff is clean. No code path
+builds a provider action ID by string concatenation any more. The generated frontend client
+is regenerated in Slice 6, after Slice 3, not here.
 
 ### Wire ownership
 
@@ -245,24 +292,45 @@ routing string.
 references read it. The legacy five-segment grammar ignores it and keeps working.
 
 `gateway.search`. Read `query` and the optional `integration` from the arguments. Read
-`provider` from `context`. Reject an empty query. Call the existing Composio search adapter.
-Check first whether the current Composio operation accepts a native toolkit filter. Use the
-native filter when it exists. Otherwise include the integration in the use-case text, as
-`runtime-tools.md` allows. Translate the provider result into Agenta integration and tool
-keys with the existing helpers. Return the object from contracts section 7. Do not apply
-agent permission here. Keep the existing search cache.
+`provider` from `context`. Reject an empty query. Pass the integration to Composio as a
+native toolkit filter. That capability is settled, not a question: it was measured on
+2026-08-26, and a scoped search and an unscoped search both returned in about 2.3 seconds.
+Do not write the fallback that enriches the use-case text. Translate the provider result into
+Agenta integration and tool keys with the existing helpers. Return the object from contracts
+section 7. Do not apply agent permission here. Keep the existing search cache.
+
+**The API does not check whether an integration is configured on the agent.** It cannot. The
+search context carries only `provider`, and the agent's configured set lives in
+`gatewayPolicy`, which is private to the runner. The runner rejects an unconfigured
+integration before it makes the callback. That check is Slice 5, and `qa.md` case A6 is
+owned by the runner, not by this slice.
 
 `gateway.run`. Read `provider`, `integration`, `connection`, and `tool` from `context`.
 Check project `RUN_TOOLS` access. Resolve the connection and check that it is active and
 valid. Check that the tool key belongs to that integration's catalog. Read the canonical
-provider action ID from the catalog row that Slice 2 stored. Check that `arguments` is an
-object. Execute through the provider adapter.
+provider action ID through the Slice 2 catalog helper. Check that `arguments` is an object.
+Execute through the provider adapter.
 
 Reject a call whose `context` is missing or incomplete. Do not fall back to a default.
 
 Errors follow contracts section 8. An unknown tool key returns up to five close keys from
-the same integration. Compute closeness with `difflib.get_close_matches` over the catalog
+the same integration, computed with `difflib.get_close_matches` over the catalog helper's
 keys. Do not write a new string-distance function.
+
+Note that these suggestions come from the whole integration catalog, so they can name a tool
+the agent denied. The API cannot filter them, for the same reason it cannot check the
+configured set. The runner sanitizes the list against `gatewayPolicy` in Slice 5.
+
+**Structured logging.** Slice 7 has to report the measurements listed in
+`runtime-tools.md`, and nothing records them today. Emit one log line per seam, with the
+existing module logger. No metrics framework, no new dependency.
+
+| Seam | Fields |
+| --- | --- |
+| Provider search returns | latency in milliseconds, whether the cache was hit, result count |
+| Provider search fails | the error class, whether it is retryable |
+| Resolve returns a catalog slice | integration, tool count, latency, whether the cache was hit |
+| Provider execution finishes | integration, tool key, outcome, latency |
 
 ### What it must not touch
 
@@ -274,17 +342,22 @@ keys. Do not write a new string-distance function.
 
 ### Tests
 
-This slice implements cases **A1 to A18, A20, A21, A22, and A23** from [qa.md](qa.md). A19
-belongs to Slice 2. Read the tables in `qa.md`, "API tests".
+This slice implements cases **A1 to A5, A7 to A18, and A20 to A23** from [qa.md](qa.md).
+A6 belongs to Slice 5, because only the runner knows the configured set. A19 belongs to
+Slice 2. Read the tables in `qa.md`, "API tests".
 
 Add to `api/oss/tests/pytest/unit/tools/`.
 
-- `test_gateway_search_route.py`. A1 to A9. Replay against the existing fixture at
-  `api/oss/tests/pytest/unit/tools/fixtures/composio_search_tools.json`. Note A4: the API
-  must not filter by agent permission. A test that asserted such filtering would encode the
-  wrong ownership.
-- `test_gateway_run_route.py`. A10 to A18, A20, and A21. A17, malformed arguments, and A19,
-  the rebuilt action ID, are both regressions of named current defects. Write A17 first.
+- `test_gateway_search_route.py`. A1 to A5 and A7 to A9. Replay against the existing fixture
+  at `api/oss/tests/pytest/unit/tools/fixtures/composio_search_tools.json`. A9 asserts the
+  outbound request carries the toolkit filter; it is a fixed expectation now, not a
+  conditional one. Note A4: the API must not filter by agent permission. A test that
+  asserted such filtering would encode the wrong ownership.
+- `test_gateway_run_route.py`. A10 to A18, A20, and A21. A17, malformed arguments, is a
+  regression of a named current defect. Write it first.
+
+A22 and A23 are existing suites. A23 is one regression test that the `/tools/connections`
+contract is unchanged; do not extend it with resolve or gateway coverage.
 
 Keep the existing `test_workflow_tool_call.py` passing. It shares `call_tool`, and G9 says
 its routing is unchanged.
@@ -320,7 +393,18 @@ prompt section.
 - `sdks/python/agenta/sdk/agents/wire_models.py`. Add the `gatewayPolicy` field.
 - `sdks/python/agenta/sdk/agents/utils/wire.py`. Emit the field.
 - `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`. Add the guidance builder.
-- `sdks/python/agenta/sdk/agents/adapters/harnesses.py`. Call the guidance builder.
+- `sdks/python/agenta/sdk/agents/adapters/harnesses.py`. Call the guidance builder from every
+  harness adapter.
+- **The propagation path.** A compiled policy produced in the resolver does not reach
+  `wire_models.py` on its own. Carry it explicitly through every seam between the two, and
+  check each one, because a copy that drops the field fails silently as an absent policy,
+  which the runner reads as deny:
+  - `sdks/python/agenta/sdk/agents/handler.py`;
+  - `ResolvedToolSet` in `tools/models.py`, which is what the resolver returns;
+  - `SessionConfig`, which the handler builds from it;
+  - each harness-template copy seam in `dtos.py`, where a template is rebuilt field by field.
+- `services/runner/src/protocol.ts` and `services/runner/tests/unit/wire-contract.test.ts`.
+  The passive TypeScript side. See "Wire ownership" below.
 
 ### Contract it implements
 
@@ -346,6 +430,13 @@ The prompt section. Build it only when the agent has at least one connection ent
 the six items listed in `runtime-tools.md`, "Prompt guidance", and the configured
 integration names. Place it in the Agenta half of the instructions, before the author's own
 text. Do not save it in the agent revision.
+
+**Inject it through every harness adapter, not only `compose_instructions`.** That function
+feeds the Agenta harness alone. Claude, Codex, and Pi each assemble their own prompt surface,
+so a section added only to `compose_instructions` leaves three of the four harnesses with two
+runtime tools and no instructions for using them. Each adapter has its own carrier: the
+instructions file for the file-based harnesses, and the appended system text for Pi. Add a
+test per harness that the section is present.
 
 Keep the existing per-tool gateway path working, including the rule that only a 404 drops
 one tool with a warning while any other failure fails the run.
@@ -380,19 +471,44 @@ Add to `sdks/python/oss/tests/pytest/unit/agents/`.
 - Add one golden file for the connection case. Do not edit the four existing ones except to
   prove they are unchanged.
 - Extend `test_harness_adapters.py`. The guidance section is present with a connection entry
-  and absent without one. The existing prefix assertions still hold.
+  and absent without one, **once per harness**: Claude, Codex, Pi, and Agenta. The existing
+  prefix assertions still hold.
+- C27, the cross-language wire shape, is this slice's alone. Extend
+  `test_permission_parity.py` so the Python and TypeScript models accept the same
+  `gatewayPolicy` object, including a `readOnly` of `null`.
 
-Run: `cd sdks/python && py-run-tests`.
+Run: `cd sdks/python && py-run-tests`, then `cd services/runner && pnpm run typecheck`.
 
 ### Done when
 
-The new tests pass, the four existing golden files are unchanged, and ruff is clean.
+The new tests pass, the four existing golden files are unchanged, ruff is clean, and `tsc`
+passes in the runner with the new field declared.
 
 ### Wire ownership
 
-The SDK owns the Python half of contracts section 5. Slice 5 owns the TypeScript half. The
-two must land in an order that keeps `main` working: add the optional field on both sides
-before anything reads it.
+The SDK owns the Python half of contracts section 5. Slice 5 owns enforcement.
+
+**This slice lands both sides of the declaration, in one order that never breaks `main`.**
+Add the passive TypeScript side first, in the same slice:
+
+1. Declare `gatewayPolicy` as an optional field on `AgentRunRequest` in `protocol.ts`, and
+   add it to `KNOWN_REQUEST_KEYS` in `wire-contract.test.ts`. No behavior reads it yet.
+2. Then emit it from Python.
+
+Doing it the other way round breaks the repository between the two slices. The runner's key
+guard is a compile-time check over the permitted top-level keys, so a Python emitter that
+ships first sends a field the TypeScript contract test rejects. The declaration is inert, so
+landing it early costs nothing and keeps every intermediate commit green.
+
+**Do not enable the two derived tools until Slice 5 has landed.** The passive field above is
+inert, but `search_tools` and `run_tool` are not. They carry `permission: "allow"`, and the
+gate that turns that into a real decision is Slice 5. A deployment that has Slice 4 and not
+Slice 5 hands the model a `run_tool` that reaches the provider with no policy applied at all,
+which is worse than the behavior this project replaces.
+
+Keep the derived tools behind a flag that Slice 5 turns on, or land the two slices together.
+Do not ship Slice 4 to any environment on its own. Slice 7 checks this by confirming that a
+build carrying `run_tool` also refuses a denied tool.
 
 ---
 
@@ -403,14 +519,17 @@ and fix the operator override order.
 
 ### Scope
 
-- `services/runner/src/protocol.ts`. Add `gatewayPolicy` to `AgentRunRequest` and its types.
+Slice 4 already declared `gatewayPolicy` in `protocol.ts`. This slice reads it.
+
 - `services/runner/src/permission-plan.ts`. Fix the operator override order. Add the gateway
   lookup.
 - `services/runner/src/tools/callback.ts`. Send `context` on the gateway callback.
-- `services/runner/src/tools/relay.ts`. Gate the gateway call and filter the search result.
-- `services/runner/src/engines/sandbox_agent/acp-interactions.ts`. Carry the integration and
-  the tool key in the approval identity and on the approval card.
-- `services/runner/tests/unit/wire-contract.test.ts`. Add the new key.
+- `services/runner/src/tools/relay.ts`. Gate the gateway call, validate arguments, filter the
+  search result, and sanitize run suggestions.
+- `services/runner/src/run-turn.ts` and `services/runner/src/responder.ts`. Reach the pause
+  and approval machinery from the relay gate. See "Delivery paths" below.
+- `services/runner/src/engines/sandbox_agent/acp-interactions.ts`. Show the integration and
+  the tool key on the approval card.
 
 ### Contract it implements
 
@@ -421,26 +540,58 @@ override". `runtime-tools.md`, "Runner gate" and "Translation and filtering".
 ### What it must build
 
 **The operator override fix.** Today the deployment-wide deny switch only replaces the plan
-default. The effective-permission function reads an explicit specification permission first,
-so an explicit `allow` beats the switch. Make the switch a first-class top-priority
-condition inside that one function. Every caller already routes through it, so one change
-closes every path. The existing test for the switch does not exercise a gate that carries an
-explicit permission. Add that case.
+default, and the effective-permission function reads an explicit specification permission
+first, so an explicit `allow` beats the switch.
+
+Two things are wrong, not one. Fix both.
+
+1. **Order.** Make the switch a first-class top-priority condition, ahead of the
+   specification permission.
+2. **Freshness and reach.** Read the switch at decision time inside the shared gate that
+   every tool family passes through, not from a plan captured at run start. The plan is built
+   once, so an operator who turns the switch on mid-run does not affect a live run. Client
+   tools also take a path that does not call the effective-permission function today, so a
+   fix confined to that function would leave them uncovered.
+
+The existing test for the switch asserts only the returned plan and never builds a gate that
+carries an explicit permission, which is why the hole is untested.
 
 **The gateway gate.** When the model calls `run_tool`, read the integration and the tool key
 from the model's arguments. Look them up in `gatewayPolicy`. Treat a missing integration or a
 missing tool as `deny`. Apply the operator override, then the compiled value. Reject `deny`,
 continue on `allow`, and start an approval interaction on `ask`.
 
-Run this gate on every delivery path. The local loopback path, the in-sandbox path used on
-Daytona, and the relay file loop all carry a gateway call. The relay execution seam is the
-one point every path passes through, so the gate belongs there. Do not rely on the harness
-or on the model naming a tool.
+Validate the shape before deciding: `arguments` must be a plain object. The existing
+required-argument check tests presence only, so a forged relay file can carry a string or an
+array where an object belongs and reach approval with input the schema would reject. Check
+the type on every path, including relay files, and reject before the approval card, never
+after it.
 
-**Approval identity.** The stored decision key must include the integration and the tool key
-in addition to the canonical arguments. Keying on the coarse `run_tool` name alone would let
-one approved call authorize a different integration tool. The approval card shows the
-integration, the tool key, and the arguments.
+**Coarse gating.** The two runtime tools carry `permission: "allow"` on their specifications,
+per contracts section 4. That is what lets a compiled `allow` actually run without a prompt.
+It is not an authorization decision; the semantic gate below is. Do not remove it thinking it
+loosens policy: without it every gateway call raises a meaningless second card named
+`run_tool`, and a compiled `allow` never runs unprompted.
+
+**Delivery paths.** Run the gate on every path. The local loopback path, the in-sandbox path
+used on Daytona, and the relay file loop all carry a gateway call, and the relay execution
+seam is the one point they all pass through. Do not rely on the harness or on the model
+naming a tool.
+
+The relay seam can execute or refuse today, but it cannot pause. It has no way to create a
+Sessions interaction or end the turn, so a forged relay call that compiles to `ask` would
+either run or be refused outright, and neither is correct. Thread the existing pause and
+responder wiring from `run-turn.ts` into the relay gate so the relay path raises a real
+approval card and pauses, exactly as the harness path does.
+
+**Approval identity.** Reuse `approvedCallKey`. It already keys on the tool name plus the
+canonical arguments, and for `run_tool` the arguments contain the integration and the tool
+key, so two different integration tools already produce two different keys. No new keying
+scheme is needed, and inventing one risks breaking warm-session resume for every other tool.
+
+Two obligations remain. Preserve the full outer arguments when computing the key, so the
+integration and tool stay inside it. And show the integration and the tool key on the
+approval card, so a person approves a named action rather than the word `run_tool`.
 
 **Search filtering.** After the API answers a `gateway.search` call, and before the result
 reaches the harness, parse the JSON, then apply the five filters from `runtime-tools.md`:
@@ -449,12 +600,26 @@ drop results with no usable object schema, and keep at most five. Write the filt
 back. When nothing remains, write the empty result and its message. When the body does not
 parse, write the `tool_search_unavailable` error.
 
-This is the first place the runner processes a callback result instead of passing it through.
-Add the step only for the two gateway call references. Every other tool keeps its current
-pass-through path.
+Reject an unconfigured `integration` argument here, before the callback, because only the
+runner holds the configured set. This is `qa.md` case A6, moved from the API.
+
+**Run error sanitizing.** Separately from the above, the `gateway.run` error envelope can
+carry close-key suggestions drawn from the whole integration catalog, so it can name a tool
+the agent denied or never configured. Drop those keys from the suggestion list against
+`gatewayPolicy` before the error reaches the model. This is a small field edit on an error
+payload, not result transformation.
+
+Keep both narrow. Success-result transformation applies to `gateway.search` alone. Every
+other tool, including `gateway.run` on success, keeps its current pass-through path. Do not
+build a general result-processing pipeline.
 
 **The callback context.** Read the provider and the connection for that integration from
 `gatewayPolicy` and send them as `context`. The model never supplies them.
+
+**Structured logging.** Emit one line per seam, so Slice 7 can report the measurements:
+search results before and after filtering with the drop count by reason, the rank of the
+result the model then ran, gate decisions by outcome, and any execution attempt with no
+prior successful search.
 
 ### What it must not touch
 
@@ -467,24 +632,32 @@ pass-through path.
 
 ### Tests
 
-This slice implements cases **R1 to R28** from [qa.md](qa.md), and the unit half of N1 to
-N11. Read the tables in `qa.md`, "Runner tests".
+This slice implements cases **A6 and R1 to R28** from [qa.md](qa.md), the unit half of N1 to
+N11, and the two cases added by this review, R29 and R30. Read the tables in `qa.md`,
+"Runner tests".
 
 Add to `services/runner/tests/unit/`.
 
-- `gateway-policy-gate.test.ts`. R1 to R8. R6 is the operator override correction. It must
-  fail before the fix and pass after it. R7 and R8 pin the order: operator deny, then the
-  compiled permission, then a stored answer.
-- `gateway-delivery-paths.test.ts`. R9 to R14. R10 to R13 are the core security tests of
-  this feature. A relay request file written inside the sandbox is gated by the same rule as
-  a harness call, with the same result.
-- `gateway-approval-identity.test.ts`. R15 to R21. R17 is the case that a coarse tool name
-  alone would break.
-- `gateway-search-filter.test.ts`. R22 to R28. R28 must assert on the serialized payload,
-  not on the object the runner built.
+- `gateway-policy-gate.test.ts`. R1 to R8. R6 is the operator override correction and must
+  fail before the fix and pass after it. R8 requires a switch flipped after run start, so
+  drive it by changing the environment between two decisions in one run, not by building a
+  new plan. R7 and R8 pin the order: operator deny, then the compiled permission, then a
+  stored answer. Add one case per tool family, including client tools, since they take a
+  different path today.
+- `gateway-delivery-paths.test.ts`. R9 to R14, plus R29, the relay-path argument type check.
+  R10 to R13 are the core security tests of this feature. R13 must assert that a forged relay
+  file compiling to `ask` produces a real Sessions interaction and a paused turn, not a
+  refusal.
+- `gateway-approval-identity.test.ts`. R15 to R21. R17 should pass with the existing
+  `approvedCallKey` once the full outer arguments are preserved; write it to prove that,
+  not to justify a new keying scheme.
+- `gateway-search-filter.test.ts`. A6 and R22 to R28. R28 must assert on the serialized
+  payload, not on the object the runner built.
+- `gateway-run-suggestions.test.ts`. R30, the sanitized suggestion list. A denied key and an
+  unconfigured key are both removed from a `gateway.run` error before the model sees it.
 
-Extend `tests/unit/permission-plan.test.ts` with R6. Extend `tests/unit/tool-relay-guard.test.ts`
-with R14. Extend `tests/unit/wire-contract.test.ts` with the new top-level key.
+Extend `tests/unit/permission-plan.test.ts` with R6. Extend
+`tests/unit/tool-relay-guard.test.ts` with R14.
 
 Check the shared permission golden file at
 `sdks/python/oss/tests/pytest/unit/agents/golden/permission_decisions.json`. If the operator
@@ -495,12 +668,13 @@ Run: `cd services/runner && pnpm run typecheck && pnpm test`.
 
 ### Done when
 
-The four new test files pass, the existing runner suite passes, `tsc` is clean, and the
+The five new test files pass, the existing runner suite passes, `tsc` is clean, and the
 Python and TypeScript permission parity tests agree.
 
 ### Wire ownership
 
-The runner owns the TypeScript half of contracts section 5 and the caller half of section 6.
+The runner owns enforcement of contracts section 5, which Slice 4 declared, and the caller
+half of section 6.
 
 ---
 
@@ -511,9 +685,14 @@ permission preset per integration. Override single tools.
 
 ### Scope
 
-Read `/home/mahmoud/code/agenta/design_handoff_integration_permissions/README.md` first, and
-section 2a of the design board beside it. Section 2a is the specification. Sections 1a and 1b
-are earlier work. Do not build them.
+Read [ui-handoff.md](ui-handoff.md) first, then section 2a of
+[ui-handoff-board.html](ui-handoff-board.html). Both are copied into this workspace and
+versioned on this branch, so the specification cannot drift or go missing. Section 2a is the
+specification. Sections 1a and 1b are earlier work. Do not build them.
+
+**Order.** The pure parts below need only Slice 1 and can start at once. Regenerating the
+API client needs Slice 3 to have landed, because the generator rebuilds the whole client
+from a running API's OpenAPI document.
 
 - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils.ts`. Parse the new
   entry. Add an identity helper for a connection entry.
@@ -524,8 +703,11 @@ are earlier work. Do not build them.
 - `.../SchemaControls/agentTemplate/AgentIntegrationDrawer.tsx`. The add drawer, reshaped.
 - `.../SchemaControls/agentTemplate/itemDescriptors.tsx` and `itemKinds.tsx`. Describe and
   route the new entry.
-- `.../SchemaControls/agentTemplate/useAgentTools.ts`. Add and remove a connection entry.
-- `web/packages/agenta-api-client`. Regenerate after Slice 2 and Slice 3 land.
+- `.../SchemaControls/agentTemplate/useAgentTools.ts`. Add, replace, and remove a connection
+  entry.
+- `.../SchemaControls/gatewayMigration.ts`. New file. The migration from legacy entries.
+  The frontend owns migration; there is no Python twin.
+- `web/packages/agenta-api-client`. Regenerate, after Slice 3 lands.
 
 ### Contract it implements
 
@@ -552,16 +734,49 @@ connections. Pick a connection when several exist for one integration. Reuse the
 connect flow component for the Connect button. A new integration is added with the "Ask for
 write and delete" preset.
 
-**Migration on read.** The tools list reads legacy entries and shows them under the matching
-integration row with a badge that marks them as an old format. Opening that integration's
-drawer writes the migrated `gateway_connection` entry into the draft, using the Slice 1
-migration rules. Migration writes on an author action, never on a page load, so an untouched
-agent is never rewritten by being viewed.
+Choosing a different connection for an integration that is already configured **replaces**
+the existing entry in one write. It never appends a second one. The saved format allows only
+one entry per provider and integration, so an append produces a revision the SDK refuses to
+parse, and the author would see the failure only later, at run time. Replacement keeps the
+policy the author already set and swaps the connection slug alone.
+
+**Migration.** The frontend owns migration, in TypeScript. There is no Python twin to keep in
+step.
+
+The tools list reads legacy entries and shows them under the matching integration row with a
+badge that marks them as an old format. Opening that integration's drawer writes the migrated
+`gateway_connection` entry into the draft. Migration writes on an author action, never on a
+page load, so an untouched agent is never rewritten by being viewed.
+
+Group legacy entries by provider, integration, and connection. Set the new default to `deny`
+and copy each old `permission` into the tool map. An old entry with no `permission` becomes
+`inherit`. Read both legacy encodings, not just the documented one. See the conflict note
+below.
+
+**Migrate an integration only when all its legacy entries share one connection.** The saved
+format allows one entry per provider and integration, but a legacy revision may hold entries
+for one integration across two connections. Grouping those by connection would produce two
+entries for one integration, which is invalid.
+
+When an integration's legacy entries name two or more connections, do not migrate that
+integration. Leave its legacy entries exactly as they are. They keep parsing, resolving, and
+running, and the rows keep the legacy badge. Migrate the other integrations in the same
+revision normally. Do not guess which connection the author meant, and do not drop the
+entries for the connections you did not pick.
 
 **Reuse, do not rebuild.** The two-line select with a title and a help line already exists as
 `PermissionPolicySelect`. The collapsible group, the section header, and the app logo already
 exist in `sectionGroups.tsx`. The catalog browser already exists as `CatalogChooser`. The
 connect flow already exists as `ConnectDrawer`. Use them.
+
+**Group rollups show authored policy, not effective permission.** Each group header
+summarizes the saved values of the tools inside it: one shared value when they agree, and a
+mixed label when they do not. A tool saved as `inherit` displays as "follows agent policy".
+
+The drawer must not resolve `inherit` into `allow` or `ask` to build that summary. Doing so
+would mean reimplementing the compiler in TypeScript against an agent-wide mode the drawer
+does not own, and the two implementations would drift. The runner is the only place that
+computes an effective permission.
 
 ### What it must not touch
 
@@ -573,20 +788,25 @@ connect flow already exists as `ConnectDrawer`. Use them.
 
 ### Tests
 
-This slice implements cases **F1 to F15** from [qa.md](qa.md), and G5. Read the table in
-`qa.md`, "Frontend tests". Test the pure translation functions. Do not test the drawer
-layout.
+This slice implements cases **C31 to C33, F1 to F17, and G5** from [qa.md](qa.md). C31 to
+C33 are the migration cases, moved here from Slice 1 and written in TypeScript. F16 and F17
+were added by this review. Read the table in `qa.md`, "Frontend tests". Test the pure
+translation functions. Do not test the drawer layout.
 
 Add to `web/packages/agenta-entity-ui/tests/unit/`.
 
-- `integrationPresets.test.ts`. F1 to F9. Every preset in both directions, the override
-  count, and the clear-on-preset behavior.
-- `gatewayConnection.test.ts`. F10 to F12 and F14. The read-only and write partition comes
-  from the catalog flag, and a tool with an absent flag lands in the write group. F14
-  matters most: a saved key that left the catalog stays visible and the config is not
-  rewritten.
-- `gatewayMigration.test.ts`. F13 and G5. Both legacy encodings migrate to the same result,
-  and a migrated group reads back the permissions it was saved with.
+- `integrationPresets.test.ts`. F1 to F9. Every preset in both directions, the
+  clear-on-preset behavior, and F7, where the override count is the number of saved entries
+  in `tools`, including an entry that happens to equal the default.
+- `gatewayConnection.test.ts`. F10 to F12, F14, and F16. F11 asserts an authored-policy
+  rollup: a group of tools all saved `inherit` rolls up as "follows agent policy", and a
+  mixed group rolls up as mixed. No test here may resolve `inherit`. F14 matters most: a
+  saved key that left the catalog stays visible and the config is not rewritten. F16 is the
+  atomic connection swap, which must replace and never append.
+- `gatewayMigration.test.ts`. C31 to C33, F13, G5, and F17. Both legacy encodings migrate to
+  the same result, a migrated group reads back the permissions it was saved with, and F17 is
+  the multi-connection case: an integration whose legacy entries name two connections is left
+  unmigrated, with its entries intact.
 
 F15, the write-through, extends `toolPermission.test.ts`. Keep `toolPermission.test.ts` and
 `gatewayTool.test.ts` passing.
@@ -649,6 +869,10 @@ Record the measurements listed in `runtime-tools.md`, "Measurements", plus the c
 resolve latency from open question 5. They decide whether a local search index is needed
 later.
 
+Read them from the structured log lines that slices 3 and 5 emit. Do not reconstruct them by
+hand from transcripts. If a measurement in that list has no log line behind it, the gap is a
+bug in slice 3 or slice 5, not something to estimate here.
+
 Add the release gate cell, following [release-gate-changes.md](release-gate-changes.md). It
 is one new cell, one fixture requirement, and two edits to existing files. Wire
 `check_no_silent_turn` into the pass condition of every leg. A leg that passes because
@@ -677,12 +901,12 @@ None. This slice reads the contracts and changes none of them.
 
 ---
 
-## Open questions
+## Decisions taken during review
 
-These are gaps between the design documents and the code. Each one carries a recommendation.
-Ask before departing from a recommendation.
+These began as open questions. A review on 2026-08-26 resolved all six. Each states what was
+adopted. Do not reopen one without saying what new evidence changed it.
 
-### 1. What "Ask for write and delete" means when the agent-wide mode changes
+### 1. What "Ask for write and delete" means when the agent-wide mode changes. ADOPTED
 
 The preset saves `default: "inherit"`. Under the agent-wide mode `allow_reads`, that means
 reads run and writes ask, which is what the preset says. `allow_reads` is the default
@@ -690,61 +914,76 @@ agent-wide mode in the SDK and in the frontend. But an author can change the age
 to `ask`, `allow`, or `deny`. The preset then quietly means something else while still
 showing the same words.
 
-**Recommendation.** Save `inherit`, and show a line under the select when the agent-wide mode
-is not `allow_reads`: "This agent's permission policy is set to {mode}, so these tools follow
-it." Do not expand the preset into an explicit per-tool map. An explicit map bloats the saved
+**Adopted.** Save `inherit`, and show a line under the select when the agent-wide mode is not
+`allow_reads`: "This agent's permission policy is set to {mode}, so these tools follow it."
+Do not expand the preset into an explicit per-tool map. An explicit map bloats the saved
 entry, breaks when the catalog changes, and makes every new provider tool ask.
 
-### 2. How the drawer shows a tool set to `inherit`
+### 2. How the drawer shows a tool set to `inherit`. ADOPTED
 
 The saved format has four per-tool values. The design handoff gives the per-tool select three
 options: Ask, Allow, and Deny. Migration writes `inherit` for every legacy tool that carried
 no explicit permission, and today the frontend adds tools with no permission field. So after
 migration, most rows will hold a value the select cannot show.
 
-**Recommendation.** Add a fourth per-tool option named "Follow agent policy", with the same
-glyph the "Ask for write and delete" preset uses. It is one extra row in a menu that already
-exists, and it keeps the migrated value editable without losing it. This is a departure from
-the handoff, so it needs a short design sign-off before Slice 6 builds it.
+**Adopted.** Add a fourth per-tool option named "Follow agent policy", with the same glyph
+the "Ask for write and delete" preset uses. It is one extra row in a menu that already exists,
+and it is required for lossless editing: without it, a migrated row holds a value the drawer
+cannot display and an author cannot restore once they change it.
 
-### 3. Whether an agent may hold both entry formats at once
+This is a departure from the handoff. Get the short design sign-off before Slice 6 starts,
+not after, because the per-tool select is built once.
+
+### 3. Whether an agent may hold both entry formats at once. ADOPTED
 
 `data-model.md` says readers accept both discriminators during migration. `runtime-tools.md`
 says the model gets two tools when the agent has at least one connection entry. Neither says
 what happens when an agent holds a connection entry and a legacy per-tool entry together.
 
-**Recommendation.** Allow it. The legacy entry keeps producing its own named tool, and the
-connection entry produces the two derived tools. The model then sees both surfaces for one
-run. This costs nothing and keeps a half-migrated agent working. Slice 4 tests it.
+**Adopted.** Allow it. The legacy entry keeps producing its own named tool, and the connection
+entry produces the two derived tools. The model then sees both surfaces for one run. This
+keeps a half-migrated agent working, and finding 1 above makes it unavoidable: an integration
+with legacy entries across two connections is deliberately left unmigrated, so mixed
+revisions are a supported steady state, not only a transient one.
 
-### 4. Whether Composio's search operation accepts a toolkit filter
+It does not cost nothing. Two surfaces can disagree about the same tool: a legacy entry may
+say `allow` for a tool the connection entry denies. The legacy entry is its own tool with its
+own permission and keeps its own behavior; the connection policy governs only calls made
+through `run_tool`. That is the rule. Slice 4 tests the coexistence and `qa.md` case G12
+tests the conflicting-permission collision.
 
-`runtime-tools.md` says implementation must check this before relying on query enrichment.
-The current adapter sends only the queries and a session, with no scoping argument.
+### 4. Whether Composio's search operation accepts a toolkit filter. RESOLVED
 
-**Recommendation.** Slice 3 checks the current provider API first. If a native filter exists,
-use it. If not, include the integration name in the use-case text and rely on the runner's
-filter. Either way the runner filter is the boundary, so the answer changes result quality,
-not correctness.
+Measured on 2026-08-26. The provider search operation does accept toolkit scoping. A scoped
+search and an unscoped search both returned in about 2.3 seconds, so scoping costs nothing.
 
-### 5. Latency of the catalog slice at run start
+**Pinned.** Slice 3 passes the native toolkit filter. Do not write the use-case-text
+enrichment fallback, and do not re-check the capability during implementation. `qa.md` case
+A9 asserts the outbound request carries the filter, as a fixed expectation rather than a
+conditional one.
 
-The compiler needs every catalog tool for each configured integration. Contracts section 3
-returns that slice from `/tools/resolve` so the SDK makes one round trip per run instead of
-one per tool. The API lists the catalog behind a five-minute cache. A cold list for a large
-integration is several provider pages.
+### 5. Latency of the catalog slice at run start. RESOLVED
 
-**Recommendation.** Ship it as described and measure the cold and warm resolve times in Slice
-7. If a cold resolve is slow enough to hurt, the fix is a longer cache for the key and
-`read_only` pair, not a change to the design.
+The earlier recommendation said to reuse the existing five-minute catalog cache. That was
+wrong against the current code. The cache lives in the HTTP router and is keyed per page of a
+per-request query, so the service cannot read it and no entry holds a whole catalog.
 
-### 6. Client tools and the new result-processing step
+**Resolved by Slice 2.** That slice adds one cached, fully paginated service helper that
+returns a complete catalog for one integration. Measure cold and warm resolve latency in
+Slice 7 against that helper. If a cold resolve is slow enough to hurt, the fix is a longer
+time limit on the helper, not a change to the design.
 
-The runner passes every callback result to the harness unchanged today. Slice 5 adds the
-first exception, for `gateway.search`.
+### 6. Scope of the new result-processing step. RESOLVED
 
-**Recommendation.** Scope the step to the two gateway call references by name. Do not build a
-general result-processing pipeline. A second case can generalize it later, with evidence.
+The runner passes every callback result to the harness unchanged today. Slice 5 adds an
+exception, and the earlier recommendation scoped it to "the two gateway call references",
+which is broader than needed.
+
+**Scoped.** Success-result transformation applies to `gateway.search` alone. `gateway.run` on
+success stays a pass-through. `gateway.run` on error gets a narrow field edit instead: the
+close-key suggestion list is sanitized against `gatewayPolicy`, because the API builds it
+from the whole catalog and can otherwise name a denied tool. Do not build a general
+result-processing pipeline.
 
 ## Conflicts between the design and the current code
 
@@ -758,12 +997,24 @@ that carries resource identity, not policy. So Slice 3 adds the new routes besid
 grammar and deletes nothing. The old grammar must keep working for saved revisions and warm
 sessions.
 
+**The design's migration rule can produce a configuration its own validation rejects.**
+`data-model.md` groups legacy entries by provider, integration, and connection, while its
+validation allows at most one entry per provider and integration. A legacy revision holding
+entries for one integration across two connections migrates into two entries for that
+integration, which is invalid.
+
+The design is decided and does not change. The plan resolves the gap in the migration step
+instead: migrate an integration only when all of its legacy entries share one connection.
+Otherwise leave that integration's legacy entries untouched and keep the legacy badge on its
+row. This is the only resolution that neither invents an author's intent nor drops entries.
+It also makes a mixed-format revision a permanent supported state, which decision 3 above
+records. Slice 6 owns it and `qa.md` case F17 tests it.
+
 **The frontend has never written the canonical `gateway` entry.** The migration section of
 `data-model.md` shows migrating from entries shaped `{"type": "gateway", "action": ...}`. The
 current add drawer writes a different shape, a function entry whose name is a five-segment
-slug. Both shapes exist in saved revisions. The migration in Slice 1 and Slice 6 must read
-both. A migration that reads only the documented shape would silently drop most real agents'
-tools.
+slug. Both shapes exist in saved revisions. The migration in Slice 6 must read both. A
+migration that reads only the documented shape would silently drop most real agents' tools.
 
 **The catalog throws away the canonical provider action ID.** The design says execution must
 never rebuild that ID by string concatenation. Today the parser strips the provider prefix

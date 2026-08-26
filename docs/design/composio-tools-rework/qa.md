@@ -114,10 +114,26 @@ Extend `sdks/python/oss/tests/pytest/unit/agents/tools/test_models.py` and
 | C28 | A `gateway_connection` entry | Parses into the new model. |
 | C29 | A legacy `gateway` entry | Still parses. Still resolves. Still runs. |
 | C30 | A revision holding both entry types | Both parse. |
+| C34 | Saved tool key absent from the current catalog | The revision stays parsable. Catalog drift must not break an old revision. |
+
+C24, the duplicate-entry rule, is a revision-level rule. Drive it through
+`coerce_tool_configs` with a list of entries. The single-entry `TOOL_CONFIG_ADAPTER` never
+sees two entries and cannot enforce it.
+
+C27, the cross-language wire shape, belongs to the slice that owns the wire model, not to the
+compiler slice.
+
+### Migration cases (TypeScript)
+
+Migration runs in the frontend, so these are vitest cases in
+`web/packages/agenta-entity-ui/tests/unit/gatewayMigration.test.ts`, not pytest cases. There
+is no Python migration function.
+
+| ID | Case | Expected |
+| --- | --- | --- |
 | C31 | Legacy group migration | Entries that share provider, integration, and connection group into one entry with `default: "deny"`. |
 | C32 | Legacy entry with no `permission` | Maps to `inherit`. |
 | C33 | Legacy entry with `permission: "allow"` | Maps to `allow`. |
-| C34 | Saved tool key absent from the current catalog | The revision stays parsable. Catalog drift must not break an old revision. |
 
 ## API tests
 
@@ -138,13 +154,22 @@ Composio from a unit test.
 | A3 | A result the API cannot map to a catalog tool key | Dropped before the response. |
 | A4 | Agent permissions | The API does not apply them. The translated response is not filtered by policy. |
 | A5 | An empty `query` | Rejected with an actionable error. The provider is not called. |
-| A6 | An unconfigured `integration` | Rejected before the provider search. |
+| A6 | An unconfigured `integration` | Rejected before the callback. **Owned by the runner**, not the API. See the note below. |
 | A7 | A provider transport failure | Returns `code: "tool_search_unavailable"` with `retryable: true`. |
 | A8 | The search cache | A repeated identical query does not call the provider twice. |
-| A9 | A native toolkit filter | If the current Composio operation supports one, the adapter passes it. Assert the outbound request shape. |
+| A9 | The native toolkit filter | The outbound provider request carries the toolkit filter for the requested integration. Assert the request shape. |
 
 A4 looks strange but it is the design. The runner owns the policy filter. An API test that
 asserted permission filtering would encode the wrong ownership.
+
+A6 moved to the runner for the same reason. The search context carries only `provider`, and
+the set of integrations configured on the agent lives in `gatewayPolicy`, which is private to
+the runner. The API cannot know whether a model-supplied integration is configured, so it
+cannot make this check. Write A6 as a runner test.
+
+A9 is no longer conditional. Toolkit scoping was measured on 2026-08-26 and the provider
+supports it, at the same latency as an unscoped search. Assert the filter is present. Do not
+write a fallback path or a test for one.
 
 ### Run route
 
@@ -155,8 +180,8 @@ asserted permission filtering would encode the wrong ownership.
 | A12 | A connection from another project | Rejected. |
 | A13 | A revoked connection | Rejected at execution time. |
 | A14 | An inactive or invalid connection | Rejected at execution time. |
-| A15 | An unknown or stale tool key | Error carries up to five close keys from the same configured integration. |
-| A16 | The close-key list | Contains no key from an integration the agent did not configure. |
+| A15 | An unknown or stale tool key | Error carries up to five close keys from the same integration's catalog. |
+| A16 | The close-key list | Contains no key from another integration. The API scopes suggestions to the integration in the context. |
 | A17 | `arguments` is a string, an array, or `null` | Actionable error. Never replaced with `{}`. |
 | A18 | `arguments` is a valid object | Forwarded byte-for-byte to the provider adapter. |
 | A19 | The provider action ID | Read from the catalog. Never rebuilt by string concatenation from integration and tool strings. |
@@ -165,12 +190,24 @@ asserted permission filtering would encode the wrong ownership.
 
 A17 and A19 are both regressions of named current defects. Write them first.
 
+A16 scopes suggestions to one integration, which is all the API can do. It cannot drop a key
+the agent denied, because it does not hold the agent's policy. The runner sanitizes the list
+against `gatewayPolicy` before the model sees it. That is case R30.
+
+A19 is worth stating precisely, because it is the defect that already reached production: the
+provider action ID must come from the catalog on every path, including the legacy five-segment
+route, and no code path may rebuild it by joining the integration and the tool key.
+
 ### EE and acceptance
 
 | ID | Case | Expected |
 | --- | --- | --- |
 | A22 | Role gating on the EE tools routes | Mirrors `api/ee/tests/pytest/acceptance/tools/test_tools_connections.py`. |
 | A23 | The `/tools/connections` contract | Unchanged by this rework. `api/oss/tests/pytest/acceptance/tools/test_tools_connections.py` still passes. |
+
+A23 is exactly one regression check on the connections contract. Do not extend it with
+resolve-route or gateway-route coverage. A request that mixes a legacy entry and a connection
+entry is case G11.
 
 ## Runner tests
 
@@ -189,11 +226,18 @@ tests under `services/runner/tests/unit/`.
 | R5 | A tool key absent from the resolved policy | Treated as `deny`. |
 | R6 | Operator deny plus compiled `allow` | Rejected. The operator switch is a first-class top-priority condition, not a replacement for the runner default. |
 | R7 | Operator deny plus a stored `allow` approval answer | Rejected. Order is operator deny, then compiled permission, then stored answer. |
-| R8 | Operator deny turned on after run start | Rejected. The compiled policy is not consulted first. |
+| R8 | Operator deny turned on after run start | Rejected. Drive it by flipping the switch between two decisions inside one run, not by building a second plan. |
+| R8b | Operator deny and a client tool | Rejected. Client tools take a path that does not call the shared permission function today, so the fix must reach them too. |
 
 R6 is the correction named in [permission-layers.md](permission-layers.md). The current
 implementation replaces only the runner default, so an explicit `allow` can win today.
 This test must fail before the fix and pass after it.
+
+R8 and R8b are the second half of that correction, and they are separate failures. The
+permission plan is built once at run start, so a switch flipped mid-run does not reach a live
+run. And not every tool family routes through the shared decision function. A fix that only
+reorders the checks inside that function passes R6 and still fails both of these. The switch
+must be read at decision time, in a path every tool family shares.
 
 ### Delivery paths
 
@@ -207,11 +251,21 @@ relay is `services/runner/src/tools/relay.ts`. The build guard is
 | R10 | A relay request file written inside the sandbox | Gated by the same rule, with the same result as R9. |
 | R11 | A relay request naming a denied tool | Rejected. The response file carries an error, not a result. |
 | R12 | A relay request naming an unconfigured integration | Rejected. |
-| R13 | A relay request naming a tool with compiled `ask` | Raises a real approval card. It does not run. |
+| R13 | A relay request naming a tool with compiled `ask` | Creates a real Sessions interaction and pauses the turn. It neither runs nor is refused outright. |
 | R14 | The sandbox bundle | Contains no connection slug, no resolved policy, and no callback credential. Extend `services/runner/tests/unit/tool-relay-guard.test.ts`. |
+| R29 | A relay request whose `arguments` is a string, an array, or `null` | Rejected before approval. The type is checked, not only the presence of required keys. |
 
 R10 through R13 are the core security tests of this feature. The model naming a tool is not
 proof that the tool is permitted.
+
+R13 is the hardest of them to satisfy and the easiest to fake. The relay seam can execute or
+refuse today, but it cannot create an interaction or end a turn. A test that accepts a
+refusal here passes against an implementation that silently denies every relay-path `ask`,
+which is the wrong behavior. Assert the interaction row and the pause.
+
+R29 exists because the current required-argument check tests presence only. A forged relay
+file can carry a value of the wrong type and reach the approval card with input the schema
+would reject.
 
 ### Approval identity
 
@@ -225,6 +279,15 @@ proof that the tool is permitted.
 | R20 | An approval answer consumed once | A second call for the same identity raises a fresh gate. |
 | R21 | An unanswered approval, then a new user message | The tool does not run. The row is swept to `cancelled`, not left `pending`. |
 
+R17 should pass with the existing `approvedCallKey` helper, without a new keying scheme. That
+helper keys on the tool name plus the canonical arguments, and for `run_tool` the arguments
+already contain the integration and the tool key, so two integration tools already produce
+two keys. Write R17 to prove that, and keep the full outer arguments when computing the key.
+
+Inventing a gateway-specific identity would put a second keying scheme beside the one every
+other tool uses, and warm-session resume depends on that one. The real new work is R16, the
+semantic display on the card.
+
 ### Search result filter
 
 | ID | Case | Expected |
@@ -236,8 +299,15 @@ proof that the tool is permitted.
 | R26 | Ten passing results | At most five reach the model. |
 | R27 | All results removed | Returns an empty list with the short message. The message names no unconfigured integration. |
 | R28 | The result payload | Carries no connection slug, no provider account ID, no provider action ID, no permission value, and no `read_only` flag. |
+| A6 | A search naming an integration the agent did not configure | Rejected before the callback. The provider is never called. |
+| R30 | A `gateway.run` error carrying close-key suggestions | Keys that are denied or absent from `gatewayPolicy` are removed before the model sees the error. |
 
 R28 must assert on the serialized payload, not on the object the runner built.
+
+R30 is an error-payload field edit, not result transformation. The API builds suggestions
+from the whole integration catalog and cannot know the agent's policy, so an unsanitized list
+tells the model the exact names of the tools it is forbidden to run. It pairs with N10 and
+N14: a refusal must not enumerate what is available.
 
 ## Frontend tests
 
@@ -260,18 +330,35 @@ Test the pure translation functions with vitest. Do not test the drawer layout.
 | F4 | Preset "Deny all" to config | `default: "deny"`, empty `tools`. |
 | F5 | Config to preset, round trip | Each of F1 to F4 reads back as the same preset. |
 | F6 | Config with one tool override | Reads back as "Custom". |
-| F7 | Override count | Counts only tool entries that differ from the resolved preset value. |
+| F7 | Override count | Equals the number of saved entries in `tools`, including an entry whose value happens to equal the current default. |
 | F8 | Setting one tool permission | Switches the preset to "Custom" and keeps the other tools unchanged. |
 | F9 | Picking a preset while on "Custom" | Clears the overrides. |
 | F10 | The read-only and write partition | Comes from the catalog `read_only` flag. A tool with an absent flag lands in the write group. |
-| F11 | A group rollup summary | Matches the effective permission of every tool in that group. |
+| F11 | A group rollup summary | Summarizes the SAVED values of the tools in that group: one shared value when they agree, a mixed label when they do not. A group saved `inherit` reads "follows agent policy". |
 | F12 | A legacy `gateway` entry group | Renders as one integration row with a deprecated badge. |
 | F13 | A legacy group | Reads back the same permissions it was saved with. |
 | F14 | A saved tool key absent from the catalog | Shows as a stale entry. The row does not disappear and the config is not rewritten. |
 | F15 | Write-through | A permission change lands in the draft config immediately. |
+| F16 | Choosing a different connection for an already-configured integration | REPLACES the existing entry in one write. Never appends a second entry for that integration. The saved policy is kept and only the connection slug changes. |
+| F17 | An integration whose legacy entries name two or more connections | NOT migrated. Its legacy entries stay exactly as they are and keep the legacy badge. Other integrations in the same revision migrate normally. |
 
 F14 matters because the drawer must not silently drop an authored intent when the provider
 catalog changes.
+
+F7 counts saved entries, not entries that differ from the preset. The two rules disagree
+whenever an entry is redundant, and the comparison rule can show "Custom" with a count of
+zero. [contracts.md](contracts.md) section 10 states the same single rule.
+
+F11 asserts an authored-policy rollup. The drawer must not resolve `inherit` to build it.
+Resolving would mean a second copy of the compiler in TypeScript, reading an agent-wide mode
+the drawer does not own, and the two copies would drift.
+
+F16 exists because the saved format allows one entry per provider and integration. An append
+produces a revision the SDK refuses, and the author would not find out until run time.
+
+F17 is the migration case the design's own rules do not cover. Grouping by connection would
+give one integration two entries, which validation rejects. Leaving it unmigrated is the only
+option that neither guesses the author's intent nor drops entries.
 
 ## Live QA script
 
@@ -343,7 +430,12 @@ proves the backend path works. It proves nothing about what a model finds on its
 | G8 | The client-tool round trip | Unaffected. The gateway approval reuses the machinery but does not change it. |
 | G9 | `POST /tools/call` for a non-gateway `call_ref` | Unchanged routing. |
 | G10 | The connections and catalog HTTP contracts | Unchanged. |
-| G11 | A revision that mixes a legacy entry and a new entry | Both resolve. |
+| G11 | A revision that mixes a legacy entry and a new entry | Both resolve. `/tools/resolve` answers the legacy entry in `custom` and the connection entry in `gateway_connections`. |
+| G12 | A legacy entry and a connection entry with CONFLICTING permissions for the same tool | Each surface keeps its own rule. The legacy entry is its own named tool with its own permission. The connection policy governs only calls made through `run_tool`. Neither silently overrides the other. |
+
+G12 is the case that makes mixed revisions more than a transient state. F17 leaves some
+integrations unmigrated on purpose, so an agent can hold both formats indefinitely. Assert
+the rule rather than assuming migration will resolve it later.
 
 ## Negative and security cases
 
@@ -358,7 +450,7 @@ proves the backend path works. It proves nothing about what a model finds on its
 | N7 | The connection slug in any model-visible payload | Absent. Check the tool specifications, the search results, the run result, the error messages, and the approval card. |
 | N8 | The Composio API key | Never enters the sandbox. It never appears in the bundle, the environment, or a relay file. |
 | N9 | The resolved policy table | Never enters the sandbox and never appears in a tool name or a `call_ref`. |
-| N10 | A close-key suggestion after a stale key error | Names no denied tool and no unconfigured integration. |
+| N10 | A close-key suggestion after a stale key error | Names no denied tool and no unconfigured integration. The runner sanitizes the list; the API cannot, because it does not hold the agent's policy. See R30. |
 | N11 | A search that Composio answers with unconfigured integrations | The model sees none of them. |
 | N12 | A user with `RUN_TOOLS` calling `/tools/call` directly | Allowed. Agent permission policy governs model execution. It is not project RBAC. Record this as intended, not as a leak. |
 | N13 | An approval answer for one integration replayed against another | Rejected. R17 covers the unit case. Check it live once. |

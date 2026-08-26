@@ -28,6 +28,19 @@ raises an approval. It predates the grouped `gateway_connection` format.
 Add `.agents/skills/agent-release-gate/resources/matrix_gw1_gateway_tools.py`. Tier:
 coached, with one mechanism-blind leg.
 
+**Register it so `qa_product.py --all` runs it.** A standalone matrix file is not picked up
+by the all-cells run, so a cell that exists but is not registered is a cell that quietly does
+not run. Nobody notices, because a gate that skips a cell it never knew about reports green.
+
+Registration is the resolution. Add the cell to the matrix registry that `qa_product.py`
+enumerates, so `--all` includes it the way it includes every other cell. Do not rely on
+documenting a separate invocation in `SKILL.md`: a command a person has to remember to type
+is the same failure mode with an extra step.
+
+Confirm registration the direct way. Run `qa_product.py --all` with the fixtures absent and
+check the cell appears in the output as a SKIP naming its missing fixture. A cell that
+produces no line at all is not registered.
+
 It runs one agent with one `gateway_connection` and three tool permissions: one `allow`, one
 `ask`, and one `deny`. It asserts four things on the wire and in the stored rows.
 
@@ -86,7 +99,8 @@ tests, not in the gate. The gate is the product-level check that the assembled p
 | `qa_product.py` journeys `tool`, `approve`, `deny` | No change. They keep the builtin probe. The new cell is the gateway equivalent. |
 | `qa_longctx.py` `gmail` probe | Update it to the `gateway_connection` format, or retire it once the new cell passes. Do not keep two gateway probes. |
 | `resources/coverage.md` | Add one row for the new cell, with its requirements, as every cell has. |
-| `SKILL.md` resources list | Add one bullet for the new cell. Name its tier. |
+| `SKILL.md` resources list | Add one bullet for the new cell. Name its tier. It runs under `--all`; the bullet describes it, it is not the way to invoke it. |
+| The matrix registry `qa_product.py` enumerates | Add the cell so `--all` runs it. |
 | `qa_matrix_lib.py` | Import only. Add a gateway approval helper there if the approval loop needs one, so a later cell can reuse it. |
 
 The cell is not MANDATORY on its first release. Promote it to MANDATORY once it has passed
