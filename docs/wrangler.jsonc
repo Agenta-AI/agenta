@@ -1,0 +1,28 @@
+{
+  // Cloudflare Workers Static Assets config for the PREVIEW docs worker.
+  //
+  // The docs are a pure static Docusaurus build, so there is no Worker script:
+  // this config just tells one Worker to serve ./dist as plain assets.
+  // `pnpm run build:worker` writes the site into dist/docs so the file tree
+  // matches the public /docs/ URL prefix, which is what replaces the Vercel
+  // `/docs/:path*` rewrite we used to need.
+  //
+  // One worker serves every pull request: CI runs
+  // `wrangler versions upload --preview-alias pr-<n>` from
+  // .github/workflows/18-docs-preview.yml, so each PR gets a stable URL
+  // (https://pr-<n>-agenta-docs-preview.<subdomain>.workers.dev/docs) without
+  // touching this worker's own deployment, and nothing needs cleaning up.
+  "name": "agenta-docs-preview",
+  "compatibility_date": "2026-08-01",
+  // Required for `versions upload --preview-alias` to hand out a URL.
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    // Docusaurus emits foo/index.html and links to /docs/foo with no trailing
+    // slash, so drop-trailing-slash is the mode that serves those links
+    // directly. /docs/foo/ redirects to /docs/foo.
+    "html_handling": "drop-trailing-slash",
+    // Unknown paths render the generated Docusaurus 404 page.
+    "not_found_handling": "404-page"
+  }
+}
