@@ -147,6 +147,10 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(Bot, {size: 16}),
                 link: `${projectURL}/agents`,
+                // Collapsed rail: navigate to the section instead of flyout-ing the list, the
+                // same call the desktop rail makes. The icon's obvious meaning is "take me
+                // there", and a long popover is a list to read rather than a menu to pick from.
+                hideChildrenWhenCollapsed: true,
                 submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
             },
             {
@@ -154,6 +158,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Sessions",
                 icon: createElement(MessagesSquare, {size: 16}),
                 link: `${projectURL}/sessions`,
+                hideChildrenWhenCollapsed: true,
                 // No collapse caret here: the filter control is this group's affordance, and the
                 // rows are grouped and individually collapsible already.
                 alwaysOpen: true,
