@@ -12,8 +12,10 @@ import {
   DEFERRED_NOT_EXECUTED_PREFIX,
 } from "./tracing/otel.ts";
 import {
+  clientToolPermission,
   decide,
   effectivePermission,
+  operatorDenyActive,
   storedDecisionKeyShape,
   type GateDescriptor,
   type PermissionPlan,
@@ -327,6 +329,12 @@ export class ApprovalResponder implements Responder {
     request: ClientToolGateRequest,
     opts: { consume?: boolean } = {},
   ): Promise<ClientToolVerdict> {
+    // The operator kill-switch, and ONLY it, before the stored-output peek. A stored output is
+    // work the browser already did, so policy does not retract it — but an incident switch is
+    // not policy, and must stop a replayed output too. The rest of the ladder runs after the
+    // peek, below, exactly as it did before.
+    if (operatorDenyActive()) return { kind: "deny" };
+
     const storedOutput = opts.consume
       ? this.decisions.takeClientOutput(request.gate)
       : this.decisions.peekClientOutput(request.gate);
@@ -334,9 +342,7 @@ export class ApprovalResponder implements Responder {
       return { kind: "fulfilled", output: storedOutput.output };
     }
 
-    const permission =
-      request.gate.specPermission ??
-      (this.plan.default === "deny" ? "deny" : "allow");
+    const permission = clientToolPermission(request.gate, this.plan);
     if (permission === "deny") return { kind: "deny" };
 
     if (permission === "ask") {
@@ -536,9 +542,7 @@ function isStoredPermissionDecision(
 ): value is PermissionDecision | StoredPermissionDecision {
   if (isPermissionDecision(value)) return true;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  return isPermissionDecision(
-    (value as { decision?: unknown }).decision,
-  );
+  return isPermissionDecision((value as { decision?: unknown }).decision);
 }
 
 /**
@@ -573,7 +577,8 @@ function storedApprovalDecisionOf(
   if (typeof envelope.approved !== "boolean") return undefined;
   return {
     decision: envelope.approved ? "allow" : "deny",
-    ...(typeof envelope.interactionToken === "string" && envelope.interactionToken
+    ...(typeof envelope.interactionToken === "string" &&
+    envelope.interactionToken
       ? { interactionToken: envelope.interactionToken }
       : {}),
   };

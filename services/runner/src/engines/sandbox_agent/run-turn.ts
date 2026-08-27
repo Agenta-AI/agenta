@@ -68,6 +68,7 @@ import {
   findSwallowedPiError,
   isOnlyHarnessRetryNotices,
 } from "./pi-error.ts";
+import { buildGatewayToolGate } from "./gateway-gate.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -922,6 +923,22 @@ export async function runTurn(
       executionGrants,
     });
 
+    // The semantic gateway gate. It is wired for EVERY harness and every placement, because the
+    // relay seam it runs at is the one point all of them pass through and no dialog upstream has
+    // decided anything about the integration tool the model named.
+    const gatewayGate = buildGatewayToolGate({
+      responder,
+      run,
+      pause,
+      recordPendingInteraction,
+      toolCallIndex: plan.isPi ? undefined : env.toolCallIndex,
+      permissionPlan,
+      onNonParkablePause: () => {
+        env.nonParkablePauseCount += 1;
+      },
+      log: logger,
+    });
+
     if (plan.tools.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -943,6 +960,8 @@ export async function runTurn(
             plan.tools.clientToolPauseDisposition,
           ),
           authorizer: approvedContent.authorizer,
+          gatewayPolicy: request.gatewayPolicy,
+          gatewayGate,
         },
       );
       // Ordering invariant: the relay's stale-file sweep must complete before the
