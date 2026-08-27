@@ -13,11 +13,11 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useEffect, useMemo, useState} from "react"
+import {memo, useMemo, useState} from "react"
 
 import {
-    useToolCatalogActions,
     useToolConnectionsQuery,
+    useToolIntegrationCatalog,
     useToolIntegrationDetail,
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
@@ -301,30 +301,11 @@ function DrawerBody({
     permissions: GatewayConnectionPermissions
 }) {
     const [query, setQuery] = useState("")
-    const {
-        actions,
-        total,
-        hasNextPage,
-        isFetchingNextPage,
-        isLoading,
-        error,
-        requestMore,
-        setSearch,
-    } = useToolCatalogActions(target.integration)
-
-    // The whole catalog, not a page of it: the counts, the read-only partition, and the stale-key
-    // list all describe the integration, and a partial list would misreport every one of them.
-    // Search filters client-side for the same reason.
-    //
-    // The query's search term lives in a module atom shared with the other catalog surfaces, so
-    // clear it on the way in. Do NOT clear it on the way out: another surface may have mounted.
-    useEffect(() => setSearch(""), [setSearch])
-    useEffect(() => {
-        if (hasNextPage && !isFetchingNextPage && !error) requestMore()
-    }, [hasNextPage, isFetchingNextPage, error, requestMore])
-
-    // Nothing describes the integration until the last page lands.
-    const complete = !isLoading && !hasNextPage && !error
+    // The COMPLETE catalog, as one settled query rather than the paginated browse query: the
+    // counts, the read-only partition, and the stale-key list all describe the whole integration,
+    // and a partial list misreports every one of them. Search filters client-side for the same
+    // reason, and this query carries no shared search atom to fight over.
+    const {actions, complete, isLoading, error} = useToolIntegrationCatalog(target.integration)
 
     // Kept separate from the stale-key pass below: this one walks the whole catalog, and it must
     // not rerun each time a per-tool click gives `permissions` a new identity.
@@ -354,7 +335,6 @@ function DrawerBody({
     const {readOnly, write} = useMemo(() => partitionToolsByAccess(catalogTools), [catalogTools])
     const search = query.trim().toLowerCase()
     const {preset, overrideCount} = readIntegrationPreset(permissions)
-    const loadingCatalog = isLoading && actions.length === 0
 
     // The count belongs on the selected option, so an author sees how many tools carry their own
     // rule without opening the menu.
@@ -413,14 +393,21 @@ function DrawerBody({
             </div>
 
             <SearchInput
-                placeholder={`Search ${total || catalogTools.length} tools`}
+                placeholder={`Search ${catalogTools.length} tools`}
                 value={query}
                 onValueChange={setQuery}
             />
 
-            {loadingCatalog ? (
+            {isLoading ? (
                 <div className="flex justify-center py-8">
                     <Spinner size="small" />
+                </div>
+            ) : error ? (
+                // The saved policy is still editable through the preset above; only the per-tool
+                // list needs the catalog, so say what is missing rather than showing an empty one.
+                <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                    Couldn&apos;t load {target.integration}&apos;s tools, so per-tool permissions
+                    aren&apos;t listed. The default permission above still applies.
                 </div>
             ) : catalogTools.length === 0 ? (
                 <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
@@ -448,13 +435,6 @@ function DrawerBody({
                         onChangeToolPermission={onChangeToolPermission}
                         disabled={disabled}
                     />
-                    {!complete ? (
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {error
-                                ? "Some of this integration's tools could not be loaded."
-                                : "Still loading the rest of this integration's tools…"}
-                        </span>
-                    ) : null}
                 </div>
             )}
 

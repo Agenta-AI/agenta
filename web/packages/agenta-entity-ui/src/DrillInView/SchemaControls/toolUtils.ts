@@ -5,6 +5,10 @@
  * Contains provider metadata and builtin tool specs for detecting
  * provider-specific tools (OpenAI, Anthropic, Google Gemini).
  */
+import type {
+    GatewayConnectionToolConfig,
+    GatewayPermission as WireGatewayPermission,
+} from "@agenta/entities/gatewayTool"
 import {asRecord, parseGatewayToolSlug} from "@agenta/shared/utils"
 
 // ============================================================================
@@ -91,10 +95,19 @@ export function gatewayToolIdentity(view: ParsedGatewayTool): string {
 // GATEWAY CONNECTION ENTRY (contracts section 1)
 // ============================================================================
 
-/** The four values a connection policy holds, for the default and for one tool. */
-export type GatewayPermission = "inherit" | "allow" | "ask" | "deny"
+/**
+ * The four values a connection policy holds, for the default and for one tool. Re-exported
+ * from the generated client's wire type rather than restated, so a value added backend-side
+ * fails to compile here instead of being silently dropped by the parser below.
+ */
+export type GatewayPermission = WireGatewayPermission
 
-const GATEWAY_PERMISSIONS = new Set<string>(["inherit", "allow", "ask", "deny"])
+const GATEWAY_PERMISSIONS = new Set<string>([
+    "inherit",
+    "allow",
+    "ask",
+    "deny",
+] satisfies GatewayPermission[])
 
 export function isGatewayPermission(value: unknown): value is GatewayPermission {
     return typeof value === "string" && GATEWAY_PERMISSIONS.has(value)
@@ -159,14 +172,16 @@ export function parseGatewayConnection(tool: unknown): ParsedGatewayConnection |
     }
 }
 
-/** The saved JSON for a connection entry — the reverse of {@link parseGatewayConnection}. */
+/** The saved JSON for a connection entry — the reverse of {@link parseGatewayConnection}.
+ *  Typed against the generated wire shape, so the writer cannot drift from the SDK model. */
 export function buildGatewayConnectionEntry(
     view: ParsedGatewayConnection,
-): Record<string, unknown> {
+): GatewayConnectionToolConfig & {type: "gateway_connection"} {
     return {
+        // The discriminator the SDK parses on. Fern models the union arm without it.
         type: "gateway_connection",
         connection: {
-            provider: view.provider,
+            provider: view.provider as GatewayConnectionToolConfig["connection"]["provider"],
             integration: view.integration,
             slug: view.connection,
         },
