@@ -27,6 +27,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {extractCallDescription, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {
+    approvalVerdictText,
     groupLabelText,
     hasFailed,
     isNonFinalRunnerError,
@@ -142,9 +143,9 @@ const ToolRowView = memo(
             state === "approval-requested"
                 ? "Awaiting approval"
                 : state === "approval-responded"
-                  ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
-                      ? "denied"
-                      : "approved"
+                  ? // Never claim an approval nobody can evidence: a replayed gate whose verdict is
+                    // unknown reads "responded", not "approved". This is a permission surface.
+                    approvalVerdictText(part)
                   : live && running
                     ? "running…"
                     : rowSummary(part, display)
