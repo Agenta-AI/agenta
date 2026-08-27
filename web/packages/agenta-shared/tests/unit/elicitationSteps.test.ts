@@ -140,11 +140,12 @@ describe("buildElicitationSteps — kinds", () => {
 })
 
 describe("buildElicitationSteps — degrade lanes", () => {
-    it("flattens oneOf option cards to rows, keeping title and description", () => {
+    it("keeps a oneOf option's title and description on its row", () => {
         const step = stepBy(formOf(goldenRequest).steps, "frequency")
 
         expect(step.kind).toBe("enum")
-        expect(step.degraded).toBe("oneof-cards")
+        // Descriptions ride the row's own `?` affordance, so nothing about this is degraded.
+        expect(step.degraded).toBeUndefined()
         expect(step.options?.[0]).toEqual({
             value: "hourly",
             label: "Hourly",
@@ -164,26 +165,43 @@ describe("buildElicitationSteps — degrade lanes", () => {
         expect(parseStepValue(step, ["failure"])).toEqual(["failure"])
     })
 
-    it("leaves an array with nothing to pick as a comma field", () => {
+    it("gives an array with nothing to pick a chip field", () => {
         const {steps} = formOf(payload({repos: {type: "array", items: {type: "string"}}}))
 
         expect(steps[0].kind).toBe("list")
-        expect(steps[0].degraded).toBe("array")
+        expect(steps[0].degraded).toBeUndefined()
+        // A draft written before chips existed is still a comma string; it must still restore.
         expect(parseStepValue(steps[0], "a, b")).toEqual(["a", "b"])
+        expect(parseStepValue(steps[0], ["a", "b"])).toEqual(["a", "b"])
     })
 
     it.each([
-        ["date", "YYYY-MM-DD"],
-        ["date-time", "ISO 8601, e.g. 2026-03-04T09:00Z"],
-        ["cron", "5 fields, e.g. 0 9 * * 1-5"],
+        ["date", "date"],
+        ["date-time", "date-time"],
+    ])("gives format %s its own picker rather than a text field", (format, kind) => {
+        const {steps} = formOf(payload({q: {type: "string", format}}))
+
+        expect(steps[0].kind).toBe(kind)
+        expect(steps[0].degraded).toBeUndefined()
+    })
+
+    it.each([
         ["email", "you@example.com"],
         ["uri", "https://…"],
-    ])("renders format %s as text hinted %s", (format, hint) => {
+    ])("renders format %s as a text field hinted %s, and records the shape", (format, hint) => {
         const {steps} = formOf(payload({q: {type: "string", format}}))
 
         expect(steps[0].kind).toBe("text")
-        expect(steps[0].degraded).toBe(format)
+        expect(steps[0].format).toBe(format)
         expect(steps[0].hint).toBe(hint)
+    })
+
+    it("leaves cron as the last degrade lane", () => {
+        const {steps} = formOf(payload({q: {type: "string", format: "cron"}}))
+
+        expect(steps[0].kind).toBe("text")
+        expect(steps[0].degraded).toBe("cron")
+        expect(steps[0].hint).toBe("5 fields, e.g. 0 9 * * 1-5")
     })
 
     it("keeps every option past the ninth — the digit shortcut is the only thing that runs out", () => {
@@ -234,6 +252,33 @@ describe("validateStep", () => {
 
         expect(validateStep(stepBy(steps, "colour"), undefined)).toBe("Pick one to continue")
         expect(validateStep(stepBy(steps, "name"), "  ")).toBe("This one is required")
+    })
+
+    it("checks the formats the dialect implies but never enforced", () => {
+        const {steps} = formOf(
+            payload({
+                who: {type: "string", format: "email"},
+                where: {type: "string", format: "uri"},
+                due: {type: "string", format: "date"},
+            }),
+        )
+
+        expect(validateStep(stepBy(steps, "who"), "ada@example.com")).toBeNull()
+        expect(validateStep(stepBy(steps, "who"), "ada@example")).toBe(
+            "Needs a valid email address",
+        )
+        expect(validateStep(stepBy(steps, "where"), "https://agenta.ai")).toBeNull()
+        expect(validateStep(stepBy(steps, "where"), "agenta.ai")).toBe(
+            "Needs a full URL, including the scheme",
+        )
+        expect(validateStep(stepBy(steps, "due"), "2026-03-04")).toBeNull()
+        expect(validateStep(stepBy(steps, "due"), "the 4th")).toBe("That isn't a real date")
+    })
+
+    it("leaves a cron expression to the agent — an odd one is a decision, not a typo", () => {
+        const {steps} = formOf(payload({when: {type: "string", format: "cron"}}))
+
+        expect(validateStep(steps[0], "@daily")).toBeNull()
     })
 
     it("lets an unanswered optional step through", () => {
@@ -327,6 +372,22 @@ describe("formatStepValue", () => {
             "success, failure",
         )
         expect(formatStepValue(stepBy(steps, "timezone"), undefined)).toBe("Skipped")
+    })
+
+    it("prints a date as a date, not as the ISO string on the wire", () => {
+        const {steps} = formOf(
+            payload({
+                due: {type: "string", format: "date"},
+                at: {type: "string", format: "date-time"},
+            }),
+        )
+
+        expect(formatStepValue(stepBy(steps, "due"), "2026-03-04")).toBe("2026-03-04")
+        expect(formatStepValue(stepBy(steps, "at"), "2026-03-04T09:30:00.000Z")).toMatch(
+            /^2026-03-04 \d{2}:\d{2}$/,
+        )
+        // Unparseable values still print, rather than showing the user "Invalid Date".
+        expect(formatStepValue(stepBy(steps, "due"), "sometime")).toBe("sometime")
     })
 
     it("prints an Other value verbatim, since it matches no option", () => {

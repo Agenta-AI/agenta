@@ -12,6 +12,7 @@
  * in @agenta/entity-ui, and entity-ui → chat is the workspace cycle the client-tool contract exists
  * to prevent (see ./clientTools).
  */
+import dayjs from "./dayjs"
 import {
     normalizeStringFormat,
     type ElicitationFieldSchema,
@@ -22,7 +23,8 @@ import {
  * What the card renders for one question.
  *
  * `multiselect` is a real control: an array whose items carry an enum, rendered as toggle rows.
- * `list` and `unsupported` are the DEGRADE lanes, not wire shapes — see `buildElicitationSteps`.
+ * `list` is a chip field, and `date`/`date-time` are real pickers. `unsupported` is the only DEGRADE
+ * lane left — see `buildElicitationSteps`.
  */
 export type ElicitationStepKind =
     | "text"
@@ -32,12 +34,14 @@ export type ElicitationStepKind =
     | "boolean"
     | "multiselect"
     | "list"
+    | "date"
+    | "date-time"
     | "unsupported"
 
 export interface ElicitationStepOption {
     value: string
     label: string
-    /** `oneOf` explanation. v1 shows it as the row's title attribute, not a card. */
+    /** `oneOf` explanation, revealed by the row's `?` affordance. */
     description?: string
 }
 
@@ -59,12 +63,14 @@ export interface ElicitationStep {
     maxLength?: number
     pattern?: string
     default?: unknown
+    /** A `text` step whose value has a checkable shape. Drives `validateStep`, not the control. */
+    format?: "email" | "uri"
     /**
      * Set when the wire asked for something richer than this version renders. The step still works —
      * this only records WHAT was flattened, so a follow-up can find every degrade site and so the
-     * hint copy has something to key on.
+     * hint copy has something to key on. Cron is the last one: everything else grew a real control.
      */
-    degraded?: "date" | "date-time" | "email" | "uri" | "cron" | "array" | "oneof-cards"
+    degraded?: "cron"
 }
 
 export interface ElicitationForm {
@@ -77,15 +83,11 @@ export interface ElicitationForm {
     groupHint: boolean
 }
 
-/** Hint copy for each degrade lane, so the user still knows what shape to type. */
-const DEGRADE_HINTS: Record<NonNullable<ElicitationStep["degraded"]>, string | undefined> = {
-    date: "YYYY-MM-DD",
-    "date-time": "ISO 8601, e.g. 2026-03-04T09:00Z",
+/** Hint copy for a shape the field itself can't show, so the user still knows what to type. */
+const CRON_HINT = "5 fields, e.g. 0 9 * * 1-5"
+const FORMAT_HINTS: Record<NonNullable<ElicitationStep["format"]>, string> = {
     email: "you@example.com",
     uri: "https://…",
-    cron: "5 fields, e.g. 0 9 * * 1-5",
-    array: "Separate with commas",
-    "oneof-cards": undefined,
 }
 
 const titleOf = (name: string, field: ElicitationFieldSchema): string => field.title?.trim() || name
@@ -109,9 +111,6 @@ const optionsOf = (field: ElicitationFieldSchema): ElicitationStepOption[] | und
         }
     })
 }
-
-const hasDescribedOption = (options: ElicitationStepOption[] | undefined): boolean =>
-    (options ?? []).some((option) => option.description !== undefined)
 
 /** Numeric hint from the schema bounds, so the design's `1–90 days` reads true. */
 const rangeHint = (field: ElicitationFieldSchema): string | undefined => {
@@ -142,58 +141,43 @@ const buildStep = (
         ...(field.pattern !== undefined ? {pattern: field.pattern} : {}),
         ...(field.default !== undefined ? {default: field.default} : {}),
     }
-    // A degrade lane's hint replaces the schema description only when there is no description: the
+    // A fallback hint replaces the schema description only when there is no description: the
     // author's own words beat a generic format reminder.
     const withHint = (
         step: Omit<ElicitationStep, "kind" | "hint">,
         kind: ElicitationStepKind,
-        degraded?: ElicitationStep["degraded"],
-        extraHint?: string,
+        fallbackHint?: string,
     ): ElicitationStep => {
-        const fallback = extraHint ?? (degraded ? DEGRADE_HINTS[degraded] : undefined)
-        const hint = field.description?.trim() || fallback
-        return {
-            ...step,
-            kind,
-            ...(hint ? {hint} : {}),
-            ...(degraded ? {degraded} : {}),
-        }
+        const hint = field.description?.trim() || fallbackHint
+        return {...step, kind, ...(hint ? {hint} : {})}
     }
 
     // The dialect's only array shape is string items. With an enum there is something to offer as
     // toggle rows; without one there is nothing to list, so entries are collected as chips.
     if (field.type === "array") {
         if (options?.length) {
-            return {
-                ...withHint(base, "multiselect", undefined, "pick any"),
-                options,
-                allowOther: true,
-            }
+            return {...withHint(base, "multiselect", "pick any"), options, allowOther: true}
         }
-        return withHint(base, "list", "array", DEGRADE_HINTS.array)
+        return withHint(base, "list", "one per entry")
     }
 
     if (field.type === "boolean") return withHint(base, "boolean")
 
     if (field.type === "number" || field.type === "integer") {
-        const range = rangeHint(field)
-        return withHint(base, "number", undefined, range)
+        return withHint(base, "number", rangeHint(field))
     }
 
     if (options?.length) {
         // Options are SUGGESTIONS in this dialect, never a hard constraint — every enum keeps an
-        // escape hatch. `oneof-cards` records that the descriptions wanted richer chrome than rows.
-        return {
-            ...withHint(base, "enum", hasDescribedOption(options) ? "oneof-cards" : undefined),
-            options,
-            allowOther: true,
-        }
+        // escape hatch.
+        return {...withHint(base, "enum"), options, allowOther: true}
     }
 
     if (format === "multiline") return withHint(base, "multiline")
-    if (format === "date" || format === "date-time" || format === "cron")
-        return withHint(base, "text", format)
-    if (format === "email" || format === "uri") return withHint(base, "text", format)
+    if (format === "date" || format === "date-time") return withHint(base, format)
+    if (format === "cron") return {...withHint(base, "text", CRON_HINT), degraded: "cron"}
+    if (format === "email" || format === "uri")
+        return {...withHint(base, "text", FORMAT_HINTS[format]), format}
 
     if (field.type === "string") return withHint(base, "text")
 
@@ -261,6 +245,20 @@ export function validateStep(step: ElicitationStep, value: unknown): string | nu
 
     if (typeof value === "string") {
         const text = value.trim()
+        // Format checks the dialect implies but never enforced. Cron is deliberately absent: a
+        // valid-but-odd expression is a scheduling decision for the agent, not a typo to reject.
+        if (step.kind === "date" || step.kind === "date-time") {
+            if (!dayjs(text).isValid()) return "That isn't a real date"
+        }
+        if (step.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text))
+            return "Needs a valid email address"
+        if (step.format === "uri") {
+            try {
+                new URL(text)
+            } catch {
+                return "Needs a full URL, including the scheme"
+            }
+        }
         if (step.minLength !== undefined && text.length < step.minLength)
             return `At least ${step.minLength} characters`
         if (step.maxLength !== undefined && text.length > step.maxLength)
@@ -295,6 +293,11 @@ export function parseStepValue(step: ElicitationStep, raw: unknown): unknown {
 export function formatStepValue(step: ElicitationStep, value: unknown): string {
     if (!isStepAnswered(step, value)) return "Skipped"
     if (step.kind === "boolean") return value ? "Yes" : "No"
+    if (step.kind === "date" || step.kind === "date-time") {
+        const when = dayjs(String(value))
+        if (when.isValid())
+            return when.format(step.kind === "date" ? "YYYY-MM-DD" : "YYYY-MM-DD HH:mm")
+    }
     const parsed = parseStepValue(step, value)
     if (Array.isArray(parsed)) return parsed.join(", ")
     if (step.kind === "enum") {
