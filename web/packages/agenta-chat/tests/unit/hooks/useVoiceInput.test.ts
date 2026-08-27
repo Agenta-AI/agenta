@@ -15,6 +15,27 @@ import {useVoiceInput} from "../../../src/hooks/useVoiceInput"
 /** How long this fake takes to close a session — Chrome's is comparable and sometimes worse. */
 const TEARDOWN_MS = 800
 
+/** The slice of the Web Speech result shape the hook actually reads. */
+interface FakeAlternative {
+    transcript: string
+}
+interface FakeResult {
+    isFinal: boolean
+    0: FakeAlternative
+}
+interface FakeResultEvent {
+    resultIndex: number
+    results: ArrayLike<FakeResult>
+}
+
+/** The API lives on `window` under two names and is absent in one test, so both are optional. */
+type RecognitionWindow = Window &
+    typeof globalThis & {
+        SpeechRecognition?: typeof FakeRecognition
+        webkitSpeechRecognition?: typeof FakeRecognition
+    }
+const recognitionWindow = () => window as RecognitionWindow
+
 class FakeRecognition {
     static instances: FakeRecognition[] = []
     /** Chrome refuses a `start()` while a previous session is still closing. */
@@ -25,7 +46,7 @@ class FakeRecognition {
     interimResults = false
     lang = ""
     onstart: (() => void) | null = null
-    onresult: ((e: {resultIndex: number; results: ArrayLike<any>}) => void) | null = null
+    onresult: ((e: FakeResultEvent) => void) | null = null
     onerror: ((e: {error: string}) => void) | null = null
     onend: (() => void) | null = null
 
@@ -74,8 +95,8 @@ beforeEach(() => {
     FakeRecognition.instances = []
     FakeRecognition.refuseWhileClosing = true
     FakeRecognition.prototype.start = pristineStart
-    ;(window as any).SpeechRecognition = FakeRecognition
-    ;(window as any).webkitSpeechRecognition = FakeRecognition
+    recognitionWindow().SpeechRecognition = FakeRecognition
+    recognitionWindow().webkitSpeechRecognition = FakeRecognition
 })
 
 afterEach(() => {
@@ -114,10 +135,13 @@ describe("useVoiceInput", () => {
         act(() => result.current.stop())
 
         // The browser flushes one last result on its way out.
-        act(() => void FakeRecognition.instances[0].onresult?.({
-            resultIndex: 0,
-            results: {length: 1, 0: {isFinal: true, 0: {transcript: "and last"}}},
-        }))
+        act(
+            () =>
+                void FakeRecognition.instances[0].onresult?.({
+                    resultIndex: 0,
+                    results: {length: 1, 0: {isFinal: true, 0: {transcript: "and last"}}},
+                }),
+        )
         expect(result.current.active).toBe(true)
         expect(result.current.finalText).toBe("first and last")
     })
@@ -229,8 +253,8 @@ describe("useVoiceInput", () => {
     })
 
     it("reports unsupported where the API is absent, and start is inert", () => {
-        delete (window as any).SpeechRecognition
-        delete (window as any).webkitSpeechRecognition
+        delete recognitionWindow().SpeechRecognition
+        delete recognitionWindow().webkitSpeechRecognition
         const {result} = renderHook(() => useVoiceInput())
         expect(result.current.supported).toBe(false)
         act(() => result.current.start())

@@ -11,9 +11,12 @@ import {INTERIM_STYLE, beginDictation} from "../../src/RichChatInput/plugins/dic
  */
 
 const editorWith = (text = "") => {
-    const editor = createEditor({onError: (e) =>
-        // eslint-disable-next-line no-console
-        console.error(e)})
+    // Surface a Lexical error as a test failure rather than letting it pass silently.
+    const editor = createEditor({
+        onError: (e) => {
+            throw e
+        },
+    })
     editor.update(
         () => {
             const paragraph = $createParagraphNode()
