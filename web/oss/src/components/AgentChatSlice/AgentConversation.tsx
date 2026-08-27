@@ -118,7 +118,6 @@ const AgentConversation = ({
         sendMessage,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
         messagesRef,
         busyRef,
         isHydrating,
@@ -337,11 +336,9 @@ const AgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean; message?: string}) => {
             markLiveGate({kind: "approval", id: args.id})
-            // The part flip keeps the transcript honest for this render; the DECISION goes to the
-            // interaction row, and `answerApproval` owns the resume dispatch. A gateway approval is
-            // answered mid-stream, so neither can be inferred from part state.
-            addToolApprovalResponse({id: args.id, approved: args.approved})
-            answerApproval(args.id, args.approved)
+            // `answerApproval` owns the whole ordered click: the row first, then the part flip that
+            // lets the SDK resume. Never flip here — an early flip lets the resume's stale sweep
+            // cancel the row being answered.
             // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
             // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
             // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
@@ -351,9 +348,12 @@ const AgentConversation = ({
             // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
             // that flail needs an upstream ACP change, not an FE one.)
             const steer = args.message?.trim()
-            if (!args.approved && steer) submit({text: steer})
+            void answerApproval(args.id, args.approved).then(() => {
+                // After the answer for the same reason the flip is: a steer starts its own turn.
+                if (!args.approved && steer) submit({text: steer})
+            })
         },
-        [addToolApprovalResponse, answerApproval, markLiveGate, submit],
+        [answerApproval, markLiveGate, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the

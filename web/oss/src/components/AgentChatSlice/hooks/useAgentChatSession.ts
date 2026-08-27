@@ -36,6 +36,7 @@ import {
     buildTurnCapture,
     isResumeSend,
     playgroundController,
+    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
@@ -47,7 +48,6 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
@@ -251,23 +251,25 @@ export const useAgentChatSession = ({
     }, [])
 
     /**
-     * Record an approval decision on the interaction row the runner parked.
+     * Answer an approval: record the decision on the row the runner parked, THEN flip the part.
      *
-     * Durable half only — it does NOT resume. The park stream ends with a clean finish, so the SDK's
-     * own `sendAutomaticallyWhen` dispatch fires; a second dispatch from here raced it by 1 ms and
-     * each invoke cancelled the other's row as stale. The row write matters anyway: the runner seeds
-     * its decisions from `responded` rows, and a re-seed can discard the local part flip.
+     * Ordered, not raced. This hook dispatches no resume of its own — the park stream ends with a
+     * clean finish, so the SDK's `sendAutomaticallyWhen` sends it — but the flip is what lets the
+     * SDK dispatch, and that resume's stale sweep cancels rows still `pending`, this one included.
+     * Released early, the sweep reached the API first and cancelled the row being answered.
      */
     const answerApproval = useCallback(
-        (approvalId: string, approved: boolean) => {
-            // Best-effort by the atom's contract; the resume must not wait on the write.
-            void recordInteractionAnswer({
-                sessionId,
-                toolCallId: approvalId,
-                resolution: approvalResolution(approvalId, approved),
-            })
-        },
-        [recordInteractionAnswer, sessionId],
+        (approvalId: string, approved: boolean) =>
+            recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: approvalId,
+                        resolution: approvalResolution(approvalId, approved),
+                    }),
+                release: () => addToolApprovalResponse({id: approvalId, approved}),
+            }),
+        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -289,7 +291,7 @@ export const useAgentChatSession = ({
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
             // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
             // row, so the answer has to be durable first. Capped inside the helper.
-            void recordAnswerThenResume({
+            void recordAnswerThenRelease({
                 record: () =>
                     recordInteractionAnswer({
                         sessionId,
@@ -302,7 +304,7 @@ export const useAgentChatSession = ({
                                 : {outcome: "completed", output: output ?? {}}),
                         },
                     }),
-                resume: () => {
+                release: () => {
                     if (errorText !== undefined) {
                         addToolOutput({
                             state: "output-error",

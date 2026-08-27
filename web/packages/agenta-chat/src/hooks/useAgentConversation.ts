@@ -31,6 +31,7 @@ import {
     approvalResolution,
     buildAgentRequest,
     isResumeSend,
+    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -470,18 +471,19 @@ export const useAgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            // The part flip keeps this render honest; the DECISION goes to the interaction row. A
-            // gateway approval is answered mid-stream, so the flip can be discarded by a re-seed
-            // before anything acts on it, and the runner reads the responded row at turn start.
-            addToolApprovalResponse(args)
-            void recordInteractionAnswer({
-                sessionId,
-                toolCallId: args.id,
-                resolution: approvalResolution(args.id, args.approved),
+            // Ordered, not raced: the DECISION lands on the interaction row first, and only then
+            // does the part flip that lets the SDK dispatch its resume. Flipped first, that
+            // resume's stale sweep cancelled the row being answered. No resume from here either —
+            // the park stream finishes cleanly, so the SDK is the only sender.
+            void recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: args.id,
+                        resolution: approvalResolution(args.id, args.approved),
+                    }),
+                release: () => addToolApprovalResponse(args),
             })
-            // No resume from here: the park stream finishes cleanly, so the SDK's own
-            // `sendAutomaticallyWhen` sends it. A second dispatch raced it and both invokes
-            // cancelled the answered row as stale.
         },
         [addToolApprovalResponse, recordInteractionAnswer, sessionId],
     )
