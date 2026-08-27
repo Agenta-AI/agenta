@@ -177,6 +177,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         commitDraft,
         removeItem,
         draftInvalid,
+        draftUnchanged,
     } = useConfigItemDrawer({config, onChange})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
@@ -962,22 +963,37 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
+                      // Skills state their identity in the form, so the drawer drops the icon,
+                      // badge, subtitle and footer note (rows still show them).
+                      const bareChrome = shownEditing.kind === "skill"
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={def.icon}
+                              icon={bareChrome ? undefined : def.icon}
                               title={def.drawerTitle(draft)}
-                              badge={{text: desc.typeLabel, color: desc.typeColor}}
-                              subtitle={desc.subtitle}
-                              footerNote="Changes apply to this agent configuration"
+                              badge={
+                                  bareChrome
+                                      ? undefined
+                                      : {text: desc.typeLabel, color: desc.typeColor}
+                              }
+                              subtitle={bareChrome ? undefined : desc.subtitle}
+                              footerNote={
+                                  bareChrome
+                                      ? undefined
+                                      : "Changes apply to this agent configuration"
+                              }
                               width={def.drawerWidth}
                               contentFlush={def.formFlush}
                               view={drawerView}
                               onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
-                              saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
+                              saveDisabled={
+                                  draftInvalid ||
+                                  draftUnchanged ||
+                                  (drawerView === "json" && jsonInvalid)
+                              }
                               jsonOnly={def.jsonOnly(draft)}
                               disabled={readOnly}
                               form={
