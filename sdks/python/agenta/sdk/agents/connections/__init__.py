@@ -19,6 +19,7 @@ from .errors import (
     UnsupportedConnectionModeError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
+    WriteOnlySecretError,
 )
 from .interfaces import ConnectionResolver
 from .models import (
@@ -66,4 +67,5 @@ __all__ = [
     "UnsupportedProviderError",
     "UnsupportedConnectionModeError",
     "UnsupportedDeploymentError",
+    "WriteOnlySecretError",
 ]

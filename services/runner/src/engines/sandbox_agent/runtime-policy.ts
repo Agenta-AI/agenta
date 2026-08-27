@@ -1,9 +1,12 @@
-import {
-  type AgentRunRequest,
-  type ToolPermission,
-} from "../../protocol.ts";
+import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
+import {
+  isAgentaIngest,
+  platformAuthorizationProvider,
+  resolveOtlpTraceEndpoint,
+  type AuthorizationProvider,
+} from "../../tracing/otel.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
@@ -16,6 +19,51 @@ export function runCredential(request: AgentRunRequest): string {
     string
   >;
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
+}
+
+/**
+ * The legacy wire has one authorization header for two possible owners. Treat it as an Agenta
+ * platform credential only when the configured destination is Agenta ingest; for an external
+ * collector it belongs exclusively to that collector and must never enter platform calls.
+ */
+export function platformCredentialForRequest(request: AgentRunRequest): string {
+  const endpoint = resolveOtlpTraceEndpoint(
+    request.telemetry?.exporters?.otlp?.endpoint,
+  );
+  return isAgentaIngest(endpoint) ? runCredential(request) : "";
+}
+
+export interface RunOtlpTarget {
+  endpoint: string;
+  authorization: AuthorizationProvider;
+  authorizationSource: "platform" | "exporter";
+}
+
+/**
+ * Bind one run to its trusted OTLP destination and the credential that belongs to it.
+ * Agenta ingest follows the renewable platform credential; an external collector keeps the
+ * exporter header from the original request and never receives a refreshed platform token.
+ */
+export function resolveRunOtlpTarget(
+  request: AgentRunRequest,
+  platformAuthorization: AuthorizationProvider,
+): RunOtlpTarget {
+  const endpoint = resolveOtlpTraceEndpoint(
+    request.telemetry?.exporters?.otlp?.endpoint,
+  );
+  if (isAgentaIngest(endpoint)) {
+    return {
+      endpoint,
+      authorization: platformAuthorizationProvider(platformAuthorization),
+      authorizationSource: "platform",
+    };
+  }
+  const exporterAuthorization = runCredential(request) || undefined;
+  return {
+    endpoint,
+    authorization: () => exporterAuthorization,
+    authorizationSource: "exporter",
+  };
 }
 
 export function serverPermissionsFromRequest(

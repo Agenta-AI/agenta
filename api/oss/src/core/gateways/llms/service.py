@@ -241,13 +241,7 @@ class LLMGatewayService:
         provider_key: Optional[str],
         connection_slug: Optional[str],
     ) -> LLMGatewayConnectionResolution:
-        """Resolve an agent connection without returning vault data.
-
-        Named connections select a custom endpoint; an unnamed connection selects the standard
-        endpoint for its explicit provider.  The vault read is intentionally performed here in
-        API core solely to validate that a standard endpoint has a usable provider secret.  Its
-        result is never placed in the DTO sent back to the services process.
-        """
+        """Resolve an agent connection to public gateway route metadata."""
         if connection_slug:
             custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
                 project_id=scope.project_id, slug=connection_slug
@@ -276,12 +270,6 @@ class LLMGatewayService:
             raise ValueError("gateway endpoint has no provider")
         if target.deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
-
-        ref = target.secret_ref()
-        if ref is not None:
-            await self.resolver.resolve(
-                scope=scope, ref=ref, mode=SecretMode.PROJECT_ONLY
-            )
 
         return LLMGatewayConnectionResolution(
             namespace=target.namespace,

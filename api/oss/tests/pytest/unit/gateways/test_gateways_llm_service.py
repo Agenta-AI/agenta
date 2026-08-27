@@ -333,7 +333,7 @@ async def test_resolve_agent_connection_keeps_custom_vault_material_in_core():
 
 
 @pytest.mark.asyncio
-async def test_resolve_agent_connection_validates_standard_secret_in_core():
+async def test_resolve_agent_connection_returns_standard_metadata_without_reading_the_secret():
     resolver = _MockResolver(secret=_secret())
     scope = _scope()
 
@@ -346,10 +346,7 @@ async def test_resolve_agent_connection_validates_standard_secret_in_core():
 
     assert resolved.namespace == GatewayEndpointNamespace.STANDARD
     assert resolved.name == "openai"
-    assert len(resolver.resolve_calls) == 1
-    resolved_scope, _, mode = resolver.resolve_calls[0]
-    assert resolved_scope == scope
-    assert mode == SecretMode.PROJECT_ONLY
+    assert resolver.resolve_calls == []
 
 
 @pytest.mark.asyncio

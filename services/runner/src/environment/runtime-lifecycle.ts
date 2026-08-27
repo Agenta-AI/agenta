@@ -1,9 +1,8 @@
 /**
  * `RuntimeLifecycle` — the agent daemon and the runner-owned files that live beside it.
  *
- * LIFECYCLE MIGRATION, STEP 5 (S7b). This unit owns the four handles nothing else owns:
- * the loopback tool-MCP server, the OTLP bearer file, the Codex SQLite home, and the per-run
- * agent directory. It also owns the two teardown steps that must run FIRST.
+ * LIFECYCLE MIGRATION, STEP 5 (S7b). This unit owns the three handles nothing else owns:
+ * the loopback tool-MCP server, the Codex SQLite home, and the per-run agent directory. It also owns the two teardown steps that must run FIRST.
  *
  * ============================================================================================
  * WHY THIS UNIT IS SMALL, AND WHY THAT IS THE HONEST ANSWER
@@ -40,7 +39,6 @@ import {
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
   resolvePiToolSpecsDelivery,
-  writeOtlpAuthFile,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import {
@@ -49,6 +47,7 @@ import {
 } from "../engines/sandbox_agent/runtime-policy.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../engines/sandbox_agent/run-plan.ts";
 import type { AgentRunRequest } from "../protocol.ts";
+import { PI_TRACE_CONTROL_FILE } from "../tracing/pi-spool-protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
 import type { Log } from "./timing.ts";
 
@@ -92,11 +91,6 @@ export interface RuntimeFilesInput {
    */
   runAgentDir: string | undefined;
   /**
-   * The OTLP bearer file. The Pi extension deletes it on read; this is the backstop for a
-   * harness that never started or crashed before reading it, so the bearer never lingers.
-   */
-  otlpAuthFilePath: string | undefined;
-  /**
    * The local off-mount Codex SQLite home. Disposable: native resume rides the `sessions/`
    * rollout files on CODEX_HOME, not the SQLite, so losing it costs nothing.
    */
@@ -119,7 +113,6 @@ export function removeRuntimeFiles(input: RuntimeFilesInput): void {
   // never to throw. Each removal is independent, so one failure must not skip the next.
   for (const [path, recursive] of [
     [input.runAgentDir, true],
-    [input.otlpAuthFilePath, false],
     [input.codexSqliteHome, true],
   ] as const) {
     if (!path) continue;
@@ -168,21 +161,17 @@ export interface RuntimeEnvironment {
   piExtEnv: Record<string, string>;
   /** Where Pi writes native transcripts, or undefined for a non-Pi run. */
   piSessionDir: string | undefined;
-  /** The 0600 file holding the OTLP bearer, or undefined when there is none to write. */
-  otlpAuthFilePath: string | undefined;
 }
 
 /**
- * Build the daemon and extension environments, and write the OTLP bearer file.
+ * Build the daemon and extension environments.
  *
  * ONE ORDERING RULE INSIDE: `Object.assign(env, piExtEnv)` comes LAST. The local daemon inherits
  * the extension env that way, while Daytona receives the same values through its own `envVars`.
  * Assigning earlier would drop every key the Pi and Codex configuration adds after it.
  *
- * THE OTLP BEARER RIDES A FILE, NEVER AN ENV VAR. The daemon environment is inherited by the
- * harness process, so a prompt-injected sandbox could read and echo a plain env var holding the
- * caller's reusable bearer. Only the PATH goes into the env; the extension reads the file once
- * and deletes it, and `removeRuntimeFiles` above is the backstop for a harness that never ran.
+ * The stable telemetry-control PATH enters Pi's env; per-turn context rides that read-once file.
+ * The OTLP endpoint and authorization remain runner-owned and never enter the daemon env.
  */
 export function buildRuntimeEnvironment(
   input: BuildRuntimeEnvironmentInput,
@@ -218,31 +207,17 @@ export function buildRuntimeEnvironment(
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);
 
-  // Pi self-instruments locally: the trace context and public tool metadata reach Pi through the
-  // Agenta extension. Tool execution always relays back to this runner, which keeps private
-  // specs, scoped env, callback endpoints, and callback auth in runner memory.
-  const otlpAuthFilePath =
-    p.isPi && !p.isDaytona ? `${p.workspace.relayDir}.otlp-auth` : undefined;
-  const otlpAuthorization =
-    r.telemetry?.exporters?.otlp?.headers?.authorization;
-  if (otlpAuthFilePath && otlpAuthorization) {
-    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, input.log);
-  }
-
   const piExtEnv: Record<string, string> = p.isPi
-    ? buildPiExtensionEnv(input.request, !p.isDaytona, {
+    ? buildPiExtensionEnv(input.request, {
         relayDir: p.workspace.relayDir,
         usageOutPath: p.workspace.usageOutPath,
-        otlpAuthFilePath,
+        telemetryControlPath: `${p.workspace.telemetryDir}/${PI_TRACE_CONTROL_FILE}`,
         builtinGatingActive: p.tools.builtinGatingActive,
-        // The materialized skill names (author plus forced `_agenta.*`) so Pi's own agent span
-        // records which skills loaded.
-        skills: p.workspace.skillDirs.map((skill) => skill.name),
       })
     : {};
   // The tool specs `buildPiExtensionEnv` just pointed the extension at ride a FILE (they are far
   // too large for an env string — see `piToolSpecsFilePath`). A local run writes it here, beside
-  // the OTLP bearer file; a Daytona run cannot, because the runner's filesystem is not the
+  // the relay dir. A Daytona run cannot write there because the runner's filesystem is not the
   // sandbox's, so `prepareDaytonaPiAssets` uploads the same bytes to the same path instead.
   if (p.isPi && !p.isDaytona) {
     const toolSpecs = resolvePiToolSpecsDelivery(
@@ -263,5 +238,5 @@ export function buildRuntimeEnvironment(
   // values through `envVars`. Assigning earlier would drop every key added above.
   Object.assign(env, piExtEnv);
 
-  return { env, piExtEnv, piSessionDir, otlpAuthFilePath };
+  return { env, piExtEnv, piSessionDir };
 }

@@ -155,15 +155,19 @@ async def test_cli_stream_terminal_only_on_empty_request() -> None:
     async for record in deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)):
         records.append(record)
 
-    # The runner announces environment startup before it validates the empty request;
-    # the terminal result must still be the only result record and must fail.
-    assert [record["kind"] for record in records] == ["event", "result"], records
-    assert records[0]["event"] == {
-        "type": "data",
-        "name": "agent-status",
-        "data": {"phase": "environment_starting"},
-        "transient": True,
+    # Environment acquisition is observable before prompt validation. The empty request then
+    # terminates with the same failed result record as the one-shot path.
+    assert len(records) == 2, records
+    assert records[0] == {
+        "kind": "event",
+        "event": {
+            "type": "data",
+            "name": "agent-status",
+            "data": {"phase": "environment_starting"},
+            "transient": True,
+        },
     }
+    assert records[1]["kind"] == "result"
     assert records[1]["result"]["ok"] is False
 
     # AgentStream surfaces that failure as a RuntimeError, just like the one-shot path.

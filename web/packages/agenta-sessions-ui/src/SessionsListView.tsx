@@ -5,7 +5,7 @@
  * and its menu entries; everything else — rows, group headers, skeleton/error/empty states,
  * load-more, the enter/exit motion — lives here.
  */
-import {Fragment, useCallback} from "react"
+import {Fragment, useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
@@ -22,6 +22,7 @@ import {
 } from "./SessionListStates"
 import {SessionRow} from "./SessionRow"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
+import {useInlineRename} from "./useInlineRename"
 
 export interface SessionsListViewProps {
     /** Route-supplied agent scope; omit for the project-wide list. */
@@ -31,9 +32,75 @@ export interface SessionsListViewProps {
     /** The host's verbs for a row's kebab + right-click; omit for no menu. */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /**
+     * Persists a rename. Given this, a row renames IN PLACE from either menu; without it the
+     * "rename" key falls through to `onMenuSelect` like any other verb.
+     */
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Touch surfaces have no hover — keep row actions always visible there. */
     revealActionsOnHover?: boolean
     className?: string
+}
+
+/**
+ * One row, and the owner of its rename state.
+ *
+ * A row is offered "rename" twice — its kebab and the right-click menu that wraps it — and both
+ * have to drive the same edit. A component per row is what lets one `useInlineRename` sit above
+ * both; a callback in the parent's render loop could not hold the state.
+ */
+const SessionsListRow = ({
+    vm,
+    entries,
+    scopedAgentId,
+    revealActionsOnHover,
+    onMenuSelect,
+    onRenameRow,
+    onOpenRow,
+    togglePin,
+}: {
+    vm: SessionRowVm
+    entries?: SessionMenuEntry[]
+    scopedAgentId?: string
+    revealActionsOnHover?: boolean
+    onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
+    onOpenRow: (vm: SessionRowVm) => void
+    togglePin: (sessionId: string) => void
+}) => {
+    const onRename = useMemo(
+        () => (onRenameRow ? (name: string) => onRenameRow(vm, name) : undefined),
+        [onRenameRow, vm],
+    )
+    const rename = useInlineRename({current: vm.title, onCommit: onRename ?? (async () => false)})
+
+    const onSelect = useCallback(
+        (key: string) => {
+            if (key === "rename" && onRename) {
+                rename.start()
+                return
+            }
+            onMenuSelect?.(vm, key)
+        },
+        [onMenuSelect, onRename, rename, vm],
+    )
+
+    return (
+        <SessionRowContextMenu entries={entries} onSelect={onSelect}>
+            <div>
+                <SessionRow
+                    row={vm}
+                    showAgent={!scopedAgentId}
+                    revealActionsOnHover={revealActionsOnHover}
+                    menuItems={entries}
+                    onMenuSelect={onSelect}
+                    rename={onRename ? rename : undefined}
+                    onOpen={() => onOpenRow(vm)}
+                    onTogglePin={togglePin}
+                />
+            </div>
+        </SessionRowContextMenu>
+    )
 }
 
 export const SessionsListView = ({
@@ -41,6 +108,7 @@ export const SessionsListView = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     revealActionsOnHover = true,
     className,
 }: SessionsListViewProps) => {
@@ -68,26 +136,28 @@ export const SessionsListView = ({
                     exit="exit"
                     className="overflow-hidden"
                 >
-                    <SessionRowContextMenu
+                    <SessionsListRow
+                        vm={vm}
                         entries={entries}
-                        onSelect={(key) => onMenuSelect?.(vm, key)}
-                    >
-                        <div>
-                            <SessionRow
-                                row={vm}
-                                showAgent={!scopedAgentId}
-                                revealActionsOnHover={revealActionsOnHover}
-                                menuItems={entries}
-                                onMenuSelect={(key) => onMenuSelect?.(vm, key)}
-                                onOpen={() => onOpenRow(vm)}
-                                onTogglePin={togglePin}
-                            />
-                        </div>
-                    </SessionRowContextMenu>
+                        scopedAgentId={scopedAgentId}
+                        revealActionsOnHover={revealActionsOnHover}
+                        onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
+                        onOpenRow={onOpenRow}
+                        togglePin={togglePin}
+                    />
                 </motion.div>
             )
         },
-        [menuFor, onMenuSelect, onOpenRow, revealActionsOnHover, scopedAgentId, togglePin],
+        [
+            menuFor,
+            onMenuSelect,
+            onOpenRow,
+            onRenameRow,
+            revealActionsOnHover,
+            scopedAgentId,
+            togglePin,
+        ],
     )
 
     // Every state renders inside the SAME box: `className` is where the host puts the page's

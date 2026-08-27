@@ -184,6 +184,12 @@ Most optional variables can be left empty. A few are worth calling out:
 - **SSO / OAuth** (`GOOGLE_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_ID`, etc.): Set a provider's `CLIENT_ID` and `CLIENT_SECRET` to enable it. The frontend auto-detects which providers are configured. Leave empty to use email/password authentication only.
 - **Database** (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_URI_*`): The compose stack includes Postgres with working defaults. Override these only if you bring your own database. **Change the default password in production.**
 
+### Development and Debugging
+
+| Variable | Description |
+|----------|-------------|
+| `AGENTA_SERVICES_ALLOWED_ORIGINS` | Comma-separated web origins that may call the services API. Set this when the development web app runs on a different origin from `AGENTA_SERVICES_URL`, for example `http://localhost:3000,http://192.0.2.10:8680`. Recreate the `services` container after changing it. |
+
 The example file lists all variables with descriptions, grouped by category.
 
 ## Architecture Overview

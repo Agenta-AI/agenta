@@ -38,7 +38,6 @@ import {
   resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
   uploadPiToolSpecsToSandbox,
-  writeOtlpAuthFile,
   writePiModelsConfigLocal,
   writePiToolSpecsFileLocal,
   writeSystemPromptLocal,
@@ -168,7 +167,7 @@ describe("buildPiExtensionEnv", () => {
       },
     } as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, false);
+    const env = buildPiExtensionEnv(request);
 
     assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
       provider: "anthropic",
@@ -246,7 +245,6 @@ describe("buildPiExtensionEnv", () => {
       () =>
         buildPiExtensionEnv(
           request("bad/provider", "https://proxy.example.test"),
-          false,
         ),
       /invalid provider/,
     );
@@ -262,7 +260,6 @@ describe("buildPiExtensionEnv", () => {
       () =>
         buildPiExtensionEnv(
           request("anthropic", "https://user:pass@proxy.example.test"),
-          false,
         ),
       /without credentials/,
     );
@@ -315,24 +312,23 @@ describe("buildPiExtensionEnv", () => {
     } as AgentRunRequest;
 
     const relayDir = join(tempDir("agenta-pi-specs-"), "relay");
-    const env = buildPiExtensionEnv(request, true, {
+    const env = buildPiExtensionEnv(request, {
       relayDir,
       usageOutPath: "/tmp/usage.json",
-      otlpAuthFilePath: "/tmp/otlp-auth",
+      telemetryControlPath: "/tmp/telemetry/current.control.json",
     });
     writePiToolSpecsFileLocal(
       resolvePiToolSpecsDelivery(request.customTools ?? [], relayDir)!,
     );
 
-    assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
     assert.equal(
-      env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-      request.telemetry?.exporters?.otlp?.endpoint,
+      env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH,
+      "/tmp/telemetry/current.control.json",
     );
-    // the bearer rides a file path, never a plain env var the harness can read/echo.
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+    assert.equal(env.TRACEPARENT, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
-    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
+    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
@@ -367,19 +363,16 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("omits trace and tool env when tracing and relay are disabled", () => {
-    const env = buildPiExtensionEnv(
-      {
-        context: {
-          propagation: {
-            traceparent:
-              "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-          },
+    const env = buildPiExtensionEnv({
+      context: {
+        propagation: {
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
-        telemetry: { capture: { content: { enabled: true } } },
-        customTools: [{ name: "safe_tool", kind: "callback" }],
-      } as AgentRunRequest,
-      false,
-    );
+      },
+      telemetry: { capture: { content: { enabled: true } } },
+      customTools: [{ name: "safe_tool", kind: "callback" }],
+    } as AgentRunRequest);
 
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
@@ -388,7 +381,7 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
-    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
     });
@@ -399,10 +392,10 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("always sets the builtin activation env and never a grant list", () => {
-    const gating = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const gating = buildPiExtensionEnv({} as AgentRunRequest, {
       builtinGatingActive: true,
     });
-    const noGating = buildPiExtensionEnv({} as AgentRunRequest, false, {});
+    const noGating = buildPiExtensionEnv({} as AgentRunRequest, {});
 
     assert.equal(gating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
     assert.equal(noGating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
@@ -425,7 +418,6 @@ describe("buildPiExtensionEnv", () => {
     ];
     const env = buildPiExtensionEnv(
       { customTools } as unknown as AgentRunRequest,
-      false,
       { relayDir: "/tmp/relay" },
     );
 
@@ -438,50 +430,6 @@ describe("buildPiExtensionEnv", () => {
       required: ["integration"],
       properties: { integration: { type: "string" } },
     });
-  });
-
-  it("carries the loaded skill names under tracing (F-029)", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    const env = buildPiExtensionEnv(request, true, {
-      skills: ["weather-oracle", "_agenta.agenta-getting-started"],
-    });
-
-    assert.deepEqual(JSON.parse(env.AGENTA_AGENT_SKILLS_LOADED ?? "[]"), [
-      "weather-oracle",
-      "_agenta.agenta-getting-started",
-    ]);
-  });
-
-  it("omits the loaded skills env when there are none or tracing is off", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
-    assert.equal(
-      buildPiExtensionEnv(request, false, { skills: ["x"] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
   });
 
   describe("hop-1 response-watch kill switch forwarding", () => {
@@ -498,7 +446,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("forwards the flag verbatim into the sandbox env when the operator set it", () => {
       process.env[FLAG] = "false";
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], "false");
@@ -506,7 +454,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("omits the flag when the operator did not set it (writer defaults to true)", () => {
       delete process.env[FLAG];
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], undefined);
@@ -514,21 +462,18 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("never leaks the bearer into env when no auth file path is given", () => {
-    const env = buildPiExtensionEnv(
-      {
-        telemetry: {
-          exporters: {
-            otlp: {
-              endpoint: "https://otlp.example.test/v1/traces",
-              headers: { authorization: "Bearer trace-token" },
-            },
+    const env = buildPiExtensionEnv({
+      telemetry: {
+        exporters: {
+          otlp: {
+            endpoint: "https://otlp.example.test/v1/traces",
+            headers: { authorization: "Bearer trace-token" },
           },
         },
-      } as AgentRunRequest,
-      true,
-    );
+      },
+    } as AgentRunRequest);
 
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(JSON.stringify(env).includes("trace-token"), false);
   });
@@ -566,7 +511,7 @@ describe("Pi tool specs delivery", () => {
     const customTools = fatToolSpecs();
     const request = { customTools } as unknown as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, false, { relayDir });
+    const env = buildPiExtensionEnv(request, { relayDir });
     const delivery = resolvePiToolSpecsDelivery(customTools as never, relayDir);
     assert.ok(delivery);
     writePiToolSpecsFileLocal(delivery);
@@ -653,13 +598,9 @@ describe("Pi tool specs delivery", () => {
     ]);
     // The env the sandbox was created with names exactly this path.
     assert.equal(
-      buildPiExtensionEnv(
-        { customTools } as unknown as AgentRunRequest,
-        false,
-        {
-          relayDir: "/home/sandbox/agenta/relay/session-1",
-        },
-      )[PUBLIC_SPECS_FILE_ENV],
+      buildPiExtensionEnv({ customTools } as unknown as AgentRunRequest, {
+        relayDir: "/home/sandbox/agenta/relay/session-1",
+      })[PUBLIC_SPECS_FILE_ENV],
       writes[0].path,
     );
   });
@@ -681,18 +622,6 @@ describe("Pi tool specs delivery", () => {
       uploadPiToolSpecsToSandbox(sandbox, delivery),
       (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
     );
-  });
-});
-
-describe("writeOtlpAuthFile", () => {
-  it("writes the bearer to a 0600 file, not env", () => {
-    const dir = tempDir("agenta-pi-otlp-auth-test-");
-    const path = join(dir, "nested", "otlp-auth");
-
-    writeOtlpAuthFile(path, "Bearer trace-token");
-
-    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
-    assert.equal(statSync(path).mode & 0o777, 0o600);
   });
 });
 

@@ -13,7 +13,7 @@
 
 const PLACEHOLDER_BARE = "[ag:redacted]";
 
-type RedactionMode = "off" | "known" | "pattern" | "full";
+export type RedactionMode = "off" | "known" | "pattern" | "full";
 const LIVE_MODES: ReadonlySet<string> = new Set(["off", "known"]);
 const INERT_MODES: ReadonlySet<string> = new Set(["pattern", "full"]);
 
@@ -230,9 +230,15 @@ export class Redactor {
   // high-entropy enough to substring-match safely.
   private bounded = new Set<string>();
   private sortedValues: string[] = []; // longest-first, recomputed on seed
+  private readonly mode?: RedactionMode;
 
-  constructor(options?: { allowlist?: Iterable<string> }) {
+  constructor(options?: {
+    allowlist?: Iterable<string>;
+    /** Explicit sink policy. Pi passes `known` so sandbox redaction cannot be disabled by env. */
+    mode?: RedactionMode;
+  }) {
     this.allowlist = new Set(DEFAULT_REDACTION_ALLOWLIST);
+    this.mode = options?.mode;
     for (const item of options?.allowlist ?? []) {
       this.allowlist.add(item.toLowerCase());
     }
@@ -279,7 +285,11 @@ export class Redactor {
   }
 
   private knownValuePass(value: string, sink: string): string {
-    if (redactionMode() === "off" || this.sortedValues.length === 0 || !value) {
+    if (
+      (this.mode ?? redactionMode()) === "off" ||
+      this.sortedValues.length === 0 ||
+      !value
+    ) {
       return this.shapePass(value, sink);
     }
     let out = value;
@@ -427,6 +437,32 @@ export function requestSecretValues(
       ),
     ),
   ];
+}
+
+/**
+ * Mount credentials visible to a sandbox process and therefore eligible to appear in Pi spans.
+ */
+export interface SandboxVisibleSecretSource {
+  mountCreds?: {
+    accessKey?: string | null;
+    secretKey?: string | null;
+    sessionToken?: string | null;
+  } | null;
+  agentMountCreds?: {
+    accessKey?: string | null;
+    secretKey?: string | null;
+    sessionToken?: string | null;
+  } | null;
+}
+
+export function sandboxVisibleSecretValues(
+  source: SandboxVisibleSecretSource,
+): Array<string | null | undefined> {
+  return [source.mountCreds, source.agentMountCreds].flatMap((credential) => [
+    credential?.accessKey,
+    credential?.secretKey,
+    credential?.sessionToken,
+  ]);
 }
 
 /**

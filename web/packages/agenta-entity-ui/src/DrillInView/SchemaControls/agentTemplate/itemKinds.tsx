@@ -10,6 +10,7 @@ import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
+import {skillDraftError} from "../skillName"
 import {ToolFormView} from "../ToolFormView"
 import {parseGatewayTool} from "../toolUtils"
 
@@ -163,7 +164,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),
-        // `@ag.embed` skill references carry no name and are always valid (they round-trip as-is).
-        draftInvalid: (draft) => !isEmbedRefSkill(draft) && !String(draft.name ?? "").trim(),
+        // `@ag.embed` references round-trip as-is; everything else must pass the SDK's own rules.
+        draftInvalid: (draft) => !isEmbedRefSkill(draft) && skillDraftError(draft) !== undefined,
     },
 }

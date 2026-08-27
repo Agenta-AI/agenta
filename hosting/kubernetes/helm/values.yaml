@@ -38,6 +38,7 @@ agenta:
   # ================================================================ #
   authKey: "replace-me"
   cryptKey: "replace-me"
+  servicesInternalKey: "replace-me"
   runnerToken: "replace-me"
 
 # ================================================================== #

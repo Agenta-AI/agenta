@@ -7,8 +7,9 @@ returned DTO contains route metadata only, never a provider secret.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+import os
+from dataclasses import dataclass, field, replace
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import httpx
 
@@ -26,6 +27,7 @@ from ..connections.endpoints import (
     build_resolved_connection,
     gateway_target,
 )
+from ..connections.credentials import credential_extras, secret_value_configured
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
@@ -40,6 +42,7 @@ from ..connections import (
     ResolvedConnection,
     RuntimeAuthContext,
     UnsupportedConnectionModeError,
+    WriteOnlySecretError,
 )
 from ..model_catalog import model_input_modalities
 from .connection import PlatformConnection
@@ -178,6 +181,38 @@ def _provider_env_var(provider: Optional[str]) -> Optional[str]:
     return _PROVIDER_ENV_VARS.get(provider.lower()) if provider else None
 
 
+def _credential_channels(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> List[Tuple[str, ...]]:
+    if candidate.deployment == "bedrock":
+        return [
+            ("AWS_BEARER_TOKEN_BEDROCK",),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
+        ]
+    if candidate.deployment in {"vertex", "vertex_ai"}:
+        return [("GOOGLE_APPLICATION_CREDENTIALS",)]
+    if candidate.deployment == "azure":
+        return [("AZURE_OPENAI_API_KEY",)]
+    if candidate.kind == "custom_provider" and (
+        (candidate.endpoint and candidate.endpoint.base_url)
+        or candidate.endpoint_blocked
+    ):
+        return []
+    env_var = _provider_env_var(provider) or _provider_env_var(candidate.provider)
+    return [(env_var,)] if env_var else []
+
+
+def _environment_credential(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> Optional[Dict[str, str]]:
+    for channel in _credential_channels(provider, candidate):
+        values = {name: (os.environ.get(name) or "").strip() for name in channel}
+        if all(values.values()):
+            return values
+    return None
+
+
 def _header_name(secret: Dict[str, Any]) -> Optional[str]:
     return _stripped(_as_dict(secret.get("header")).get("name"))
 
@@ -262,6 +297,7 @@ class _ConnectionCandidate:
     # harness intersection). Neither field filters resolution here yet.
     models: Optional[List[str]] = None
     harnesses: Optional[List[str]] = None
+    write_only_redacted: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -288,11 +324,18 @@ class _ConnectionCandidate:
         )
 
     def selected_model_id(self, model: ModelRef) -> str:
-        full = model.to_model_string()
-        for key in self.model_keys:
-            if key == full:
-                parts = key.split("/", 2)
-                return parts[2] if len(parts) == 3 else model.model
+        for key in _ordered_model_lookup_values(model, self.deployment):
+            if key not in self.model_keys:
+                continue
+            matching_slugs = [
+                slug
+                for slug in self.model_slugs
+                if key == slug or key.endswith(f"/{slug}")
+            ]
+            if matching_slugs:
+                return max(matching_slugs, key=len)
+            parts = key.split("/", 2)
+            return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
             return model.model
         prefix = f"{self.deployment}/"
@@ -356,14 +399,26 @@ class _ConnectionCandidate:
         return env
 
 
-def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
-    values = {model.model, model.to_model_string()}
+def _ordered_model_lookup_values(model: ModelRef, deployment: str) -> List[str]:
+    values = [model.model, model.to_model_string()]
     if model.provider:
-        values.add(f"{model.provider}/{model.model}")
+        values.append(f"{model.provider}/{model.model}")
     prefix = f"{deployment}/"
     if model.model.startswith(prefix):
-        values.add(model.model[len(prefix) :])
-    return {value for value in values if value}
+        values.append(model.model[len(prefix) :])
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
+    return set(_ordered_model_lookup_values(model, deployment))
+
+
+def _write_only_redacted(secret: Dict[str, Any], has_credential: bool) -> bool:
+    return (
+        bool(secret.get("write_only"))
+        and secret_value_configured(secret)
+        and not has_credential
+    )
 
 
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
@@ -383,6 +438,7 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
         api_key=key,
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(secret, bool(key)),
     )
 
 
@@ -451,6 +507,9 @@ def _custom_provider_candidate(
         ),
         models=_saved_models(data),
         harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(
+            secret, bool(api_key) or bool(credential_extras(extras))
+        ),
     )
 
 
@@ -598,6 +657,16 @@ def _resolve_from_secrets(
         else _choose_default(candidates, model, harness)
     )
     provider = chosen.resolved_provider(model)
+    if chosen.write_only_redacted:
+        fallback = _environment_credential(provider, chosen)
+        if fallback is None:
+            raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
+        chosen = replace(
+            chosen,
+            api_key=None,
+            write_only_redacted=False,
+            env={**chosen.env, **fallback},
+        )
     if chosen.deployment in {"vertex", "vertex_ai"} and chosen.env.get(
         "GOOGLE_CLOUD_API_KEY"
     ):
@@ -616,10 +685,19 @@ def _resolve_from_secrets(
     if not env:
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
 
-    # Gateway-routed connections keep provider secrets out of harness configuration.
+    # Live requests always supply both values. This direct path is only for offline
+    # and recorded-replay resolution, where no gateway credential can be minted.
     if not gateway_base_url or not gateway_credentials_value:
-        raise ConnectionResolutionError(
-            "no Agenta backend configured for gateway connection resolution"
+        return build_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=chosen.deployment,
+            credential_mode="env",
+            values=env,
+            endpoint=chosen.endpoint,
+            input_modalities=model_input_modalities(
+                harness, resolved_model, provider=provider
+            ),
         )
     namespace, name = gateway_target(
         kind=chosen.kind, provider=provider, slug=chosen.slug

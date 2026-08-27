@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
 from uuid import uuid4
 
@@ -353,7 +354,8 @@ async def _agent_run_to_vercel_parts_impl(
             elif etype == "error":
                 error_emitted = True
                 for part in _error_parts(
-                    data.get("message", ""), failure_code="runner_error"
+                    data.get("message", ""),
+                    failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
             elif etype == "done":
@@ -635,7 +637,8 @@ async def _agent_stream_to_vercel_stream_impl(
             elif etype == "error":
                 error_emitted = True
                 for part in _error_parts(
-                    data.get("message", ""), failure_code="runner_error"
+                    data.get("message", ""),
+                    failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
             elif etype == "done":
@@ -930,6 +933,21 @@ def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
         if data.get(key) is not None
     }
     return {"type": "data-attachment-delivery", "data": delivery}
+
+
+# A runner-authored failure code is a stable slug, never prose. Anything else on the wire (a raw
+# provider string, an int, a missing field) falls back to the generic code this site always used,
+# so an older runner stays readable and no unvetted text reaches the client as a code.
+_FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+#: What a runner-reported error is coded as when the runner names no class of its own.
+DEFAULT_RUNNER_FAILURE_CODE = "runner_error"
+
+
+def _runner_failure_code(code: Any) -> str:
+    if isinstance(code, str) and _FAILURE_CODE.match(code):
+        return code
+    return DEFAULT_RUNNER_FAILURE_CODE
 
 
 def _error_parts(

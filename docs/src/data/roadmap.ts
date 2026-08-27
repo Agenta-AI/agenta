@@ -33,6 +33,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Channels: 2DD4BF
   // Mobile: F472B6
   {
+    id: "mobile",
+    title: "Agenta on Mobile",
+    description:
+      "Use Agenta from a phone to chat with agents, handle tool approvals, return to past sessions, and manage your workspace.",
+    changelogPath: "/docs/changelog/agenta-on-mobile",
+    shippedAt: "2026-08-22",
+    labels: [
+      {
+        name: "Mobile",
+        color: "F472B6",
+      },
+    ],
+  },
+  {
     id: "durable-sessions",
     title: "Durable Agent Sessions",
     description:
@@ -156,19 +170,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Channels",
         color: "2DD4BF",
-      },
-    ],
-  },
-  {
-    id: "mobile",
-    title: "Agenta on Mobile",
-    description:
-      "Use the core agent experience from a phone. Chat with an agent, approve or deny tool calls, and browse past runs on a small screen.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5511",
-    labels: [
-      {
-        name: "Mobile",
-        color: "F472B6",
       },
     ],
   },

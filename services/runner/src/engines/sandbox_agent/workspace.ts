@@ -26,7 +26,7 @@ export interface PrepareWorkspaceInput {
   plan: Pick<RunPlan, "isDaytona" | "isPi" | "acpAgent"> & {
     workspace: Pick<
       RunPlanWorkspace,
-      "cwd" | "relayDir" | "harnessFiles" | "skillDirs"
+      "cwd" | "relayDir" | "telemetryDir" | "harnessFiles" | "skillDirs"
     >;
     tools: Pick<RunPlanTools, "useToolRelay">;
     prompt: Pick<RunPlanPrompt, "agentsMd">;
@@ -85,6 +85,13 @@ export async function prepareWorkspace({
           log(`tool relay dir mkdir skipped: ${err.message}`);
         });
     }
+    if (plan.isPi) {
+      await sandbox
+        .mkdirFs({ path: plan.workspace.telemetryDir })
+        .catch((err: Error) => {
+          log(`telemetry dir mkdir skipped: ${err.message}`);
+        });
+    }
     if (plan.prompt.agentsMd) {
       await sandbox.writeFsFile(
         { path: `${plan.workspace.cwd}/${instructionsFile}` },
@@ -122,6 +129,8 @@ export async function prepareWorkspace({
   // runner has no /dev/fuse), acquisition deliberately falls back to an ephemeral cwd. Ensure
   // that fallback exists before writing CLAUDE.md/AGENTS.md or any harness files into it.
   mkdirSync(plan.workspace.cwd, { recursive: true });
+
+  if (plan.isPi) mkdirSync(plan.workspace.telemetryDir, { recursive: true });
 
   if (plan.tools.useToolRelay) {
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and

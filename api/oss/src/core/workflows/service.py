@@ -141,7 +141,7 @@ from oss.src.core.embeds.utils import (
     find_string_embeds,
 )
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (
@@ -2804,9 +2804,6 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
-        # The initial service credential is bound to this invocation.  The agent
-        # service may exchange it for a narrower MCP credential after it resolves
-        # the callback tools for the run.
         gateway_run_id = uuid4().hex
         secret_token = await sign_secret_token(
             user_id=str(user_id),
@@ -2814,6 +2811,7 @@ class WorkflowsService:
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
@@ -2936,6 +2934,7 @@ class WorkflowsService:
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"

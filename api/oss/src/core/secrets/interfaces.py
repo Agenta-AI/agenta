@@ -1,11 +1,12 @@
 from uuid import UUID
-from typing import Optional, List
+from typing import Callable, List, Optional
 
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
     SecretResponseDTO,
 )
+from oss.src.core.secrets.managed import SecretManagementDTO
 
 
 class SecretsDAOInterface:
@@ -18,6 +19,7 @@ class SecretsDAOInterface:
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
         create_secret_dto: CreateSecretDTO,
+        management: Optional[SecretManagementDTO] = None,
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
@@ -48,6 +50,14 @@ class SecretsDAOInterface:
         update_secret_dto: UpdateSecretDTO,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
+        # Called with the row as it stands under the write lock, before the update is
+        # applied. Every decision that reads stored state belongs here: a check made
+        # against a snapshot read earlier is a check against a row another writer can
+        # still have replaced. It may raise to refuse the update.
+        resolve_update: Optional[
+            Callable[[SecretResponseDTO, UpdateSecretDTO], UpdateSecretDTO]
+        ] = None,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
@@ -56,5 +66,6 @@ class SecretsDAOInterface:
         secret_id: UUID,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
+        authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
     ) -> None:
         raise NotImplementedError

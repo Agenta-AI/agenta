@@ -13,6 +13,7 @@ import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
 
 import {localPlaygroundSessionRefsAtom} from "./localSessionRefs"
+import {useSessionRowWrappers} from "./sessionRowWrapper"
 
 export {injectDynamicChildren, resolveChildren}
 
@@ -26,5 +27,10 @@ export const useSidebarDynamicChildren = (): Record<string, SidebarConfig[]> => 
     useEffect(() => {
         setLocalRefs(localRefs)
     }, [localRefs, setLocalRefs])
-    return useSharedSidebarDynamicChildren({projectURL, kindIcon: getEntityKindIcon})
+    const rowWrappers = useSessionRowWrappers()
+    return useSharedSidebarDynamicChildren({
+        projectURL,
+        kindIcon: getEntityKindIcon,
+        rowWrappers,
+    })
 }

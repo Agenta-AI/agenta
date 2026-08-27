@@ -465,7 +465,17 @@ export type AgentEvent =
       total?: number;
       cost?: number;
     }
-  | { type: "error"; message: string }
+  | {
+      type: "error";
+      message: string;
+      /**
+       * Stable string code, never a display string: the class of failure, so a client can render a
+       * purposeful state (add-your-own-key, retry) instead of parsing `message`. Optional and
+       * defaulted by the consumer, so an older runner that omits it stays readable.
+       * Values: see `RunErrorCode` in engines/sandbox_agent/errors.ts.
+       */
+      code?: string;
+    }
   // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
   // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
   // Live streams carry it via `messageMetadata`; this is the durable-replay channel.

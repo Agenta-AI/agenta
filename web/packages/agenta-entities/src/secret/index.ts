@@ -30,6 +30,10 @@
 // ============================================================================
 
 export type {
+    AgentConnectionMode,
+    AgentModelCandidate,
+    AgentModelSelection,
+    BuildAgentModelCandidatesArgs,
     CreateSecretDto,
     CustomModelSettingsDto,
     CustomProviderDto,
@@ -62,6 +66,18 @@ export type {
 } from "./core"
 
 export {
+    agentFamilyFromModelId,
+    agentModelSelectionIsRunnable,
+    agentModelSelectionMode,
+    agentVaultProviderFamily,
+    buildAgentModelCandidates,
+    connectionModelIds,
+    effectiveHarnesses,
+    firstAgentModelForConnection,
+    isAgentDeploymentProviderKind,
+    resolveAgentModelSelection,
+    selectableAgentHarnesses,
+    soleAgentHarnessProviderFamily,
     CustomProviderKind,
     CustomSecretFormat,
     McpStandardProviderKind,
@@ -69,8 +85,10 @@ export {
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
     SecretKind,
+    SecretManagementPolicy,
     StandardProviderKind,
     getEnvNameMap,
+    hasStoredKey,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformSecret,
@@ -109,6 +127,9 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    probeFailureMessage,
+    probeRequestFor,
+    storedCredentialFields,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,

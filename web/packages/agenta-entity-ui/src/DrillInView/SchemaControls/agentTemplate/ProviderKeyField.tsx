@@ -1,6 +1,6 @@
 import {useEffect, useId, useRef, useState} from "react"
 
-import {useVaultSecret} from "@agenta/entities/secret"
+import {hasStoredKey, useVaultSecret} from "@agenta/entities/secret"
 import {providerKeyAddedSignalAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
@@ -43,7 +43,7 @@ const ProviderKeyField = ({
     // mount: the section body stays mounted while collapsed, so a mount-time `autoFocus` would fire
     // while hidden. Only when there's no key yet — an existing key isn't waiting to be typed.
     const sectionOpen = useAccordionSectionOpen()
-    const hasKey = !!provider.key
+    const hasKey = hasStoredKey(provider)
     useEffect(() => {
         if (!sectionOpen || hasKey || disabled) return
         const t = window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -53,7 +53,7 @@ const ProviderKeyField = ({
     const save = async () => {
         const trimmed = key.trim()
         if (!trimmed || saving || disabled) return
-        const isFirstKey = !provider.key
+        const isFirstKey = !hasKey
         setSaving(true)
         try {
             await handleModifyVaultSecret({...provider, key: trimmed})
@@ -80,7 +80,10 @@ const ProviderKeyField = ({
                 hasKey ? (
                     <span className="inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                         <CheckCircle size={13} weight="fill" />
-                        Key configured · enter a new value to replace it.
+                        {/* TODO(copy: owner) */}
+                        {provider.keyPreview
+                            ? `Key configured (${provider.keyPreview}) · enter a new value to replace it.`
+                            : "Key configured · enter a new value to replace it."}
                     </span>
                 ) : null
             ) : (
@@ -92,14 +95,19 @@ const ProviderKeyField = ({
                     {hasKey ? (
                         <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
-                            Key configured · enter a new value to replace it.
+                            {/* TODO(copy: owner) */}
+                            {provider.keyPreview
+                                ? `Key configured (${provider.keyPreview}) · enter a new value to replace it.`
+                                : "Key configured · enter a new value to replace it."}
                         </span>
                     ) : null}
                 </div>
             )}
             <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium" htmlFor={inputId}>
-                    API key <span className="text-[var(--ag-colorError)]">*</span>
+                    {/* TODO(copy: owner) */}
+                    {hasKey ? "Replace key" : "API key"}{" "}
+                    <span className="text-[var(--ag-colorError)]">*</span>
                 </label>
                 <div className="flex items-center gap-2">
                     <PasswordInput

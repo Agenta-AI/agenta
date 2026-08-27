@@ -2,6 +2,7 @@ import {useCallback, useState, type FC} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {removeFromWorkspace, resendInviteToWorkspace} from "@agenta/entities/organization"
+import {resetPassword} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
@@ -19,6 +20,12 @@ import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import {Roles} from "./cellRenderers"
 
+const GenerateResetLinkModal = dynamic(() => import("./Modals/GenerateResetLinkModal"), {
+    ssr: false,
+})
+const PasswordResetLinkModal = dynamic(() => import("./Modals/PasswordResetLinkModal"), {
+    ssr: false,
+})
 const InvitedUserLinkModal = dynamic(() => import("./Modals/InvitedUserLinkModal"), {ssr: false})
 const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr: false})
 
@@ -28,7 +35,7 @@ const WorkspaceManage: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
     const {members, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
-    const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
+    const {canInviteMembers, canRemoveMembers, canModifyRoles} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
@@ -39,6 +46,14 @@ const WorkspaceManage: FC = () => {
     const [renameOpen, setRenameOpen] = useState(false)
     const [renameValue, setRenameValue] = useState("")
     const [resendingEmail, setResendingEmail] = useState<string | null>(null)
+    const [resetTarget, setResetTarget] = useState<{id: string; username?: string} | null>(null)
+    const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
+    const [resetLinkOpen, setResetLinkOpen] = useState(false)
+    const [resetLink, setResetLink] = useState("")
+    const [resetLoading, setResetLoading] = useState(false)
+
+    // Mirrors the backend RESET_PASSWORD permission, granted with invite/role-modify rights.
+    const canResetPassword = canInviteMembers || canModifyRoles
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
@@ -102,6 +117,27 @@ const WorkspaceManage: FC = () => {
         }
     }, [renameValue, refetchProfile, refetch])
 
+    const handleResetPassword = useCallback(async () => {
+        if (!resetTarget) return
+        setResetLoading(true)
+        try {
+            const link = await resetPassword(resetTarget.id)
+            setGenerateResetLinkOpen(false)
+            setResetLink(link)
+            setResetLinkOpen(true)
+        } catch (error) {
+            const detail = (error as {response?: {data?: {detail?: string}}})?.response?.data
+                ?.detail
+            message.error(
+                detail ||
+                    (error as {message?: string})?.message ||
+                    "Unable to generate reset password link",
+            )
+        } finally {
+            setResetLoading(false)
+        }
+    }, [resetTarget])
+
     return (
         <MembersPage
             members={members}
@@ -112,6 +148,7 @@ const WorkspaceManage: FC = () => {
             ownerId={selectedOrg?.owner_id}
             canInviteMembers={canInviteMembers}
             canRemoveMembers={canRemoveMembers}
+            canResetPassword={canResetPassword}
             resendingEmail={resendingEmail}
             // The role editor writes through antd's Select, so it stays with this host.
             renderRoleCell={
@@ -133,6 +170,10 @@ const WorkspaceManage: FC = () => {
                 setRenameValue(member.user.username || "")
                 setRenameOpen(true)
             }}
+            onResetPassword={(member) => {
+                setResetTarget({id: member.user.id, username: member.user.username})
+                setGenerateResetLinkOpen(true)
+            }}
         >
             <Modal
                 title="Rename your username"
@@ -150,6 +191,21 @@ const WorkspaceManage: FC = () => {
                     placeholder="New username"
                 />
             </Modal>
+
+            <GenerateResetLinkModal
+                open={generateResetLinkOpen}
+                username={resetTarget?.username}
+                onCancel={() => setGenerateResetLinkOpen(false)}
+                onOk={handleResetPassword}
+                confirmLoading={resetLoading}
+            />
+
+            <PasswordResetLinkModal
+                open={resetLinkOpen}
+                username={resetTarget?.username}
+                generatedLink={resetLink}
+                onCancel={() => setResetLinkOpen(false)}
+            />
 
             <InviteUsersModal
                 setQueryInviteModalOpen={setQueryInviteModalOpen}

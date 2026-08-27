@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import List, Optional
 from re import compile as re_compile
 from uuid import UUID
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import asyncio
 import traceback
 
@@ -10,7 +10,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
-from jwt import encode, decode, DecodeError, ExpiredSignatureError
+from jwt import encode, decode, DecodeError, ExpiredSignatureError, InvalidTokenError
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
@@ -116,6 +116,43 @@ _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
 
 _SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
+# Signer and verifier can be different replicas with drifting clocks, and `iat` makes PyJWT
+# reject a token minted a moment "in the future". Tolerate that much drift on `iat` and `exp`.
+_SECRET_LEEWAY = 30  # seconds
+
+# A grant ADDS one capability to an otherwise general-purpose token, instead of
+# confining that token to a narrower use. The runtime's credential must stay
+# general-purpose (it authenticates workflows, tools, and vault reads alike), so the
+# vault's plaintext-read capability rides a grant.
+SECRET_RESOLVE_GRANT = "secret-resolve"
+ALLOWED_SECRET_TOKEN_GRANTS = frozenset({SECRET_RESOLVE_GRANT})
+
+
+def _validate_secret_token_grants(grants: object) -> tuple[str, ...]:
+    """Return known grants and reject every unrecognized claim shape or value."""
+    if grants is None:
+        return ()
+
+    if not isinstance(grants, list):
+        raise ValueError("Secret token grants must be a list.")
+
+    if any(
+        not isinstance(grant, str) or grant not in ALLOWED_SECRET_TOKEN_GRANTS
+        for grant in grants
+    ):
+        raise ValueError("Secret token contains an unsupported grant.")
+
+    return tuple(grants)
+
+
+def request_has_grant(request: Request, grant: str) -> bool:
+    """Whether the request's verified credential carries ``grant``.
+
+    Only `verify_secret_token` populates grants; session and ApiKey principals never
+    carry any, so this is False for them by construction.
+    """
+    return grant in getattr(request.state, "token_grants", ())
+
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
@@ -930,7 +967,15 @@ async def verify_secret_token(
             jwt=secret_token,
             key=_SECRET_KEY,
             algorithms=["HS256"],
+            leeway=_SECRET_LEEWAY,
         )
+
+        try:
+            request.state.token_grants = _validate_secret_token_grants(
+                auth_context.get("grants")
+            )
+        except ValueError as exc:
+            raise DecodeError("Secret token contains invalid grants.") from exc
 
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
@@ -968,6 +1013,23 @@ async def verify_secret_token(
         )
 
         raise UnauthorizedException(reason="invalid_token") from exc
+
+    except InvalidTokenError as exc:
+        # Every other claim rejection PyJWT can raise (a clock-skewed `iat` past the leeway
+        # raises `ImmatureSignatureError`, which is neither a `DecodeError` nor an
+        # `ExpiredSignatureError`). The token is unusable, not the server broken, so it is a 401.
+        log.debug(
+            "[auth] secret token unauthorized",
+            path=request.url.path,
+            method=request.method,
+            reason="invalid_token",
+            error=type(exc).__name__,
+        )
+
+        raise UnauthorizedException(reason="invalid_token") from exc
+
+    except HTTPException:
+        raise
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
@@ -1007,14 +1069,16 @@ async def sign_secret_token(
     organization_name: Optional[str] = None,
     gateway_run_id: Optional[str] = None,
     gateway_tools: Optional[list[dict]] = None,
+    grants: Optional[List[str]] = None,
 ):
+    validated_grants = _validate_secret_token_grants(grants)
+
     try:
         if not _SECRET_KEY:
             raise InternalServerErrorException()
 
-        _exp = int(
-            (datetime.now(timezone.utc) + timedelta(seconds=_SECRET_EXP)).timestamp()
-        )
+        _issued_at = int(datetime.now(timezone.utc).timestamp())
+        _exp = _issued_at + _SECRET_EXP
 
         auth_context = {
             "user_id": user_id,
@@ -1025,8 +1089,14 @@ async def sign_secret_token(
             "organization_name": organization_name,
             "gateway_run_id": gateway_run_id,
             "gateway_tools": gateway_tools,
+            "iat": _issued_at,
             "exp": _exp,
         }
+
+        # A token with no grants carries no `grants` key at all, rather than a null or
+        # empty one, so its payload stays the shape every existing holder was issued.
+        if validated_grants:
+            auth_context["grants"] = list(validated_grants)
 
         secret_token = encode(
             payload=auth_context,

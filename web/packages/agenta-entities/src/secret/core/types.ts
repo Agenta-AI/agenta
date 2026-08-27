@@ -27,7 +27,9 @@ export type Header = AgentaApi.Header
 export type LegacyLifecycleDto = AgentaApi.LegacyLifecycleDto
 
 export type SecretDto = AgentaApi.SecretDto
-export type SecretResponseDto = AgentaApi.SecretResponseDto
+
+export type SecretResponseDto = AgentaApi.PublicSecretResponseDto
+
 export type CreateSecretDto = AgentaApi.CreateSecretDto
 export type UpdateSecretDto = AgentaApi.UpdateSecretDto
 
@@ -36,14 +38,7 @@ export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
 
 /**
- * The connection policy both stored record shapes carry: the models this connection offers
- * and the harnesses it may drive. A missing `models` means "use Agenta's defaults" and an
- * empty one means "no models from this connection"; a missing `harnesses` means "any harness
- * Agenta supports". The custom-provider record already declares `models`, so it only gains
- * `harnesses` here.
- *
- * Layered onto the Fern types until the client is regenerated from the OpenAPI spec; dropping
- * the intersections once Fern declares the fields is a no-op for callers.
+ * Connection policy fields not yet represented by the generated client.
  */
 export type StandardProviderDto = AgentaApi.StandardProviderDto & {
     models?: CustomModelSettingsDto[] | null
@@ -60,6 +55,8 @@ export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
 export const CustomSecretFormat = AgentaApi.CustomSecretFormat
 export type CustomSecretFormat = AgentaApi.CustomSecretFormat
 
+export const SecretManagementPolicy = AgentaApi.SecretManagementPolicy
+export type SecretManagementPolicy = AgentaApi.SecretManagementPolicy
 /**
  * Flat json content for a `json`-format custom secret: a single-level map of
  * primitives. Mirrors the backend's flat-only validation (no nesting/arrays).
@@ -75,7 +72,8 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat
-    content: CustomSecretContent
+    /** Absent on a write-only record (the value never comes back) and on an update that keeps it. */
+    content?: CustomSecretContent
 }
 
 // `SecretKind` / `StandardProviderKind` / `CustomProviderKind` are Fern
@@ -149,6 +147,21 @@ export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
  * connection card seeds its credential fields from one — must recognise it as "no value yet".
  */
 export const VAULT_PERSIST_REDACTED = "[redacted]"
+
+/**
+ * Every `LlmProvider` field that can carry actual secret material — the fields the vault strips
+ * from a write-only response, and the fields the IndexedDB persister replaces with a sentinel.
+ * One list so the two can never disagree about what counts as a secret.
+ */
+export const SECRET_VALUE_FIELDS = [
+    "key",
+    "apiKey",
+    "accessKeyId",
+    "accessKey",
+    "sessionToken",
+    "bearerToken",
+    "vertexCredentials",
+] as const
 
 // ---------------------------------------------------------------------------
 // Migration status (UI state, not wire)

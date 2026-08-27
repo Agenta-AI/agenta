@@ -356,13 +356,15 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
     assert.equal(result.plan.workspace.cwd, "/tmp/local-cwd");
-    // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
-    // cwd: an ephemeral sibling whose leaf is the cwd basename.
+    // Relay and telemetry are ephemeral runner files kept OFF the (possibly geesefs) cwd.
     assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
     assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/local-cwd"));
+    assert.ok(
+      result.plan.workspace.telemetryDir.endsWith("/agenta/telemetry/local-cwd"),
+    );
     assert.equal(
       result.plan.workspace.usageOutPath,
-      `${result.plan.workspace.relayDir}/.agenta-usage.json`,
+      `${result.plan.workspace.telemetryDir}/.agenta-usage.json`,
     );
     assert.equal(result.plan.prompt.text, " ship it ");
     assert.equal(result.plan.prompt.agentsMd, "instructions");

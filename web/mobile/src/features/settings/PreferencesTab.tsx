@@ -1,5 +1,5 @@
 import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
-import {agentVoiceInputEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 /**
@@ -9,20 +9,12 @@ import {useAtom} from "jotai"
  * app's rail is a fixed list it could not change.
  */
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
-    const [voiceInput, setVoiceInput] = useAtom(agentVoiceInputEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
 
     return (
         <PreferencesPage
             theme={theme}
             flags={[
-                {
-                    key: "voice-input",
-                    title: "Voice input",
-                    description: "Dictate messages, or record one, in the agent chat.",
-                    enabled: voiceInput,
-                    onChange: setVoiceInput,
-                },
                 {
                     key: "playground-inspector",
                     title: "Playground inspector",

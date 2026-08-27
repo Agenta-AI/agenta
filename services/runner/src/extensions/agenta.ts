@@ -4,32 +4,23 @@
  *
  * This is how we keep WP-1/WP-2/WP-7 behavior on the sandbox-agent path: instead of a synthetic,
  * coarse tracer in the runner, we propagate the caller's trace context INTO Pi and let
- * Pi emit its real span tree (turn / chat / tool, with token usage) under that parent —
+ * Pi record its real span tree (turn / chat / tool, with token usage) under that parent —
  * and we deliver tools the Pi-native way (`registerTool`), each routing back to Agenta's
  * /tools/call, rather than over MCP. Pi is highly customizable; this leans on that.
  *
- * Everything is read from the environment (injected at the daemon's birth). Tool env is
+ * Stable paths are read from the environment (injected at the daemon's birth). Per-turn
+ * telemetry data is delivered through a read-once control file. Tool env is
  * intentionally public-only; execution relays back to the runner where private specs/auth
  * remain in memory:
- *   TRACEPARENT                       W3C traceparent of the caller's /invoke span
- *   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
- *   AGENTA_AGENT_OTLP_AUTH_FILE       path to a runner-written, 0600, read-once file holding
- *                                     the OTLP Authorization bearer (never a plain env
- *                                     var — read once here, then deleted, see readOtlpAuthFile)
- *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
- *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE  path to a runner-written JSON file holding
- *                                     [{ name, description, inputSchema }] — a FILE because a
- *                                     large tool set exceeds the per-string execve limit and the
- *                                     harness spawn then fails with E2BIG (see loadPublicToolSpecs)
- *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   the same JSON inline; the pre-file fallback, one release only
- *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
- *   AGENTA_AGENT_SKILLS_LOADED        JSON [skillName] of skills that loaded this run (F-029)
+ *   AGENTA_AGENT_TELEMETRY_CONTROL_PATH path to the runner-written, read-once turn control
+ *   Pi publishes raw OTLP batch siblings beside the control file
  *
  * Bundled self-contained (esbuild) so its OpenTelemetry deps resolve wherever Pi loads
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
  * ExtensionFactory.
  */
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 import {
   isToolCallEventType,
@@ -40,7 +31,16 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "../tracing/otel.ts";
+import { Redactor, curatedEnvSecretValues } from "../redaction.ts";
+import { createPiFileSpanExporter } from "../tracing/pi-file-exporter.ts";
+import {
+  PI_TRACE_CONTROL_ENV,
+  PI_TRACE_MAX_CONTROL_BYTES,
+  parsePiTurnTraceControl,
+  type PiTurnTraceControl,
+} from "../tracing/pi-spool-protocol.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
+import { runResolvedTool } from "../tools/dispatch.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
 import {
   approvalUnavailableText,
@@ -66,24 +66,37 @@ import {
   registerPiGatewayMcpTools,
 } from "./pi-mcp.ts";
 
-/** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
-export function readOtlpAuthFile(path?: string): string | undefined {
+/** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
+export function readPiTurnTraceControl(
+  path?: string,
+): PiTurnTraceControl | undefined {
   if (!path) return undefined;
-  let value: string;
+  let bytes: Buffer;
   try {
-    value = readFileSync(path, "utf-8").trim();
+    bytes = readFileSync(path);
   } catch {
     return undefined;
   }
-  // Delete is best-effort and must not drop a bearer we already read (runner cleanup also removes it).
+  // Delete immediately after the successful read, before parsing, so malformed bytes cannot be
+  // inherited by the next warm turn.
   try {
     unlinkSync(path);
   } catch {
     /* ignore */
   }
-  return value || undefined;
+  if (bytes.byteLength > PI_TRACE_MAX_CONTROL_BYTES) {
+    log(`trace control ignored: ${bytes.byteLength} bytes exceeds limit`);
+    return undefined;
+  }
+  try {
+    return parsePiTurnTraceControl(JSON.parse(bytes.toString("utf-8")));
+  } catch (error) {
+    log(
+      `trace control ignored: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return undefined;
+  }
 }
-import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
@@ -273,19 +286,6 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
   return guidelines;
 }
 
-/** Parse the JSON array of loaded skill names from AGENTA_AGENT_SKILLS_LOADED; [] on absent/malformed. */
-function parseSkillsLoaded(raw: string | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((s): s is string => typeof s === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Load the run's public tool specs, preferring the runner-written FILE.
  *
@@ -299,7 +299,8 @@ function parseSkillsLoaded(raw: string | undefined): string[] {
  * caller then registers nothing, which is the same outcome as before, but the reason is on stderr.
  */
 function loadPublicToolSpecs():
-  { specs: ResolvedToolSpec[]; route: string } | undefined {
+  | { specs: ResolvedToolSpec[]; route: string }
+  | undefined {
   const path = process.env[PUBLIC_SPECS_FILE_ENV];
   const raw = process.env[LEGACY_PUBLIC_SPECS_ENV];
   let json: string;
@@ -423,9 +424,8 @@ const factory = (pi: ExtensionAPI): void => {
       : decodePiModelProviderOverride(modelProviderOverrideRaw);
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
-  const hasTracing = !!(
-    process.env.TRACEPARENT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-  );
+  const traceControlPath = process.env[PI_TRACE_CONTROL_ENV];
+  const hasTracing = !!traceControlPath;
   const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   const hasTools = !!(
     (process.env[PUBLIC_SPECS_FILE_ENV] ||
@@ -472,27 +472,50 @@ const factory = (pi: ExtensionAPI): void => {
   }
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
-  // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
-  // Usage accumulation is needed both for that export AND for the writeback the runner
-  // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the
-  // runner traces from the event stream and only needs the token totals). So set up the
-  // otel state whenever either applies; only flush (export) when tracing is on.
+  // Pi records the native span tree and publishes raw OTLP bytes into its telemetry spool.
+  // The runner owns the network export for both local and Daytona runs. Usage is also written
+  // separately for the runner's response accounting.
   if (!hasTracing && !usageOut) return;
 
-  const otel = createAgentaOtel({
-    traceparent: process.env.TRACEPARENT,
-    endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    authorization: readOtlpAuthFile(process.env.AGENTA_AGENT_OTLP_AUTH_FILE),
-    captureContent:
-      process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
-    // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
-    // span so a trace shows which skills surfaced (F-029). A JSON array string from the runner.
-    skills: parseSkillsLoaded(process.env.AGENTA_AGENT_SKILLS_LOADED),
+  const otel = createAgentaOtel({ enabled: false, captureContent: true });
+  pi.on("before_agent_start", async () => {
+    // Clear every turn-owned value first. A missing or malformed control must never reuse the
+    // prior warm turn's traceparent, policy, redactor, channel, or usage.
+    otel.beginTurn({ enabled: false, captureContent: true });
+    if (usageOut) {
+      try {
+        unlinkSync(usageOut);
+      } catch {
+        // absent is the normal case; this only prevents stale warm-turn usage
+      }
+    }
+    const control = readPiTurnTraceControl(traceControlPath);
+    if (!control || !traceControlPath) return;
+    const redactor = new Redactor({ mode: "known" }).withKnownSecrets([
+      ...curatedEnvSecretValues(),
+      ...control.redaction.knownValues,
+    ]);
+    otel.beginTurn({
+      enabled: true,
+      traceparent: control.propagation?.traceparent,
+      baggage: control.propagation?.baggage,
+      captureContent: control.capture.content,
+      sessionId: control.sessionId,
+      turnId: control.turnId,
+      skills: control.skills,
+      redactor,
+      serializedBatchTransport: createPiFileSpanExporter({
+        directory: dirname(traceControlPath),
+        channelId: control.channelId,
+        log,
+      }),
+    });
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 
   pi.on("agent_end", async () => {
-    if (hasTracing) await otel.flush(); // invoke_agent has a remote parent → flush by id
+    // Publish usage before the native trace batch. The runner treats pickup of that batch as the
+    // barrier that makes this sidecar safe to read, for local and remote sandboxes alike.
     if (usageOut) {
       try {
         writeFileSync(usageOut, JSON.stringify(otel.usage()), "utf-8");
@@ -500,6 +523,7 @@ const factory = (pi: ExtensionAPI): void => {
         log(`usage writeback skipped: ${(err as Error).message}`);
       }
     }
+    if (otel.config.enabled) await otel.flush();
   });
 };
 

@@ -15,7 +15,7 @@
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 
 import type {
-    ApprovalBodyEntry,
+    ApprovalDescriber,
     ChatSkinRegistration,
     ClientToolMeta,
     ClientToolWidget,
@@ -30,7 +30,7 @@ interface RegistrationStore {
         byRenderKind: Record<string, ClientToolWidget>
         byToolName: Record<string, ClientToolWidget>
     }
-    approvals: Record<string, ApprovalBodyEntry>
+    approvals: Record<string, ApprovalDescriber>
     toolDisplay: Record<string, ToolDisplayEntry>
 }
 
@@ -89,9 +89,8 @@ export const hasClientToolWidget = (
     fallback?: ChatSkinRegistration["clientTools"],
 ): boolean => resolveClientToolWidget(meta, fallback) !== undefined
 
-/** Resolve the renderer for an approval, or `undefined` for the generic card (mirrors OSS
- * `resolveApprovalRenderer`, which returns `null` for the same miss). */
-export const resolveApprovalBody = (toolName: string): ApprovalBodyEntry | undefined =>
+/** The describer registered for a tool, or `undefined` when the generic one should run. */
+export const resolveApprovalDescriber = (toolName: string): ApprovalDescriber | undefined =>
     store.approvals[toolName]
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
