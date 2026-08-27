@@ -7,17 +7,18 @@
     "project-location": "The template lives in project 'agenta-oss-clone-spike', environment 'pr-template'. CI resolves the same location from the repo variables RAILWAY_TEMPLATE_PROJECT / RAILWAY_TEMPLATE_ENV (falling back to these values), and the preview scripts accept the same names as env vars. Moving the template = converge the new project's environment with apply.sh --project, then update 'project' here and the two repo variables.",
     "variable-classes": "A variable value that contains a ${{...}} Railway reference is PER-ENVIRONMENT-UNIQUE: Railway re-resolves it inside every clone (proven, findings.md Q2). A literal string value is SHARED: byte-identical in the template and every clone. An object {\"secret\": NAME} is a SHARED SECRET: the value is never stored in this file; apply.sh resolves it at apply time from the process environment, from the value already live on a sibling service, or from the declared generator, in that order.",
     "system-variables": "Railway injects RAILWAY_* variables (RAILWAY_ENVIRONMENT*, RAILWAY_PROJECT_*, RAILWAY_SERVICE_*, RAILWAY_PRIVATE_DOMAIN, ...) into every service. The diff ignores any RAILWAY_* name UNLESS it is declared here (declared ones, e.g. redis's RAILWAY_RUN_UID, are managed and diffed like any other).",
-    "start-command-policy": "Services whose image owns its entrypoint (Postgres, supertokens, and the three WP1 wrapper images gateway/redis/seaweedfs) MUST have startCommand empty/unset. The eight app services carry explicit startCommands because one image backs several services (agenta-api alone backs api, worker-streams, worker-queues, cron, and alembic). API fact: startCommand null in serviceInstanceUpdate is a NO-OP; \"\" clears the override (findings.md close-out addendum).",
+    "start-command-policy": "Services whose image owns its entrypoint (Postgres, supertokens, and the three WP1 wrapper images gateway/redis/seaweedfs) MUST have startCommand empty/unset. The nine app services carry explicit startCommands because one image backs several services (agenta-api alone backs api, worker-streams, worker-queues, cron, and alembic), and because web/web-mobile share an entrypoint but run different servers. API fact: startCommand null in serviceInstanceUpdate is a NO-OP; \"\" clears the override (findings.md close-out addendum).",
     "tag-policy": "Template image tags must NEVER equal a PR image tag (pr-<n>-<sha>) and must NEVER be 'latest': environmentPatchCommit silently no-ops when a patched tag equals the template's tag, which strands a clone on template images (findings.md, deploy-mode section). apply.sh enforces this.",
-    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The standalone deployment path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a deliberate change to this file, not silent drift."
+    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The standalone deployment path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a deliberate change to this file, not silent drift.",
+    "mobile-app": "The mobile app is the web-mobile service, served at /m by the gateway (location ~ ^/m(/|$) -> web-mobile, NO prefix strip: the Next app is built with basePath /m and owns the prefix). Its image ships web/entrypoint.sh, so it takes the same runtime config as web and writes the same __env.js. Preview gate policy: web carries AGENTA_MOBILE_GATE=true so a phone landing on a desktop route is redirected to /m, and web-mobile carries AGENTA_MOBILE_REVERSE_GATE=false so a reviewer on a laptop can open /m directly instead of being bounced back."
   },
   "parameters": {
     "app_tag": {
-      "default": "v0.108.0",
-      "description": "Tag for the four Agenta app images (agenta-api, agenta-web, agenta-services, agenta-runner). Pinned to a release tag; per-PR clones patch these images to pr-<n>-<sha> tags via environmentPatchCommit. Never 'latest', never a pr-* tag (see notes.tag-policy)."
+      "default": "v0.112.3",
+      "description": "Tag for the five Agenta app images (agenta-api, agenta-web, agenta-web-mobile, agenta-services, agenta-runner). Pinned to a release tag; per-PR clones patch these images to pr-<n>-<sha> tags via environmentPatchCommit. Never 'latest', never a pr-* tag (see notes.tag-policy). MUST be a release that published agenta-web-mobile too: that image starts at v0.111.0, so an older app_tag leaves web-mobile unable to pull."
     },
     "gateway_tag": {
-      "default": "content-778baa45f18f",
+      "default": "content-82ae55a2360a",
       "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-gateway, built by workflow 42 from hosting/railway/oss/images/gateway. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
     },
     "redis_tag": {
@@ -44,6 +45,7 @@
         "supertokens",
         "api",
         "web",
+        "web-mobile",
         "services",
         "runner",
         "worker-streams",
@@ -60,6 +62,10 @@
     },
     "AGENTA_CRYPT_KEY": {
       "from_env": "AGENTA_CRYPT_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
+    "AGENTA_SERVICES_INTERNAL_KEY": {
+      "from_env": "AGENTA_SERVICES_INTERNAL_KEY",
       "generate": "openssl-rand-hex-32"
     },
     "AGENTA_RUNNER_TOKEN": {
@@ -117,7 +123,35 @@
           "secret": "AGENTA_CRYPT_KEY"
         },
         "AGENTA_LICENSE": "oss",
+        "AGENTA_MOBILE_GATE": "true",
         "HOSTNAME": "0.0.0.0"
+      },
+      "optionalVariables": [
+        "POSTHOG_API_KEY",
+        "SENDGRID_API_KEY"
+      ]
+    },
+    "web-mobile": {
+      "image": "ghcr.io/agenta-ai/agenta-web-mobile:{app_tag}",
+      "startCommand": "sh -lc '/app/entrypoint.sh node /app/mobile/server.js'",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "AGENTA_LICENSE": "oss",
+        "AGENTA_MOBILE_GATE": "true",
+        "HOSTNAME": "0.0.0.0",
+        "AGENTA_MOBILE_REVERSE_GATE": "false"
       },
       "optionalVariables": [
         "POSTHOG_API_KEY",
@@ -140,6 +174,9 @@
         },
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
+        },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
         },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
@@ -189,6 +226,9 @@
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
         },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
+        },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
@@ -228,6 +268,8 @@
       "variables": {
         "AGENTA_RUNNER_HOST": "0.0.0.0",
         "AGENTA_RUNNER_PORT": "8765",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
         "AGENTA_RUNNER_TOKEN": {
           "secret": "AGENTA_RUNNER_TOKEN"
         },
@@ -246,7 +288,6 @@
         }
       },
       "optionalVariables": [
-        "AGENTA_API_URL",
         "AGENTA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_URL",

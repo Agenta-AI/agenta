@@ -164,6 +164,13 @@ skills-lock.json
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
 
-# @agenta/sessions test artifacts (vitest writes a junit report on every run).
-web/packages/agenta-sessions/test-results/
+# Test artifacts in any workspace (vitest/playwright write a junit report on every run).
+test-results/
 junit.xml
+
+# QA parity harness (docs/design/sessions-ux-stack/qa112): the scripts and their measured strip
+# boxes ARE committed - two earlier copies lived in a session scratchpad and were wiped. Its venv
+# and captures are not; a full sweep leaves ~370 PNGs behind.
+docs/design/sessions-ux-stack/qa112/venv/
+docs/design/sessions-ux-stack/qa112/shots/
+docs/design/sessions-ux-stack/qa112/.tabpin.*

@@ -33,9 +33,11 @@ import {
   computeCredentialEpoch,
   configFingerprint,
   mountExpiryMs,
+  MOUNT_LEASE_SKEW_MS,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import { resolveRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
 import {
   appliedStateForRequest,
   AppliedState,
@@ -1239,9 +1241,13 @@ describe("runWithKeepalive: approval credential lifecycle", () => {
   });
 
   it("the repark after a resume keeps the parked secrets hash AND the installed mount lease", async () => {
-    // Six hours out, so neither the expiry bound nor the expiring-lease bound fires here.
+    // The lease must outlive the reuse horizon (`now + total deadline + skew`, the
+    // session coordinator's `requiredValidThroughMs`) or the resume rebuilds cold and
+    // this test fails for the wrong reason. Derive it from the real default so a future
+    // change to DEFAULT_TOTAL_DEADLINE_MS cannot silently invalidate the setup; the
+    // hour of margin keeps the expiring-lease bound from firing either.
     const installedExpiresAt = new Date(
-      Date.now() + 6 * 3_600_000,
+      Date.now() + resolveRunLimits().totalMs + MOUNT_LEASE_SKEW_MS + 3_600_000,
     ).toISOString();
     const { engine, calls } = makeApprovalEngine(
       [
@@ -1816,6 +1822,82 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     assert.equal(r.ok, true, "a clean cancel is not an error");
     assert.equal(r.stopReason, "cancelled");
+  });
+
+  it("returns the original Pi trace id when an approval resume has a new runner trace", async () => {
+    const { deps } = pausableHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "approve" }],
+      context: {
+        propagation: {
+          traceparent:
+            "00-22222222222222222222222222222222-3333333333333333-01",
+        },
+      },
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    acquired.env.piTraceExport = {
+      publishControl: async () => true,
+      updatePlatformAuthorization() {},
+      traceId: () => "11111111111111111111111111111111",
+      emitMissingBatchFallback: async () => {},
+      finish: async () => ({ pickedUpBatches: 1, exportedBatches: 1 }),
+      teardown: async () => {},
+    };
+
+    const result = await runTurn(acquired.env, request, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-pi",
+            reply: "once",
+            toolCallId: "tool-pi",
+            toolName: "edit",
+            args: {},
+            interactionToken: "tool-pi",
+            promptPromise: Promise.resolve({ stopReason: "complete" }),
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.traceId, "11111111111111111111111111111111");
+  });
+
+  it("emits the missing-batch fallback when a parked Pi environment is evicted", async () => {
+    const { deps } = pausableHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "approve" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const journal: string[] = [];
+    acquired.env.piTraceExport = {
+      publishControl: async () => true,
+      updatePlatformAuthorization() {},
+      traceId: () => "11111111111111111111111111111111",
+      emitMissingBatchFallback: async () => {
+        journal.push("fallback");
+      },
+      finish: async () => {
+        journal.push("finish");
+        return { pickedUpBatches: 0, exportedBatches: 0 };
+      },
+      teardown: async () => {},
+    };
+
+    await acquired.env.destroy({ reason: "capacity-eviction" });
+
+    assert.deepEqual(journal, ["finish", "fallback"]);
   });
 
   it("parks a Claude ACP gate (session alive), then answers it live and streams the continuation", async () => {

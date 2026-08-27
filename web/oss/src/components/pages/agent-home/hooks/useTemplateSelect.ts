@@ -1,10 +1,11 @@
 import {useCallback} from "react"
 
+import {agentTemplateSeed, type AgentStarterTemplate} from "@agenta/entities/workflow"
+
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {TEMPLATE_BUILDER_MODE} from "../assets/constants"
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
-import {type AgentTemplate, templateBuilderMessage} from "../assets/templates"
 
 import {useCreateAgent} from "./useCreateAgent"
 
@@ -21,12 +22,12 @@ import {useCreateAgent} from "./useCreateAgent"
  *
  * @param openSetup Caller's "open the setup drawer" action (used only when builder mode is OFF).
  */
-export function useTemplateSelect(openSetup: (template: AgentTemplate) => void) {
+export function useTemplateSelect(openSetup: (template: AgentStarterTemplate) => void) {
     const createAgent = useCreateAgent()
     const posthog = usePostHogAg()
 
     return useCallback(
-        (template: AgentTemplate) => {
+        (template: AgentStarterTemplate) => {
             if (TEMPLATE_BUILDER_MODE) {
                 captureFirstAgentIntent(posthog, {
                     source: "template",
@@ -38,10 +39,9 @@ export function useTemplateSelect(openSetup: (template: AgentTemplate) => void) 
                     },
                     intentValue: template.category || template.name,
                 })
-                void createAgent({
-                    name: template.name,
-                    seedMessage: templateBuilderMessage(template),
-                })
+                // What the pick MEANS is shared (name + builder instruction); this app only
+                // decides where the seed is delivered.
+                void createAgent(agentTemplateSeed(template))
                 return
             }
             captureFirstAgentIntent(posthog, {

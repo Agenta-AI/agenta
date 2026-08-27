@@ -16,6 +16,7 @@
         "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
         "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret is set. Emitted as AGENTA_AUTH_KEY via Secret." },
         "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret is set. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "servicesInternalKey": { "type": "string", "minLength": 1, "description": "Dedicated credential for trusted API-to-Services grant exchange. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret is set. Emitted as AGENTA_SERVICES_INTERNAL_KEY only to the API and Services pods." },
         "runnerToken": { "type": "string", "minLength": 1, "description": "Shared secret the runner verifies and Services presents. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret or agentRunner.auth.tokenSecretRef is set. Emitted as AGENTA_RUNNER_TOKEN via Secret." },
         "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default true (permissive, zero-config self-host); set false to harden a shared/multi-tenant deployment." },
         "access": {
@@ -446,6 +447,7 @@
     "redisDurable":  { "$ref": "#/$defs/bundledRedis" },
     "api":               { "$ref": "#/$defs/component" },
     "web":               { "$ref": "#/$defs/component" },
+    "webMobile":         { "$ref": "#/$defs/component" },
     "services":          { "$ref": "#/$defs/component" },
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },

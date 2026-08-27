@@ -125,7 +125,6 @@ records_retention_router = RecordsRetentionRouter(
     records_retention_service=records_retention_service,
 )
 
-
 log = get_module_logger(__name__)
 
 

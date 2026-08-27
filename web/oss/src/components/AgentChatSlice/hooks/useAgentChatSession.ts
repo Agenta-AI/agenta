@@ -1,6 +1,25 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    buildRequestWithinDeadline,
+    getMessageTraceId,
+    startupLabelFromDataPart,
+} from "@agenta/chat/assets"
+import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
+import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {
+    clearTurnClockAtom,
+    stampMessagesCreatedAtAtom,
+    startTurnClockAtom,
+} from "@agenta/chat/state"
+import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
+import {
+    persistSessionMessagesAtom,
+    sessionMessagesAtom,
+    sessionRecordCountsReadAtom,
+} from "@agenta/chat/state"
+import {AgentChatTransport} from "@agenta/chat/transport"
+import {
     commandSessionStream,
     invalidateSessionListQueries,
     killSession,
@@ -26,24 +45,10 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {AgentChatTransport} from "../assets/AgentChatTransport"
-import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
-import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
-import {startupLabelFromDataPart} from "../assets/startupPhases"
-import {getMessageTraceId} from "../assets/trace"
-import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
-import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
-import {
-    persistSessionMessagesAtom,
-    sessionMessagesAtom,
-    sessionRecordCountsReadAtom,
-    stampMessagesCreatedAtAtom,
-} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
-import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"

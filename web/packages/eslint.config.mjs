@@ -30,6 +30,49 @@ const tsEslintConfig = tseslint.config(
 
 const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
 
+/**
+ * Import bans every @agenta/* package inherits. A package config that overrides
+ * `no-restricted-imports` must spread this into its own `paths`, or it drops the bans.
+ */
+export const restrictedImportPaths = [
+    // Root barrel statically imports the monolithic AgentaApiClient (all 27 resource
+    // clients, ~300KB parsed) into any eager import graph. Regressed once (June fix, July relapse).
+    {
+        name: "@agenta/sdk",
+        message:
+            "Import per-resource accessors from '@agenta/sdk/resources' (or '@agenta/sdk/config' for host pinning) — the root barrel bundles all 27 Fern resource clients.",
+    },
+    // A host that installs its own QueryClient (as /m did) turns every write on the
+    // singleton into a silent no-op. Read the host's client instead.
+    {
+        name: "@agenta/shared/api",
+        importNames: ["queryClient"],
+        message:
+            "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
+    },
+    // Same singleton, reachable through the root barrel's re-export.
+    {
+        name: "@agenta/shared",
+        importNames: ["queryClient"],
+        message:
+            "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
+    },
+]
+
+/**
+ * Syntax bans every @agenta/* package inherits. `no-restricted-imports` does not see
+ * `await import(...)`, so the singleton is banned again at the ImportExpression level.
+ * A package config that overrides `no-restricted-syntax` must spread this into its options.
+ */
+export const restrictedSyntax = [
+    {
+        selector:
+            'ImportExpression > Literal[value="@agenta/shared/api"], ImportExpression > Literal[value="@agenta/shared"]',
+        message:
+            "Dynamic-import '@agenta/shared/api/hostQueryClient' instead — importing the api barrel dynamically can reach the `queryClient` singleton, whose writes are dead on a host that installed its own client.",
+    },
+]
+
 const config = [
     ...compat.extends("plugin:@lexical/recommended"),
     ...tsEslintConfig,
@@ -55,21 +98,8 @@ const config = [
             },
         },
         rules: {
-            // Root barrel statically imports the monolithic AgentaApiClient (all 27
-            // resource clients, ~300KB parsed) into any eager import graph. Use the
-            // per-resource accessors instead. Regressed once (June fix, July relapse).
-            "no-restricted-imports": [
-                "error",
-                {
-                    paths: [
-                        {
-                            name: "@agenta/sdk",
-                            message:
-                                "Import per-resource accessors from '@agenta/sdk/resources' (or '@agenta/sdk/config' for host pinning) — the root barrel bundles all 27 Fern resource clients.",
-                        },
-                    ],
-                },
-            ],
+            "no-restricted-imports": ["error", {paths: restrictedImportPaths}],
+            "no-restricted-syntax": ["error", ...restrictedSyntax],
             "prefer-const": "off",
             "no-self-assign": "off",
             "no-empty": "off",

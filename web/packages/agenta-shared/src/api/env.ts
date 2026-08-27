@@ -28,6 +28,10 @@ const buildRuntimeOrigin = (): string | undefined => {
 // Build-time environment variables
 export const processEnv = {
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
+    NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
+    NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
+    NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED:
+        process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_WEB_URL: process.env.NEXT_PUBLIC_AGENTA_WEB_URL,
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
@@ -106,3 +110,26 @@ export const getEnabledSandboxProviders = (): string[] => {
         .filter(Boolean)
     return providers.length > 0 ? providers : ["local"]
 }
+
+/**
+ * Edition and feature gates, read from the same env on every host.
+ *
+ * These decide which settings tabs exist, so the desktop and /m have to agree — a second
+ * copy of `=== "ee"` somewhere is how one surface ends up showing a tab the other hides.
+ */
+
+/** Enterprise or any cloud tier. Note `cloud*` counts: cloud runs the EE feature set. */
+export const isEE = (): boolean => {
+    const license = getEnv("NEXT_PUBLIC_AGENTA_LICENSE")?.toLowerCase()
+    if (!license) return false
+    return license === "ee" || license.startsWith("cloud")
+}
+
+/** Gates BOTH the Tools and Triggers settings tabs. */
+export const isToolsEnabled = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
+
+export const isBillingEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
+
+export const isEmailInvitationsEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"

@@ -8,7 +8,8 @@
 
 import type {ReactNode} from "react"
 
-import type {ColumnType} from "antd/es/table"
+import type {ColumnDef, ColumnDefs} from "../InfiniteVirtualTable/columnDef"
+import {isColumnGroupDef} from "../InfiniteVirtualTable/columnDef"
 
 // ============================================================================
 // TYPES
@@ -42,7 +43,7 @@ export interface GroupColumnsOptions<T, C extends GroupableColumn = GroupableCol
     /** Function to render the group header */
     renderGroupHeader?: (groupPath: string, isCollapsed: boolean, childCount: number) => ReactNode
     /** Function to create a collapsed column (shows full JSON) */
-    createCollapsedColumnDef?: (groupPath: string, childColumns: C[]) => ColumnType<T>
+    createCollapsedColumnDef?: (groupPath: string, childColumns: C[]) => ColumnDef<T>
     /** Maximum depth for group expansion (default: 1). Beyond this depth, columns show as JSON */
     maxDepth?: number
 }
@@ -55,7 +56,7 @@ export interface GroupColumnsOptions<T, C extends GroupableColumn = GroupableCol
 const DEFAULT_MAX_DEPTH = 1
 
 /** Internal column type with ordering metadata for sorting during grouping */
-type OrderedColumn<T> = ColumnType<T> & {__order?: number}
+type OrderedColumn<T> = ColumnDefs<T>[number] & {__order?: number}
 
 /**
  * Check if a column key indicates it belongs to a group
@@ -99,12 +100,12 @@ function isExpandedColumn(col: GroupableColumn): boolean {
 /**
  * Count leaf columns in a nested column structure
  */
-function countLeafColumns<T>(columns: ColumnType<T>[]): number {
+function countLeafColumns<T>(columns: ColumnDefs<T>): number {
     let count = 0
     columns.forEach((col) => {
-        const children = (col as ColumnType<T> & {children?: ColumnType<T>[]}).children
-        if (children && children.length > 0) {
-            count += countLeafColumns(children)
+        // The guard replaces a cast that widened a leaf just to look for children.
+        if (isColumnGroupDef(col) && col.children.length > 0) {
+            count += countLeafColumns(col.children)
         } else {
             count += 1
         }
@@ -120,11 +121,11 @@ function countLeafColumns<T>(columns: ColumnType<T>[]): number {
  */
 function groupColumnsRecursive<T, C extends GroupableColumn>(
     columns: C[],
-    createColumnDef: (col: C, displayName: string) => ColumnType<T>,
+    createColumnDef: (col: C, displayName: string) => ColumnDef<T>,
     options: GroupColumnsOptions<T, C> | undefined,
     parentPath: string,
     currentDepth: number,
-): ColumnType<T>[] {
+): ColumnDefs<T> {
     const {
         collapsedGroups,
         onGroupHeaderClick,
@@ -133,7 +134,7 @@ function groupColumnsRecursive<T, C extends GroupableColumn>(
         maxDepth = DEFAULT_MAX_DEPTH,
     } = options ?? {}
 
-    const result: ColumnType<T>[] = []
+    const result: ColumnDefs<T> = []
     const groupMap = new Map<string, {columns: C[]; order: number}>()
     let orderCounter = 0
 
@@ -251,8 +252,10 @@ function groupColumnsRecursive<T, C extends GroupableColumn>(
  */
 export function groupColumns<T, C extends GroupableColumn = GroupableColumn>(
     columns: C[],
-    createColumnDef: (col: C, displayName: string) => ColumnType<T>,
+    createColumnDef: (col: C, displayName: string) => ColumnDef<T>,
     options?: GroupColumnsOptions<T, C>,
-): ColumnType<T>[] {
+): ColumnDefs<T> {
+    // Groups are structurally assignable to leaves, so the old ColumnDef<T>[] return
+    // typechecked while being false. Callers that narrow need isColumnGroupDef.
     return groupColumnsRecursive(columns, createColumnDef, options, "", 0)
 }

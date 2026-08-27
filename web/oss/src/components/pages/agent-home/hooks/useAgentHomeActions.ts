@@ -5,11 +5,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {agentNameFromTask} from "../assets/agentName"
-import {
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-    truncateForCapture,
-} from "../assets/onboardingAnalytics"
+import {captureFirstAgentIntent, classifyAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useCreateAgent} from "./useCreateAgent"
 
@@ -43,7 +39,6 @@ export function useAgentHomeActions(
             if (message) {
                 captureFirstAgentIntent(posthog, {
                     source: "composer",
-                    properties: {message: truncateForCapture(message)},
                     intentValue: classifyAgentIntent(message),
                 })
             }

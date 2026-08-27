@@ -47,6 +47,7 @@ from qa_matrix_lib import (  # noqa: E402
     approval_reply,
     archive,
     check_no_blank_success_on_refusal,
+    check_no_silent_turn,
     create_workflow,
     invoke,
     latest_revision,
@@ -153,7 +154,10 @@ def invariant_cell(container: str) -> dict:
                 "since": since,
             }
 
-        core_ok = len(check["violations"]) == 0
+        # The refusal invariant is an absence check, so a turn that produced nothing at
+        # all satisfies it vacuously (ASD-EST100). Every turn here was meant to answer.
+        silent = check_no_silent_turn(turns)
+        core_ok = len(check["violations"]) == 0 and not silent["violations"]
         time.sleep(0.5)
         newest = latest_revision(wf)
         version_bumped = newest is not None and int(newest.get("version") or -1) > int(
@@ -164,6 +168,7 @@ def invariant_cell(container: str) -> dict:
             "why": (
                 f"refusals_observed={check['refusals']}, "
                 f"violations={check['violations']}, "
+                f"silent_turns={silent['violations']}, "
                 f"replay_wire_outcome={replay_outcome!r} (must be error/denied, never a blank "
                 f"available), version_bumped_once={version_bumped} (only the first, legitimate "
                 "commit should have landed)"

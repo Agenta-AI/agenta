@@ -40,6 +40,13 @@ export {
     type SubscriptionStatusTone,
 } from "./subscriptionStatus"
 
+export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -88,10 +95,15 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
+    type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,
@@ -288,3 +300,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

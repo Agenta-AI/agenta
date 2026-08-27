@@ -186,5 +186,4 @@ async def reset_user_password(request: Request, user_id: str):
             {"detail": "The specified user was not found."},
             status_code=404,
         )
-
     return user_password

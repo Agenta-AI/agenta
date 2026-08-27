@@ -6,8 +6,9 @@ import {atomWithImmer} from "jotai-immer"
 
 import type {ColumnViewportVisibilityEvent} from "../types"
 
-// This module's producers mutate Maps; registering here (idempotent) closes the race
-// where a fresh session reaches this atom before _app's module-scope enableMapSet().
+// The state below is a Map of Maps, and immer refuses to draft those until this runs. It is
+// idempotent, and it belongs here rather than in a host's boot: only web/oss called it, so
+// every other host of this table (/m, Storybook, tests) crashed on the first visibility write.
 enableMapSet()
 
 const DEFAULT_SCOPE = "__default__"

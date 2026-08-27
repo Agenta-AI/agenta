@@ -213,6 +213,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
         zIndex,
         getContainer,
         styles: customStyles,
+        classNames: customClassNames,
         className,
         style,
         maxHeight = "90vh",
@@ -240,6 +241,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
     }, [open, shouldRender, afterClose, lazyRender])
 
     const resolved = typeof customStyles === "function" ? customStyles({props}) : customStyles
+    // Same resolution for the class slots. They were declared and never read, so a call-site's
+    // `classNames={{footer}}` went nowhere — inert for today's three call-sites (they ask for the
+    // flex/justify-end the footer already has) but the same drop that bit EnhancedDrawer.
+    const resolvedClassNames =
+        typeof customClassNames === "function" ? customClassNames({props}) : customClassNames
 
     // antd `getContainer` (element | () => element | false | undefined) → Radix portal target.
     // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
@@ -333,7 +339,10 @@ export function EnhancedModal(props: EnhancedModalProps) {
             >
                 {/* antd modal: header marginBottom 8px (pb-2), footer marginTop 12px (pt-3). */}
                 {title != null ? (
-                    <DialogHeader className="shrink-0 px-6 pb-2 pt-5" style={resolved?.header}>
+                    <DialogHeader
+                        className={cn("shrink-0 px-6 pb-2 pt-5", resolvedClassNames?.header)}
+                        style={resolved?.header}
+                    >
                         <DialogTitle>{title}</DialogTitle>
                     </DialogHeader>
                 ) : (
@@ -347,13 +356,17 @@ export function EnhancedModal(props: EnhancedModalProps) {
                         "min-h-0 flex-1 overflow-y-auto px-6 text-field-md text-colorText",
                         title == null && "pt-5",
                         footerNode == null && "pb-5",
+                        resolvedClassNames?.body,
                     )}
                     style={resolved?.body}
                 >
                     {children}
                 </div>
                 {footerNode != null ? (
-                    <DialogFooter className="shrink-0 px-6 pb-5 pt-3" style={resolved?.footer}>
+                    <DialogFooter
+                        className={cn("shrink-0 px-6 pb-5 pt-3", resolvedClassNames?.footer)}
+                        style={resolved?.footer}
+                    >
                         {footerNode}
                     </DialogFooter>
                 ) : null}

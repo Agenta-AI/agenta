@@ -20,12 +20,14 @@ import {
     type ConfigViewMode,
 } from "@agenta/entity-ui"
 import {hasPendingHydrationAtomFamily, isAgentModeAtomFamily} from "@agenta/playground"
-import {Select} from "antd"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 
+import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
+import {useChatScopeSessionId} from "@/oss/components/Drives/useChatScopeSessionId"
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -35,14 +37,21 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+
 // Files region body (flat file listing) — lazy: it pulls in the drive drawer.
-const StorageSection = dynamic(() => import("@/oss/components/Drives/StorageSection"), {
-    ssr: false,
-})
+const StorageSection = dynamic(
+    () => import("@agenta/entity-ui/drive").then((mod) => mod.StorageSection),
+    {
+        ssr: false,
+    },
+)
 // Files header count + browse entry, slotted into the operational panel's Files header bar.
-const StorageFilesHeader = dynamic(() => import("@/oss/components/Drives/StorageFilesHeader"), {
-    ssr: false,
-})
+const StorageFilesHeader = dynamic(
+    () => import("@agenta/entity-ui/drive").then((mod) => mod.StorageFilesHeader),
+    {
+        ssr: false,
+    },
+)
 
 // Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
 const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
@@ -80,6 +89,9 @@ const PlaygroundVariantConfig: React.FC<
 }) => {
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
+    // The drive the Files region shows belongs to the open conversation (a desktop tab concept).
+    const chatSessionId = useChatScopeSessionId()
+    const chatScopeKey = useChatScopeKey()
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
 
     // The agent config panel is a read-only summary that edits via section drawers, so the
@@ -240,17 +252,21 @@ const PlaygroundVariantConfig: React.FC<
     const viewModeSelector = useMemo(
         () => (
             <Select
-                size="small"
-                variant="borderless"
                 value={viewMode}
-                onChange={setViewMode}
-                options={[
-                    {label: "Form", value: "form"},
-                    {label: "JSON", value: "json"},
-                    {label: "YAML", value: "yaml"},
-                ]}
-                className="w-[90px] [&_.ant-select-selector]:!px-1 text-xs"
-            />
+                onValueChange={(value) => setViewMode(value as ConfigViewMode)}
+            >
+                <SelectTrigger
+                    size="sm"
+                    className="w-[90px] border-transparent bg-transparent px-1 text-xs shadow-none"
+                >
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="form">Form</SelectItem>
+                    <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="yaml">YAML</SelectItem>
+                </SelectContent>
+            </Select>
         ),
         [viewMode, setViewMode],
     )
@@ -347,8 +363,16 @@ const PlaygroundVariantConfig: React.FC<
                     <AgentOperationsSections
                         revisionId={variantId}
                         sticky={!embedded}
-                        storage={<StorageSection revisionId={variantId} />}
-                        storageHeader={<StorageFilesHeader revisionId={variantId} />}
+                        storage={
+                            <StorageSection
+                                revisionId={variantId}
+                                sessionId={chatSessionId}
+                                scope={chatScopeKey}
+                            />
+                        }
+                        storageHeader={
+                            <StorageFilesHeader revisionId={variantId} sessionId={chatSessionId} />
+                        }
                     />
                 ))}
         </div>

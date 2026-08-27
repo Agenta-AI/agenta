@@ -1,6 +1,7 @@
 # /agenta/sdk/decorators/tracing.py
 
 import warnings
+from contextlib import contextmanager
 from functools import wraps
 from inspect import (
     getfullargspec,
@@ -357,6 +358,28 @@ class instrument:  # pylint: disable=invalid-name
             return b"".join(chunks)
         return chunks
 
+    @contextmanager
+    def _stream_span_scope(self, span, captured_ctx):
+        """Activate one stream step in the context that created its span.
+
+        ASGI consumers may request consecutive chunks from different context frames.
+        OpenTelemetry context tokens therefore cannot stay attached across a yielded
+        chunk. Attaching and detaching around each generator step keeps both operations
+        in the same frame and keeps the workflow span current inside stream finalizers.
+        """
+        otel_token = otel_context.attach(captured_ctx)
+        try:
+            with use_span(
+                span,
+                end_on_exit=False,
+                record_exception=True,
+                set_status_on_exception=True,
+            ):
+                yield
+        finally:
+            with suppress():
+                otel_context.detach(otel_token)
+
     def _wrap_returned_gen(self, gen, span, captured_ctx):
         """Keep a batch-path span open across a RETURNED generator's consumption.
 
@@ -374,36 +397,38 @@ class instrument:  # pylint: disable=invalid-name
         """
 
         async def wrapped():
-            otel_token = otel_context.attach(captured_ctx)
+            acc = []
             try:
-                with use_span(
-                    span,
-                    end_on_exit=True,
-                    record_exception=True,
-                    set_status_on_exception=True,
-                ):
-                    acc = []
-                    try:
-                        if isasyncgen(gen):
-                            async for chunk in gen:
-                                acc.append(chunk)
-                                yield chunk
-                        else:
-                            for chunk in gen:
-                                acc.append(chunk)
-                                yield chunk
-                    finally:
-                        self._post_instrument(span, self._join_stream(acc))
+                if isasyncgen(gen):
+                    while True:
+                        with self._stream_span_scope(span, captured_ctx):
+                            try:
+                                chunk = await gen.__anext__()
+                            except StopAsyncIteration:
+                                break
+                        acc.append(chunk)
+                        yield chunk
+                else:
+                    while True:
+                        with self._stream_span_scope(span, captured_ctx):
+                            try:
+                                chunk = next(gen)
+                            except StopIteration:
+                                break
+                        acc.append(chunk)
+                        yield chunk
             finally:
-                # Detach can run in a DIFFERENT context frame than the attach when the
-                # stream is closed abnormally — mid-stream raise, or the ASGI server
-                # calling aclose() from another task (StreamingResponse). OTel raises
-                # "Token created in a different Context" there. Guard it: the leaked
-                # activation dies with the task anyway, and crashing the teardown would
-                # mask the real error. (Thread/task-safety: span currency is per-task
-                # contextvar; this only cleans up THIS task's activation.)
-                with suppress():
-                    otel_context.detach(otel_token)
+                try:
+                    with self._stream_span_scope(span, captured_ctx):
+                        try:
+                            if isasyncgen(gen):
+                                await gen.aclose()
+                            else:
+                                gen.close()
+                        finally:
+                            self._post_instrument(span, self._join_stream(acc))
+                finally:
+                    span.end()
 
         return wrapped()
 

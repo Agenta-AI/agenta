@@ -72,6 +72,16 @@ on:
         required: false
         type: string
         default: ""
+      mobile_gate_enabled:
+        description: "Whether the tested deployment redirects mobile clients to /m"
+        required: false
+        type: boolean
+        default: true
+      mobile_reverse_gate_enabled:
+        description: "Whether the tested /m service redirects desktop clients back"
+        required: false
+        type: boolean
+        default: true
     secrets:
       AGENTA_TEST_OSS_AUTH_KEY:
         required: true
@@ -152,6 +162,16 @@ on:
         description: "Plan (hobby, pro, business, enterprise)"
         required: false
         type: string
+      mobile_gate_enabled:
+        description: "Test the mobile-to-/m redirect"
+        required: false
+        type: boolean
+        default: true
+      mobile_reverse_gate_enabled:
+        description: "Test the /m-to-desktop redirect"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -626,6 +646,8 @@ jobs:
       AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
       AGENTA_TEST_LLM_PROVIDER: mock
       AGENTA_TEST_EPHEMERAL_PROJECT: "true"
+      AGENTA_MOBILE_GATE: ${{ inputs.mobile_gate_enabled }}
+      AGENTA_MOBILE_REVERSE_GATE: ${{ inputs.mobile_reverse_gate_enabled }}
       TESTMAIL_API_KEY: ${{ secrets.TESTMAIL_API_KEY }}
       TESTMAIL_NAMESPACE: ${{ secrets.TESTMAIL_NAMESPACE }}
     steps:

@@ -73,6 +73,7 @@ spec:
               protocol: TCP
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
+            {{- include "agenta.servicesInternalEnv" . | nindent 12 }}
             - name: SCRIPT_NAME
               value: "/services"
             {{- include "agenta.agentRunner.servicesEnv" . | nindent 12 }}

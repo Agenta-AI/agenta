@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {createTriggerConnection, fetchTriggerConnection} from "@agenta/entities/gatewayTrigger"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
 import {
@@ -52,6 +52,7 @@ function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
 // `gateway_connections` rows; invalidate both lists so a connection made from
 // triggers shows up on the tools list and vice-versa.
 function invalidateConnections() {
+    const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["triggers", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["triggers", "catalog"]})

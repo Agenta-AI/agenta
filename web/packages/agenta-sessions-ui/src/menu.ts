@@ -8,7 +8,7 @@ import type {ReactNode} from "react"
  * menu here and whatever a touch surface renders later.
  */
 export type SessionMenuEntry =
-    | {key: string; label: ReactNode; danger?: boolean; disabled?: boolean}
+    | {key: string; label: ReactNode; icon?: ReactNode; danger?: boolean; disabled?: boolean}
     | {type: "divider"}
 
 export const isMenuDivider = (entry: SessionMenuEntry): entry is {type: "divider"} =>
