@@ -31,18 +31,26 @@ raises an approval. It predates the grouped `gateway_connection` format.
 Add `.agents/skills/agent-release-gate/resources/matrix_gw1_gateway_tools.py`. Tier:
 coached, with one mechanism-blind leg.
 
-**Register it so `qa_product.py --all` runs it.** A standalone matrix file is not picked up
-by the all-cells run, so a cell that exists but is not registered is a cell that quietly does
-not run. Nobody notices, because a gate that skips a cell it never knew about reports green.
+**The path rule is what makes it run.** A standalone matrix file is a separate script; `--all`
+enumerates `qa_product.py`'s own cells and nothing else, so a cell nobody remembers to invoke is
+a cell that quietly does not run, and a gate that never knew about it reports green.
 
-Registration is the resolution. Add the cell to the matrix registry that `qa_product.py`
-enumerates, so `--all` includes it the way it includes every other cell. Do not rely on
-documenting a separate invocation in `SKILL.md`: a command a person has to remember to type
-is the same failure mode with an extra step.
+That is now solved in the gate rather than per cell. `.agents/skills/agent-release-gate/resources/path_triggers.py`
+maps path globs to the cells a release must run, and the rule for this feature is already
+seeded: a release whose diff touches `api/oss/src/core/tools/**`, the SDK's `gateway.py` or
+`gateway_policy.py`, `services/runner/src/tools/**`, or `gateway-gate.ts` makes
+`matrix_gw1_gateway_tools.py` mandatory. Run the gate with `--release-base <ref>` — the standing
+instruction for every release run — and the requirement arrives from the diff.
 
-Confirm registration the direct way. Run `qa_product.py --all` with the fixtures absent and
-check the cell appears in the output as a SKIP naming its missing fixture. A cell that
-produces no line at all is not registered.
+Until the cell exists, that rule is what stops the gap being silent: a gateway-touching release
+run with `--release-base` stops before any journey and names the missing cell. So the order of
+work is fixed, not optional — the rule is in place, and the release that changes gateway code
+must either carry the cell or change the rule deliberately.
+
+Confirm the wiring the direct way. Run `qa_product.py --release-base <ref>` on a branch that
+touches one of those paths and check the cell is listed under "Mandatory for this release" in
+`summary.md` and `mandatory.json`. Then run the cell with its fixtures absent and check it
+reports a SKIP naming the missing fixture rather than nothing at all.
 
 It runs one agent with one `gateway_connection` and three tool permissions: one `allow`, one
 `ask`, and one `deny`. It asserts four things on the wire and in the stored rows.
@@ -102,9 +110,12 @@ tests, not in the gate. The gate is the product-level check that the assembled p
 | `qa_product.py` journeys `tool`, `approve`, `deny` | No change. They keep the builtin probe. The new cell is the gateway equivalent. |
 | `qa_longctx.py` `gmail` probe | Update it to the `gateway_connection` format, or retire it once the new cell passes. Do not keep two gateway probes. |
 | `resources/coverage.md` | Add one row for the new cell, with its requirements, as every cell has. |
-| `SKILL.md` resources list | Add one bullet for the new cell. Name its tier. It runs under `--all`; the bullet describes it, it is not the way to invoke it. |
-| The matrix registry `qa_product.py` enumerates | Add the cell so `--all` runs it. |
+| `SKILL.md` resources list | Add one bullet for the new cell. Name its tier. The bullet describes it; the path rule is what invokes it. |
+| `resources/path_triggers.py` | Already carries the rule for this feature. Nothing to add unless the gateway code moves. |
 | `qa_matrix_lib.py` | Import only. Add a gateway approval helper there if the approval loop needs one, so a later cell can reuse it. |
 
-The cell is not MANDATORY on its first release. Promote it to MANDATORY once it has passed
-on two consecutive releases. The lifecycle cells followed that path.
+**On promotion.** The lifecycle cells earned MANDATORY by passing two consecutive releases,
+because an unproven cell that blocks every release teaches people to ignore it. A path-scoped
+cell is a different bargain and needs no ladder: it is mandatory only for the releases that
+change the code it protects, so an unstable cell costs the releases that had the most reason to
+run it and nobody else. Leave the rule in force from the start.
