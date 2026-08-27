@@ -422,8 +422,7 @@
     }
     body {
         @apply text-foreground;
-        /* The rail's surface, not the page's: iOS paints the status-bar strip from the body
-           colour, and that strip sits directly above the nav drawer. */
+        /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
         background: var(--ag-sidebar-bg);
     }
 }

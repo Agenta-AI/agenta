@@ -350,9 +350,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
             className={[
                 "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
-                // Claim the sheet's full height, so the surface below can fill it. Left to its
-                // content the frame collapses to the `dvh` column and the drawer stops short of
-                // the screen bottom.
+                // Claim the sheet's height; left to its content the frame collapses to the column.
                 isOverlay ? "h-full" : "",
                 className ?? "",
             ]
@@ -368,9 +366,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             <aside
                 data-theme={theme}
                 className={[
-                    // The SURFACE fills the sheet, so it still bleeds behind a phone browser's
-                    // toolbar and no strip of page shows through under the drawer. Only the
-                    // content column below stops at the visible viewport.
+                    // The surface fills the sheet, so it still bleeds behind a phone's toolbar.
                     isOverlay
                         ? "h-full w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
                         : // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
@@ -381,11 +377,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 <div
                     className={clsx(
                         "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300",
-                        // `dvh`, not `vh`: a phone browser's `vh` is its toolbars-HIDDEN height, so
-                        // laying out against it pushed the last rows — the switcher among them —
-                        // under the toolbar with no scroll to reach them. `--ag-viewport-height`
-                        // narrows it again while a soft keyboard is open, the same expression every
-                        // other /m frame reads.
+                        // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
                         isOverlay ? "h-[var(--ag-viewport-height,100dvh)]" : "h-full",
                     )}
                 >
@@ -408,8 +400,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full flex flex-col shrink-0",
-                                    // The home indicator sits inside `dvh`, so the last row needs
-                                    // the inset reserved or it renders underneath it.
+                                    // The home indicator sits inside `dvh`; reserve it.
                                     isOverlay && "pb-[env(safe-area-inset-bottom)]",
                                 )}
                             >

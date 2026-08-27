@@ -11,11 +11,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet"
 
-/**
- * Create-project prompt, as the app's own sheet rather than the shared `NamePromptModal` —
- * that one renders an antd modal, which /m does not ship and which laid out badly here with a
- * keyboard open. `responsive` puts it on the bottom edge on a phone and the right edge from lg.
- */
+/** Create-project prompt. Not the shared `NamePromptModal`: that renders antd, which /m bans. */
 export const CreateProjectSheet = ({
     open,
     onOpenChange,
@@ -39,7 +35,7 @@ export const CreateProjectSheet = ({
     }
 
     return (
-        <Sheet open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
+        <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>Create project</SheetTitle>
@@ -58,19 +54,15 @@ export const CreateProjectSheet = ({
                         placeholder="Project name"
                         onChange={(event) => setName(event.target.value)}
                     />
-                    {/* Submit-on-enter without a visible button inside the form: the footer's
-                        Create sits outside it, where the sheet's layout puts it. */}
+                    {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
                 <SheetFooter>
+                    {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
                     <Button disabled={!name.trim() || isPending} onClick={submit}>
                         {isPending ? "Creating…" : "Create"}
                     </Button>
-                    <Button
-                        variant="outline"
-                        disabled={isPending}
-                        onClick={() => onOpenChange(false)}
-                    >
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
                 </SheetFooter>

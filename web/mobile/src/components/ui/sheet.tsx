@@ -26,10 +26,7 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
         <SheetPrimitive.Overlay
             data-slot="sheet-overlay"
             className={cn(
-                // No dim on a phone. iOS composites the status-bar strip from the page's top
-                // colour, so any alpha here darkens that strip while the drawer beside it stays
-                // light — the seam that reads as the drawer failing to reach the top. With the
-                // scrim clear the strip lands on the body colour, which is the rail's own.
+                // No dim on a phone: alpha also darkens iOS's strip above the drawer.
                 "fixed inset-0 z-50 bg-transparent data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 lg:bg-black/50",
                 className,
             )}
@@ -59,9 +56,7 @@ function SheetContent({
                 data-slot="sheet-content"
                 className={cn(
                     "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
-                    // The phone-width shadows carry the separation the scrim used to: below lg the
-                    // overlay is clear, so the panel's own edge is all that lifts it off the page.
-                    // Cast away from the edge the sheet is anchored to.
+                    // Below lg the overlay is clear, so these shadows carry the separation instead.
                     side === "right" &&
                         "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm max-lg:shadow-[-8px_0_24px_-6px_rgb(0_0_0/0.28)]",
                     side === "left" &&
