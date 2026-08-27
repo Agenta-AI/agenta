@@ -62,7 +62,10 @@ describe("C31: grouping legacy entries into one entry", () => {
 
     it("reads BOTH legacy encodings to the same result", () => {
         const fromSlugs = migrateIntegration(
-            [slugTool("GET_ISSUE", "github-work", "allow"), slugTool("CREATE_ISSUE", "github-work")],
+            [
+                slugTool("GET_ISSUE", "github-work", "allow"),
+                slugTool("CREATE_ISSUE", "github-work"),
+            ],
             github,
         )
         const fromObjects = migrateIntegration(
@@ -136,7 +139,10 @@ describe("C32 and C33: the per-tool permission", () => {
     it("keeps the FIRST value when a revision lists the same action twice", () => {
         // Order must not decide which of two authored values survives.
         const next = migrateIntegration(
-            [slugTool("GET_ISSUE", "github-work", "allow"), slugTool("GET_ISSUE", "github-work", "deny")],
+            [
+                slugTool("GET_ISSUE", "github-work", "allow"),
+                slugTool("GET_ISSUE", "github-work", "deny"),
+            ],
             github,
         )
         expect(parseGatewayConnection(next?.[0])?.permissions.tools).toEqual({GET_ISSUE: "allow"})

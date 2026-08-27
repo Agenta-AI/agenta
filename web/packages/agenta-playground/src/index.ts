@@ -84,8 +84,7 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./state"
-// The durable half: an approval decision goes to its interaction row, and the resume is dispatched
-// deliberately rather than inferred from part state (which a re-seed can discard).
+// The durable half: an approval decision goes to its interaction row, never to part state alone.
 export {approvalResolution, isResumeSend, type ChatStatusLike} from "./state"
 export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state"
 // Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).

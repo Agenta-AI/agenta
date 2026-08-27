@@ -377,7 +377,8 @@ export function setGatewayConnectionPermissions(
     const view = parseGatewayConnection(tools[index])
     if (!view) return tools
     const next = tools.slice()
-    next[index] = buildGatewayConnectionEntry({...view, permissions})
+    // Apply, never rebuild: the parser models only the fields this surface edits.
+    next[index] = applyToSavedEntry(asRecord(tools[index]) ?? {}, {...view, permissions})
     return next
 }
 

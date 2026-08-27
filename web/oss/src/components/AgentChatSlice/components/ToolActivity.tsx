@@ -54,10 +54,13 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
         return <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
     if (state === "approval-requested")
         return <Wrench size={13} className="shrink-0 text-colorWarning" />
-    // An answered gate whose execution landed on a sibling part (cold-replay fresh id). Usually
-    // deduped away in AgentMessage; if it slips through, show it as approved — never a stuck spinner.
+    // An answered gate whose execution landed on a sibling part; the glyph must follow the verdict.
     if (state === "approval-responded")
-        return <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        return approvalVerdictText(part) === "denied" ? (
+            <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
+        ) : (
+            <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        )
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 

@@ -1,22 +1,8 @@
-/**
- * Ordering for a parked interaction's answer: record the durable row, THEN release the resume.
- *
- * A resume starts a new turn, and a new turn's `cancelStaleInteractions` sweep cancels every row
- * still `pending`. Racing the two loses that race often enough to matter — the record can need
- * three round trips (cache miss, invalidate, refetch, POST) against the resume's one — and a lost
- * race cancels the very row being answered: the runner then finds nothing to consume, the answer
- * stores as abandoned, and the user's decision is gone.
- *
- * Both parked kinds go through here. A client tool releases by dispatching the resume itself; an
- * approval releases by flipping its part to `approval-responded`, which is what lets the AI SDK
- * dispatch. Either way the release is whatever can trigger a turn, so it waits for the row.
- *
- * The wait is capped: a wedged API must never strand the user's answer. On timeout the release
- * happens exactly as it did before, and a late record still lands if the sweep has not won.
- */
+// Answer a parked interaction: record the durable row, THEN release whatever can start a turn.
+// A new turn's stale sweep cancels every `pending` row, the answered one included, so the two must
+// be ordered. Both kinds route here: a client tool releases its resume, an approval its part flip.
 
-/** Long enough for the record's worst case (cache miss + refetch + POST), short enough that a
- * dead API costs the user one beat rather than the turn. */
+/** Capped so a wedged API costs the user one beat rather than stranding the answer for good. */
 export const RECORD_ANSWER_TIMEOUT_MS = 2_000
 
 export const recordAnswerThenRelease = async ({

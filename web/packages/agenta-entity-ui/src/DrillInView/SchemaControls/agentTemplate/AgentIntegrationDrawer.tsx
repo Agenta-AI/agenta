@@ -52,19 +52,24 @@ interface ConnectedGroup {
     connections: ToolConnection[]
 }
 
-/** The project's connections, grouped by the integration they belong to. */
+/** The identity of an integration row is the PAIR; the integration alone merges two providers. */
+const groupKey = (provider: string, integration: string): string => `${provider}:${integration}`
+
+/** The project's connections, grouped by the provider and integration they belong to. */
 function groupConnections(connections: ToolConnection[]): ConnectedGroup[] {
     const groups = new Map<string, ConnectedGroup>()
     for (const connection of connections) {
         if (!connection.integration_key || !connection.slug) continue
-        let group = groups.get(connection.integration_key)
+        const provider = connection.provider_key ?? "composio"
+        const key = groupKey(provider, connection.integration_key)
+        let group = groups.get(key)
         if (!group) {
             group = {
                 integrationKey: connection.integration_key,
-                provider: connection.provider_key ?? "composio",
+                provider,
                 connections: [],
             }
-            groups.set(connection.integration_key, group)
+            groups.set(key, group)
         }
         group.connections.push(connection)
     }
@@ -318,7 +323,7 @@ function IntegrationCatalogContent({
         )
     }, [allConnectedGroups, query])
     const rowsByIntegration = useMemo(
-        () => new Map(integrationRows.map((row) => [row.integration, row])),
+        () => new Map(integrationRows.map((row) => [groupKey(row.provider, row.integration), row])),
         [integrationRows],
     )
 
@@ -343,7 +348,10 @@ function IntegrationCatalogContent({
         const group = allConnectedGroups.find((g) => g.integrationKey === pendingAdd)
         if (!group) return
         const only = group.connections.length === 1 ? group.connections[0] : null
-        if (only && isConnectionValid(only)) addIntegration(group, only.slug ?? "")
+        // Stay armed while the single connection is not valid YET: validity can arrive on a later
+        // refresh, and the drawer is destroyed on close, so the intent cannot outlive the flow.
+        if (only && !isConnectionValid(only)) return
+        if (only) addIntegration(group, only.slug ?? "")
         setPendingAdd(null)
     }, [pendingAdd, allConnectedGroups, addIntegration])
 
@@ -373,9 +381,11 @@ function IntegrationCatalogContent({
                         <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
                             {connectedGroups.map((group) => (
                                 <ConnectedRow
-                                    key={group.integrationKey}
+                                    key={groupKey(group.provider, group.integrationKey)}
                                     group={group}
-                                    row={rowsByIntegration.get(group.integrationKey)}
+                                    row={rowsByIntegration.get(
+                                        groupKey(group.provider, group.integrationKey),
+                                    )}
                                     onAdd={(slug) => addIntegration(group, slug)}
                                 />
                             ))}

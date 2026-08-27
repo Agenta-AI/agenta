@@ -1,11 +1,5 @@
-/**
- * The durable half of an approval decision: the row resolution, and what retires the gate marker.
- *
- * The decision goes to the interaction row because the part-state route is racy — a re-seed from the
- * stored transcript can discard the local `approval-responded` flip. The RESUME is not this file's
- * business at all: the SDK's own `sendAutomaticallyWhen` owns it, alone, and the tests below pin
- * that there is no second dispatch to race it with.
- */
+// The durable half of an approval decision: the row resolution, and what retires the gate marker.
+// The resume itself is the SDK's, so nothing here starts one.
 import {describe, expect, it} from "vitest"
 
 import {approvalResolution, isResumeSend} from "../../src/state/execution/approvalAnswer"
@@ -63,20 +57,12 @@ describe("isResumeSend", () => {
     })
 })
 
-/**
- * The hook's approval path, as a driver: `answer` is the click, `step` is one stream-state change.
- *
- * `dispatches` counts requests the CLIENT starts on its own. It must stay 0 forever. A compensating
- * dispatch here produced two invokes 1 ms apart, and cancel-stale then cancelled the very row being
- * answered, so the runner's resolveInteraction 404'd and every row ended `cancelled`.
- */
+// The hook's gate-marker lifecycle: `answer` is the click, `step` is one stream-state change.
 const drive = (initial: string) => {
     let previous = initial
     let marker: {kind: string; id: string} | null | undefined = null
     const chat = {
-        dispatches: 0,
         written: [] as Record<string, unknown>[],
-        /** The click: mark the gate live, write the row. No send. */
         answer(id: string, approved: boolean) {
             marker = {kind: "approval", id}
             chat.written.push(approvalResolution(id, approved))
@@ -97,21 +83,10 @@ const drive = (initial: string) => {
 }
 
 describe("the click path", () => {
-    it("writes the row and starts no request of its own", () => {
+    it("writes the row for the verdict it was given", () => {
         const chat = drive("streaming")
-        chat.answer("call_x|fc_y", true)
-        expect(chat.written).toEqual([{tool_call_id: "call_x|fc_y", verdict: "approved"}])
-        expect(chat.dispatches).toBe(0)
-    })
-
-    it("starts no request when the answered stream finishes either way", () => {
-        // Whatever the stream does next, the SDK's `sendAutomaticallyWhen` is the only sender.
-        for (const ending of ["ready", "error"]) {
-            const chat = drive("streaming")
-            chat.answer("call_x|fc_y", false)
-            chat.step(ending)
-            expect(chat.dispatches).toBe(0)
-        }
+        chat.answer("call_x|fc_y", false)
+        expect(chat.written).toEqual([{tool_call_id: "call_x|fc_y", verdict: "denied"}])
     })
 
     it("marks the gate live so the SDK's predicate resumes a decision made in this mount", () => {
@@ -122,22 +97,23 @@ describe("the click path", () => {
 })
 
 describe("retiring the live gate", () => {
-    it("retires it when the SDK's resume really goes out", () => {
+    it("keeps it through the park finish, then retires it on the SDK's resume", () => {
+        // The window between is the point: the predicate is consulted at the finish and still
+        // needs the marker, and only the send that follows may spend it.
         const chat = drive("streaming")
         chat.answer("call_x|fc_y", true)
-        chat.step("ready") // the clean park finish
-        expect(chat.liveGate).not.toBeNull() // the predicate still needs it here
-        chat.step("submitted") // the SDK's own resume
+        chat.step("ready")
+        expect(chat.liveGate).not.toBeNull()
+        chat.step("submitted")
         expect(chat.liveGate).toBeNull()
     })
 
-    it("does not retire it on the predicate's word alone", () => {
-        // The SDK reads `if (sendAutomaticallyWhen(...) && !isError)` — the predicate runs first and
-        // its verdict can still be discarded, so a `true` is not evidence that anything was sent.
+    it("does not retire it on an errored finish, where the SDK sends nothing", () => {
+        // `if (sendAutomaticallyWhen(...) && !isError)`: the predicate's verdict is discarded, so
+        // nothing was sent and the marker must survive.
         const chat = drive("streaming")
         chat.answer("call_x|fc_y", true)
-        const predicateVerdict = true
-        expect(predicateVerdict && chat.liveGate !== null).toBe(true)
+        chat.step("error")
         expect(chat.liveGate).not.toBeNull()
     })
 
@@ -147,6 +123,5 @@ describe("retiring the live gate", () => {
         chat.stop()
         chat.step("ready")
         expect(chat.liveGate).toBeNull()
-        expect(chat.dispatches).toBe(0)
     })
 })

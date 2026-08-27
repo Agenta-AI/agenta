@@ -72,7 +72,10 @@ describe("reading a preset back", () => {
     })
 
     it("F7: a single redundant entry never reads as Custom with a count of zero", () => {
-        const permissions: GatewayConnectionPermissions = {default: "ask", tools: {GET_ISSUE: "ask"}}
+        const permissions: GatewayConnectionPermissions = {
+            default: "ask",
+            tools: {GET_ISSUE: "ask"},
+        }
         const {preset, overrideCount} = readIntegrationPreset(permissions)
         expect(preset).toBe("custom")
         expect(overrideCount).toBe(1)
@@ -87,7 +90,9 @@ describe("reading a preset back", () => {
         expect(integrationPermissionSummary({default: "allow", tools: {}}).label).toBe("Allow all")
         expect(integrationPermissionSummary({default: "deny", tools: {}}).label).toBe("Denied")
         expect(integrationPermissionSummary({default: "ask", tools: {}}).label).toBe("Always asks")
-        expect(integrationPermissionSummary({default: "inherit", tools: {}}).label).toBe("Allow reads")
+        expect(integrationPermissionSummary({default: "inherit", tools: {}}).label).toBe(
+            "Allow reads",
+        )
     })
 })
 

@@ -23,14 +23,13 @@ import {
     integrationRowIndices,
     parseGatewayConnection,
     removeIntegrationRow,
+    setGatewayConnectionPermissions,
     upsertGatewayConnection,
     type GatewayConnectionPermissions,
     type ParsedGatewayConnection,
 } from "../../src/DrillInView/SchemaControls/toolUtils"
 
-const view = (
-    overrides: Partial<ParsedGatewayConnection> = {},
-): ParsedGatewayConnection => ({
+const view = (overrides: Partial<ParsedGatewayConnection> = {}): ParsedGatewayConnection => ({
     provider: "composio",
     integration: "github",
     connection: "github-work",
@@ -86,7 +85,12 @@ describe("parseGatewayConnection", () => {
             null,
         )
         expect(
-            parseGatewayConnection({type: "gateway", integration: "github", action: "X", connection: "c"}),
+            parseGatewayConnection({
+                type: "gateway",
+                integration: "github",
+                action: "X",
+                connection: "c",
+            }),
         ).toBe(null)
         expect(parseGatewayConnection(null)).toBe(null)
     })
@@ -138,6 +142,24 @@ describe("a write applies to the entry as it was saved", () => {
         expect(parseGatewayConnection(next)).toEqual(
             view({connection: "github-personal", permissions: {default: "allow", tools: {}}}),
         )
+    })
+
+    // The permission editor is the OTHER writer, and it edits far more often than the connection
+    // swap does — a rebuild there would erase those fields on every preset click.
+    it("keeps them through a permission edit too", () => {
+        const [next] = setGatewayConnectionPermissions(
+            [saved],
+            {provider: "composio", integration: "github"},
+            {default: "ask", tools: {CREATE_ISSUE: "deny"}},
+        ) as Record<string, unknown>[]
+
+        expect(next.render).toEqual({collapsed: true})
+        expect((next.policy as Record<string, unknown>).note).toBe("kept by hand")
+        expect((next.connection as Record<string, unknown>).note).toBe("kept by hand")
+        expect(parseGatewayConnection(next)?.permissions).toEqual({
+            default: "ask",
+            tools: {CREATE_ISSUE: "deny"},
+        })
     })
 })
 
@@ -309,7 +331,10 @@ describe("F16: choosing a different connection for a configured integration", ()
     ]
 
     it("REPLACES the entry in one write and never appends a second", () => {
-        const next = upsertGatewayConnection(tools, view({connection: "github-personal", permissions}))
+        const next = upsertGatewayConnection(
+            tools,
+            view({connection: "github-personal", permissions}),
+        )
         expect(next).toHaveLength(2)
         const rows = buildIntegrationRows(next)
         expect(rows).toHaveLength(1)
@@ -317,12 +342,18 @@ describe("F16: choosing a different connection for a configured integration", ()
     })
 
     it("keeps the policy the author already set and swaps the slug alone", () => {
-        const next = upsertGatewayConnection(tools, view({connection: "github-personal", permissions}))
+        const next = upsertGatewayConnection(
+            tools,
+            view({connection: "github-personal", permissions}),
+        )
         expect(parseGatewayConnection(next[1])?.permissions).toEqual(permissions)
     })
 
     it("keeps the entry in place rather than moving it to the end", () => {
-        const next = upsertGatewayConnection(tools, view({connection: "github-personal", permissions}))
+        const next = upsertGatewayConnection(
+            tools,
+            view({connection: "github-personal", permissions}),
+        )
         expect(next[0]).toEqual(tools[0])
     })
 
@@ -345,7 +376,9 @@ describe("a revision that already holds two entries for one integration", () => 
     const duplicated = [
         buildGatewayConnectionEntry(view({permissions: {default: "deny", tools: {}}})),
         {type: "function", function: {name: "my_tool"}},
-        buildGatewayConnectionEntry(view({connection: "other", permissions: {default: "allow", tools: {}}})),
+        buildGatewayConnectionEntry(
+            view({connection: "other", permissions: {default: "allow", tools: {}}}),
+        ),
     ]
 
     it("still reads as ONE row, holding both positions", () => {
@@ -374,10 +407,7 @@ describe("a revision that already holds two entries for one integration", () => 
     })
 
     it("reports every position the row occupies, entries and legacy alike", () => {
-        const mixed = [
-            ...duplicated,
-            legacyTool("tools__composio__github__GET_ISSUE__github-work"),
-        ]
+        const mixed = [...duplicated, legacyTool("tools__composio__github__GET_ISSUE__github-work")]
         expect(integrationRowIndices(buildIntegrationRows(mixed)[0])).toEqual([0, 2, 3])
     })
 })
