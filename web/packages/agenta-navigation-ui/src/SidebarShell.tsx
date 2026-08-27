@@ -87,10 +87,26 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
     return {selectedKey: matched?.key, openKeys}
 }
 
-/** Whether any row carries this key — an override naming a row that is not rendered must not
- * blank the selection out from under the route match. */
+/** Whether any row carries this key. */
 const hasItemKey = (items: SidebarConfig[], key: string): boolean =>
     items.some((item) => item.key === key || (item.submenu ? hasItemKey(item.submenu, key) : false))
+
+/**
+ * Which key is selected, given a scope's optional pin and the route match.
+ *
+ * A pinned key that names an UNRENDERED row selects nothing — never the route match. The rail
+ * pins the open session, whose row shares its agent's playground URL, so the route match is that
+ * agent; collapsing the session's group (or filtering it out) would otherwise jump the highlight
+ * onto the agent, falsely saying you are viewing it. With no pin, the route match is honest.
+ */
+export const resolveSelectedKey = (
+    overrideKey: string | undefined,
+    overrideRendered: boolean,
+    routeSelectedKey: string | undefined,
+): string | undefined => {
+    if (!overrideKey) return routeSelectedKey
+    return overrideRendered ? overrideKey : undefined
+}
 
 const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     if (!selectedKey) return []
@@ -202,14 +218,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
         // the ephemeral playground, or the rail pins the open session whose row shares its agent's
         // URL). The override wins over the route match.
-        const override =
-            selection.selectedKeyOverride && hasItemKey(allItems, selection.selectedKeyOverride)
-                ? selection.selectedKeyOverride
-                : undefined
+        const overrideKey = selection.selectedKeyOverride
+        const overrideRendered = overrideKey ? hasItemKey(allItems, overrideKey) : false
         return {
-            selectedKey: override ?? match.selectedKey,
+            selectedKey: resolveSelectedKey(overrideKey, overrideRendered, match.selectedKey),
             routeOpenKeys: match.openKeys,
-            pinned: Boolean(override),
+            pinned: overrideRendered,
         }
     }, [allItems, currentPath, selection])
 
