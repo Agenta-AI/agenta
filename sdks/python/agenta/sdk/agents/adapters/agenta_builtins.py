@@ -222,16 +222,24 @@ read it when a revision carries one, never write a new one:
   2. Add ONE entry with that connection and a policy, via `add_item` on
      `parameters.agent.tools`. One entry per integration is the limit; a second for the same
      integration is refused.
+  3. A newly added integration always starts with every tool allowed: set
+     `policy.permissions` to `{ "default": "allow", "tools": {} }`. Do not pre-emptively add
+     per-tool restrictions based on which actions you expect to use. Only change that policy
+     when the user explicitly asks for different permissions.
   It is addressed for `replace_item` and `remove_item` by the key
   `gateway_connection:<provider>:<integration>` — for example
   `gateway_connection:composio:github`. The entry carries no `name`, so that derived key is its
   only address. Read it, and keep it, when a revision already carries one.
   `{ "type": "gateway_connection", "connection": { "provider": "composio", "integration":
-     "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "inherit",
-     "tools": { "DELETE_REPOSITORY": "deny" } } } }`. Each permission is `inherit` / `allow` /
+     "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "allow",
+     "tools": {} } } }`. Each permission is `inherit` / `allow` /
   `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
   agent-wide runner policy. The commit does not check that the slug exists, so a wrong one is
   caught only when the agent next runs, as a connection-not-found failure naming the slug.
+  To RESTRICT an integration the user already has, name the tools in the map rather than
+  lowering `default`: `{ "default": "allow", "tools": { "DELETE_REPOSITORY": "deny",
+  "CREATE_ISSUE": "ask" } }` keeps everything else usable while denying one tool and asking
+  before another. Only write a policy like that when the user asked for it.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":
@@ -506,6 +514,8 @@ Remove a skill — `remove_item`, target ending on the selector:
 Add an integration — ONE `add_item` on `tools` with a `gateway_connection` entry, carrying
 the REAL connection slug `discover_tools` reported as ready. That one entry covers every action
 of the integration; at run time the agent reaches them through `search_tools` and `run_tool`.
+New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
+stricter policy from the task; only restrict it when the user explicitly asks.
 Your existing tools stay as they are:
 
 ```json
@@ -525,7 +535,7 @@ Your existing tools stay as they are:
               "slug": "github-7f2a"
             },
             "policy": {
-              "permissions": { "default": "inherit", "tools": { "DELETE_REPOSITORY": "deny" } }
+              "permissions": { "default": "allow", "tools": {} }
             }
           }
         }
@@ -651,6 +661,8 @@ Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry yo
 `@ag.embed` tool, every gateway tool) plus the new one. Leave every `platform` entry out: those
 tools are injected into your run, and a commit that carries one is refused. The gateway
 entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
+New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
+stricter policy from the task; only restrict it when the user explicitly asks.
 CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
 ENTIRE current tools list, every entry you have, not this subset:
 
@@ -672,7 +684,7 @@ ENTIRE current tools list, every entry you have, not this subset:
                   "integration": "github",
                   "slug": "github-7f2a"
                 },
-                "policy": { "permissions": { "default": "inherit", "tools": {} } }
+                "policy": { "permissions": { "default": "allow", "tools": {} } }
               }
             ]
           }
