@@ -90,18 +90,6 @@ export const RUN_TOOL_SPEC: ResolvedToolSpec = {
   },
 };
 
-/** A browser-fulfilled tool, for the cases that must prove the gateway park is DIFFERENT. */
-export const CLIENT_TOOL_SPEC: ResolvedToolSpec = {
-  name: "request_connection",
-  kind: "client",
-  permission: "allow",
-  inputSchema: {
-    type: "object",
-    properties: { integration: { type: "string" } },
-    required: ["integration"],
-  },
-};
-
 export const SEARCH_TOOL_SPEC: ResolvedToolSpec = {
   name: "search_tools",
   kind: "callback",
@@ -317,8 +305,6 @@ export async function startGatewayRelay(opts?: {
   policy?: GatewayPolicy;
   /** Omit the gate to prove a run without one fails closed. */
   withoutGate?: boolean;
-  /** The Pi disposition writes no client-tool answer; default true keeps the non-Pi shape. */
-  writePausedAnswer?: boolean;
 }): Promise<RunningGatewayRelay> {
   const dir = makeRelayDir();
   const harness =
@@ -336,7 +322,7 @@ export async function startGatewayRelay(opts?: {
     {
       gatewayPolicy: opts?.policy ?? GATEWAY_POLICY,
       ...(opts?.withoutGate ? {} : { gatewayGate: harness.gate }),
-      writePausedAnswer: opts?.writePausedAnswer ?? true,
+      writePausedAnswer: true,
       log: (message) => void relayLogs.push(message),
     },
   );
