@@ -30,8 +30,9 @@ arguments. Any request can land on any instance behind a plain load balancer.
 
 The specification names gateways as a beneficiary, which is worth taking at face value:
 
-1. **Header-based routing.** The method and the target name ride required HTTP headers, so a
-   gateway routes and authorizes without parsing the JSON body.
+1. **Stateless policy routing.** A gateway derives the method and optional tool name from a
+   parsed view of the JSON-RPC body while relaying the original bytes unchanged. No private
+   routing headers are part of the data-plane contract.
 2. **Cacheable list results.** List endpoints now carry a freshness hint and a scope flag
    controlling whether *shared intermediaries* may cache the response, and no longer vary per
    connection.

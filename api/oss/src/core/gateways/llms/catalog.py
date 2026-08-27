@@ -16,7 +16,7 @@ from oss.src.core.gateways.llms.providers.passthrough.routing import DIRECT_BASE
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.env import env
 
-_MOCK_MODEL = "mock/echo"
+_MOCK_MODELS = ["mock/echo", "gpt-5.5", "claude-sonnet-5"]
 
 
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
@@ -41,7 +41,7 @@ def standard_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
             namespace=GatewayEndpointNamespace.STANDARD,
             data=LLMEndpointData(
                 route=LLMEndpointRoute(),
-                models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
+                models=LLMModelFilter(allowlist=_MOCK_MODELS),
             ),
         )
 
@@ -98,6 +98,6 @@ def builtin_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
         namespace=GatewayEndpointNamespace.BUILTIN,
         data=LLMEndpointData(
             route=LLMEndpointRoute(),
-            models=LLMModelFilter(allowlist=[_MOCK_MODEL]),
+            models=LLMModelFilter(allowlist=_MOCK_MODELS),
         ),
     )

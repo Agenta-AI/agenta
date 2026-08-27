@@ -14,7 +14,6 @@ def test_gateway_mock_matrix_has_every_declared_dev_case():
         "llm_builtin_mock",
         "llm_standard_mock",
         "llm_custom_mock",
-        "mcp_builtin_agenta",
         "mcp_builtin_mock",
         "mcp_standard_mock",
         "mcp_custom_mock",
@@ -48,4 +47,4 @@ def test_provider_variants_are_not_collapsed_into_one_builtin_case():
     }
 
     assert builtin_llm == {"agenta", "mock"}
-    assert builtin_mcp == {"agenta", "mock"}
+    assert builtin_mcp == {"mock"}

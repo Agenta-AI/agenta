@@ -32,7 +32,7 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
     const open = !!endpoint
 
     useEffect(() => {
-        if (!endpoint) return
+        if (!endpoint?.id) return
         setLoading(true)
         setDiscoverError(null)
         discoverMcpConnect(endpoint.id, projectId ?? undefined)
@@ -67,7 +67,7 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
     }, [])
 
     const handleConnect = useCallback(async () => {
-        if (!endpoint) return
+        if (!endpoint?.id) return
         try {
             setLoading(true)
             const result = await beginMcpConnect(

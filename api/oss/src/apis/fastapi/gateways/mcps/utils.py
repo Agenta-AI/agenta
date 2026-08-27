@@ -5,22 +5,9 @@ from typing import Any, Dict, Optional, Tuple
 
 from oss.src.core.gateways.mcps.dtos import COMPOSIO_PROVIDER, MCPCallContext
 
-MCP_METHOD_HEADER = "MCP-Method"
-MCP_NAME_HEADER = "MCP-Name"
-
-
-def _optional_header(headers: Dict[str, str], name: str) -> Optional[str]:
-    lowered = {key.lower(): value for key, value in headers.items()}
-    return (lowered.get(name.lower()) or "").strip() or None
-
 
 def parse_mcp_call_context(*, headers: Dict[str, str], body: bytes) -> MCPCallContext:
-    """Read method and tool name from JSON-RPC without changing the forwarded bytes.
-
-    ``MCP-Method`` and ``MCP-Name`` were used by an early gateway client.  They
-    remain accepted as optional metadata, but must agree with the JSON-RPC
-    request when present so they cannot weaken policy enforcement.
-    """
+    """Read policy-relevant fields from JSON-RPC without changing forwarded bytes."""
     try:
         payload: Any = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
@@ -39,14 +26,6 @@ def parse_mcp_call_context(*, headers: Dict[str, str], body: bytes) -> MCPCallCo
         raw_target = params["name"]
         if not isinstance(raw_target, str) or not (target := raw_target.strip()):
             raise ValueError("MCP JSON-RPC params.name must be a non-empty string")
-
-    header_method = _optional_header(headers, MCP_METHOD_HEADER)
-    if header_method is not None and header_method != method:
-        raise ValueError(f"{MCP_METHOD_HEADER} does not match the JSON-RPC method")
-
-    header_target = _optional_header(headers, MCP_NAME_HEADER)
-    if header_target is not None and header_target != target:
-        raise ValueError(f"{MCP_NAME_HEADER} does not match JSON-RPC params.name")
 
     return MCPCallContext(method=method, target=target)
 

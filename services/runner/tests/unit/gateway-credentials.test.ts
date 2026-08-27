@@ -117,6 +117,7 @@ describe("gateway credentials, per harness (WP13 Phase 2)", () => {
     );
     assert.equal(env.ANTHROPIC_API_KEY, "agenta-gateway");
     assert.equal(env.ANTHROPIC_AUTH_TOKEN, undefined);
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
   });
 
   it("pi: carries the header in models.json via $ENV indirection, and no raw value on disk", () => {

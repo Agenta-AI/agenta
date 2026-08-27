@@ -91,7 +91,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "mcpEndpoints",
         scope: "project",
-        description: "Register MCP servers by URL and connect the ones that need authorization.",
+        description: "Configure the MCP servers available to this project.",
     },
     {
         key: "organizationGeneral",
@@ -165,12 +165,11 @@ export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
 const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     apiKeys: "API Keys",
     secrets: "Secrets",
-    // The tab key stays `llms` so existing `?tab=llms` links keep working.
-    llms: "AI providers",
+    llms: "LLMs",
     tools: "Tools",
     triggers: "Triggers",
     webhooks: "Webhooks",
-    mcpEndpoints: "MCP Servers",
+    mcpEndpoints: "MCPs",
     workspace: "Members",
     projects: "Projects",
     organizationGeneral: "Organizations",

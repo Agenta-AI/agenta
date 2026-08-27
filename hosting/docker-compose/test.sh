@@ -230,12 +230,12 @@ run_python() {
     echo "[test.sh] Installing Python packages: ${root}"
     (cd "$root" && uv sync --locked)
     if [[ "$selected_layer" == false ]]; then
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py "${@:2}"' _ "$root" "${python_args[@]+"${python_args[@]}"}"
+        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py -- "${@:2}"' _ "$root" "${python_args[@]+"${python_args[@]}"}"
         return
     fi
     for layer in "${layers[@]}"; do
         echo "[test.sh] Running ${suite} ${layer} tests"
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py --layer "$2" "${@:3}"' _ "$root" "$layer" "${python_args[@]+"${python_args[@]}"}"
+        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py --layer "$2" -- "${@:3}"' _ "$root" "$layer" "${python_args[@]+"${python_args[@]}"}"
     done
 }
 

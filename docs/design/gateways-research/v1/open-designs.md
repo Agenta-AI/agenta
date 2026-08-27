@@ -416,27 +416,26 @@ to, and nothing settled what happens when an upstream server speaks an **older**
 
 The gateway is stateless end to end. `POST` is the only relaying verb; `GET` and `DELETE`
 on both proxy paths are refused rather than proxied, because those are the SSE and
-session-teardown legs the 2026-07-28 revision removed. Routing reads `MCP-Method` and
-`MCP-Name` from headers and never parses the body — which is what lets the tool filter
-refuse a call before the upstream is dialled, and is not something a session-based revision
-would allow.
+session-teardown legs the 2026-07-28 revision removed. Routing derives policy fields from a
+parsed JSON-RPC body and relays the original bytes unchanged; private routing headers are not
+part of the contract.
 
 **Verdict: the reachable set is not a session-revision problem.** Every server WP15 is
 tested against, and every real-world candidate probed against its own documentation or
 live, answers a plain stateless POST. Nothing in the probed set needed detect-and-refuse or
 session carrying, so D8 stands unchanged and this closes without reopening it.
 
-Per-server findings, against the three questions (plain stateless POST; header-based
-routing vs. body-only method; SSE needed for ordinary calls):
+Per-server findings, against the three questions (plain stateless POST; body-derived method;
+SSE needed for ordinary calls):
 
 1. **`mock-mcp-gateway` (WP5, wave 1's tested target).** Source: its own implementation
    (`core/gateways/mcps/providers/mock/app.py`). Stateless JSON mode by construction: one
-   JSON-RPC request in, one `application/json` response out (`202` for a notification), no
-   `Mcp-Session-Id`, no initialize handshake before `tools/list`. `GET`/`DELETE` answer
-   `405` at the mock itself, matching the gateway's own refusal. **Reachable.**
+   JSON-RPC request in, one `application/json` response out, no `Mcp-Session-Id`, and current
+   `server/discover` before `tools/list`. `GET`/`DELETE` answer `405` at the mock itself,
+   matching the gateway's own refusal. **Reachable.**
 
 2. **DeepWiki (`mcp.deepwiki.com/mcp`), unauthenticated, live-probed** (a plain `POST
-   tools/list`, no session header, no prior `initialize` call): answered `200` with the
+   tools/list`, no session header, no prior legacy handshake): answered `200` with the
    full tool list on the first request. The response rides a single `text/event-stream`
    event on the POST's own connection rather than a bare JSON body — allowed by the current
    spec for a stateless responder, and relayed byte-for-byte by `HttpMCPAdapter`, which

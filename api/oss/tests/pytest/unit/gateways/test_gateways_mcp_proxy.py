@@ -86,7 +86,6 @@ def client(mock_service, monkeypatch):
 def test_builtin_agenta_nests_the_slug(client, mock_service):
     response = client.post(
         "/builtin/agenta/tools/search",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -101,7 +100,6 @@ def test_builtin_agenta_nests_the_slug(client, mock_service):
 def test_builtin_reaches_with_three_segments(client, mock_service):
     response = client.post(
         "/builtin/composio/notion/my-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -116,7 +114,6 @@ def test_builtin_reaches_with_three_segments(client, mock_service):
 def test_custom_reaches_with_the_slug(client, mock_service):
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -160,7 +157,6 @@ def test_gateway_credential_is_not_forwarded_but_upstream_authorization_is(
     client.post(
         "/custom/acme-notion",
         headers={
-            "MCP-Method": "tools/list",
             "Authorization": "Bearer upstream-token",
             "X-AG-Credentials": "ApiKey gateway-token",
         },
@@ -269,7 +265,6 @@ def test_mapped_gateway_exceptions_carry_status_and_cause(
 
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -309,7 +304,6 @@ def test_mapped_gateway_exceptions_carry_the_code_marker_except_upstream_error(
 
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -330,7 +324,6 @@ def test_scope_insufficient_with_no_endpoint_id_carries_no_connect_affordance(
 
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -353,7 +346,6 @@ def test_scope_insufficient_with_endpoint_id_carries_the_connect_affordance(
 
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -369,7 +361,6 @@ def test_auth_required_carries_the_connect_requirement(client, mock_service):
 
     response = client.post(
         "/custom/acme-notion",
-        headers={"MCP-Method": "tools/list"},
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
@@ -387,15 +378,3 @@ def test_invalid_json_rpc_request_is_a_protocol_invalid_request(client, mock_ser
     assert payload["jsonrpc"] == "2.0"
     assert payload["id"] is None
     assert payload["error"]["data"]["cause"] == "invalid_request"
-
-
-def test_conflicting_legacy_header_is_a_protocol_invalid_request(client, mock_service):
-    response = client.post(
-        "/custom/acme-notion",
-        headers={"MCP-Method": "tools/call"},
-        content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
-    )
-
-    assert response.status_code == 400
-    assert mock_service.calls == []
-    assert response.json()["error"]["data"]["cause"] == "invalid_request"

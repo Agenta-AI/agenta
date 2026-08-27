@@ -55,14 +55,14 @@ from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.secrets.dtos import (
     CustomSecretDTO,
     CustomSecretSettingsDTO,
+    MCPStandardProviderDTO,
     SecretResponseDTO,
-    StandardProviderDTO,
     StandardProviderSettingsDTO,
 )
 from oss.src.core.secrets.enums import (
     CustomSecretFormat,
     SecretKind,
-    StandardProviderKind,
+    MCPStandardProviderKind,
 )
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
@@ -582,8 +582,8 @@ def _composio_resolved_secret() -> ResolvedSecret:
             slug="composio",
             header=Header(name="Composio"),
             kind=SecretKind.PROVIDER_KEY,
-            data=StandardProviderDTO(
-                kind=StandardProviderKind.COMPOSIO,
+            data=MCPStandardProviderDTO(
+                kind=MCPStandardProviderKind.COMPOSIO,
                 provider=StandardProviderSettingsDTO(key="project-composio-key"),
             ),
         ),
@@ -873,7 +873,7 @@ async def test_relay_builtin_never_touches_resolver_only_connections_service():
         name="my-notion",
         provider="composio",
         integration="notion",
-        context=MCPCallContext(method="initialize"),
+        context=MCPCallContext(method="server/discover"),
         body=b"{}",
         headers={},
     )

@@ -249,8 +249,18 @@ class LLMGatewayService:
         result is never placed in the DTO sent back to the services process.
         """
         if connection_slug:
-            namespace = GatewayEndpointNamespace.CUSTOM
-            name = connection_slug
+            custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
+                project_id=scope.project_id, slug=connection_slug
+            )
+            if custom is not None:
+                namespace = GatewayEndpointNamespace.CUSTOM
+                name = connection_slug
+            elif builtin_llm_endpoint(provider_key=connection_slug) is not None:
+                namespace = GatewayEndpointNamespace.BUILTIN
+                name = connection_slug
+            else:
+                namespace = GatewayEndpointNamespace.CUSTOM
+                name = connection_slug
         elif provider_key:
             namespace = GatewayEndpointNamespace.STANDARD
             name = provider_key
@@ -264,6 +274,8 @@ class LLMGatewayService:
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
             raise ValueError("gateway endpoint has no provider")
+        if target.deployment_kind == LLMDeploymentKind.MOCK:
+            resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
 
         ref = target.secret_ref()
         if ref is not None:

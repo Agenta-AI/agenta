@@ -99,6 +99,10 @@ async def _default_resolve_mcp_servers(
     mcp_servers, **kwargs
 ) -> List[ResolvedMCPServer]:
     """Resolve external MCP server declarations for one run."""
+    # Custom resolver hooks receive the already-resolved tool catalog so they
+    # can synthesize builtin MCP entries. The platform resolver only dials the
+    # declared MCP servers and has no use for that catalog.
+    kwargs.pop("tool_specs", None)
     return await _platform_resolve_mcp(mcp_servers, **kwargs)
 
 
@@ -126,7 +130,15 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
     # normalizes to ``openai``, and the model may even carry the connection slug as a placeholder
     # provider that no harness lists). Rejecting that untrusted pre-resolve string would block a
     # valid custom connection, so a named connection validates only its mode here.
-    if provider and not is_named and not harness_allows_provider(harness, provider):
+    # The development mock is translated to a harness-native provider by the
+    # gateway resolver. Let it reach that resolver; without mocks enabled, the
+    # normal missing-connection error remains authoritative.
+    if (
+        provider
+        and provider != "mock"
+        and not is_named
+        and not harness_allows_provider(harness, provider)
+    ):
         raise UnsupportedProviderError(provider=provider, harness=harness)
     mode = connection.mode
     if not harness_allows_mode(harness, mode):

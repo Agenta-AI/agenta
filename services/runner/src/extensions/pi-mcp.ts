@@ -7,6 +7,8 @@
 
 export const PI_GATEWAY_MCP_SERVERS_ENV = "AGENTA_AGENT_GATEWAY_MCP_SERVERS";
 
+const MCP_PROTOCOL_VERSION = "2026-07-28";
+
 export interface PiGatewayMcpServer {
   name: string;
   url: string;
@@ -118,13 +120,22 @@ class PiHttpMcpClient {
     const headers: Record<string, string> = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
+      "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
       ...this.server.headers,
     };
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
     const response = await fetch(this.server.url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, ...(params === undefined ? {} : { params }) }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: this.nextId++,
+        method,
+        params: {
+          ...(isRecord(params) ? params : {}),
+          _meta: { "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION },
+        },
+      }),
     });
     if (!response.ok) {
       throw new Error(`MCP ${method} failed (${response.status})`);
@@ -139,22 +150,7 @@ class PiHttpMcpClient {
   }
 
   async discover(): Promise<PiMcpTool[]> {
-    await this.request("initialize", {
-      protocolVersion: "2026-07-28",
-      capabilities: {},
-      clientInfo: { name: "agenta-pi", version: "1" },
-    });
-    // The mock is stateless and returns 202 for notifications; no response is expected.
-    void fetch(this.server.url, {
-      method: "POST",
-      headers: {
-        Accept: "application/json, text/event-stream",
-        "Content-Type": "application/json",
-        ...this.server.headers,
-        ...(this.sessionId ? { "Mcp-Session-Id": this.sessionId } : {}),
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-    }).catch(() => undefined);
+    await this.request("server/discover");
     const result = await this.request("tools/list");
     if (!isRecord(result) || !Array.isArray(result.tools)) {
       throw new Error("MCP tools/list returned no tools array");

@@ -35,7 +35,7 @@ from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
 _ERROR_PREFIX = "mock/error"
 _SLOW_RE = re.compile(r"^mock/slow-(\d+)")
-_MCP_MARKER_RE = re.compile(r"MCP-ACCEPTANCE-[A-Za-z0-9-]+")
+_MCP_MARKER_RE = re.compile(r"MCP-ACCEPTANCE-[A-Za-z0-9_-]+")
 
 
 def _parse_slow_seconds(model: str) -> Optional[int]:
@@ -97,7 +97,13 @@ def _contains_successful_mcp_echo_result(body: bytes, marker: str) -> bool:
     result includes ``isError: false``; failed gateway responses do not.
     """
     normalized = body.decode(errors="replace").replace(" ", "").replace("\\", "")
-    return marker in normalized and '"isError":false' in normalized
+    if marker not in normalized or not _contains_tool_result(body):
+        return False
+    return (
+        '"isError":true' not in normalized
+        and '"is_error":true' not in normalized
+        and '"error":' not in normalized
+    )
 
 
 def _echo_tool_name(body: bytes) -> str | None:
@@ -124,6 +130,18 @@ def _echo_tool_name(body: bytes) -> str | None:
         return None
 
     return visit(payload.get("tools", []))
+
+
+def _default_mcp_echo_tool(protocol: LLMProtocol) -> str | None:
+    """Return the stable remote-MCP tool name used by ACP harnesses.
+
+    Codex and Claude configure remote MCP servers at session start, rather than
+    serialising their tool catalog into every model request.  Their model-facing
+    tool name still follows the MCP server/tool convention.
+    """
+    if protocol in (LLMProtocol.RESPONSES, LLMProtocol.MESSAGES):
+        return "mcp__mock-mcp__echo"
+    return None
 
 
 def _chat_tool_call_payload(
@@ -299,7 +317,7 @@ class MockLLMAdapter(LLMUpstreamInterface):
 
         content = _last_message_content(body)
         marker = _mcp_marker(body)
-        tool_name = _echo_tool_name(body)
+        tool_name = _echo_tool_name(body) or _default_mcp_echo_tool(context.protocol)
         needs_tool_call = bool(marker and tool_name and not _contains_tool_result(body))
         if marker and _contains_tool_result(body):
             content = (

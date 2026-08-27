@@ -2081,6 +2081,7 @@ describe("runSandboxAgent orchestration", () => {
     // inputSchema (deferral would strip it -> empty tool input). The SDK only treats the exact
     // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
   });
 
   it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
@@ -2100,6 +2101,7 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, undefined);
   });
 
   it("never puts the OTLP bearer in the local Pi daemon's env", async () => {

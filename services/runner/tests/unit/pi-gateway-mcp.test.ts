@@ -26,9 +26,13 @@ describe("Pi gateway MCP extension", () => {
           ? { tools: [{ name: "echo", description: "echo", inputSchema: { type: "object" } }] }
           : payload.method === "tools/call"
             ? { content: [{ type: "text", text: payload.params.arguments.marker }] }
-            : { protocolVersion: "2026-07-28" };
+            : {
+                resultType: "complete",
+                supportedVersions: ["2026-07-28"],
+                capabilities: { tools: {} },
+              };
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: payload.method === "notifications/initialized" ? 202 : 200,
+        status: 200,
         headers: { "content-type": "application/json" },
       });
     }) as typeof fetch;
@@ -46,10 +50,11 @@ describe("Pi gateway MCP extension", () => {
     assert.equal(registered[0].name, "mcp__mock__echo");
     const value = await registered[0].execute("call-1", { marker: "WP34-ECHO" });
     assert.match(value.content[0].text, /WP34-ECHO/);
-    assert.ok(requests.some((request) => request.method === "initialize"));
+    assert.ok(requests.some((request) => request.method === "server/discover"));
     assert.ok(requests.some((request) => request.method === "tools/list"));
     assert.ok(requests.some((request) => request.method === "tools/call"));
     assert.ok(requests.every((request) => request.headers.get("x-ag-credentials") === "short-lived-gateway-token"));
+    assert.ok(requests.every((request) => request.headers.get("mcp-protocol-version") === "2026-07-28"));
   });
 
   it("rejects malformed config and makes server/tool names collision-resistant", () => {
@@ -63,7 +68,11 @@ describe("Pi gateway MCP extension", () => {
       const result =
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
-          : { protocolVersion: "2026-07-28" };
+          : {
+              resultType: "complete",
+              supportedVersions: ["2026-07-28"],
+              capabilities: { tools: {} },
+            };
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), { status: 200 });
     }) as typeof fetch;
     const raw = serializePiGatewayMcpConfig([

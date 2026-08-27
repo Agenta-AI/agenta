@@ -17,7 +17,7 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 
 
 def test_mcp_sdk_version_and_token_storage_contract_are_pinned():
-    assert importlib.metadata.version("mcp") == "1.29.0"
+    assert importlib.metadata.version("mcp") == "2.1.1"
 
     expected_methods = {
         "get_tokens",

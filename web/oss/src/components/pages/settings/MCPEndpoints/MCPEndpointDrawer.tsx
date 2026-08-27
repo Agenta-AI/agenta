@@ -67,6 +67,7 @@ export default function MCPEndpointDrawer({open, endpoint, onClose, onSuccess}: 
         setLoading(true)
         try {
             if (endpoint) {
+                if (!endpoint.id) return
                 await editEndpoint({
                     id: endpoint.id,
                     name: name || slug,

@@ -37,12 +37,14 @@ export interface MCPEndpointFlags {
 }
 
 export interface MCPEndpoint {
-    id: string
+    id?: string | null
     slug?: string | null
     name?: string | null
     description?: string | null
     auth_mode: MCPAuthMode
     namespace?: MCPEndpointNamespace
+    provider_key?: string | null
+    integration_key?: string | null
     secret_id?: string | null
     data: MCPEndpointData
     flags?: MCPEndpointFlags

@@ -87,6 +87,10 @@ export function applyClaudeConnectionEnv(
 ): void {
   if (acpAgent !== "claude") return;
 
+  // Claude Code discovers the gateway's current stateless MCP interface.
+  env.MCP_PROTOCOL_NEGOTIATION = "auto";
+  logger("claude MCP protocol negotiation: auto");
+
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
   // call them before their `inputSchema` is loaded — so it emits an empty `input: {}` and

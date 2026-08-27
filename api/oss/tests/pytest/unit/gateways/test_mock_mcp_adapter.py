@@ -49,6 +49,37 @@ async def test_tools_list_returns_all_three_tools():
     payload = json.loads(result.body)
     names = {tool["name"] for tool in payload["result"]["tools"]}
     assert names == {"echo", "fail", "slow"}
+    assert payload["result"]["resultType"] == "complete"
+    assert payload["result"]["ttlMs"] == 300000
+    assert payload["result"]["cacheScope"] == "public"
+
+
+@pytest.mark.asyncio
+async def test_discovery_advertises_the_current_protocol():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="server/discover"),
+        body=_rpc("server/discover"),
+        headers={},
+    )
+
+    payload = json.loads(result.body)
+    assert payload["result"] == {
+        "resultType": "complete",
+        "supportedVersions": ["2026-07-28"],
+        "capabilities": {"tools": {}},
+        "_meta": {
+            "io.modelcontextprotocol/serverInfo": {
+                "name": "agenta-mock-mcp",
+                "version": "0.1.0",
+            }
+        },
+        "ttlMs": 300000,
+        "cacheScope": "public",
+    }
 
 
 @pytest.mark.asyncio
@@ -66,6 +97,7 @@ async def test_echo_tool_echoes_arguments():
     payload = json.loads(result.body)
     content = payload["result"]["content"][0]["text"]
     assert json.loads(content) == {"x": 1}
+    assert payload["result"]["resultType"] == "complete"
     assert payload["result"]["isError"] is False
 
 
@@ -119,19 +151,3 @@ async def test_unrecognized_method_raises_upstream_error():
         )
 
     assert excinfo.value.status_code == 501
-
-
-@pytest.mark.asyncio
-async def test_notification_returns_202_with_empty_body():
-    adapter = MockMCPAdapter()
-
-    result = await adapter.relay(
-        route=_route(),
-        auth=_auth(),
-        context=MCPCallContext(method="notifications/initialized"),
-        body=_rpc("notifications/initialized"),
-        headers={},
-    )
-
-    assert result.status_code == 202
-    assert result.body == b""

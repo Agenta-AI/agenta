@@ -14,6 +14,7 @@ export interface SecretResponseDto {
 export namespace SecretResponseDto {
     export type Data =
         | AgentaApi.StandardProviderDto
+        | AgentaApi.McpStandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto

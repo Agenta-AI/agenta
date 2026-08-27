@@ -168,6 +168,17 @@ describe("agenta extension model provider override", () => {
     ]);
   });
 
+  it("permits a local HTTP route only when it carries the gateway credential", () => {
+    assert.equal(
+      validatePiModelProviderOverride({
+        provider: "openai",
+        baseUrl: "http://api:8000/gateways/llms/builtin/mock/v1",
+        headers: { "X-AG-Credentials": "ApiKey gateway-credential" },
+      }).baseUrl,
+      "http://api:8000/gateways/llms/builtin/mock/v1",
+    );
+  });
+
   it("rejects malformed public override config before registration", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -176,7 +187,7 @@ describe("agenta extension model provider override", () => {
     });
     const pi = fakePi();
 
-    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.throws(() => factory(pi as any), /must be HTTPS/);
     assert.deepEqual(pi.registeredProviders, []);
 
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";

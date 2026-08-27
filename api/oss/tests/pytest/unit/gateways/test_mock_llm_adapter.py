@@ -238,7 +238,7 @@ async def test_messages_streaming_ends_with_message_stop_and_usage_on_message_de
     [LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.RESPONSES, LLMProtocol.MESSAGES],
 )
 async def test_mcp_marker_requests_the_harness_rendered_echo_tool(protocol):
-    marker = "MCP-ACCEPTANCE-unit-marker"
+    marker = "MCP-ACCEPTANCE-pi_core-marker"
     body = json.dumps(
         {
             "model": "mock/echo",

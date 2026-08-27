@@ -84,7 +84,7 @@ async def test_creates_a_connection_scoped_session_then_relays_raw_jsonrpc():
         body=body,
         headers={
             "Content-Type": "application/json",
-            "MCP-Protocol-Version": "2025-03-26",
+            "MCP-Protocol-Version": "2026-07-28",
             "Authorization": "Bearer caller-controlled",
             "X-AG-Credentials": "short-lived-gateway-token",
             "Host": "api.agenta.test",
@@ -105,7 +105,7 @@ async def test_creates_a_connection_scoped_session_then_relays_raw_jsonrpc():
         "connected_accounts": {"gmail": ["ca_gmail_123"]},
     }
     assert mcp_request.content == body
-    assert mcp_request.headers["mcp-protocol-version"] == "2025-03-26"
+    assert mcp_request.headers["mcp-protocol-version"] == "2026-07-28"
     assert "x-ag-credentials" not in mcp_request.headers
     assert "x-api-key" not in mcp_request.headers
     assert mcp_request.headers["authorization"] == "Bearer session-capability"

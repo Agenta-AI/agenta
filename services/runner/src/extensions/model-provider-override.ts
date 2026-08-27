@@ -55,8 +55,19 @@ export function validatePiModelProviderOverride(
   } catch {
     throw new Error("model provider override baseUrl must be a valid URL");
   }
+  const rawHeaders = (value as { headers?: unknown }).headers;
+  const hasGatewayCredential =
+    !!rawHeaders &&
+    typeof rawHeaders === "object" &&
+    !Array.isArray(rawHeaders) &&
+    Object.entries(rawHeaders as Record<string, unknown>).some(
+      ([name, headerValue]) =>
+        name.toLowerCase() === "x-ag-credentials" &&
+        typeof headerValue === "string" &&
+        headerValue.length > 0,
+    );
   if (
-    url.protocol !== "https:" ||
+    (url.protocol !== "https:" && !(url.protocol === "http:" && hasGatewayCredential)) ||
     !url.hostname ||
     url.username ||
     url.password ||
@@ -64,11 +75,10 @@ export function validatePiModelProviderOverride(
     url.hash
   ) {
     throw new Error(
-      "model provider override baseUrl must be an HTTPS URL without credentials, query, or fragment",
+      "model provider override baseUrl must be HTTPS, or an HTTP Agenta gateway route, without credentials, query, or fragment",
     );
   }
 
-  const rawHeaders = (value as { headers?: unknown }).headers;
   let headers: Record<string, string> | undefined;
   if (rawHeaders !== undefined) {
     if (

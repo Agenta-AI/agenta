@@ -29,12 +29,18 @@ def test_llm_mock_entries_have_distinct_namespaces_and_use_mock_adapter(monkeypa
     assert builtin.deployment_kind is LLMDeploymentKind.MOCK
     assert builtin.data.route.base_url is None
     assert builtin.data.route.headers is None
+    assert set(builtin.data.models.allowlist or []) == {
+        "mock/echo",
+        "gpt-5.5",
+        "claude-sonnet-5",
+    }
     assert standard is not None
     assert standard.namespace == GatewayEndpointNamespace.STANDARD
     assert standard.provider_key == "mock"
     assert standard.deployment_kind is LLMDeploymentKind.MOCK
     assert standard.data.route.base_url is None
     assert standard.data.route.headers is None
+    assert standard.data.models.allowlist == builtin.data.models.allowlist
 
 
 class _MCPService:

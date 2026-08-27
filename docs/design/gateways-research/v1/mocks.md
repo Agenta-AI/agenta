@@ -23,7 +23,7 @@ nor accepts their routes.
 | LLM | `builtin` | `mock` | LLM mock | A deliberately local builtin provider, including builtin route and policy selection. |
 | LLM | `standard` | `mock` | LLM mock | Generated standard-provider lookup and project-owned credential resolution. |
 | LLM | `custom` | test-created endpoint | LLM mock | Stored endpoint lookup, custom model restrictions, and direct-secret injection. |
-| MCP | `builtin` | `agenta` | MCP mock | Agenta-owned builtin tools. |
+| MCP | `builtin` | `agenta` | Run-scoped Agenta tools | Covered through a real agent/runner invocation, not a mock route. |
 | MCP | `builtin` | `mock` | MCP mock | A deliberately local builtin provider, independent of the Agenta provider grammar. |
 | MCP | `standard` | `mock` | MCP mock | Generated standard-target lookup and project-owned credential resolution. |
 | MCP | `custom` | test-created endpoint | MCP mock | Stored server lookup, direct auth, and tool policy. |
@@ -87,8 +87,7 @@ declared auth scheme; they never reuse a project credential.
 The current shared controls remain the base contract:
 
 - LLM: `mock/echo`, `mock/error`, `mock/slow-{seconds}`, and streamed responses.
-- MCP: `tools/list`, `tools/call` for `echo`, `fail`, and `slow`, notifications, and protocol
-  errors.
+- MCP: `server/discover`, `tools/list`, and `tools/call` for `echo`, `fail`, and `slow`.
 
 The deployable services need two observable-but-safe assertions for acceptance:
 
@@ -107,9 +106,11 @@ only tested on custom endpoints.
 | Integration | Custom rows, generated-entry merge, project credential/connection resolution, and isolation between projects | API plus local Postgres |
 | Acceptance | A real authenticated HTTP/MCP call for every row in the development matrix, plus streaming, errors, timeouts, auth injection, and policy refusals | Full OSS and EE dev compose stacks |
 
-Acceptance is parameterised by namespace/provider rather than copied into unrelated tests.  A
-case declares its endpoint factory, auth mode, and supported
-operations.  The shared assertions then cover, where the protocol supports them:
+Acceptance is parameterised by namespace/provider rather than copied into unrelated tests. The
+mock matrix covers its seven mock-backed rows; `builtin/agenta/run` is covered through an
+invocation-scoped agent/runner acceptance path. A mock case declares its endpoint factory, auth
+mode, and supported operations. The shared assertions then cover, where the protocol supports
+them:
 
 - unauthenticated and unauthorized calls fail before the mock is reached;
 - the generated mock endpoints resolve to the in-process mock adapter;
@@ -130,11 +131,9 @@ development-only setting and its non-secret mock token before starting host pyte
 persists either value to a worktree env file. Without this parity, pytest would skip the matrix
 even while the containers correctly expose its routes.
 
-**Recorded EE evidence (2026-08-24).**
-`bash hosting/docker-compose/test.sh --ee --dev --api -a --
-oss/tests/pytest/acceptance/gateways/test_gateway_mock_matrix_acceptance.py` completed with
-**24 passed**. That is the eight-row development matrix: each row proves its authenticated route,
-while the shared cases prove unauthenticated refusal, LLM streaming, and MCP tool calls.
+The API matrix proves the seven mock-backed routes. The harness matrix independently exercises
+Pi, Codex, and Claude Code across every LLM and MCP namespace pair, asserting a real `echo`
+tool result for each row.
 
 ## Work packages
 
@@ -142,15 +141,8 @@ while the shared cases prove unauthenticated refusal, LLM streaming, and MCP too
   entries and all six route families.
 - **WP29 — Gateway mock acceptance matrix** implements the fixtures and the unit, integration,
   and compose-acceptance coverage described above.
-- **WP33 — Mock MCP harness acceptance for Claude Code and Codex** proves that those harnesses
-  discover and call the gateway-backed mock MCP tools in full-stack runs.
-- **WP34 — Pi external mock MCP delivery and acceptance** replaces Pi's current author-MCP
-  refusal with native external-MCP delivery, then proves the same mock routes.
+- **Mock MCP harness acceptance** provides full-stack native-harness invocation coverage.
+- **Pi external mock MCP delivery** uses Pi's supported extension API for gateway routes.
 
-WP29 depends on WP28; WP33 depends on both; WP34 depends on WP33's shared fixtures. Neither
-package changes the two existing mock processes' public
-protocols except for the safe credential/profile observability required here.
-
-The API mock matrix does not prove a harness tool call. WP35 replaces the current marker-only
-harness assertion with protocol-compatible, tool-result evidence before any mock-MCP harness
-result is considered acceptance evidence.
+The API mock matrix and harness matrix cover distinct contracts: public route relay and native
+tool invocation respectively. Both use the same deterministic mock services.

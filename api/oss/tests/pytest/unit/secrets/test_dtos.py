@@ -13,7 +13,22 @@ from oss.src.core.secrets.dtos import (
     StandardProviderDTO,
     UpdateSecretDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.enums import (
+    LLMProviderKind,
+    LLMStandardProviderKind,
+    MCPProviderKind,
+    MCPStandardProviderKind,
+    SecretKind,
+    StandardProviderKind,
+)
+
+
+def test_provider_categories_keep_llm_and_mcp_catalogues_separate():
+    assert {kind.value for kind in LLMProviderKind} == {"builtin", "standard", "custom"}
+    assert {kind.value for kind in MCPProviderKind} == {"builtin", "standard", "custom"}
+    assert MCPStandardProviderKind.COMPOSIO.value not in {
+        kind.value for kind in LLMStandardProviderKind
+    }
 
 
 def test_create_secret_normalizes_mistralai_standard_provider_payload():
@@ -68,7 +83,7 @@ def test_create_secret_rejects_missing_standard_provider_kind():
         },
     }
 
-    with pytest.raises(ValidationError, match="StandardProviderKind"):
+    with pytest.raises(ValidationError, match="LLM or MCP provider key"):
         CreateSecretDTO.model_validate(payload)
 
 

@@ -111,7 +111,7 @@ describe("Codex shape (OD18: body is stripped -> marker fallback recovers code o
   for (const r of REFUSALS) {
     it(`recovers ${r.code} (${r.name}) from codex-rs's stripped format via the marker`, () => {
       // codex-rs's `UnexpectedResponseError::extract_error_message`
-      // (codex-rs/protocol/src/error.rs, rust-v0.145.0) parses the body as JSON and keeps
+      // Codex parses the body as JSON and keeps
       // ONLY `error.message`, discarding `code`/`type` before formatting this string -- but
       // the marker rides inside that surviving `message`, so it comes along for the ride.
       const harnessText = `unexpected status ${r.status}: ${markedMessage(r)}`;

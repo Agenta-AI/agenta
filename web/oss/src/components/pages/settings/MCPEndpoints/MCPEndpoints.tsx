@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {SecretKind, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui"
 import {
@@ -19,7 +20,12 @@ import {
     refreshMcpEndpointsAtom,
 } from "@/oss/state/mcpEndpoints/atoms"
 
-import {getMcpConnectionState, getMcpConnectionStateLabel} from "./connectionState"
+import ComposioProjectKey from "./ComposioProjectKey"
+import {
+    getMcpConnectionState,
+    getMcpConnectionStateLabel,
+    type McpConnectionState,
+} from "./connectionState"
 import MCPConnectDialog from "./MCPConnectDialog"
 import MCPEndpointDrawer from "./MCPEndpointDrawer"
 
@@ -30,12 +36,22 @@ interface MCPEndpointRow extends MCPEndpoint {
 
 const MCPEndpoints: React.FC = () => {
     const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsAtom)
+    const vaultSecrets = useAtomValue(vaultSecretsQueryAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
 
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [editingEndpoint, setEditingEndpoint] = useState<MCPEndpoint | null>(null)
     const [connectingEndpoint, setConnectingEndpoint] = useState<MCPEndpoint | null>(null)
+
+    const hasComposioProjectKey = useMemo(
+        () =>
+            vaultSecrets.data?.some(
+                (secret) =>
+                    secret.type === SecretKind.ProviderKey && secret.name === "COMPOSIO_API_KEY",
+            ) ?? false,
+        [vaultSecrets.data],
+    )
 
     const handleCreate = useCallback(() => {
         setEditingEndpoint(null)
@@ -49,6 +65,7 @@ const MCPEndpoints: React.FC = () => {
 
     const handleDelete = useCallback(
         async (endpoint: MCPEndpoint) => {
+            if (!endpoint.id) return
             try {
                 await deleteEndpoint(endpoint.id)
                 message.success("MCP server removed.")
@@ -69,13 +86,26 @@ const MCPEndpoints: React.FC = () => {
     }, [])
 
     const rows = useMemo<MCPEndpointRow[]>(
-        () => (endpoints ?? []).map((endpoint) => ({...endpoint, key: endpoint.id})),
+        () =>
+            (endpoints ?? []).map((endpoint) => ({
+                ...endpoint,
+                key:
+                    endpoint.id ??
+                    `${endpoint.namespace ?? "custom"}:${endpoint.provider_key ?? ""}:${endpoint.integration_key ?? ""}:${endpoint.slug ?? endpoint.name ?? "endpoint"}`,
+            })),
         [endpoints],
     )
 
     const columns = useMemo(
         () =>
             createStandardColumns<MCPEndpointRow>([
+                {
+                    type: "text",
+                    key: "namespace",
+                    title: "Kind",
+                    width: 120,
+                    render: (_value, record) => record.namespace ?? "custom",
+                },
                 {
                     type: "text",
                     key: "name",
@@ -94,7 +124,7 @@ const MCPEndpoints: React.FC = () => {
                             className="block truncate"
                             title={record.data.route.base_url ?? undefined}
                         >
-                            {record.data.route.base_url || "-"}
+                            {record.data.route.base_url || "Managed gateway"}
                         </span>
                     ),
                 },
@@ -111,7 +141,12 @@ const MCPEndpoints: React.FC = () => {
                     title: "Status",
                     width: 140,
                     render: (_value, record) => {
-                        const connectionState = getMcpConnectionState(record)
+                        const connectionState: McpConnectionState =
+                            record.namespace === "standard" && record.provider_key === "composio"
+                                ? hasComposioProjectKey
+                                    ? "ready"
+                                    : "needs_input"
+                                : getMcpConnectionState(record)
                         const color =
                             connectionState === "ready"
                                 ? "success"
@@ -131,15 +166,15 @@ const MCPEndpoints: React.FC = () => {
                             key: "connect",
                             label: "Connect / reconnect",
                             icon: <Plug size={16} />,
-                            // A ready OAuth endpoint remains reconnectable: that is how a user
-                            // requests newly offered scopes after an upstream step-up challenge.
-                            hidden: (record: MCPEndpointRow) => record.auth_mode !== "oauth",
+                            hidden: (record: MCPEndpointRow) =>
+                                record.namespace !== "custom" || record.auth_mode !== "oauth",
                             onClick: (record: MCPEndpointRow) => handleConnect(record),
                         },
                         {
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
+                            hidden: (record: MCPEndpointRow) => record.namespace !== "custom",
                             onClick: (record: MCPEndpointRow) => handleEdit(record),
                         },
                         {type: "divider"},
@@ -148,12 +183,13 @@ const MCPEndpoints: React.FC = () => {
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
+                            hidden: (record: MCPEndpointRow) => record.namespace !== "custom",
                             onClick: (record: MCPEndpointRow) => handleDelete(record),
                         },
                     ],
                 } satisfies StandardColumnDef<MCPEndpointRow>,
             ]),
-        [handleConnect, handleDelete, handleEdit],
+        [handleConnect, handleDelete, handleEdit, hasComposioProjectKey],
     )
 
     const {tableScope, pagination} = useStaticTable<MCPEndpointRow>(
@@ -166,6 +202,7 @@ const MCPEndpoints: React.FC = () => {
 
     return (
         <div className="flex flex-col gap-2">
+            <ComposioProjectKey />
             <InfiniteVirtualTableFeatureShell<MCPEndpointRow>
                 tableScope={tableScope}
                 autoHeight={false}
@@ -202,10 +239,13 @@ const MCPEndpoints: React.FC = () => {
                             </EmptyState>
                         ),
                     },
-                    onRow: (record: MCPEndpointRow) => ({
-                        onClick: () => handleEdit(record),
-                        className: "cursor-pointer",
-                    }),
+                    onRow: (record: MCPEndpointRow) =>
+                        record.namespace === "custom"
+                            ? {
+                                  onClick: () => handleEdit(record),
+                                  className: "cursor-pointer",
+                              }
+                            : {},
                 }}
             />
 

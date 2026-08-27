@@ -14,12 +14,8 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
             tool's own business failure is not a transport failure.
     slow    sleeps params.arguments.seconds (default 5), then a fixed result
 
-`notifications/*` returns 202 with an empty body, matching the runner's
-internal MCP server (services/runner/src/tools/tool-mcp-http.ts). Any other
-method is a transport-level failure: MCPUpstreamError(status_code=501) — there
-is no fourth method to mock.
-
-The mock deliberately implements only the MCP methods and tools declared below.
+The mock deliberately implements only current MCP discovery and the tools
+declared below.
 """
 
 import asyncio
@@ -41,6 +37,8 @@ from oss.src.core.secrets.enums import SecretKind
 from oss.src.utils.env import env
 
 _PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
+_CACHE_TTL_MS = 300_000
+_SERVER_INFO = {"name": "agenta-mock-mcp", "version": "0.1.0"}
 
 _TOOLS = [
     {
@@ -65,7 +63,12 @@ _TOOLS = [
 
 
 def _tool_result(text: str, *, is_error: bool = False) -> Dict[str, Any]:
-    return {"content": [{"type": "text", "text": text}], "isError": is_error}
+    return {
+        "resultType": "complete",
+        "content": [{"type": "text", "text": text}],
+        "isError": is_error,
+        "_meta": {"io.modelcontextprotocol/serverInfo": _SERVER_INFO},
+    }
 
 
 async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,11 +89,24 @@ async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
     return _tool_result(f"unknown tool: {name}", is_error=True)
 
 
-def _initialize_result() -> Dict[str, Any]:
+def _discovery_result() -> Dict[str, Any]:
     return {
-        "protocolVersion": _PROTOCOL_VERSION,
-        "serverInfo": {"name": "agenta-mock-mcp", "version": "0.1.0"},
+        "resultType": "complete",
+        "supportedVersions": [_PROTOCOL_VERSION],
         "capabilities": {"tools": {}},
+        "_meta": {"io.modelcontextprotocol/serverInfo": _SERVER_INFO},
+        "ttlMs": _CACHE_TTL_MS,
+        "cacheScope": "public",
+    }
+
+
+def _tools_list_result() -> Dict[str, Any]:
+    return {
+        "resultType": "complete",
+        "tools": _TOOLS,
+        "ttlMs": _CACHE_TTL_MS,
+        "cacheScope": "public",
+        "_meta": {"io.modelcontextprotocol/serverInfo": _SERVER_INFO},
     }
 
 
@@ -113,13 +129,10 @@ class MockMCPAdapter(MCPUpstreamInterface):
         method = payload.get("method") or context.method or ""
         request_id = payload.get("id")
 
-        if method.startswith("notifications/"):
-            return MCPRelayResult(status_code=202, headers={}, body=b"")
-
-        if method == "initialize":
-            result = _initialize_result()
+        if method == "server/discover":
+            result = _discovery_result()
         elif method == "tools/list":
-            result = {"tools": _TOOLS}
+            result = _tools_list_result()
         elif method == "tools/call":
             result = await _dispatch_tool_call(payload.get("params") or {})
         else:

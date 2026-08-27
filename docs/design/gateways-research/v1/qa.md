@@ -25,9 +25,10 @@ API-only request: those prove the proxy, not the product path.
      oss/tests/pytest/acceptance/gateways/test_gateway_mock_matrix_acceptance.py
    ```
 
-   This proves the eight mock rows: LLM builtin `agenta`, LLM builtin `mock`, LLM standard
-   `mock`, LLM custom mock; MCP builtin `agenta`, MCP builtin `mock`, MCP standard `mock`, and
-   MCP custom mock.
+   This proves the seven mock-backed rows: LLM builtin `agenta`, LLM builtin `mock`, LLM standard
+   `mock`, LLM custom mock; MCP builtin `mock`, MCP standard `mock`, and MCP custom mock.
+   `builtin/agenta/run` is not a mock route: it requires an invocation-scoped credential and is
+   verified through an agent/runner run with an existing Agenta callback tool.
 
 ## Dashboard procedure
 
@@ -40,15 +41,15 @@ agent/run configuration:
    unmistakable echo response, for example `Reply with exactly: gateway-live-qa`.
 3. Run it from the dashboard. Record the run link/id and confirm the response is exactly the
    expected mock response. This proves the browser → API → runner → harness → gateway path.
-4. Do not record a mock-MCP happy-path result yet. The current gateway expects private
-   `MCP-Method` headers that normal MCP clients do not send, so its existing marker assertion is
-   not proof of a tool call. Run this step for Pi, Claude Code, and Codex after WP35 supplies a
-   protocol-compatible route and a deterministic tool-result assertion. Claude Code also needs its
-   separate mock-LLM timeout fixture fixed before it can join that automated matrix.
-5. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a
+4. Add the builtin mock MCP server and ask the agent to call its `echo` tool with a unique marker.
+   Automated acceptance covers this interaction for every harness; record the live result as
+   product-path evidence.
+5. Add an existing Agenta callback tool and the builtin Agenta MCP server. Confirm the tool list is
+   scoped to the run and that the selected callback can be invoked.
+6. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a
    missing/disabled endpoint or an endpoint for which the selected project lacks permission. Do
    not use an arbitrary upstream failure: that is intentionally forwarded as `upstream_error`.
-6. In the run transcript and any visible interaction UI, record whether the failure exposes:
+7. In the run transcript and any visible interaction UI, record whether the failure exposes:
    `code`, human message, `retryable`, `next_step`, and `details`. Capture a screenshot and the
    run link/id. Redact credentials and cookies.
 
@@ -56,9 +57,9 @@ agent/run configuration:
 
 | Harness | Happy LLM | Happy MCP | Typed refusal surfaced | Required evidence |
 | --- | --- | --- | --- | --- |
-| Pi | echo response | pending WP35 | record all visible fields | run link/id + screenshot |
-| Claude Code | pending its mock-LLM fixture | pending WP35 and mock-LLM fixture | record all visible fields | run link/id + screenshot |
-| Codex | echo response | pending WP35 | record all visible fields | run link/id + screenshot |
+| Pi | echo response | echo tool result | record all visible fields | run link/id + screenshot |
+| Claude Code | echo response | echo tool result | record all visible fields | run link/id + screenshot |
+| Codex | echo response | echo tool result | record all visible fields | run link/id + screenshot |
 
 The required invariant is that every harness preserves the human message and the machine-readable
 gateway `code`. Pi or Claude Code may preserve the complete error envelope. Codex is expected to

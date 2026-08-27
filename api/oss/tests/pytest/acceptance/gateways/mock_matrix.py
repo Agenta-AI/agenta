@@ -111,14 +111,6 @@ LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
 
 MCP_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
     GatewayMockCase(
-        key="mcp_builtin_agenta",
-        plane=GatewayPlane.MCP,
-        namespace=GatewayNamespace.BUILTIN,
-        provider="agenta",
-        credential_owner=CredentialOwner.PLATFORM,
-        operations=frozenset({"tools_list", "tools_call"}),
-    ),
-    GatewayMockCase(
         key="mcp_builtin_mock",
         plane=GatewayPlane.MCP,
         namespace=GatewayNamespace.BUILTIN,

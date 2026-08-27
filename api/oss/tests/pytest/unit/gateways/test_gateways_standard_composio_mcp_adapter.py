@@ -23,10 +23,10 @@ from oss.src.core.gateways.policy.dtos import (
 )
 from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
-    StandardProviderDTO,
+    MCPStandardProviderDTO,
     StandardProviderSettingsDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.enums import MCPStandardProviderKind, SecretKind
 from oss.src.core.shared.dtos import Header
 
 
@@ -38,8 +38,8 @@ def _auth(key: str = "project-composio-key") -> MCPDirectAuth:
                 slug="composio",
                 header=Header(name="Composio"),
                 kind=SecretKind.PROVIDER_KEY,
-                data=StandardProviderDTO(
-                    kind=StandardProviderKind.COMPOSIO,
+                data=MCPStandardProviderDTO(
+                    kind=MCPStandardProviderKind.COMPOSIO,
                     provider=StandardProviderSettingsDTO(key=key),
                 ),
             ),
@@ -83,7 +83,7 @@ async def test_uses_only_the_project_key_and_project_scoped_session():
         context=MCPCallContext(method="tools/list"),
         body=raw_body,
         headers={
-            "MCP-Protocol-Version": "2025-03-26",
+            "MCP-Protocol-Version": "2026-07-28",
             "X-AG-Credentials": "short-lived-gateway-token",
             "Authorization": "Bearer caller-value",
         },
@@ -98,7 +98,7 @@ async def test_uses_only_the_project_key_and_project_scoped_session():
         "mcp": True,
     }
     assert mcp_request.content == raw_body
-    assert mcp_request.headers["mcp-protocol-version"] == "2025-03-26"
+    assert mcp_request.headers["mcp-protocol-version"] == "2026-07-28"
     assert mcp_request.headers["authorization"] == "Bearer session-capability"
     assert "x-ag-credentials" not in mcp_request.headers
     assert "x-api-key" not in mcp_request.headers

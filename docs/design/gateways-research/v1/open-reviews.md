@@ -2,6 +2,19 @@
 
 ## Active review findings
 
+### OR23. Deterministic native-MCP acceptance for Codex and Claude Code
+
+Pi's extension consumes the mock LLM's OpenAI tool-call response and now proves `echo` through
+the builtin, standard, and custom mock MCP routes. Codex and Claude Code receive the same HTTP
+MCP configuration, but their native MCP clients do not consume that generic response: Codex ends
+the turn without an MCP call, and Claude returns its system reminder. The gateway routes are
+therefore not automatically proven through either harness.
+
+Add a deterministic fixture based on a captured native exchange for each harness, then require
+the full-stack test to show MCP initialization, `tools/list`, `tools/call`, and the returned echo
+marker for every mock namespace. Until then, retain the named non-strict expected failures and
+run the dashboard procedure in `qa.md` with a real harness connection.
+
 ---
 
 ## Closed review record

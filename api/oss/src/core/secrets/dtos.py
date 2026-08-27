@@ -4,8 +4,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.secrets.enums import (
     SecretKind,
-    StandardProviderKind,
-    CustomProviderKind,
+    LLMStandardProviderKind,
+    MCPStandardProviderKind,
+    LLMCustomProviderKind,
     CustomSecretFormat,
 )
 from oss.src.core.shared.dtos import (
@@ -27,12 +28,17 @@ class CustomModelSettingsDTO(BaseModel):
 
 
 class StandardProviderDTO(BaseModel):
-    kind: StandardProviderKind
+    kind: LLMStandardProviderKind
     provider: StandardProviderSettingsDTO
     # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
     models: Optional[List[CustomModelSettingsDTO]] = None
     # A missing list means "any harness Agenta supports"; a saved list narrows that set.
     harnesses: Optional[List[str]] = None
+
+
+class MCPStandardProviderDTO(BaseModel):
+    kind: MCPStandardProviderKind
+    provider: StandardProviderSettingsDTO
 
 
 class CustomProviderSettingsDTO(BaseModel):
@@ -43,7 +49,7 @@ class CustomProviderSettingsDTO(BaseModel):
 
 
 class CustomProviderDTO(BaseModel):
-    kind: CustomProviderKind
+    kind: LLMCustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
     harnesses: Optional[List[str]] = None
@@ -111,6 +117,7 @@ class SecretDTO(BaseModel):
     kind: SecretKind
     data: Union[
         StandardProviderDTO,
+        MCPStandardProviderDTO,
         CustomProviderDTO,
         SSOProviderDTO,
         WebhookProviderDTO,
@@ -129,8 +136,15 @@ class SecretDTO(BaseModel):
             data = data.model_dump()
             values["data"] = data
 
-        standard_provider_kinds = {provider.value for provider in StandardProviderKind}
-        custom_provider_kinds = {provider.value for provider in CustomProviderKind}
+        llm_standard_provider_kinds = {
+            provider.value for provider in LLMStandardProviderKind
+        }
+        mcp_standard_provider_kinds = {
+            provider.value for provider in MCPStandardProviderKind
+        }
+        llm_custom_provider_kinds = {
+            provider.value for provider in LLMCustomProviderKind
+        }
 
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
@@ -143,15 +157,17 @@ class SecretDTO(BaseModel):
                     "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
                 )
             # Accept the legacy provider slug on input, but persist the canonical value.
-            if data.get("kind") == StandardProviderKind.MISTRALAI.value:
-                data["kind"] = StandardProviderKind.MISTRAL.value
-            if data.get("kind") not in standard_provider_kinds:
+            if data.get("kind") == LLMStandardProviderKind.MISTRALAI.value:
+                data["kind"] = LLMStandardProviderKind.MISTRAL.value
+            provider_kind = data.get("kind")
+            if provider_kind in llm_standard_provider_kinds:
+                values["data"] = StandardProviderDTO.model_validate(data)
+            elif provider_kind in mcp_standard_provider_kinds:
+                values["data"] = MCPStandardProviderDTO.model_validate(data)
+            else:
                 raise ValueError(
-                    "The provided kind in data is not a valid StandardProviderKind enum"
+                    "The provided kind in data is not a valid LLM or MCP provider key enum"
                 )
-            # Both provider shapes now accept {kind, provider, models}, so the union can no
-            # longer tell them apart from the payload alone; the secret kind decides.
-            values["data"] = StandardProviderDTO.model_validate(data)
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
             if not isinstance(data, dict):
@@ -163,7 +179,7 @@ class SecretDTO(BaseModel):
             if data.get("kind", "") == "togetherai":
                 data["kind"] = "together_ai"
 
-            if data.get("kind") not in custom_provider_kinds:
+            if data.get("kind") not in llm_custom_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
                 )

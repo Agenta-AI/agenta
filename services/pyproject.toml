@@ -2,14 +2,14 @@
 name = "services"
 version = "0.113.0"
 description = "Agenta Services (Chat & Completion)"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
     "agenta",
-    "uvicorn[standard]>=0.51,<0.52",
+    "uvicorn[standard]>=0.52,<1",
     "gunicorn>=26,<27",
     "structlog>=26,<27",
     "newrelic>=13,<14",

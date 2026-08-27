@@ -256,7 +256,7 @@ describe("buildPiExtensionEnv", () => {
           request("anthropic", "http://proxy.example.test"),
           false,
         ),
-      /must be an HTTPS URL/,
+      /must be HTTPS, or an HTTP Agenta gateway route/,
     );
     assert.throws(
       () =>

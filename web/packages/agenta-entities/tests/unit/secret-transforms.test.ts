@@ -7,6 +7,7 @@ import {
 } from "../../src/secret/core/transforms"
 import {
     SecretKind,
+    McpStandardProviderKind,
     StandardProviderKind,
     type SecretResponseDto,
     type StandardProviderDto,
@@ -48,6 +49,12 @@ describe("transformSecret", () => {
         const [row] = transformSecret([standardSecret({models: []})])
 
         expect(row.models).toEqual([])
+    })
+
+    it("maps a Composio project key to its vault name", () => {
+        const [row] = transformSecret([standardSecret({kind: McpStandardProviderKind.Composio})])
+
+        expect(row.name).toBe("COMPOSIO_API_KEY")
     })
 
     it("carries the harnesses of a custom-provider connection", () => {

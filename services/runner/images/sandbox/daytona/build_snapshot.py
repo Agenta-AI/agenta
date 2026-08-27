@@ -66,7 +66,7 @@ PI_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/package.json
 # runner image applies (D-008 amendment). Both matter: without the pin, model sets diverge;
 # without the patch, a Daytona Codex run silently keeps COLD tool approvals while a local run
 # parks warm. Keep this version in agreement with the runner image.
-CODEX_ACP_VERSION = "1.1.7"
+CODEX_ACP_VERSION = "1.6.2"
 CODEX_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@agentclientprotocol/codex-acp/package.json"
 
 # The approval-patch anchor is single-sourced with the runner image so the two can never drift.

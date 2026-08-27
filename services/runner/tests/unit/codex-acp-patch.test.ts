@@ -4,7 +4,7 @@ import { describe, it } from "vitest";
 import { applyCodexAcpApprovalPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
- * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.1.7,
+ * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.6.2,
  * `dist/index.js`, `src/AgentMode.ts` section). Keep it byte-exact: the patch's only job
  * is to rewrite this shape, so a fixture that drifts from the real bundle proves nothing.
  */
