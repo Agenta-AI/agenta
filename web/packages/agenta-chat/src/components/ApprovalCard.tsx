@@ -98,7 +98,7 @@ export const ApprovalCard = ({
         if (!responding) setFiredAction(null)
     }, [responding])
 
-    const {infoFor, grant} = useAlwaysAllowTool(entityId)
+    const {infoFor, grantMany} = useAlwaysAllowTool(entityId)
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
@@ -115,8 +115,15 @@ export const ApprovalCard = ({
 
     if (!current || !preview) return null
 
-    const grantInfo = infoFor(current.toolName)
-    const canAlwaysAllow = Boolean(grantInfo.eligible && !grantInfo.alreadyAllowed)
+    // A batch answers as a whole, so the grant covers every tool it would approve, not just the
+    // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
+    const grantableTools = [
+        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+    ].filter((toolName) => {
+        const info = infoFor(toolName)
+        return info.eligible && !info.alreadyAllowed
+    })
+    const canAlwaysAllow = grantableTools.length > 0
     // Touch must NOT change the chrome — the tap target extends invisibly instead.
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
@@ -125,7 +132,7 @@ export const ApprovalCard = ({
     const approve = () => {
         if (responding) return
         setFiredAction("approve")
-        if (alwaysAllowArmed && canAlwaysAllow) grant(current.toolName)
+        if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }

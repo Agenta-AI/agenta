@@ -24,7 +24,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
         signal.revisionId === revisionId &&
         signal.origin === "approval-dock",
     )
-    const {revoke} = useAlwaysAllowTool(revisionId)
+    const {revokeMany} = useAlwaysAllowTool(revisionId)
 
     // Latch the last matching signal so content stays rendered through the collapse-out.
     const lastRef = useRef(signal)
@@ -40,6 +40,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
     }, [active, signal?.at, setSignal])
 
     const label = shown?.label ?? "this tool"
+    const plural = (shown?.toolNames?.length ?? 0) > 1
 
     return (
         <HeightCollapse open={active} durationMs={260} fade slideY={16} inert className="shrink-0">
@@ -54,7 +55,8 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                                 Auto-approving <span className="font-semibold">{label}</span>
                             </span>
                             <span className="text-xs leading-4 text-colorTextSecondary">
-                                Saved to this draft — it runs without asking from now on.
+                                Saved to this draft — {plural ? "they run" : "it runs"} without
+                                asking from now on.
                             </span>
                         </div>
                     </div>
@@ -63,7 +65,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                             variant="ghost"
                             className="h-6 gap-1 rounded-md bg-[color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent)] px-2 text-xs font-medium text-colorPrimary hover:bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]"
                             onClick={() => {
-                                if (shown?.toolName) revoke(shown.toolName)
+                                if (shown?.toolNames?.length) revokeMany(shown.toolNames)
                                 setSignal(null)
                             }}
                         >
