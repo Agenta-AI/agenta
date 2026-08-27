@@ -268,14 +268,22 @@ export const useElicitationStepper = ({
     const lastIndexRef = useRef(lastIndex)
     lastIndexRef.current = lastIndex
 
-    const [state, dispatch] = useReducer(reducer, steps, (initial) => ({
-        index: 0,
-        values: initialStepValues(initial),
-        skipped: [],
-        error: null,
-        hold: null,
-        cursor: 0,
-    }))
+    const [state, dispatch] = useReducer(reducer, steps, (initial) => {
+        const values = initialStepValues(initial)
+        // A form the schema already answered opens on its review screen: walking N questions to
+        // press Next N times is the one case where stepping costs the user and gives nothing back.
+        // Requires a review screen to open onto, so a single-question form is unaffected.
+        const settled =
+            initial.length > 1 && initial.every((step) => isStepAnswered(step, values[step.name]))
+        return {
+            index: settled ? initial.length : 0,
+            values,
+            skipped: [],
+            error: null,
+            hold: null,
+            cursor: 0,
+        }
+    })
 
     // Restore once per parked call. Values merge OVER the schema defaults: what the user typed wins.
     const restoredRef = useRef<string | null>(null)

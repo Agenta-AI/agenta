@@ -115,6 +115,49 @@ describe("navigation", () => {
     })
 })
 
+describe("a form the schema already answered", () => {
+    const DEFAULTED = formOf({
+        region: {type: "string", title: "Region", enum: ["eu", "us"], default: "eu"},
+        retries: {type: "integer", title: "Retries", default: 3},
+    })
+
+    it("opens on review, so accepting the defaults is one keystroke", () => {
+        const {result} = setup(DEFAULTED)
+
+        expect(result.current.isReview).toBe(true)
+        expect(result.current.primaryLabel).toBe("Send answers")
+        expect(result.current.content).toEqual({region: "eu", retries: 3})
+    })
+
+    it("still lets the user walk back and change one", () => {
+        const {result} = setup(DEFAULTED)
+
+        act(() => result.current.goTo(1))
+
+        expect(result.current.isReview).toBe(false)
+        expect(result.current.step?.name).toBe("retries")
+    })
+
+    it("leaves a partly-defaulted form at question one", () => {
+        const {result} = setup(
+            formOf({
+                region: {type: "string", title: "Region", default: "eu"},
+                note: {type: "string", title: "Note"},
+            }),
+        )
+
+        expect(result.current.isReview).toBe(false)
+        expect(result.current.position).toBe(1)
+    })
+
+    it("has no review screen to open when there is only one question", () => {
+        const {result} = setup(formOf({region: {type: "string", title: "Region", default: "eu"}}))
+
+        expect(result.current.isReview).toBe(false)
+        expect(result.current.primaryLabel).toBe("Send answers")
+    })
+})
+
 describe("validation", () => {
     it("blocks a required question and clears the error on the next answer", () => {
         const {result} = setup()
