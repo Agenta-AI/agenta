@@ -7,7 +7,11 @@ and moves permission from a routing string into structured private data.
 
 ## Reading order
 
-Read the three design documents first. They are decided. The plan implements them and does
+Start with [handoff.md](handoff.md): the current status, what was done, every open item,
+and the links to the pull requests, issues, and evidence. It is the entry point for
+anyone joining after 2026-08-27.
+
+Then read the three design documents. They are decided. The plan implements them and does
 not change them.
 
 1. [data-model.md](data-model.md). The saved `gateway_connection` entry, the four
