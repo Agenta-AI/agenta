@@ -34,6 +34,7 @@ export const Composer = ({
     streaming = false,
     onStop,
     inputRef,
+    placeholder,
 }: {
     sessionId: string
     onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
@@ -46,6 +47,8 @@ export const Composer = ({
     onStop?: () => void
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** Full placeholder override — used when the composer is gated (no model key). */
+    placeholder?: string
 }) => {
     const attachments = useComposerAttachments({sessionId})
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -137,6 +140,7 @@ export const Composer = ({
                         disabled={disabled}
                         composerDisabled={disabled}
                         dictating={dictating}
+                        placeholder={placeholder}
                         waitingOnUser={waitingOnUser}
                         streaming={streaming}
                         onStop={onStop}
