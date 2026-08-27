@@ -24,6 +24,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import {projectIdAtom} from "@/oss/state/project"
 
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
@@ -167,15 +168,21 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
+    //
+    // Held too until a project resolves: the session store drops every write made without one, so
+    // seeding early latched `seeded` against a session that was never stored, and the latch only
+    // re-arms while the list is empty — which the reconciler ends by filling history (#6295).
+    const seedProjectId = useAtomValue(projectIdAtom)
     const seeded = useRef(false)
     useEffect(() => {
+        if (!seedProjectId) return
         if (pendingOpensForScope.length > 0) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession, pendingOpensForScope])
+    }, [seedProjectId, sessions.length, addSession, pendingOpensForScope])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops

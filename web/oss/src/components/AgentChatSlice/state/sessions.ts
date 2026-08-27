@@ -192,23 +192,24 @@ const deletedIdsByAppAtom = projectScopedRecordAtom<string[]>(
 )
 
 /**
- * Which sessions are open as tabs, per scope, in tab order.
+ * Which sessions are open as tabs, per scope, in tab order. This list is the ONLY thing that opens
+ * a tab: history is not an open set (#6295).
  *
- * Migration: before this atom is ever written for a scope, the open set defaults to the whole
- * history — every pre-upgrade session was an open tab (see `currentOpenIds`). Once any tab op
- * writes an explicit list, that list is authoritative.
+ * This used to fall back to "the whole history is open" for a scope it had never been written for,
+ * to carry pre-`:v2` sessions across the rekey. Those keys are hard-deleted at module load
+ * (`LEGACY_UNSCOPED_KEYS`), so the fallback had nothing left to migrate — what it did instead was
+ * hand the strip every session the reconciler adopts, and that includes every automation and cron
+ * run for the agent (`projectSessionsQuery`: no origin filter, ended and archived included). Tabs
+ * opened themselves at one per background run, forever, because reconcile never writes this list
+ * and so never leaves the fallback.
  */
 const openIdsByAppAtom = projectScopedRecordAtom<string[]>("agenta:agent-chat:open-sessions:v2")
 
 const activeByAppAtom = projectScopedRecordAtom<string>("agenta:agent-chat:active-session:v2")
 
-/** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
- * for the writers below — never mutates. */
-const currentOpenIds = (get: Getter, key: string): string[] => {
-    const explicit = get(openIdsByAppAtom)[key]
-    if (explicit) return explicit
-    return (get(sessionsByAppAtom)[key] ?? []).map((s) => s.id)
-}
+/** Open tab ids for a scope — no tabs until something opens one. Pure read helper for the writers
+ * below; never mutates. */
+const currentOpenIds = (get: Getter, key: string): string[] => get(openIdsByAppAtom)[key] ?? []
 
 /**
  * A "husk": a session the user never initiated — no user title AND no messages. It has no backend
@@ -645,7 +646,6 @@ export const adoptScopeSessionsAtom = atom(
         nextSessions[to] = [...moved, ...(sessions[to] ?? []).filter((s) => !movedIds.has(s.id))]
         set(sessionsByAppAtom, nextSessions)
 
-        // Resolve the source's open set through the pre-upgrade fallback (everything open).
         const movedOpen = currentOpenIds(get, from)
         const open = get(openIdsByAppAtom)
         const nextOpen = {...open}
