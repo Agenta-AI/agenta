@@ -511,7 +511,6 @@ describe("defineSidebarEntity ranksAtom", () => {
     })
 })
 
-
 // Agent ranks come from an UNFILTERED query so a session filter cannot reorder the Agents group.
 // The rows arrive newest-first, so an agent's first row is its most recent.
 describe("agentRanksFromRows", () => {

@@ -7,6 +7,7 @@ import type {
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
+import {SidebarBanners, SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"

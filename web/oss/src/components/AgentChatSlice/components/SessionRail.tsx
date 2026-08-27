@@ -30,6 +30,7 @@ import {
     deleteSessionAtomFamily,
     firstUserText,
     isSessionHusk,
+    sessionHasMessages,
     openSessionAtomFamily,
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
@@ -322,7 +323,11 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     // in-progress session still shows, but abandoned empties don't clutter the list (the mount-time
     // prune then drops them from storage). Matches the discard-on-close rule.
     const rows = history
-        .filter((session) => openIds.has(session.id) || !isSessionHusk(session, allMessages))
+        .filter(
+            (session) =>
+                openIds.has(session.id) ||
+                !isSessionHusk(session, sessionHasMessages(allMessages, session.id)),
+        )
         .map((session) => ({
             session,
             label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
