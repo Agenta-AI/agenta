@@ -20,7 +20,7 @@ Two parts of the template still apply:
 - **Demo.** UI changes need a capture from the real app running your branch. Never substitute a mock-up, a component harness, or a recreated screen. If you cannot run the app, say the demo is outstanding and why, rather than filling the space with something that proves nothing.
 - **Testing.** Keep the substance under a `## Tests` heading. You do not need the template's three subheadings unless the change is large enough that they help.
 
-Drop the Checklist and Contributor Resources. They exist for first-time outside contributors and the team does not fill them in.
+Drop the Checklist and Contributor Resources if the author is a core maintainer of the repo. They exist for first-time outside contributors and the team does not fill them in.
 
 ## 1. Title
 
