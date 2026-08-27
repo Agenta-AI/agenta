@@ -37,7 +37,7 @@ import {
     sessionHistoryAtomFamily,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
-import {sessionSearchRequestAtom} from "../state/uiRequests"
+import {renameSessionRequestAtom, sessionSearchRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
@@ -319,6 +319,12 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
         searchRef.current?.focus()
         searchRef.current?.select()
     }, [searchRequest, scope])
+    // A filtered-out active session has no row, so its rename consumer never mounts. Clear the
+    // filter when Alt+R names a session this rail is meant to answer.
+    const renameRequest = useAtomValue(renameSessionRequestAtom)
+    useEffect(() => {
+        if (renameRequest?.scope === scope) setQuery("")
+    }, [renameRequest, scope])
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
