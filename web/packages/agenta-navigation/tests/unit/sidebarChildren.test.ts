@@ -366,16 +366,6 @@ describe("withRefsByRecency", () => {
     })
 })
 
-// A grouping change must not read as "everything collapsed": the stored set flips a heading away
-// from its default rather than listing open ones, so its keys survive a regrouping.
-describe("groupingStartsFolded", () => {
-    it("starts every grouping open", () => {
-        for (const groupBy of ["agent", "date", "status", "pinned"] as const) {
-            expect(groupingStartsFolded(groupBy)).toBe(false)
-        }
-    })
-})
-
 
 // The rail's filters are server predicates, and a host-contributed row never went through the
 // query — so each one has to be re-applied here or the row survives a filter that hid its peers.

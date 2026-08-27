@@ -1,10 +1,7 @@
 import {createElement} from "react"
 
-// import {testsetsListAtom} from "@agenta/entities/testset"
 import {
     agentWorkflowsListQueryStateAtom,
-    // evaluatorsListQueryAtom,
-    // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
@@ -82,6 +79,8 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
 // ── Add a new dynamic entity by appending one entry here. Nothing else. ──────
 // If the entity only exposes query + data atoms (no combined ListQueryState),
 // wrap them: `listAtom: fromParts(xxxListQueryAtom, xxxListDataAtom)`.
+// Test sets and evaluators render as STATIC rows (see `useSidebarConfig`) — their keys are
+// exported below so a dynamic list can be added here later without renaming anything.
 const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, PROMPTS_SIDEBAR_KEY, {
         kind: "app",

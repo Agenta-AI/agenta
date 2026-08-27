@@ -20,7 +20,6 @@ import {
 
 import {
     PINNED_GROUP_KEY,
-    groupingStartsFolded,
     sidebarSessionToggledGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
@@ -620,15 +619,12 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         const groups: SidebarEntityGroup[] =
             groupBy === "none" && !labels.has(PINNED_GROUP_KEY) ? [] : all
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
-        // The stored set flips a heading away from its grouping's default, so a regrouping keeps
-        // whatever you chose without carrying the previous grouping's keys.
-        const folded = groupingStartsFolded(groupBy)
+        // Headings open by default; the stored set is what you folded, and it survives a
+        // regrouping because it holds no grouping's keys of its own.
         const toggled = new Set(get(sidebarSessionToggledGroupsAtomFamily(scopeId)))
         return {
             groups,
-            collapsedKeys: groups
-                .filter((group) => folded !== toggled.has(group.key))
-                .map((group) => group.key),
+            collapsedKeys: groups.filter((g) => toggled.has(g.key)).map((g) => g.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,
         }
