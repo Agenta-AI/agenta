@@ -1,12 +1,24 @@
-# Proposal: live gateway policy refresh
+# Superseded proposal: live gateway policy refresh
 
-Status: PROPOSAL, not decided. This page designs the "option 2" follow-up: after the
+Status: SUPERSEDED by
+[active agent configuration refresh](../agent-configuration-live-refresh/README.md), tracked
+in [#6336](https://github.com/Agenta-AI/agenta/issues/6336). This page remains as the
+historical gateway-only proposal. Do not implement it.
+
+The replacement resolves the complete exact committed revision through the normal service
+and SDK pipeline, then asynchronously offers every supported configuration facet to the
+active runner. It does not make the runner call a gateway-specific service endpoint, does
+not block the commit or the next tool call, and does not create model activity.
+
+This page originally designed the "option 2" follow-up: after the
 agent commits a new integration mid-turn, that integration's tools work in the SAME
 turn, with no turn boundary and no user message. The decided base design is in
 [data-model.md](data-model.md), [runtime-tools.md](runtime-tools.md), and
 [permission-layers.md](permission-layers.md).
 
-## What happens today, and the one fact that makes this cheap
+## Historical proposal
+
+### What happens today, and the one fact that makes this cheap
 
 The SDK compiles the agent's gateway policy once, at run start, and the runner enforces
 that snapshot for the whole turn. A `commit_revision` that adds an integration succeeds,

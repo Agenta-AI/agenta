@@ -34,6 +34,9 @@ Then read the working documents.
    should change to cover gateway tools.
 10. [status.md](status.md). Progress and the decisions taken during review.
 
+The gateway-only live policy proposal was superseded by the general
+[active agent configuration refresh](../agent-configuration-live-refresh/README.md) design.
+
 The authoring surface has its own specification, copied into this workspace so it is
 versioned on this branch: [ui-handoff.md](ui-handoff.md) and the design board
 [ui-handoff-board.html](ui-handoff-board.html). Section 2a of the board is the specification.

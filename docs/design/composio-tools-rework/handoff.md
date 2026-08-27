@@ -85,8 +85,10 @@ and connections never reach the model. The decided design is three pages:
 ## Open items
 
 Decisions for Mahmoud:
-- The [live policy refresh proposal](live-policy-refresh.md): same-turn availability
-  of an integration the agent just added. PROPOSAL status, awaiting a verdict.
+- The gateway-only [live policy refresh proposal](live-policy-refresh.md) is superseded.
+  The general [active agent configuration refresh](../agent-configuration-live-refresh/README.md)
+  design is tracked in [#6336](https://github.com/Agenta-AI/agenta/issues/6336). It resolves
+  the complete committed revision asynchronously and installs every supported runtime facet.
 - Visual token drift: nothing breaks the design; ~20 measured drifts with one likely
   shared cause (component defaults beating explicit tokens) and two copy drifts.
   Screenshots: `/home/mahmoud/agenta-qa-evidence/2026-08-27-visual-regression/`.
