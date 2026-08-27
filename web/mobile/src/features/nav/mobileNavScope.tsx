@@ -1,12 +1,13 @@
 import {useMemo} from "react"
 
+import {SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
 import type {
     SidebarScope,
     SidebarSection,
     SidebarSelection,
     SidebarSlotContext,
 } from "@agenta/navigation"
-import {SidebarBanners, SidebarLogo, SidebarToggleButton} from "@agenta/navigation-ui"
+import {useRouter} from "next/router"
 
 import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
@@ -23,7 +24,23 @@ import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from ".
 const createMobileNavScope = (workspaceId: string, projectId: string): SidebarScope => {
     const projectURL = `/w/${workspaceId}/p/${projectId}`
 
-    const useSelection = (): SidebarSelection => ({mode: "route"})
+    // Pin the open session from the route, the same key its row carries. Its URL is unique
+    // (`/sessions/<id>`), so the route match highlights it on its own — but when its agent heading
+    // is collapsed, its row leaves the tree and the `/sessions` parent prefix-matches and grabs the
+    // highlight. Pinning routes through `resolveSelectedKey`, which selects nothing when the row is
+    // not rendered — so a collapse moves the highlight nowhere, as on desktop.
+    const useSelection = (): SidebarSelection => {
+        const router = useRouter()
+        const sessionId =
+            typeof router.query.session_id === "string" ? router.query.session_id : null
+        return useMemo(
+            () =>
+                sessionId
+                    ? {mode: "route", selectedKeyOverride: `${SESSIONS_SIDEBAR_KEY}-${sessionId}`}
+                    : {mode: "route"},
+            [sessionId],
+        )
+    }
 
     const useSections = (): SidebarSection[] => {
         const items = useMobileNavItems(projectURL)
