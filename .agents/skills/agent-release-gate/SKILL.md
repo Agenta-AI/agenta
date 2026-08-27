@@ -149,6 +149,16 @@ proves nothing about the durable working directory (LESSONS #16).
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
 - `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
+  gateway tool surface against a real provider: search filters by policy (the denied key never
+  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
+  ask-tier tool parks with the right stored identity and is answered through the **interactions
+  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
+  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
+  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
+  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
+  exists, and SKIPs rather than failing the release when the model provider itself errors.
+  Made mandatory by the gateway rule in `path_triggers.py`.
 - `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
   a release must run when its diff touches that glob, plus the two functions the driver calls.
   Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
