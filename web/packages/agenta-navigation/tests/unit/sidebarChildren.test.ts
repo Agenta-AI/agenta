@@ -261,12 +261,23 @@ describe("sidebarSessionGroup", () => {
         expect(key(noon(2026, 3, 4))).not.toBe(key(noon(2025, 3, 4)))
     })
 
-    it("buckets by liveness", () => {
+    it("buckets by liveness, with a gate ranked above it", () => {
         const label = (over: Partial<SessionSidebarRef>) =>
             sidebarSessionGroup(row(over), "status", NOW).label
         expect(label({running: true})).toBe("Running")
+        // A gate outranks liveness: an alive-and-waiting row is Awaiting, not Live.
+        expect(label({waiting: true, alive: true})).toBe("Awaiting input")
+        expect(label({waiting: true})).toBe("Awaiting input")
         expect(label({alive: true})).toBe("Live")
         expect(label({})).toBe("Idle")
+    })
+
+    it("ranks the status buckets Running, Awaiting, Live, Idle", () => {
+        const rank = (over: Partial<SessionSidebarRef>) =>
+            sidebarSessionGroup(row(over), "status", NOW).rank
+        expect(rank({running: true})).toBeLessThan(rank({waiting: true}))
+        expect(rank({waiting: true})).toBeLessThan(rank({alive: true}))
+        expect(rank({alive: true})).toBeLessThan(rank({}))
     })
 
     it("puts every unpinned row under Recent when nothing groups them", () => {

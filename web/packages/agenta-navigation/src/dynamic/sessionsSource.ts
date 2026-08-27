@@ -568,10 +568,14 @@ export const sidebarSessionGroup = (
     if (groupBy === "none") return {key: "recent", label: "Recent", rank: 1}
     if (groupBy === "date") return dateBucket(ref.activityAt, now)
     if (groupBy === "status") {
+        // A gate ranks above liveness, the same rule the status FILTER applies — without its own
+        // bucket a session waiting on you fell into Idle (or Live), where the amber dot contradicts
+        // the heading. Order mirrors the filter: Running, Awaiting input, Live, Idle.
         if (ref.running) return {key: "status:running", label: "Running", rank: 0}
+        if (ref.waiting) return {key: "status:waiting", label: "Awaiting input", rank: 1}
         return ref.alive
-            ? {key: "status:live", label: "Live", rank: 1}
-            : {key: "status:idle", label: "Idle", rank: 2}
+            ? {key: "status:live", label: "Live", rank: 2}
+            : {key: "status:idle", label: "Idle", rank: 3}
     }
     // Agents share a rank and sort by name; only "No agent yet" is pushed past them.
     if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet", rank: 1}
