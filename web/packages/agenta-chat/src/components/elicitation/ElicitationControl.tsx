@@ -5,10 +5,13 @@
  * that the choices are visible without a second click. Rows carry a digit so a keyboard user picks
  * without leaving home row; past the ninth the digit runs out but the row still clicks and arrows.
  */
-import {useEffect, useMemo, useRef} from "react"
+import {useEffect, useId, useMemo, useRef} from "react"
 
-import type {ElicitationStep} from "@agenta/shared/utils"
-import {AutosizeTextarea, Input} from "@agenta/ui/ui"
+import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
+import {AutosizeTextarea, DatePicker, DateTimePicker, Input, SimpleTooltip} from "@agenta/ui/ui"
+import {Check, Question} from "@phosphor-icons/react"
+
+import {ElicitationChips} from "./ElicitationChips"
 
 /** Enough rows to see the shape of the list; past this it scrolls rather than growing the card. */
 export const OPTIONS_MAX_H = 220
@@ -67,6 +70,17 @@ export const selectedRowFor = (step: ElicitationStep | null, value: unknown): nu
     return typeof value === "string" && value.trim() !== "" ? rows.length - 1 : -1
 }
 
+/** Date steps hold the WIRE string, never a dayjs object: drafts round-trip through JSON, and
+ * `serializeElicitationContent` passes an already-correct string straight through. */
+const isDateKind = (step: ElicitationStep): boolean =>
+    step.kind === "date" || step.kind === "date-time"
+
+const dateValueOf = (value: unknown) => {
+    if (typeof value !== "string" || !value.trim()) return undefined
+    const parsed = dayjs(value)
+    return parsed.isValid() ? parsed : undefined
+}
+
 export interface ElicitationControlProps {
     step: ElicitationStep
     value: unknown
@@ -112,6 +126,8 @@ export const ElicitationControl = ({
     // below does not have to know which branch ran.
     const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
     const otherRef = useRef<HTMLInputElement>(null)
+    const dateBoxRef = useRef<HTMLDivElement>(null)
+    const describedBy = useId()
 
     // Focus follows the step — on first render and on every move, forward or back — so a typed
     // answer never needs a click first. `preventScroll` is non-negotiable: a bare .focus() inside
@@ -119,6 +135,12 @@ export const ElicitationControl = ({
     useEffect(() => {
         if (rows.length) return
         const frame = requestAnimationFrame(() => {
+            // A picker exposes no ref, so reach for its trigger. Without this a date step leaves
+            // focus on the body and every card-level shortcut goes dead until the user clicks.
+            if (step.kind === "date" || step.kind === "date-time") {
+                dateBoxRef.current?.querySelector("button")?.focus({preventScroll: true})
+                return
+            }
             const el = fieldRef.current
             if (!el) return
             el.focus({preventScroll: true})
@@ -131,7 +153,7 @@ export const ElicitationControl = ({
             }
         })
         return () => cancelAnimationFrame(frame)
-    }, [step.name, rows.length])
+    }, [step.name, step.kind, rows.length])
 
     if (rows.length) {
         // The Other row holds whatever was typed rather than a listed value.
@@ -154,7 +176,9 @@ export const ElicitationControl = ({
                             role={multi ? "checkbox" : "radio"}
                             aria-checked={isSelected}
                             tabIndex={-1}
-                            title={row.description}
+                            aria-describedby={
+                                row.description ? `${describedBy}-${index}` : undefined
+                            }
                             onMouseEnter={() => onCursor(index)}
                             onClick={() => {
                                 // The Other row is a text field, not an answer: focus it instead of
@@ -189,7 +213,28 @@ export const ElicitationControl = ({
                                     className="min-w-0 flex-1 border-none bg-transparent text-xs text-colorText outline-none placeholder:text-colorTextTertiary"
                                 />
                             ) : (
-                                <span className="truncate">{row.label}</span>
+                                <>
+                                    <span className="truncate">{row.label}</span>
+                                    {row.description ? (
+                                        <SimpleTooltip title={row.description}>
+                                            <span
+                                                // Not focusable on purpose: a tab stop in every row
+                                                // would fight the arrow-key navigation. The row's
+                                                // aria-describedby carries the same words.
+                                                tabIndex={-1}
+                                                onClick={(event) => event.stopPropagation()}
+                                                className="flex shrink-0 items-center text-colorTextTertiary hover:text-colorText"
+                                            >
+                                                <Question size={11} weight="bold" />
+                                            </span>
+                                        </SimpleTooltip>
+                                    ) : null}
+                                    {row.description ? (
+                                        <span id={`${describedBy}-${index}`} className="sr-only">
+                                            {row.description}
+                                        </span>
+                                    ) : null}
+                                </>
                             )}
                             {/* One trailing slot: a picked row shows its check and drops the
                                 shortcut hints, which have nothing left to teach on it. */}
@@ -211,6 +256,54 @@ export const ElicitationControl = ({
                     )
                 })}
             </div>
+        )
+    }
+
+    if (isDateKind(step)) {
+        const current = dateValueOf(value)
+        // The wire is pinned to ISO by the golden fixtures: YYYY-MM-DD for a date, full ISO for a
+        // date-time. Emitting that here keeps drafts, validation and serialization on plain strings.
+        const emit = (next: ReturnType<typeof dayjs> | undefined) => {
+            if (!next) return onChange(undefined)
+            onChange(step.kind === "date" ? next.format("YYYY-MM-DD") : next.toISOString())
+        }
+        // The trigger is a Button, whose 4px focus ring reads as broken beside the 1px border every
+        // other field in this card focuses with. Overridden here rather than in @agenta/ui: this is
+        // the card's own focus language, not a change every DatePicker should inherit. DateTimePicker
+        // holds two triggers and forwards className to their wrapper, hence the descendant reach.
+        return (
+            <div ref={dateBoxRef}>
+                {step.kind === "date" ? (
+                    <DatePicker
+                        value={current}
+                        onChange={emit}
+                        aria-label={step.label}
+                        placeholder={step.hint ?? "Pick a date"}
+                        className="focus-visible:outline-none focus-visible:border-primary"
+                    />
+                ) : (
+                    <DateTimePicker
+                        value={current}
+                        onChange={emit}
+                        aria-label={step.label}
+                        placeholder={step.hint ?? "Pick a date and time"}
+                        className="[&_button]:focus-visible:outline-none [&_button]:focus-visible:border-primary"
+                    />
+                )}
+            </div>
+        )
+    }
+
+    if (step.kind === "list") {
+        return (
+            <ElicitationChips
+                value={value}
+                label={step.label}
+                touch={touch}
+                inputRef={fieldRef as React.Ref<HTMLInputElement>}
+                onChange={onChange}
+                onSubmit={onSubmit}
+            />
         )
     }
 

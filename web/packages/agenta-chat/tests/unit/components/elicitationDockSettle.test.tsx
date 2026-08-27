@@ -368,3 +368,134 @@ describe("autofocus", () => {
         await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("group")))
     })
 })
+
+describe("the controls the dialect grew", () => {
+    const oneOf = (properties: Record<string, unknown>) => ({
+        message: "One question",
+        requestedSchema: {type: "object", properties},
+    })
+
+    it("gives a date step a picker, not a field to hand-type an ISO string into", async () => {
+        setup(oneOf({due: {type: "string", title: "Due", format: "date"}}))
+
+        const trigger = screen.getByLabelText("Due")
+        expect(trigger.tagName).toBe("BUTTON")
+        // Nothing focused would leave every card-level shortcut dead on this step.
+        await waitFor(() => expect(document.activeElement).toBe(trigger))
+    })
+
+    it("sends a date as the wire string, never a dayjs object", () => {
+        const {onOutput} = setup(oneOf({due: {type: "string", title: "Due", format: "date"}}))
+
+        fireEvent.click(screen.getByLabelText("Due"))
+        // react-day-picker names each day in full, e.g. "Wednesday, August 5th, 2026".
+        fireEvent.click(screen.getAllByRole("button", {name: /, \d{4}$/})[8])
+        fireEvent.click(screen.getByText("Send answers"))
+
+        const {output} = onOutput.mock.calls[0][0]
+        expect(output.content.due).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    })
+
+    it("marks a picked multi-select row with a check, not a box before the label", () => {
+        setup(
+            oneOf({
+                notify: {
+                    type: "array",
+                    title: "Notify on",
+                    items: {type: "string", enum: ["success", "failure"]},
+                },
+            }),
+        )
+
+        const rows = screen.getAllByRole("checkbox")
+        expect(rows.length).toBeGreaterThanOrEqual(2)
+        // Nothing sits before the label: a box there read as a second thing to click.
+        expect(rows[0].querySelector('[data-slot="checkbox"]')).toBeNull()
+        expect(rows[0].querySelector("svg")).toBeNull()
+
+        fireEvent.click(rows[0])
+
+        expect(rows[0].getAttribute("aria-checked")).toBe("true")
+        // The mark lands at the end of the row it belongs to, and only there.
+        expect(rows[0].querySelector("svg")).toBeTruthy()
+        expect(rows[1].querySelector("svg")).toBeNull()
+    })
+
+    it("keeps a oneOf description reachable without a tooltip on every row", () => {
+        setup(
+            oneOf({
+                frequency: {
+                    type: "string",
+                    title: "Frequency",
+                    enum: ["hourly"],
+                    oneOf: [
+                        {
+                            const: "hourly",
+                            title: "Hourly",
+                            description: "Runs every hour, on the hour.",
+                        },
+                    ],
+                },
+            }),
+        )
+
+        const row = screen.getByRole("radio", {name: /Hourly/})
+        // The row points at its own description rather than carrying a native title, which would
+        // double up with the tooltip the `?` opens.
+        expect(row.getAttribute("title")).toBeNull()
+        const describedBy = row.getAttribute("aria-describedby")
+        expect(describedBy).toBeTruthy()
+        expect(document.getElementById(describedBy as string)?.textContent).toBe(
+            "Runs every hour, on the hour.",
+        )
+    })
+
+    it("collects a free-form array as chips, one entry at a time", () => {
+        const {onOutput} = setup(
+            oneOf({repos: {type: "array", title: "Repos", items: {type: "string"}}}),
+        )
+        const field = screen.getByLabelText("Repos")
+
+        fireEvent.change(field, {target: {value: "agenta"}})
+        fireEvent.keyDown(field, {key: "Enter"})
+        fireEvent.change(field, {target: {value: "docs"}})
+        fireEvent.keyDown(field, {key: ","})
+
+        expect(screen.getByText("agenta")).toBeTruthy()
+        expect(screen.getByText("docs")).toBeTruthy()
+
+        // Backspace on an empty field takes the last one back.
+        fireEvent.keyDown(field, {key: "Backspace"})
+        expect(screen.queryByText("docs")).toBeNull()
+
+        // A repeat of an existing entry keeps what was typed and points at the chip that holds
+        // it — silently doing nothing reads as the field dropping keystrokes.
+        fireEvent.change(field, {target: {value: "agenta"}})
+        fireEvent.keyDown(field, {key: "Enter"})
+        expect((field as HTMLInputElement).value).toBe("agenta")
+        expect(screen.getAllByText("agenta")).toHaveLength(1)
+
+        fireEvent.change(field, {target: {value: ""}})
+        // Enter on an empty field means "done adding", so it settles the one-question form.
+        fireEvent.keyDown(field, {key: "Enter"})
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        const {output} = onOutput.mock.calls[0][0]
+        expect(output.content.repos).toEqual(["agenta"])
+    })
+
+    it("opens on the review screen when the schema already answered everything", () => {
+        setup({
+            message: "Confirm",
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    region: {type: "string", title: "Region", default: "eu"},
+                    retries: {type: "integer", title: "Retries", default: 3},
+                },
+            },
+        })
+
+        expect(screen.getByText("Send answers")).toBeTruthy()
+        expect(screen.getByText("Region")).toBeTruthy()
+    })
+})
