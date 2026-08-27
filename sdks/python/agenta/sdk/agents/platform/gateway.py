@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 import httpx
+from pydantic import ValidationError
 
 from agenta.sdk.agents.tools import (
     CallbackToolSpec,
@@ -362,6 +363,28 @@ class AgentaGatewayToolResolver:
             ),
         )
 
+    @staticmethod
+    def _catalog_entries(
+        integration: str,
+        raw_tools: Any,
+    ) -> List[CatalogToolInfo]:
+        """Parse one integration's catalog slice, as this resolver's typed error.
+
+        A malformed entry would otherwise surface as a raw ``pydantic.ValidationError``,
+        which names a field path and never the integration — so the caller cannot tell
+        which connection is at fault, and it escapes the ``GatewayToolResolutionError``
+        contract every other failure on this path honors.
+        """
+        try:
+            return [CatalogToolInfo.model_validate(raw_tool) for raw_tool in raw_tools]
+        except ValidationError as exc:
+            error = GatewayToolResolutionError(
+                "Gateway connection resolution returned a malformed catalog entry "
+                f"for integration: {integration}"
+            )
+            log.warning("agent: %s (%s)", error, exc)
+            raise error from exc
+
     async def resolve_connections(
         self,
         tools: Sequence[GatewayConnectionToolConfig],
@@ -385,6 +408,12 @@ class AgentaGatewayToolResolver:
         api_base = self._api_base()
         authorization = self._connection.authorization()
 
+        # The reference carries `policy` because the API model requires it, but `/tools/resolve`
+        # uses this call for ROUTING ONLY — it resolves the connection and returns the catalog,
+        # and `ToolsService._resolve_gateway_connection` never reads the permissions. Compilation
+        # happens below, in `compile_gateway_permissions`, on this side. Do not read the API's
+        # acceptance of `policy` as enforcement, and do not drop the client-side compilation on
+        # the assumption that the server applied it.
         payload = await self._post_resolve(
             api_base=api_base,
             authorization=authorization,
@@ -400,10 +429,10 @@ class AgentaGatewayToolResolver:
         # reports by name. That message is the actionable one, so this loop stays silent
         # rather than raising a second, vaguer error for the same condition.
         catalogs: Dict[str, List[CatalogToolInfo]] = {
-            str(raw_slice["integration"]): [
-                CatalogToolInfo.model_validate(raw_tool)
-                for raw_tool in raw_slice.get("tools") or []
-            ]
+            str(raw_slice["integration"]): self._catalog_entries(
+                str(raw_slice["integration"]),
+                raw_slice.get("tools") or [],
+            )
             for raw_slice in raw_slices
             if isinstance(raw_slice, dict) and raw_slice.get("integration")
         }

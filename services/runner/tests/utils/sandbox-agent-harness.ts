@@ -84,6 +84,7 @@ export function fakeHarness(options: FakeOptions = {}) {
     runFinished: 0,
     runFlushed: 0,
     recordedErrors: [] as Array<{ message: string; provider?: string }>,
+    deniedToolCallIds: [] as Array<string | undefined>,
     handledUpdates: [] as unknown[],
   };
   const events: AgentEvent[] = [];
@@ -205,6 +206,11 @@ export function fakeHarness(options: FakeOptions = {}) {
     },
     recordError(message: string, provider?: string) {
       calls.recordedErrors.push({ message, provider });
+    },
+    // The live-resume reject path calls this WITHOUT optional chaining, so a stub that omits
+    // it turns any test exercising a resume deny into a TypeError rather than an assertion.
+    markToolCallDenied(toolCallId?: string) {
+      calls.deniedToolCallIds.push(toolCallId);
     },
     output() {
       return options.output ?? "assistant output";

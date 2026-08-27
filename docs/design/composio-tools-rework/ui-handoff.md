@@ -7,7 +7,7 @@ Redesign of how tools are managed in the Agenta agent playground. The old model 
 2. **Integration permission drawer** — default-permission preset + per-tool permissions, grouped read-only vs write & delete, built to scale to 100+ tools.
 3. **Add integration drawer** — replaces the "Add app tools" catalog: search & add whole integrations, quick-add from workspace connections, pick a connection when several exist.
 
-The final agreed direction is **option 2a** in `Integration Permissions.dc.html` (the topmost section). Sections 1a/1b below it are earlier explorations kept for reference — do not implement them.
+The final agreed direction is **option 2a** in `ui-handoff-board.html` (the topmost section). Sections 1a/1b below it are earlier explorations kept for reference — do not implement them.
 
 ## About the design files
 The file in this bundle is a **design reference created in HTML** — a static high-fidelity mock showing intended look and behavior, not production code. Recreate it in the Agenta web codebase (`Agenta-AI/agenta`, `web/packages/agenta-entity-ui`) using the existing React + Ant Design 6 + Tailwind patterns. Relevant existing modules (read these first):
@@ -90,4 +90,4 @@ The file in this bundle is a **design reference created in HTML** — a static h
 App logos come from the tool catalog (`integration.logo`), as today. The mock uses simpleicons CDN + monogram-square fallbacks — production keeps the existing `ProviderLogo` fallback (Plugs glyph).
 
 ## Files
-- `Integration Permissions.dc.html` — the design board. **Section 2a (top) is the spec**; frames left→right: Tools panel, default-permission menu, tools-at-scale drawer, add-integration drawer. Sections 1b/1a are earlier iterations for context only.
+- `ui-handoff-board.html` — the design board. **Section 2a (top) is the spec**; frames left→right: Tools panel, default-permission menu, tools-at-scale drawer, add-integration drawer. Sections 1b/1a are earlier iterations for context only.

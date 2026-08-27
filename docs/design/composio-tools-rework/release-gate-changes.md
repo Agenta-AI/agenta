@@ -5,7 +5,10 @@ tools. The current gate is the `agent-release-gate` skill at
 `.agents/skills/agent-release-gate/SKILL.md`. The tests this gate step draws from are in
 [qa.md](qa.md).
 
-Keep it small. One new cell, one new fixture requirement, and two edits to existing files.
+Keep it small. One new cell, one new fixture requirement, and five edits to existing files:
+`qa_longctx.py`, `resources/coverage.md`, `SKILL.md`, the matrix registry in `qa_product.py`, and
+`qa_matrix_lib.py`. The table under "What this extends rather than duplicates" is the
+authoritative list; none of those five is optional.
 
 ## What the gate covers today
 

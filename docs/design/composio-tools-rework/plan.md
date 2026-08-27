@@ -526,7 +526,7 @@ Slice 4 already declared `gatewayPolicy` in `protocol.ts`. This slice reads it.
 - `services/runner/src/tools/callback.ts`. Send `context` on the gateway callback.
 - `services/runner/src/tools/relay.ts`. Gate the gateway call, validate arguments, filter the
   search result, and sanitize run suggestions.
-- `services/runner/src/run-turn.ts` and `services/runner/src/responder.ts`. Reach the pause
+- `services/runner/src/engines/sandbox_agent/run-turn.ts` and `services/runner/src/responder.ts`. Reach the pause
   and approval machinery from the relay gate. See "Delivery paths" below.
 - `services/runner/src/engines/sandbox_agent/acp-interactions.ts`. Show the integration and
   the tool key on the approval card.

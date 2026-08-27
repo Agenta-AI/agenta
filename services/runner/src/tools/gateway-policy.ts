@@ -718,8 +718,17 @@ export function keptToolTokenMap(
 ): Map<string, string> {
   const byToken = new Map<string, string>();
   for (const { integration, tool } of kept) {
+    const upper = integration.toUpperCase();
     byToken.set(tool, tool);
-    byToken.set(`${integration.toUpperCase()}_${tool}`, tool);
+    byToken.set(`${upper}_${tool}`, tool);
+    // Composio strips hyphens from the integration when it builds the prose form, so
+    // `google-calendar` is written `GOOGLECALENDAR_CREATE_EVENT`. Without this entry a
+    // hyphenated integration never matches its own prefixed mention and the tool's own
+    // name is REDACTED out of the prose describing it. It fails closed, so it costs
+    // legibility rather than safety — but the model then reads a description with a hole
+    // where the tool it is being offered should be.
+    const squashed = upper.replace(/-/g, "");
+    if (squashed !== upper) byToken.set(`${squashed}_${tool}`, tool);
   }
   return byToken;
 }

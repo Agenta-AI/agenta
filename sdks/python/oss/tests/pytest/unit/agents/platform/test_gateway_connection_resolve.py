@@ -281,6 +281,32 @@ async def test_missing_integration_in_the_response_fails_the_run(fake_http, conn
         )
 
 
+async def test_a_malformed_catalog_entry_fails_as_the_resolver_error(
+    fake_http, connection
+):
+    """A bad tool inside a good slice must not escape as a raw pydantic error.
+
+    The surrounding code tolerates a malformed SLICE (the per-integration check reports
+    it by name), but a malformed TOOL was validated inside a comprehension, so
+    `ValidationError` escaped naming a field path and never the integration. The caller
+    then cannot tell which connection is at fault, and the failure sits outside the
+    typed contract every other error on this path honors.
+    """
+    fake_http(
+        gateway,
+        payload={
+            "gateway_connections": [
+                {"integration": "github", "tools": [{"not": "a tool"}]}
+            ]
+        },
+    )
+
+    with pytest.raises(GatewayToolResolutionError, match="malformed catalog entry"):
+        await _resolver(connection).resolve_connections(
+            [_connection_config()], mode="allow_reads"
+        )
+
+
 async def test_backend_error_fails_the_run(fake_http, connection):
     """No 404 drop rule here: a connection entry has no single dead action to drop."""
     fake_http(gateway, status=404, payload={"detail": "Connection not found"})

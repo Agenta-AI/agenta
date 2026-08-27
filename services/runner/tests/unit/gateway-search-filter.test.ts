@@ -458,6 +458,37 @@ describe("descriptions do not name tools this response did not permit", () => {
   });
 });
 
+describe("a hyphenated integration matches its own prefixed mention", () => {
+  // Composio strips hyphens when it writes the prefixed form, so `google-calendar` appears in
+  // provider prose as `GOOGLECALENDAR_CREATE_EVENT`. Before the squashed alias, the map held
+  // only `GOOGLE-CALENDAR_CREATE_EVENT` — which `PROVIDER_ACTION_TOKEN` cannot even match,
+  // since the pattern allows no hyphen — so a KEPT tool's own name was redacted out of the
+  // description offering it.
+  const permitted = keptToolTokenMap([
+    { integration: "google-calendar", tool: "CREATE_EVENT" },
+  ]);
+
+  it("rewrites the hyphen-stripped prefixed form to the bare key", () => {
+    assert.equal(
+      redactUnpermittedToolTokens(
+        "Use GOOGLECALENDAR_CREATE_EVENT to add an entry.",
+        permitted,
+      ),
+      "Use CREATE_EVENT to add an entry.",
+    );
+  });
+
+  it("still redacts a hyphen-stripped token for a tool that was NOT kept", () => {
+    assert.equal(
+      redactUnpermittedToolTokens(
+        "Then call GOOGLECALENDAR_DELETE_EVENT.",
+        permitted,
+      ),
+      `Then call ${REDACTED_TOOL_TOKEN}.`,
+    );
+  });
+});
+
 describe("the redaction leaves ordinary prose alone", () => {
   const permitted = keptToolTokenMap([
     { integration: "github", tool: "GET_ISSUE" },
