@@ -44,9 +44,10 @@ export const useSessionActions = () => {
                 ]
                 return known.some((session) => session.id === sessionId)
             },
-            rename: ({sessionId, appId}, title) => {
-                if (appId) store.set(renameSessionAtomFamily(appId), {id: sessionId, title})
-            },
+            rename: ({sessionId, appId}, title) =>
+                appId
+                    ? store.set(renameSessionAtomFamily(appId), {id: sessionId, title})
+                    : undefined,
             // RETURNED, not just fired: these atoms hand back their server call so the shared
             // verb can await it before revalidating the lists.
             setArchived: ({sessionId, appId, archived}) => {

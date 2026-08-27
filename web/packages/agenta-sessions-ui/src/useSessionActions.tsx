@@ -42,9 +42,9 @@ export interface SessionActionTarget {
  */
 export interface SessionLocalCache {
     has: (target: SessionActionTarget) => boolean
-    rename: (target: SessionActionTarget, title: string) => void
     /** Awaited before the lists revalidate: these verbs own the server call for a cached
-     * session, and a refetch that overtakes it brings the row straight back. */
+     * session, and a refetch that overtakes it brings the old row straight back. */
+    rename: (target: SessionActionTarget, title: string) => void | Promise<unknown>
     setArchived: (target: SessionActionTarget) => void | Promise<unknown>
     remove: (target: SessionActionTarget) => void | Promise<unknown>
 }
@@ -91,7 +91,7 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
             const name = title.trim()
             if (!name) return false
             if (isCached(target)) {
-                localCache?.rename(target, name)
+                await localCache?.rename(target, name)
             } else {
                 const ok = await setSessionHeader({
                     sessionId: target.sessionId,

@@ -1,9 +1,12 @@
-/** Every cached list that renders a session NAME. `sessions-page` is left out: it holds pending
- * gates, which a rename cannot change. */
+/** Every cached list that carries a session NAME. `sessions-page` is left out: it holds pending
+ * gates, which a rename cannot change. `internal-reconciliation` renders nowhere but still belongs:
+ * the chat panel folds it into its tab cache and takes the REMOTE title, so leaving it unpatched
+ * let a refetch hand the old name back. */
 export const NAMED_SESSION_QUERY_KEYS = [
     "sidebar-sessions",
     "sidebar-sessions-pinned",
     "session-list",
+    "internal-reconciliation",
 ]
 
 /**

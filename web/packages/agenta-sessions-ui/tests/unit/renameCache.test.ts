@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {withRenamedSession} from "../../src/renameCache"
+import {NAMED_SESSION_QUERY_KEYS, withRenamedSession} from "../../src/renameCache"
 
 // A rename's write is not visible to the list read straight away, so the row is patched in the
 // cache instead of refetched. The patch has to reach every shape a session list is cached in, and
@@ -52,5 +52,18 @@ describe("withRenamedSession", () => {
         const data = [null, undefined, row("s1", "old")]
 
         expect(withRenamedSession(data, "s1", "new")).toEqual([null, undefined, row("s1", "new")])
+    })
+})
+
+describe("NAMED_SESSION_QUERY_KEYS", () => {
+    // Not a rendered list, so it reads as unrelated — but the chat panel folds it into its tab
+    // cache and prefers the REMOTE title, which is how an unpatched entry undoes a rename.
+    it("covers the reconciliation cache the tab titles are folded from", () => {
+        expect(NAMED_SESSION_QUERY_KEYS).toContain("internal-reconciliation")
+    })
+
+    // A rename cannot change a pending gate, and patching it would rewrite the wrong shape.
+    it("leaves the interactions cache alone", () => {
+        expect(NAMED_SESSION_QUERY_KEYS).not.toContain("sessions-page")
     })
 })
