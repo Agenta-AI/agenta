@@ -178,6 +178,7 @@ export {
     appOpenApiSchemaAtomFamily,
     // Helpers
     resolveBuiltinAppServiceUrl,
+    resolveServiceUrl,
 } from "./runnableSetup"
 
 // ============================================================================

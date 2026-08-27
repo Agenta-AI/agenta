@@ -188,6 +188,39 @@ export function buildServiceUrlFromUri(uri: string | null | undefined): string |
     return `${origin}/services/${rest.join("/")}`
 }
 
+/** Strip trailing '/' in a single linear scan — NOT `/\/+$/`, whose end-anchored `+` backtracks
+ * quadratically on a backend-supplied URL with many '/' (CodeQL polynomial-ReDoS). `47` is '/'. */
+const stripTrailingSlashes = (s: string): string => {
+    let end = s.length
+    while (end > 0 && s.charCodeAt(end - 1) === 47) end--
+    return end === s.length ? s : s.slice(0, end)
+}
+
+/**
+ * The service URL to call for a workflow revision — the ONE rule every invoke path uses.
+ *
+ * An `agenta:` URI means the service is agenta-MANAGED: it lives at THIS deployment's origin, at
+ * the path the URI itself names. So the URI wins over `data.url`, whose origin is stamped once at
+ * creation and goes stale the moment the deployment's public URL moves — a self-hosted stack off
+ * port 80, a migrated domain. A stale origin is not a degraded URL, it is a different server: the
+ * invoke lands somewhere else entirely and surfaces as a bare `TypeError: Failed to fetch`.
+ *
+ * A revision with NO agenta URI keeps `data.url` verbatim. That one names a service this
+ * deployment does not host, so its origin belongs to whoever set it.
+ *
+ * A url that is PRESENT but empty (or all slashes) stays an explicit "no service" and resolves to
+ * null rather than falling through to the URI — the distinction `data.url != null` has always
+ * drawn, kept here so this rule is a strict fix rather than a semantic change.
+ */
+export function resolveServiceUrl(
+    data: {url?: string | null; uri?: string | null} | null | undefined,
+): string | null {
+    const rawUrl = data?.url
+    const trimmed = rawUrl != null ? stripTrailingSlashes(rawUrl) : null
+    if (rawUrl != null && !trimmed) return null
+    return buildServiceUrlFromUri(data?.uri) ?? trimmed
+}
+
 /**
  * Resolve the correct service URL for a builtin (non-custom) app workflow.
  *

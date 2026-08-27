@@ -48,7 +48,7 @@ import {
     type Workflow,
 } from "../core/schema"
 
-import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
+import {resolveBuiltinAppServiceUrl, resolveServiceUrl} from "./helpers"
 import {
     workflowAppSchemaAtomFamily,
     workflowBaseEntityAtomFamily,
@@ -59,7 +59,7 @@ import {
 } from "./store"
 
 // Re-export for external consumers
-export {resolveBuiltinAppServiceUrl} from "./helpers"
+export {resolveBuiltinAppServiceUrl, resolveServiceUrl} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -238,8 +238,8 @@ export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
  * Invocation URL for workflow execution.
  *
  * Calls `POST {serviceUrl}/invoke` directly on the service dispatcher,
- * mirroring how `/inspect` works. The service URL is resolved from
- * `data.url` (stored) or built from `data.uri` via `buildServiceUrlFromUri`.
+ * mirroring how `/inspect` works. The service URL comes from `resolveServiceUrl`
+ * (agenta URI first, so a stale stored origin can't send the call elsewhere).
  *
  * Unified for all workflow types (apps and evaluators).
  */
@@ -248,9 +248,9 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        // Resolve service URL: prefer stored url, fall back to building from URI
-        const serviceUrl =
-            entity.data.url?.replace(/\/+$/, "") ?? buildServiceUrlFromUri(entity.data.uri)
+        // ONE rule, shared with the chat transport's `resolveInvocationUrl`: an agenta URI names a
+        // service at THIS deployment's origin and outranks a `data.url` stamped at creation time.
+        const serviceUrl = resolveServiceUrl(entity.data)
 
         if (serviceUrl) {
             return `${serviceUrl}/invoke`

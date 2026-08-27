@@ -4,9 +4,17 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 // URL rule is tested hermetically (no molecule store, no network).
 let revisionResult: {data?: {url?: string | null; uri?: string | null} | null} | null
 const retrieveWorkflowRevision = vi.fn(async () => revisionResult)
-vi.mock("@agenta/entities/workflow", () => ({
-    retrieveWorkflowRevision: (...args: unknown[]) => retrieveWorkflowRevision(...args),
-}))
+// `resolveServiceUrl` is NOT stubbed — it is the rule under test, imported from entities so the
+// playground and this transport can never drift apart again. Only the network call is a stub.
+vi.mock("@agenta/entities/workflow", async () => {
+    const {resolveServiceUrl} = await vi.importActual<
+        typeof import("@agenta/entities/workflow/state/helpers")
+    >("../../../../agenta-entities/src/workflow/state/helpers")
+    return {
+        resolveServiceUrl,
+        retrieveWorkflowRevision: (...args: unknown[]) => retrieveWorkflowRevision(...args),
+    }
+})
 vi.mock("@agenta/shared/api", () => ({
     getAgentaApiUrl: () => "https://host/api",
 }))
@@ -15,10 +23,29 @@ const {invocationUrlFromRevisionData, resolveInvocationUrl} =
     await import("../../../src/transport/resolveInvocationUrl")
 
 describe("invocationUrlFromRevisionData", () => {
-    it("prefers the stored url, trimming trailing slashes", () => {
+    it("keeps a stored url when no agenta uri claims the revision", () => {
         expect(invocationUrlFromRevisionData({url: "https://host/services/agent/"})).toBe(
             "https://host/services/agent/invoke",
         )
+    })
+
+    // The reported break: a self-hosted stack served agenta on :80, then moved to :8081. Every
+    // revision still carried the :80 origin stamped at creation, and preferring it sent each
+    // invoke to whatever now answers on :80 — surfacing only as `TypeError: Failed to fetch`.
+    it("rebuilds the origin from the agenta uri when the stored url has gone stale", () => {
+        expect(
+            invocationUrlFromRevisionData({
+                url: "http://localhost/services/agent/v0",
+                uri: "agenta:builtin:agent:v0",
+            }),
+        ).toBe("https://host/services/agent/v0/invoke")
+        // Same for a `custom`-kind managed service — the kind segment names the path, not the host.
+        expect(
+            invocationUrlFromRevisionData({
+                url: "http://localhost/services/feedback/v0",
+                uri: "agenta:custom:feedback:v0",
+            }),
+        ).toBe("https://host/services/feedback/v0/invoke")
     })
 
     it("builds from an agenta uri when there is no url (kind segment stripped)", () => {
