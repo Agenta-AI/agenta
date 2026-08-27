@@ -23,6 +23,7 @@ import {
   REDACTED_TOOL_TOKEN,
   TOOL_SEARCH_UNAVAILABLE_ERROR,
   filterGatewaySearchResult,
+  keptToolTokenMap,
   planGatewaySearch,
   redactUnpermittedToolTokens,
 } from "../../src/tools/gateway-policy.ts";
@@ -377,6 +378,53 @@ describe("descriptions do not name tools this response did not permit", () => {
     assert.equal(first.description, "Read one issue. See also LIST_ISSUES.");
   });
 
+  it("rewrites a PREFIXED mention of a kept tool to the key run_tool accepts", () => {
+    // The live failure: the provider writes `GMAIL_FETCH_EMAILS`, the model reads it as a tool
+    // key and passes it to `run_tool`, and the gate refuses it — on a tool it was permitted to
+    // run. The description must name the key the gate will actually accept.
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description:
+              "Read one issue. Use GITHUB_LIST_ISSUES to list them all.",
+          }),
+          result("github", "LIST_ISSUES"),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const [first] = JSON.parse(outcome.payload).results;
+    assert.equal(
+      first.description,
+      "Read one issue. Use LIST_ISSUES to list them all.",
+      "a kept mention must render as a key the model can pass to run_tool",
+    );
+    assert.ok(!outcome.payload.includes("GITHUB_LIST_ISSUES"));
+  });
+
+  it("a prefixed mention of a tool this response did NOT keep is still dropped", () => {
+    // The rewrite must not resurrect a tool the filter removed: only kept results are in the map.
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description: "Read one issue. GITHUB_DELETE_REPOSITORY removes it.",
+          }),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const [first] = JSON.parse(outcome.payload).results;
+    assert.equal(
+      first.description,
+      `Read one issue. ${REDACTED_TOOL_TOKEN} removes it.`,
+    );
+    assert.ok(!outcome.payload.includes("DELETE_REPOSITORY"));
+  });
+
   it("redacts a DENIED tool named in a permitted tool's description", () => {
     const outcome = filterGatewaySearchResult(
       JSON.stringify({
@@ -410,7 +458,9 @@ describe("descriptions do not name tools this response did not permit", () => {
 });
 
 describe("the redaction leaves ordinary prose alone", () => {
-  const permitted = new Set(["GET_ISSUE"]);
+  const permitted = keptToolTokenMap([
+    { integration: "github", tool: "GET_ISSUE" },
+  ]);
 
   it("keeps shouted words that carry no underscore", () => {
     // The underscore is the whole reason this is safe to run over free text.

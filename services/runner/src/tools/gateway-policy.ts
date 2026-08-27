@@ -530,12 +530,14 @@ export function filterGatewaySearchResult(
   // the job: the enumeration every refusal here avoids walks straight back in through the text
   // of a result that passed. Redact once the kept set is known, so a token is judged against
   // what this very response permits.
-  const permitted = new Set(kept.map((entry) => entry.tool as string));
+  const byToken = keptToolTokenMap(
+    kept as unknown as { integration: string; tool: string }[],
+  );
   for (const entry of kept) {
     if (typeof entry.description === "string") {
       entry.description = redactUnpermittedToolTokens(
         entry.description,
-        permitted,
+        byToken,
       );
     }
   }
@@ -623,21 +625,50 @@ const PROVIDER_ACTION_TOKEN = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 export const REDACTED_TOOL_TOKEN = "…";
 
 /**
- * Remove provider action ids from one description unless this response permits them.
+ * Rewrite the provider action ids in one description so every one the model reads is a key it can
+ * actually pass to `run_tool`, and every one it cannot is gone.
  *
- * Deliberately NOT a general scrubber. It knows one token shape and one question — "is this a
- * tool the model may actually call right now" — and a token survives only by being in the
- * permitted set of the SAME response. A denied key, an unconfigured integration's key, and a key
- * that simply did not make the cut all read alike afterwards, which is the same rule every
- * refusal in this module follows.
+ * Two branches, and the KEEP branch is the one that bites. Provider prose names its own catalog
+ * ids, which are prefixed (`GMAIL_FETCH_EMAILS`), while the key `run_tool` accepts is the bare
+ * catalog key (`FETCH_EMAILS`). Passing the prefixed form through unchanged reads to a model
+ * exactly like a usable tool key — so it calls `run_tool` with it, the gate does not find it, and
+ * the call is refused. Measured as a weak-model task failure in live QA, on a tool the agent was
+ * PERMITTED to run. So a mention of a kept tool is rewritten to that tool's own key.
+ *
+ * The drop branch is unchanged: a token matching no kept tool becomes an ellipsis, so a denied
+ * key, an unconfigured integration's key, and a key that simply did not make the cut all read
+ * alike. Deliberately NOT a general scrubber — one token shape, one question.
+ *
+ * `byToken` maps every form a kept tool may appear as to the key the model should see; build it
+ * with `keptToolTokenMap`.
  */
 export function redactUnpermittedToolTokens(
   description: string,
-  permitted: ReadonlySet<string>,
+  byToken: ReadonlyMap<string, string>,
 ): string {
-  return description.replace(PROVIDER_ACTION_TOKEN, (token) =>
-    permitted.has(token) ? token : REDACTED_TOOL_TOKEN,
+  return description.replace(
+    PROVIDER_ACTION_TOKEN,
+    (token) => byToken.get(token) ?? REDACTED_TOOL_TOKEN,
   );
+}
+
+/**
+ * The token → key map for one response's kept results.
+ *
+ * A provider writes the same tool as `FETCH_EMAILS` in one sentence and `GMAIL_FETCH_EMAILS` in
+ * the next, so both forms map to the bare key. The prefixed form is derived from the result's own
+ * integration rather than guessed, and only for results this response actually kept — which is
+ * what keeps the keep branch from resurrecting a tool the filter dropped.
+ */
+export function keptToolTokenMap(
+  kept: readonly { integration: string; tool: string }[],
+): Map<string, string> {
+  const byToken = new Map<string, string>();
+  for (const { integration, tool } of kept) {
+    byToken.set(tool, tool);
+    byToken.set(`${integration.toUpperCase()}_${tool}`, tool);
+  }
+  return byToken;
 }
 
 /**
