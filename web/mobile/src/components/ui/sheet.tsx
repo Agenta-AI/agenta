@@ -26,7 +26,11 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
         <SheetPrimitive.Overlay
             data-slot="sheet-overlay"
             className={cn(
-                "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+                // No dim on a phone. iOS composites the status-bar strip from the page's top
+                // colour, so any alpha here darkens that strip while the drawer beside it stays
+                // light — the seam that reads as the drawer failing to reach the top. With the
+                // scrim clear the strip lands on the body colour, which is the rail's own.
+                "fixed inset-0 z-50 bg-transparent data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 lg:bg-black/50",
                 className,
             )}
             {...props}
@@ -55,20 +59,23 @@ function SheetContent({
                 data-slot="sheet-content"
                 className={cn(
                     "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
+                    // The phone-width shadows carry the separation the scrim used to: below lg the
+                    // overlay is clear, so the panel's own edge is all that lifts it off the page.
+                    // Cast away from the edge the sheet is anchored to.
                     side === "right" &&
-                        "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+                        "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm max-lg:shadow-[-8px_0_24px_-6px_rgb(0_0_0/0.28)]",
                     side === "left" &&
-                        "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+                        "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm max-lg:shadow-[8px_0_24px_-6px_rgb(0_0_0/0.28)]",
                     side === "top" &&
                         "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
                     // A bottom sheet is full-bleed on a phone, but a window this wide would
                     // stretch a two-field form across the whole screen — so it caps and centres,
                     // and rounds its top the way it does against a phone's edge.
                     side === "bottom" &&
-                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x",
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x max-lg:shadow-[0_-8px_24px_-6px_rgb(0_0_0/0.28)]",
                     // Bottom sheet on a phone…
                     side === "responsive" &&
-                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-lg:shadow-[0_-8px_24px_-6px_rgb(0_0_0/0.28)]",
                     // …and the app's right-edge drawer from lg up, which is where the settings
                     // rail also stops being a phone layout. Every bottom-sheet property is
                     // unset explicitly — Tailwind would otherwise keep the narrower rule.
