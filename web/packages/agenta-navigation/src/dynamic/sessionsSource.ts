@@ -7,7 +7,7 @@ import {
 import {sessionOpenTarget} from "@agenta/sessions/row"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -653,6 +653,24 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
+ * Is the Sessions group open enough to read its list from outside it?
+ *
+ * `alwaysOpen` HAS to be in this test: Sessions is rendered always-open on desktop, so its key is
+ * never written to the persisted open set — reading only that set left the Agent facet with no
+ * options to offer. `idleReadyAtom` holds every such read until after first paint.
+ */
+const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
+    const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
+    return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
+}
+
+/**
  * `agentId -> when it was last used`, in ms, off the sessions the rail already holds.
  *
  * "Used" means a session ran, which is the product's own definition of agent activity (the home
@@ -666,6 +684,10 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
 export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const lastUsed = new Map<string, number>()
+        // GATED like the facet below: this is the Agents group reading the SESSIONS list, and an
+        // ungated read subscribes those queries from a rail whose Sessions group is closed — which
+        // is the polling the group's own gate exists to stop. Empty means catalog order.
+        if (!sessionsGroupOpen(get, scopeId)) return lastUsed
         for (const ref of get(sidebarSessionRefsAtomFamily(scopeId))) {
             if (!ref.agentId || !ref.activityAt) continue
             const at = new Date(ref.activityAt).getTime()
@@ -687,17 +709,7 @@ export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
-        // `alwaysOpen` HAS to be in this test: Sessions is rendered always-open, so its key is
-        // never written to the persisted open set — reading only that set left this empty, and
-        // the Agent facet had no options to offer.
-        const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
-        if ((!alwaysOpen && !inlineOpen && !popupOpen) || !get(idleReadyAtom)) return []
+        if (!sessionsGroupOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({
