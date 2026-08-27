@@ -63,6 +63,14 @@ At run start, the SDK sends the runner the private resolved gateway policy descr
 This context is not part of either model-facing input schema. It does not enter the
 sandbox as editable data.
 
+The input schemas dominate the size of this field, and the whole field rides every run
+request. Measured against Composio on 2026-08-27, one integration's compiled policy grows
+from 60 KiB to 1.5 MiB for `github` (871 actions), and from 3 KiB to 267 KiB for `notion`
+(53 actions), a factor of 25 to 87. The runner reads these schemas in exactly one place,
+to replace the inline schema on a search result. If that cost has to come down, the move
+is to keep the schemas at the API, which already holds the pinned catalog, and let the
+search route attach them to the at most five results it returns.
+
 ## `search_tools`
 
 ### Input
@@ -110,6 +118,13 @@ gateway policy carries that version and the full catalog's input schemas. The ru
 search only for result order: it keeps an identity only when the pinned catalog contains
 that tool key, replaces the inline search schema with the pinned catalog schema, and drops
 the result when the pinned catalog has no usable object schema.
+
+One drift stays, and it is accepted. Search ranks against the catalog that is current when
+the search runs, while the run executes against the version pinned when the run started. A
+tool that Composio publishes between those two moments can rank in search and is then
+dropped, because the pinned catalog does not hold its key. The run resolves the alias at
+its own start, so the window is the length of one run, and the failure is a missing search
+result rather than a call against a schema that does not match what executes.
 
 The REST API version (`v3.1`) and toolkit version (`YYYYMMDD_NN`) are separate. The API
 version selects the Composio protocol. The toolkit version selects the tool identity and

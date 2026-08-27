@@ -1334,10 +1334,13 @@ class ToolsRouter:
         # Upstream 401 AdapterError (e.g. bad API key) → @handle_adapter_exceptions → 424.
         # Other adapter errors are treated as internal failures; unsuccessful tool
         # execution responses remain business-level errors → 200.
+        # The legacy reference carries no version, so it reads and runs on the mutable
+        # alias, as it always has. Only the gateway route pins a run to one version.
         execution_result = await self.tools_service.execute_tool(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version="latest",
             provider_connection_id=connection.provider_connection_id,
             user_id=user_id,
             arguments=arguments,

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools import service as service_module
@@ -332,6 +333,13 @@ async def test_latest_changing_after_resolution_cannot_change_execution(monkeypa
             provider="composio", integration="github", connection="github-work"
         ),
         ToolCallContext(integration="github", connection="github-work", tool="X"),
+        # Complete routing, but no version to run it at.
+        ToolCallContext(
+            provider="composio",
+            integration="github",
+            connection="github-work",
+            tool="CREATE_AN_ISSUE",
+        ),
     ],
 )
 async def test_an_incomplete_context_is_refused(monkeypatch, context):
@@ -352,6 +360,36 @@ async def test_an_incomplete_context_is_refused(monkeypatch, context):
 
     assert caught.value.status_code == 400
     assert provider.requests == []
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", "", "   "])
+def test_a_context_version_that_is_not_concrete_is_refused(version):
+    """The alias and a blank both mean "whatever is newest", which never reaches a run.
+
+    This is refused while the body is parsed, so the route never sees the call. A blank
+    matters on its own: the route's own check tests truthiness, and a whitespace-only
+    version is truthy.
+    """
+    with pytest.raises(ValidationError):
+        ToolCallContext(
+            provider="composio",
+            integration="github",
+            connection="github-work",
+            tool="CREATE_AN_ISSUE",
+            toolkit_version=version,
+        )
+
+
+def test_a_concrete_context_version_is_kept_trimmed():
+    context = ToolCallContext(
+        provider="composio",
+        integration="github",
+        connection="github-work",
+        tool="CREATE_AN_ISSUE",
+        toolkit_version=" 20250827_00 ",
+    )
+
+    assert context.toolkit_version == "20250827_00"
 
 
 # ---------------------------------------------------------------------------

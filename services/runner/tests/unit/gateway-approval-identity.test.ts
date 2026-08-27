@@ -24,7 +24,9 @@ import {
   readRelayResponse,
   startGatewayRelay,
   stubToolCall,
+  GATEWAY_POLICY,
 } from "../utils/gateway.ts";
+import type { GatewayPolicy } from "../../src/protocol.ts";
 
 const realFetch = globalThis.fetch;
 
@@ -277,6 +279,48 @@ describe("what executes is what was checked (R19, R20, R21)", () => {
         tool: "CREATE_ISSUE",
         toolkit_version: "20250827_00",
       });
+    } finally {
+      await relay.stop();
+    }
+  });
+
+  it("a toolkit version bump does not invalidate a stored approval", async () => {
+    // The version is execution context, not identity. It rides `plan.context` and never
+    // enters the outer arguments, so an approval a person gave yesterday still resolves
+    // after Composio publishes a new toolkit version overnight. Putting the version in
+    // the key would silently re-prompt every stored approval on every bump.
+    const args = outerArgs("github", "CREATE_ISSUE", { title: "bug" });
+    const key = approvedCallKey("run_tool", args);
+    assert.ok(key);
+
+    const bumped: GatewayPolicy = {
+      integrations: {
+        ...GATEWAY_POLICY.integrations,
+        github: {
+          ...GATEWAY_POLICY.integrations.github,
+          toolkitVersion: "20260101_00",
+        },
+      },
+    };
+    assert.notEqual(
+      GATEWAY_POLICY.integrations.github.toolkitVersion,
+      bumped.integrations.github.toolkitVersion,
+    );
+
+    const relay = await startGatewayRelay({
+      policy: bumped,
+      storedDecisions: new Map([[key, "allow"]]),
+    });
+    const calls = stubToolCall({ created: 1 });
+    try {
+      await forgeRelayRequest(relay.dir, "bumped-1", args);
+      await readRelayResponse(relay.dir, "bumped-1");
+
+      // The stored decision was honoured: the call ran instead of parking for approval.
+      assert.equal(calls.bodies.length, 1);
+      assert.equal(interactionRequests(relay.harness.events).length, 0);
+      // ...and it ran at the NEW version, so identity and execution stay independent.
+      assert.equal(calls.bodies[0].context.toolkit_version, "20260101_00");
     } finally {
       await relay.stop();
     }

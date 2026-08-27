@@ -206,9 +206,11 @@ class ResolvedGatewayIntegration(BaseModel):
     @field_validator("toolkit_version")
     @classmethod
     def _require_concrete_toolkit_version(cls, value: str) -> str:
-        if value.strip().lower() == "latest":
+        version = value.strip()
+        # ``min_length`` accepts a whitespace-only string, so blank is rejected here.
+        if not version or version.lower() == "latest":
             raise ValueError("resolved gateway toolkit version must be concrete")
-        return value
+        return version
 
 
 class ResolvedGatewayPolicy(BaseModel):

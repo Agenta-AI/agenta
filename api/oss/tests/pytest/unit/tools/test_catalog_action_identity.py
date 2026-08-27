@@ -171,6 +171,7 @@ async def test_execute_reads_the_id_from_the_catalog(monkeypatch):
         provider_key="composio",
         integration_key="google-calendar",
         action_key="CREATE_EVENT",
+        toolkit_version="latest",
         provider_connection_id="acc_1",
         arguments=dict(title="standup"),
     )
@@ -188,6 +189,7 @@ async def test_an_unknown_tool_key_is_refused_instead_of_rebuilt(monkeypatch):
             provider_key="composio",
             integration_key="google-calendar",
             action_key="DELETE_EVENT",
+            toolkit_version="latest",
             arguments={},
         )
 
@@ -229,6 +231,7 @@ async def test_overlapping_prefixes_resolve_to_their_own_id(
         provider_key="composio",
         integration_key=integration_key,
         action_key="SEND_MESSAGE",
+        toolkit_version="latest",
         arguments={},
     )
 

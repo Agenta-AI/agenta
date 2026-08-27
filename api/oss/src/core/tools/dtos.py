@@ -191,9 +191,14 @@ class ToolCallContext(BaseModel):
     @field_validator("toolkit_version")
     @classmethod
     def _require_concrete_toolkit_version(cls, value: Optional[str]) -> Optional[str]:
-        if value is not None and value.strip().lower() == "latest":
+        if value is None:
+            return None
+        version = value.strip()
+        if not version or version.lower() == "latest":
+            # Blank is rejected here, not left to the route's truthiness check: a
+            # whitespace-only version is falsy to neither, and would reach the provider.
             raise ValueError("gateway toolkit version must be concrete")
-        return value
+        return version
 
 
 class ToolCall(BaseModel):

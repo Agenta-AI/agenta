@@ -463,7 +463,7 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
-        toolkit_version: str = "latest",
+        toolkit_version: str,
         provider_connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
         arguments: Dict[str, Any],
@@ -472,6 +472,11 @@ class ToolsService:
 
         Both call paths, the legacy five-segment reference and the gateway route,
         reach the provider through this one lookup.
+
+        ``toolkit_version`` has no default on purpose. The gateway path passes the
+        version it resolved once for the run, and the legacy path passes the alias
+        explicitly. A default would let a new caller reach the provider on ``latest``
+        without saying so, which is the stale-alias trap this signature exists to close.
         """
         provider_action_id = await self._provider_action_id(
             provider_key=provider_key,
