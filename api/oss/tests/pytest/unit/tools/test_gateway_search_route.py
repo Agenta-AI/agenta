@@ -28,6 +28,7 @@ from oss.src.core.tools.dtos import (
     ToolCallData,
     ToolCallFunction,
 )
+from oss.src.core.tools.discovery import translate_runtime_search
 from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.dtos import (
     ComposioSearchQueryResult,
@@ -486,12 +487,18 @@ async def test_an_unscoped_search_sends_no_toolkit_key(monkeypatch):
     not os.getenv("COMPOSIO_API_KEY"),
     reason="COMPOSIO_API_KEY not set; skipping the live toolkit-scoping check",
 )
-async def test_the_provider_really_scopes_a_search_to_the_toolkit():
-    """The filter above is only worth sending if the provider honours it.
+async def test_the_provider_biases_a_search_towards_the_toolkit():
+    """The filter is only worth sending if the provider reacts to it at all.
 
-    Scoping was measured by hand on 2026-08-26 and the unit test pins the request
-    shape, but a field name the provider silently ignores would leave that test green
-    while every scoped search stayed unscoped. This is the check that would notice.
+    Measured against the live provider on 2026-08-27: ``toolkits`` biases the ranking
+    but does not restrict it. A search scoped to ``slack`` still answers with
+    ``MSG91_SEND_SMS`` or ``TELEGRAM_SEND_MESSAGE``, and the neighbouring toolkits vary
+    between two identical calls. So the provider is not the boundary, and this test
+    does not pretend it is. It checks that the requested toolkit survives the filter,
+    and that translation is what makes the answer single-integration.
+
+    A field name the provider ignored outright would drop the requested toolkit from
+    the answer, which is what the second assertion would notice.
     """
     from oss.src.core.tools.providers.composio.adapter import ComposioToolsAdapter
 
@@ -509,7 +516,13 @@ async def test_the_provider_really_scopes_a_search_to_the_toolkit():
         toolkit.lower() for entry in result.results for toolkit in entry.toolkits
     }
     assert toolkits, "the provider returned no toolkit for a scoped search"
-    assert toolkits <= {"slack", "slackbot"}
+    assert "slack" in toolkits, (
+        f"the requested toolkit is absent from a scoped search: {sorted(toolkits)}"
+    )
+
+    translated = translate_runtime_search(result, integration="slack")
+    assert translated, "translation dropped every result of a scoped search"
+    assert {entry.integration for entry in translated} == {"slack"}
 
 
 async def test_a_scoped_search_keeps_only_the_requested_integration(monkeypatch):

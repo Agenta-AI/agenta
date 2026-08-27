@@ -229,9 +229,12 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         connection state is read for; Agenta passes ``str(project_id)`` so the
         result reflects the calling project's connections.
 
-        ``toolkits`` scopes every query to those integrations natively. Scoping was
-        measured at the same latency as an unscoped search, so the query text is never
-        enriched to imitate a filter.
+        ``toolkits`` biases every query towards those integrations. It is a ranking
+        hint, not a filter: measured on 2026-08-27, a search scoped to ``slack`` still
+        answers with ``MSG91_SEND_SMS``, and the neighbouring toolkits vary between two
+        identical calls. The caller must drop what it did not ask for. Sending the hint
+        costs nothing over an unscoped search, so the query text is never enriched to
+        imitate a filter.
         """
         query: Dict[str, Any] = {}
         if toolkits:
