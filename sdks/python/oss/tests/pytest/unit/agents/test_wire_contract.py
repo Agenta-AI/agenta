@@ -313,8 +313,16 @@ def _gateway_connection_payload():
                 "github": ResolvedGatewayIntegration(
                     provider="composio",
                     connection="github-work",
+                    toolkit_version="20250827_00",
                     tools={
-                        "GET_ISSUE": CompiledTool(permission="allow", read_only=True),
+                        "GET_ISSUE": CompiledTool(
+                            permission="allow",
+                            read_only=True,
+                            input_schema={
+                                "type": "object",
+                                "properties": {"number": {"type": "integer"}},
+                            },
+                        ),
                         "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
                         "RUN_WORKFLOW": CompiledTool(permission="deny"),
                     },

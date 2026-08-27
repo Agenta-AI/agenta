@@ -141,6 +141,7 @@ for (const placement of PLACEMENTS) {
           integration: "github",
           connection: "github-work",
           tool: "GET_ISSUE",
+          toolkit_version: "20250827_00",
         });
       } finally {
         await relay.stop();

@@ -120,13 +120,14 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         *,
         action_key: str,
         provider_action_id: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[ToolCatalogActionDetails]:
         try:
             # `version`, not `toolkit_versions`: this endpoint takes the singular name, and
             # without it a slug that exists only in the latest toolkit version 404s.
             item = await self._get(
                 f"/tools/{provider_action_id}",
-                params={"version": COMPOSIO_TOOLKIT_VERSION},
+                params={"version": toolkit_version or COMPOSIO_TOOLKIT_VERSION},
             )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
@@ -178,7 +179,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         # match the tool that runs.
         payload: Dict[str, Any] = {
             "arguments": request.arguments,
-            "version": COMPOSIO_TOOLKIT_VERSION,
+            "version": request.toolkit_version,
         }
         # No-auth toolkits run without a connected account; only send the id when set.
         if request.provider_connection_id:
@@ -262,11 +263,9 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         }
 
         try:
-            # Deliberately NOT pinned to COMPOSIO_TOOLKIT_VERSION, unlike the three calls
-            # that read or run a toolkit's tools. `version` here would pin the SEARCH
-            # meta-tool's own version, a different axis; the toolkit version its results
-            # are drawn from is already latest, which is the whole reason the other three
-            # calls had to be moved to match it.
+            # `version` here would pin the SEARCH meta-tool itself, not the toolkits it ranks.
+            # Runtime search identities are checked against the run's pinned catalog and its
+            # inline schemas are replaced with schemas from that catalog.
             result = await self._post(
                 "/tools/execute/COMPOSIO_SEARCH_TOOLS",
                 json=payload,

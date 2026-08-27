@@ -333,6 +333,7 @@ class WireGatewayTool(_WireModel):
 
     permission: Literal["allow", "ask", "deny"]
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
+    input_schema: Optional[Dict[str, Any]] = Field(default=None, alias="inputSchema")
 
 
 class WireGatewayIntegration(_WireModel):
@@ -340,6 +341,7 @@ class WireGatewayIntegration(_WireModel):
 
     provider: str
     connection: str
+    toolkit_version: str = Field(alias="toolkitVersion")
     tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
 
 

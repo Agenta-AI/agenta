@@ -38,25 +38,57 @@ import {
 import { sleep } from "../../src/tools/relay-protocol.ts";
 import type { RelayResponse } from "../../src/tools/relay-protocol.ts";
 
+const EMPTY_INPUT_SCHEMA = { type: "object", properties: {} };
+
 export const GATEWAY_POLICY: GatewayPolicy = {
   integrations: {
     github: {
       provider: "composio",
       connection: "github-work",
+      toolkitVersion: "20250827_00",
       tools: {
-        GET_ISSUE: { permission: "allow", readOnly: true },
-        CREATE_ISSUE: { permission: "ask", readOnly: false },
-        DELETE_REPOSITORY: { permission: "deny", readOnly: false },
-        LIST_ISSUES: { permission: "allow", readOnly: null },
+        GET_ISSUE: {
+          permission: "allow",
+          readOnly: true,
+          inputSchema: {
+            type: "object",
+            properties: { issue: { type: "number" } },
+            required: ["issue"],
+          },
+        },
+        CREATE_ISSUE: {
+          permission: "ask",
+          readOnly: false,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        },
+        DELETE_REPOSITORY: {
+          permission: "deny",
+          readOnly: false,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        },
+        LIST_ISSUES: {
+          permission: "allow",
+          readOnly: null,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        },
       },
     },
     slack: {
       provider: "composio",
       connection: "slack-main",
+      toolkitVersion: "20250827_00",
       tools: {
-        SEND_MESSAGE: { permission: "ask", readOnly: false },
+        SEND_MESSAGE: {
+          permission: "ask",
+          readOnly: false,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        },
         // The same key as a github tool, under a different integration and permission.
-        GET_ISSUE: { permission: "ask", readOnly: true },
+        GET_ISSUE: {
+          permission: "ask",
+          readOnly: true,
+          inputSchema: EMPTY_INPUT_SCHEMA,
+        },
       },
     },
   },

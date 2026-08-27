@@ -1,9 +1,7 @@
-"""Composio discovery and execution must agree on one API scope (#5174).
+"""Composio discovery and execution must agree on one toolkit version (#5174).
 
-The bug: COMPOSIO_SEARCH_TOOLS (discovery) returns action slugs spelled at the
-v3.1 toolkit version, but the tools adapter resolved and executed them against the
-v3 default, where a subset of those slugs 404 with ``Tool_ToolNotFound``. The fix
-pins the whole Composio integration to v3.1 through its shared API URL.
+The REST API scope stays on v3.1. Independently, each gateway run resolves the mutable
+``latest`` toolkit alias to a concrete version and uses it for catalog and execution.
 """
 
 from __future__ import annotations
@@ -13,10 +11,11 @@ import os
 import httpx
 import pytest
 
-from oss.src.utils.env import ComposioConfig
+from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.catalog import (
     COMPOSIO_TOOLKIT_VERSION,
 )
+from oss.src.utils.env import ComposioConfig
 
 
 V31 = "https://backend.composio.dev/api/v3.1"
@@ -167,6 +166,76 @@ class TestEveryComposioCallPinsTheToolkitVersion:
         # Plural: a singular ``version`` here is accepted and silently IGNORED.
         assert params["toolkit_versions"] == COMPOSIO_TOOLKIT_VERSION
 
+    async def test_latest_resolves_from_documented_toolkit_metadata(self):
+        recorder = _Recorder({"slug": "github", "meta": {"version": "20250827_00"}})
+
+        resolved = await _adapter(recorder).resolve_toolkit_version(
+            integration_key="github"
+        )
+
+        assert resolved == "20250827_00"
+        assert recorder.calls[0]["url"].endswith("/toolkits/github")
+        assert recorder.calls[0]["params"] == {"version": "latest"}
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"meta": {}},
+            {"meta": {"version": "latest"}},
+        ],
+    )
+    async def test_version_resolution_rejects_missing_or_mutable_metadata(
+        self, payload
+    ):
+        with pytest.raises(AdapterError, match="no concrete toolkit version"):
+            await _adapter(_Recorder(payload)).resolve_toolkit_version(
+                integration_key="github"
+            )
+
+    async def test_concrete_version_is_used_for_listing_and_detail(self):
+        recorder = _Recorder({"items": [], "next_cursor": None})
+        adapter = _adapter(recorder)
+
+        await adapter.list_actions(
+            integration_key="github", toolkit_version="20250827_00"
+        )
+        recorder._payload = {"name": "Get issue"}
+        await adapter.get_action(
+            action_key="GET_ISSUE",
+            provider_action_id="GITHUB_GET_ISSUE",
+            toolkit_version="20250827_00",
+        )
+
+        assert recorder.calls[0]["params"]["toolkit_versions"] == "20250827_00"
+        assert recorder.calls[1]["params"]["version"] == "20250827_00"
+
+    async def test_listing_reads_the_input_schema_from_the_pinned_catalog(self):
+        recorder = _Recorder(
+            {
+                "items": [
+                    {
+                        "slug": "GITHUB_GET_ISSUE",
+                        "name": "Get issue",
+                        "input_parameters": {
+                            "type": "object",
+                            "properties": {"number": {"type": "integer"}},
+                        },
+                    }
+                ],
+                "next_cursor": None,
+            }
+        )
+
+        page = await _adapter(recorder).list_actions(
+            integration_key="github", toolkit_version="20250827_00"
+        )
+
+        assert page.actions[0].input_schema == {
+            "type": "object",
+            "properties": {"number": {"type": "integer"}},
+        }
+
     async def test_detail_sends_version(self):
         recorder = _Recorder({"name": "Run Browser Task"})
         await _adapter(recorder).get_action(
@@ -187,6 +256,7 @@ class TestEveryComposioCallPinsTheToolkitVersion:
                 integration_key="browser_tool",
                 action_key="CREATE_TASK",
                 provider_action_id="BROWSER_TOOL_CREATE_TASK",
+                toolkit_version="20250827_00",
                 arguments={"task": "x"},
                 provider_connection_id="ca_1",
                 user_id="u1",
@@ -195,5 +265,5 @@ class TestEveryComposioCallPinsTheToolkitVersion:
 
         call = recorder.calls[0]
         # In the BODY. The query form is accepted and ignored, so the slug still 404s.
-        assert call["json"]["version"] == COMPOSIO_TOOLKIT_VERSION
+        assert call["json"]["version"] == "20250827_00"
         assert "version" not in (call.get("params") or {})

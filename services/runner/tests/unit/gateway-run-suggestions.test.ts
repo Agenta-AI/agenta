@@ -121,6 +121,7 @@ describe("R30: suggestions are filtered against the resolved policy", () => {
         github: {
           provider: "composio",
           connection: "github-work",
+          toolkitVersion: "20250827_00",
           tools: Object.fromEntries(
             Array.from({ length: 8 }, (_, i) => [
               `TOOL_${i}`,

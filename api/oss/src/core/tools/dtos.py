@@ -8,7 +8,7 @@ from agenta.sdk.agents.tools import (
     GatewayToolConfig,
 )
 from agenta.sdk.models.workflows import JsonSchemas
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from oss.src.core.workflows.dtos import WorkflowRevisionDelta
 
@@ -67,6 +67,8 @@ class ToolCatalogAction(BaseModel):
     #
     # From the MCP behavioral hints: True (read-only), False (mutating), None (unknown).
     read_only: Optional[bool] = None
+    # Private runtime catalog data. Public action detail keeps schemas under ``schemas``.
+    input_schema: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
 
 
 class ToolCatalogActionDetails(ToolCatalogAction):
@@ -116,14 +118,15 @@ class ToolCatalogActionsPage(BaseModel):
 class ToolCatalogEntry(BaseModel):
     """One catalog tool reduced to what the platform itself needs.
 
-    This is what the whole-integration catalog cache holds, so an entry stays small
-    enough to read on the execution path. Descriptions and schemas are display data
-    and are fetched per action instead.
+    This is what the whole-integration catalog cache holds. The input schema travels with
+    identity because a gateway run must show the model the schema from the same concrete
+    toolkit version it will execute.
     """
 
     key: str
     provider_action_id: str
     read_only: Optional[bool] = None
+    input_schema: Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +186,14 @@ class ToolCallContext(BaseModel):
     integration: Optional[str] = None
     connection: Optional[str] = None
     tool: Optional[str] = None
+    toolkit_version: Optional[str] = None
+
+    @field_validator("toolkit_version")
+    @classmethod
+    def _require_concrete_toolkit_version(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value.strip().lower() == "latest":
+            raise ValueError("gateway toolkit version must be concrete")
+        return value
 
 
 class ToolCall(BaseModel):
@@ -218,6 +229,7 @@ class ToolExecutionRequest(BaseModel):
     integration_key: str
     action_key: str
     provider_action_id: str  # read from the catalog, never rebuilt from the two above
+    toolkit_version: str
     provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
@@ -270,6 +282,7 @@ class ResolvedGatewayTool(BaseModel):
 
     key: str
     read_only: Optional[bool] = None
+    input_schema: Optional[Dict[str, Any]] = None
 
 
 class ResolvedGatewayConnection(BaseModel):
@@ -282,6 +295,7 @@ class ResolvedGatewayConnection(BaseModel):
     provider: str
     integration: str
     connection: str
+    toolkit_version: str
     tools: List[ResolvedGatewayTool] = Field(default_factory=list)
 
 

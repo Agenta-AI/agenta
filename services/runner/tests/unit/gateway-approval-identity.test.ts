@@ -275,6 +275,7 @@ describe("what executes is what was checked (R19, R20, R21)", () => {
         integration: "github",
         connection: "github-work",
         tool: "CREATE_ISSUE",
+        toolkit_version: "20250827_00",
       });
     } finally {
       await relay.stop();

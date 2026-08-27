@@ -28,6 +28,7 @@ from oss.src.core.tools.dtos import (
     ToolCallFunction,
     ToolCatalogAction,
     ToolExecutionResponse,
+    GatewayConnectionTool,
 )
 from oss.src.core.tools.exceptions import (
     AdapterError,
@@ -44,36 +45,42 @@ GITHUB_CATALOG = [
         name="Get an issue",
         provider_action_id="GITHUB_GET_AN_ISSUE",
         read_only=True,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="CREATE_AN_ISSUE",
         name="Create an issue",
         provider_action_id="GITHUB_CREATE_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="UPDATE_AN_ISSUE",
         name="Update an issue",
         provider_action_id="GITHUB_UPDATE_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="LIST_REPOSITORY_ISSUES",
         name="List repository issues",
         provider_action_id="GITHUB_LIST_REPOSITORY_ISSUES",
         read_only=True,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="ADD_LABELS_TO_AN_ISSUE",
         name="Add labels to an issue",
         provider_action_id="GITHUB_ADD_LABELS_TO_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="LOCK_AN_ISSUE",
         name="Lock an issue",
         provider_action_id="GITHUB_LOCK_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
 ]
 
@@ -95,8 +102,17 @@ class FakeProvider:
             data={"number": 7}, successful=True
         )
         self.requests: List[Any] = []
+        self.latest_version = "20250827_00"
+        self.list_versions: List[Optional[str]] = []
 
-    async def list_all_actions(self, *, integration_key: str):
+    async def resolve_toolkit_version(self, *, integration_key: str, version: str):
+        assert version == "latest"
+        return self.latest_version
+
+    async def list_all_actions(
+        self, *, integration_key: str, toolkit_version: Optional[str] = None
+    ):
+        self.list_versions.append(toolkit_version)
         return self.catalog
 
     async def execute(self, *, request):
@@ -174,6 +190,7 @@ def _run_call(
             integration=integration,
             connection=connection,
             tool=tool,
+            toolkit_version="20250827_00",
         ),
     )
 
@@ -266,6 +283,43 @@ async def test_routing_comes_from_the_context_not_the_arguments(monkeypatch):
     assert executed.provider_connection_id == "acc_1"
     # The decoys stay in the payload: they are the tool's arguments, not routing.
     assert executed.arguments == decoys
+
+
+async def test_latest_changing_after_resolution_cannot_change_execution(monkeypatch):
+    provider = FakeProvider()
+    router = _router(monkeypatch, provider)
+    service = router.tools_service
+    ref = GatewayConnectionTool.model_validate(
+        {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": "github",
+                "slug": "github-work",
+            },
+            "policy": {"permissions": {"default": "allow", "tools": {}}},
+        }
+    )
+
+    resolved = await service._resolve_gateway_connection(
+        project_id=uuid4(),
+        ref=ref,
+    )
+    provider.latest_version = "20250828_00"
+    await service.run_gateway_tool(
+        project_id=uuid4(),
+        provider_key="composio",
+        integration_key="github",
+        connection_slug="github-work",
+        tool_key="CREATE_AN_ISSUE",
+        toolkit_version=resolved.toolkit_version,
+        arguments=ARGUMENTS,
+    )
+
+    assert resolved.toolkit_version == "20250827_00"
+    assert provider.requests[0].toolkit_version == "20250827_00"
+    assert provider.list_versions
+    assert set(provider.list_versions) == {"20250827_00"}
 
 
 @pytest.mark.parametrize(

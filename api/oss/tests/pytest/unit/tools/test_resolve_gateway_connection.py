@@ -58,27 +58,44 @@ CATALOG = [
         name="Get issue",
         provider_action_id="GITHUB_GET_ISSUE",
         read_only=True,
+        input_schema={"type": "object", "properties": {"number": {"type": "integer"}}},
     ),
     ToolCatalogAction(
         key="CREATE_ISSUE",
         name="Create issue",
         provider_action_id="GITHUB_CREATE_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {"title": {"type": "string"}}},
     ),
     # No hint at all: unknown must survive as unknown, never be guessed into a boolean.
     ToolCatalogAction(
         key="LIST_LABELS",
         name="List labels",
         provider_action_id="GITHUB_LIST_LABELS",
+        input_schema={"type": "object", "properties": {}},
     ),
 ]
 
 
 class FakeProvider:
-    async def list_all_actions(self, *, integration_key: str):
+    async def resolve_toolkit_version(self, *, integration_key: str, version: str):
+        assert integration_key == "github"
+        assert version == "latest"
+        return "20250827_00"
+
+    async def list_all_actions(
+        self, *, integration_key: str, toolkit_version: Optional[str] = None
+    ):
+        assert toolkit_version in {None, "20250827_00"}
         return CATALOG
 
-    async def get_action(self, *, action_key: str, provider_action_id: str):
+    async def get_action(
+        self,
+        *,
+        action_key: str,
+        provider_action_id: str,
+        toolkit_version: Optional[str] = None,
+    ):
         return ToolCatalogActionDetails(
             key=action_key,
             name=action_key,
@@ -157,11 +174,13 @@ async def test_a_connection_entry_returns_the_catalog_slice(monkeypatch):
     assert resolved.provider == "composio"
     assert resolved.integration == "github"
     assert resolved.connection == "github-work"
+    assert resolved.toolkit_version == "20250827_00"
     assert [(t.key, t.read_only) for t in resolved.tools] == [
         ("GET_ISSUE", True),
         ("CREATE_ISSUE", False),
         ("LIST_LABELS", None),
     ]
+    assert resolved.tools[0].input_schema == CATALOG[0].input_schema
 
 
 async def test_the_slice_carries_no_policy(monkeypatch):
@@ -172,7 +191,7 @@ async def test_the_slice_carries_no_policy(monkeypatch):
     )
 
     tool = response.gateway_connections[0].tools[0]
-    assert set(tool.model_dump().keys()) == {"key", "read_only"}
+    assert set(tool.model_dump().keys()) == {"key", "read_only", "input_schema"}
 
 
 async def test_a_missing_connection_is_a_404(monkeypatch):

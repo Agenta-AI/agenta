@@ -208,6 +208,7 @@ class ToolsService:
         *,
         provider_key: str,
         integration_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> List[ToolCatalogEntry]:
         """Return every tool of one integration, as identity plus the read-only hint.
 
@@ -217,7 +218,11 @@ class ToolsService:
         cannot finish raises, so a partial catalog never reaches the cache.
         """
         started = perf_counter()
-        cache_key = {"provider": provider_key, "integration": integration_key}
+        cache_key = {
+            "provider": provider_key,
+            "integration": integration_key,
+            "toolkit_version": toolkit_version or "latest",
+        }
         cached = await get_cache(
             namespace=_CATALOG_CACHE_NAMESPACE,
             key=cache_key,
@@ -237,7 +242,10 @@ class ToolsService:
         adapter = self.adapter_registry.get(provider_key)
         try:
             actions = await asyncio.wait_for(
-                adapter.list_all_actions(integration_key=integration_key),
+                adapter.list_all_actions(
+                    integration_key=integration_key,
+                    toolkit_version=toolkit_version,
+                ),
                 timeout=env.composio.catalog_fetch_deadline_seconds,
             )
         except asyncio.TimeoutError as e:
@@ -252,6 +260,7 @@ class ToolsService:
                 key=action.key,
                 provider_action_id=action.provider_action_id,
                 read_only=action.read_only,
+                input_schema=action.input_schema,
             )
             for action in actions
             if action.provider_action_id
@@ -277,11 +286,13 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[str]:
         """Look one tool key up in the catalog, or None when the integration lacks it."""
         actions = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
         for action in actions:
             if action.key == action_key:
@@ -294,12 +305,14 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[ToolCatalogActionDetails]:
         """Return full action detail including input/output schema, or None if not found."""
         provider_action_id = await self._provider_action_id(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version=toolkit_version,
         )
         if not provider_action_id:
             return None
@@ -308,6 +321,7 @@ class ToolsService:
         return await adapter.get_action(
             action_key=action_key,
             provider_action_id=provider_action_id,
+            toolkit_version=toolkit_version,
         )
 
     # -----------------------------------------------------------------------
@@ -449,6 +463,7 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: str = "latest",
         provider_connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
         arguments: Dict[str, Any],
@@ -462,6 +477,7 @@ class ToolsService:
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version=toolkit_version,
         )
         if not provider_action_id:
             raise ActionNotFoundError(
@@ -477,6 +493,7 @@ class ToolsService:
                 integration_key=integration_key,
                 action_key=action_key,
                 provider_action_id=provider_action_id,
+                toolkit_version=toolkit_version,
                 provider_connection_id=provider_connection_id,
                 user_id=user_id,
                 arguments=arguments,
@@ -614,17 +631,28 @@ class ToolsService:
             connection_slug=connection_slug,
         )
 
+        adapter = self.adapter_registry.get(provider_key)
+        toolkit_version = await adapter.resolve_toolkit_version(
+            integration_key=integration_key,
+            version="latest",
+        )
         actions = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
 
         return ResolvedGatewayConnection(
             provider=provider_key,
             integration=integration_key,
             connection=connection_slug,
+            toolkit_version=toolkit_version,
             tools=[
-                ResolvedGatewayTool(key=action.key, read_only=action.read_only)
+                ResolvedGatewayTool(
+                    key=action.key,
+                    read_only=action.read_only,
+                    input_schema=action.input_schema,
+                )
                 for action in actions
             ],
         )
@@ -763,6 +791,7 @@ class ToolsService:
         integration_key: str,
         connection_slug: str,
         tool_key: str,
+        toolkit_version: str,
         arguments: Dict[str, Any],
     ) -> ToolExecutionResponse:
         """Run one integration tool through the selected connection.
@@ -783,6 +812,7 @@ class ToolsService:
         catalog = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
         if not any(entry.key == tool_key for entry in catalog):
             raise self._unknown_tool_key(
@@ -803,6 +833,7 @@ class ToolsService:
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=tool_key,
+            toolkit_version=toolkit_version,
             provider_connection_id=connection.provider_connection_id,
             user_id=user_id,
             arguments=arguments,

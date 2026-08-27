@@ -94,9 +94,13 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
       "provider": "composio",
       "integration": "github",
       "connection": "github-work",
+      "toolkit_version": "20250827_00",
       "tools": [
-        {"key": "GET_ISSUE", "read_only": true},
-        {"key": "CREATE_ISSUE", "read_only": false}
+        {
+          "key": "GET_ISSUE",
+          "read_only": true,
+          "input_schema": {"type": "object", "properties": {}}
+        }
       ]
     }
   ]
@@ -108,7 +112,8 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
 | `gateway_connections[].provider` | Routing | Echoed from the request entry. |
 | `gateway_connections[].integration` | Routing | Echoed from the request entry. |
 | `gateway_connections[].connection` | Routing | The validated connection slug. |
-| `gateway_connections[].tools` | Data | The whole catalog for that integration, key and `read_only` only. |
+| `gateway_connections[].toolkit_version` | Execution context | The concrete toolkit version resolved from `latest` for this run. |
+| `gateway_connections[].tools` | Data | The whole catalog for that version, including key, `read_only`, and input schema. |
 
 The API validates the connection here, as it does for the per-tool arm today. It does not
 read `policy`. It returns the catalog slice so the SDK makes one round trip per integration
@@ -186,8 +191,13 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
       "github": {
         "provider": "composio",
         "connection": "github-work",
+        "toolkitVersion": "20250827_00",
         "tools": {
-          "GET_ISSUE": {"permission": "allow", "readOnly": true},
+          "GET_ISSUE": {
+            "permission": "allow",
+            "readOnly": true,
+            "inputSchema": {"type": "object", "properties": {}}
+          },
           "CREATE_ISSUE": {"permission": "ask", "readOnly": false},
           "DELETE_REPOSITORY": {"permission": "deny", "readOnly": false}
         }
@@ -202,8 +212,10 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 | `integrations` | Policy and routing | Keyed by integration. Only configured integrations appear. |
 | `.provider` | Routing | Selects the provider adapter at the API. |
 | `.connection` | Routing | The selected connection slug. |
+| `.toolkitVersion` | Execution context | The concrete toolkit version. `latest` never crosses this boundary. |
 | `.tools[key].permission` | Policy | One of `allow`, `ask`, `deny`. Never `inherit`. |
 | `.tools[key].readOnly` | Data | `true`, `false`, or `null`. Carried for the approval card and for logs. |
+| `.tools[key].inputSchema` | Data | The input schema from this integration's concrete toolkit version. Search cannot override it. |
 
 `inherit` never crosses this boundary. The compiler has already applied it.
 

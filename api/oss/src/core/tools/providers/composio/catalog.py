@@ -28,16 +28,10 @@ log = get_module_logger(__name__)
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 1000
 
-# Every Composio call resolves the LATEST toolkit version, and this constant is the one
-# place that decides it. Listing, detail, and execute must agree: a listing from one
-# version and an execution against another is the argument-schema mismatch trap, where a
-# tool the catalog advertised either does not exist or takes different arguments.
-#
-# Latest is not a preference, it is forced. `COMPOSIO_SEARCH_TOOLS` always searches the
-# latest version, while an unversioned listing returns the account's pinned snapshot — so
-# every search hit died against a policy compiled from the old catalog (measured: three
-# searches, ten results, zero kept). Concretely, `browser_tool` lists 18 screenshot-era
-# tools unversioned and 5 task tools at latest, which is what search returns.
+# Public catalog browsing and the legacy per-tool path default to latest. A
+# ``gateway_connection`` run resolves this alias once through ``GET /toolkits/{slug}``,
+# then passes the concrete result into listing, detail, and execution. The API base's
+# v3.1 is an independent protocol version.
 #
 # The parameter NAME differs per endpoint, verified live 2026-08-27:
 #   listing  GET  /tools                 -> `toolkit_versions` (a `version` param is
@@ -69,6 +63,47 @@ class ComposioCatalogClient:
     api_key: str
     api_url: str
     _client: httpx.AsyncClient
+
+    # -----------------------------------------------------------------------
+    # Toolkit version resolution
+    # -----------------------------------------------------------------------
+
+    async def resolve_toolkit_version(
+        self,
+        *,
+        integration_key: str,
+        version: str = COMPOSIO_TOOLKIT_VERSION,
+    ) -> str:
+        """Resolve an alias through Composio's documented ``meta.version`` field."""
+        try:
+            resp = await self._client.get(
+                f"{self.api_url}/toolkits/{integration_key}",
+                headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
+                params={"version": version},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="resolve_toolkit_version",
+                detail=str(e),
+            ) from e
+
+        meta = data.get("meta") if isinstance(data, dict) else None
+        resolved = meta.get("version") if isinstance(meta, dict) else None
+        if (
+            not isinstance(resolved, str)
+            or not resolved.strip()
+            or resolved.strip().lower() == "latest"
+        ):
+            raise AdapterError(
+                provider_key="composio",
+                operation="resolve_toolkit_version",
+                detail=f"{integration_key} returned no concrete toolkit version",
+            )
+        return resolved.strip()
 
     # -----------------------------------------------------------------------
     # Integration count
@@ -220,6 +255,7 @@ class ComposioCatalogClient:
         important: Optional[bool] = None,  # reserved; not forwarded to Composio
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
+        toolkit_version: Optional[str] = None,
     ) -> ToolCatalogActionsPage:
         """Fetch one page of actions for an integration from Composio.
 
@@ -241,7 +277,7 @@ class ComposioCatalogClient:
             "toolkit_slug": integration_key,
             "include_deprecated": False,
             "limit": page_limit,
-            "toolkit_versions": COMPOSIO_TOOLKIT_VERSION,
+            "toolkit_versions": toolkit_version or COMPOSIO_TOOLKIT_VERSION,
         }
         if query:
             params["query"] = query
@@ -304,6 +340,7 @@ class ComposioCatalogClient:
         self,
         *,
         integration_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> List[ToolCatalogAction]:
         """Fetch one integration's whole catalog, following ``next_cursor`` to exhaustion.
 
@@ -320,6 +357,7 @@ class ComposioCatalogClient:
                 integration_key=integration_key,
                 limit=ALL_ACTIONS_PAGE_SIZE,
                 cursor=cursor,
+                toolkit_version=toolkit_version,
             )
             actions.extend(page.actions)
             cursor = page.next_cursor
@@ -475,4 +513,9 @@ def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogActi
         categories=categories,
         provider_action_id=composio_slug,
         read_only=_derive_read_only(raw_tags),
+        input_schema=(
+            item.get("input_parameters")
+            if isinstance(item.get("input_parameters"), dict)
+            else None
+        ),
     )

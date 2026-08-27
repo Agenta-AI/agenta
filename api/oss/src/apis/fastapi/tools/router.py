@@ -1523,12 +1523,13 @@ class ToolsRouter:
             and context.integration
             and context.connection
             and context.tool
+            and context.toolkit_version
         ):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "gateway.run requires a context carrying a provider, an "
-                    "integration, a connection, and a tool."
+                    "integration, a connection, a tool, and a toolkit version."
                 ),
             )
 
@@ -1549,6 +1550,7 @@ class ToolsRouter:
                 integration_key=context.integration,
                 connection_slug=context.connection,
                 tool_key=context.tool,
+                toolkit_version=context.toolkit_version,
                 arguments=arguments,
             )
         except ToolKeyNotFoundError as e:

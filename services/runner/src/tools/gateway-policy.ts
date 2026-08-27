@@ -57,11 +57,13 @@ export const TOOL_SEARCH_UNAVAILABLE_ERROR = {
 export interface NormalizedGatewayTool {
   permission: ToolPermission;
   readOnly: boolean | null;
+  inputSchema?: Record<string, unknown>;
 }
 
 export interface NormalizedGatewayIntegration {
   provider: string;
   connection: string;
+  toolkitVersion: string;
   tools: Record<string, NormalizedGatewayTool>;
 }
 
@@ -154,7 +156,8 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
     if (!key || !isRecord(rawEntry)) continue;
     const provider = nonEmptyString(rawEntry.provider);
     const connection = nonEmptyString(rawEntry.connection);
-    if (!provider || !connection) continue;
+    const toolkitVersion = concreteToolkitVersion(rawEntry.toolkitVersion);
+    if (!provider || !connection || !toolkitVersion) continue;
 
     const tools = emptyMap<NormalizedGatewayTool>();
     if (isRecord(rawEntry.tools)) {
@@ -164,11 +167,18 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
         if (!isToolPermission(rawTool.permission)) continue;
         const readOnly = normalizedReadOnly(rawTool.readOnly);
         if (readOnly === INVALID_READ_ONLY) continue;
-        tools[toolKey] = { permission: rawTool.permission, readOnly };
+        const inputSchema = isUsableObjectSchema(rawTool.inputSchema)
+          ? rawTool.inputSchema
+          : undefined;
+        tools[toolKey] = {
+          permission: rawTool.permission,
+          readOnly,
+          ...(inputSchema ? { inputSchema } : {}),
+        };
       }
     }
     if (Object.keys(tools).length === 0) continue;
-    integrations[key] = { provider, connection, tools };
+    integrations[key] = { provider, connection, toolkitVersion, tools };
   }
   return branded;
 }
@@ -201,6 +211,7 @@ export interface GatewayCallContext {
   integration?: string;
   connection?: string;
   tool?: string;
+  toolkit_version?: string;
 }
 
 /** What `run_tool` was asked to do, once the shape has been checked. */
@@ -328,6 +339,7 @@ export function planGatewayRun(
       integration,
       connection: entry.connection,
       tool,
+      toolkit_version: entry.toolkitVersion,
     },
     display: `${integration}.${tool}`,
   };
@@ -505,7 +517,7 @@ export function filterGatewaySearchResult(
       drops.denied += 1;
       continue;
     }
-    if (!isUsableObjectSchema(entry.input_schema)) {
+    if (!toolPolicy.inputSchema) {
       drops.schema += 1;
       continue;
     }
@@ -520,7 +532,7 @@ export function filterGatewaySearchResult(
       ...(typeof entry.description === "string"
         ? { description: entry.description }
         : {}),
-      input_schema: entry.input_schema,
+      input_schema: structuredClone(toolPolicy.inputSchema),
     });
   }
 
@@ -738,7 +750,9 @@ export function keptToolTokenMap(
  * explicit non-object type is unusable, and so is a bare `{}` with neither a type nor
  * properties: both leave the model guessing at the argument shape.
  */
-function isUsableObjectSchema(schema: unknown): boolean {
+function isUsableObjectSchema(
+  schema: unknown,
+): schema is Record<string, unknown> {
   if (!isRecord(schema)) return false;
   if (schema.type !== undefined) return schema.type === "object";
   return isRecord(schema.properties);
@@ -748,6 +762,12 @@ function nonEmptyString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function concreteToolkitVersion(value: unknown): string | undefined {
+  const version = nonEmptyString(value);
+  if (!version || version.toLowerCase() === "latest") return undefined;
+  return version;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

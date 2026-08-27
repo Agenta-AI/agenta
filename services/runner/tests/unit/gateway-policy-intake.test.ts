@@ -51,6 +51,7 @@ function policyWith(overrides: Record<string, unknown>): unknown {
       github: {
         provider: "composio",
         connection: "github-work",
+        toolkitVersion: "20250827_00",
         tools: { GET_ISSUE: { permission: "allow", readOnly: true } },
         ...overrides,
       },
@@ -65,6 +66,7 @@ function toolPolicyWith(tool: unknown): unknown {
       github: {
         provider: "composio",
         connection: "github-work",
+        toolkitVersion: "20250827_00",
         tools: { GET_ISSUE: tool },
       },
     },
@@ -78,6 +80,8 @@ const BROKEN_INTEGRATIONS: Array<[string, unknown]> = [
   ["no connection", policyWith({ connection: undefined })],
   ["an empty connection", policyWith({ connection: "" })],
   ["a non-string connection", policyWith({ connection: { slug: "x" } })],
+  ["no toolkit version", policyWith({ toolkitVersion: undefined })],
+  ["the mutable latest alias", policyWith({ toolkitVersion: "latest" })],
   ["no tools table", policyWith({ tools: undefined })],
   ["a non-object tools table", policyWith({ tools: [] })],
   ["an empty tools table", policyWith({ tools: {} })],
@@ -161,6 +165,7 @@ describe("intake keeps what is valid and normalizes what is loose", () => {
         github: {
           provider: " composio ",
           connection: " github-work ",
+          toolkitVersion: "20250827_00",
           tools: {
             GET_ISSUE: { permission: "allow", readOnly: true },
             LIST_ISSUES: { permission: "ask" },
@@ -210,6 +215,7 @@ describe("intake keeps what is valid and normalizes what is loose", () => {
         github: {
           provider: "composio",
           connection: "github-work",
+          toolkitVersion: "20250827_00",
           tools: {
             GET_ISSUE: { permission: "allow", readOnly: true },
             BROKEN: { permission: "maybe" },
@@ -245,10 +251,23 @@ describe("intake keeps what is valid and normalizes what is loose", () => {
         github: {
           provider: "composio",
           connection: "github-work",
+          toolkitVersion: "20250827_00",
           tools: {
-            READ: { permission: "allow", readOnly: true },
-            WRITE: { permission: "ask", readOnly: false },
-            GONE: { permission: "deny", readOnly: false },
+            READ: {
+              permission: "allow",
+              readOnly: true,
+              inputSchema: { type: "object", properties: {} },
+            },
+            WRITE: {
+              permission: "ask",
+              readOnly: false,
+              inputSchema: { type: "object", properties: {} },
+            },
+            GONE: {
+              permission: "deny",
+              readOnly: false,
+              inputSchema: { type: "object", properties: {} },
+            },
           },
         },
       },
@@ -292,6 +311,7 @@ describe("an inherited key is not a configured integration", () => {
       github: {
         provider: "composio",
         connection: "github-work",
+        toolkitVersion: "20250827_00",
         tools: { GET_ISSUE: { permission: "allow", readOnly: true } },
       },
     },
@@ -397,6 +417,7 @@ describe("an inherited key is not a configured integration", () => {
         constructor: {
           provider: "composio",
           connection: "odd-but-real",
+          toolkitVersion: "20250827_00",
           tools: { toString: { permission: "allow", readOnly: true } },
         },
       },
@@ -419,6 +440,7 @@ describe("only intake produces a policy a decision will accept", () => {
         github: {
           provider: "composio",
           connection: "github-work",
+          toolkitVersion: "20250827_00",
           tools: {
             GET_ISSUE: { permission: "allow" as const, readOnly: true },
           },

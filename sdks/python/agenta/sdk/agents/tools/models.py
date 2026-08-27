@@ -181,6 +181,12 @@ class CompiledTool(BaseModel):
         validation_alias=AliasChoices("read_only", "readOnly"),
         serialization_alias="readOnly",
     )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        validation_alias=AliasChoices("input_schema", "inputSchema"),
+        serialization_alias="inputSchema",
+        exclude_if=lambda value: value is None,
+    )
 
 
 class ResolvedGatewayIntegration(BaseModel):
@@ -190,7 +196,19 @@ class ResolvedGatewayIntegration(BaseModel):
 
     provider: str = Field(min_length=1)
     connection: str = Field(min_length=1)
+    toolkit_version: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("toolkit_version", "toolkitVersion"),
+        serialization_alias="toolkitVersion",
+    )
     tools: Dict[str, CompiledTool] = Field(default_factory=dict)
+
+    @field_validator("toolkit_version")
+    @classmethod
+    def _require_concrete_toolkit_version(cls, value: str) -> str:
+        if value.strip().lower() == "latest":
+            raise ValueError("resolved gateway toolkit version must be concrete")
+        return value
 
 
 class ResolvedGatewayPolicy(BaseModel):

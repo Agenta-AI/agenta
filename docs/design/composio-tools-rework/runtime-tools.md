@@ -4,8 +4,8 @@ This page defines the model-facing runtime tools derived from the saved
 `gateway_connection` entries in [data-model.md](data-model.md). Permission compilation
 and enforcement are defined in [permission-layers.md](permission-layers.md).
 
-This first version uses Composio's semantic tool search. A local search implementation is
-a follow-up that requires production evidence.
+This first version uses Composio's semantic tool search for ranking. A local search
+implementation is a follow-up that requires production evidence.
 
 ## Decision
 
@@ -55,7 +55,9 @@ At run start, the SDK sends the runner the private resolved gateway policy descr
 
 - configured providers and integrations;
 - the selected connection slug for each integration;
+- the concrete toolkit version resolved for this run;
 - the catalog tool keys;
+- the catalog input schema for each tool;
 - the compiled `allow`, `ask`, or `deny` value for each tool.
 
 This context is not part of either model-facing input schema. It does not enter the
@@ -101,6 +103,18 @@ of provider behavior, returned results are filtered after translation.
 Before relying on query enrichment, implementation must check whether the current
 Composio operation supports a native toolkit filter. Use the native filter if available.
 
+Composio search ranks against its current catalog and does not accept a target toolkit
+version for each result. At run resolution, Agenta resolves each configured integration's
+`latest` alias to the concrete version in Composio's `meta.version` field. The private
+gateway policy carries that version and the full catalog's input schemas. The runner uses
+search only for result order: it keeps an identity only when the pinned catalog contains
+that tool key, replaces the inline search schema with the pinned catalog schema, and drops
+the result when the pinned catalog has no usable object schema.
+
+The REST API version (`v3.1`) and toolkit version (`YYYYMMDD_NN`) are separate. The API
+version selects the Composio protocol. The toolkit version selects the tool identity and
+schema used for this run.
+
 ### Translation and filtering
 
 The Tools API translates provider results into Agenta integration and tool keys. It does
@@ -111,8 +125,9 @@ The trusted runner then filters the translated results against its private resol
 1. Remove results from providers or integrations not configured on the agent.
 2. Remove tools missing from the resolved catalog policy.
 3. Remove tools whose compiled permission is `deny`.
-4. Remove results without a usable object input schema.
-5. Return at most five results.
+4. Replace the search schema with the schema from the pinned catalog.
+5. Remove results without a usable pinned object input schema.
+6. Return at most five results.
 
 Filtering improves model behavior. It is not the execution boundary. `run_tool`
 independently checks every requested tool.
@@ -231,11 +246,13 @@ the callback function arguments. The API:
 
 1. Checks project-level `RUN_TOOLS` access.
 2. Resolves the project connection and checks that it is active and valid.
-3. Confirms that the tool key belongs to the selected integration.
-4. Reads the canonical provider action ID from the catalog.
+3. Confirms that the tool key belongs to the selected integration at the run's concrete
+   toolkit version.
+4. Reads the canonical provider action ID from that version's catalog.
 5. Validates that `arguments` is an object. Invalid input returns an actionable error; it
    is never replaced with `{}`.
-6. Executes through the provider adapter with the selected connection.
+6. Executes through the provider adapter with the selected connection and the same concrete
+   toolkit version.
 
 The API validates resource identity and routing. It does not recompute the agent's
 permission policy.
