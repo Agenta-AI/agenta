@@ -101,7 +101,8 @@ export const ElicitationControl = ({
     const multi = isMultiSelect(step)
     const selected = selectedRowFor(step, value)
     const checked = selectedRowsFor(step, value)
-    // Enter commits a single-line answer. A textarea keeps Enter for newlines (⌘↵ commits it).
+    // Enter commits and moves on — including in the textarea, matching the chat composer's rule.
+    // Shift+Enter is the newline there, as it is in the composer.
     const submitOnEnter = (event: React.KeyboardEvent) => {
         if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.shiftKey) return
         event.preventDefault()
@@ -219,7 +220,10 @@ export const ElicitationControl = ({
                 ref={fieldRef as React.Ref<HTMLTextAreaElement>}
                 aria-label={step.label}
                 value={String(value ?? "")}
-                placeholder={step.hint}
+                // Enter now commits here, so say where the newline went — unless a real hint or a
+                // touch surface (no keyboard) owns the line instead.
+                placeholder={step.hint ?? (touch ? undefined : "Shift ↵ for a new line")}
+                onKeyDown={submitOnEnter}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
                 onChange={(event) => onChange(event.target.value)}

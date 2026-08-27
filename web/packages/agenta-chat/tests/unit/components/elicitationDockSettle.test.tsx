@@ -198,8 +198,8 @@ describe("automation", () => {
         expect(screen.getByText("1/2")).toBeTruthy()
     })
 
-    it("keeps Enter as a newline in a textarea — ⌘↵ is what commits it", () => {
-        setup({
+    it("commits a textarea on Enter, the same rule as the chat composer", () => {
+        const {onOutput} = setup({
             message: "One question",
             requestedSchema: {
                 type: "object",
@@ -211,7 +211,24 @@ describe("automation", () => {
         fireEvent.change(box, {target: {value: "line one"}})
         fireEvent.keyDown(box, {key: "Enter"})
 
-        // Still on the question; a one-question form would otherwise have settled.
+        // One question means no review step: Enter is the send.
+        expect(onOutput).toHaveBeenCalledTimes(1)
+    })
+
+    it("keeps Shift+Enter as the textarea's newline", () => {
+        const {onOutput} = setup({
+            message: "One question",
+            requestedSchema: {
+                type: "object",
+                properties: {note: {type: "string", title: "Note", format: "multiline"}},
+            },
+        })
+        const box = screen.getByLabelText("Note")
+
+        fireEvent.change(box, {target: {value: "line one"}})
+        fireEvent.keyDown(box, {key: "Enter", shiftKey: true})
+
+        expect(onOutput).not.toHaveBeenCalled()
         expect(screen.getByText("1/1")).toBeTruthy()
     })
 
