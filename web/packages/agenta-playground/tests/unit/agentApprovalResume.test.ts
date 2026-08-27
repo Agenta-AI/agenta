@@ -593,7 +593,11 @@ describe("an answered approval behind an empty run-error carrier", () => {
     const carrier = () => ({id: "run-error-1", role: "assistant", parts: []})
 
     it("resumes when the marker names the approval", () => {
-        const messages = [user("delete it"), assistantWithTool("approval-responded", true), carrier()]
+        const messages = [
+            user("delete it"),
+            assistantWithTool("approval-responded", true),
+            carrier(),
+        ]
         expect(
             agentShouldResumeAfterApproval({
                 messages,
@@ -603,7 +607,11 @@ describe("an answered approval behind an empty run-error carrier", () => {
     })
 
     it("resumes on the markerless path too, looking past the carrier", () => {
-        const messages = [user("delete it"), assistantWithTool("approval-responded", true), carrier()]
+        const messages = [
+            user("delete it"),
+            assistantWithTool("approval-responded", true),
+            carrier(),
+        ]
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
