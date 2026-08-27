@@ -20,9 +20,11 @@ import assert from "node:assert/strict";
 import {
   EMPTY_SEARCH_MESSAGE,
   MAX_SEARCH_RESULTS,
+  REDACTED_TOOL_TOKEN,
   TOOL_SEARCH_UNAVAILABLE_ERROR,
   filterGatewaySearchResult,
   planGatewaySearch,
+  redactUnpermittedToolTokens,
 } from "../../src/tools/gateway-policy.ts";
 import {
   EMPTY_POLICY,
@@ -325,6 +327,114 @@ describe("the structured measurement lines", () => {
     } finally {
       await relay.stop();
     }
+  });
+});
+
+/**
+ * Filtering the results does not finish the job. A provider writes each description against its
+ * OWN catalog, so a tool the agent MAY run recommends alternatives it may not — live, the
+ * permitted `SEND_DRAFT` named `GMAIL_SEND_EMAIL` as the way to send immediately. That is the
+ * same enumeration every refusal in this feature avoids, arriving through prose instead.
+ */
+describe("descriptions do not name tools this response did not permit", () => {
+  it("redacts a provider action id that is not among the kept results", () => {
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description:
+              "Read one issue. To change it use GITHUB_UPDATE_ISSUE, or " +
+              "GITHUB_DELETE_ISSUE to remove it.",
+          }),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const [kept] = JSON.parse(outcome.payload).results;
+    assert.equal(
+      kept.description,
+      `Read one issue. To change it use ${REDACTED_TOOL_TOKEN}, or ${REDACTED_TOOL_TOKEN} to remove it.`,
+    );
+    assert.ok(!outcome.payload.includes("GITHUB_UPDATE_ISSUE"));
+    assert.ok(!outcome.payload.includes("GITHUB_DELETE_ISSUE"));
+  });
+
+  it("keeps a token that IS permitted in the same response", () => {
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description: "Read one issue. See also LIST_ISSUES.",
+          }),
+          result("github", "LIST_ISSUES"),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const [first] = JSON.parse(outcome.payload).results;
+    assert.equal(first.description, "Read one issue. See also LIST_ISSUES.");
+  });
+
+  it("redacts a DENIED tool named in a permitted tool's description", () => {
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description: "Read one issue. DELETE_REPOSITORY removes the repo.",
+          }),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    assert.ok(!outcome.payload.includes("DELETE_REPOSITORY"));
+  });
+
+  it("a result whose own key appears in its description keeps it", () => {
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            description: "GET_ISSUE reads one issue.",
+          }),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const [kept] = JSON.parse(outcome.payload).results;
+    assert.equal(kept.description, "GET_ISSUE reads one issue.");
+  });
+});
+
+describe("the redaction leaves ordinary prose alone", () => {
+  const permitted = new Set(["GET_ISSUE"]);
+
+  it("keeps shouted words that carry no underscore", () => {
+    // The underscore is the whole reason this is safe to run over free text.
+    const text = "Returns HTML or JSON over HTTP; see the API docs at the URL.";
+    assert.equal(redactUnpermittedToolTokens(text, permitted), text);
+  });
+
+  it("keeps ordinary words, snake_case, and CamelCase", () => {
+    const text = "Set is_html to true, then call getIssue on the Issue object.";
+    assert.equal(redactUnpermittedToolTokens(text, permitted), text);
+  });
+
+  it("redacts every unpermitted occurrence, not just the first", () => {
+    assert.equal(
+      redactUnpermittedToolTokens("SEND_MAIL then SEND_MAIL again", permitted),
+      `${REDACTED_TOOL_TOKEN} then ${REDACTED_TOOL_TOKEN} again`,
+    );
+  });
+
+  it("is a no-op on a description with nothing to redact", () => {
+    assert.equal(
+      redactUnpermittedToolTokens("Reads one issue.", permitted),
+      "Reads one issue.",
+    );
   });
 });
 

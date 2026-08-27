@@ -524,6 +524,22 @@ export function filterGatewaySearchResult(
     });
   }
 
+  // Descriptions are provider prose, and the provider writes them against its OWN catalog — so a
+  // permitted tool's description cheerfully names alternatives the agent may not run ("use
+  // GMAIL_SEND_EMAIL to send it immediately"). Filtering the RESULTS therefore does not finish
+  // the job: the enumeration every refusal here avoids walks straight back in through the text
+  // of a result that passed. Redact once the kept set is known, so a token is judged against
+  // what this very response permits.
+  const permitted = new Set(kept.map((entry) => entry.tool as string));
+  for (const entry of kept) {
+    if (typeof entry.description === "string") {
+      entry.description = redactUnpermittedToolTokens(
+        entry.description,
+        permitted,
+      );
+    }
+  }
+
   const body =
     kept.length > 0
       ? { results: kept }
@@ -594,6 +610,34 @@ function unparsableSearch(drops: SearchFilterDrops): SearchFilterOutcome {
     drops,
     unparsable: true,
   };
+}
+
+/**
+ * A canonical provider action id as it appears inside prose: SCREAMING_SNAKE_CASE with at least
+ * one underscore. The underscore is what makes this narrow enough to run over free text — it
+ * leaves ordinary shouted words (HTML, JSON, URL, API) alone, because none of them carry one.
+ */
+const PROVIDER_ACTION_TOKEN = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
+
+/** What replaces a redacted token: shorter than the name, and obviously not a name. */
+export const REDACTED_TOOL_TOKEN = "…";
+
+/**
+ * Remove provider action ids from one description unless this response permits them.
+ *
+ * Deliberately NOT a general scrubber. It knows one token shape and one question — "is this a
+ * tool the model may actually call right now" — and a token survives only by being in the
+ * permitted set of the SAME response. A denied key, an unconfigured integration's key, and a key
+ * that simply did not make the cut all read alike afterwards, which is the same rule every
+ * refusal in this module follows.
+ */
+export function redactUnpermittedToolTokens(
+  description: string,
+  permitted: ReadonlySet<string>,
+): string {
+  return description.replace(PROVIDER_ACTION_TOKEN, (token) =>
+    permitted.has(token) ? token : REDACTED_TOOL_TOKEN,
+  );
 }
 
 /**
