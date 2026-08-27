@@ -1,26 +1,29 @@
 // @vitest-environment jsdom
-import {cleanup, render, screen} from "@testing-library/react"
-import {afterEach, describe, expect, it} from "vitest"
+import {act, cleanup, render, screen} from "@testing-library/react"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {EnhancedDrawer} from "../../src/drawer/EnhancedDrawer"
 import {EnhancedModal} from "../../src/components/EnhancedModal"
+import {EnhancedDrawer} from "../../src/drawer/EnhancedDrawer"
 
 /**
- * `EnhancedDrawer` is an antd-`Drawer`-compatible facade, and three of the antd props its own
+ * `EnhancedDrawer` is an antd-`Drawer`-compatible facade, and two of the antd props its own
  * docstring listed as "deferred (rare / unused)" were in fact passed by real call-sites and
  * silently dropped — declared in the props interface, never destructured, with no `...rest` to
  * carry them:
  *
- *   - `closeOnLayoutClick={false}` (13 call-sites) — every one of those drawers dismissed on a
- *     stray outside click despite asking not to, losing typed input on the form ones.
  *   - `closeIcon={null}` (`TestcaseDrawer`) — a drawer that asked for NO close button rendered one.
  *   - `classNames={{body}}` (`VirtualizedScenarioTableAnnotateDrawer`) — cancelled body padding
  *     stayed.
  *
- * The outside-click one was verified against the deployed build (prod closes, this build stays
- * open). The other two are pinned here instead: both need a drawer that is several steps of test
- * data away in the app, and a render assertion is the durable check anyway — a facade claiming
- * antd parity should prove it, not assert it in a comment.
+ * Both need a drawer that is several steps of test data away in the app, and a render assertion is
+ * the durable check anyway — a facade claiming antd parity should prove it, not assert it in a
+ * comment.
+ *
+ * A third prop, `closeOnLayoutClick`, was ALSO read at one point — as "suppress outside-click
+ * dismissal". That inverted its antd-era meaning (an ADDITIVE `.ant-layout` click listener for
+ * maskless drawers; antd's `maskClosable` still dismissed on a backdrop click either way) and left
+ * the ~18 drawers that pass `closeOnLayoutClick={false}` closable only via the X. The outside-click
+ * suite below pins the restored behaviour on both the drawer and the modal.
  */
 
 afterEach(cleanup)
@@ -83,6 +86,84 @@ describe("EnhancedDrawer antd prop parity", () => {
             .querySelector("[data-slot=drawer-body]") as HTMLElement
         expect(body.className).toContain("cls")
         expect(body.style.padding).toBe("0px")
+    })
+})
+
+/**
+ * Outside-click dismissal. antd semantics: `maskClosable` (default `true`) is the ONLY switch;
+ * `closeOnLayoutClick` never took dismissal away and must not here either.
+ */
+async function pointerDownOutside() {
+    // Radix's dismissable layer registers its document listener in a setTimeout(0).
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    await act(async () => {
+        // The full primary-button sequence, not just the pointerdown: Radix defers a
+        // left-button dismissal to the following `click`, so a lone pointerdown never fires it.
+        // jsdom has no PointerEvent constructor either; Radix reads only `pointerType` (undefined
+        // here = the non-touch path a mouse takes in a browser), so MouseEvent stands in.
+        for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+            document.body.dispatchEvent(new MouseEvent(type, {bubbles: true, button: 0}))
+        }
+    })
+}
+
+describe("EnhancedDrawer outside-click dismissal", () => {
+    it("closes on an outside click by default", async () => {
+        const onClose = vi.fn()
+        render(<EnhancedDrawer {...open} onClose={onClose} />)
+        await pointerDownOutside()
+        expect(onClose).toHaveBeenCalled()
+    })
+
+    it("still closes when the legacy closeOnLayoutClick={false} is passed", async () => {
+        const onClose = vi.fn()
+        render(<EnhancedDrawer {...open} closeOnLayoutClick={false} onClose={onClose} />)
+        await pointerDownOutside()
+        expect(onClose).toHaveBeenCalled()
+    })
+
+    it("maskClosable={false} is the switch that suppresses it", async () => {
+        const onClose = vi.fn()
+        render(<EnhancedDrawer {...open} maskClosable={false} onClose={onClose} />)
+        await pointerDownOutside()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it("maskClosable={false} wins even next to closeOnLayoutClick", async () => {
+        const onClose = vi.fn()
+        render(
+            <EnhancedDrawer {...open} closeOnLayoutClick maskClosable={false} onClose={onClose} />,
+        )
+        await pointerDownOutside()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+})
+
+/** The modal was never affected — it has no `closeOnLayoutClick` — but the question "does the
+ * modal do this too?" is worth an answer that stays true. */
+describe("EnhancedModal outside-click dismissal", () => {
+    it("closes on an outside click by default", async () => {
+        const onCancel = vi.fn()
+        render(
+            <EnhancedModal open title="t" onCancel={onCancel}>
+                <div>body</div>
+            </EnhancedModal>,
+        )
+        await pointerDownOutside()
+        expect(onCancel).toHaveBeenCalled()
+    })
+
+    it("maskClosable={false} suppresses it", async () => {
+        const onCancel = vi.fn()
+        render(
+            <EnhancedModal open title="t" maskClosable={false} onCancel={onCancel}>
+                <div>body</div>
+            </EnhancedModal>,
+        )
+        await pointerDownOutside()
+        expect(onCancel).not.toHaveBeenCalled()
     })
 })
 

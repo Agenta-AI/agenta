@@ -8,8 +8,8 @@
  * below; 0 antd type/runtime dependency) that mirrors the antd props call-sites pass.
  *
  * Covered: open · onClose · title · footer · extra · placement→side · width/height · closable ·
- * maskClosable · keyboard(Esc) · afterOpenChange · styles(body/header/footer) · className/rootClassName ·
- * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click).
+ * maskClosable (outside-click dismissal) · keyboard(Esc) · afterOpenChange · styles(body/header/footer) ·
+ * className/rootClassName · zIndex · getContainer · destroyOnClose/Hidden (lazy).
  * `closeIcon={null}` hides the close button; a custom NODE is not rendered yet (no call-site
  * passes one). Still deferred: `mask={false}` (Radix always renders the overlay), `push`,
  * `loading` — verify against real call-sites before calling any of them unused, since this list
@@ -108,8 +108,12 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
-    /** `false` SUPPRESSES outside-click dismissal (antd `Drawer`'s meaning). Overrides
-     * `maskClosable` when both are given. */
+    /**
+     * Legacy antd-era prop, accepted so the ~18 call-sites passing it still type-check, but INERT.
+     * It was never a suppression switch: it ADDED a `.ant-layout` click listener for maskless
+     * drawers while antd's `maskClosable` (default true) went on dismissing on a backdrop click.
+     * Radix already dismisses on any outside pointerdown. Use `maskClosable={false}` to suppress.
+     */
     closeOnLayoutClick?: boolean
 }
 
@@ -135,7 +139,6 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         size,
         closable = true,
         maskClosable = true,
-        closeOnLayoutClick,
         keyboard = true,
         zIndex,
         getContainer,
@@ -199,10 +202,8 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     if (!shouldRender) return null
 
     const side = placement as "top" | "right" | "bottom" | "left"
-    // 13 drawers pass `closeOnLayoutClick={false}` and no `maskClosable`, so reading only the
-    // latter dismissed every one of them on a stray outside click — losing typed input on the form
-    // ones. Explicit `closeOnLayoutClick` wins; otherwise fall back to antd's `maskClosable`.
-    const dismissOnOutside = closeOnLayoutClick ?? maskClosable
+    // antd semantics: `maskClosable` alone governs this. `closeOnLayoutClick` is inert (see its prop doc).
+    const dismissOnOutside = maskClosable
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.
     // antd `size`: "default"=378, "large"=736; a number is treated as px (antd v6 behaviour).

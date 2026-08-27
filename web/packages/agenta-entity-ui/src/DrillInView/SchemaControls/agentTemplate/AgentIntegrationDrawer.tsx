@@ -7,8 +7,9 @@
  * "add the action as a tool" leaf. No bespoke catalog UI here.
  *
  * Built on the shared `EnhancedDrawer` (like every other agent-playground drawer): an intent-based
- * header, `closeOnLayoutClick={false}` so an accidental backdrop click mid-connect never drops the
- * flow, and a footer whose count reflects the app tools added so far + a Done exit.
+ * header and a footer whose count reflects the app tools added so far + a Done exit. The legacy
+ * `closeOnLayoutClick={false}` it passes is inert — a backdrop click dismisses this drawer, as it
+ * did under antd; `maskClosable={false}` is what would hold the flow open mid-connect.
  */
 import {useCallback, useState} from "react"
 
