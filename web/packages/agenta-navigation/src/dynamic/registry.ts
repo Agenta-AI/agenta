@@ -125,9 +125,16 @@ const ENTITIES: SidebarEntity[] = [
                           ? "text-[var(--ag-run-status-warning)]"
                           : undefined,
                   }),
+        // The label alone cannot say WHICH agent a session belongs to (#5945), and the heading
+        // only says it under agent grouping. Falls back to the full name when no agent resolves.
+        getTooltip: (session) => {
+            const name = session.name?.trim() || "Untitled session"
+            const agent = session.agentName?.trim()
+            return agent ? `${name} — ${agent}` : undefined
+        },
         emptyLabel: "No sessions",
-        // Grouped by owning agent, with the same headings and filters the mobile rail uses —
-        // one model, two hosts. The row menu stays mobile-only for now.
+        // Grouped by owning agent, with the same headings, filters and row menu the mobile rail
+        // uses — one model, two hosts.
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
