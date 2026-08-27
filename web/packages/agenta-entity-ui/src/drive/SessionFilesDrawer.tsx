@@ -38,20 +38,32 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
 /**
  * The presented drive path a quick-look request selects by. Openers pass whatever they hold: a drive
  * path (a recents row), or a raw TOOL path — sandbox-absolute — from an in-thread file card or a
- * chat file link. So match the drive's recents by tail first, and when the request names nothing
- * there, strip the sandbox workspace root instead of handing the explorer an absolute path it would
- * browse as a folder INSIDE the mount: `<mount>/tmp/agenta/mounts/…`, always empty (#6270).
+ * chat file link. An absolute one must not reach the explorer, which would browse it as a folder
+ * INSIDE the mount: `<mount>/tmp/agenta/mounts/…`, always empty (#6270).
+ *
+ * An ABSOLUTE request names exactly one drive path, so it is derived rather than tail-matched. A
+ * tail match is too loose here: a row for a different file sharing the basename sits at the tail of
+ * the request too (`…/src/a.md` ends with `/a.md`), and the recency sort would decide which won.
+ * Only a RELATIVE request — already a drive path, or a tail a caller kept — still matches by tail.
  *
  * Shared with SessionFilesPane, the docked variant of this host — the two must resolve alike.
  */
 export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
-    const hit = recents.find((f) => matchesTail(f.path, requested))
-    if (hit) return hit.path
     const resolved = drivePathFromToolPath(requested)
-    if (!resolved) return requested
-    // The agent mount is presented folded under `agent-files/`; a drive that IS the agent mount
-    // unfolds that prefix again in `resolveMount`, so this is right either way.
-    return resolved.origin === "agent" ? `${AGENT_FILES_DIR}/${resolved.path}` : resolved.path
+    if (requested.startsWith("/")) {
+        if (!resolved) return requested
+        // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
+        // agent mount, which presents it at the root. Try both spellings, then fall back to the
+        // folded one — `resolveMount` unfolds it again, so it resolves either way.
+        const folded =
+            resolved.origin === "agent" ? `${AGENT_FILES_DIR}/${resolved.path}` : resolved.path
+        return (
+            recents.find((f) => f.path === folded)?.path ??
+            recents.find((f) => f.path === resolved.path)?.path ??
+            folded
+        )
+    }
+    return recents.find((f) => matchesTail(f.path, requested))?.path ?? resolved?.path ?? requested
 }
 
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {

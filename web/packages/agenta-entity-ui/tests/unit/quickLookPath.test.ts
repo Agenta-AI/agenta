@@ -20,6 +20,19 @@ describe("resolveQuickLookPath", () => {
         expect(resolveQuickLookPath(recents, "notes/a.md")).toBe("notes/a.md")
     })
 
+    // An absolute tool path names exactly ONE drive path, so a tail match is too loose: a row for
+    // a DIFFERENT file that happens to share the basename sits at the tail of the request too, and
+    // whichever the recency sort put first would win.
+    it("does not let a shorter row win on a shared basename", () => {
+        const colliding = [{path: "a.md"}, {path: "src/a.md"}]
+        expect(resolveQuickLookPath(colliding, "/tmp/agenta/mounts/p/m/src/a.md")).toBe("src/a.md")
+        // Order must not decide it.
+        expect(
+            resolveQuickLookPath([...colliding].reverse(), "/tmp/agenta/mounts/p/m/src/a.md"),
+        ).toBe("src/a.md")
+        expect(resolveQuickLookPath(colliding, "/tmp/agenta/mounts/p/m/a.md")).toBe("a.md")
+    })
+
     it("strips the sandbox root when the request matches no recents row", () => {
         expect(resolveQuickLookPath(recents, "/tmp/agenta/mounts/p/m/deep/report.json")).toBe(
             "deep/report.json",
