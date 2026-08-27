@@ -30,6 +30,7 @@ import {
     Circle,
     HelpCircle,
     LoaderCircle,
+    Zap,
     Github,
     House,
     MessagesSquare,
@@ -64,16 +65,25 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Amber for a session blocked on you. `--ag-run-status-warning` rather than
         // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
         // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) =>
-            session.running
-                ? createElement(LoaderCircle, {size: 12, className: "animate-spin"})
-                : createElement(Circle, {
-                      size: 8,
-                      fill: session.waiting || session.alive ? "currentColor" : "none",
-                      className: session.waiting
-                          ? "text-[var(--ag-run-status-warning)]"
-                          : undefined,
-                  }),
+        getIcon: (session) => {
+            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
+            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
+            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
+            if (session.running)
+                return createElement(LoaderCircle, {size: 12, className: "animate-spin"})
+            if (session.isAutomation)
+                return createElement(Zap, {
+                    size: 12,
+                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
+                    fill: session.waiting || session.alive ? "currentColor" : "none",
+                    className: amber,
+                })
+            return createElement(Circle, {
+                size: 8,
+                fill: session.waiting || session.alive ? "currentColor" : "none",
+                className: amber,
+            })
+        },
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),

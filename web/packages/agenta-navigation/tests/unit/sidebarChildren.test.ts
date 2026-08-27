@@ -209,6 +209,7 @@ describe("sidebarSessionGroup", () => {
         pinned: false,
         alive: false,
         running: false,
+        isAutomation: false,
         archived: false,
         ...over,
     })
@@ -391,6 +392,7 @@ describe("localSessionRefsMatching", () => {
         pinned: false,
         alive: false,
         running: false,
+        isAutomation: false,
         archived: false,
         ...over,
     })

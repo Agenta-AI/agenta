@@ -5,7 +5,7 @@ import {
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
-import {ChatsCircleIcon, CircleIcon, CircleNotchIcon} from "@phosphor-icons/react"
+import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
@@ -117,16 +117,25 @@ const ENTITIES: SidebarEntity[] = [
         // light step is a muddy #8a6400 that reads as disabled at this size.
         // Every row gets the same status dot, pinned included: the Pinned heading already says a
         // row is pinned, and a pin glyph in its place hid whether that session was waiting on you.
-        getIcon: (session) =>
-            session.running
-                ? createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
-                : createElement(CircleIcon, {
-                      size: 10,
-                      weight: session.waiting || session.alive ? "fill" : "regular",
-                      className: session.waiting
-                          ? "text-[var(--ag-run-status-warning)]"
-                          : undefined,
-                  }),
+        getIcon: (session) => {
+            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
+            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
+            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
+            if (session.running)
+                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+            if (session.isAutomation)
+                return createElement(LightningIcon, {
+                    size: 12,
+                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
+                    weight: session.waiting || session.alive ? "fill" : "regular",
+                    className: amber,
+                })
+            return createElement(CircleIcon, {
+                size: 10,
+                weight: session.waiting || session.alive ? "fill" : "regular",
+                className: amber,
+            })
+        },
         // The label alone cannot say WHICH agent a session belongs to (#5945), and the heading
         // only says it under agent grouping. Falls back to the full name when no agent resolves.
         getTooltip: (session) => {

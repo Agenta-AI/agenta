@@ -4,7 +4,7 @@ import {
     appWorkflowsListQueryAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {sessionOpenTarget} from "@agenta/sessions/row"
+import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, type Getter} from "jotai"
@@ -41,6 +41,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     agentName?: string | null
     /** A turn is in flight — the row spins. Resolved for rendered rows only. */
     running: boolean
+    /** A trigger-originated run, not a human chat — the row carries the automation glyph. */
+    isAutomation: boolean
     /** A human gate is open on this session. Resolved for grouped scopes only. */
     waiting?: boolean
     /** Deliberately hidden. The row fades and its menu drops the verbs that make no sense. */
@@ -310,6 +312,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
         running: Boolean(row.flags?.is_running),
+        isAutomation: isAutomationSession(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
     }
 }
