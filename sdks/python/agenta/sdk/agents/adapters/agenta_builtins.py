@@ -990,6 +990,10 @@ _BUILD_STEP5_LEGACY = """\
    If the commit is denied or fails, earlier connections or triggers are not undone.
 """
 
+# NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
+# (`LIST_REPOSITORY_ISSUES`) as a named counter-example. A grep for banned action names in
+# the build-kit text will hit it and read as a regression; it is the fix. Check the role a
+# match plays before deleting it — removing this one deletes the warning, not the mistake.
 _BUILD_LOOP_TAIL = """\
 6. Verify with `test_run`. First warn the user that this is a real run: external write tools may
    perform their action if approved. Then call `test_run` with `inputs.messages` as a blunt
