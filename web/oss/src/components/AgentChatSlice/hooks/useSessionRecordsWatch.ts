@@ -19,12 +19,16 @@ export const useSessionRecordsWatch = ({
     sessionId,
     projectId,
     enabled,
+    onReady,
     onRecordsChanged,
     onInteractionChanged,
 }: {
     sessionId: string
     projectId?: string | null
     enabled: boolean
+    /** Fires on every connect — a tab activation, a return to the foreground. Separate from
+     * `onRecordsChanged` so it can skip a log the caller has just read (#6296). */
+    onReady: () => void
     onRecordsChanged: () => void
     onInteractionChanged: () => void
 }): void => {
@@ -34,7 +38,7 @@ export const useSessionRecordsWatch = ({
         enabled,
         refreshSession,
         on: {
-            ready: onRecordsChanged,
+            ready: onReady,
             "records-changed": onRecordsChanged,
             interaction: onInteractionChanged,
         },
