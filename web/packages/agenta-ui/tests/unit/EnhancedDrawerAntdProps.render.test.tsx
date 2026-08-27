@@ -22,8 +22,9 @@ import {EnhancedDrawer} from "../../src/drawer/EnhancedDrawer"
  * A third prop, `closeOnLayoutClick`, was ALSO read at one point — as "suppress outside-click
  * dismissal". That inverted its antd-era meaning (an ADDITIVE `.ant-layout` click listener for
  * maskless drawers; antd's `maskClosable` still dismissed on a backdrop click either way) and left
- * the ~18 drawers that pass `closeOnLayoutClick={false}` closable only via the X. The outside-click
- * suite below pins the restored behaviour on both the drawer and the modal.
+ * the ~19 drawers passing `closeOnLayoutClick={false}` closable only via the X. The prop is gone
+ * now — `maskClosable={false}` is the one opt-out — and the suite below pins that on drawer AND
+ * modal, so nothing reintroduces a second, inverted switch.
  */
 
 afterEach(cleanup)
@@ -90,8 +91,8 @@ describe("EnhancedDrawer antd prop parity", () => {
 })
 
 /**
- * Outside-click dismissal. antd semantics: `maskClosable` (default `true`) is the ONLY switch;
- * `closeOnLayoutClick` never took dismissal away and must not here either.
+ * Outside-click dismissal. antd semantics: `maskClosable` (default `true`) is the ONLY switch —
+ * opt out per drawer, never suppressed by a second prop.
  */
 async function pointerDownOutside() {
     // Radix's dismissable layer registers its document listener in a setTimeout(0).
@@ -117,31 +118,15 @@ describe("EnhancedDrawer outside-click dismissal", () => {
         expect(onClose).toHaveBeenCalled()
     })
 
-    it("still closes when the legacy closeOnLayoutClick={false} is passed", async () => {
-        const onClose = vi.fn()
-        render(<EnhancedDrawer {...open} closeOnLayoutClick={false} onClose={onClose} />)
-        await pointerDownOutside()
-        expect(onClose).toHaveBeenCalled()
-    })
-
     it("maskClosable={false} is the switch that suppresses it", async () => {
         const onClose = vi.fn()
         render(<EnhancedDrawer {...open} maskClosable={false} onClose={onClose} />)
         await pointerDownOutside()
         expect(onClose).not.toHaveBeenCalled()
     })
-
-    it("maskClosable={false} wins even next to closeOnLayoutClick", async () => {
-        const onClose = vi.fn()
-        render(
-            <EnhancedDrawer {...open} closeOnLayoutClick maskClosable={false} onClose={onClose} />,
-        )
-        await pointerDownOutside()
-        expect(onClose).not.toHaveBeenCalled()
-    })
 })
 
-/** The modal was never affected — it has no `closeOnLayoutClick` — but the question "does the
+/** The modal was never affected — it only ever read `maskClosable` — but the question "does the
  * modal do this too?" is worth an answer that stays true. */
 describe("EnhancedModal outside-click dismissal", () => {
     it("closes on an outside click by default", async () => {

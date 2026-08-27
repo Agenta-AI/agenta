@@ -13,7 +13,7 @@
  * `closeIcon={null}` hides the close button; a custom NODE is not rendered yet (no call-site
  * passes one). Still deferred: `mask={false}` (Radix always renders the overlay), `push`,
  * `loading` — verify against real call-sites before calling any of them unused, since this list
- * was wrong about `closeOnLayoutClick`, `closeIcon` AND `classNames`.
+ * was wrong about `closeIcon` AND `classNames`.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -108,13 +108,6 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
-    /**
-     * Legacy antd-era prop, accepted so the ~18 call-sites passing it still type-check, but INERT.
-     * It was never a suppression switch: it ADDED a `.ant-layout` click listener for maskless
-     * drawers while antd's `maskClosable` (default true) went on dismissing on a backdrop click.
-     * Radix already dismisses on any outside pointerdown. Use `maskClosable={false}` to suppress.
-     */
-    closeOnLayoutClick?: boolean
 }
 
 interface DrawerStyles {
@@ -202,7 +195,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     if (!shouldRender) return null
 
     const side = placement as "top" | "right" | "bottom" | "left"
-    // antd semantics: `maskClosable` alone governs this. `closeOnLayoutClick` is inert (see its prop doc).
+    // antd semantics: `maskClosable` (default true) alone governs outside-click dismissal.
     const dismissOnOutside = maskClosable
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.

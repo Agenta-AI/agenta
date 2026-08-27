@@ -95,8 +95,6 @@ export function InstructionsDrawer({
             onClose={onCancel}
             placement="right"
             width={920}
-            // Explicit Cancel/Save only — an outside click must not silently drop the draft.
-            closeOnLayoutClick={false}
             destroyOnClose
             title={
                 <div className="flex min-w-0 items-center gap-2">
