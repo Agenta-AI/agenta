@@ -15,18 +15,21 @@
  */
 
 /**
- * The resolution written onto the row. A gateway approval's id IS its tool call id — the runner
- * stamps the same composite `call_…|fc_…` onto `data.request.tool_call_id` — so it is both the join
- * key and echoed in the payload.
+ * The resolution written onto the row, in the shape the runner's read path expects.
  *
- * `outcome` and `approved` say the same thing twice on purpose: `outcome` matches the vocabulary the
- * client-tool rows already use, and the boolean leaves no room to misread a denial.
+ * `verdict` is the decision, exactly `"approved"` or `"denied"` — the runner reads this key and no
+ * other, so do not add a second spelling beside it. A gateway approval's id IS its tool call id
+ * (the runner stamps the same composite `call_…|fc_…` onto `data.request.tool_call_id`), which is
+ * how the answer finds the row; it is echoed here the way the client-tool rows echo theirs.
+ *
+ * The row is transitioned to `responded`, never `resolved`: `resolved` means the runner has
+ * consumed the decision, so writing it from here would make the approval look already-used and it
+ * would be dropped in silence.
  */
 export function approvalResolution(approvalId: string, approved: boolean): Record<string, unknown> {
     return {
         tool_call_id: approvalId,
-        outcome: approved ? "approved" : "denied",
-        approved,
+        verdict: approved ? "approved" : "denied",
     }
 }
 

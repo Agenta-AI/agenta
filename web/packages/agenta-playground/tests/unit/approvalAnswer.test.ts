@@ -16,20 +16,27 @@ import {
 } from "../../src/state/execution/approvalAnswer"
 
 describe("approvalResolution", () => {
-    it("carries the join key, the outcome, and the boolean for an approval", () => {
+    // The runner reads `verdict` and no other key, so these two assertions are the contract.
+    it("writes verdict exactly 'approved', with the join key", () => {
         expect(approvalResolution("call_a|fc_b", true)).toEqual({
             tool_call_id: "call_a|fc_b",
-            outcome: "approved",
-            approved: true,
+            verdict: "approved",
         })
     })
 
-    it("records a denial as denied, not merely as a missing approval", () => {
+    it("writes verdict exactly 'denied' — a denial is stated, not implied by omission", () => {
         expect(approvalResolution("call_a|fc_b", false)).toEqual({
             tool_call_id: "call_a|fc_b",
-            outcome: "denied",
-            approved: false,
+            verdict: "denied",
         })
+    })
+
+    it("carries no second spelling of the decision beside verdict", () => {
+        // A stray `approved`/`outcome` would give a future reader two candidate sources of truth.
+        expect(Object.keys(approvalResolution("call_a|fc_b", true)).sort()).toEqual([
+            "tool_call_id",
+            "verdict",
+        ])
     })
 
     it("echoes the approval id as the tool call id — they are the same value on the row", () => {
@@ -86,13 +93,13 @@ describe("the decision-time ordering, end to end", () => {
         const {written, action} = decide(true, "call_x|fc_y", true)
         expect(action).toBe("hold")
         // The answer is durable regardless of whether the resume can go out yet.
-        expect(written).toEqual({tool_call_id: "call_x|fc_y", outcome: "approved", approved: true})
+        expect(written).toEqual({tool_call_id: "call_x|fc_y", verdict: "approved"})
     })
 
     it("answers and dispatches together when the stream is already idle", () => {
         const {written, action} = decide(false, "call_x|fc_y", false)
         expect(action).toBe("dispatch")
-        expect(written.outcome).toBe("denied")
+        expect(written.verdict).toBe("denied")
     })
 
     it("a held gateway approval dispatches exactly once when the stream settles", () => {
