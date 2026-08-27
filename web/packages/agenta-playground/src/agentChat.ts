@@ -14,5 +14,11 @@ export {
     agentShouldResumeAfterApproval,
     type LiveAgentInteraction,
 } from "./state/execution/agentApprovalResume"
+export {
+    approvalResolution,
+    approvalResumeAction,
+    shouldDispatchHeldResume,
+    type ApprovalResumeMarker,
+} from "./state/execution/approvalAnswer"
 export {canReleaseQueuedMessage, isHitlPending} from "./state/execution/agentMessageQueue"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./state/execution/agentNegotiation"

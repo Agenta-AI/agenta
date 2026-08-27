@@ -368,6 +368,13 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./agentApprovalResume"
+// The durable half of an approval decision: the row resolution + the resume dispatch ordering.
+export {
+    approvalResolution,
+    approvalResumeAction,
+    shouldDispatchHeldResume,
+    type ApprovalResumeMarker,
+} from "./approvalAnswer"
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).

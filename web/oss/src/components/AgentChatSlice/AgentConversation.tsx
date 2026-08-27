@@ -128,6 +128,7 @@ const AgentConversation = ({
         handleStop,
         handleClientToolOutput,
         markLiveGate,
+        answerApproval,
         resumeOrphaned,
         isSeen,
         runningElsewhere,
@@ -336,7 +337,11 @@ const AgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean; message?: string}) => {
             markLiveGate({kind: "approval", id: args.id})
+            // The part flip keeps the transcript honest for this render; the DECISION goes to the
+            // interaction row, and `answerApproval` owns the resume dispatch. A gateway approval is
+            // answered mid-stream, so neither can be inferred from part state.
             addToolApprovalResponse({id: args.id, approved: args.approved})
+            answerApproval(args.id, args.approved)
             // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
             // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
             // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
@@ -348,7 +353,7 @@ const AgentConversation = ({
             const steer = args.message?.trim()
             if (!args.approved && steer) submit({text: steer})
         },
-        [addToolApprovalResponse, markLiveGate, submit],
+        [addToolApprovalResponse, answerApproval, markLiveGate, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the

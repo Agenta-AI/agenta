@@ -19,6 +19,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
     invalidateSessionListQueries,
     invalidateSessionLivenessQueries,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -27,7 +28,10 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
+    approvalResumeAction,
     buildAgentRequest,
+    shouldDispatchHeldResume,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -229,6 +233,9 @@ export const useAgentConversation = ({
     // `null` means "explicitly voided, never resume" (a stop); `undefined` means "no live marker",
     // which falls back to the predicate's tail heuristics.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
+    // A resume the stream was too busy to take; the effect below sends it once the stream settles.
+    const heldApprovalResumeRef = useRef(false)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
     const {
         messages,
@@ -462,13 +469,46 @@ export const useAgentConversation = ({
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision
     // made in THIS mount marks the resume as live — a restored approval-requested tail the user
     // answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.
+    const dispatchApprovalResume = useCallback(() => {
+        // Consume the marker so the SDK's own evaluation can't send a second request for this gate.
+        liveGateInteractionRef.current = null
+        void sendMessage().catch(ignoreStreamRejection)
+    }, [sendMessage])
+
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
+            // The part flip keeps this render honest; the DECISION goes to the interaction row. A
+            // gateway approval is answered mid-stream, so the flip can be discarded by a re-seed
+            // before anything acts on it, and the runner reads the resolved row at turn start.
             addToolApprovalResponse(args)
+            void recordInteractionAnswer({
+                sessionId,
+                toolCallId: args.id,
+                resolution: approvalResolution(args.id, args.approved),
+            })
+            if (approvalResumeAction(busyRef.current) === "hold") {
+                heldApprovalResumeRef.current = true
+                return
+            }
+            dispatchApprovalResume()
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, dispatchApprovalResume, recordInteractionAnswer, sessionId],
     )
+
+    // The held resume goes out the moment the stream stops being busy — not on part state, which a
+    // re-seed can revert first.
+    useEffect(() => {
+        if (busy || !heldApprovalResumeRef.current) return
+        const dispatch = shouldDispatchHeldResume({
+            busy,
+            held: true,
+            marker: liveGateInteractionRef.current,
+        })
+        // Settled either way: a marker the SDK already consumed must not re-arm on a later turn.
+        heldApprovalResumeRef.current = false
+        if (dispatch) dispatchApprovalResume()
+    }, [busy, dispatchApprovalResume])
 
     // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
     // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather

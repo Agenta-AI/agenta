@@ -31,9 +31,12 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
+    approvalResumeAction,
     buildAgentRequest,
     buildTurnCapture,
     playgroundController,
+    shouldDispatchHeldResume,
     type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
@@ -246,6 +249,51 @@ export const useAgentChatSession = ({
     const markLiveGate = useCallback((interaction: LiveAgentInteraction) => {
         liveGateInteractionRef.current = interaction
     }, [])
+
+    // A resume the stream was too busy to take; the effect below sends it once the stream settles.
+    const heldApprovalResumeRef = useRef(false)
+
+    const dispatchApprovalResume = useCallback(() => {
+        // Consume the marker so the SDK's own evaluation can't send a second request for this gate.
+        liveGateInteractionRef.current = null
+        void sendMessage().catch(ignoreStreamRejection)
+    }, [sendMessage])
+
+    /**
+     * Answer an approval durably, then resume. The row is the source of truth: a gateway approval is
+     * answered while the run stream is open, so the part flip can be discarded by a re-seed before
+     * anything acts on it. The runner reads the resolved row at turn start instead.
+     */
+    const answerApproval = useCallback(
+        (approvalId: string, approved: boolean) => {
+            // Best-effort by the atom's contract; the resume must not wait on the write.
+            void recordInteractionAnswer({
+                sessionId,
+                toolCallId: approvalId,
+                resolution: approvalResolution(approvalId, approved),
+            })
+            if (approvalResumeAction(busyRef.current) === "hold") {
+                heldApprovalResumeRef.current = true
+                return
+            }
+            dispatchApprovalResume()
+        },
+        [dispatchApprovalResume, recordInteractionAnswer, sessionId],
+    )
+
+    // The held resume goes out the moment the stream stops being busy — not on part state, which a
+    // re-seed can revert first.
+    useEffect(() => {
+        if (busy || !heldApprovalResumeRef.current) return
+        const dispatch = shouldDispatchHeldResume({
+            busy,
+            held: true,
+            marker: liveGateInteractionRef.current,
+        })
+        // Settled either way: a marker the SDK already consumed must not re-arm on a later turn.
+        heldApprovalResumeRef.current = false
+        if (dispatch) dispatchApprovalResume()
+    }, [busy, dispatchApprovalResume])
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
@@ -504,6 +552,7 @@ export const useAgentChatSession = ({
         handleStop,
         handleClientToolOutput,
         markLiveGate,
+        answerApproval,
         resumeOrphaned,
         isSeen,
     }
