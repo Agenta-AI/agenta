@@ -37,17 +37,17 @@ const render = () =>
 describe("the auto-approve row", () => {
     it("appears for a tool whose permission can actually be granted", () => {
         grantState.eligible = true
-        expect(render()).toContain("Auto-approve this tool")
+        expect(render()).toContain("Always auto-approve")
     })
 
     it("stays hidden for an ineligible gate (platform ops like commit_revision)", () => {
-        expect(render()).not.toContain("Auto-approve this tool")
+        expect(render()).not.toContain("Always auto-approve")
     })
 
     it("stays hidden once the tool is already allowed — the row would be a no-op", () => {
         grantState.eligible = true
         grantState.alreadyAllowed = true
-        expect(render()).not.toContain("Auto-approve this tool")
+        expect(render()).not.toContain("Always auto-approve")
     })
 
     // The label forwards a click on the wording to the nested Radix <button>. Pinned because a
@@ -70,7 +70,7 @@ describe("the auto-approve row", () => {
 
         const box = host.querySelector('[role="checkbox"]')!
         const wording = [...host.querySelectorAll("span")].find(
-            (node) => node.textContent === "Auto-approve this tool from now on",
+            (node) => node.textContent === "Always auto-approve",
         )!
         expect(box.getAttribute("data-state")).toBe("unchecked")
 

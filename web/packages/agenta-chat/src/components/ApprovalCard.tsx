@@ -71,7 +71,6 @@ export const ApprovalCard = ({
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
     const alwaysAllowId = useId()
     const alwaysAllowLabelId = `${alwaysAllowId}-label`
-    const alwaysAllowHintId = `${alwaysAllowId}-hint`
     // Which button fired, so the spinner lands on it (the hosts only report "busy").
     const [firedAction, setFiredAction] = useState<"approve" | "deny" | null>(null)
     const [steerOpen, setSteerOpen] = useState(false)
@@ -249,37 +248,22 @@ export const ApprovalCard = ({
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
             <HeightCollapse className="-mt-1" open={!steerOpen} fade inert>
-                <div className="flex flex-col gap-2">
-                    {/* Own row, not inline with the buttons: the grant needs two lines to say
-                        both halves — it approves automatically AND stops asking. */}
+                {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
+                    instead of shoving Approve off a narrow screen. */}
+                <div className="flex flex-wrap items-center gap-2">
                     {canAlwaysAllow ? (
-                        <label className="flex cursor-pointer items-start gap-2 self-start">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
                             <Checkbox
                                 checked={alwaysAllowArmed}
                                 disabled={responding}
                                 onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
                                 aria-labelledby={alwaysAllowLabelId}
-                                aria-describedby={alwaysAllowHintId}
-                                className="mt-px shrink-0"
+                                className="shrink-0"
                             />
-                            <span className="flex flex-col gap-0.5">
-                                <span
-                                    id={alwaysAllowLabelId}
-                                    className="text-xs leading-snug text-colorText"
-                                >
-                                    Auto-approve this tool from now on
-                                </span>
-                                <span
-                                    id={alwaysAllowHintId}
-                                    className="text-[11px] leading-snug text-colorTextSecondary"
-                                >
-                                    This agent runs it without asking, on this run and every future
-                                    one.
-                                </span>
-                            </span>
+                            <span id={alwaysAllowLabelId}>Always auto-approve</span>
                         </label>
                     ) : null}
-                    <div className="flex items-center gap-1.5 self-end">
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
                         {steerEnabled ? (
                             <Button
                                 variant="ghost"
