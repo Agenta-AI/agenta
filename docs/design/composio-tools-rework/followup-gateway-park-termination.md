@@ -113,3 +113,31 @@ observed Pi's side.
   the SDK's late re-evaluation can still dispatch. That works with the *current* late-but-real
   stream close, which is another reason the naive fast-answer fix must not be re-applied without
   re-checking the client.
+
+## Related hazard: a gate can be dropped silently before the responder is attached
+
+Found while landing the durable-decision seed, and recorded here because the fix does not belong
+to that change.
+
+The session-lifetime `onPermissionRequest` registered in `acquireEnvironment` routes every gate
+into `env.currentTurn.onPermissionRequest`. That property is `undefined` from the start of
+`runTurn` until `attachPermissionResponder` wires it. A gate arriving in that span takes the
+between-turns branch in `session-events.ts` (`routePermissionRequestToActiveTurn`) and is answered
+**`reject` by policy** — so a legitimate gate becomes a refusal, and the user never sees a card for
+it. It is logged as a between-turns request, which is exactly what it does not look like.
+
+Nothing suspends there today, so it cannot happen. But that is an invariant held by luck: it is
+enforced only by two test files noticing the symptom, not by anything in the code. Adding a single
+unconditional `await` anywhere in the prefix reintroduces it, which is exactly what happened when
+the seed read was first placed inside `runTurn` — ten approval-gate tests failed with the gate
+never answered at all. The read now happens in the callers and arrives through
+`RunTurnOptions.seededDecisions`, and `runTurn` carries the invariant as a comment.
+
+Making it structural rather than incidental means queue-and-replay in the session-lifetime handler:
+hold gates that arrive with no `currentTurn` responder and deliver them once one attaches. Worth
+doing, and out of scope for a blocker fix.
+
+Related smell: there are six ways to reach `runTurn` (`server.ts` twice, `session-coordinator.ts`
+three times, `engine.ts` once). Six entry points is six chances for pre-turn setup to diverge —
+the seed read only stays uniform today because the three coordinator paths funnel through one
+adapter in `server.ts`. Consolidating them would make pre-turn work a single place to get right.

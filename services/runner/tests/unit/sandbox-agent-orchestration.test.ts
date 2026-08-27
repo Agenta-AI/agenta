@@ -219,6 +219,10 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
       assert.deepEqual(refreshRequests, [
         {
+          url: "https://api.agenta.test/api/sessions/interactions/query",
+          authorization: "Secret initial",
+        },
+        {
           url: "https://api.agenta.test/api/access/permissions/check?action=run_service&resource_type=service",
           authorization: "Secret initial",
         },
@@ -1978,7 +1982,11 @@ describe("runSandboxAgent orchestration", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_url: string, init?: RequestInit) => {
-        exported.push([...(init?.body as Buffer)]);
+        // Exports carry a binary body; other runner traffic (the pre-turn interactions read)
+        // sends JSON strings and is not what this test collects.
+        if (init?.body && typeof init.body !== "string") {
+          exported.push([...(init.body as Buffer)]);
+        }
         return new Response(null, { status: 200 });
       }),
     );
