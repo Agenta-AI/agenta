@@ -93,8 +93,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     }>
     /** Toggles a heading's collapse state. */
     toggleGroupAtom?: WritableAtom<string[], [string], void>
-    /** `ref.id -> last used, in ms`. Rows carrying a rank lead, newest first; the rest keep the
-     * source's order behind them. For a catalog whose own order reads as random. */
+    /** `ref.id -> last used, in ms`. Ranked rows lead newest-first; the rest keep source order. */
     ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
 
