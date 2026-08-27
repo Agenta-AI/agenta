@@ -47,14 +47,15 @@ export const useSessionActions = () => {
             rename: ({sessionId, appId}, title) => {
                 if (appId) store.set(renameSessionAtomFamily(appId), {id: sessionId, title})
             },
+            // RETURNED, not just fired: these atoms hand back their server call so the shared
+            // verb can await it before revalidating the lists.
             setArchived: ({sessionId, appId, archived}) => {
                 if (!appId) return
                 const local = archived ? unarchiveSessionAtomFamily : archiveSessionAtomFamily
-                store.set(local(appId), sessionId)
+                return store.set(local(appId), sessionId)
             },
-            remove: ({sessionId, appId}) => {
-                if (appId) store.set(deleteSessionAtomFamily(appId), sessionId)
-            },
+            remove: ({sessionId, appId}) =>
+                appId ? store.set(deleteSessionAtomFamily(appId), sessionId) : undefined,
         }),
         [store],
     )
