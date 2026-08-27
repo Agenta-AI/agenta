@@ -59,18 +59,19 @@ The entry never holds credentials, provider account IDs, tool schemas, or `read_
 Owner: the API, at `api/oss/src/core/tools/dtos.py`.
 Reader: the Python SDK compiler.
 
-The compiler needs two fields per catalog tool.
+The compiler needs three fields per catalog tool.
 
 ```json
-{"key": "GET_ISSUE", "read_only": true}
+{"key": "GET_ISSUE", "read_only": true, "execution_binding": "opaque:..."}
 ```
 
 | Field | Role | Rules |
 | --- | --- | --- |
 | `key` | Routing | The stable Agenta tool key. |
 | `read_only` | Data | `true` is a read. `false` is a write. Absent means unknown. |
+| `execution_binding` | Protocol context | Opaque binding to the immutable/versioned canonical provider action definition. |
 
-The SDK defines its own input model for these two fields. It must not import an API model.
+The SDK defines its own input model for these three fields. It must not import an API model.
 
 `read_only` keeps its existing snake_case spelling on the HTTP wire. It is already spelled
 that way on `ToolCatalogAction`.
@@ -95,9 +96,10 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
       "integration": "github",
       "connection": "github-work",
       "toolkit_version": "20250827_00",
+      "connection_binding": "opaque:...",
       "tools": [
-        {"key": "GET_ISSUE", "read_only": true},
-        {"key": "CREATE_ISSUE", "read_only": false}
+        {"key": "GET_ISSUE", "read_only": true, "execution_binding": "opaque:..."},
+        {"key": "CREATE_ISSUE", "read_only": false, "execution_binding": "opaque:..."}
       ]
     }
   ]
@@ -110,11 +112,16 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
 | `gateway_connections[].integration` | Routing | Echoed from the request entry. |
 | `gateway_connections[].connection` | Routing | The validated connection slug. |
 | `gateway_connections[].toolkit_version` | Execution context | The concrete toolkit version resolved from `latest` for this run. |
-| `gateway_connections[].tools` | Data | The whole catalog for that version, key and `read_only` only. Input schemas stay at the API. |
+| `gateway_connections[].connection_binding` | Protocol context | Opaque binding to the actual provider account instance represented by the connection. |
+| `gateway_connections[].tools` | Data | The whole catalog for that concrete version. Input schemas stay at the API. |
+| `gateway_connections[].tools[].key` | Routing | Stable Agenta tool key. |
+| `gateway_connections[].tools[].read_only` | Data | Catalog read-only classification. |
+| `gateway_connections[].tools[].execution_binding` | Protocol context | Opaque binding to the immutable/versioned canonical provider action definition. |
 
-The API validates the connection here, as it does for the per-tool arm today. It does not
-read `policy`. It returns the catalog slice so the SDK makes one round trip per integration
-instead of one per tool.
+The API validates the connection here, as it does for the per-tool arm today. It produces
+both bindings from the same versioned connection and catalog resources used by final
+execution. It does not read `policy`. It returns the catalog slice so the SDK makes one round
+trip per integration instead of one per tool.
 
 Only the whole-catalog cache that serves this response, `tools:catalog:all`, is keyed by
 toolkit version. It is the only cache a run reads and it holds entries for 24 hours, so an
@@ -192,15 +199,17 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 ```json
 {
   "gatewayPolicy": {
+    "version": 1,
     "integrations": {
       "github": {
         "provider": "composio",
         "connection": "github-work",
         "toolkitVersion": "20250827_00",
+        "connectionBinding": "opaque:...",
         "tools": {
-          "GET_ISSUE": {"permission": "allow", "readOnly": true},
-          "CREATE_ISSUE": {"permission": "ask", "readOnly": false},
-          "DELETE_REPOSITORY": {"permission": "deny", "readOnly": false}
+          "GET_ISSUE": {"permission": "allow", "readOnly": true, "executionBinding": "opaque:..."},
+          "CREATE_ISSUE": {"permission": "ask", "readOnly": false, "executionBinding": "opaque:..."},
+          "DELETE_REPOSITORY": {"permission": "deny", "readOnly": false, "executionBinding": "opaque:..."}
         }
       }
     }
@@ -210,12 +219,15 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 
 | Field | Role | Rules |
 | --- | --- | --- |
+| `version` | Protocol context | Exactly `1`. |
 | `integrations` | Policy and routing | Keyed by integration. Only configured integrations appear. |
 | `.provider` | Routing | Selects the provider adapter at the API. |
 | `.connection` | Routing | The selected connection slug. |
 | `.toolkitVersion` | Execution context | The concrete toolkit version. `latest` never crosses this boundary. |
+| `.connectionBinding` | Protocol context | Opaque binding to the actual provider account instance. |
 | `.tools[key].permission` | Policy | One of `allow`, `ask`, `deny`. Never `inherit`. |
 | `.tools[key].readOnly` | Data | `true`, `false`, or `null`. Carried for the approval card and for logs. |
+| `.tools[key].executionBinding` | Protocol context | Opaque binding to the immutable/versioned canonical provider action definition. |
 
 Input schemas are deliberately absent. They are large, the policy rides every run request,
 and the runner needs a schema only for the at most five results one search returns. The
@@ -276,7 +288,11 @@ The runner adds one new sibling to `data`. The name is `context`.
     "provider": "composio",
     "integration": "slack",
     "connection": "slack-main",
-    "tool": "SEND_MESSAGE"
+    "tool": "SEND_MESSAGE",
+    "toolkit_version": "20250827_00",
+    "connection_binding": "opaque:...",
+    "execution_binding": "opaque:...",
+    "gateway_call_generation": "sha256:..."
   }
 }
 ```
@@ -291,6 +307,9 @@ The runner adds one new sibling to `data`. The name is `context`.
 | `context.tool` | Protocol context | Trusted. Absent for `gateway.search`. |
 | `context.toolkit_version` | Execution context | The run's concrete version. `gateway.run` only. Never `latest`. |
 | `context.toolkit_versions` | Execution context | One concrete version per configured integration. `gateway.search` only, because one search can rank into several. |
+| `context.connection_binding` | Protocol context | Opaque binding to the actual provider account instance. Absent for `gateway.search`. |
+| `context.execution_binding` | Protocol context | Opaque binding to the canonical provider action definition and version. Absent for `gateway.search`. |
+| `context.gateway_call_generation` | Protocol context | Composite tools and gateway execution generation captured by the runner. |
 
 The two version fields differ because the two calls differ. A run names one tool, so it
 carries one version. A search ranks across every configured integration, so it carries the
@@ -303,6 +322,11 @@ incomplete. Do not fall back to a default connection.
 `ToolCall` does not forbid extra fields today, so an older API silently drops `context`. The
 new routes are new, so an older API returns a 400 for an unknown call reference instead of
 running with no connection. Keep it that way. Do not add a fallback path.
+
+The follow-up [active configuration refresh contract](../agent-configuration-live-refresh/contracts.md#7-gateway-execution-generation)
+extends this callback with immutable execution bindings and the composite approval generation.
+The API verifies and selects connection, credentials, and canonical action from one
+immutable/versioned resource snapshot before provider execution.
 
 ## 7. The search result
 
@@ -404,12 +428,17 @@ The result is one explicit type, not a bare mapping, because the caller needs tw
 
 ```python
 class CompiledGatewayPolicy(BaseModel):
-    tools: Dict[str, CompiledTool]   # executable, one of allow, ask, deny
+    tools: Dict[str, CompiledTool]   # permission, read_only, execution_binding
     stale_keys: List[str]            # configured keys absent from the catalog
 ```
 
 `tools` feeds the resolved policy in section 5. `stale_keys` feeds the resolver warnings and
 the authoring surface. A stale key never appears in `tools`.
+
+`CatalogToolInfo` contains `key`, `read_only`, and `execution_binding`. `CompiledTool`
+contains `permission`, `read_only`, and the same `execution_binding`; the pure compiler must
+preserve it byte-for-byte. The gateway resolver separately copies the connection-level
+`connection_binding` from the resolve response into the integration entry in `gatewayPolicy`.
 
 Order, for each catalog tool:
 

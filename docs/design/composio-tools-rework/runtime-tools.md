@@ -56,6 +56,7 @@ At run start, the SDK sends the runner the private resolved gateway policy descr
 - configured providers and integrations;
 - the selected connection slug for each integration;
 - the concrete toolkit version resolved for this run;
+- opaque provider-account and canonical-action bindings;
 - the catalog tool keys;
 - the compiled `allow`, `ask`, or `deny` value for each tool.
 
@@ -279,9 +280,16 @@ The runner applies the private resolved policy before making the execution callb
 4. Apply the compiled tool permission.
 5. Reject `deny`, continue on `allow`, or start a user approval interaction on `ask`.
 
-Approval identity includes the integration, tool key, and canonical arguments. The
-approval card shows the integration tool and the arguments, not only the coarse
-`run_tool` name.
+Approval identity includes the integration, tool key, canonical arguments, and composite
+gateway call generation. The approval card shows the integration tool and the arguments,
+not only the coarse `run_tool` name.
+
+Approval resume and callback dispatch also require that generation to equal the runner's
+currently installed composite generation. A tightening or binding invalidation cancels a
+parked call; only an authenticated API callback already dispatched may finish under the older
+generation. Callback dispatch is the runner's irreversible linearization point.
+Cold resume first resolves the bound variant's current committed head rather than trusting
+replayed effective parameters.
 
 The runner forwards exactly the arguments that were checked or approved. It does not
 silently rewrite malformed input.
@@ -289,17 +297,21 @@ silently rewrite malformed input.
 ### API execution
 
 After the runner allows the call, it sends the selected provider, integration, connection,
-and tool key as private callback context. Only the integration tool's arguments remain in
-the callback function arguments. The API:
+tool key, opaque connection and action bindings, and captured gateway call generation as
+private callback context. Only the integration tool's arguments remain in the callback
+function arguments. The API:
 
 1. Checks project-level `RUN_TOOLS` access.
-2. Resolves the project connection and checks that it is active and valid.
+2. Resolves the project connection and verifies that its opaque binding still identifies the
+   same active provider account instance.
 3. Confirms that the tool key belongs to the selected integration at the run's concrete
    toolkit version.
-4. Reads the canonical provider action ID from that version's catalog.
+4. Verifies the opaque action binding and reads the canonical provider action definition from
+   that version's catalog.
 5. Validates that `arguments` is an object. Invalid input returns an actionable error; it
    is never replaced with `{}`.
-6. Executes through the provider adapter with the selected connection and the same concrete
+6. Selects connection, credentials, and canonical action from one immutable/versioned
+   resource snapshot, then executes through the provider adapter with the same concrete
    toolkit version.
 
 The API validates resource identity and routing. It does not recompute the agent's

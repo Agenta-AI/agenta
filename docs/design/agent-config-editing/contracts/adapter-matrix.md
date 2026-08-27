@@ -3,6 +3,13 @@
 Status: proposed. This contract answers must-fix item 6 and answer section 3 of
 `research/design-gate-review-codex.md`.
 
+The later [active agent configuration refresh](../../agent-configuration-live-refresh/README.md)
+design separates installation from observation. Its asynchronous path may install a mutable
+runner or environment value without waiting for the harness to observe it. This document
+continues to govern claims that a harness observed a generation and the between-turn routes
+that depend on that claim. An unobserved asynchronous installation does not advance the whole
+applied fingerprint or suppress reconciliation on the next normal run.
+
 This contract corrects the matrix in `spikes/runner-spike.md` and in the runner block of
 `decisions.md`. The spike proved which mechanisms exist. It did not prove that a mechanism
 installs a new catalog. This contract adds the missing invariant and fixes four rows.
@@ -100,13 +107,15 @@ The runner splits tools into two objects that share one generation.
 | Object | Holds | Consumer |
 |---|---|---|
 | `ToolCatalogManifest` | Name, description, input schema, read-only hint, permission. Public metadata only. | The harness, through the shim or the extension. |
-| `ToolExecutionPlan` | Callback endpoint and authorization, call descriptors, context bindings, gateway references, timeouts, client-tool relay bindings. | The runner's relay and dispatch paths. |
+| `ToolExecutionPlan` | Stable call descriptors, context bindings, gateway references, timeouts, and client-tool relay bindings, combined at invocation time with callback endpoint and authorization. | The runner's relay and dispatch paths. |
 
 `services/runner/src/engines/sandbox_agent/tools/public-spec.ts` already separates public from
 private metadata. That is the seam to build on.
 
-Both objects carry `catalogGeneration`. The turn runner receives both as one unit, freshly built
-from the incoming request. It must not read either from `env.plan`.
+Both objects carry `catalogGeneration`. The active-configuration snapshot owns the stable
+manifest and execution descriptors. The turn runner combines those descriptors with callback
+delivery and run context from the incoming invocation envelope and receives both objects as one
+unit. It must not read either from `env.plan`.
 
 ### 2.4 The canonical generation payload
 
@@ -170,7 +179,7 @@ out.
 |---|---|
 | Callback authorization | It is per-turn credential material. It rotates on an ordinary turn. Including it would change the generation constantly and would invalidate every parked authorization for no security gain. |
 | Gateway or MCP credential values | Same reason. Credentials have their own subsystem and their own epoch comparison. |
-| The callback ENDPOINT | Borderline. It is routing, not a credential, and it is already in `configFingerprint`. An endpoint change today evicts the session, so it cannot silently change under a parked authorization. Revisit this if the endpoint ever leaves the fingerprint. |
+| The callback ENDPOINT | Per-invocation delivery. It remains in the legacy session-compatibility `configFingerprint`, so an endpoint change today evicts the session. It is excluded from the active-refresh design's stable `configuration.fingerprint`; that distinction must remain explicit until session identity migrates to facets. |
 | `runContext` values | Per-turn data. The BINDING PATHS are included; the values are not. |
 | Trace and telemetry identifiers | Per-turn. Never behavior. |
 | Tool ordering as delivered | The document sorts, so a reordered input does not churn the generation. |

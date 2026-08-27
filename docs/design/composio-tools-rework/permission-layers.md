@@ -89,12 +89,13 @@ each catalog tool:
 ```json
 {
   "key": "GET_ISSUE",
-  "read_only": true
+  "read_only": true,
+  "execution_binding": "opaque:..."
 }
 ```
 
-The catalog may carry additional fields for runtime discovery and execution. Permission
-compilation depends only on the stable Agenta tool key and the tri-state `read_only` hint:
+Permission decisions depend only on the stable Agenta tool key and tri-state `read_only` hint,
+but the compiler preserves the API-produced `execution_binding` byte-for-byte in its output:
 
 - `true`: a read operation;
 - `false`: a write operation;
@@ -108,11 +109,12 @@ operator `deny`.
 The compiler is a pure SDK function. Its inputs are:
 
 - one `gateway_connection` policy;
-- the integration's catalog tools and `read_only` hints;
+- the integration's catalog tools, `read_only` hints, and execution bindings;
 - the agent-wide runner permission mode.
 
-Its output contains only effective `allow`, `ask`, or `deny` values. `inherit` does not
-cross the service-to-runner boundary.
+Each output tool contains its effective `allow`, `ask`, or `deny` value, `read_only`, and
+unchanged execution binding. `inherit` does not cross the service-to-runner boundary. The
+resolver separately preserves the connection-level binding and concrete toolkit version.
 
 For each catalog tool, the compiler applies this order:
 
@@ -142,23 +144,28 @@ shape is:
 ```json
 {
   "gatewayPolicy": {
+    "version": 1,
     "integrations": {
       "github": {
         "provider": "composio",
         "connection": "github-work",
         "toolkitVersion": "20250827_00",
+        "connectionBinding": "opaque:...",
         "tools": {
           "GET_ISSUE": {
             "permission": "allow",
-            "readOnly": true
+            "readOnly": true,
+            "executionBinding": "opaque:..."
           },
           "CREATE_ISSUE": {
             "permission": "ask",
-            "readOnly": false
+            "readOnly": false,
+            "executionBinding": "opaque:..."
           },
           "DELETE_REPOSITORY": {
             "permission": "deny",
-            "readOnly": false
+            "readOnly": false,
+            "executionBinding": "opaque:..."
           }
         }
       }
@@ -213,8 +220,8 @@ The runner owns approval because it already owns the model turn and session life
 an `ask` call, it:
 
 1. Normalizes the call shape used for approval matching.
-2. Creates a `user_approval` interaction containing the integration, tool, and safe
-   representation of the arguments.
+2. Creates a `user_approval` interaction containing the integration, tool, safe
+   representation of the arguments, and composite gateway call generation.
 3. Records the pending interaction through the existing Sessions API.
 4. Pauses the turn.
 5. Resumes after the interaction answer arrives.
@@ -223,9 +230,21 @@ an `ask` call, it:
 The Tools API does not pause a run. The existing client-tool and approval machinery is
 extended in the runner for the semantic gateway-tool identity.
 
-Approval identity must include the integration and tool key in addition to the canonical
-arguments. Keying only on the coarse runtime tool name would mix unrelated integration
-tools.
+Approval identity must include the integration, tool key, canonical arguments, and composite
+gateway call generation. The generation binds the shared tools generation and gateway
+execution generation. Keying only on the coarse runtime tool name would mix unrelated
+integration tools, while omitting the generation would let routing or policy drift reuse an
+old approval.
+
+At resume and immediately before callback dispatch, the captured generation must still equal
+the runner's currently installed composite generation. Permission tightening, credential
+revocation, or binding invalidation cancels affected parked approvals. Only a provider request
+whose authenticated API callback was already dispatched before publication may finish under
+its prior generation. Callback dispatch is the runner's irreversible linearization point.
+
+For cold resume, the service resolves the bound variant's current committed head before
+durable decision lookup. Replayed effective parameters cannot establish the current
+generation; mismatch or resolution failure refuses the old approval.
 
 ## Operator override
 
@@ -251,8 +270,9 @@ The API changes for grouped gateway tools, but it does not become the permission
 
 The model supplies the integration, tool key, and arguments to the runner. After validating
 them against the resolved policy, the runner sends the selected provider, integration,
-connection, and tool as private callback context. Only the integration tool's arguments
-remain in the callback function arguments. A representative callback shape is:
+connection, tool, concrete toolkit version, opaque bindings, and captured generation as
+private callback context. Only the integration tool's arguments remain in the callback
+function arguments. A representative callback shape is:
 
 ```json
 {
@@ -271,7 +291,11 @@ remain in the callback function arguments. A representative callback shape is:
     "provider": "composio",
     "integration": "slack",
     "connection": "slack-main",
-    "tool": "SEND_MESSAGE"
+    "tool": "SEND_MESSAGE",
+    "toolkit_version": "20250827_00",
+    "connection_binding": "opaque:...",
+    "execution_binding": "opaque:...",
+    "gateway_call_generation": "sha256:..."
   }
 }
 ```
@@ -279,15 +303,18 @@ remain in the callback function arguments. A representative callback shape is:
 The API performs these checks at call time:
 
 1. The caller has project-level `RUN_TOOLS` access.
-2. The connection belongs to the project, provider, and integration.
+2. The connection belongs to the project, provider, and integration, and its opaque binding
+   identifies the same actual provider account instance.
 3. The connection is active and valid.
-4. The tool key exists in that integration's catalog.
-5. The catalog provides the canonical provider action ID. Execution never reconstructs
-   that ID with string concatenation.
+4. The tool key exists in that integration's concrete toolkit-version catalog.
+5. That catalog provides the canonical provider action definition matching the opaque
+   execution binding. Execution never reconstructs that ID with string concatenation.
 6. The arguments have the expected object shape.
 
-The API then executes through the existing provider adapter. These are resource, routing,
-and input-validity checks. They are not agent permission computation.
+The API reads and validates the connection, credentials, and canonical action from one
+immutable/versioned resource snapshot, then executes through the existing provider adapter.
+These are resource, routing, and input-validity checks. They are not agent permission
+computation.
 
 ## API changes
 
