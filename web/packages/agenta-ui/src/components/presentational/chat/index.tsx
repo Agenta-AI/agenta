@@ -134,9 +134,8 @@ export const turnToolbarRevealClass =
  * its gap (gap-3) — so the row lines up with the MESSAGE, not the avatar: `left-11` starts where
  * the response text does, `right-11` ends where the user bubble does.
  */
-/** The user turn's bubble geometry, tighter than the antd-x default it inherits: an 8px radius and
- * 12/8 padding, so a one-line message is not swimming in its own box. Geometry only — the desktop
- * adds its accent tint on top, because `--ag-user-bubble-*` is not bridged into /m's tokens. */
+/** The user turn's bubble geometry, tighter than the antd-x default it inherits. Geometry only:
+ * the tint stays on the desktop, since `--ag-user-bubble-*` is not bridged into /m's tokens. */
 export const userBubbleContentClass = "min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2"
 
 export const turnToolbarClass = "absolute bottom-0 z-10 flex items-center gap-1"
@@ -320,10 +319,8 @@ export const ChatJumpToLatest = ({
             aria-hidden={!show}
             aria-label="Jump to latest message"
             className={cn(
-                // `hover:bg-colorBgElevated` is load-bearing: the outline variant's hover fill is
-                // `rgba(255,255,255,0.04)` in dark mode, which would replace this opaque background
-                // and let streamed text read straight through the pill. Hover still reads via the
-                // variant's border and text colour.
+                // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
+                // in dark mode, which would let streamed text read through the pill.
                 "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 text-xs shadow-sm transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,

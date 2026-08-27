@@ -95,6 +95,9 @@ export const useVirtuosoTranscript = ({
     const virtRoRef = useRef<ResizeObserver | null>(null)
     // Teardown for the pill's scroll listener on the current scroller (Virtuoso swaps the node).
     const virtScrollCleanupRef = useRef<(() => void) | null>(null)
+    // The live scroller, so the measurement can run from effects too, not just its scroll listener.
+    const virtScrollerRef = useRef<HTMLElement | null>(null)
+    const virtShowJumpRafRef = useRef(0)
     // Newest turn id, in a ref so the pill measurement can read it from a listener bound once.
     // Load-bearing under windowing: scrolled far up on a settled thread the newest row is not
     // rendered, and measuring the last rendered one would under-report the distance.
@@ -106,55 +109,75 @@ export const useVirtuosoTranscript = ({
     // and any end-of-conversation clearance added below is off-screen by construction. If the
     // restored position is near the end, settle to TRUE bottom so the clearance is actually shown.
     const restoreClampedRef = useRef(false)
-    const setVirtScroller = useCallback((el: HTMLElement | Window | null) => {
-        virtRoRef.current?.disconnect()
-        virtScrollCleanupRef.current?.()
-        const node = el instanceof HTMLElement ? el : null
-        if (!node) return
-        setVirtViewportH(node.clientHeight)
-        const ro = new ResizeObserver(() => setVirtViewportH(node.clientHeight))
-        ro.observe(node)
-        virtRoRef.current = ro
-        // The pill needs a DISTANCE, and `atBottomStateChange` only reports a boolean against
-        // Virtuoso's own edge threshold — so measure the scroller ourselves, on the same shared
-        // rule the plain engine uses. Coalesced to one rAF, exactly like `scheduleShowJump`.
-        let raf = 0
-        // Cancel-and-reschedule, not early-return: an early return latches `raf` non-zero when a
-        // hidden tab never runs the frame, killing the pill permanently (see useTranscriptScroll).
-        const onScroll = () => {
-            if (raf) cancelAnimationFrame(raf)
-            raf = requestAnimationFrame(() => {
-                raf = 0
-                setShowJump(!virtFollowRef.current && shouldRevealJump(node, newestIdRef.current))
-            })
-        }
-        node.addEventListener("scroll", onScroll, {passive: true})
-        virtScrollCleanupRef.current = () => {
-            if (raf) cancelAnimationFrame(raf)
-            node.removeEventListener("scroll", onScroll)
-            virtScrollCleanupRef.current = null
-        }
-        if (!restoreClampedRef.current) {
-            restoreClampedRef.current = true
-            // Two frames: let Virtuoso apply the restored state / first measurement first.
-            requestAnimationFrame(() =>
-                requestAnimationFrame(() => {
-                    const gap = node.scrollHeight - node.scrollTop - node.clientHeight
-                    if (gap > 0 && gap < 320) {
-                        virtuosoRef.current?.scrollTo({top: 1e9, behavior: "auto"})
-                    }
-                }),
-            )
-        }
+    // `atBottomStateChange` only reports a boolean against Virtuoso's own edge threshold, so the
+    // pill measures the scroller itself on the shared rule. Cancel-and-reschedule, never
+    // early-return: a hidden tab that skips the frame would latch the handle and kill the pill.
+    const scheduleVirtShowJump = useCallback(() => {
+        if (virtShowJumpRafRef.current) cancelAnimationFrame(virtShowJumpRafRef.current)
+        virtShowJumpRafRef.current = requestAnimationFrame(() => {
+            virtShowJumpRafRef.current = 0
+            const node = virtScrollerRef.current
+            if (!node) return
+            setShowJump(!virtFollowRef.current && shouldRevealJump(node, newestIdRef.current))
+        })
     }, [])
+
+    const setVirtScroller = useCallback(
+        (el: HTMLElement | Window | null) => {
+            virtRoRef.current?.disconnect()
+            virtScrollCleanupRef.current?.()
+            const node = el instanceof HTMLElement ? el : null
+            if (!node) return
+            setVirtViewportH(node.clientHeight)
+            const ro = new ResizeObserver(() => setVirtViewportH(node.clientHeight))
+            ro.observe(node)
+            virtRoRef.current = ro
+            virtScrollerRef.current = node
+            node.addEventListener("scroll", scheduleVirtShowJump, {passive: true})
+            virtScrollCleanupRef.current = () => {
+                node.removeEventListener("scroll", scheduleVirtShowJump)
+                virtScrollCleanupRef.current = null
+            }
+            if (!restoreClampedRef.current) {
+                restoreClampedRef.current = true
+                // Two frames: let Virtuoso apply the restored state / first measurement first.
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => {
+                        const gap = node.scrollHeight - node.scrollTop - node.clientHeight
+                        if (gap > 0 && gap < 320) {
+                            virtuosoRef.current?.scrollTo({top: 1e9, behavior: "auto"})
+                        }
+                    }),
+                )
+            }
+        },
+        [scheduleVirtShowJump],
+    )
     useEffect(
         () => () => {
             virtRoRef.current?.disconnect()
             virtScrollCleanupRef.current?.()
+            if (virtShowJumpRafRef.current) cancelAnimationFrame(virtShowJumpRafRef.current)
             window.clearTimeout(virtSmoothTimerRef.current)
         },
         [],
     )
+
+    // Streamed growth in the Footer, and messages that land while the tab is hidden, move the
+    // newest turn without firing a scroll — re-measure on both, or the pill goes stale.
+    useEffect(() => {
+        if (!useVirtuoso) return
+        scheduleVirtShowJump()
+    }, [messages, status, scheduleVirtShowJump, useVirtuoso])
+
+    useEffect(() => {
+        if (!useVirtuoso) return
+        const onVisible = () => {
+            if (document.visibilityState === "visible") scheduleVirtShowJump()
+        }
+        document.addEventListener("visibilitychange", onVisible)
+        return () => document.removeEventListener("visibilitychange", onVisible)
+    }, [scheduleVirtShowJump, useVirtuoso])
     // SC-1/2 equivalent: on submit/restore (armBottomRef), re-arm follow to the bottom once Virtuoso has
     // mounted + measured (question-at-top emerges from the Footer's viewport reserve). A submit tracks
     // smoothly for a short window; a restore snaps. The follow effect above does the per-token scrolling.

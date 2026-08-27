@@ -101,10 +101,8 @@ export const useTranscriptScroll = ({
     // lag is invisible; the correctness-critical follow decision (stickRef) and the SC-3 anchor stay
     // synchronous in onScroll.
     const scheduleShowJump = useCallback(() => {
-        // Cancel-and-reschedule, NOT early-return-if-pending. A hidden tab never runs rAF, so an
-        // early return latches the handle non-zero forever and the pill dies for the life of the
-        // mount (observed: pill stuck hidden at any distance after the tab was backgrounded once).
-        // Still coalesced — at most one frame is ever queued.
+        // Cancel-and-reschedule, never early-return: a hidden tab skips the frame, and an early
+        // return would latch the handle non-zero and kill the pill for the life of the mount.
         if (showJumpRafRef.current) cancelAnimationFrame(showJumpRafRef.current)
         showJumpRafRef.current = requestAnimationFrame(() => {
             showJumpRafRef.current = 0
@@ -316,9 +314,7 @@ export const useTranscriptScroll = ({
         scheduleShowJump()
     }, [messages, status, scheduleShowJump, useVirtuoso])
 
-    // A hidden tab runs no rAF, so the frame queued by the last scroll before it was backgrounded
-    // resolves only on return — re-measure then, or a tab brought back with no further scrolling
-    // shows whatever the pill happened to be when it left.
+    // A hidden tab runs no rAF, so re-measure on return or the pill keeps its stale state.
     useEffect(() => {
         if (useVirtuoso) return
         const onVisible = () => {
