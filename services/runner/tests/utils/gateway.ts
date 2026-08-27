@@ -43,6 +43,7 @@ export const GATEWAY_POLICY: GatewayPolicy = {
     github: {
       provider: "composio",
       connection: "github-work",
+      toolkitVersion: "20250827_00",
       tools: {
         GET_ISSUE: { permission: "allow", readOnly: true },
         CREATE_ISSUE: { permission: "ask", readOnly: false },
@@ -53,6 +54,7 @@ export const GATEWAY_POLICY: GatewayPolicy = {
     slack: {
       provider: "composio",
       connection: "slack-main",
+      toolkitVersion: "20250827_00",
       tools: {
         SEND_MESSAGE: { permission: "ask", readOnly: false },
         // The same key as a github tool, under a different integration and permission.

@@ -76,6 +76,7 @@ export interface NormalizedGatewayTool {
 export interface NormalizedGatewayIntegration {
   provider: string;
   connection: string;
+  toolkitVersion: string;
   tools: Record<string, NormalizedGatewayTool>;
 }
 
@@ -168,7 +169,8 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
     if (!key || !isRecord(rawEntry)) continue;
     const provider = nonEmptyString(rawEntry.provider);
     const connection = nonEmptyString(rawEntry.connection);
-    if (!provider || !connection) continue;
+    const toolkitVersion = concreteToolkitVersion(rawEntry.toolkitVersion);
+    if (!provider || !connection || !toolkitVersion) continue;
 
     const tools = emptyMap<NormalizedGatewayTool>();
     if (isRecord(rawEntry.tools)) {
@@ -182,7 +184,7 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
       }
     }
     if (Object.keys(tools).length === 0) continue;
-    integrations[key] = { provider, connection, tools };
+    integrations[key] = { provider, connection, toolkitVersion, tools };
   }
   return branded;
 }
@@ -215,6 +217,13 @@ export interface GatewayCallContext {
   integration?: string;
   connection?: string;
   tool?: string;
+  toolkit_version?: string;
+  /**
+   * The pinned version of every integration this search can rank into, keyed by
+   * integration. Search ranks against the provider's CURRENT catalog, so the API needs
+   * the pin to answer each hit from the version this run will actually execute.
+   */
+  toolkit_versions?: Record<string, string>;
 }
 
 /** What `run_tool` was asked to do, once the shape has been checked. */
@@ -342,6 +351,7 @@ export function planGatewayRun(
       integration,
       connection: entry.connection,
       tool,
+      toolkit_version: entry.toolkitVersion,
     },
     display: `${integration}.${tool}`,
   };
@@ -392,17 +402,27 @@ export function planGatewaySearch(
     return {
       ok: true,
       arguments: { query, integration },
-      context: { provider: named.provider, integration },
+      context: {
+        provider: named.provider,
+        integration,
+        toolkit_versions: singleToolkitVersion(integration, named.toolkitVersion),
+      },
     };
   }
 
   // Unscoped search. V1 configures one provider, so the first entry's provider routes the call.
   const first = ownEntry(policy.integrations, configured[0]);
   if (!first) return { ok: false, reason: gatewayToolUnavailableText() };
+  // An unscoped search can rank into any configured integration, so every pin travels.
+  const toolkitVersions = emptyMap<string>();
+  for (const key of configured) {
+    const entry = ownEntry(policy.integrations, key);
+    if (entry) toolkitVersions[key] = entry.toolkitVersion;
+  }
   return {
     ok: true,
     arguments: { query },
-    context: { provider: first.provider },
+    context: { provider: first.provider, toolkit_versions: toolkitVersions },
   };
 }
 
@@ -761,7 +781,9 @@ export function keptToolTokenMap(
  * explicit non-object type is unusable, and so is a bare `{}` with neither a type nor
  * properties: both leave the model guessing at the argument shape.
  */
-function isUsableObjectSchema(schema: unknown): boolean {
+function isUsableObjectSchema(
+  schema: unknown,
+): schema is Record<string, unknown> {
   if (!isRecord(schema)) return false;
   if (schema.type !== undefined) return schema.type === "object";
   return isRecord(schema.properties);
@@ -771,6 +793,22 @@ function nonEmptyString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** A one-entry version map, prototype-free like every other map intake builds. */
+function singleToolkitVersion(
+  integration: string,
+  version: string,
+): Record<string, string> {
+  const map = emptyMap<string>();
+  map[integration] = version;
+  return map;
+}
+
+function concreteToolkitVersion(value: unknown): string | undefined {
+  const version = nonEmptyString(value);
+  if (!version || version.toLowerCase() === "latest") return undefined;
+  return version;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -235,6 +235,10 @@ read it when a revision carries one, never write a new one:
   `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
   agent-wide runner policy. The commit does not check that the slug exists, so a wrong one is
   caught only when the agent next runs, as a connection-not-found failure naming the slug.
+  To RESTRICT an integration the user already has, name the tools in the map rather than
+  lowering `default`: `{ "default": "allow", "tools": { "DELETE_REPOSITORY": "deny",
+  "CREATE_ISSUE": "ask" } }` keeps everything else usable while denying one tool and asking
+  before another. Only write a policy like that when the user asked for it.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":

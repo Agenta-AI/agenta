@@ -74,6 +74,7 @@ def _body():
             integration="github",
             connection=CONNECTION_SLUG,
             tool="GET_ISSUE",
+            toolkit_version="20250827_00",
         ),
     )
 

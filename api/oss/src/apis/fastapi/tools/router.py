@@ -1334,10 +1334,13 @@ class ToolsRouter:
         # Upstream 401 AdapterError (e.g. bad API key) → @handle_adapter_exceptions → 424.
         # Other adapter errors are treated as internal failures; unsuccessful tool
         # execution responses remain business-level errors → 200.
+        # The legacy reference carries no version, so it reads and runs on the mutable
+        # alias, as it always has. Only the gateway route pins a run to one version.
         execution_result = await self.tools_service.execute_tool(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version="latest",
             provider_connection_id=connection.provider_connection_id,
             user_id=user_id,
             arguments=arguments,
@@ -1449,10 +1452,13 @@ class ToolsRouter:
         this returns and rejects an integration the agent never configured.
         """
         context = body.context
-        if context is None or not context.provider:
+        if context is None or not context.provider or not context.toolkit_versions:
             raise HTTPException(
                 status_code=400,
-                detail="gateway.search requires a context carrying a provider.",
+                detail=(
+                    "gateway.search requires a context carrying a provider and a "
+                    "toolkit version for each configured integration."
+                ),
             )
 
         arguments = body.data.function.arguments
@@ -1486,6 +1492,7 @@ class ToolsRouter:
                 project_id=UUID(request.state.project_id),
                 provider_key=context.provider,
                 query=query.strip(),
+                toolkit_versions=context.toolkit_versions,
                 integration_key=integration.strip() if integration else None,
             )
         except AdapterError:
@@ -1523,12 +1530,13 @@ class ToolsRouter:
             and context.integration
             and context.connection
             and context.tool
+            and context.toolkit_version
         ):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "gateway.run requires a context carrying a provider, an "
-                    "integration, a connection, and a tool."
+                    "integration, a connection, a tool, and a toolkit version."
                 ),
             )
 
@@ -1549,6 +1557,7 @@ class ToolsRouter:
                 integration_key=context.integration,
                 connection_slug=context.connection,
                 tool_key=context.tool,
+                toolkit_version=context.toolkit_version,
                 arguments=arguments,
             )
         except ToolKeyNotFoundError as e:

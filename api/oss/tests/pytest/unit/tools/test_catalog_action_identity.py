@@ -65,12 +65,18 @@ class FakeProvider:
         self.execute_calls: List = []
 
     async def list_all_actions(
-        self, *, integration_key: str
+        self, *, integration_key: str, toolkit_version: Optional[str] = None
     ) -> List[ToolCatalogAction]:
         self.crawl_calls.append(integration_key)
         return self.catalogs[integration_key]
 
-    async def get_action(self, *, action_key: str, provider_action_id: str):
+    async def get_action(
+        self,
+        *,
+        action_key: str,
+        provider_action_id: str,
+        toolkit_version: Optional[str] = None,
+    ):
         self.get_calls.append(
             dict(action_key=action_key, provider_action_id=provider_action_id)
         )
@@ -165,6 +171,7 @@ async def test_execute_reads_the_id_from_the_catalog(monkeypatch):
         provider_key="composio",
         integration_key="google-calendar",
         action_key="CREATE_EVENT",
+        toolkit_version="latest",
         provider_connection_id="acc_1",
         arguments=dict(title="standup"),
     )
@@ -182,6 +189,7 @@ async def test_an_unknown_tool_key_is_refused_instead_of_rebuilt(monkeypatch):
             provider_key="composio",
             integration_key="google-calendar",
             action_key="DELETE_EVENT",
+            toolkit_version="latest",
             arguments={},
         )
 
@@ -223,6 +231,7 @@ async def test_overlapping_prefixes_resolve_to_their_own_id(
         provider_key="composio",
         integration_key=integration_key,
         action_key="SEND_MESSAGE",
+        toolkit_version="latest",
         arguments={},
     )
 
@@ -293,12 +302,13 @@ async def test_a_second_call_is_served_from_the_cache(monkeypatch):
     # The router's per-page tools:catalog:* entries are a different cache.
     assert len(writes) == 1
     assert writes[0]["namespace"] == "tools:catalog:all"
-    assert writes[0]["key"] == dict(provider="composio", integration="github")
+    assert writes[0]["key"] == dict(
+        provider="composio", integration="github", toolkit_version="latest"
+    )
     assert writes[0]["ttl"] == env.composio.catalog_cache_ttl_seconds
 
 
-async def test_the_cached_entry_holds_identity_only(monkeypatch):
-    """Descriptions and schemas are display data; this entry sits on the run path."""
+async def test_the_cached_entry_holds_versioned_execution_identity(monkeypatch):
     service, _provider, writes = _service(monkeypatch, GITHUB)
 
     entries = await service.list_all_actions(
@@ -313,6 +323,7 @@ async def test_the_cached_entry_holds_identity_only(monkeypatch):
         "key",
         "provider_action_id",
         "read_only",
+        "input_schema",
     }
     assert writes[0]["value"] == entries
 
@@ -321,7 +332,7 @@ async def test_a_crawl_that_exceeds_the_deadline_raises(monkeypatch):
     """A slow provider must not hold a resolve or a tool call open indefinitely."""
     service, provider, writes = _service(monkeypatch, GITHUB)
 
-    async def _hang(*, integration_key):
+    async def _hang(*, integration_key, toolkit_version=None):
         await asyncio.sleep(1)
         return []
 

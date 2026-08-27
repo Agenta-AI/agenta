@@ -146,6 +146,7 @@ shape is:
       "github": {
         "provider": "composio",
         "connection": "github-work",
+        "toolkitVersion": "20250827_00",
         "tools": {
           "GET_ISSUE": {
             "permission": "allow",

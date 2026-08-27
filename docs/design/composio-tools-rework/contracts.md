@@ -94,6 +94,7 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
       "provider": "composio",
       "integration": "github",
       "connection": "github-work",
+      "toolkit_version": "20250827_00",
       "tools": [
         {"key": "GET_ISSUE", "read_only": true},
         {"key": "CREATE_ISSUE", "read_only": false}
@@ -108,11 +109,20 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
 | `gateway_connections[].provider` | Routing | Echoed from the request entry. |
 | `gateway_connections[].integration` | Routing | Echoed from the request entry. |
 | `gateway_connections[].connection` | Routing | The validated connection slug. |
-| `gateway_connections[].tools` | Data | The whole catalog for that integration, key and `read_only` only. |
+| `gateway_connections[].toolkit_version` | Execution context | The concrete toolkit version resolved from `latest` for this run. |
+| `gateway_connections[].tools` | Data | The whole catalog for that version, key and `read_only` only. Input schemas stay at the API. |
 
 The API validates the connection here, as it does for the per-tool arm today. It does not
 read `policy`. It returns the catalog slice so the SDK makes one round trip per integration
 instead of one per tool.
+
+Only the whole-catalog cache that serves this response, `tools:catalog:all`, is keyed by
+toolkit version. It is the only cache a run reads and it holds entries for 24 hours, so an
+unversioned key there can run against a snapshot a day older than the alias it resolved.
+The router's browse caches (`tools:catalog:actions`, `:action`, `:integration`, and the
+rest) stay unversioned on purpose: they always ask for `latest`, hold entries for 5
+minutes, and feed display only. Someone reading an integration's page should see what it
+offers now, not what some run pinned.
 
 Legacy `gateway` entries in the same request keep returning `custom` specifications. The two
 arms can appear in one request during migration.
@@ -186,6 +196,7 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
       "github": {
         "provider": "composio",
         "connection": "github-work",
+        "toolkitVersion": "20250827_00",
         "tools": {
           "GET_ISSUE": {"permission": "allow", "readOnly": true},
           "CREATE_ISSUE": {"permission": "ask", "readOnly": false},
@@ -202,8 +213,14 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 | `integrations` | Policy and routing | Keyed by integration. Only configured integrations appear. |
 | `.provider` | Routing | Selects the provider adapter at the API. |
 | `.connection` | Routing | The selected connection slug. |
+| `.toolkitVersion` | Execution context | The concrete toolkit version. `latest` never crosses this boundary. |
 | `.tools[key].permission` | Policy | One of `allow`, `ask`, `deny`. Never `inherit`. |
 | `.tools[key].readOnly` | Data | `true`, `false`, or `null`. Carried for the approval card and for logs. |
+
+Input schemas are deliberately absent. They are large, the policy rides every run request,
+and the runner needs a schema only for the at most five results one search returns. The
+search route answers those from the pinned catalog instead. Carrying them here measured 60
+KiB against 1.5 MiB for one `github` integration.
 
 `inherit` never crosses this boundary. The compiler has already applied it.
 
@@ -272,6 +289,13 @@ The runner adds one new sibling to `data`. The name is `context`.
 | `context.integration` | Protocol context | Trusted. |
 | `context.connection` | Protocol context | Trusted. Absent for `gateway.search`. |
 | `context.tool` | Protocol context | Trusted. Absent for `gateway.search`. |
+| `context.toolkit_version` | Execution context | The run's concrete version. `gateway.run` only. Never `latest`. |
+| `context.toolkit_versions` | Execution context | One concrete version per configured integration. `gateway.search` only, because one search can rank into several. |
+
+The two version fields differ because the two calls differ. A run names one tool, so it
+carries one version. A search ranks across every configured integration, so it carries the
+pin for each one it could rank into: a scoped search sends the one it named, an unscoped
+search sends them all. A result whose integration is not in the map is dropped.
 
 The API must reject a `gateway.run` or `gateway.search` call whose `context` is missing or
 incomplete. Do not fall back to a default connection.

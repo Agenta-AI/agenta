@@ -340,6 +340,7 @@ class WireGatewayIntegration(_WireModel):
 
     provider: str
     connection: str
+    toolkit_version: str = Field(alias="toolkitVersion")
     tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
 
 

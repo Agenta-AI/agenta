@@ -444,13 +444,17 @@ class AgentaGatewayToolResolver:
         # A malformed slice simply does not land here, which the per-entry check below then
         # reports by name. That message is the actionable one, so this loop stays silent
         # rather than raising a second, vaguer error for the same condition.
-        catalogs: Dict[str, List[CatalogToolInfo]] = {
-            str(raw_slice["integration"]): self._catalog_entries(
-                str(raw_slice["integration"]),
-                raw_slice.get("tools") or [],
-            )
+        slices: Dict[str, Dict[str, Any]] = {
+            str(raw_slice["integration"]): raw_slice
             for raw_slice in raw_slices
             if isinstance(raw_slice, dict) and raw_slice.get("integration")
+        }
+        catalogs: Dict[str, List[CatalogToolInfo]] = {
+            integration: self._catalog_entries(
+                integration,
+                raw_slice.get("tools") or [],
+            )
+            for integration, raw_slice in slices.items()
         }
 
         integrations: Dict[str, ResolvedGatewayIntegration] = {}
@@ -468,6 +472,23 @@ class AgentaGatewayToolResolver:
                 )
                 log.warning("agent: %s", error)
                 raise error
+            raw_slice = slices.get(integration)
+            toolkit_version = (
+                raw_slice.get("toolkit_version")
+                if isinstance(raw_slice, dict)
+                else None
+            )
+            if (
+                not isinstance(toolkit_version, str)
+                or not toolkit_version.strip()
+                or toolkit_version.strip().lower() == "latest"
+            ):
+                error = GatewayToolResolutionError(
+                    "Gateway connection resolution did not return a concrete toolkit version for "
+                    f"integration: {integration}"
+                )
+                log.warning("agent: %s", error)
+                raise error
             compiled = compile_gateway_permissions(
                 tool_config.policy.permissions,
                 catalog,
@@ -476,6 +497,7 @@ class AgentaGatewayToolResolver:
             integrations[integration] = ResolvedGatewayIntegration(
                 provider=tool_config.connection.provider,
                 connection=tool_config.connection.slug,
+                toolkit_version=toolkit_version.strip(),
                 tools=compiled.tools,
             )
             for key in compiled.stale_keys:

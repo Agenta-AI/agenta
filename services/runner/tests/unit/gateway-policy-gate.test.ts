@@ -312,6 +312,7 @@ describe("the resolved call carries private routing the model never sent", () =>
       integration: "slack",
       connection: "slack-main",
       tool: "SEND_MESSAGE",
+      toolkit_version: "20250827_00",
     });
     assert.deepEqual(plan.target.arguments, { text: "hi" });
   });

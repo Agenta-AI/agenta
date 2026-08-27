@@ -134,7 +134,7 @@ def translate_runtime_search(
 
             schema = search.tool_schemas.get(slug)
             input_schema = schema.input_schema if schema else None
-            if not _is_object_schema(input_schema):
+            if not is_object_schema(input_schema):
                 continue
 
             seen.add((integration_key, tool_key))
@@ -150,7 +150,7 @@ def translate_runtime_search(
     return results
 
 
-def _is_object_schema(schema: Optional[Dict]) -> bool:
+def is_object_schema(schema: Optional[Dict]) -> bool:
     """A schema the model can fill in as the ``arguments`` object, and nothing else.
 
     ``properties`` alone does not make a schema an object: an array schema can carry

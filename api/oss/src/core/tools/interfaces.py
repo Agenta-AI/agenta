@@ -46,6 +46,16 @@ class ToolsGatewayInterface(ABC):
     ) -> Optional[ToolCatalogIntegration]: ...
 
     @abstractmethod
+    async def resolve_toolkit_version(
+        self,
+        *,
+        integration_key: str,
+        version: str = "latest",
+    ) -> str:
+        """Resolve a provider toolkit alias to one concrete version."""
+        ...
+
+    @abstractmethod
     async def list_actions(
         self,
         *,
@@ -55,6 +65,7 @@ class ToolsGatewayInterface(ABC):
         important: Optional[bool] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
+        toolkit_version: Optional[str] = None,
     ) -> ToolCatalogActionsPage: ...
 
     @abstractmethod
@@ -62,6 +73,7 @@ class ToolsGatewayInterface(ABC):
         self,
         *,
         integration_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> List[ToolCatalogAction]:
         """Fetch one integration's whole catalog, following the cursor to exhaustion.
 
@@ -76,6 +88,7 @@ class ToolsGatewayInterface(ABC):
         *,
         action_key: str,
         provider_action_id: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[ToolCatalogActionDetails]:
         """Fetch one action's detail by the provider's own action ID.
 

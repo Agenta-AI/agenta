@@ -40,6 +40,7 @@ from oss.src.core.tools.dtos import (
     ToolsResolution,
 )
 from oss.src.core.tools.discovery import (
+    is_object_schema,
     looks_like_trigger,
     referenced_integrations,
     split_composio_slug,
@@ -88,6 +89,15 @@ _DEFAULT_LIMIT_ALTERNATIVES = 3
 # ``tools:catalog:*`` entries cannot serve this — each holds one page of one query,
 # and they sit above the service. Shares the trigger catalog's TTL and deadline:
 # both are the same project-agnostic Composio catalog data.
+#
+# This is the ONLY catalog cache keyed by toolkit version, and deliberately so. It is
+# the only one a run reads, and it holds entries for 24 hours, so an unversioned key
+# here can execute a run against a snapshot a full day older than the alias it was
+# resolved from. The router's browse caches (``tools:catalog:actions``, ``:action``,
+# ``:integration``, and the rest) always ask for latest, hold entries for 5 minutes,
+# and feed display only — no execution reads them, and they self-correct within the
+# TTL. Versioning them would pin browsing to a run's version, which is the wrong
+# answer for a person looking at what an integration offers now.
 _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 
 # Enough to correct a typo without turning the error into a menu.
@@ -208,6 +218,7 @@ class ToolsService:
         *,
         provider_key: str,
         integration_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> List[ToolCatalogEntry]:
         """Return every tool of one integration, as identity plus the read-only hint.
 
@@ -217,7 +228,11 @@ class ToolsService:
         cannot finish raises, so a partial catalog never reaches the cache.
         """
         started = perf_counter()
-        cache_key = {"provider": provider_key, "integration": integration_key}
+        cache_key = {
+            "provider": provider_key,
+            "integration": integration_key,
+            "toolkit_version": toolkit_version or "latest",
+        }
         cached = await get_cache(
             namespace=_CATALOG_CACHE_NAMESPACE,
             key=cache_key,
@@ -237,7 +252,10 @@ class ToolsService:
         adapter = self.adapter_registry.get(provider_key)
         try:
             actions = await asyncio.wait_for(
-                adapter.list_all_actions(integration_key=integration_key),
+                adapter.list_all_actions(
+                    integration_key=integration_key,
+                    toolkit_version=toolkit_version,
+                ),
                 timeout=env.composio.catalog_fetch_deadline_seconds,
             )
         except asyncio.TimeoutError as e:
@@ -252,6 +270,7 @@ class ToolsService:
                 key=action.key,
                 provider_action_id=action.provider_action_id,
                 read_only=action.read_only,
+                input_schema=action.input_schema,
             )
             for action in actions
             if action.provider_action_id
@@ -277,11 +296,13 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[str]:
         """Look one tool key up in the catalog, or None when the integration lacks it."""
         actions = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
         for action in actions:
             if action.key == action_key:
@@ -294,12 +315,14 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[ToolCatalogActionDetails]:
         """Return full action detail including input/output schema, or None if not found."""
         provider_action_id = await self._provider_action_id(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version=toolkit_version,
         )
         if not provider_action_id:
             return None
@@ -308,6 +331,7 @@ class ToolsService:
         return await adapter.get_action(
             action_key=action_key,
             provider_action_id=provider_action_id,
+            toolkit_version=toolkit_version,
         )
 
     # -----------------------------------------------------------------------
@@ -449,6 +473,7 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
+        toolkit_version: str,
         provider_connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
         arguments: Dict[str, Any],
@@ -457,11 +482,17 @@ class ToolsService:
 
         Both call paths, the legacy five-segment reference and the gateway route,
         reach the provider through this one lookup.
+
+        ``toolkit_version`` has no default on purpose. The gateway path passes the
+        version it resolved once for the run, and the legacy path passes the alias
+        explicitly. A default would let a new caller reach the provider on ``latest``
+        without saying so, which is the stale-alias trap this signature exists to close.
         """
         provider_action_id = await self._provider_action_id(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version=toolkit_version,
         )
         if not provider_action_id:
             raise ActionNotFoundError(
@@ -477,6 +508,7 @@ class ToolsService:
                 integration_key=integration_key,
                 action_key=action_key,
                 provider_action_id=provider_action_id,
+                toolkit_version=toolkit_version,
                 provider_connection_id=provider_connection_id,
                 user_id=user_id,
                 arguments=arguments,
@@ -614,15 +646,22 @@ class ToolsService:
             connection_slug=connection_slug,
         )
 
+        adapter = self.adapter_registry.get(provider_key)
+        toolkit_version = await adapter.resolve_toolkit_version(
+            integration_key=integration_key,
+            version="latest",
+        )
         actions = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
 
         return ResolvedGatewayConnection(
             provider=provider_key,
             integration=integration_key,
             connection=connection_slug,
+            toolkit_version=toolkit_version,
             tools=[
                 ResolvedGatewayTool(key=action.key, read_only=action.read_only)
                 for action in actions
@@ -687,12 +726,20 @@ class ToolsService:
         project_id: UUID,
         provider_key: str,
         query: str,
+        toolkit_versions: Dict[str, str],
         integration_key: Optional[str] = None,
     ) -> List[GatewaySearchResult]:
         """Search the provider and answer in Agenta integration and tool keys.
 
         Permission is not applied here and cannot be: the agent's configured set lives
         in the runner's private policy, so the runner filters the list it gets back.
+
+        Provider search ranks against the CURRENT catalog and cannot be asked for a
+        toolkit version, so every schema it returns is replaced with the schema from the
+        version this run pinned. ``toolkit_versions`` is that pin, one per integration,
+        and it is also the join: a result whose integration is not in it, or whose key
+        the pinned catalog does not hold, is dropped rather than answered from a version
+        the run will not execute.
         """
         started = perf_counter()
         try:
@@ -712,15 +759,58 @@ class ToolsService:
             )
             raise
 
-        results = translate_runtime_search(search, integration=integration_key)
+        ranked = translate_runtime_search(search, integration=integration_key)
+        results = await self._pin_search_schemas(
+            provider_key=provider_key,
+            results=ranked,
+            toolkit_versions=toolkit_versions,
+        )
         log.info(
             "[gateway.search] provider search returned",
             latency_ms=round((perf_counter() - started) * 1000),
             cache_hit=cache_hit,
+            ranked_count=len(ranked),
             result_count=len(results),
             integration=integration_key,
         )
         return results
+
+    async def _pin_search_schemas(
+        self,
+        *,
+        provider_key: str,
+        results: List[GatewaySearchResult],
+        toolkit_versions: Dict[str, str],
+    ) -> List[GatewaySearchResult]:
+        """Answer every ranked hit from the pinned catalog, or not at all.
+
+        One catalog read per integration that actually appears in the results, so an
+        unscoped search over many configured integrations does not read catalogs it has
+        no hit for.
+        """
+        catalogs: Dict[str, Dict[str, ToolCatalogEntry]] = {}
+        pinned: List[GatewaySearchResult] = []
+
+        for result in results:
+            version = toolkit_versions.get(result.integration)
+            if not version:
+                continue
+            if result.integration not in catalogs:
+                entries = await self.list_all_actions(
+                    provider_key=provider_key,
+                    integration_key=result.integration,
+                    toolkit_version=version,
+                )
+                catalogs[result.integration] = {entry.key: entry for entry in entries}
+
+            entry = catalogs[result.integration].get(result.tool)
+            if entry is None or not is_object_schema(entry.input_schema):
+                continue
+            pinned.append(
+                result.model_copy(update={"input_schema": entry.input_schema})
+            )
+
+        return pinned
 
     @staticmethod
     def _unknown_tool_key(
@@ -763,6 +853,7 @@ class ToolsService:
         integration_key: str,
         connection_slug: str,
         tool_key: str,
+        toolkit_version: str,
         arguments: Dict[str, Any],
     ) -> ToolExecutionResponse:
         """Run one integration tool through the selected connection.
@@ -783,6 +874,7 @@ class ToolsService:
         catalog = await self.list_all_actions(
             provider_key=provider_key,
             integration_key=integration_key,
+            toolkit_version=toolkit_version,
         )
         if not any(entry.key == tool_key for entry in catalog):
             raise self._unknown_tool_key(
@@ -803,6 +895,7 @@ class ToolsService:
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=tool_key,
+            toolkit_version=toolkit_version,
             provider_connection_id=connection.provider_connection_id,
             user_id=user_id,
             arguments=arguments,

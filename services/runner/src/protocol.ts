@@ -604,6 +604,7 @@ export interface GatewayToolPolicy {
 export interface GatewayIntegrationPolicy {
   provider: string;
   connection: string;
+  toolkitVersion: string;
   tools: Record<string, GatewayToolPolicy>;
 }
 

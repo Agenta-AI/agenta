@@ -51,11 +51,22 @@ def _slice(integration: str, tools: list[dict]):
     from the saved entry instead, so they are left out here: including them would suggest a
     test passes because the response was echoed when it passes because the config was read.
     """
-    return {"integration": integration, "tools": tools}
+    return {
+        "integration": integration,
+        "toolkit_version": "20250827_00",
+        "tools": tools,
+    }
 
 
 _GITHUB_CATALOG = [
-    {"key": "GET_ISSUE", "read_only": True},
+    {
+        "key": "GET_ISSUE",
+        "read_only": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {"number": {"type": "integer"}},
+        },
+    },
     {"key": "CREATE_ISSUE", "read_only": False},
     {"key": "RUN_WORKFLOW"},
 ]
@@ -129,6 +140,7 @@ async def test_one_entry_produces_two_specs_and_one_policy(fake_http, connection
             "github": {
                 "provider": "composio",
                 "connection": "github-work",
+                "toolkitVersion": "20250827_00",
                 "tools": {
                     "GET_ISSUE": {"permission": "allow", "readOnly": True},
                     "CREATE_ISSUE": {"permission": "ask", "readOnly": False},
@@ -325,6 +337,22 @@ async def test_missing_integration_in_the_response_fails_the_run(fake_http, conn
     fake_http(gateway, payload={"gateway_connections": []})
 
     with pytest.raises(GatewayToolResolutionError, match="did not return integration"):
+        await _resolver(connection).resolve_connections(
+            [_connection_config()], mode="allow_reads"
+        )
+
+
+@pytest.mark.parametrize("toolkit_version", [None, "", "latest", " LATEST "])
+async def test_non_concrete_toolkit_version_fails_the_run(
+    fake_http, connection, toolkit_version
+):
+    response_slice = _slice("github", _GITHUB_CATALOG)
+    response_slice["toolkit_version"] = toolkit_version
+    fake_http(gateway, payload={"gateway_connections": [response_slice]})
+
+    with pytest.raises(
+        GatewayToolResolutionError, match="did not return a concrete toolkit version"
+    ):
         await _resolver(connection).resolve_connections(
             [_connection_config()], mode="allow_reads"
         )

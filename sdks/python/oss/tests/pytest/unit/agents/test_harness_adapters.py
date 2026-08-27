@@ -438,11 +438,13 @@ _GATEWAY_POLICY = ResolvedGatewayPolicy(
         "github": ResolvedGatewayIntegration(
             provider="composio",
             connection="github-work",
+            toolkit_version="20250827_00",
             tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
         ),
         "slack": ResolvedGatewayIntegration(
             provider="composio",
             connection="slack-main",
+            toolkit_version="20250827_00",
             tools={"SEND_MESSAGE": CompiledTool(permission="ask", read_only=False)},
         ),
     }

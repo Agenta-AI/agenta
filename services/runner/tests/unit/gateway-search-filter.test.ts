@@ -299,16 +299,19 @@ describe("R28: the serialized payload carries nothing private", () => {
         slack: {
           provider: "composio",
           connection: "slack-main",
+          toolkitVersion: "20250827_00",
           tools: { SEND_MESSAGE: { permission: "allow", readOnly: false } },
         },
         github: {
           provider: "composio",
           connection: "github-work",
+          toolkitVersion: "20250827_00",
           tools: { GET_ISSUE: { permission: "allow", readOnly: true } },
         },
         asana: {
           provider: "composio",
           connection: "asana-main",
+          toolkitVersion: "20250827_00",
           tools: { CREATE_TASK: { permission: "allow", readOnly: false } },
         },
       },
@@ -839,10 +842,14 @@ describe("A6: an unconfigured integration is rejected before the callback", () =
       query: "post a message",
       integration: "slack",
     });
-    assert.deepEqual(plan.context, {
-      provider: "composio",
-      integration: "slack",
-    });
+    // Only slack's pin travels: a scoped search cannot rank into any other integration.
+    assert.equal(plan.context.provider, "composio");
+    assert.equal(plan.context.integration, "slack");
+    // Spread: intake builds prototype-free maps, which deepEqual counts as a difference.
+    assert.deepEqual(
+      { ...plan.context.toolkit_versions },
+      { slack: "20250827_00" },
+    );
   });
 
   it("an unscoped search sends the query alone, with no connection in the context", () => {
@@ -855,6 +862,25 @@ describe("A6: an unconfigured integration is rejected before the callback", () =
     assert.deepEqual(plan.arguments, { query: "read an issue" });
     assert.equal(plan.context.connection, undefined);
     assert.equal(plan.context.tool, undefined);
+  });
+
+  it("an unscoped search carries the pinned version of every configured integration", () => {
+    // Search ranks against the provider's current catalog, so the API can only answer a
+    // hit from the version this run pinned if the pin for that integration travels. An
+    // unscoped search can rank into any of them, so all of them do.
+    const plan = planGatewaySearch(
+      { query: "read an issue" },
+      NORMALIZED_POLICY,
+    );
+
+    assert.ok(plan.ok);
+    assert.deepEqual(
+      { ...plan.context.toolkit_versions },
+      {
+        github: "20250827_00",
+        slack: "20250827_00",
+      },
+    );
   });
 
   it("refuses a search with no usable query", () => {

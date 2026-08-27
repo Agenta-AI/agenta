@@ -594,6 +594,7 @@ def _gateway_policy() -> ResolvedGatewayPolicy:
             "github": ResolvedGatewayIntegration(
                 provider="composio",
                 connection="github-work",
+                toolkit_version="20250827_00",
                 tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
             )
         }

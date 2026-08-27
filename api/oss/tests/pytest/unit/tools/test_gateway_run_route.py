@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools import service as service_module
@@ -28,6 +29,7 @@ from oss.src.core.tools.dtos import (
     ToolCallFunction,
     ToolCatalogAction,
     ToolExecutionResponse,
+    GatewayConnectionTool,
 )
 from oss.src.core.tools.exceptions import (
     AdapterError,
@@ -44,36 +46,42 @@ GITHUB_CATALOG = [
         name="Get an issue",
         provider_action_id="GITHUB_GET_AN_ISSUE",
         read_only=True,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="CREATE_AN_ISSUE",
         name="Create an issue",
         provider_action_id="GITHUB_CREATE_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="UPDATE_AN_ISSUE",
         name="Update an issue",
         provider_action_id="GITHUB_UPDATE_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="LIST_REPOSITORY_ISSUES",
         name="List repository issues",
         provider_action_id="GITHUB_LIST_REPOSITORY_ISSUES",
         read_only=True,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="ADD_LABELS_TO_AN_ISSUE",
         name="Add labels to an issue",
         provider_action_id="GITHUB_ADD_LABELS_TO_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
     ToolCatalogAction(
         key="LOCK_AN_ISSUE",
         name="Lock an issue",
         provider_action_id="GITHUB_LOCK_AN_ISSUE",
         read_only=False,
+        input_schema={"type": "object", "properties": {}},
     ),
 ]
 
@@ -95,8 +103,17 @@ class FakeProvider:
             data={"number": 7}, successful=True
         )
         self.requests: List[Any] = []
+        self.latest_version = "20250827_00"
+        self.list_versions: List[Optional[str]] = []
 
-    async def list_all_actions(self, *, integration_key: str):
+    async def resolve_toolkit_version(self, *, integration_key: str, version: str):
+        assert version == "latest"
+        return self.latest_version
+
+    async def list_all_actions(
+        self, *, integration_key: str, toolkit_version: Optional[str] = None
+    ):
+        self.list_versions.append(toolkit_version)
         return self.catalog
 
     async def execute(self, *, request):
@@ -174,6 +191,7 @@ def _run_call(
             integration=integration,
             connection=connection,
             tool=tool,
+            toolkit_version="20250827_00",
         ),
     )
 
@@ -268,6 +286,43 @@ async def test_routing_comes_from_the_context_not_the_arguments(monkeypatch):
     assert executed.arguments == decoys
 
 
+async def test_latest_changing_after_resolution_cannot_change_execution(monkeypatch):
+    provider = FakeProvider()
+    router = _router(monkeypatch, provider)
+    service = router.tools_service
+    ref = GatewayConnectionTool.model_validate(
+        {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": "github",
+                "slug": "github-work",
+            },
+            "policy": {"permissions": {"default": "allow", "tools": {}}},
+        }
+    )
+
+    resolved = await service._resolve_gateway_connection(
+        project_id=uuid4(),
+        ref=ref,
+    )
+    provider.latest_version = "20250828_00"
+    await service.run_gateway_tool(
+        project_id=uuid4(),
+        provider_key="composio",
+        integration_key="github",
+        connection_slug="github-work",
+        tool_key="CREATE_AN_ISSUE",
+        toolkit_version=resolved.toolkit_version,
+        arguments=ARGUMENTS,
+    )
+
+    assert resolved.toolkit_version == "20250827_00"
+    assert provider.requests[0].toolkit_version == "20250827_00"
+    assert provider.list_versions
+    assert set(provider.list_versions) == {"20250827_00"}
+
+
 @pytest.mark.parametrize(
     "context",
     [
@@ -278,6 +333,13 @@ async def test_routing_comes_from_the_context_not_the_arguments(monkeypatch):
             provider="composio", integration="github", connection="github-work"
         ),
         ToolCallContext(integration="github", connection="github-work", tool="X"),
+        # Complete routing, but no version to run it at.
+        ToolCallContext(
+            provider="composio",
+            integration="github",
+            connection="github-work",
+            tool="CREATE_AN_ISSUE",
+        ),
     ],
 )
 async def test_an_incomplete_context_is_refused(monkeypatch, context):
@@ -298,6 +360,71 @@ async def test_an_incomplete_context_is_refused(monkeypatch, context):
 
     assert caught.value.status_code == 400
     assert provider.requests == []
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", "", "   "])
+async def test_a_forged_run_post_naming_latest_never_reaches_the_provider(
+    monkeypatch, version
+):
+    """The rejection through the route, on the raw body a forged POST would send.
+
+    ``call_tool`` receives an already-parsed ``ToolCall``, so the refusal happens where
+    FastAPI validates the body. This drives that same parse over the whole payload, then
+    proves the provider stayed untouched. The route's own guard tests presence, not
+    value, so this is the check that closes the alias at the boundary.
+    """
+    provider = FakeProvider()
+    _router(monkeypatch, provider)
+
+    payload = {
+        "data": {
+            "id": "call_run_1",
+            "function": {"name": "gateway.run", "arguments": ARGUMENTS},
+        },
+        "context": {
+            "provider": "composio",
+            "integration": "github",
+            "connection": "github-work",
+            "tool": "CREATE_AN_ISSUE",
+            "toolkit_version": version,
+        },
+    }
+
+    with pytest.raises(ValidationError) as caught:
+        ToolCall.model_validate(payload)
+
+    assert "toolkit_version" in str(caught.value)
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", "", "   "])
+def test_a_context_version_that_is_not_concrete_is_refused(version):
+    """The alias and a blank both mean "whatever is newest", which never reaches a run.
+
+    This is refused while the body is parsed, so the route never sees the call. A blank
+    matters on its own: the route's own check tests truthiness, and a whitespace-only
+    version is truthy.
+    """
+    with pytest.raises(ValidationError):
+        ToolCallContext(
+            provider="composio",
+            integration="github",
+            connection="github-work",
+            tool="CREATE_AN_ISSUE",
+            toolkit_version=version,
+        )
+
+
+def test_a_concrete_context_version_is_kept_trimmed():
+    context = ToolCallContext(
+        provider="composio",
+        integration="github",
+        connection="github-work",
+        tool="CREATE_AN_ISSUE",
+        toolkit_version=" 20250827_00 ",
+    )
+
+    assert context.toolkit_version == "20250827_00"
 
 
 # ---------------------------------------------------------------------------

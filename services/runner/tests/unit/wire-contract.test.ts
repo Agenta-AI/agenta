@@ -77,6 +77,7 @@ const GATEWAY_POLICY: NonNullable<AgentRunRequest["gatewayPolicy"]> = {
     github: {
       provider: "composio",
       connection: "github-work",
+      toolkitVersion: "20250827_00",
       tools: {
         GET_ISSUE: { permission: "allow", readOnly: true },
         CREATE_ISSUE: { permission: "ask", readOnly: false },
