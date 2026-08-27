@@ -37,6 +37,16 @@ import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
+/** Split out so a COLLAPSED fold does not run a frame loop revealing text nobody can see. */
+const ReasoningBody = ({text, urgent}: {text: string; urgent?: boolean}) => {
+    const {text: revealed} = useTypewriter(text, {urgent})
+    return (
+        <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
+            {revealed}
+        </div>
+    )
+}
+
 /** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
 const ReasoningFold = ({
     text,
@@ -49,7 +59,6 @@ const ReasoningFold = ({
 }) => {
     const [manual, setManual] = useState<boolean | null>(null)
     const open = manual ?? streaming
-    const {text: revealed} = useTypewriter(text, {urgent})
     return (
         <div className="flex max-w-full flex-col">
             <button
@@ -64,11 +73,7 @@ const ReasoningFold = ({
                 <Brain className="size-3" />
                 <span>{streaming ? "Thinking…" : "Thought"}</span>
             </button>
-            {open ? (
-                <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {revealed}
-                </div>
-            ) : null}
+            {open ? <ReasoningBody text={text} urgent={urgent} /> : null}
         </div>
     )
 }

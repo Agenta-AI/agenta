@@ -41,8 +41,8 @@ import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import {StreamingMarkdown} from "../assets/markdown"
 
+import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
 interface AgentMessageProps {

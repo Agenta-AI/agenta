@@ -99,19 +99,17 @@ describe("useTypewriter", () => {
         expect(result.current.settled).toBe(true)
     })
 
-    it("never stalls: every frame reveals at least one grapheme", () => {
+    it("never stalls: every reveal moves at least one grapheme", () => {
         const {result, rerender} = renderHook(({t}) => useTypewriter(t), {
             initialProps: {t: ""},
         })
 
         rerender({t: "ab"})
-        const lengths: number[] = []
-        for (let i = 0; i < 3; i++) {
-            runFrames(1)
-            lengths.push(result.current.text.length)
-        }
+        runFrames(1)
+        // Reveals are capped at REVEAL_INTERVAL_MS, so a 60fps clock reveals every other frame.
+        expect(result.current.text.length).toBeGreaterThanOrEqual(1)
 
-        expect(lengths[0]).toBeGreaterThanOrEqual(1)
+        runFrames(4)
         expect(result.current.text).toBe("ab")
     })
 
@@ -168,8 +166,9 @@ describe("useTypewriter", () => {
             }
         }
 
-        // Before this hook both arrivals were a single commit each: two distinct frames total.
-        expect(painted.size).toBeGreaterThanOrEqual(15)
+        // Before this hook both arrivals were a single commit each: two distinct paints total.
+        // Reveals are capped at REVEAL_INTERVAL_MS, so ~12 is the guarantee, not the ceiling.
+        expect(painted.size).toBeGreaterThanOrEqual(12)
         expect(result.current.text).toBe("I have enough information now. Research Ledger:")
     })
 
@@ -201,6 +200,20 @@ describe("advanceByGraphemes", () => {
         }
         expect(seen.join("")).toBe(text)
         expect(seen).toContain(family)
+    })
+
+    /**
+     * A cluster can be longer than the segmentation window. Settling for the window's partial
+     * view there used to return `from + 1`, which cut the surrogate pair and painted U+FFFD.
+     */
+    it("never splits a cluster longer than the segmentation window", () => {
+        const cluster = "\u{1F600}" + "́".repeat(45) // one grapheme, 47 code units
+        const text = `${cluster} and then some ordinary trailing prose`
+        const next = advanceByGraphemes(text, 0, 1)
+
+        expect(text.slice(0, next)).toBe(cluster)
+        const lastCode = text.charCodeAt(next - 1)
+        expect(lastCode >= 0xd800 && lastCode <= 0xdbff).toBe(false)
     })
 
     it("consumes the remainder when the step count covers it", () => {

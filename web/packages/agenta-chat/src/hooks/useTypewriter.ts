@@ -21,7 +21,13 @@ export const TYPEWRITER_HORIZON_MS = 300
 /** Horizon for a part that is no longer last — see `urgent`. */
 export const TYPEWRITER_URGENT_HORIZON_MS = 120
 
-const FRAME_MS = 1000 / 60
+/**
+ * Minimum gap between reveals. Each reveal costs a markdown re-parse (and a Shiki re-highlight
+ * inside a fence), so revealing on every vsync would triple that work against the old 50ms
+ * commit for no perceptual gain — 30 steps a second is the cadence Claude Code's transcript
+ * measured at, and it reads as continuous.
+ */
+const REVEAL_INTERVAL_MS = 1000 / 30
 
 /** Segmenting lookahead per grapheme; wide enough for ZWJ emoji sequences. */
 const SEGMENT_WINDOW_PER_STEP = 8
@@ -83,7 +89,7 @@ const getGraphemeSegmenter = (): Segmenter | null => {
  */
 export const advanceByGraphemes = (text: string, from: number, steps: number): number => {
     if (steps <= 0 || from >= text.length) return from
-    const windowEnd = Math.min(
+    let windowEnd = Math.min(
         text.length,
         from + steps * SEGMENT_WINDOW_PER_STEP + SEGMENT_WINDOW_PADDING,
     )
@@ -97,14 +103,24 @@ export const advanceByGraphemes = (text: string, from: number, steps: number): n
         if (code >= 0xd800 && code <= 0xdbff && next < text.length) next += 1
         return next
     }
-    const clusters: string[] = []
-    for (const {segment} of segmenter.segment(text.slice(from, windowEnd))) clusters.push(segment)
-    // A window short of the end may have cut its final cluster in half.
-    if (windowEnd < text.length) clusters.pop()
+    let clusters: string[] = []
+    // Grow until at least one COMPLETE cluster is in view. A single cluster can be longer than
+    // the window (an emoji carrying many combining marks), and settling for a partial one there
+    // splits a surrogate pair and paints U+FFFD.
+    for (;;) {
+        clusters = []
+        for (const {segment} of segmenter.segment(text.slice(from, windowEnd)))
+            clusters.push(segment)
+        if (windowEnd >= text.length) break
+        clusters.pop() // the window may have cut its final cluster in half
+        if (clusters.length > 0) break
+        windowEnd = Math.min(text.length, from + (windowEnd - from) * 2)
+    }
     let advanced = 0
     for (let i = 0; i < steps && i < clusters.length; i++) advanced += clusters[i].length
-    // Never return `from`: a frame that reveals nothing is the stall this hook exists to remove.
-    return advanced > 0 ? from + advanced : Math.min(text.length, from + 1)
+    // A frame that reveals nothing is the stall this hook exists to remove; the loop above makes
+    // that unreachable, and revealing the remainder is the one fallback that cannot split.
+    return advanced > 0 ? from + advanced : text.length
 }
 
 export function useTypewriter(target: string, {urgent = false}: TypewriterOptions = {}) {
@@ -116,6 +132,8 @@ export function useTypewriter(target: string, {urgent = false}: TypewriterOption
     const targetRef = useRef(target)
     const shownRef = useRef(target.length)
     const deadlineRef = useRef(0)
+    // -Infinity so the first frame after new text reveals at once instead of waiting an interval.
+    const lastRevealRef = useRef(-Infinity)
     const rafRef = useRef(0)
     const horizonRef = useRef(TYPEWRITER_HORIZON_MS)
     horizonRef.current = urgent ? TYPEWRITER_URGENT_HORIZON_MS : TYPEWRITER_HORIZON_MS
@@ -136,11 +154,18 @@ export function useTypewriter(target: string, {urgent = false}: TypewriterOption
         const full = targetRef.current
         const remaining = full.length - shownRef.current
         if (remaining <= 0) return
-        // Clamped to 1 so an overdue backlog lands on this frame rather than never finishing.
-        const framesLeft = Math.max(1, (deadlineRef.current - performance.now()) / FRAME_MS)
-        const steps = Math.max(1, Math.ceil(remaining / framesLeft))
-        shownRef.current = advanceByGraphemes(full, shownRef.current, steps)
-        setText(full.slice(0, shownRef.current))
+        const now = performance.now()
+        if (now - lastRevealRef.current >= REVEAL_INTERVAL_MS) {
+            // Clamped to 1 so an overdue backlog lands on this reveal rather than never finishing.
+            const revealsLeft = Math.max(1, (deadlineRef.current - now) / REVEAL_INTERVAL_MS)
+            shownRef.current = advanceByGraphemes(
+                full,
+                shownRef.current,
+                Math.max(1, Math.ceil(remaining / revealsLeft)),
+            )
+            lastRevealRef.current = now
+            setText(full.slice(0, shownRef.current))
+        }
         if (shownRef.current < full.length) rafRef.current = requestAnimationFrame(tick)
     }, [])
 

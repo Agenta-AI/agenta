@@ -1,6 +1,5 @@
 import {memo, type ReactNode} from "react"
 
-import {useTypewriter} from "@agenta/chat/hooks"
 import {useDriveSessionId} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
@@ -255,32 +254,4 @@ const Markdown = ({
     </Streamdown>
 )
 
-const MemoMarkdown = memo(Markdown)
-
-/**
- * Markdown whose text is revealed on the frame clock ({@link useTypewriter}) rather than in one
- * lump per commit. Owning the per-frame state HERE keeps it out of `AgentMessage`, which regroups
- * every part on each render.
- *
- * `streaming` stays on until the reveal has drained, not until the stream ends — the visible text
- * is a truncated prefix, so healing must outlive the last delta or a half-written fence renders
- * raw for the last frames of every turn.
- */
-export const StreamingMarkdown = ({
-    content,
-    className,
-    streaming = false,
-    urgent = false,
-}: {
-    content: string
-    className?: string
-    /** The part is still receiving text. */
-    streaming?: boolean
-    /** The part is no longer last: finish fast so a tool card below never outruns its prose. */
-    urgent?: boolean
-}) => {
-    const {text, settled} = useTypewriter(content, {urgent})
-    return <MemoMarkdown content={text} className={className} streaming={streaming || !settled} />
-}
-
-export default MemoMarkdown
+export default memo(Markdown)
