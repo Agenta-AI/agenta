@@ -571,10 +571,6 @@ async function runAndStreamWithApiBaseResolved(
       clientGone: () => clientDisconnected,
       credential: aliveWatchdog?.credential,
     });
-    // TEMPORARY INSTRUMENTATION (`[park-stage]`), remove with the parked-turn fix.
-    process.stderr.write(
-      `[park-stage] server run() returned turn=${turnId} stopReason=${result.stopReason}\n`,
-    );
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
     // persisting emitter, so no extra persist here (it would duplicate the record). Drain
     // all queued persists before the sandbox tears down.
@@ -608,13 +604,7 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
-    process.stderr.write(
-      `[park-stage] server before watchdog.release turn=${turnId}\n`,
-    );
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
-    process.stderr.write(
-      `[park-stage] server after watchdog.release turn=${turnId}\n`,
-    );
   }
 
   // Streaming delivered the events live, so don't echo them in the terminal record.
