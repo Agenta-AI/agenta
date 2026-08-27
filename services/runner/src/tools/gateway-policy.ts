@@ -540,6 +540,10 @@ export function filterGatewaySearchResult(
         byToken,
       );
     }
+    // The argument descriptions carry the same cross-references, and are the prose a model
+    // reads hardest when building the call. Same map, so a token is judged against what this
+    // very response permits.
+    redactUnpermittedTokensInSchema(entry.input_schema, byToken);
   }
 
   const body =
@@ -650,6 +654,55 @@ export function redactUnpermittedToolTokens(
     PROVIDER_ACTION_TOKEN,
     (token) => byToken.get(token) ?? REDACTED_TOOL_TOKEN,
   );
+}
+
+/**
+ * Rewrite the provider action ids in a tool's SCHEMA prose, in place.
+ *
+ * The top-level description is not the only prose a model reads — the argument descriptions are
+ * where it looks hardest when filling a call, and providers put the same cross-references there
+ * ("use GMAIL_LIST_DRAFTS to retrieve valid draft IDs, or GMAIL_SEND_EMAIL to send directly").
+ * Live QA on 2026-08-27 found a DENIED tool named in a `draft_id` description of a permitted
+ * result, and the prefixed form is not a key `run_tool` accepts, so a model copying it fails.
+ *
+ * THE RULE: rewrite the prose a reader READS (`description`, `title`, string `examples`); never
+ * the values a caller SENDS (`enum`, `default`, `const`, property keys, types).
+ *
+ * `examples` sits on the prose side, which is worth stating because it looks like data. The
+ * values a model copies out of a gateway tool's argument schema are the provider's own
+ * parameters — `draft_id`, `subject`, `thread_id` — never an action id: the action id travels in
+ * `run_tool`'s `tool` field and never comes from a schema example. So a field whose legitimate
+ * value is an action id essentially does not occur here, while an example string offering a
+ * denied tool id is the same trap as the sentence above it.
+ */
+export function redactUnpermittedTokensInSchema(
+  node: unknown,
+  byToken: ReadonlyMap<string, string>,
+): void {
+  if (Array.isArray(node)) {
+    for (const item of node) redactUnpermittedTokensInSchema(item, byToken);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const record = node as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      (key === "description" || key === "title") &&
+      typeof value === "string"
+    ) {
+      record[key] = redactUnpermittedToolTokens(value, byToken);
+      continue;
+    }
+    if (key === "examples" && Array.isArray(value)) {
+      record[key] = value.map((item) =>
+        typeof item === "string"
+          ? redactUnpermittedToolTokens(item, byToken)
+          : item,
+      );
+      continue;
+    }
+    redactUnpermittedTokensInSchema(value, byToken);
+  }
 }
 
 /**

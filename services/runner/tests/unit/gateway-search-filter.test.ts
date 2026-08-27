@@ -24,6 +24,7 @@ import {
   TOOL_SEARCH_UNAVAILABLE_ERROR,
   filterGatewaySearchResult,
   keptToolTokenMap,
+  redactUnpermittedTokensInSchema,
   planGatewaySearch,
   redactUnpermittedToolTokens,
 } from "../../src/tools/gateway-policy.ts";
@@ -485,6 +486,170 @@ describe("the redaction leaves ordinary prose alone", () => {
       redactUnpermittedToolTokens("Reads one issue.", permitted),
       "Reads one issue.",
     );
+  });
+});
+
+describe("the redaction reaches the schema prose, not just the description", () => {
+  // gmail.LIST_DRAFTS and gmail.SEND_DRAFT are what this response kept; CREATE_EMAIL_DRAFT and
+  // SEND_EMAIL are not, and SEND_EMAIL is the tool the agent explicitly denied.
+  const permitted = keptToolTokenMap([
+    { integration: "gmail", tool: "LIST_DRAFTS" },
+    { integration: "gmail", tool: "SEND_DRAFT" },
+  ]);
+
+  it("rewrites an argument description: kept tokens to bare keys, unpermitted to the marker", () => {
+    // The exact prose live QA found leaking on 2026-08-27, from SEND_DRAFT's `draft_id`.
+    const schema = {
+      type: "object",
+      properties: {
+        draft_id: {
+          type: "string",
+          description:
+            "Do not confuse draft_id with message_id. Use GMAIL_LIST_DRAFTS to retrieve valid " +
+            "draft IDs, or GMAIL_CREATE_EMAIL_DRAFT to create a new draft, or use " +
+            "GMAIL_SEND_EMAIL to send a new email directly.",
+        },
+      },
+    };
+
+    redactUnpermittedTokensInSchema(schema, permitted);
+
+    const description = schema.properties.draft_id.description;
+    // The kept tool survives as the key run_tool actually accepts.
+    assert.ok(description.includes("Use LIST_DRAFTS to retrieve"));
+    // Neither the unkept tool nor the DENIED one is nameable any more.
+    assert.ok(!description.includes("GMAIL_CREATE_EMAIL_DRAFT"));
+    assert.ok(!description.includes("GMAIL_SEND_EMAIL"));
+    assert.ok(!description.includes("SEND_EMAIL"));
+    assert.equal(
+      (description.match(new RegExp(REDACTED_TOOL_TOKEN, "g")) ?? []).length,
+      2,
+    );
+  });
+
+  it("reaches the schema through filterGatewaySearchResult, not just the helper", () => {
+    // THE WIRING TEST. The four cases around it exercise the walker directly, so deleting the
+    // call in `filterGatewaySearchResult` leaves them all green — which is the shape of coverage
+    // that let the original leak ship: the helper was right and nothing drove a payload through
+    // the seam. This asserts on the EMITTED BODY. Delete that call line and only this goes red.
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({
+        results: [
+          result("github", "GET_ISSUE", {
+            input_schema: {
+              type: "object",
+              properties: {
+                issue_id: {
+                  type: "string",
+                  // The live shape: a permitted result's argument prose naming a sibling the
+                  // agent may run, one it may not, and one it explicitly DENIED.
+                  description:
+                    "Use GITHUB_LIST_ISSUES to find valid ids, or GITHUB_CREATE_ISSUE to open " +
+                    "one, or GITHUB_DELETE_REPOSITORY to remove the repo entirely.",
+                },
+              },
+            },
+          }),
+          result("github", "LIST_ISSUES"),
+        ],
+      }),
+      NORMALIZED_POLICY,
+    );
+
+    const emitted = outcome.payload;
+    // The kept sibling survives as the key run_tool accepts.
+    assert.ok(emitted.includes("Use LIST_ISSUES to find valid ids"));
+    // No prefixed form reaches the model in any spelling.
+    assert.ok(!emitted.includes("GITHUB_LIST_ISSUES"));
+    assert.ok(!emitted.includes("GITHUB_CREATE_ISSUE"));
+    // The DENIED tool is not nameable, prefixed or bare.
+    assert.ok(!emitted.includes("GITHUB_DELETE_REPOSITORY"));
+    assert.ok(!emitted.includes("DELETE_REPOSITORY"));
+  });
+
+  it("leaves schema keys, types, enums and defaults untouched", () => {
+    const schema = {
+      type: "object",
+      required: ["SEND_EMAIL_ID"],
+      properties: {
+        // A property NAMED like a token must survive: it is a key the model has to send.
+        SEND_EMAIL_ID: {
+          type: "string",
+          default: "GMAIL_SEND_EMAIL",
+          enum: ["GMAIL_SEND_EMAIL", "OTHER_VALUE"],
+          description: "Set it to GMAIL_SEND_EMAIL.",
+        },
+      },
+    };
+
+    redactUnpermittedTokensInSchema(schema, permitted);
+
+    assert.deepEqual(schema.required, ["SEND_EMAIL_ID"]);
+    assert.ok("SEND_EMAIL_ID" in schema.properties);
+    assert.equal(schema.properties.SEND_EMAIL_ID.default, "GMAIL_SEND_EMAIL");
+    assert.deepEqual(schema.properties.SEND_EMAIL_ID.enum, [
+      "GMAIL_SEND_EMAIL",
+      "OTHER_VALUE",
+    ]);
+    // Only the prose is rewritten.
+    assert.equal(
+      schema.properties.SEND_EMAIL_ID.description,
+      `Set it to ${REDACTED_TOOL_TOKEN}.`,
+    );
+  });
+
+  it("rewrites a title, which providers also use to name a tool", () => {
+    const schema = {
+      type: "object",
+      title: "Send Draft (GMAIL_SEND_DRAFT), not GMAIL_SEND_EMAIL",
+      properties: {},
+    };
+
+    redactUnpermittedTokensInSchema(schema, permitted);
+
+    // Kept tool to its bare key, denied tool to the marker, in the same string.
+    assert.equal(
+      schema.title,
+      `Send Draft (SEND_DRAFT), not ${REDACTED_TOOL_TOKEN}`,
+    );
+  });
+
+  it("reaches nested items and string examples", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        attachments: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              s3key: {
+                type: "string",
+                description: "Stage it with GMAIL_SEND_EMAIL first.",
+                examples: ["pass GMAIL_LIST_DRAFTS here", 42],
+              },
+            },
+          },
+        },
+      },
+    };
+
+    redactUnpermittedTokensInSchema(schema, permitted);
+
+    const leaf = schema.properties.attachments.items.properties.s3key;
+    assert.equal(
+      leaf.description,
+      `Stage it with ${REDACTED_TOOL_TOKEN} first.`,
+    );
+    // A kept token in an example becomes the bare key; a non-string entry is left alone.
+    assert.deepEqual(leaf.examples, ["pass LIST_DRAFTS here", 42]);
+  });
+
+  it("survives a schema that is not an object", () => {
+    // Never throws on provider input: a malformed schema must not take the search down.
+    redactUnpermittedTokensInSchema(undefined, permitted);
+    redactUnpermittedTokensInSchema("a string", permitted);
+    redactUnpermittedTokensInSchema(null, permitted);
   });
 });
 

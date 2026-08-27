@@ -611,7 +611,24 @@ async function executeAllowedRelayedTool(
     }
     // `gateway.run` on success stays a pass-through. Only search results are transformed.
     if (resolved.kind === "run") return text;
-    const outcome = filterGatewaySearchResult(text, gateway.policy);
+    // The filter used to be incapable of throwing on a well-formed body — a bad one became
+    // `unparsable` internally. The schema-prose redaction added a recursive walk, so a
+    // pathologically nested schema can now raise. A throw here would escape the seam as a raw
+    // error, which contradicts this function's own contract that every non-result search body
+    // becomes the one fixed envelope. Catch anything the filter grows, not just this.
+    let outcome: ReturnType<typeof filterGatewaySearchResult>;
+    try {
+      outcome = filterGatewaySearchResult(text, gateway.policy);
+    } catch (err) {
+      gateway.memory.searches += 1;
+      gateway.memory.offered = [];
+      log?.(
+        `[gateway] search outcome=failed reason=filter_error ` +
+          `envelope=${TOOL_SEARCH_UNAVAILABLE_ERROR.code} ` +
+          `detail=${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+      );
+      return new RelayRefusal(JSON.stringify(TOOL_SEARCH_UNAVAILABLE_ERROR));
+    }
     gateway.memory.searches += 1;
     gateway.memory.offered = outcome.offered;
     log?.(
