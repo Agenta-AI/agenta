@@ -320,6 +320,48 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
 )
 
 /**
+ * Close several tabs in one write — the strip's "Close others" and "Close tabs to the right".
+ *
+ * Same rules as closing one, so a never-run husk among them is discarded rather than left in
+ * history. Callers pass explicit ids because what counts as "to the right" is the RENDERED order
+ * (pinned tabs lead), which only the strip knows.
+ */
+export const closeSessionsAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, ids: string[]) => {
+        const closing = new Set(ids)
+        if (closing.size === 0) return
+        const open = currentOpenIds(get, key)
+        const nextOpen = open.filter((id) => !closing.has(id))
+        if (nextOpen.length === open.length) return
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+
+        const active = get(activeByAppAtom)
+        const activeId = active[key]
+        if (activeId && closing.has(activeId)) {
+            // Nearest survivor: the tab that slides into this slot, else the closest one before it.
+            const index = open.indexOf(activeId)
+            const after = open.slice(index).find((id) => !closing.has(id))
+            const before = open
+                .slice(0, index)
+                .reverse()
+                .find((id) => !closing.has(id))
+            set(activeByAppAtom, {...active, [key]: after ?? before ?? ""})
+        }
+
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        const messages = get(sessionMessagesAtom)
+        const husks = new Set(
+            list.filter((s) => closing.has(s.id) && isSessionHusk(s, messages)).map((s) => s.id),
+        )
+        if (husks.size > 0) {
+            set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !husks.has(s.id))})
+            for (const id of husks) clearSessionEphemera(id)
+        }
+    }),
+)
+
+/**
  * Hand-arrange a scope's tabs. The tab strip persists its order here, exactly as it persists which
  * sessions are open — tab order IS the open-ids order.
  *

@@ -53,6 +53,7 @@ import {
     addSessionAtomFamily,
     adoptSessionAtomFamily,
     closeSessionAtomFamily,
+    closeSessionsAtomFamily,
     pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
     sessionsListAtomFamily,
@@ -116,20 +117,34 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const closeSessions = useSetAtom(closeSessionsAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
     const projectId = useAtomValue(projectIdAtom)
     const store = useStore()
     // Closing a running tab IS a stop, so it sends the same cooperative cancel the Stop button does.
-    const handleClose = useCallback(
+    const cancelIfRunning = useCallback(
         (id: string) => {
             const status = store.get(sessionStatusAtomFamily(id))
             if (projectId && shouldCancelRunOnClose({status, projectId})) {
                 commandSessionStream({sessionId: id, projectId}).catch(() => {})
             }
+        },
+        [projectId, store],
+    )
+    const handleClose = useCallback(
+        (id: string) => {
+            cancelIfRunning(id)
             closeSession(id)
         },
-        [closeSession, projectId, store],
+        [cancelIfRunning, closeSession],
+    )
+    const handleCloseMany = useCallback(
+        (ids: string[]) => {
+            ids.forEach(cancelIfRunning)
+            closeSessions(ids)
+        },
+        [cancelIfRunning, closeSessions],
     )
     // Stable identity: the tag bar forwards this straight to each memo'd chip.
     const handleRename = useCallback(
@@ -377,6 +392,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         onAdd={addSession}
                                         addDisabled={addLocked}
                                         onClose={handleClose}
+                                        onCloseMany={handleCloseMany}
                                         onRename={handleRename}
                                         showSessions={!chatMaximized}
                                         leftExtra={
