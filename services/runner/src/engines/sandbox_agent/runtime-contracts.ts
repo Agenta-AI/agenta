@@ -1,4 +1,5 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
+import type { SeededDecision } from "../../sessions/interactions.ts";
 
 import {
   type AgentRunRequest,
@@ -177,6 +178,12 @@ export interface ParkedApprovedExecution {
 export interface RunTurnOptions {
   /** Latest session credential accessor; long turns may refresh the value between API calls. */
   credential?: () => string;
+  /**
+   * Durable approval decisions this session already holds, read and CLAIMED by the caller via
+   * `loadDurableDecisions`. Passed in rather than read here because that read is I/O and
+   * `runTurn` must not suspend before its permission responder is attached.
+   */
+  seededDecisions?: readonly SeededDecision[];
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**

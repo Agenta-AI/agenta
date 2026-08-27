@@ -59,6 +59,31 @@ configured and pass `--require-store`, or the greenest possible run still says n
 durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
 (`--cold2-replace-cmd`) and SKIPs without it.
 
+**The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
+without it a release that reworked a subsystem gets exactly the coverage of a release that did
+not touch it. Pass the ref the release branches from, and the driver reads the release's own
+changed paths, matches them against the rules in `resources/path_triggers.py`, and makes the
+cells those rules name MANDATORY for this run:
+
+```bash
+uv run resources/qa_product.py --all --release-base origin/main --require-store   # every release run
+uv run resources/path_triggers.py --release-base origin/main                      # preview only, runs nothing
+```
+
+A mandatory cell that lives in `qa_product.py` is added to the run even when `--cell` did not ask
+for it. A mandatory cell that is a standalone `matrix_*.py` script is a separate process the
+driver cannot observe, so it is printed, written to `mandatory.json`, and listed in `summary.md`
+under "Mandatory for this release" — **the release is not green until each of those has a recorded
+result of its own.** If a rule names a cell that does not exist, the driver stops before running
+anything and says so: the release changed code a rule protects and the coverage was never
+written, which is the one outcome that must never read as green. Add `--changed-path` to state
+paths by hand where the checkout is not the release branch. With no `--release-base` and no
+`--changed-path` nothing changes, so every existing invocation behaves exactly as before.
+
+Adding a rule is one line in `PATH_TRIGGERS` (a glob, and the cells it makes mandatory) plus the
+cell it names. Matching is `fnmatch` over the whole repo-relative path, so `*` crosses directory
+separators and `a/b/*` covers the whole subtree; write `**` so a subtree rule reads as one.
+
 **Reading the result.** Each journey prints `PASS`, `FAIL`, or `SKIP` with a one-line reason, and
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
 location with `AGENTA_QA_RUNS_DIR`). Runs are written to the current working directory, never into
@@ -124,6 +149,20 @@ proves nothing about the durable working directory (LESSONS #16).
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
 - `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
+  gateway tool surface against a real provider: search filters by policy (the denied key never
+  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
+  ask-tier tool parks with the right stored identity and is answered through the **interactions
+  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
+  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
+  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
+  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
+  exists, and SKIPs rather than failing the release when the model provider itself errors.
+  Made mandatory by the gateway rule in `path_triggers.py`.
+- `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
+  a release must run when its diff touches that glob, plus the two functions the driver calls.
+  Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
+  only meaningful for changes in one part of the tree.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
@@ -386,6 +425,10 @@ Before committing any resource script, run the repo-pinned ruff (`uv run --no-sy
 then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
 version has different defaults and produces a false block. Unformatted resource files break the
 repo-wide format CI job.
+
+When you add a cell, ask whether it is only meaningful for changes in one part of the tree. If it
+is, add the rule to `resources/path_triggers.py` in the same change. A cell whose subsystem can be
+rewritten without anyone remembering to run it is coverage on paper.
 
 Release-night findings and the full evidence history are archived in
 `docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).

@@ -722,7 +722,8 @@ class ComposioConfig(BaseModel):
     webhook_replay_window_seconds: int = int(
         os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
     )
-    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    # Full trigger-types and tool catalogs: project-agnostic cache TTL + whole-fetch
+    # deadline. Both crawl the same Composio catalog surface.
     catalog_cache_ttl_seconds: int = int(
         os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
     )

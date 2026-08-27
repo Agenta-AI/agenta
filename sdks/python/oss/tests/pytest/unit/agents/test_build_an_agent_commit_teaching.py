@@ -84,6 +84,39 @@ def _example_payloads(config_schema):
     return [p for p in payloads if isinstance(p, dict) and "workflow_revision" in p]
 
 
+def _gateway_connections(value):
+    if isinstance(value, dict):
+        if value.get("type") == "gateway_connection":
+            yield value
+        for child in value.values():
+            yield from _gateway_connections(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _gateway_connections(child)
+
+
+@pytest.mark.parametrize("fixture_name", ["ordered", "legacy"])
+def test_new_gateway_connections_are_taught_as_allow_all(request, fixture_name):
+    """Adding an integration grants all of it. Restricting is a separate, asked-for act.
+
+    Examples outrank prose for a model, so every worked ADD example has to show the
+    allow-all policy. The restrict guidance names its tools in the map and keeps
+    ``default`` on ``allow``, so it never reads as a stricter default to copy.
+    """
+    skill = request.getfixturevalue(fixture_name)
+    config_schema = skill["files"]["references/config-schema.md"]
+    examples = list(_gateway_connections(_example_payloads(config_schema)))
+
+    assert examples
+    for entry in examples:
+        assert entry["policy"]["permissions"] == {"default": "allow", "tools": {}}
+    assert "only restrict it when the user explicitly asks" in config_schema
+    # No example may teach a lowered default, which is the shape that silently turns a
+    # whole integration into prompts the user never asked for.
+    assert '"default": "inherit"' not in config_schema
+    assert '"default": "deny"' not in config_schema
+
+
 class TestOrderedModeNeverTeachesTheLegacyShape:
     """The class detector for the data-loss incident."""
 
