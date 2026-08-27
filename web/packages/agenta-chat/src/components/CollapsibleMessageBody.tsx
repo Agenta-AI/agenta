@@ -12,9 +12,16 @@ export const COLLAPSED_MESSAGE_MAX_PX = 200
 /** A message that only just spills renders whole; the toggle would cost more room than it saves. */
 const OVERFLOW_SLACK_PX = 32
 const FADE_PX = 40
-const DURATION_MS = 240
+const DURATION_MS = 280
+const EASING = "cubic-bezier(0.4, 0, 0.2, 1)"
 
 const FADE_MASK = `linear-gradient(to bottom, #000 calc(100% - ${FADE_PX}px), transparent 100%)`
+/** Collapsed: the gradient spans the box, so the last FADE_PX fade out. Expanded: it is stretched
+ * to 4x the box, so only its opaque head is on screen and the fade is gone. `mask-size` animates,
+ * `mask-image` does not — this is what lets the fade dissolve WITH the height instead of popping
+ * off the instant the toggle is clicked. */
+const MASK_SIZE_CLAMPED = "100% 100%"
+const MASK_SIZE_OPEN = "100% 400%"
 
 export interface CollapsibleMessageBodyProps {
     /** Expand key (`messageBodyKey`) — persisted, so it survives the windowed row unmounting. */
@@ -68,10 +75,15 @@ export const CollapsibleMessageBody = ({
                     // Animated between measured pixels, so the open state stays right if the
                     // content reflows (resize, a late attachment) — no keyword interpolation.
                     maxHeight: clamped ? collapsedMaxPx : (height ?? undefined),
-                    transition: `max-height ${DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                    transition: `max-height ${DURATION_MS}ms ${EASING}, -webkit-mask-size ${DURATION_MS}ms ${EASING}, mask-size ${DURATION_MS}ms ${EASING}`,
                     // A mask, not an overlay: the fade needs no knowledge of the bubble's fill.
-                    maskImage: clamped ? FADE_MASK : undefined,
-                    WebkitMaskImage: clamped ? FADE_MASK : undefined,
+                    // Mounted for the whole life of an overflowing body so its SIZE can animate.
+                    maskImage: overflows ? FADE_MASK : undefined,
+                    WebkitMaskImage: overflows ? FADE_MASK : undefined,
+                    maskSize: clamped ? MASK_SIZE_CLAMPED : MASK_SIZE_OPEN,
+                    WebkitMaskSize: clamped ? MASK_SIZE_CLAMPED : MASK_SIZE_OPEN,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
                 }}
             >
                 <div ref={innerRef}>{children}</div>

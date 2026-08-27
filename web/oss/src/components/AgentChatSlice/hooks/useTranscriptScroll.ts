@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
-import {type ChatStatus, type UIMessage} from "ai"
-
 import {shouldRevealJump} from "@agenta/chat/assets"
+import {type ChatStatus, type UIMessage} from "ai"
 
 import {CONTENT_VISIBILITY_ENABLED} from "../assets/conversationLayout"
 
@@ -102,7 +101,11 @@ export const useTranscriptScroll = ({
     // lag is invisible; the correctness-critical follow decision (stickRef) and the SC-3 anchor stay
     // synchronous in onScroll.
     const scheduleShowJump = useCallback(() => {
-        if (showJumpRafRef.current) return
+        // Cancel-and-reschedule, NOT early-return-if-pending. A hidden tab never runs rAF, so an
+        // early return latches the handle non-zero forever and the pill dies for the life of the
+        // mount (observed: pill stuck hidden at any distance after the tab was backgrounded once).
+        // Still coalesced — at most one frame is ever queued.
+        if (showJumpRafRef.current) cancelAnimationFrame(showJumpRafRef.current)
         showJumpRafRef.current = requestAnimationFrame(() => {
             showJumpRafRef.current = 0
             const el = scrollRef.current
@@ -312,6 +315,18 @@ export const useTranscriptScroll = ({
         if (useVirtuoso) return
         scheduleShowJump()
     }, [messages, status, scheduleShowJump, useVirtuoso])
+
+    // A hidden tab runs no rAF, so the frame queued by the last scroll before it was backgrounded
+    // resolves only on return — re-measure then, or a tab brought back with no further scrolling
+    // shows whatever the pill happened to be when it left.
+    useEffect(() => {
+        if (useVirtuoso) return
+        const onVisible = () => {
+            if (document.visibilityState === "visible") scheduleShowJump()
+        }
+        document.addEventListener("visibilitychange", onVisible)
+        return () => document.removeEventListener("visibilitychange", onVisible)
+    }, [scheduleShowJump, useVirtuoso])
 
     // SC-4: interaction is intent, not just scrolling. While following, a real text selection inside
     // the transcript — or opening a link in it — means the reader is engaging here, so release follow

@@ -119,8 +119,10 @@ export const useVirtuosoTranscript = ({
         // Virtuoso's own edge threshold — so measure the scroller ourselves, on the same shared
         // rule the plain engine uses. Coalesced to one rAF, exactly like `scheduleShowJump`.
         let raf = 0
+        // Cancel-and-reschedule, not early-return: an early return latches `raf` non-zero when a
+        // hidden tab never runs the frame, killing the pill permanently (see useTranscriptScroll).
         const onScroll = () => {
-            if (raf) return
+            if (raf) cancelAnimationFrame(raf)
             raf = requestAnimationFrame(() => {
                 raf = 0
                 setShowJump(!virtFollowRef.current && shouldRevealJump(node, newestIdRef.current))

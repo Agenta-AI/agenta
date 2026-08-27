@@ -312,12 +312,16 @@ export const ChatJumpToLatest = ({
             aria-hidden={!show}
             aria-label="Jump to latest message"
             className={cn(
-                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 shadow-sm transition-[opacity,transform] duration-200 ease-out",
+                // `hover:bg-colorBgElevated` is load-bearing: the outline variant's hover fill is
+                // `rgba(255,255,255,0.04)` in dark mode, which would replace this opaque background
+                // and let streamed text read straight through the pill. Hover still reads via the
+                // variant's border and text colour.
+                "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 text-xs shadow-sm transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,
             )}
         >
-            <ArrowDown size={16} />
+            <ArrowDown size={14} />
             Jump to latest
         </Button>
     )
