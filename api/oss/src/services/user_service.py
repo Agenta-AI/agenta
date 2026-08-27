@@ -134,16 +134,13 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         return user
 
 
-async def generate_user_password_reset_link(
-    user_id: str, admin_user_id: str, project_id: str
-):
+async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
     """
     This function generates a password reset link for a user.
 
     Args:
         user_id (str): The id of the user for whom the password reset link needs to be generated.
         admin_user_id (str): The id of the admin user who requested the password reset link.
-        project_id (str): The id of the caller's project, used to resolve the organization scope.
 
     Returns:
         str: The password reset link if successful, otherwise None.
@@ -151,22 +148,6 @@ async def generate_user_password_reset_link(
     Raises:
         PermissionError: If the target user does not belong to the caller's organization.
     """
-
-    # Resolve the caller's project to its organization
-    project = await db_manager.get_project_by_id(project_id)
-    if project is None:
-        raise PermissionError(
-            "Cannot resolve project scope for password reset authorization."
-        )
-
-    caller_org_id = str(project.organization_id)
-
-    # Verify the target user belongs to the caller's organization
-    target_org_data = await db_manager.get_user_org_and_workspace_id(user_id)
-    if caller_org_id not in target_org_data["organization_ids"]:
-        raise PermissionError(
-            "You do not have permission to reset the password for this user."
-        )
 
     user = await db_manager.get_user_with_id(user_id=user_id)
     admin_user = await db_manager.get_user_with_id(user_id=admin_user_id)
