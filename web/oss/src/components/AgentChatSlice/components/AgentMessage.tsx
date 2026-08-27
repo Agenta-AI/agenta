@@ -40,6 +40,7 @@ import {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
@@ -633,7 +634,7 @@ const AgentMessage = ({
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
+                        ? `${userBubbleContentClass} border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]`
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}

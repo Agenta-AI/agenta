@@ -10,9 +10,12 @@ import {useEffect, useRef, type ReactNode} from "react"
 
 import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
+// The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
+// has to actually REPLACE the variant's padding/radius. With plain concatenation both land on the
+// element and CSS source order decides, so an override to a smaller scale silently loses.
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
 export const ChatTypingDots = ({className}: {className?: string}) => (
@@ -131,6 +134,11 @@ export const turnToolbarRevealClass =
  * its gap (gap-3) — so the row lines up with the MESSAGE, not the avatar: `left-11` starts where
  * the response text does, `right-11` ends where the user bubble does.
  */
+/** The user turn's bubble geometry, tighter than the antd-x default it inherits: an 8px radius and
+ * 12/8 padding, so a one-line message is not swimming in its own box. Geometry only — the desktop
+ * adds its accent tint on top, because `--ag-user-bubble-*` is not bridged into /m's tokens. */
+export const userBubbleContentClass = "min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2"
+
 export const turnToolbarClass = "absolute bottom-0 z-10 flex items-center gap-1"
 
 /** The turn row the reveal above hangs off. `pb-8` reserves the toolbar's lane so revealing it

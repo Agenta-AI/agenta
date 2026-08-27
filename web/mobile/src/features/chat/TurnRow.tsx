@@ -16,6 +16,7 @@ import {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
 import {
@@ -323,7 +324,9 @@ export const TurnRow = ({
                 }
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                    content: turn.isUser
+                        ? `${userBubbleContentClass} text-xs`
+                        : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={content}
