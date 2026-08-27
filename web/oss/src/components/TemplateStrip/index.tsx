@@ -49,9 +49,7 @@ export interface TemplateStripProps {
     className?: string
 }
 
-/** Icon-only header control (arrows + menu): the shared small icon button, so the strip's
- * chrome sizes and disables like every other control. Spreads rest props so antd Dropdown can
- * inject its trigger handlers via cloneElement. */
+/** Icon-only header control (arrows + menu); spreads rest props for antd Dropdown's trigger. */
 const HeaderButton = ({label, className, ...rest}: {label: string} & ButtonProps) => (
     <Button
         type="button"
@@ -227,10 +225,8 @@ const TemplateStrip = ({
                     {STRIP_COPY.label}
                 </span>
                 {isList ? null : (
-                    /* Tabs take the leftover width and scroll inside it: at narrow widths they
-                       would otherwise overflow and squeeze the pager cluster out of shape. The
-                       mask fades the overflow edge (it sits on empty space when nothing clips). */
-                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    /* Tabs scroll in the leftover width instead of squeezing the pager; mask fades the cut. */
+                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {categories.map((category) => {
                             const active = category === activeCategory
                             return (
