@@ -25,6 +25,9 @@ import {
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
+/** The "back to all" row. Never a real workflow id, so it cannot collide with one. */
+const ALL_AGENTS = "__all__"
+
 const GROUP_BY_OPTIONS = [
     {value: "none", label: "None"},
     {value: "agent", label: "Agent"},
@@ -94,7 +97,10 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 values: filters.agentIds,
                 emptyLabel: "All agents",
                 manyLabel: (count) => `${count} agents`,
-                options: agentOptions,
+                // Empty already means every agent; this makes it a row you can pick, checked by
+                // default, so there is a way back to all without deselecting each one.
+                noneValue: ALL_AGENTS,
+                options: [{value: ALL_AGENTS, label: "All agents"}, ...agentOptions],
             },
             {
                 key: "status",
@@ -136,6 +142,10 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     const onFacetToggle = useCallback(
         (key: string, value: string, on: boolean) => {
             if (key !== "agentIds") return
+            if (value === ALL_AGENTS) {
+                setFilters({agentIds: []})
+                return
+            }
             setFilters({
                 agentIds: on
                     ? [...filters.agentIds, value]
