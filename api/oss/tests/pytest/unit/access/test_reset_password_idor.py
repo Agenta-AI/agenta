@@ -110,8 +110,12 @@ class TestCrossOrgResetBlocked:
 
         with (
             patch(
-                "oss.src.services.db_manager.get_project_by_id",
+                "oss.src.routers.user_profile.db_manager.get_project_by_id",
                 AsyncMock(return_value=project),
+            ),
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_organization_owner",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "oss.src.services.db_manager.get_user_org_and_workspace_id",
@@ -171,8 +175,12 @@ class TestSameOrgResetAllowed:
 
         with (
             patch(
-                "oss.src.services.db_manager.get_project_by_id",
+                "oss.src.routers.user_profile.db_manager.get_project_by_id",
                 AsyncMock(return_value=project),
+            ),
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_organization_owner",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "oss.src.services.db_manager.get_user_org_and_workspace_id",
@@ -226,8 +234,12 @@ class TestNonexistentTargetUser:
 
         with (
             patch(
-                "oss.src.services.db_manager.get_project_by_id",
+                "oss.src.routers.user_profile.db_manager.get_project_by_id",
                 AsyncMock(return_value=project),
+            ),
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_organization_owner",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "oss.src.services.db_manager.get_user_org_and_workspace_id",
