@@ -5,7 +5,6 @@ import {
     permissionPolicyLabel,
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
-import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {
     RichChatInput,
@@ -13,14 +12,7 @@ import {
     type SlashCommandSection,
 } from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {
-    ChatCircleDots,
-    Cpu,
-    Cube,
-    GraduationCap,
-    Paperclip,
-    ShieldCheck,
-} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, GraduationCap, Paperclip, ShieldCheck} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -136,14 +128,6 @@ const SLASH_SECTIONS: SlashCommandSection[] = [
                 kind: "open" as const,
             },
             {
-                key: "harness",
-                label: "/harness",
-                description: "Switch the runtime that executes this agent",
-                tail: "Pi ›",
-                icon: <Cube size={14} />,
-                kind: "open" as const,
-            },
-            {
                 key: "permissions",
                 label: "/permissions",
                 description: "Set what the agent may do before it must ask",
@@ -185,36 +169,6 @@ const SLASH_SECTIONS: SlashCommandSection[] = [
     // flag), so the story mirrors what the composer actually offers.
 ]
 
-/** Mocked harness catalog — the same shape `/inspect` publishes as `harness_capabilities`. */
-const MOCK_CAPABILITIES = {
-    pi_core: {
-        providers: ["openai", "anthropic", "gemini", "mistral", "deepseek"],
-        deployments: ["direct", "custom"],
-        connection_modes: ["agenta", "self_managed"],
-        model_catalog: [
-            {id: "deepseek-v4-flash", provider: "deepseek", label: "DeepSeek V4 Flash"},
-            {id: "gpt-5", provider: "openai", label: "GPT-5"},
-            {id: "gpt-4o", provider: "openai", label: "GPT-4o"},
-            {id: "claude-sonnet-4-6", provider: "anthropic", label: "Claude Sonnet 4.6"},
-        ],
-    },
-    claude: {
-        providers: ["anthropic", "bedrock", "vertex"],
-        deployments: ["direct", "custom"],
-        connection_modes: ["agenta"],
-        model_catalog: [
-            {id: "claude-sonnet-4-6", provider: "anthropic", label: "Claude Sonnet 4.6"},
-            {id: "claude-opus-4-1", provider: "anthropic", label: "Claude Opus 4.1"},
-        ],
-    },
-    codex: {
-        providers: ["openai", "openai_codex"],
-        deployments: ["direct"],
-        connection_modes: ["agenta"],
-        model_catalog: [{id: "gpt-5", provider: "openai", label: "GPT-5"}],
-    },
-} as never
-
 const MODEL_GROUPS = [
     {
         label: "DeepSeek",
@@ -240,16 +194,15 @@ const MODEL_GROUPS = [
 /**
  * The full `/` flow. Type `/` to open the palette, `/mo` to filter (the match highlights inside the
  * name), `/xyz` for the empty state — Enter there sends the text instead of selecting.
- * `/model` and `/harness` drill into the real pickers, anchored over the composer exactly as the
+ * `/model` and `/permissions` drill into the real pickers, anchored over the composer as the
  * chat dock mounts them.
  */
 export const SlashCommands: Story = {
     render: () => {
         const Demo = () => {
             const [last, setLast] = useState<string>("")
-            const [picker, setPicker] = useState<"model" | "harness" | "permissions" | null>(null)
+            const [picker, setPicker] = useState<"model" | "permissions" | null>(null)
             const [model, setModel] = useState("deepseek-v4-flash")
-            const [harness, setHarness] = useState("pi_core")
             const [permission, setPermission] = useState<PermissionPolicy>("allow_reads")
             const [applied, setApplied] = useState<string>("")
             const boxRef = useRef<HTMLDivElement | null>(null)
@@ -279,7 +232,7 @@ export const SlashCommands: Story = {
                 setPicker(null)
                 inputRef.current?.insertText("/")
             }
-            const openPicker = (which: "model" | "harness" | "permissions") => {
+            const openPicker = (which: "model" | "permissions") => {
                 inputRef.current?.blur()
                 requestAnimationFrame(() => setPicker(which))
             }
@@ -291,14 +244,12 @@ export const SlashCommands: Story = {
                     tail:
                         item.key === "model"
                             ? `${model} ›`
-                            : item.key === "harness"
-                              ? `${harness} ›`
-                              : item.key === "permissions"
-                                ? `${permissionPolicyLabel(permission)} ›`
-                                : item.tail,
+                            : item.key === "permissions"
+                              ? `${permissionPolicyLabel(permission)} ›`
+                              : item.tail,
                     onSelect:
-                        item.key === "model" || item.key === "harness" || item.key === "permissions"
-                            ? () => openPicker(item.key as "model" | "harness" | "permissions")
+                        item.key === "model" || item.key === "permissions"
+                            ? () => openPicker(item.key as "model" | "permissions")
                             : item.key === "new"
                               ? () => {
                                     // Mirrors the dock: the action runs, then the host clears the
@@ -333,28 +284,6 @@ export const SlashCommands: Story = {
             return (
                 <div className="flex w-[720px] flex-col gap-3 pt-[380px]">
                     <div className="relative" ref={boxRef}>
-                        {picker === "harness" ? (
-                            <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade">
-                                <HarnessPickerPanel
-                                    harnessIds={["pi_core", "claude", "codex"]}
-                                    capabilities={MOCK_CAPABILITIES}
-                                    currentHarness={harness}
-                                    currentModel={model}
-                                    // A vault-hosted model is only reachable through its named
-                                    // connection; this fixture has neither, so both are empty.
-                                    customSecrets={null}
-                                    currentConnectionSlug={null}
-                                    onApply={(kind) => {
-                                        setHarness(kind)
-                                        setApplied(`harness → ${kind}`)
-                                        setPicker(null)
-                                    }}
-                                    onDismiss={dismissPicker}
-                                    onBackToCommands={backToCommands}
-                                    onOpenConfig={() => setApplied("open config")}
-                                />
-                            </div>
-                        ) : null}
                         {picker === "permissions" ? (
                             <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade">
                                 <PermissionsPickerPanel
