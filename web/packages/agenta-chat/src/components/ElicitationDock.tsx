@@ -180,7 +180,7 @@ const RefusalPanel = ({reason, onSkip}: {reason: string; onSkip: () => void}) =>
                 </div>
             </div>
             <div className="flex flex-row-reverse items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={onSkip}>
+                <Button variant="ghost" onClick={onSkip}>
                     Skip
                 </Button>
             </div>
@@ -493,11 +493,10 @@ const LiveCard = ({
             </div>
 
             <div className="flex flex-row-reverse items-center gap-2">
-                <Button size="sm" className={touchCls} onClick={stepper.primary}>
+                <Button className={touchCls} onClick={stepper.primary}>
                     {stepper.primaryLabel}
                 </Button>
                 <Button
-                    size="sm"
                     variant="outline"
                     className={touchCls}
                     onClick={() =>
@@ -561,15 +560,17 @@ const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper
                     type="button"
                     onMouseEnter={() => stepper.setCursor(index)}
                     onClick={() => stepper.goTo(index)}
-                    className={`flex h-7 items-center justify-between gap-3 rounded-md px-2.5 text-left ${
-                        index === stepper.cursor
-                            ? "bg-colorFillSecondary"
-                            : "bg-colorFillQuaternary"
+                    // `border-transparent` is load-bearing: the app's button reset paints a border,
+                    // so a bare <button> here drew an outline around every row.
+                    className={`flex h-[30px] min-w-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
+                        index === stepper.cursor ? "bg-colorFillSecondary" : ""
                     }`}
                 >
-                    <span className="truncate text-xs text-colorTextSecondary">{step.label}</span>
+                    <span className="max-w-[55%] shrink-0 truncate text-xs text-colorTextSecondary">
+                        {step.label}
+                    </span>
                     <span
-                        className={`truncate text-xs ${
+                        className={`min-w-0 truncate text-xs ${
                             stepper.isAnswered(step) ? "text-colorText" : "text-colorTextQuaternary"
                         }`}
                     >
