@@ -1582,11 +1582,25 @@ class ToolsRouter:
             ConnectionInactiveError,
             ConnectionInvalidError,
         ) as e:
+            # The domain messages name the connection — its slug, or its id — and a
+            # connection is private routing the model never sees anywhere else: it is
+            # chosen from the agent's own configuration and `run_tool` takes no
+            # connection argument. So the detail is logged and the model is told only
+            # that the integration is unavailable. It could not act on the identifier
+            # in any case; reconnecting is the person's job, and `next_step` says so.
+            log.warning(
+                "[gateway.run] connection unavailable",
+                integration=context.integration,
+                tool=context.tool,
+                reason=e.message,
+            )
             return _agent_error_result(
                 body=body,
                 error=AgentError(
                     code="connection_unavailable",
-                    message=e.message,
+                    message=(
+                        "The configured connection for this integration is unavailable."
+                    ),
                     retryable=False,
                     next_step=(
                         "Ask the user to reconnect this integration in Agenta, then "
