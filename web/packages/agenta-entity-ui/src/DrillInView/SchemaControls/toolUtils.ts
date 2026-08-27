@@ -8,6 +8,7 @@
 import type {
     GatewayConnectionToolConfig,
     GatewayPermission as WireGatewayPermission,
+    ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {asRecord, parseGatewayToolSlug} from "@agenta/shared/utils"
 
@@ -198,6 +199,25 @@ export function buildGatewayConnectionEntry(
  *  connection edits the same entry instead of adding a second one. */
 function gatewayConnectionIdentity(target: GatewayConnectionTarget): string {
     return [target.provider, target.integration].join(GATEWAY_IDENTITY_SEP)
+}
+
+/**
+ * The project connection an entry points at. A slug is unique only WITHIN a provider and
+ * integration, so all three have to match — on the slug alone, a surface showed another
+ * integration's connection state as this one's.
+ */
+export function findTargetConnection(
+    connections: ToolConnection[],
+    target: GatewayConnectionTarget,
+    connectionSlug: string,
+): ToolConnection | undefined {
+    if (!connectionSlug) return undefined
+    return connections.find(
+        (connection) =>
+            connection.slug === connectionSlug &&
+            connection.provider_key === target.provider &&
+            connection.integration_key === target.integration,
+    )
 }
 
 /**

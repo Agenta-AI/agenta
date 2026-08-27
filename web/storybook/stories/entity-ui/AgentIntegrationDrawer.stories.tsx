@@ -89,16 +89,15 @@ export const Default: Story = {
     render: () => <DrawerHost />,
 }
 
-/**
- * GitHub is already on the agent, so its row reads "Added" and offers to point the entry at the
- * other connection instead. A swap REPLACES the one entry the format allows; it never appends a
- * second.
- */
+// Added on `github-work`, with `github-personal` also connected so the swap the row offers has
+// somewhere to go. A swap REPLACES the one entry the format allows; it never appends a second.
 export const AlreadyAdded: Story = {
     parameters: {
         agenta: {
             queries: (scope: StoryScope) =>
-                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                }),
         },
     },
     render: () => <DrawerHost tools={[entry("github", GITHUB_WORK.slug ?? "")]} />,

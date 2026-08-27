@@ -191,12 +191,7 @@ const MODEL_GROUPS = [
     },
 ]
 
-/**
- * The full `/` flow. Type `/` to open the palette, `/mo` to filter (the match highlights inside the
- * name), `/xyz` for the empty state — Enter there sends the text instead of selecting.
- * `/model` and `/permissions` drill into the real pickers, anchored over the composer as the
- * chat dock mounts them.
- */
+/** The full `/` flow: palette, filtering, empty state, and the two pickers it drills into. */
 export const SlashCommands: Story = {
     render: () => {
         const Demo = () => {

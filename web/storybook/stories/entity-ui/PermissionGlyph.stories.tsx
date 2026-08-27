@@ -3,10 +3,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // Imported from source: the DrillInView barrel does not re-export the glyph.
 import {PolicyGlyph} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/PermissionGlyph"
 
-// One glyph map over BOTH vocabularies — the four presets an integration row summarizes, and the
-// four per-tool permission values a drawer row sets. A preset and the value it corresponds to must
-// never draw differently, which is the whole reason the map is shared; these stories are where
-// that is visible.
+// One glyph map over both vocabularies, so a preset and its per-tool value never draw differently.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/PermissionGlyph",
     component: PolicyGlyph,

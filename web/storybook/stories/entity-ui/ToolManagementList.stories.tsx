@@ -6,15 +6,8 @@ import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/Drill
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {integrationQueries, GITHUB_WORK, SLACK_OPS} from "../../fixtures/gatewayIntegration"
 
-/**
- * **Data-connected list story.** The integration rows of the agent's Tools section: one row per
- * integration, showing its logo, its name, and the policy it currently holds. The row summary is
- * what an author reads to answer "what may this agent do with GitHub" without opening anything.
- *
- * The rows are built from the SAME `tools` array the component renders, through the real
- * `buildIntegrationRows`, so a story cannot show a row shape the parser would not produce. Only
- * the catalog queries are seeded — the logos and display names each row looks up.
- */
+// Rows are built by the real `buildIntegrationRows`, so no story can show a shape the parser would
+// not produce.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ToolManagementList",
     component: ToolManagementList,
@@ -82,10 +75,7 @@ const Frame = (children: React.ReactNode) => (
     </div>
 )
 
-/**
- * The three row states side by side: a default preset, a Custom row carrying its override count,
- * and an unmigrated integration tagged "old format" with no policy summary at all.
- */
+/** A default preset, a Custom row with its override count, and an unmigrated "old format" row. */
 export const RowStates: Story = {
     args: listArgs(TOOLS),
     parameters: {

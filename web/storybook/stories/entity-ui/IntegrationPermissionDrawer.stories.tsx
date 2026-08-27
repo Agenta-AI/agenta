@@ -8,19 +8,8 @@ import {IntegrationPermissionDrawer} from "../../../packages/agenta-entity-ui/sr
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {GITHUB_TOOLS, GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
 
-/**
- * **Data-connected drawer story.** Where an author decides what the agent may do with ONE
- * integration: a default preset, and a per-tool override for any tool that needs its own rule.
- *
- * It shows what is SAVED and never resolves `inherit` into `allow` or `ask` — doing that would put
- * a second copy of the permission compiler in TypeScript, reading an agent-wide mode this drawer
- * does not own. The runner is the only place an effective permission is computed, so a rollup that
- * reads "follows the agent policy" is the honest answer, not a missing one.
- *
- * The seeded catalog is what makes the body real: the read-only partition comes from each action's
- * `read_only` flag, the counts describe the whole integration, and a saved key the catalog no
- * longer lists is marked rather than dropped.
- */
+// Shows what is SAVED; it never resolves `inherit`, because only the runner computes an effective
+// permission.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/IntegrationPermissionDrawer",
     component: IntegrationPermissionDrawer,

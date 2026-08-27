@@ -49,6 +49,7 @@ import {
     type PermissionPolicy,
 } from "../permissionPolicy"
 import {ProviderLogo} from "../sectionGroups"
+import {findTargetConnection} from "../toolUtils"
 import type {
     GatewayConnectionPermissions,
     GatewayConnectionTarget,
@@ -478,7 +479,7 @@ function DrawerTitle({
 }) {
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections} = useToolConnectionsQuery()
-    const connection = connections.find((c) => c.slug === connectionSlug)
+    const connection = findTargetConnection(connections, target, connectionSlug)
 
     return (
         <div className="flex items-center gap-2.5">
