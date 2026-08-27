@@ -191,8 +191,9 @@ export {
 export {
     approvalResolution,
     approvalResumeAction,
-    shouldDispatchHeldResume,
-    type ApprovalResumeMarker,
+    heldResumeDecision,
+    isResumeSend,
+    type ChatStatusLike,
 } from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
 export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./execution"

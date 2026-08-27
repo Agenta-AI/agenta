@@ -31,7 +31,8 @@ import {
     approvalResolution,
     approvalResumeAction,
     buildAgentRequest,
-    shouldDispatchHeldResume,
+    heldResumeDecision,
+    isResumeSend,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -230,8 +231,8 @@ export const useAgentConversation = ({
     )
 
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    // `null` means "explicitly voided, never resume" (a stop); `undefined` means "no live marker",
-    // which falls back to the predicate's tail heuristics.
+    // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
+    // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     // A resume the stream was too busy to take; the effect below sends it once the stream settles.
     const heldApprovalResumeRef = useRef(false)
@@ -256,14 +257,15 @@ export const useAgentConversation = ({
         experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) => {
-            const shouldDispatch = agentShouldResumeAfterApproval({
+        // Side-effect-free on purpose: the SDK reads `predicate(...) && !isError`, so a `true` here
+        // is a proposal it can still refuse. Consuming anything from inside would spend the gate on
+        // a request that never left. The marker is consumed where a send is a fact — see the effect
+        // on `status` below.
+        sendAutomaticallyWhen: ({messages}) =>
+            agentShouldResumeAfterApproval({
                 messages,
                 liveInteraction: liveGateInteractionRef.current,
-            })
-            if (shouldDispatch) liveGateInteractionRef.current = null
-            return shouldDispatch
-        },
+            }),
         // The turn's trace may not be ingested yet when a row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files: mark the session's drive data stale so every mount surface refetches.
@@ -470,8 +472,6 @@ export const useAgentConversation = ({
     // made in THIS mount marks the resume as live — a restored approval-requested tail the user
     // answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.
     const dispatchApprovalResume = useCallback(() => {
-        // Consume the marker so the SDK's own evaluation can't send a second request for this gate.
-        liveGateInteractionRef.current = null
         void sendMessage().catch(ignoreStreamRejection)
     }, [sendMessage])
 
@@ -496,19 +496,25 @@ export const useAgentConversation = ({
         [addToolApprovalResponse, dispatchApprovalResume, recordInteractionAnswer, sessionId],
     )
 
-    // The held resume goes out the moment the stream stops being busy — not on part state, which a
-    // re-seed can revert first.
+    // Both halves of the resume ride on the STREAM's state, never on part state (a re-seed reverts
+    // that) and never on the predicate's verdict (the SDK discards it on an errored stream).
+    const previousStatusRef = useRef(status)
     useEffect(() => {
-        if (busy || !heldApprovalResumeRef.current) return
-        const dispatch = shouldDispatchHeldResume({
+        const from = previousStatusRef.current
+        previousStatusRef.current = status
+        // A request really went out — ours, or the SDK's own auto-resume. The gate it carried is
+        // spent, so the marker is consumed HERE, where a send is a fact.
+        const sent = isResumeSend({from, to: status})
+        if (sent) liveGateInteractionRef.current = null
+        const decision = heldResumeDecision({
             busy,
-            held: true,
-            marker: liveGateInteractionRef.current,
+            held: heldApprovalResumeRef.current,
+            sent,
         })
-        // Settled either way: a marker the SDK already consumed must not re-arm on a later turn.
+        if (decision === "wait") return
         heldApprovalResumeRef.current = false
-        if (dispatch) dispatchApprovalResume()
-    }, [busy, dispatchApprovalResume])
+        if (decision === "dispatch") dispatchApprovalResume()
+    }, [busy, dispatchApprovalResume, status])
 
     // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
     // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather
@@ -650,6 +656,9 @@ export const useAgentConversation = ({
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
         // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
         liveGateInteractionRef.current = null
+        // And the held resume with it: `stop()` settles the stream, which is exactly the signal the
+        // effect above dispatches on. Without this, a stop SENDS the resume it just cancelled.
+        heldApprovalResumeRef.current = false
         stop()
     }, [stop])
 

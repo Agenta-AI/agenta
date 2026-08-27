@@ -17,8 +17,9 @@ export {
 export {
     approvalResolution,
     approvalResumeAction,
-    shouldDispatchHeldResume,
-    type ApprovalResumeMarker,
+    heldResumeDecision,
+    isResumeSend,
+    type ChatStatusLike,
 } from "./state/execution/approvalAnswer"
 export {canReleaseQueuedMessage, isHitlPending} from "./state/execution/agentMessageQueue"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./state/execution/agentNegotiation"

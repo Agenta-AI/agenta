@@ -372,8 +372,9 @@ export {
 export {
     approvalResolution,
     approvalResumeAction,
-    shouldDispatchHeldResume,
-    type ApprovalResumeMarker,
+    heldResumeDecision,
+    isResumeSend,
+    type ChatStatusLike,
 } from "./approvalAnswer"
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"

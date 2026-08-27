@@ -12,7 +12,8 @@ import {describe, expect, it} from "vitest"
 import {
     approvalResolution,
     approvalResumeAction,
-    shouldDispatchHeldResume,
+    heldResumeDecision,
+    isResumeSend,
 } from "../../src/state/execution/approvalAnswer"
 
 describe("approvalResolution", () => {
@@ -57,28 +58,45 @@ describe("approvalResumeAction", () => {
     })
 })
 
-describe("shouldDispatchHeldResume", () => {
-    const marker = {kind: "approval", id: "perm_1"}
-
-    it("fires once the stream stops being busy", () => {
-        expect(shouldDispatchHeldResume({busy: false, held: true, marker})).toBe(true)
+describe("isResumeSend", () => {
+    it("reads a move into submitted as a request going out", () => {
+        // `submitted` is entered from `makeRequest` and nowhere else, so this transition IS a send.
+        expect(isResumeSend({from: "error", to: "submitted"})).toBe(true)
+        expect(isResumeSend({from: "ready", to: "submitted"})).toBe(true)
     })
 
-    it("waits while the stream is still busy", () => {
-        expect(shouldDispatchHeldResume({busy: true, held: true, marker})).toBe(false)
+    it("does not read the original open stream as a send", () => {
+        // The state at click time. Reading this as a send would drop the hold before anything went.
+        expect(isResumeSend({from: "streaming", to: "streaming"})).toBe(false)
+    })
+
+    it("does not read a settle as a send", () => {
+        expect(isResumeSend({from: "streaming", to: "error"})).toBe(false)
+        expect(isResumeSend({from: "streaming", to: "ready"})).toBe(false)
+    })
+
+    it("counts one send once, not once per render", () => {
+        expect(isResumeSend({from: "submitted", to: "submitted"})).toBe(false)
+    })
+})
+
+describe("heldResumeDecision", () => {
+    it("waits while the answered stream is still open", () => {
+        expect(heldResumeDecision({busy: true, held: true, sent: false})).toBe("wait")
+    })
+
+    it("dispatches when the stream settles with nothing sent", () => {
+        expect(heldResumeDecision({busy: false, held: true, sent: false})).toBe("dispatch")
+    })
+
+    it("releases the hold when a request really went out, without sending a second", () => {
+        expect(heldResumeDecision({busy: true, held: true, sent: true})).toBe("release")
+        expect(heldResumeDecision({busy: false, held: true, sent: true})).toBe("release")
     })
 
     it("does nothing when no resume is held", () => {
-        expect(shouldDispatchHeldResume({busy: false, held: false, marker})).toBe(false)
-    })
-
-    it("does not send a second request when the marker was already consumed", () => {
-        // `null` is set by the SDK's own auto-resume when it dispatches, and by a stop.
-        expect(shouldDispatchHeldResume({busy: false, held: true, marker: null})).toBe(false)
-    })
-
-    it("still fires when the marker was cleared to undefined by a stream error", () => {
-        expect(shouldDispatchHeldResume({busy: false, held: true, marker: undefined})).toBe(true)
+        expect(heldResumeDecision({busy: false, held: false, sent: false})).toBe("wait")
+        expect(heldResumeDecision({busy: false, held: false, sent: true})).toBe("wait")
     })
 })
 
@@ -102,15 +120,82 @@ describe("the decision-time ordering, end to end", () => {
         expect(written.verdict).toBe("denied")
     })
 
-    it("a held gateway approval dispatches exactly once when the stream settles", () => {
+    it("holds while the answered stream is open, then dispatches once it settles", () => {
         const {action} = decide(true, "call_x|fc_y", true)
         expect(action).toBe("hold")
-        const marker = {kind: "approval", id: "call_x|fc_y"}
-        // Still streaming: nothing goes out.
-        expect(shouldDispatchHeldResume({busy: true, held: true, marker})).toBe(false)
-        // Stream settles: the held resume fires.
-        expect(shouldDispatchHeldResume({busy: false, held: true, marker})).toBe(true)
-        // Once the hold is cleared, a later settle does not fire again.
-        expect(shouldDispatchHeldResume({busy: false, held: false, marker})).toBe(false)
+        const chat = drive("streaming", true)
+        chat.step("streaming") // still the same open stream
+        expect(chat.dispatches).toBe(0)
+        chat.step("error")
+        expect(chat.dispatches).toBe(1)
+        chat.step("ready") // a later settle finds no hold
+        expect(chat.dispatches).toBe(1)
+    })
+})
+
+/**
+ * The hook's held-resume effect, as a driver: one `step` per stream-state change.
+ *
+ * It exists because the whole defect lived in the ORDER of these steps, not in any single rule —
+ * the predicate consumed the hold's token, then the SDK declined to send, and the hold refused a
+ * dispatch for a request that never left.
+ */
+const drive = (initial: string, held: boolean) => {
+    let previous = initial
+    let holding = held
+    const chat = {
+        dispatches: 0,
+        step(status: string) {
+            const sent = isResumeSend({from: previous, to: status})
+            previous = status
+            const busy = status === "submitted" || status === "streaming"
+            const decision = heldResumeDecision({busy, held: holding, sent})
+            if (decision === "wait") return
+            holding = false
+            if (decision === "dispatch") chat.dispatches += 1
+        },
+        /** `handleStop`: the gate is void, so the hold goes with it. */
+        stop() {
+            holding = false
+        },
+        get held() {
+            return holding
+        },
+    }
+    return chat
+}
+
+describe("the SDK's finish path, which the hold has to survive", () => {
+    it("leaves the hold armed when the predicate says yes on an errored stream", () => {
+        // The SDK reads `if (sendAutomaticallyWhen(...) && !isError)`: the predicate runs FIRST and
+        // its verdict is then thrown away. A predicate that consumed the hold would strand the
+        // answer here — this is the measured deadlock, and why the wrapper is side-effect-free.
+        const predicateVerdict = true
+        const isError = true
+        const sdkSent = predicateVerdict && !isError
+        expect(sdkSent).toBe(false)
+
+        const chat = drive("streaming", true)
+        chat.step("error")
+        expect(chat.dispatches).toBe(1)
+    })
+
+    it("clears the hold without a second dispatch when the SDK's own send is observed", () => {
+        // A clean finish: the SDK's predicate is true, `isError` is false, so it sends by itself.
+        const chat = drive("streaming", true)
+        chat.step("submitted")
+        expect(chat.dispatches).toBe(0)
+        expect(chat.held).toBe(false)
+        // And the resumed stream settling does not fire a duplicate.
+        chat.step("streaming")
+        chat.step("ready")
+        expect(chat.dispatches).toBe(0)
+    })
+
+    it("sends nothing after a stop, even though a stop settles the stream", () => {
+        const chat = drive("streaming", true)
+        chat.stop()
+        chat.step("ready") // what `stop()` leaves behind
+        expect(chat.dispatches).toBe(0)
     })
 })

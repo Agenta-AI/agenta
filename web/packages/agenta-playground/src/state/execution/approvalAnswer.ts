@@ -33,25 +33,42 @@ export function approvalResolution(approvalId: string, approved: boolean): Recor
     }
 }
 
-/** The live-gate marker: an interaction, `null` (consumed or voided), or absent. */
-export type ApprovalResumeMarker = {kind: string; id: string} | null | undefined
+/** The `useChat` stream states, named so the rules below read as the SDK's own vocabulary. */
+export type ChatStatusLike = "submitted" | "streaming" | "ready" | "error" | (string & {})
 
 /**
- * Whether a resume held while the stream was busy should dispatch now. `null` means the marker was
- * already consumed — the SDK's own auto-resume fired, or a stop voided the gate — and a second
- * request must not go out.
+ * Whether a status change means a request really went out.
+ *
+ * `submitted` is entered from one place only — the SDK's `makeRequest` — so this transition IS a
+ * send, whoever started it. That makes it the only trustworthy evidence of a dispatch: the resume
+ * predicate's `true` is not evidence, because the SDK's finish path reads
+ * `if (predicate(...) && !isError)` and discards the verdict on an errored stream. A hold released
+ * on the predicate's word is a hold released for a request that never left.
  */
-export function shouldDispatchHeldResume({
+export function isResumeSend({from, to}: {from: ChatStatusLike; to: ChatStatusLike}): boolean {
+    return to === "submitted" && from !== "submitted"
+}
+
+/**
+ * What to do with a held resume, on each stream-state change.
+ *
+ * `release` means someone else already sent, so the hold is satisfied without a second request.
+ * `dispatch` means the stream settled with nothing sent — the gateway case, where the stream ends
+ * by erroring and the SDK therefore skips its own resume.
+ */
+export function heldResumeDecision({
     busy,
     held,
-    marker,
+    sent,
 }: {
     busy: boolean
     held: boolean
-    marker: ApprovalResumeMarker
-}): boolean {
-    if (busy || !held) return false
-    return marker !== null
+    sent: boolean
+}): "wait" | "dispatch" | "release" {
+    if (!held) return "wait"
+    if (sent) return "release"
+    if (busy) return "wait"
+    return "dispatch"
 }
 
 /**
