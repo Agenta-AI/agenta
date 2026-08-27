@@ -84,6 +84,29 @@ def _example_payloads(config_schema):
     return [p for p in payloads if isinstance(p, dict) and "workflow_revision" in p]
 
 
+def _gateway_connections(value):
+    if isinstance(value, dict):
+        if value.get("type") == "gateway_connection":
+            yield value
+        for child in value.values():
+            yield from _gateway_connections(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _gateway_connections(child)
+
+
+@pytest.mark.parametrize("fixture_name", ["ordered", "legacy"])
+def test_new_gateway_connections_are_taught_as_allow_all(request, fixture_name):
+    skill = request.getfixturevalue(fixture_name)
+    config_schema = skill["files"]["references/config-schema.md"]
+    examples = list(_gateway_connections(_example_payloads(config_schema)))
+
+    assert examples
+    for entry in examples:
+        assert entry["policy"]["permissions"] == {"default": "allow", "tools": {}}
+    assert "only restrict it when the user explicitly asks" in config_schema
+
+
 class TestOrderedModeNeverTeachesTheLegacyShape:
     """The class detector for the data-loss incident."""
 
