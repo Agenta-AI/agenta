@@ -376,9 +376,9 @@ journey. Every step names what to check.
 | Step | Action | Check |
 | --- | --- | --- |
 | 1 | Open the Tools section. Click the plus icon. | The add-integration drawer opens. It lists the connected integration under `CONNECTED IN YOUR WORKSPACE`. |
-| 2 | Add the integration. | The drawer stays open. The Playground shows one integration row. Its glyph reads "Ask for write and delete". |
+| 2 | Add the integration. | The drawer stays open. The Playground shows one integration row. Its short label reads "Allow reads", the row form of the "Ask for write and delete" preset. |
 | 3 | Click Done, then click the integration row. | The permission drawer opens. It shows the connection slug in the subtitle and a Connected state. |
-| 4 | Set the default preset to "Ask for write and delete". | The two tool groups show the read-only rollup as "runs automatically" and the write rollup as "asks first". |
+| 4 | Set the default preset to "Ask for write and delete". | Both tool groups roll up as "follows agent policy". That preset saves `inherit`, and F11 forbids the drawer from resolving it, so neither group can read "runs automatically" or "asks first". |
 | 5 | Search for a destructive tool. Set it to Deny. | The preset switches to "Custom" with an override count of 1. The row shows the deny style. |
 | 6 | Search for a write tool. Set it to Ask. | The override count reads 2. |
 | 7 | Save the revision. | Read the stored revision through the API. Its `parameters.agent.tools` holds one `gateway_connection` entry with the two tool keys. |
