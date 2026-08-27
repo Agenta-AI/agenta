@@ -22,6 +22,12 @@ from oss.src.core.tools.dtos import (
 )
 from oss.src.core.tools.exceptions import AdapterError
 
+# The connect flow owns the question "can this toolkit be connected at all", so the
+# catalog asks it there rather than keeping a second list of schemes that would drift.
+from oss.src.core.gateway.connections.providers.composio.adapter import (
+    can_connect_toolkit,
+)
+
 
 log = get_module_logger(__name__)
 
@@ -226,12 +232,17 @@ class ComposioCatalogClient:
             else len(items_raw)
         )
 
-        items = [_parse_integration(item) for item in items_raw]
+        # Fail closed: a toolkit our connect flow can build no auth config for is one a
+        # person can start connecting and never finish, so it is not offered at all.
+        connectable = [item for item in items_raw if can_connect_toolkit(item)]
+        dropped = len(items_raw) - len(connectable)
+        items = [_parse_integration(item) for item in connectable]
 
         log.debug(
-            "[composio] list_integrations cursor=%s items=%d total=%d next=%s",
+            "[composio] list_integrations cursor=%s items=%d dropped=%d total=%d next=%s",
             cursor,
             len(items),
+            dropped,
             total_items,
             next_cursor,
         )
@@ -239,6 +250,9 @@ class ComposioCatalogClient:
         return ToolCatalogIntegrationsPage(
             integrations=items,
             next_cursor=next_cursor,
+            # Composio's own count, so it still counts the few dropped above. Left as-is
+            # rather than adjusted: the drop is per page, and subtracting this page's
+            # would make the total disagree with itself as the caller pages through.
             total=total_items,
         )
 
