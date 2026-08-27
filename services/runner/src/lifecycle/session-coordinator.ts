@@ -739,8 +739,11 @@ export async function runWithKeepalive(
       if (!(await seat(config.approvalTtlMs, "awaiting_approval"))) {
         await drop("park-refused", "failed-turn");
       } else {
+        klog(`[park-stage] cold seat(awaiting_approval) taken`);
         await notifyParkedLive(env);
+        klog(`[park-stage] cold notifyParkedLive returned`);
         watchParkedPrompt(env);
+        klog(`[park-stage] cold watchParkedPrompt returned`);
       }
     } else if (shouldPark(result, signal, clientGone)) {
       if (!(await seat(config.ttlMs, "idle"))) {
@@ -797,8 +800,11 @@ export async function runWithKeepalive(
       ) {
         await live.teardown("failed-turn");
       } else {
+        klog(`[park-stage] warm repark(awaiting_approval) taken`);
         await notifyParkedLive(env);
+        klog(`[park-stage] warm notifyParkedLive returned`);
         watchParkedPrompt(env);
+        klog(`[park-stage] warm watchParkedPrompt returned`);
       }
     } else if (shouldPark(result, signal, clientGone)) {
       if (!(await pool.repark(live, update, config.ttlMs))) {
@@ -879,7 +885,9 @@ export async function runWithKeepalive(
         error: String(err instanceof Error ? err.message : err),
       };
     }
+    klog(`[park-stage] cold runTurn returned stopReason=${result.stopReason}`);
     await parkFreshOrDestroy(env, reservation, result);
+    klog(`[park-stage] cold parkFreshOrDestroy returned`);
     return result;
   };
 
@@ -1047,7 +1055,9 @@ export async function runWithKeepalive(
         klog(`evict (continuation-failed) key=${key}; retry cold`);
         return coldAndPark();
       }
+      klog(`[park-stage] warm runTurn returned stopReason=${result.stopReason}`);
       await reparkOrEvict(live, result);
+      klog(`[park-stage] warm reparkOrEvict returned`);
       return result;
     }
     // checkout lost a race; fall through to cold.
@@ -1226,7 +1236,9 @@ export async function runWithKeepalive(
         klog(`evict (resume-failed) key=${key}; retry cold`);
         return coldAndPark();
       }
+      klog(`[park-stage] warm runTurn returned stopReason=${result.stopReason}`);
       await reparkOrEvict(live, result);
+      klog(`[park-stage] warm reparkOrEvict returned`);
       return result;
     }
     // checkout lost a race; fall through to cold.

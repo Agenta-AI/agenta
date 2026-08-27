@@ -123,6 +123,10 @@ export async function runTurn(
   // exposure. Do NOT add unconditional I/O anywhere above that call; hand pre-turn reads in
   // through `opts` instead (see `opts.seededDecisions`).
   const { plan, logger, deps } = env;
+  // TEMPORARY INSTRUMENTATION (`[park-stage]`): locate the await that never returns on a parked
+  // turn. Remove with the fix. See followup-gateway-park-termination.md.
+  const parkStage = (stage: string): void =>
+    logger(`[park-stage] turn=${request.turnId ?? "?"} ${stage}`);
   const initialCredential = opts.credential ?? (() => runCredential(request));
   const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
   // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
@@ -1133,10 +1137,12 @@ export async function runTurn(
         : raced === PAUSED || pause.active
           ? "paused"
           : (raced as any)?.stopReason;
+    parkStage(`raced stopReason=${stopReason}`);
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
     // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
+      parkStage("waitForEventDrain returned");
       settleBufferedPausedCompletions();
       const openAllowedExecutions = openToolCallIds().filter((id) =>
         pause.isAllowedExecution(id),
@@ -1177,11 +1183,13 @@ export async function runTurn(
           }),
         );
       }
+      parkStage("openAllowedExecutions settled");
       settleBufferedPausedCompletions();
       run.settleOpenToolCalls(
         (id) => pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
+      parkStage("paused-turn tool calls settled");
       const unexpectedOpenToolCallIds = openToolCallIds().filter(
         (id) => !pause.isPausedToolCall(id),
       );
@@ -1210,12 +1218,15 @@ export async function runTurn(
         record.promptPromise = promptPromise;
       }
     }
+    parkStage("promptPromise handed to parked records");
     await turn.toolRelay?.stop();
+    parkStage("toolRelay.stop returned");
     if (stopReason === "cancelled") {
       // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
       // before draining; the outer environment teardown would otherwise cancel Pi only after the
       // spool had already timed out and then sweep the late batch.
       await harnessTrace.cancelBeforeDrain();
+      parkStage("cancelBeforeDrain returned");
     }
     logger(`prompt stopReason=${stopReason}`);
 
@@ -1227,6 +1238,7 @@ export async function runTurn(
       plan.isPi && stopReason !== "paused"
         ? await harnessTrace.finish()
         : undefined;
+    parkStage("harnessTrace.finish (pi) settled");
     const usage = await resolveRunUsage({
       sandbox: env.sandbox,
       usageOutPath: plan.workspace.usageOutPath,
@@ -1234,10 +1246,12 @@ export async function runTurn(
       promptResult: result,
       streamUsage: run.usage(),
     });
+    parkStage("resolveRunUsage returned");
     run.setUsage(usage);
     if (!plan.isPi && stopReason !== "paused") {
       traceFinish = await harnessTrace.finish();
     }
+    parkStage("harnessTrace.finish (non-pi) settled");
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
     // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
@@ -1283,8 +1297,10 @@ export async function runTurn(
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
+    parkStage("settleInBandInteractions returned");
     const output = run.finish(stopReason);
     await run.flush();
+    parkStage("run.flush returned");
     const turnEndedAt = new Date().toISOString();
 
     if (swallowedError) {
@@ -1328,6 +1344,7 @@ export async function runTurn(
       // A pause/cancel stopped mid-turn, after the harness may have written a partial turn natively.
       invalidateContinuity(sessionId, plan.harness, deps);
     }
+    parkStage("durable turn append settled; returning ok");
 
     return {
       ok: true,
@@ -1389,7 +1406,9 @@ export async function runTurn(
     // after the prompt; stop is safe to repeat, matching the old finally). Null it afterwards so
     // a later `destroy()` — possibly after the dispatch cleared the sink — cannot double-stop or
     // orphan it.
+    parkStage("finally: before activeTurn relay stop");
     await activeTurn?.toolRelay?.stop().catch(() => {});
+    parkStage("finally: after activeTurn relay stop");
     if (activeTurn) activeTurn.toolRelay = undefined;
     // Release the turn's frozen approval bytes unless a gate parked on them. A parked approval
     // is the ONE case that must survive: the human is about to answer it, and the resume commits
