@@ -16,6 +16,7 @@ from oss.src.core.tools.dtos import (
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.catalog import (
+    COMPOSIO_TOOLKIT_VERSION,
     ComposioCatalogClient,
     _derive_read_only,
 )
@@ -121,7 +122,12 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         provider_action_id: str,
     ) -> Optional[ToolCatalogActionDetails]:
         try:
-            item = await self._get(f"/tools/{provider_action_id}")
+            # `version`, not `toolkit_versions`: this endpoint takes the singular name, and
+            # without it a slug that exists only in the latest toolkit version 404s.
+            item = await self._get(
+                f"/tools/{provider_action_id}",
+                params={"version": COMPOSIO_TOOLKIT_VERSION},
+            )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
@@ -166,7 +172,14 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     ) -> ToolExecutionResponse:
         composio_slug = request.provider_action_id
 
-        payload: Dict[str, Any] = {"arguments": request.arguments}
+        # In the BODY. The query form of this parameter is accepted and ignored, so a
+        # latest-only slug still 404s — verified live. Execute must resolve the same
+        # toolkit version the catalog listed, or the schema the model was given does not
+        # match the tool that runs.
+        payload: Dict[str, Any] = {
+            "arguments": request.arguments,
+            "version": COMPOSIO_TOOLKIT_VERSION,
+        }
         # No-auth toolkits run without a connected account; only send the id when set.
         if request.provider_connection_id:
             payload["connected_account_id"] = request.provider_connection_id
@@ -249,6 +262,11 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         }
 
         try:
+            # Deliberately NOT pinned to COMPOSIO_TOOLKIT_VERSION, unlike the three calls
+            # that read or run a toolkit's tools. `version` here would pin the SEARCH
+            # meta-tool's own version, a different axis; the toolkit version its results
+            # are drawn from is already latest, which is the whole reason the other three
+            # calls had to be moved to match it.
             result = await self._post(
                 "/tools/execute/COMPOSIO_SEARCH_TOOLS",
                 json=payload,

@@ -27,6 +27,25 @@ log = get_module_logger(__name__)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 1000
+
+# Every Composio call resolves the LATEST toolkit version, and this constant is the one
+# place that decides it. Listing, detail, and execute must agree: a listing from one
+# version and an execution against another is the argument-schema mismatch trap, where a
+# tool the catalog advertised either does not exist or takes different arguments.
+#
+# Latest is not a preference, it is forced. `COMPOSIO_SEARCH_TOOLS` always searches the
+# latest version, while an unversioned listing returns the account's pinned snapshot — so
+# every search hit died against a policy compiled from the old catalog (measured: three
+# searches, ten results, zero kept). Concretely, `browser_tool` lists 18 screenshot-era
+# tools unversioned and 5 task tools at latest, which is what search returns.
+#
+# The parameter NAME differs per endpoint, verified live 2026-08-27:
+#   listing  GET  /tools                 -> `toolkit_versions` (a `version` param is
+#                                           accepted and silently ignored: still 18)
+#   detail   GET  /tools/{slug}          -> `version` (without it, latest-only slugs 404)
+#   execute  POST /tools/execute/{slug}  -> `version`, in the BODY (the query form is
+#                                           ignored and still 404s)
+COMPOSIO_TOOLKIT_VERSION = "latest"
 # Composio clamps larger page limits to 50, so ask for exactly that.
 ALL_ACTIONS_PAGE_SIZE = 50
 # Runaway-cursor guard for the full-catalog crawl. 50 pages covers every toolkit
@@ -214,13 +233,15 @@ class ComposioCatalogClient:
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
-        # The shared Composio base URL pins every adapter to v3.1. Do not add a
-        # per-call version override here: list, search, get, and execute must use
-        # the same scope or discovery can return slugs that resolution rejects.
+        # The shared Composio base URL pins the API to v3.1, which is a different axis from
+        # the TOOLKIT version and does not settle it. List, detail, and execute must resolve
+        # the same toolkit version or discovery returns slugs that resolution rejects — so
+        # all three pin `COMPOSIO_TOOLKIT_VERSION`, under the name each endpoint accepts.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
             "include_deprecated": False,
             "limit": page_limit,
+            "toolkit_versions": COMPOSIO_TOOLKIT_VERSION,
         }
         if query:
             params["query"] = query

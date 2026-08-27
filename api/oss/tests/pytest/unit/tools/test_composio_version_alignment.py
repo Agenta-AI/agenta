@@ -14,6 +14,9 @@ import httpx
 import pytest
 
 from oss.src.utils.env import ComposioConfig
+from oss.src.core.tools.providers.composio.catalog import (
+    COMPOSIO_TOOLKIT_VERSION,
+)
 
 
 V31 = "https://backend.composio.dev/api/v3.1"
@@ -107,3 +110,90 @@ class TestSearchSlugsResolveUnderPinnedScope:
                 "Expected at least one search slug to be missing on the v3 default; "
                 "if none are, Composio changed its scoping and the pin may be revisitable."
             )
+
+
+# ---------------------------------------------------------------------------
+# Toolkit version: a SECOND version axis, independent of the API scope above
+# ---------------------------------------------------------------------------
+
+
+class _Recorder:
+    """Stands in for the adapter's httpx client and records the outbound call."""
+
+    def __init__(self, payload=None):
+        self.calls = []
+        self._payload = payload or {}
+
+    async def get(self, url, **kwargs):
+        self.calls.append({"method": "GET", "url": url, **kwargs})
+        return httpx.Response(
+            200, json=self._payload, request=httpx.Request("GET", url)
+        )
+
+    async def post(self, url, **kwargs):
+        self.calls.append({"method": "POST", "url": url, **kwargs})
+        return httpx.Response(
+            200, json=self._payload, request=httpx.Request("POST", url)
+        )
+
+
+def _adapter(recorder):
+    from oss.src.core.tools.providers.composio.adapter import ComposioToolsAdapter
+
+    adapter = ComposioToolsAdapter(api_key="k", api_url="https://x/api/v3.1")
+    adapter._client = recorder
+    return adapter
+
+
+class TestEveryComposioCallPinsTheToolkitVersion:
+    """Listing, detail, and execute must resolve the SAME toolkit version.
+
+    The API scope pinned above (v3.1) is a different axis and does not settle this
+    one. ``COMPOSIO_SEARCH_TOOLS`` always searches the LATEST toolkit version, while
+    an unversioned listing returns the account's pinned snapshot, so every search hit
+    died against a policy compiled from the old catalog. Measured 2026-08-27:
+    ``browser_tool`` lists 18 screenshot-era tools unversioned, and the 5 task tools
+    search actually returns at latest.
+
+    Each endpoint spells the parameter differently, which is why these assert the
+    exact outbound shape rather than "a version was sent somewhere".
+    """
+
+    async def test_listing_sends_toolkit_versions(self):
+        recorder = _Recorder({"items": [], "next_cursor": None})
+        await _adapter(recorder).list_actions(integration_key="browser_tool")
+
+        params = recorder.calls[0]["params"]
+        # Plural: a singular ``version`` here is accepted and silently IGNORED.
+        assert params["toolkit_versions"] == COMPOSIO_TOOLKIT_VERSION
+
+    async def test_detail_sends_version(self):
+        recorder = _Recorder({"name": "Run Browser Task"})
+        await _adapter(recorder).get_action(
+            action_key="CREATE_TASK",
+            provider_action_id="BROWSER_TOOL_CREATE_TASK",
+        )
+
+        params = recorder.calls[0]["params"]
+        # Singular here, and load-bearing: without it a latest-only slug 404s.
+        assert params["version"] == COMPOSIO_TOOLKIT_VERSION
+
+    async def test_execute_sends_version_in_the_body(self):
+        from oss.src.core.tools.dtos import ToolExecutionRequest
+
+        recorder = _Recorder({"successful": True, "data": {}})
+        await _adapter(recorder).execute(
+            request=ToolExecutionRequest(
+                integration_key="browser_tool",
+                action_key="CREATE_TASK",
+                provider_action_id="BROWSER_TOOL_CREATE_TASK",
+                arguments={"task": "x"},
+                provider_connection_id="ca_1",
+                user_id="u1",
+            )
+        )
+
+        call = recorder.calls[0]
+        # In the BODY. The query form is accepted and ignored, so the slug still 404s.
+        assert call["json"]["version"] == COMPOSIO_TOOLKIT_VERSION
+        assert "version" not in (call.get("params") or {})
