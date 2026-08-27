@@ -56,9 +56,9 @@ class AgentRunFailed(RuntimeError):
         self, message: str, error_detail: Optional[Dict[str, Any]] = None
     ) -> None:
         self.message = message
-        self.error_detail = error_detail
-        if error_detail and isinstance(error_detail.get("code"), str):
-            self.failure_code = error_detail["code"]
+        self.error_detail = error_detail if isinstance(error_detail, dict) else None
+        if self.error_detail and isinstance(self.error_detail.get("code"), str):
+            self.failure_code = self.error_detail["code"]
         super().__init__(f"Agent run failed: {message}")
 
 

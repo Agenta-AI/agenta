@@ -1207,6 +1207,16 @@ def test_result_from_wire_ignores_malformed_gateway_error_detail(error_detail):
     assert excinfo.value.failure_code == "agent_run_failed"
 
 
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_agent_run_failed_ignores_malformed_error_detail(error_detail):
+    error = AgentRunFailed("runner failed", error_detail=error_detail)  # type: ignore[arg-type]
+
+    assert error.error_detail is None
+    assert error.failure_code == "agent_run_failed"
+
+
 def test_sanitize_runner_error_passes_clean_message_through():
     # A concise, single-line message (what conciseError emits for known cases) is unchanged.
     clean = "pi_core: model authentication failed — add the project's Anthropic key."
