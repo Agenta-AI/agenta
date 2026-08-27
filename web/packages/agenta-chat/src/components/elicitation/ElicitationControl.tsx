@@ -107,14 +107,28 @@ export const ElicitationControl = ({
         event.preventDefault()
         onSubmit()
     }
-    const inputRef = useRef<HTMLInputElement>(null)
+    // One ref for whichever single-line-or-textarea control this step renders, so the focus effect
+    // below does not have to know which branch ran.
+    const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
     const otherRef = useRef<HTMLInputElement>(null)
 
-    // Focus follows the step. `preventScroll` is non-negotiable: a bare .focus() inside the
-    // transcript's scroller fights the same frame's scroll write, which was a named jitter cause.
+    // Focus follows the step — on first render and on every move, forward or back — so a typed
+    // answer never needs a click first. `preventScroll` is non-negotiable: a bare .focus() inside
+    // the transcript's scroller fights the same frame's scroll write, which was a named jitter cause.
     useEffect(() => {
         if (rows.length) return
-        const frame = requestAnimationFrame(() => inputRef.current?.focus({preventScroll: true}))
+        const frame = requestAnimationFrame(() => {
+            const el = fieldRef.current
+            if (!el) return
+            el.focus({preventScroll: true})
+            // Caret to the end, not the start: stepping BACK to a filled answer should continue it.
+            const end = el.value.length
+            try {
+                el.setSelectionRange(end, end)
+            } catch {
+                // number inputs reject setSelectionRange; focus alone is enough there
+            }
+        })
         return () => cancelAnimationFrame(frame)
     }, [step.name, rows.length])
 
@@ -206,6 +220,7 @@ export const ElicitationControl = ({
     if (step.kind === "multiline") {
         return (
             <AutosizeTextarea
+                ref={fieldRef as React.Ref<HTMLTextAreaElement>}
                 aria-label={step.label}
                 value={String(value ?? "")}
                 placeholder={step.hint}
@@ -220,7 +235,7 @@ export const ElicitationControl = ({
     if (step.kind === "number") {
         return (
             <Input
-                ref={inputRef}
+                ref={fieldRef as React.Ref<HTMLInputElement>}
                 type="number"
                 aria-label={step.label}
                 onKeyDown={submitOnEnter}
@@ -235,7 +250,7 @@ export const ElicitationControl = ({
 
     return (
         <Input
-            ref={inputRef}
+            ref={fieldRef as React.Ref<HTMLInputElement>}
             aria-label={step.label}
             value={String(value ?? "")}
             placeholder={step.hint}

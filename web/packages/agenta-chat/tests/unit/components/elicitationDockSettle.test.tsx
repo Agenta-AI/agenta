@@ -9,7 +9,7 @@
  * the latch the second click sends a competing answer for the same `toolCallId` and the runner
  * resumes on whichever lands last.
  */
-import {cleanup, fireEvent, render, screen} from "@testing-library/react"
+import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {ElicitationDock} from "../../../src/components/ElicitationDock"
@@ -295,5 +295,59 @@ describe("multi-select", () => {
         fireEvent.click(screen.getByText("Send answers"))
 
         expect(onOutput.mock.calls[0][0].output.content).toEqual({})
+    })
+})
+
+describe("autofocus", () => {
+    const TYPED = {
+        message: "Three typed answers",
+        requestedSchema: {
+            type: "object",
+            properties: {
+                name: {type: "string", title: "Your name"},
+                days: {type: "integer", title: "Days"},
+                note: {type: "string", title: "Note", format: "multiline"},
+            },
+        },
+    }
+
+    /** The focus lands inside a requestAnimationFrame, which jsdom does not flush synchronously. */
+    const focused = (label: string) =>
+        waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(label)))
+
+    it("focuses the first field on load, with no click", async () => {
+        setup(TYPED)
+        await focused("Your name")
+    })
+
+    it("follows the step forward, across input kinds", async () => {
+        setup(TYPED)
+
+        fireEvent.click(screen.getByText("Next"))
+        await focused("Days")
+
+        fireEvent.click(screen.getByText("Next"))
+        // The textarea had no ref at all, so multiline was the one kind that never focused.
+        await focused("Note")
+    })
+
+    it("follows the step BACK too, with the caret at the end of what is already there", async () => {
+        setup(TYPED)
+
+        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        fireEvent.click(screen.getByText("Next"))
+        fireEvent.click(screen.getByLabelText("Previous question"))
+
+        await focused("Your name")
+        // Caret at the end so stepping back CONTINUES the answer instead of typing over it.
+        expect((screen.getByLabelText("Your name") as HTMLInputElement).selectionStart).toBe(3)
+    })
+
+    it("leaves focus on the card for a pickable step, so digits still work", async () => {
+        setup()
+        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        fireEvent.click(screen.getByText("Next"))
+
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("group")))
     })
 })
