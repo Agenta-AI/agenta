@@ -5,6 +5,7 @@ import {describe, expect, it} from "vitest"
 import {
     defineSidebarEntity,
     groupingStartsFolded,
+    livePollInterval,
     localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
@@ -458,5 +459,27 @@ describe("localSessionRefsMatching", () => {
             "gated",
         ])
         expect(localSessionRefsMatching(rows, filters({status: "idle"}), gated)).toEqual([])
+    })
+})
+
+
+// The baseline is the half that is easy to lose: without it the rail can only ever show the run
+// you started yourself, because a turn under another agent reaches this client through the poll.
+describe("livePollInterval", () => {
+    // Only `flags` is read; the rest of a SessionStream is irrelevant here.
+    const rows = (...flags: {is_alive?: boolean; is_running?: boolean}[]) =>
+        flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<
+            typeof livePollInterval
+        >[0] & object[]
+
+    it("polls fast while a session is alive or running", () => {
+        expect(livePollInterval(rows({is_alive: true}))).toBe(15_000)
+        expect(livePollInterval(rows({is_running: true}))).toBe(15_000)
+    })
+
+    it("keeps a slow baseline when every row looks idle", () => {
+        expect(livePollInterval(rows({}))).toBe(60_000)
+        expect(livePollInterval([])).toBe(60_000)
+        expect(livePollInterval(null)).toBe(60_000)
     })
 })

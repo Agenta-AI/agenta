@@ -104,13 +104,28 @@ const requestFilters = (filters: SidebarSessionFilters) => {
     }
 }
 
+/** Fast enough that a dot clears about when the stream does. */
+const LIVE_POLL_MS = 15_000
+
+/** Slow enough to be background noise, quick enough to notice a run you did not start. */
+const IDLE_POLL_MS = 60_000
+
 /**
- * Poll only while something can still change: a row's dot is driven by `is_alive`, which the
- * server flips when the stream ends — with no request, the dot stays filled until you reload.
- * Stops once every row is idle, so a quiet rail costs nothing.
+ * Poll fast while something can still change, slowly the rest of the time.
+ *
+ * A row's dot is driven by `is_alive`/`is_running`, which the server flips when the stream ends —
+ * with no request, the dot stays filled until you reload. The BASELINE matters just as much: a
+ * turn started under another agent (a trigger, another browser) is invisible to this client, so a
+ * rail that stopped polling when it looked quiet could never discover it, and only the session you
+ * were driving yourself ever appeared to run.
+ *
+ * Both intervals are gated: the source only subscribes while the Sessions group is open and the
+ * rail is expanded, and React Query holds the timer while the window is unfocused.
  */
-const livePollInterval = (rows: SessionStream[] | null | undefined) =>
-    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running) ? 15_000 : false
+export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
+    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running)
+        ? LIVE_POLL_MS
+        : IDLE_POLL_MS
 
 /**
  * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
