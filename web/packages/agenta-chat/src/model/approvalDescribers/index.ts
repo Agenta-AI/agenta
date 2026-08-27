@@ -7,8 +7,10 @@
 import type {ApprovalDescriber} from "../../skin/types"
 
 import {describeCommitRevision} from "./describeCommitRevision"
+import {describeRunTool} from "./describeRunTool"
 
 export {describeCommitRevision}
+export {describeRunTool}
 export {parseApprovedContentManifest} from "./approvedContentManifest"
 export type {ApprovedContentManifestValue} from "./approvedContentManifest"
 export {
@@ -21,4 +23,5 @@ export {
 /** Keyed by the CANONICAL tool name (`describeApproval` canonicalizes before lookup). */
 export const BUILTIN_APPROVAL_DESCRIBERS: Record<string, ApprovalDescriber> = {
     commit_revision: describeCommitRevision,
+    run_tool: describeRunTool,
 }
