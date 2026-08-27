@@ -27,7 +27,7 @@ import {
   type GateDescriptor,
   type PermissionPlan,
 } from "../../permission-plan.ts";
-import type { Responder } from "../../responder.ts";
+import { approvedCallKey, type Responder } from "../../responder.ts";
 import { declinedByUserText } from "../../tools/denial-text.ts";
 import {
   gatewayToolUnavailableText,
@@ -87,6 +87,14 @@ export function buildGatewayToolGate({
         // Whole, so the identity keeps the integration and the tool key inside it.
         args: request.input,
       };
+      // The key this call will be looked up under, logged on EVERY decision. Paired with the
+      // `[HITL] approval extract` line, one reproduction shows whether a stored answer simply
+      // was not there or was there under a different key — the two are indistinguishable from
+      // the outcome alone, and a re-park looks identical either way.
+      log(
+        `[gateway] approval key target=${plan.display} ` +
+          `key=${JSON.stringify(approvedCallKey(request.toolName, request.input))}`,
+      );
       const verdict = await responder.onPermission({
         id: request.id,
         availableReplies: ["once", "reject"],

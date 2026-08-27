@@ -373,18 +373,46 @@ export class ApprovalResponder implements Responder {
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,
+  log?: (msg: string) => void,
 ): Map<string, unknown[]> {
   const decisions = new Map<string, unknown[]>();
   const callShapeById = buildCallShapeIndex(request);
+  // Diagnostics for one specific disagreement. The cold-replay transcript predicate
+  // (`approvalRenderHints`) and this function read the SAME blocks with the SAME
+  // `storedApprovalDecisionOf` test, so a turn that reports `resumeFrame=approval` while this
+  // map comes back empty is a contradiction — the envelope was recognized but produced no key.
+  // Live, that is exactly what a gateway approval did, and the old "log only when non-empty"
+  // line made the empty case invisible. Count both sides so one run tells you which it was.
+  let envelopes = 0;
+  let unkeyable = 0;
   for (const block of toolResultBlocks(request)) {
     const decision = storedApprovalDecisionOf(block);
     if (decision === undefined) continue;
+    envelopes += 1;
     const argsKey = coldReplayKey(block, callShapeById);
-    if (!argsKey) continue;
+    if (!argsKey) {
+      unkeyable += 1;
+      // The two inputs the key is built from, so an unkeyable envelope names its own cause:
+      // a missing tool name on both the result and its correlated call, or arguments that are
+      // not plain JSON.
+      log?.(
+        `[HITL] approval envelope unkeyable toolCallId=${JSON.stringify(
+          block.toolCallId,
+        )} blockToolName=${JSON.stringify(block.toolName)} ` +
+          `callShape=${JSON.stringify(
+            block.toolCallId ? callShapeById.get(block.toolCallId) : undefined,
+          )?.slice(0, 300)}`,
+      );
+      continue;
+    }
     const list = decisions.get(argsKey) ?? [];
     list.push(decision);
     decisions.set(argsKey, list);
   }
+  log?.(
+    `[HITL] approval extract envelopes=${envelopes} keyed=${decisions.size} ` +
+      `unkeyable=${unkeyable} keys=${JSON.stringify([...decisions.keys()])}`,
+  );
   return decisions;
 }
 

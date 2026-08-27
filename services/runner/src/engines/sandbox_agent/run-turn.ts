@@ -595,12 +595,12 @@ export async function runTurn(
     env.currentTurn = turn;
 
     const permissionPlan = permissionsFromRequest(request);
-    const storedDecisionMap = extractApprovalDecisions(request);
-    if (storedDecisionMap.size > 0) {
-      logger(
-        `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
-      );
-    }
+    // Unconditional: an EMPTY decision map on a turn the transcript called a resume is the
+    // interesting case, and the old `size > 0` guard was exactly the condition that hid it.
+    const storedDecisionMap = extractApprovalDecisions(request, logger);
+    logger(
+      `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
+    );
     const decisions = new ConversationDecisions(
       storedDecisionMap,
       extractClientToolOutputs(request),
