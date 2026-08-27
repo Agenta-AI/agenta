@@ -142,7 +142,9 @@ export const useAgentChatSession = ({
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    // `null` means "explicitly voided, never resume" (a stop); `undefined` means "no live marker",
+    // which falls back to the predicate's tail heuristics.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
 
     const {
@@ -196,9 +198,12 @@ export const useAgentChatSession = ({
             invalidateSessionListQueries()
         },
         onError: (err) => {
-            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
-            // set freezes records adoption for this mount and can resume a stale gate much later.
-            liveGateInteractionRef.current = null
+            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
+            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
+            // stream ends — often by erroring, right here. `null` made that last evaluation return
+            // false and stranded the answer; `undefined` lets the tail heuristics decide.
+            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
+            liveGateInteractionRef.current = undefined
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
             console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
