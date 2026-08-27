@@ -173,6 +173,18 @@ class ToolCallData(BaseModel):
     function: ToolCallFunction
 
 
+def _concrete_toolkit_version(value: str) -> str:
+    """Refuse the mutable alias and a blank, and store what is left trimmed.
+
+    Blank is rejected here rather than left to the routes' truthiness checks: a
+    whitespace-only version is truthy, and would reach the provider naming no version.
+    """
+    version = value.strip()
+    if not version or version.lower() == "latest":
+        raise ValueError("gateway toolkit version must be concrete")
+    return version
+
+
 class ToolCallContext(BaseModel):
     """Trusted routing the caller adds beside the model's arguments (contracts section 6).
 
@@ -187,18 +199,29 @@ class ToolCallContext(BaseModel):
     connection: Optional[str] = None
     tool: Optional[str] = None
     toolkit_version: Optional[str] = None
+    # ``gateway.search`` ranks across every configured integration at once, so it carries
+    # one pinned version per integration rather than the single version a run uses.
+    toolkit_versions: Optional[Dict[str, str]] = None
 
     @field_validator("toolkit_version")
     @classmethod
     def _require_concrete_toolkit_version(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return None
-        version = value.strip()
-        if not version or version.lower() == "latest":
-            # Blank is rejected here, not left to the route's truthiness check: a
-            # whitespace-only version is falsy to neither, and would reach the provider.
-            raise ValueError("gateway toolkit version must be concrete")
-        return version
+        return _concrete_toolkit_version(value)
+
+    @field_validator("toolkit_versions")
+    @classmethod
+    def _require_concrete_toolkit_versions(
+        cls, value: Optional[Dict[str, str]]
+    ) -> Optional[Dict[str, str]]:
+        if value is None:
+            return None
+        return {
+            integration.strip().lower(): _concrete_toolkit_version(version)
+            for integration, version in value.items()
+            if integration.strip()
+        }
 
 
 class ToolCall(BaseModel):
@@ -287,7 +310,6 @@ class ResolvedGatewayTool(BaseModel):
 
     key: str
     read_only: Optional[bool] = None
-    input_schema: Optional[Dict[str, Any]] = None
 
 
 class ResolvedGatewayConnection(BaseModel):

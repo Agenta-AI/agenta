@@ -96,11 +96,8 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
       "connection": "github-work",
       "toolkit_version": "20250827_00",
       "tools": [
-        {
-          "key": "GET_ISSUE",
-          "read_only": true,
-          "input_schema": {"type": "object", "properties": {}}
-        }
+        {"key": "GET_ISSUE", "read_only": true},
+        {"key": "CREATE_ISSUE", "read_only": false}
       ]
     }
   ]
@@ -113,7 +110,7 @@ The response keeps `count`, `builtins`, and `custom`. It gains one field.
 | `gateway_connections[].integration` | Routing | Echoed from the request entry. |
 | `gateway_connections[].connection` | Routing | The validated connection slug. |
 | `gateway_connections[].toolkit_version` | Execution context | The concrete toolkit version resolved from `latest` for this run. |
-| `gateway_connections[].tools` | Data | The whole catalog for that version, including key, `read_only`, and input schema. |
+| `gateway_connections[].tools` | Data | The whole catalog for that version, key and `read_only` only. Input schemas stay at the API. |
 
 The API validates the connection here, as it does for the per-tool arm today. It does not
 read `policy`. It returns the catalog slice so the SDK makes one round trip per integration
@@ -201,11 +198,7 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
         "connection": "github-work",
         "toolkitVersion": "20250827_00",
         "tools": {
-          "GET_ISSUE": {
-            "permission": "allow",
-            "readOnly": true,
-            "inputSchema": {"type": "object", "properties": {}}
-          },
+          "GET_ISSUE": {"permission": "allow", "readOnly": true},
           "CREATE_ISSUE": {"permission": "ask", "readOnly": false},
           "DELETE_REPOSITORY": {"permission": "deny", "readOnly": false}
         }
@@ -223,7 +216,11 @@ This rides the run request as one new top-level field, `gatewayPolicy`.
 | `.toolkitVersion` | Execution context | The concrete toolkit version. `latest` never crosses this boundary. |
 | `.tools[key].permission` | Policy | One of `allow`, `ask`, `deny`. Never `inherit`. |
 | `.tools[key].readOnly` | Data | `true`, `false`, or `null`. Carried for the approval card and for logs. |
-| `.tools[key].inputSchema` | Data | The input schema from this integration's concrete toolkit version. Search cannot override it. |
+
+Input schemas are deliberately absent. They are large, the policy rides every run request,
+and the runner needs a schema only for the at most five results one search returns. The
+search route answers those from the pinned catalog instead. Carrying them here measured 60
+KiB against 1.5 MiB for one `github` integration.
 
 `inherit` never crosses this boundary. The compiler has already applied it.
 
@@ -289,6 +286,13 @@ The runner adds one new sibling to `data`. The name is `context`.
 | `context.integration` | Protocol context | Trusted. |
 | `context.connection` | Protocol context | Trusted. Absent for `gateway.search`. |
 | `context.tool` | Protocol context | Trusted. Absent for `gateway.search`. |
+| `context.toolkit_version` | Execution context | The run's concrete version. `gateway.run` only. Never `latest`. |
+| `context.toolkit_versions` | Execution context | One concrete version per configured integration. `gateway.search` only, because one search can rank into several. |
+
+The two version fields differ because the two calls differ. A run names one tool, so it
+carries one version. A search ranks across every configured integration, so it carries the
+pin for each one it could rank into: a scoped search sends the one it named, an unscoped
+search sends them all. A result whose integration is not in the map is dropped.
 
 The API must reject a `gateway.run` or `gateway.search` call whose `context` is missing or
 incomplete. Do not fall back to a default connection.

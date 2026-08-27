@@ -142,14 +142,7 @@ async def test_one_entry_produces_two_specs_and_one_policy(fake_http, connection
                 "connection": "github-work",
                 "toolkitVersion": "20250827_00",
                 "tools": {
-                    "GET_ISSUE": {
-                        "permission": "allow",
-                        "readOnly": True,
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {"number": {"type": "integer"}},
-                        },
-                    },
+                    "GET_ISSUE": {"permission": "allow", "readOnly": True},
                     "CREATE_ISSUE": {"permission": "ask", "readOnly": False},
                     "RUN_WORKFLOW": {"permission": "ask", "readOnly": None},
                 },
@@ -228,14 +221,7 @@ async def test_authored_deny_survives_a_read_only_hint(fake_http, connection):
     )
 
     tools = resolution.gateway_policy.to_wire()["integrations"]["github"]["tools"]
-    assert tools["GET_ISSUE"] == {
-        "permission": "deny",
-        "readOnly": True,
-        "inputSchema": {
-            "type": "object",
-            "properties": {"number": {"type": "integer"}},
-        },
-    }
+    assert tools["GET_ISSUE"] == {"permission": "deny", "readOnly": True}
 
 
 # --------------------------------------------------------------------------- stale keys

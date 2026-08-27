@@ -1452,10 +1452,13 @@ class ToolsRouter:
         this returns and rejects an integration the agent never configured.
         """
         context = body.context
-        if context is None or not context.provider:
+        if context is None or not context.provider or not context.toolkit_versions:
             raise HTTPException(
                 status_code=400,
-                detail="gateway.search requires a context carrying a provider.",
+                detail=(
+                    "gateway.search requires a context carrying a provider and a "
+                    "toolkit version for each configured integration."
+                ),
             )
 
         arguments = body.data.function.arguments
@@ -1489,6 +1492,7 @@ class ToolsRouter:
                 project_id=UUID(request.state.project_id),
                 provider_key=context.provider,
                 query=query.strip(),
+                toolkit_versions=context.toolkit_versions,
                 integration_key=integration.strip() if integration else None,
             )
         except AdapterError:

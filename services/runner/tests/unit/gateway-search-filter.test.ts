@@ -24,7 +24,6 @@ import {
   TOOL_SEARCH_UNAVAILABLE_ERROR,
   filterGatewaySearchResult,
   keptToolTokenMap,
-  normalizeGatewayPolicy,
   redactUnpermittedTokensInSchema,
   planGatewaySearch,
   redactUnpermittedToolTokens,
@@ -111,38 +110,26 @@ describe("the five filters (R22 to R26)", () => {
     assert.ok(!outcome.payload.includes("DELETE_REPOSITORY"));
   });
 
-  it("R25: treats semantic search as ranking and replaces its schema", () => {
+  it("R25: a result with no usable object input schema is removed", () => {
+    const outcome = filter([
+      result("github", "GET_ISSUE", { input_schema: "a string" }),
+      result("github", "CREATE_ISSUE", { input_schema: { type: "array" } }),
+      result("github", "LIST_ISSUES", { input_schema: {} }),
+      result("slack", "SEND_MESSAGE"),
+    ]);
+
+    assert.equal(outcome.kept, 1);
+    assert.equal(outcome.drops.schema, 3);
+  });
+
+  it("keeps a schema that declares properties without an explicit type", () => {
     const outcome = filter([
       result("github", "GET_ISSUE", {
-        input_schema: {
-          type: "object",
-          properties: { issue_number_from_new_latest: { type: "string" } },
-        },
+        input_schema: { properties: { issue: { type: "number" } } },
       }),
     ]);
 
     assert.equal(outcome.kept, 1);
-    assert.deepEqual(JSON.parse(outcome.payload).results[0].input_schema, OBJECT_SCHEMA);
-  });
-
-  it("drops a ranked result when the pinned catalog supplied no usable schema", () => {
-    const policy = normalizeGatewayPolicy({
-      integrations: {
-        github: {
-          provider: "composio",
-          connection: "github-work",
-          toolkitVersion: "20250827_00",
-          tools: { GET_ISSUE: { permission: "allow", readOnly: true } },
-        },
-      },
-    });
-    const outcome = filterGatewaySearchResult(
-      JSON.stringify({ results: [result("github", "GET_ISSUE")] }),
-      policy,
-    );
-
-    assert.equal(outcome.kept, 0);
-    assert.equal(outcome.drops.schema, 1);
   });
 
   it("R26: at most five results reach the model", () => {
@@ -298,10 +285,10 @@ describe("the structured measurement lines", () => {
       await readRelayResponse(relay.dir, "measure-search");
 
       const [searchLine] = gatewayLogs(relay.relayLogs);
-      assert.match(searchLine, /^\[gateway\] search results=6 kept=3 /);
+      assert.match(searchLine, /^\[gateway\] search results=6 kept=2 /);
       assert.match(
         searchLine,
-        /unconfigured=1 unknown=1 denied=1 schema=0 capped=0 unparsable=false$/,
+        /unconfigured=1 unknown=1 denied=1 schema=1 capped=0 unparsable=false$/,
       );
 
       // The model then runs the SECOND result search offered it.
@@ -319,7 +306,7 @@ describe("the structured measurement lines", () => {
       assert.ok(gateLine);
       assert.match(
         gateLine,
-        /tool=GET_ISSUE permission=allow outcome=allow rank=3 searches=1$/,
+        /tool=GET_ISSUE permission=allow outcome=allow rank=2 searches=1$/,
       );
     } finally {
       await relay.stop();
@@ -576,47 +563,6 @@ describe("the redaction reaches the schema prose, not just the description", () 
     // call in `filterGatewaySearchResult` leaves them all green — which is the shape of coverage
     // that let the original leak ship: the helper was right and nothing drove a payload through
     // the seam. This asserts on the EMITTED BODY. Delete that call line and only this goes red.
-    const policy = normalizeGatewayPolicy({
-      integrations: {
-        github: {
-          provider: "composio",
-          connection: "github-work",
-          toolkitVersion: "20250827_00",
-          tools: {
-            GET_ISSUE: {
-              permission: "allow",
-              readOnly: true,
-              inputSchema: {
-                type: "object",
-                properties: {
-                  issue_id: {
-                    type: "string",
-                    description:
-                      "Use GITHUB_LIST_ISSUES to find valid ids, or GITHUB_CREATE_ISSUE to open " +
-                      "one, or GITHUB_DELETE_REPOSITORY to remove the repo entirely.",
-                  },
-                },
-              },
-            },
-            LIST_ISSUES: {
-              permission: "allow",
-              readOnly: true,
-              inputSchema: { type: "object", properties: {} },
-            },
-            CREATE_ISSUE: {
-              permission: "ask",
-              readOnly: false,
-              inputSchema: { type: "object", properties: {} },
-            },
-            DELETE_REPOSITORY: {
-              permission: "deny",
-              readOnly: false,
-              inputSchema: { type: "object", properties: {} },
-            },
-          },
-        },
-      },
-    });
     const outcome = filterGatewaySearchResult(
       JSON.stringify({
         results: [
@@ -638,7 +584,7 @@ describe("the redaction reaches the schema prose, not just the description", () 
           result("github", "LIST_ISSUES"),
         ],
       }),
-      policy,
+      NORMALIZED_POLICY,
     );
 
     const emitted = outcome.payload;
@@ -781,10 +727,11 @@ describe("A6: an unconfigured integration is rejected before the callback", () =
       query: "post a message",
       integration: "slack",
     });
-    assert.deepEqual(plan.context, {
-      provider: "composio",
-      integration: "slack",
-    });
+    // Only slack's pin travels: a scoped search cannot rank into any other integration.
+    assert.equal(plan.context.provider, "composio");
+    assert.equal(plan.context.integration, "slack");
+    // Spread: intake builds prototype-free maps, which deepEqual counts as a difference.
+    assert.deepEqual({ ...plan.context.toolkit_versions }, { slack: "20250827_00" });
   });
 
   it("an unscoped search sends the query alone, with no connection in the context", () => {
@@ -797,6 +744,19 @@ describe("A6: an unconfigured integration is rejected before the callback", () =
     assert.deepEqual(plan.arguments, { query: "read an issue" });
     assert.equal(plan.context.connection, undefined);
     assert.equal(plan.context.tool, undefined);
+  });
+
+  it("an unscoped search carries the pinned version of every configured integration", () => {
+    // Search ranks against the provider's current catalog, so the API can only answer a
+    // hit from the version this run pinned if the pin for that integration travels. An
+    // unscoped search can rank into any of them, so all of them do.
+    const plan = planGatewaySearch({ query: "read an issue" }, NORMALIZED_POLICY);
+
+    assert.ok(plan.ok);
+    assert.deepEqual({ ...plan.context.toolkit_versions }, {
+      github: "20250827_00",
+      slack: "20250827_00",
+    });
   });
 
   it("refuses a search with no usable query", () => {

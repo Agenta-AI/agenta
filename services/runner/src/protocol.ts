@@ -598,7 +598,6 @@ export interface ModelConnection {
 export interface GatewayToolPolicy {
   permission: "allow" | "ask" | "deny";
   readOnly: boolean | null;
-  inputSchema?: Record<string, unknown>;
 }
 
 /** One configured integration inside `gatewayPolicy`: its routing plus its tool table. */

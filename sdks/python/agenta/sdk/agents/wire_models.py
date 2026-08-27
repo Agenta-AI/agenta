@@ -333,7 +333,6 @@ class WireGatewayTool(_WireModel):
 
     permission: Literal["allow", "ask", "deny"]
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
-    input_schema: Optional[Dict[str, Any]] = Field(default=None, alias="inputSchema")
 
 
 class WireGatewayIntegration(_WireModel):

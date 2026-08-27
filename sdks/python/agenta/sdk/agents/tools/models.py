@@ -181,12 +181,6 @@ class CompiledTool(BaseModel):
         validation_alias=AliasChoices("read_only", "readOnly"),
         serialization_alias="readOnly",
     )
-    input_schema: Optional[Dict[str, Any]] = Field(
-        default=None,
-        validation_alias=AliasChoices("input_schema", "inputSchema"),
-        serialization_alias="inputSchema",
-        exclude_if=lambda value: value is None,
-    )
 
 
 class ResolvedGatewayIntegration(BaseModel):

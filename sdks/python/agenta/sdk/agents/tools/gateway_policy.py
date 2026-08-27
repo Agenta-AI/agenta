@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
@@ -28,7 +28,6 @@ class CatalogToolInfo(BaseModel):
     # same as a write to a reader, so it stays tri-state all the way to the runner. Strict,
     # because the value arrives from a provider catalog over HTTP.
     read_only: Optional[StrictBool] = None
-    input_schema: Optional[Dict[str, Any]] = None
 
 
 class CompiledGatewayPolicy(BaseModel):
@@ -69,11 +68,7 @@ def compile_gateway_permissions(
             if value == "inherit"
             else value
         )
-        tools[tool.key] = CompiledTool(
-            permission=permission,
-            read_only=tool.read_only,
-            input_schema=tool.input_schema,
-        )
+        tools[tool.key] = CompiledTool(permission=permission, read_only=tool.read_only)
 
     stale_keys = [key for key in policy.tools if key not in tools]
     return CompiledGatewayPolicy(tools=tools, stale_keys=stale_keys)

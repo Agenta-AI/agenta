@@ -150,8 +150,7 @@ shape is:
         "tools": {
           "GET_ISSUE": {
             "permission": "allow",
-            "readOnly": true,
-            "inputSchema": {"type": "object", "properties": {}}
+            "readOnly": true
           },
           "CREATE_ISSUE": {
             "permission": "ask",

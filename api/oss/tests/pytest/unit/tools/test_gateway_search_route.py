@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools import service as service_module
@@ -27,6 +29,7 @@ from oss.src.core.tools.dtos import (
     ToolCallContext,
     ToolCallData,
     ToolCallFunction,
+    ToolCatalogAction,
 )
 from oss.src.core.tools.discovery import translate_runtime_search
 from oss.src.core.tools.exceptions import AdapterError
@@ -69,6 +72,12 @@ def _search_result_with(count: int) -> ComposioSearchResult:
     )
 
 
+# Every integration the fixture and the synthetic answers can rank into. The route
+# refuses a search whose context does not pin the version of each one.
+PINNED = "20250827_00"
+TOOLKIT_VERSIONS = {"github": PINNED, "slack": PINNED}
+
+
 class FakeSearchProvider:
     """Records what the service asks the provider for, and answers the fixture."""
 
@@ -76,6 +85,10 @@ class FakeSearchProvider:
         self.result = result
         self.error = error
         self.calls: List[Dict[str, Any]] = []
+        self.catalog_calls: List[Dict[str, Any]] = []
+        # None means "the pinned catalog holds every tool this search can rank", which is
+        # the case every test but the drift ones cares about.
+        self.catalog: Optional[List[ToolCatalogAction]] = None
 
     async def search_capabilities(self, *, use_cases, user_id, toolkits=None):
         self.calls.append(
@@ -84,6 +97,25 @@ class FakeSearchProvider:
         if self.error is not None:
             raise self.error
         return self.result if self.result is not None else _parsed_search()
+
+    async def list_all_actions(self, *, integration_key, toolkit_version=None):
+        """The pinned catalog the route joins its ranked hits against."""
+        self.catalog_calls.append(
+            {"integration": integration_key, "toolkit_version": toolkit_version}
+        )
+        if self.catalog is not None:
+            return [a for a in self.catalog if a.key]
+        answer = self.result if self.result is not None else _parsed_search()
+        return [
+            ToolCatalogAction(
+                key=hit.tool,
+                name=hit.name,
+                provider_action_id=f"{integration_key.upper()}_{hit.tool}",
+                input_schema=hit.input_schema,
+            )
+            for hit in translate_runtime_search(answer)
+            if hit.integration == integration_key
+        ]
 
 
 def _router(monkeypatch, provider: FakeSearchProvider, *, cache=None) -> ToolsRouter:
@@ -118,7 +150,13 @@ def _request():
     )
 
 
-def _search_call(*, query="post a message", integration=None, provider="composio"):
+def _search_call(
+    *,
+    query="post a message",
+    integration=None,
+    provider="composio",
+    toolkit_versions=None,
+):
     arguments: Dict[str, Any] = {"query": query}
     if integration is not None:
         arguments["integration"] = integration
@@ -127,7 +165,12 @@ def _search_call(*, query="post a message", integration=None, provider="composio
             id="call_search_1",
             function=ToolCallFunction(name="gateway.search", arguments=arguments),
         ),
-        context=ToolCallContext(provider=provider),
+        context=ToolCallContext(
+            provider=provider,
+            toolkit_versions=(
+                TOOLKIT_VERSIONS if toolkit_versions is None else toolkit_versions
+            ),
+        ),
     )
 
 
@@ -280,7 +323,7 @@ async def test_an_empty_query_is_refused_before_the_provider(monkeypatch, query)
                 name="gateway.search", arguments={"query": query}
             ),
         ),
-        context=ToolCallContext(provider="composio"),
+        context=ToolCallContext(provider="composio", toolkit_versions=TOOLKIT_VERSIONS),
     )
     response = await router.call_tool(_request(), body=body)
 
@@ -303,7 +346,7 @@ async def test_arguments_that_are_not_an_object_are_refused(monkeypatch):
                 name="gateway.search", arguments='{"query": "post a message"}'
             ),
         ),
-        context=ToolCallContext(provider="composio"),
+        context=ToolCallContext(provider="composio", toolkit_versions=TOOLKIT_VERSIONS),
     )
     response = await router.call_tool(_request(), body=body)
 
@@ -356,7 +399,10 @@ async def test_the_provider_comes_from_the_context(monkeypatch):
 
     await _search(router, _search_call(provider="composio"))
 
-    assert service_calls == ["composio"]
+    # The search reads the pinned catalog through the same registry, so this is now more
+    # than one lookup. What matters is that every one routes on the context's provider.
+    assert service_calls
+    assert set(service_calls) == {"composio"}
 
 
 # ---------------------------------------------------------------------------
@@ -534,3 +580,124 @@ async def test_a_scoped_search_keeps_only_the_requested_integration(monkeypatch)
     )
 
     assert {r["integration"] for r in content["results"]} == {"slack"}
+
+
+# ---------------------------------------------------------------------------
+# The pinned-schema join: search ranks, the pinned catalog answers
+# ---------------------------------------------------------------------------
+
+
+async def test_every_result_carries_the_pinned_schema_not_the_ranked_one(monkeypatch):
+    """Provider search cannot be asked for a toolkit version, so its schema is discarded.
+
+    This is the point of the join: a run executes at the pinned version, so the schema
+    the model fills in has to come from that version, not from whatever the ranking
+    catalog happens to be serving now.
+    """
+    provider = FakeSearchProvider()
+    router = _router(monkeypatch, provider)
+    pinned = {"type": "object", "properties": {"pinned_only": {"type": "string"}}}
+    provider.catalog = [
+        ToolCatalogAction(
+            key="SEND_MESSAGE",
+            name="Send message",
+            provider_action_id="SLACK_SEND_MESSAGE",
+            input_schema=pinned,
+        )
+    ]
+
+    content = await _search(
+        router, _search_call(query="post a message", integration="slack")
+    )
+
+    assert [r["tool"] for r in content["results"]] == ["SEND_MESSAGE"]
+    assert content["results"][0]["input_schema"] == pinned
+    assert provider.catalog_calls == [
+        {"integration": "slack", "toolkit_version": PINNED}
+    ]
+
+
+async def test_a_hit_the_pinned_catalog_does_not_hold_is_dropped(monkeypatch):
+    """Search ranks against the CURRENT catalog, so it can offer a newer tool.
+
+    Answering it from a version the run will not execute is the drift this closes.
+    """
+    provider = FakeSearchProvider()
+    router = _router(monkeypatch, provider)
+    provider.catalog = []
+
+    content = await _search(
+        router, _search_call(query="post a message", integration="slack")
+    )
+
+    assert content["results"] == []
+
+
+async def test_a_hit_whose_pinned_schema_is_unusable_is_dropped(monkeypatch):
+    provider = FakeSearchProvider()
+    router = _router(monkeypatch, provider)
+    provider.catalog = [
+        ToolCatalogAction(
+            key="SEND_MESSAGE",
+            name="Send message",
+            provider_action_id="SLACK_SEND_MESSAGE",
+            input_schema={"type": "array"},
+        )
+    ]
+
+    content = await _search(
+        router, _search_call(query="post a message", integration="slack")
+    )
+
+    assert content["results"] == []
+
+
+async def test_an_integration_with_no_pin_is_dropped_rather_than_guessed(monkeypatch):
+    """A pin the runner did not send means the agent is not configured for it."""
+    router = _router(monkeypatch, FakeSearchProvider())
+
+    content = await _search(
+        router,
+        _search_call(query="post a message", toolkit_versions={"slack": PINNED}),
+    )
+
+    assert {r["integration"] for r in content["results"]} == {"slack"}
+
+
+async def test_the_catalog_is_read_once_per_integration_in_the_results(monkeypatch):
+    """An unscoped search must not read a catalog it has no hit for."""
+    provider = FakeSearchProvider()
+    router = _router(monkeypatch, provider)
+
+    await _search(router, _search_call(query="do a thing"))
+
+    assert [call["integration"] for call in provider.catalog_calls] == [
+        "github",
+        "slack",
+    ]
+    assert {call["toolkit_version"] for call in provider.catalog_calls} == {PINNED}
+
+
+async def test_a_search_context_without_pins_is_refused(monkeypatch):
+    router = _router(monkeypatch, FakeSearchProvider())
+
+    body = ToolCall(
+        data=ToolCallData(
+            id="call_search_1",
+            function=ToolCallFunction(
+                name="gateway.search", arguments={"query": "post a message"}
+            ),
+        ),
+        context=ToolCallContext(provider="composio"),
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await router.call_tool(_request(), body=body)
+
+    assert caught.value.status_code == 400
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", "", "  "])
+def test_a_search_pin_that_is_not_concrete_is_refused(version):
+    with pytest.raises(ValidationError):
+        ToolCallContext(provider="composio", toolkit_versions={"slack": version})

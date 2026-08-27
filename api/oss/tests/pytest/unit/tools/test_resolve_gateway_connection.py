@@ -180,7 +180,10 @@ async def test_a_connection_entry_returns_the_catalog_slice(monkeypatch):
         ("CREATE_ISSUE", False),
         ("LIST_LABELS", None),
     ]
-    assert resolved.tools[0].input_schema == CATALOG[0].input_schema
+    # The slice carries identity, never schemas, even though the pinned catalog holds
+    # them. Schemas are answered on the search route instead, so they do not ride the
+    # resolve payload and then every run request inside the compiled policy.
+    assert not hasattr(resolved.tools[0], "input_schema")
 
 
 async def test_the_slice_carries_no_policy(monkeypatch):
@@ -191,7 +194,7 @@ async def test_the_slice_carries_no_policy(monkeypatch):
     )
 
     tool = response.gateway_connections[0].tools[0]
-    assert set(tool.model_dump().keys()) == {"key", "read_only", "input_schema"}
+    assert set(tool.model_dump().keys()) == {"key", "read_only"}
 
 
 async def test_a_missing_connection_is_a_404(monkeypatch):

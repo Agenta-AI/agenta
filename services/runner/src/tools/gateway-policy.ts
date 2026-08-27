@@ -57,7 +57,6 @@ export const TOOL_SEARCH_UNAVAILABLE_ERROR = {
 export interface NormalizedGatewayTool {
   permission: ToolPermission;
   readOnly: boolean | null;
-  inputSchema?: Record<string, unknown>;
 }
 
 export interface NormalizedGatewayIntegration {
@@ -167,14 +166,7 @@ export function normalizeGatewayPolicy(raw: unknown): NormalizedGatewayPolicy {
         if (!isToolPermission(rawTool.permission)) continue;
         const readOnly = normalizedReadOnly(rawTool.readOnly);
         if (readOnly === INVALID_READ_ONLY) continue;
-        const inputSchema = isUsableObjectSchema(rawTool.inputSchema)
-          ? rawTool.inputSchema
-          : undefined;
-        tools[toolKey] = {
-          permission: rawTool.permission,
-          readOnly,
-          ...(inputSchema ? { inputSchema } : {}),
-        };
+        tools[toolKey] = { permission: rawTool.permission, readOnly };
       }
     }
     if (Object.keys(tools).length === 0) continue;
@@ -212,6 +204,12 @@ export interface GatewayCallContext {
   connection?: string;
   tool?: string;
   toolkit_version?: string;
+  /**
+   * The pinned version of every integration this search can rank into, keyed by
+   * integration. Search ranks against the provider's CURRENT catalog, so the API needs
+   * the pin to answer each hit from the version this run will actually execute.
+   */
+  toolkit_versions?: Record<string, string>;
 }
 
 /** What `run_tool` was asked to do, once the shape has been checked. */
@@ -390,17 +388,27 @@ export function planGatewaySearch(
     return {
       ok: true,
       arguments: { query, integration },
-      context: { provider: named.provider, integration },
+      context: {
+        provider: named.provider,
+        integration,
+        toolkit_versions: singleToolkitVersion(integration, named.toolkitVersion),
+      },
     };
   }
 
   // Unscoped search. V1 configures one provider, so the first entry's provider routes the call.
   const first = ownEntry(policy.integrations, configured[0]);
   if (!first) return { ok: false, reason: gatewayToolUnavailableText() };
+  // An unscoped search can rank into any configured integration, so every pin travels.
+  const toolkitVersions = emptyMap<string>();
+  for (const key of configured) {
+    const entry = ownEntry(policy.integrations, key);
+    if (entry) toolkitVersions[key] = entry.toolkitVersion;
+  }
   return {
     ok: true,
     arguments: { query },
-    context: { provider: first.provider },
+    context: { provider: first.provider, toolkit_versions: toolkitVersions },
   };
 }
 
@@ -517,7 +525,7 @@ export function filterGatewaySearchResult(
       drops.denied += 1;
       continue;
     }
-    if (!toolPolicy.inputSchema) {
+    if (!isUsableObjectSchema(entry.input_schema)) {
       drops.schema += 1;
       continue;
     }
@@ -532,7 +540,7 @@ export function filterGatewaySearchResult(
       ...(typeof entry.description === "string"
         ? { description: entry.description }
         : {}),
-      input_schema: structuredClone(toolPolicy.inputSchema),
+      input_schema: entry.input_schema,
     });
   }
 
@@ -762,6 +770,16 @@ function nonEmptyString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** A one-entry version map, prototype-free like every other map intake builds. */
+function singleToolkitVersion(
+  integration: string,
+  version: string,
+): Record<string, string> {
+  const map = emptyMap<string>();
+  map[integration] = version;
+  return map;
 }
 
 function concreteToolkitVersion(value: unknown): string | undefined {
