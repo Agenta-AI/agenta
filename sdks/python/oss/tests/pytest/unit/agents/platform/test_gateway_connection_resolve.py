@@ -249,7 +249,7 @@ async def test_stale_keys_reach_the_resolved_tool_set_as_warnings(
             ]
         },
     )
-    resolver = ToolResolver(gateway_resolver=_resolver(connection))
+    resolver = ToolResolver(gateway_connection_resolver=_resolver(connection))
 
     resolved = await resolver.resolve([_connection_config(tools={"GONE": "allow"})])
 
@@ -388,7 +388,11 @@ async def test_legacy_and_connection_entries_both_resolve(fake_http, connection)
             "gateway_connections": [_slice("github", _GITHUB_CATALOG)],
         },
     )
-    resolver = ToolResolver(gateway_resolver=_resolver(connection))
+    gateway_resolver = _resolver(connection)
+    resolver = ToolResolver(
+        gateway_resolver=gateway_resolver,
+        gateway_connection_resolver=gateway_resolver,
+    )
 
     resolved = await resolver.resolve(
         [

@@ -571,7 +571,7 @@ def test_gateway_guidance_carries_all_six_prompt_items():
     the section actually says the six things. A rewrite that drops one, for example the
     single-retry rule, changes model behavior in a way no placement test would catch.
     """
-    section = gateway_guidance(_GATEWAY_POLICY)
+    section = gateway_guidance(["github", "slack"])
 
     # 1. The configured integration names.
     assert "Configured integrations: github, slack." in section
@@ -601,34 +601,31 @@ def test_gateway_guidance_carries_all_six_prompt_items():
 
 
 def test_gateway_guidance_is_absent_for_an_empty_policy():
-    assert gateway_guidance(None) is None
-    assert gateway_guidance(ResolvedGatewayPolicy()) is None
+    assert gateway_guidance([]) is None
 
 
 @pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
-def test_gateway_policy_reaches_every_harness_config(
+def test_gateway_policy_stays_out_of_every_harness_config(
     make_env, harness_cls, kind, carrier, author_text
 ):
-    """The propagation seam itself: a config that drops it fails silently as a deny."""
+    """Runner policy stays neutral while harnesses receive only names for guidance."""
     harness = harness_cls(make_env(supported=[kind]))
     config = _session_config(gateway_policy=_GATEWAY_POLICY)
 
     result = harness._to_harness_config(config)
 
-    assert result.gateway_policy is _GATEWAY_POLICY
-    assert result.wire_gateway_policy()["gatewayPolicy"]["integrations"].keys() == {
-        "github",
-        "slack",
-    }
+    assert config.gateway_policy is _GATEWAY_POLICY
+    assert config.gateway_integration_names == ["github", "slack"]
+    assert not hasattr(result, "gateway_policy")
 
 
-def test_no_gateway_policy_emits_no_wire_field(make_env):
+def test_no_gateway_policy_gives_harness_no_policy_or_integration_names(make_env):
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    config = _session_config()
+    result = harness._to_harness_config(config)
 
-    result = harness._to_harness_config(_session_config())
-
-    assert result.gateway_policy is None
-    assert result.wire_gateway_policy() == {}
+    assert config.gateway_integration_names == []
+    assert not hasattr(result, "gateway_policy")
 
 
 def test_make_harness_unsupported_backend_raises(make_env):

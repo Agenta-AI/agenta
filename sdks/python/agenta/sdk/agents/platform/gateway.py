@@ -180,7 +180,7 @@ def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
 
 
 class AgentaGatewayToolResolver:
-    """`GatewayToolResolver` backed by the Agenta platform's `/tools/resolve` endpoint."""
+    """Gateway tool and connection resolvers backed by the Agenta platform."""
 
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()

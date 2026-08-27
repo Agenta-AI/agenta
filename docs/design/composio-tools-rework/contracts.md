@@ -229,8 +229,11 @@ Mirror sites that change together:
   compile-time guard. Skipping it breaks `tsc`.
 - `sdks/python/agenta/sdk/agents/wire_models.py`.
 - `sdks/python/agenta/sdk/agents/utils/wire.py`.
-- `sdks/python/agenta/sdk/agents/dtos.py`, a new `wire_gateway_policy` method beside
-  `wire_permissions`.
+- `sdks/python/agenta/sdk/agents/dtos.py`, on `SessionConfig.gateway_policy`.
+- `sdks/python/agenta/sdk/agents/interfaces.py`, which carries the policy through the
+  neutral environment/backend session boundary rather than through a harness template.
+- `sdks/python/agenta/sdk/agents/utils/wire.py`, where `request_to_wire` emits the top-level
+  field.
 - The golden files under `sdks/python/oss/tests/pytest/unit/agents/golden/`.
 
 The field is omitted when the agent has no `gateway_connection` entry. A run without one
@@ -370,8 +373,8 @@ Order, for each catalog tool:
 4. Under `allow_reads`, `read_only: true` becomes `allow`. `false` and absent become `ask`.
 
 The function is pure. It performs no input and output. It must not import an API model or a
-runner type. `mode` comes from `permission_default` on the harness template, which defaults
-to `allow_reads`.
+runner type. `mode` comes from `permission_default` on the agent template, which defaults to
+`allow_reads`.
 
 A configured tool key that is not in the catalog does not appear in the output. The compiler
 returns it in `stale_keys` so the authoring surface can report it.
@@ -402,6 +405,10 @@ question 1 in [plan.md](plan.md) for what to show when an author changes that mo
 
 Setting any per-tool value switches the shown preset to Custom, because `tools` is no longer
 empty. Picking a preset clears `tools`.
+
+New integrations are authored as Allow all (`default: "allow"`, empty `tools`) in both the
+Playground and agent-authored config. This creation default does not rewrite existing saved
+policies, and it does not remove the other presets.
 
 **The override count is the number of saved entries in `tools`.** There is one rule and both
 this file and [qa.md](qa.md) case F7 state it the same way.

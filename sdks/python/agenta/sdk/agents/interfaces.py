@@ -33,6 +33,7 @@ from .dtos import (
 )
 from .errors import UnsupportedHarnessError
 from .streaming import AgentStream
+from .tools.models import ResolvedGatewayPolicy
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +131,7 @@ class Backend(ABC):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:
         """Open a session in ``sandbox`` for an already-harness-shaped ``config``."""
 
@@ -200,6 +202,7 @@ class Environment:
             run_context=session_config.run_context,
             session_id=session_config.session_id,
             effective_parameters=session_config.effective_parameters,
+            gateway_policy=session_config.gateway_policy,
         )
 
 

@@ -169,9 +169,11 @@ shape is:
 This is private runtime policy, not model input. The public tool specifications and model
 schemas do not expose the connection slug or permission table.
 
-The Python and TypeScript wire models must define and test the same shape. The exact wire
-placement can change during implementation, but the data must remain structured. It must
-not be encoded in a tool name or `call_ref`.
+The Python and TypeScript wire models must define and test the same shape. The field is
+top-level on the runner request. In the SDK, `SessionConfig` owns the compiled policy and the
+environment carries it through the neutral backend session boundary to `request_to_wire`.
+Harness templates never carry or serialize this policy. They receive only sorted integration
+names for model guidance. The policy must not be encoded in a tool name or `call_ref`.
 
 ## Runner enforcement
 

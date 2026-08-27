@@ -16,6 +16,7 @@ from .errors import (
     UnsupportedToolProviderError,
 )
 from .interfaces import (
+    GatewayConnectionResolver,
     GatewayToolResolver,
     PlatformToolResolver,
     ToolSecretProvider,
@@ -160,12 +161,14 @@ class ToolResolver:
         *,
         secret_provider: Optional[ToolSecretProvider] = None,
         gateway_resolver: Optional[GatewayToolResolver] = None,
+        gateway_connection_resolver: Optional[GatewayConnectionResolver] = None,
         workflow_resolver: Optional[WorkflowToolResolver] = None,
         platform_resolver: Optional[PlatformToolResolver] = None,
         missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
     ) -> None:
         self._secret_provider = secret_provider or EnvironmentToolSecretProvider()
         self._gateway_resolver = gateway_resolver
+        self._gateway_connection_resolver = gateway_connection_resolver
         self._workflow_resolver = workflow_resolver
         self._platform_resolver = platform_resolver
         self._missing_secret_policy = missing_secret_policy
@@ -325,7 +328,7 @@ class ToolResolver:
         # hold both formats for the whole migration window (plan decision 3).
         gateway_policy: Optional[ResolvedGatewayPolicy] = None
         if connection_configs:
-            if self._gateway_resolver is None:
+            if self._gateway_connection_resolver is None:
                 raise UnsupportedToolProviderError(
                     connection_configs[0].connection.provider
                 )
@@ -333,9 +336,11 @@ class ToolResolver:
             # with a whole catalog slice, so a second round trip would buy nothing. A failure
             # here fails the run — unlike the legacy 404 case, there is no single dead action to
             # drop, and a dropped integration would silently become an unconfigured one.
-            connection_resolution = await self._gateway_resolver.resolve_connections(
-                connection_configs,
-                mode=permission_default,
+            connection_resolution = (
+                await self._gateway_connection_resolver.resolve_connections(
+                    connection_configs,
+                    mode=permission_default,
+                )
             )
             tool_specs = [*connection_resolution.tool_specs, *tool_specs]
             tool_callback = connection_resolution.tool_callback or tool_callback

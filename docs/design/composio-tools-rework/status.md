@@ -1,10 +1,11 @@
 # Status
 
-**Date:** 2026-08-26
-**State:** planning complete, plan reviewed by Codex, 33 findings addressed
+**Date:** 2026-08-27
+**State:** implemented in open backend PR #6310 and frontend PR #6311; final review in progress
 
-The three design documents are decided. The plan, the contracts, the research, the test
-specification, and the release gate proposal are written. No product code has changed.
+The design is implemented and has passed focused SDK, API, runner, frontend, and live gateway
+validation. The backend and frontend PRs remain open for review. See [handoff.md](handoff.md)
+for current evidence, follow-ups, and deployment state.
 
 Codex reviewed the workspace at high reasoning effort and returned 33 findings: 14 at P1, 15
 at P2, and 4 at P3. All 33 are applied. The changes that moved the plan most:
@@ -28,13 +29,13 @@ Each slice names the [qa.md](qa.md) test IDs it implements. It does not restate 
 
 | Slice | Name | Test IDs | State |
 | --- | --- | --- | --- |
-| 1 | SDK configuration model and permission compiler | C1 to C26, C28 to C30, C34 | not started |
-| 2 | API catalog tool identity and connection resolve | A19, G11 (API half) | not started |
-| 3 | API gateway search and run routes | A1 to A5, A7 to A18, A20 to A23 | not started |
-| 4 | SDK gateway resolver, resolved policy, prompt guidance | C27, G6, G11 | not started |
-| 5 | Runner policy gate, search filtering, approval | A6, R1 to R30, N1 to N11 | not started |
-| 6 | Frontend integration rows and permission drawer | C31 to C33, F1 to F17, G5 | not started |
-| 7 | End-to-end wiring and local deployment check | the live journey, W1 to W6, G1 to G12, N12 to N14 | not started |
+| 1 | SDK configuration model and permission compiler | C1 to C26, C28 to C30, C34 | implemented in #6310 |
+| 2 | API catalog tool identity and connection resolve | A19, G11 (API half) | implemented in #6310 |
+| 3 | API gateway search and run routes | A1 to A5, A7 to A18, A20 to A23 | implemented in #6310 |
+| 4 | SDK gateway resolver, resolved policy, prompt guidance | C27, G6, G11 | implemented in #6310 |
+| 5 | Runner policy gate, search filtering, approval | A6, R1 to R30, N1 to N11 | implemented in #6310 |
+| 6 | Frontend integration rows and permission drawer | C31 to C33, F1 to F18, G5 | implemented in #6311 |
+| 7 | End-to-end wiring and local deployment check | the live journey, W1 to W6, G1 to G12, N12 to N14 | validated; Granola DCR proof pending credentials |
 
 Slice 6 splits. Its pure parts need only Slice 1 and can start at once. Its client
 regeneration needs Slice 3, because the generator rebuilds the client from a running API.
@@ -52,7 +53,7 @@ sign-off is still outstanding.
 
 | Decision | Blocks | State |
 | --- | --- | --- |
-| 1. "Ask for write and delete" saves `inherit`, with a line shown when the agent mode differs | Slice 6 | adopted |
+| 1. "Ask for write and delete" saves `inherit`, but new integrations default to Allow all | Slice 6 | adopted and implemented |
 | 2. A fourth per-tool option, "Follow agent policy" | Slice 6 | adopted, **needs design sign-off before Slice 6 starts** |
 | 3. An agent may hold both entry formats, and each surface keeps its own rule | Slice 4 | adopted, tested by G12 |
 | 4. The provider search takes a native toolkit filter | Slice 3 | resolved by measurement on 2026-08-26 |
@@ -70,6 +71,11 @@ The two superseded pull requests stay open for reference. This work does not bui
 
 ## Log
 
+- 2026-08-27. Updated new integration creation in both authoring paths to save Allow all
+  (`default: "allow"`, empty `tools`) while preserving existing policies. Moved the compiled
+  gateway policy out of harness templates and through the neutral SDK backend boundary; prompt
+  composition receives integration names only. Split legacy gateway-tool resolution from
+  gateway-connection resolution at the resolver interface.
 - 2026-08-26. Codex reviewed the workspace. Applied all 33 findings across `plan.md`,
   `contracts.md`, `qa.md`, `research.md`, and `release-gate-changes.md`. Resolved the six
   open questions. Copied the user interface handoff into the workspace as

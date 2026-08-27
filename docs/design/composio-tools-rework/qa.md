@@ -341,6 +341,7 @@ Test the pure translation functions with vitest. Do not test the drawer layout.
 | F15 | Write-through | A permission change lands in the draft config immediately. |
 | F16 | Choosing a different connection for an already-configured integration | REPLACES the existing entry in one write. Never appends a second entry for that integration. The saved policy is kept and only the connection slug changes. |
 | F17 | An integration whose legacy entries name two or more connections | NOT migrated. Its legacy entries stay exactly as they are and keep the legacy badge. Other integrations in the same revision migrate normally. |
+| F18 | Adding a new integration from any add path | Saves `default: "allow"` with an empty `tools` map. Existing integration policies are not rewritten. |
 
 F14 matters because the drawer must not silently drop an authored intent when the provider
 catalog changes.
@@ -376,7 +377,7 @@ journey. Every step names what to check.
 | Step | Action | Check |
 | --- | --- | --- |
 | 1 | Open the Tools section. Click the plus icon. | The add-integration drawer opens. It lists the connected integration under `CONNECTED IN YOUR WORKSPACE`. |
-| 2 | Add the integration. | The drawer stays open. The Playground shows one integration row. Its short label reads "Allow reads", the row form of the "Ask for write and delete" preset. |
+| 2 | Add the integration. | The drawer stays open. The Playground shows one integration row. Its short label reads "Allow all" and the saved policy has `default: "allow"` with no overrides. |
 | 3 | Click Done, then click the integration row. | The permission drawer opens. It shows the connection slug in the subtitle and a Connected state. |
 | 4 | Set the default preset to "Ask for write and delete". | Both tool groups roll up as "follows agent policy". That preset saves `inherit`, and F11 forbids the drawer from resolving it, so neither group can read "runs automatically" or "asks first". |
 | 5 | Search for a destructive tool. Set it to Deny. | The preset switches to "Custom" with an override count of 1. The row shows the deny style. |

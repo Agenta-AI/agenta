@@ -2,8 +2,9 @@
 
 The three harnesses look the same from the outside and behave differently inside. The harness
 adapters are where that difference lives: each turns a neutral `SessionConfig` into a
-harness-specific config and decides how tools, prompts, and policy reach the agent. When a
-behavior should differ by harness, it differs here.
+harness-specific config and decides how tools, prompts, and harness-level policy reach the
+agent. Runner-owned gateway policy bypasses these adapters. When a behavior should differ by
+harness, it differs here.
 
 The `Harness` port and the per-harness roles are narrated in
 [Ports and adapters](../../documentation/ports-and-adapters.md#harness). This page owns the
@@ -59,6 +60,10 @@ The wire shapes, side by side:
 | inline skills | yes (agent-dir scope) | yes (materialized to `.claude/skills`) | yes (agent-dir scope) |
 | harness files | none | `.claude/settings.json` | none |
 
+For gateway connections, each adapter composes model guidance from
+`SessionConfig.gateway_integration_names`. It does not receive the compiled permission table.
+The neutral environment/backend path serializes that table as top-level `gatewayPolicy`.
+
 ## Owned by
 
 - `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the four adapters.
@@ -82,6 +87,9 @@ The wire shapes, side by side:
   now pins the carry-on-wire behavior.)
 - **Harness options.** The `harness_kwargs` bag is keyed by harness; each adapter reads only
   its own slice.
+- **Gateway policy isolation.** Harness configs carry integration names in prompt text only.
+  Copying `gateway_policy` onto a harness DTO couples runner authorization to a model adapter
+  and risks exposing private connection policy.
 - **Claude `agenta-tools` server-name coupling.** The per-resolved-tool settings.json rules use
   the fixed name `mcp__agenta-tools__<tool>` (`INTERNAL_TOOL_MCP_SERVER` in
   `adapters/claude_settings.py`). It MUST match the runner's internal tool-MCP server name on

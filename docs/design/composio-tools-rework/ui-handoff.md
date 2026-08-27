@@ -22,7 +22,7 @@ The file in this bundle is a **design reference created in HTML** — a static h
 **High-fidelity.** Colors, type, spacing, radii and copy follow the Agenta design system (warm recolor, v0.112.0 `palette.ts`). Recreate pixel-perfectly with existing Ant/`--ag-*` tokens; hex values below map onto those tokens.
 
 ## Permission model
-- Integration default presets: **Always ask** · **Ask for write & delete** (default for newly added integrations) · **Allow all** · **Deny all** · **Custom**.
+- Integration default presets: **Always ask** · **Ask for write & delete** · **Allow all** (default for newly added integrations) · **Deny all** · **Custom**.
 - Per-tool values: **Ask** · **Allow** · **Deny** (matches `ToolPermission`).
 - Setting any per-tool value switches the integration default to Custom (also selectable directly).
 - All tools of an integration are always included; Deny is how a single tool is disabled.
@@ -61,7 +61,7 @@ The file in this bundle is a **design reference created in HTML** — a static h
     - Section `ALL APPS · n`: same row shape, one-line truncated description, right button **Connect** — runs the existing ConnectDrawer auth flow, then the integration is added with the default permission.
   - No tool counts, no per-action lists, no "connected app" copy anywhere (connections belong to the workspace; what the agent gets is an integration).
 - Footer: right-aligned Done only.
-- Behavior: adding is immediate with default "Ask for write & delete"; configuring happens later from the Playground row (or by clicking an added row).
+- Behavior: adding is immediate with default "Allow all"; configuring happens later from the Playground row (or by clicking an added row).
 
 ## Interactions & behavior
 - Playground row click → integration permission drawer. Panel plus → Add integration drawer.
