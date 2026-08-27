@@ -11,6 +11,17 @@ Write PRs that a teammate can understand at a glance. Lead with what was broken 
 
 This is the default quality bar from the first draft. Don't ship a generic version expecting to fix it after feedback.
 
+## 0. The prefilled template
+
+GitHub prefills every PR from `.github/PULL_REQUEST_TEMPLATE.md`, which asks for Summary, Testing, Demo, Checklist, and Contributor Resources. That is not what this repo's PRs look like. Replace the prefilled body with the structure in section 2.
+
+Two parts of the template still apply:
+
+- **Demo.** UI changes need a capture from the real app running your branch. Never substitute a mock-up, a component harness, or a recreated screen. If you cannot run the app, say the demo is outstanding and why, rather than filling the space with something that proves nothing.
+- **Testing.** Keep the substance under a `## Tests` heading. You do not need the template's three subheadings unless the change is large enough that they help.
+
+Drop the Checklist and Contributor Resources. They exist for first-time outside contributors and the team does not fill them in.
+
 ## 1. Title
 
 The title states the actual change in plain words.
