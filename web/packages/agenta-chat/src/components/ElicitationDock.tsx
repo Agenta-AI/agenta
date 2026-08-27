@@ -40,7 +40,6 @@ import {
     MAX_DIGIT_ROWS,
     isMultiSelect,
     optionRowsFor,
-    selectedRowFor,
     type OptionRow,
 } from "./elicitation/ElicitationControl"
 
@@ -239,7 +238,6 @@ const LiveCard = ({
     const {step, steps, values, cursor, isReview} = stepper
 
     const rows = useMemo(() => optionRowsFor(step), [step])
-    const selected = selectedRowFor(step, step ? values[step.name] : undefined)
 
     const settleAnd = useCallback(
         (output: Record<string, unknown>) => {
@@ -464,7 +462,7 @@ const LiveCard = ({
                 ))}
             </div>
 
-            <div className="flex flex-1 flex-col gap-2" style={{minHeight: CONTROL_MIN_H}}>
+            <div className="flex flex-col gap-2" style={{minHeight: CONTROL_MIN_H}}>
                 {isReview ? (
                     <ReviewList stepper={stepper} />
                 ) : step ? (
@@ -476,12 +474,6 @@ const LiveCard = ({
                                 <span className="font-normal text-colorTextQuaternary">
                                     {" "}
                                     · {step.hint}
-                                </span>
-                            ) : null}
-                            {!step.required ? (
-                                <span className="font-normal text-colorTextQuaternary">
-                                    {" "}
-                                    · optional
                                 </span>
                             ) : null}
                         </span>
@@ -514,7 +506,7 @@ const LiveCard = ({
                 </Button>
                 <Button
                     size="sm"
-                    variant="ghost"
+                    variant="outline"
                     className={touchCls}
                     onClick={() =>
                         isReview
@@ -524,9 +516,6 @@ const LiveCard = ({
                 >
                     {isReview ? "Decline" : "Skip"}
                 </Button>
-                {selected >= 0 && !touch ? (
-                    <span className="mr-auto text-[11px] text-colorTextQuaternary">⌘↵</span>
-                ) : null}
             </div>
         </div>
     )

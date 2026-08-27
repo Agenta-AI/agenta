@@ -174,11 +174,7 @@ export const ElicitationControl = ({
                                       : ""
                             }`}
                         >
-                            <span
-                                className={`shrink-0 text-[11px] tabular-nums ${
-                                    isSelected ? "text-colorText" : "text-colorTextQuaternary"
-                                }`}
-                            >
+                            <span className="shrink-0 text-[11px] tabular-nums text-colorText">
                                 {index < MAX_DIGIT_ROWS ? `${index + 1}.` : "·"}
                             </span>
                             {isOther ? (
