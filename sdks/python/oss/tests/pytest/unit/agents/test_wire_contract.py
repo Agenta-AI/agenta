@@ -319,7 +319,7 @@ def _gateway_connection_payload():
         agents_md="You are a helpful assistant.",
         model="gpt-5.5",
         # Straight from the producer, so the golden records what a real resolve emits.
-        custom_tools=_derived_tool_specs(),
+        custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
     )
     return request_to_wire(

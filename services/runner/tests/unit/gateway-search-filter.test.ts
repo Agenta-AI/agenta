@@ -18,10 +18,11 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  EMPTY_SEARCH_MESSAGE,
+  emptySearchMessage,
   MAX_SEARCH_RESULTS,
   REDACTED_TOOL_TOKEN,
   TOOL_SEARCH_UNAVAILABLE_ERROR,
+  normalizeGatewayPolicy,
   filterGatewaySearchResult,
   keptToolTokenMap,
   redactUnpermittedTokensInSchema,
@@ -167,11 +168,40 @@ describe("what the model gets when nothing survives (R27)", () => {
 
     assert.deepEqual(JSON.parse(outcome.payload), {
       results: [],
-      message: EMPTY_SEARCH_MESSAGE,
+      message: emptySearchMessage(["github", "slack"]),
+      connected_integrations: ["github", "slack"],
     });
+    // The connected apps are named; the ones the agent does not have still are not.
     for (const leak of ["stripe", "notion", "DELETE_REPOSITORY"]) {
       assert.ok(!outcome.payload.includes(leak));
     }
+  });
+
+  it("the empty message names the connected apps so the model can retry against them", () => {
+    const outcome = filter([result("stripe", "CREATE_CHARGE")]);
+
+    const message = JSON.parse(outcome.payload).message as string;
+    assert.equal(
+      message,
+      "No configured tool matched. Connected integrations: github, slack. " +
+        "Try a more specific description or name one of them.",
+    );
+  });
+
+  it("an agent with no connection at all keeps the message that names nothing", () => {
+    // `EMPTY_POLICY` has no integrations, so there is no list to offer and the sentence
+    // must not degrade into a dangling "Connected integrations: .".
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({ results: [] }),
+      EMPTY_POLICY,
+    );
+
+    assert.deepEqual(JSON.parse(outcome.payload), {
+      results: [],
+      message:
+        "No configured tool matched this request. Try a more specific task description.",
+      connected_integrations: [],
+    });
   });
 
   it("a body that is not the search result object becomes the search-failure envelope", () => {
@@ -225,7 +255,89 @@ describe("R28: the serialized payload carries nothing private", () => {
           input_schema: OBJECT_SCHEMA,
         },
       ],
+      connected_integrations: ["github", "slack"],
     });
+  });
+
+  it("connected_integrations rides an answer that DID match, not only an empty one", () => {
+    // The half-answer is the other place the model drifts to an app the agent lacks: it
+    // got a github hit and assumes the neighbouring app it wanted is there too.
+    const outcome = filter([result("github", "GET_ISSUE")]);
+
+    const body = JSON.parse(outcome.payload);
+    assert.equal(body.results.length, 1);
+    assert.deepEqual(body.connected_integrations, ["github", "slack"]);
+  });
+
+  it("connected_integrations carries names only: no slug, no permission, no tool key", () => {
+    const outcome = filter([result("github", "GET_ISSUE")]);
+
+    const connected = JSON.parse(outcome.payload)
+      .connected_integrations as string[];
+    assert.deepEqual(connected, ["github", "slack"]);
+    // Every entry is a bare integration name. The policy it is derived from also holds
+    // slugs, permissions, and tool keys, and none of them may come along.
+    for (const leak of [
+      "github-work",
+      "slack-main",
+      "allow",
+      "ask",
+      "deny",
+      "GET_ISSUE",
+      "DELETE_REPOSITORY",
+    ]) {
+      assert.ok(
+        !connected.includes(leak),
+        `connected_integrations must not carry '${leak}'`,
+      );
+    }
+  });
+
+  it("connected_integrations is sorted, so the model sees one stable list", () => {
+    const shuffled = normalizeGatewayPolicy({
+      integrations: {
+        slack: {
+          provider: "composio",
+          connection: "slack-main",
+          tools: { SEND_MESSAGE: { permission: "allow", readOnly: false } },
+        },
+        github: {
+          provider: "composio",
+          connection: "github-work",
+          tools: { GET_ISSUE: { permission: "allow", readOnly: true } },
+        },
+        asana: {
+          provider: "composio",
+          connection: "asana-main",
+          tools: { CREATE_TASK: { permission: "allow", readOnly: false } },
+        },
+      },
+    });
+    const outcome = filterGatewaySearchResult(
+      JSON.stringify({ results: [] }),
+      shuffled,
+    );
+
+    assert.deepEqual(JSON.parse(outcome.payload).connected_integrations, [
+      "asana",
+      "github",
+      "slack",
+    ]);
+  });
+
+  it("the search-failure envelope stays exactly the envelope", () => {
+    // The failure path is an AgentError, not a search answer. Mixing a data field into it
+    // would break the one shape every consumer of that envelope reads.
+    const outcome = filterGatewaySearchResult(
+      "not json at all",
+      NORMALIZED_POLICY,
+    );
+
+    assert.deepEqual(
+      JSON.parse(outcome.payload),
+      TOOL_SEARCH_UNAVAILABLE_ERROR,
+    );
+    assert.ok(!outcome.payload.includes("connected_integrations"));
   });
 
   it("writes the filtered payload back on the wire, not the API's own body", async () => {

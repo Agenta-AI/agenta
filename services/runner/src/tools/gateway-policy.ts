@@ -38,9 +38,23 @@ export const MAX_SEARCH_RESULTS = 5;
 /** At most this many close-key suggestions survive sanitizing (the API's own cap). */
 export const MAX_RUN_SUGGESTIONS = 5;
 
-/** Returned when search succeeded but nothing configured and non-denied survived the filter. */
-export const EMPTY_SEARCH_MESSAGE =
-  "No configured tool matched this request. Try a more specific task description.";
+/**
+ * Returned when search succeeded but nothing configured and non-denied survived the filter.
+ *
+ * It names the connected apps because an empty answer is exactly where the model has lost
+ * the thread: without them it guesses at an integration the agent may not even have. Only
+ * integration NAMES, never a connection slug — those are the agent's own apps, which the
+ * prompt guidance already lists, so naming them here tells the model nothing new.
+ */
+export function emptySearchMessage(connected: readonly string[]): string {
+  if (connected.length === 0) {
+    return "No configured tool matched this request. Try a more specific task description.";
+  }
+  return (
+    "No configured tool matched. Connected integrations: " +
+    `${connected.join(", ")}. Try a more specific description or name one of them.`
+  );
+}
 
 /**
  * The search-failure envelope. The runner writes this itself when the API answers with
@@ -546,10 +560,19 @@ export function filterGatewaySearchResult(
     redactUnpermittedTokensInSchema(entry.input_schema, byToken);
   }
 
+  // Always, and on both branches: the model needs to know what it is connected to most
+  // when search came back empty, but a partial answer is the other place it drifts toward
+  // an app the agent does not have. Names only, from the policy keys, so no slug and no
+  // permission value can ride along.
+  const connected = Object.keys(policy.integrations).sort();
   const body =
     kept.length > 0
-      ? { results: kept }
-      : { results: [], message: EMPTY_SEARCH_MESSAGE };
+      ? { results: kept, connected_integrations: connected }
+      : {
+          results: [],
+          message: emptySearchMessage(connected),
+          connected_integrations: connected,
+        };
   return {
     payload: JSON.stringify(body),
     total,

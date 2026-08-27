@@ -304,6 +304,28 @@ The runner parses that JSON, filters `results` against the resolved policy, caps
 five, and writes the filtered object back to the harness. When nothing remains, the runner
 writes the empty result and message fixed by `runtime-tools.md`.
 
+What the runner writes back always carries `connected_integrations`, whether or not anything
+matched:
+
+```json
+{
+  "results": [],
+  "message": "No configured tool matched. Connected integrations: github, slack. Try a more specific description or name one of them.",
+  "connected_integrations": ["github", "slack"]
+}
+```
+
+| Field | Role | Rules |
+| --- | --- | --- |
+| `results` | Data | At most five, already filtered. Empty when nothing survived. |
+| `message` | Data | Present only when `results` is empty. Names the connected integrations when there are any. |
+| `connected_integrations` | Data | Every configured integration NAME, sorted. Always present. Never a slug, a permission, or a tool key. |
+
+The runner derives it from the resolved policy's keys, so it costs no round trip and cannot
+drift from what the agent is actually connected to. It rides the matched case too: a search
+that answered from one integration is where a model most easily assumes a neighbouring app
+it does not have.
+
 A result never carries the connection slug, the provider account ID, the provider action ID,
 a permission value, or `read_only`.
 
