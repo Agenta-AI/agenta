@@ -59,6 +59,13 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
     // and what keeps the blank tab the panel seeds after an archive from taking the selection.
     const isHusk = (session: AgentChatSession) =>
         isSessionHusk(session, get(sessionHasMessagesAtomFamily(session.id)))
+    // ms epoch -> ISO, the shape the date buckets parse. `lastMessageAt` first, `createdAt` next,
+    // matching the history picker's own ordering key; without it an open session had no activity
+    // date and fell into the "No activity" heading under date grouping.
+    const activityAt = (session: AgentChatSession): string | null => {
+        const at = session.lastMessageAt ?? session.createdAt
+        return at ? new Date(at).toISOString() : null
+    }
     return sessions
         .filter((session) => session.id === active?.id || isLive(session.id))
         .filter((session) => !isHusk(session))
@@ -70,6 +77,7 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             agentId: scope,
             pinned: pinned.includes(session.id),
             alive: false,
+            activityAt: activityAt(session),
             // A client-created session has no server row yet, so it cannot be archived.
             archived: false,
             // Running and awaiting are DIFFERENT signals — one spins, the other goes amber — so
