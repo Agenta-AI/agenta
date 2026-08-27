@@ -676,11 +676,19 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
-    const resolvedInteractionTokens = new Set<string>();
+    // Seeded with the tokens the CALLER already claimed. `loadDurableDecisions` resolves a row
+    // before adopting its decision, so those rows are terminal before this turn starts, and any
+    // further transition on them is a guaranteed 404. Without this seed a healthy run logged
+    // `resolve failed ... HTTP 404` every time — an error line for work that had already
+    // succeeded, which is worse than noise: it trains the reader to ignore a real failure.
+    const resolvedInteractionTokens = new Set<string>(
+      (opts.seededDecisions ?? []).map((entry) => entry.token),
+    );
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
     ): void => {
+      const alreadyResolved = resolvedInteractionTokens.has(token);
       resolvedInteractionTokens.add(token);
       if (verdict) {
         run.emitEvent({
@@ -690,6 +698,13 @@ export async function runTurn(
           payload: verdict,
         });
       }
+      // The EVENT above still goes out — a re-raised gate answered from a seeded decision is a
+      // real answer the UI must see, and suppressing it would leave the approval part stuck in
+      // the UI while the run moves on. Only the durable transition is skipped, because the row is
+      // already terminal. A claimed token may have emitted this event in an EARLIER turn too, so
+      // a client can see it twice for the same id; same id and same payload, so it must be
+      // treated as idempotent rather than as two answers.
+      if (alreadyResolved) return;
       const cred = runCredential(request);
       if (!cred) return;
       void resolveInteraction(
