@@ -1,22 +1,29 @@
-import {useState, type ReactNode} from "react"
+import {useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton} from "antd"
 
-// Imported from source: the DrillInView barrel does not re-export the agent catalog drawer.
+// Imported from source: the DrillInView barrel does not re-export the add drawer.
 import {AgentIntegrationDrawer} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
+import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
+import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
+import {
+    GITHUB_PERSONAL,
+    GITHUB_WORK,
+    integrationQueries,
+    LINEAR_BROKEN,
+    SLACK_OPS,
+} from "../../fixtures/gatewayIntegration"
 
-// AgentIntegrationDrawer — the agent-playground tools catalog drawer. Its body is the SHARED
-// `CatalogChooser` (already antd-free) and its chrome is `EnhancedDrawer` (already a facade over
-// the Radix `Sheet` at the storybook-data-seam baseline), so the only antd this file carried was
-// the footer's primary "Done" button.
-//
-// antd swap: `Button type="primary"` → `@agenta/ui` `Button variant="default"`.
-//
-// That makes the footer strip the whole parity pair; `OpenState` renders the real drawer over
-// seeded catalog queries as the visual/a11y inventory entry (no antd half exists for the chrome
-// or the body, so it is a showcase, not a pixel gate).
+/**
+ * **Data-connected drawer story.** Adding an integration to the agent. The drawer leads with the
+ * apps already connected in the workspace, because that is the one-click case, and puts the whole
+ * catalog behind it for apps that still need connecting.
+ *
+ * Adding is integration-level: one entry per provider and integration, carrying every tool the app
+ * has. There is no per-action add here — that was the pre-rework shape, and a row still holding it
+ * says so rather than offering a second, conflicting way in.
+ */
 const meta = {
     title: "@agenta/entity-ui/DrillIn/AgentIntegrationDrawer",
     component: AgentIntegrationDrawer,
@@ -25,7 +32,9 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Tools catalog drawer for the agent playground: the shared CatalogChooser (app grid + connections rail + action list) with an 'add the action as a tool' leaf, a progress count in the footer, and an explicit Done exit (backdrop clicks do not close it mid-connect).",
+                    "Add-integration drawer: a category rail, a search box, the workspace's " +
+                    "connected apps as one-click adds, and the full catalog with a Connect leaf " +
+                    "for apps with no connection yet.",
             },
         },
     },
@@ -36,194 +45,113 @@ type Story = StoryObj
 
 const noop = () => undefined
 
-// ---------------------------------------------------------------------------
-// Parity grid — the footer strip
-// ---------------------------------------------------------------------------
+const entry = (integration: string, slug: string) => ({
+    type: "gateway_connection",
+    connection: {provider: "composio", integration, slug},
+    policy: {permissions: {default: "allow", tools: {}}},
+})
 
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: ReactNode
-    s: ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[10rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
-        <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
-    </div>
-)
+const legacyEntry = (integration: string, action: string, connection: string) => ({
+    type: "function",
+    function: {name: `tools__composio__${integration}__${action}__${connection}`},
+})
 
-const Footer = ({count, done}: {count: number; done: ReactNode}) => (
-    <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-            {count > 0
-                ? `${count} app ${count === 1 ? "tool" : "tools"} added`
-                : "Pick actions from a connected app — added instantly."}
-        </span>
-        {done}
-    </div>
-)
-
-/** The drawer footer: the progress copy plus the primary Done exit. */
-export const AntdVsAgenta: Story = {
-    render: () => (
-        <div className="flex max-w-[1000px] flex-col">
-            <Row
-                label="footer · nothing added"
-                a={<Footer count={0} done={<AntButton type="primary">Done</AntButton>} />}
-                s={<Footer count={0} done={<Button variant="default">Done</Button>} />}
-            />
-            <Row
-                label="footer · 1 tool added"
-                a={<Footer count={1} done={<AntButton type="primary">Done</AntButton>} />}
-                s={<Footer count={1} done={<Button variant="default">Done</Button>} />}
-            />
-            <Row
-                label="footer · many added"
-                a={<Footer count={4} done={<AntButton type="primary">Done</AntButton>} />}
-                s={<Footer count={4} done={<Button variant="default">Done</Button>} />}
-            />
-        </div>
-    ),
-}
-
-// ---------------------------------------------------------------------------
-// Data-seam showcase: the real drawer over seeded catalog queries
-// ---------------------------------------------------------------------------
-
-const INTEGRATIONS = [
-    {
-        key: "github",
-        name: "GitHub",
-        description: "Repos, issues and pull requests",
-        logo: null,
-        actions_count: 3,
-        categories: ["Developer Tools"],
-        auth_schemes: ["oauth2"],
-    },
-    {
-        key: "slack",
-        name: "Slack",
-        description: "Messages, channels and reactions",
-        logo: null,
-        actions_count: 2,
-        categories: ["Communication"],
-        auth_schemes: ["oauth2"],
-    },
-]
-
-const ACTIONS = [
-    {
-        key: "GITHUB_CREATE_ISSUE",
-        name: "Create issue",
-        description: "Open a new issue in a repository",
-        categories: ["Issues"],
-    },
-    {
-        key: "GITHUB_MERGE_PR",
-        name: "Merge pull request",
-        description: "Merge an open pull request",
-        categories: ["Pull Requests"],
-    },
-    {key: "GITHUB_STAR_REPO", name: "Star repository"},
-]
-
-const CONNECTIONS = [
-    {
-        id: "conn-agent-catalog-1",
-        slug: "acme-github",
-        name: "acme-github",
-        provider_key: "composio",
-        integration_key: "github",
-        flags: {is_active: true, is_valid: true},
-    },
-]
-
-const infinitePage = (page: Record<string, unknown>) => ({pages: [page], pageParams: [""]})
-
-const catalogQueries = [
-    [["tools", "connections"], {connections: CONNECTIONS, count: 1}],
-    [
-        ["tools", "catalog", "integrations", "composio", "", ""],
-        infinitePage({integrations: INTEGRATIONS, cursor: null, total: 2}),
-    ],
-    [
-        ["tools", "catalog", "categories", "composio"],
-        {
-            categories: [
-                {id: "dev", name: "Developer Tools"},
-                {id: "comms", name: "Communication"},
-            ],
-        },
-    ],
-    [
-        ["tools", "catalog", "actions", "composio", "github", ""],
-        infinitePage({actions: ACTIONS, cursor: null, total: 3}),
-    ],
-    [["tools", "connections", "composio", "github"], {connections: CONNECTIONS, count: 1}],
-    [
-        ["tools", "catalog", "actions", "composio", "slack", ""],
-        infinitePage({actions: [], cursor: null, total: 0}),
-    ],
-    [["tools", "connections", "composio", "slack"], {connections: [], count: 0}],
-]
-
-// The drawer is a controlled overlay; the host owns `open`.
-function DrawerHost({
-    defaultIntegrationKey,
-    selected = new Set<string>(),
-}: {
-    defaultIntegrationKey?: string
-    selected?: Set<string>
-}) {
+// The drawer is a controlled overlay, so the story owns `open`, with a re-open button so it stays
+// usable after a close.
+function DrawerHost({tools = [] as unknown[]}) {
     const [open, setOpen] = useState(true)
     return (
-        <div className="min-h-[560px]">
+        <div data-vrt-subject className="min-h-[560px]">
             <Button variant="outline" onClick={() => setOpen(true)}>
-                Add app tools
+                Add integration
             </Button>
             <AgentIntegrationDrawer
                 open={open}
                 onClose={() => setOpen(false)}
-                onAddTool={noop}
-                selectedGatewayIds={selected}
-                defaultIntegrationKey={defaultIntegrationKey}
+                integrationRows={buildIntegrationRows(tools)}
+                onAddIntegration={noop}
             />
         </div>
     )
 }
 
-/** Open on the app grid: connections rail, category rail, integration cards, empty footer copy. */
-export const OpenState: Story = {
-    parameters: {agenta: {queries: catalogQueries}},
+/**
+ * Nothing added yet: every connected app offers Add, and the apps with no connection sit under
+ * "All apps" with a Connect leaf.
+ */
+export const Default: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
+        },
+    },
     render: () => <DrawerHost />,
 }
 
-/** Preselected app: straight to GitHub's action list, with one action already added. */
-export const OpenOnIntegration: Story = {
-    parameters: {agenta: {queries: catalogQueries}},
+// Added on `github-work`, with `github-personal` also connected so the swap the row offers has
+// somewhere to go. A swap REPLACES the one entry the format allows; it never appends a second.
+export const AlreadyAdded: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                }),
+        },
+    },
+    render: () => <DrawerHost tools={[entry("github", GITHUB_WORK.slug ?? "")]} />,
+}
+
+/**
+ * Two connections for one app. There is no unambiguous one-click add, so the row opens a chooser
+ * and the author names the connection the agent runs under.
+ */
+export const MultipleConnections: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                }),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * A connection the project reports as invalid. The connect flow treats the provider popup closing
+ * as success, so an abandoned authorization can leave a connection that exists but does not work —
+ * the row stays with its reconnect hint rather than offering an Add that would fail at run time.
+ */
+export const InvalidConnection: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, LINEAR_BROKEN]}),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * An integration still held in the pre-rework per-action format. It is not offered as an add: the
+ * row says it is already there in the old format, and migrating it happens where its permissions
+ * are edited, not here.
+ */
+export const OldFormatRow: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
+        },
+    },
     render: () => (
         <DrawerHost
-            defaultIntegrationKey="github"
-            selected={new Set(["composio:github:GITHUB_CREATE_ISSUE:acme-github"])}
+            tools={[
+                legacyEntry("github", "CREATE_ISSUE", GITHUB_WORK.slug ?? ""),
+                legacyEntry("github", "GET_ISSUE", GITHUB_WORK.slug ?? ""),
+            ]}
         />
     ),
 }
