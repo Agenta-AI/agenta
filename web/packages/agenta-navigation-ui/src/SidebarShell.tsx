@@ -170,6 +170,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     onNavigate,
     onDismiss,
 }) => {
+    // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
+    const isOverlay = Boolean(onDismiss)
     const [collapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, disabled: collapsed})
@@ -348,6 +350,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
             className={[
                 "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
+                // Claim the sheet's full height, so the surface below can fill it. Left to its
+                // content the frame collapses to the `dvh` column and the drawer stops short of
+                // the screen bottom.
+                isOverlay ? "h-full" : "",
                 className ?? "",
             ]
                 .join(" ")
@@ -362,12 +368,27 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             <aside
                 data-theme={theme}
                 className={[
-                    // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
-                    // document-scrolling routes; 0px everywhere else.
-                    "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                    // The SURFACE fills the sheet, so it still bleeds behind a phone browser's
+                    // toolbar and no strip of page shows through under the drawer. Only the
+                    // content column below stops at the visible viewport.
+                    isOverlay
+                        ? "h-full w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
+                        : // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
+                          // document-scrolling routes; 0px everywhere else.
+                          "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
                 ].join(" ")}
             >
-                <div className="flex flex-col h-full w-[var(--ag-sidebar-w)] transition-all duration-300">
+                <div
+                    className={clsx(
+                        "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300",
+                        // `dvh`, not `vh`: a phone browser's `vh` is its toolbars-HIDDEN height, so
+                        // laying out against it pushed the last rows — the switcher among them —
+                        // under the toolbar with no scroll to reach them. `--ag-viewport-height`
+                        // narrows it again while a soft keyboard is open, the same expression every
+                        // other /m frame reads.
+                        isOverlay ? "h-[var(--ag-viewport-height,100dvh)]" : "h-full",
+                    )}
+                >
                     {renderSlot(scope.header, collapsed, scope.lastPath, onDismiss)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
@@ -384,7 +405,14 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             >
                                 {topSections.map(renderSection)}
                             </div>
-                            <div className="w-full flex flex-col shrink-0">
+                            <div
+                                className={clsx(
+                                    "w-full flex flex-col shrink-0",
+                                    // The home indicator sits inside `dvh`, so the last row needs
+                                    // the inset reserved or it renders underneath it.
+                                    isOverlay && "pb-[env(safe-area-inset-bottom)]",
+                                )}
+                            >
                                 {renderSlot(scope.footer, collapsed, scope.lastPath)}
                                 {bottomSections.map(renderSection)}
                                 {renderSlot(scope.afterBottom, collapsed, scope.lastPath)}
