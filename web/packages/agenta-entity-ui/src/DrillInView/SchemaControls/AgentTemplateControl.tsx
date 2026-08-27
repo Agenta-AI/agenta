@@ -182,10 +182,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
     const [instructionDraft, setInstructionDraft] = useState("")
+    // The content we opened with — Save is gated on a real diff against it, like the section drawers.
+    const [instructionOriginal, setInstructionOriginal] = useState("")
     const openInstruction = useCallback((filename: string, content: string) => {
         setInstructionDraft(content)
+        setInstructionOriginal(content)
         setEditingInstruction({filename})
     }, [])
+    const instructionDirty = instructionDraft !== instructionOriginal
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
     // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
@@ -1017,6 +1021,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         setEditingInstruction(null)
                     }}
                     disabled={disabled}
+                    dirty={instructionDirty}
                 />
             )}
 
