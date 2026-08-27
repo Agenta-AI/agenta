@@ -152,15 +152,24 @@ describe("buildElicitationSteps — degrade lanes", () => {
         })
     })
 
-    it("turns a string array into a comma-separated list, sampling its enum", () => {
+    it("promotes an enum-backed array to real toggle rows", () => {
         const step = stepBy(formOf(goldenRequest).steps, "notify_on")
 
-        expect(step.kind).toBe("list")
-        expect(step.degraded).toBe("array")
-        expect(step.hint).toBe("Separate with commas — e.g. success, failure")
-        expect(parseStepValue(step, "success, failure")).toEqual(["success", "failure"])
-        // Already-split values (a default, a restored draft) pass through untouched.
+        expect(step.kind).toBe("multiselect")
+        expect(step.degraded).toBeUndefined()
+        expect(step.options?.map((o) => o.value)).toEqual(["success", "failure", "skipped"])
+        // Options are suggestions in this dialect, so a multi-select keeps its Other row too.
+        expect(step.allowOther).toBe(true)
+        // The control holds the array directly; nothing to split on the way out.
         expect(parseStepValue(step, ["failure"])).toEqual(["failure"])
+    })
+
+    it("leaves an array with nothing to pick as a comma field", () => {
+        const {steps} = formOf(payload({repos: {type: "array", items: {type: "string"}}}))
+
+        expect(steps[0].kind).toBe("list")
+        expect(steps[0].degraded).toBe("array")
+        expect(parseStepValue(steps[0], "a, b")).toEqual(["a", "b"])
     })
 
     it.each([
@@ -278,8 +287,16 @@ describe("collectStepContent", () => {
     })
 
     it("splits a list step on the way out", () => {
+        // A list is the no-enum array: nothing to offer as rows, so it is typed and split here.
+        const {steps} = formOf(payload({repos: {type: "array", items: {type: "string"}}}))
+        expect(collectStepContent(steps, {repos: "a/one, a/two"})).toEqual({
+            repos: ["a/one", "a/two"],
+        })
+    })
+
+    it("passes a multi-select's array through untouched", () => {
         const {steps} = formOf(goldenRequest)
-        expect(collectStepContent(steps, {notify_on: "success, failure"})).toEqual({
+        expect(collectStepContent(steps, {notify_on: ["success", "failure"]})).toEqual({
             notify_on: ["success", "failure"],
         })
     })

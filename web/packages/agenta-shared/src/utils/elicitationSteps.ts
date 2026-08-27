@@ -21,6 +21,7 @@ import {
 /**
  * What the card renders for one question.
  *
+ * `multiselect` is a real control: an array whose items carry an enum, rendered as toggle rows.
  * `list` and `unsupported` are the DEGRADE lanes, not wire shapes — see `buildElicitationSteps`.
  */
 export type ElicitationStepKind =
@@ -29,6 +30,7 @@ export type ElicitationStepKind =
     | "number"
     | "enum"
     | "boolean"
+    | "multiselect"
     | "list"
     | "unsupported"
 
@@ -158,19 +160,17 @@ const buildStep = (
         }
     }
 
-    // Multi-select. The dialect's only array shape is string items; there is no toggle control in
-    // this version, so it becomes a comma-separated text field. `parseStepValue` splits it back.
+    // The dialect's only array shape is string items. With an enum there is something to offer as
+    // toggle rows; without one there is nothing to list, so entries are collected as chips.
     if (field.type === "array") {
-        const sample = options
-            ?.slice(0, 2)
-            .map((option) => option.value)
-            .join(", ")
-        return withHint(
-            base,
-            "list",
-            "array",
-            sample ? `Separate with commas — e.g. ${sample}` : DEGRADE_HINTS.array,
-        )
+        if (options?.length) {
+            return {
+                ...withHint(base, "multiselect", undefined, "pick any"),
+                options,
+                allowOther: true,
+            }
+        }
+        return withHint(base, "list", "array", DEGRADE_HINTS.array)
     }
 
     if (field.type === "boolean") return withHint(base, "boolean")
@@ -278,7 +278,8 @@ export function validateStep(step: ElicitationStep, value: unknown): string | nu
     return null
 }
 
-/** Turn what the control holds into what goes on the wire. Only `list` needs it. */
+/** Turn what the control holds into what goes on the wire. Only `list` needs converting: a
+ * multiselect already holds its `string[]`. */
 export function parseStepValue(step: ElicitationStep, raw: unknown): unknown {
     if (step.kind !== "list") return raw
     if (Array.isArray(raw)) return raw

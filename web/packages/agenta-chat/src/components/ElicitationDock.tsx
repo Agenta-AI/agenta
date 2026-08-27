@@ -38,6 +38,7 @@ import type {ClientToolMeta} from "../skin"
 import {
     ElicitationControl,
     MAX_DIGIT_ROWS,
+    isMultiSelect,
     optionRowsFor,
     selectedRowFor,
     type OptionRow,
@@ -248,21 +249,49 @@ const LiveCard = ({
         [stepper, settle],
     )
 
-    const pickRow = useCallback(
-        (row: OptionRow, index: number) => {
-            if (!step || row.value === null) return
-            const value = step.kind === "boolean" ? row.value === "true" : row.value
-            stepper.pick(step.name, value, `Picked ${row.label}`, index)
+    const multi = isMultiSelect(step)
+
+    /** Focus the trailing "Other" text field. It is a row you type into, never one you pick. */
+    const focusOther = useCallback(
+        (index: number) => {
+            stepper.setCursor(index)
+            requestAnimationFrame(() =>
+                cardRef.current
+                    ?.querySelector<HTMLInputElement>("[data-elicitation-other]")
+                    ?.focus({preventScroll: true}),
+            )
         },
-        [step, stepper],
+        [stepper],
     )
 
-    // Enum and boolean steps put focus on the card itself so digits and arrows work immediately.
+    const pickRow = useCallback(
+        (row: OptionRow, index: number, immediate = false) => {
+            if (!step) return
+            // Digits and Enter used to die here on the Other row, because it carries no value.
+            if (row.value === null) return focusOther(index)
+            if (multi) return stepper.toggle(step.name, row.value)
+            const value = step.kind === "boolean" ? row.value === "true" : row.value
+            stepper.pick(step.name, value, `Picked ${row.label}`, index, immediate)
+        },
+        [step, stepper, multi, focusOther],
+    )
+
+    const toggleRow = useCallback(
+        (row: OptionRow, index: number) => {
+            if (!step) return
+            if (row.value === null) return focusOther(index)
+            stepper.toggle(step.name, row.value)
+        },
+        [step, stepper, focusOther],
+    )
+
+    // Row-driven steps and the review list put focus on the card itself, so digits and arrows work
+    // immediately. Free-text steps focus their input instead (see ElicitationControl).
     useEffect(() => {
-        if (!rows.length || !active) return
+        if ((!rows.length && !isReview) || !active) return
         const frame = requestAnimationFrame(() => cardRef.current?.focus({preventScroll: true}))
         return () => cancelAnimationFrame(frame)
-    }, [rows.length, stepper.index, active])
+    }, [rows.length, isReview, stepper.index, active])
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (!active || !shortcutsEnabled || event.repeat) return
@@ -289,6 +318,11 @@ const LiveCard = ({
             stepper.forward()
             return
         }
+        if (mod && (event.key === "Backspace" || event.key === "Delete")) {
+            event.preventDefault()
+            stepper.skip()
+            return
+        }
         if (mod) return
 
         // Escape backs out of typing rather than settling — see the note at the top of this file.
@@ -302,13 +336,42 @@ const LiveCard = ({
             return
         }
 
+        // A date step parks focus on the picker's trigger, where Enter would open the calendar.
+        // Keep Enter meaning "next", as it does in every other field; Space still opens the
+        // picker, and once it is open its keys never reach here (Radix portals the content).
+        if (
+            event.key === "Enter" &&
+            !typing &&
+            (step?.kind === "date" || step?.kind === "date-time")
+        ) {
+            event.preventDefault()
+            stepper.primary()
+            return
+        }
+
+        // The review screen is a list of answers: walk it and press Enter to go fix one.
+        if (isReview) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault()
+                stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, steps.length)
+                return
+            }
+            if (event.key === "Enter" && !typing) {
+                event.preventDefault()
+                stepper.goTo(cursor)
+            }
+            return
+        }
+
         // Digits and arrows belong to the input whenever one is focused.
         if (!rows.length || typing) return
         if (/^[1-9]$/.test(event.key)) {
             const index = Number(event.key) - 1
             if (index < Math.min(rows.length, MAX_DIGIT_ROWS)) {
                 event.preventDefault()
-                pickRow(rows[index], index)
+                // Keyboard picks advance at once: the user meant it, and the hold that protects a
+                // misclick just fights fast entry.
+                pickRow(rows[index], index, true)
             }
             return
         }
@@ -317,10 +380,22 @@ const LiveCard = ({
             stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, rows.length)
             return
         }
+        if (event.key === "Home" || event.key === "End") {
+            event.preventDefault()
+            stepper.setCursor(event.key === "Home" ? 0 : rows.length - 1)
+            return
+        }
+        // Space toggles the cursor row on a multi-select, matching a real checkbox list.
+        if (event.key === " " && multi) {
+            event.preventDefault()
+            const row = rows[cursor]
+            if (row) toggleRow(row, cursor)
+            return
+        }
         if (event.key === "Enter") {
             event.preventDefault()
             const row = rows[cursor]
-            if (row) pickRow(row, cursor)
+            if (row) pickRow(row, cursor, true)
         }
     }
 
@@ -417,7 +492,9 @@ const LiveCard = ({
                             touch={touch}
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
+                            onToggle={toggleRow}
                             onCursor={stepper.setCursor}
+                            onSubmit={stepper.primary}
                         />
                     </>
                 ) : null}
@@ -493,8 +570,13 @@ const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper
                 <button
                     key={step.name}
                     type="button"
+                    onMouseEnter={() => stepper.setCursor(index)}
                     onClick={() => stepper.goTo(index)}
-                    className="flex h-7 items-center justify-between gap-3 rounded-md bg-colorFillQuaternary px-2.5 text-left"
+                    className={`flex h-7 items-center justify-between gap-3 rounded-md px-2.5 text-left ${
+                        index === stepper.cursor
+                            ? "bg-colorFillSecondary"
+                            : "bg-colorFillQuaternary"
+                    }`}
                 >
                     <span className="truncate text-xs text-colorTextSecondary">{step.label}</span>
                     <span

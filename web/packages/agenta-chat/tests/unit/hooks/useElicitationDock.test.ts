@@ -9,9 +9,8 @@
  * armed this one, so these cases are the regression net.
  */
 import {renderHook} from "@testing-library/react"
-import {describe, expect, it, vi} from "vitest"
-
 import type {UIMessage} from "ai"
+import {describe, expect, it, vi} from "vitest"
 
 import {useElicitationDock} from "../../../src/hooks/useElicitationDock"
 

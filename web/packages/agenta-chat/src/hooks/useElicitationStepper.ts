@@ -87,9 +87,19 @@ type Action =
     | {type: "goTo"; index: number}
     | {type: "setValue"; name: string; value: unknown}
     | {type: "setCursor"; cursor: number}
-    | {type: "hold"; label: string; cursor: number; name: string; value: unknown}
+    | {
+          type: "pick"
+          name: string
+          value: unknown
+          label: string
+          cursor: number
+          /** Advance now instead of holding — a digit or Enter. */
+          immediate: boolean
+          lastIndex: number
+      }
     | {type: "cancelHold"}
     | {type: "error"; error: string}
+    | {type: "toggle"; name: string; option: string}
     | {type: "skip"; name: string}
     | {type: "restore"; values: Record<string, unknown>; index: number}
 
@@ -107,15 +117,42 @@ const reducer = (state: State, action: Action): State => {
             }
         case "setCursor":
             return {...state, cursor: action.cursor, hold: null}
-        case "hold":
-            return {
+        // ONE action, not a setValue + hold pair: the hold's sequence is what restarts the
+        // auto-advance timer, and a separate setValue in between nulls it and freezes the seq at 1.
+        case "pick": {
+            const picked = {
                 ...state,
                 values: {...state.values, [action.name]: action.value},
                 skipped: state.skipped.filter((name) => name !== action.name),
                 cursor: action.cursor,
-                hold: {label: action.label, seq: (state.hold?.seq ?? 0) + 1},
                 error: null,
             }
+            if (action.immediate)
+                return {
+                    ...picked,
+                    index: Math.min(state.index + 1, action.lastIndex),
+                    hold: null,
+                    cursor: 0,
+                }
+            return {...picked, hold: {label: action.label, seq: (state.hold?.seq ?? 0) + 1}}
+        }
+        // Multi-select never auto-advances: you are still picking, and moving on mid-selection
+        // would be exactly the bug the single-select hold exists to avoid.
+        case "toggle": {
+            const current = Array.isArray(state.values[action.name])
+                ? (state.values[action.name] as string[])
+                : []
+            const next = current.includes(action.option)
+                ? current.filter((item) => item !== action.option)
+                : [...current, action.option]
+            return {
+                ...state,
+                values: {...state.values, [action.name]: next},
+                skipped: state.skipped.filter((name) => name !== action.name),
+                error: null,
+                hold: null,
+            }
+        }
         case "cancelHold":
             return state.hold === null ? state : {...state, hold: null}
         case "error":
@@ -171,8 +208,14 @@ export interface ElicitationStepperState {
     setValue: (name: string, value: unknown) => void
     setCursor: (cursor: number) => void
     moveCursor: (delta: number, rowCount: number) => void
-    /** Set a value AND schedule the auto-advance. Picks and toggles only — never free text. */
-    pick: (name: string, value: unknown, label: string, cursor: number) => void
+    /**
+     * Set a value and move on. `immediate` advances now (a digit or Enter — the user meant it and a
+     * pause fights fast entry); otherwise the card holds ~900ms showing what it recorded, which is
+     * the affordance a misclick needs.
+     */
+    pick: (name: string, value: unknown, label: string, cursor: number, immediate?: boolean) => void
+    /** Add or remove one option on a multi-select. Never advances. */
+    toggle: (name: string, option: string) => void
     cancelHold: () => void
     goTo: (index: number) => void
     back: () => void
@@ -219,6 +262,11 @@ export const useElicitationStepper = ({
     // A review screen is worth a step of its own only when there is something to compare.
     const hasReview = total > 1
     const lastIndex = hasReview ? total : Math.max(total - 1, 0)
+
+    // Read by the `pick` callback, which must stay identity-stable across steps: closing over
+    // `lastIndex` directly would clamp an immediate advance against a stale end-of-form.
+    const lastIndexRef = useRef(lastIndex)
+    lastIndexRef.current = lastIndex
 
     const [state, dispatch] = useReducer(reducer, steps, (initial) => ({
         index: 0,
@@ -362,8 +410,20 @@ export const useElicitationStepper = ({
             [state.cursor],
         ),
         pick: useCallback(
-            (name: string, value: unknown, label: string, cursor: number) =>
-                dispatch({type: "hold", name, value, label, cursor}),
+            (name: string, value: unknown, label: string, cursor: number, immediate = false) =>
+                dispatch({
+                    type: "pick",
+                    name,
+                    value,
+                    label,
+                    cursor,
+                    immediate,
+                    lastIndex: lastIndexRef.current,
+                }),
+            [],
+        ),
+        toggle: useCallback(
+            (name: string, option: string) => dispatch({type: "toggle", name, option}),
             [],
         ),
         cancelHold: useCallback(() => dispatch({type: "cancelHold"}), []),

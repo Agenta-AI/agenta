@@ -7,10 +7,9 @@
  * refuses to, that Skip clears a value rather than just moving past it, and that `Send answers`
  * carries exactly the answered keys.
  */
+import {buildElicitationSteps, type ElicitationForm} from "@agenta/shared/utils"
 import {act, renderHook} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
-import {buildElicitationSteps, type ElicitationForm} from "@agenta/shared/utils"
 
 import {useElicitationStepper} from "../../../src/hooks/useElicitationStepper"
 
