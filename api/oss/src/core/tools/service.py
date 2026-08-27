@@ -88,6 +88,15 @@ _DEFAULT_LIMIT_ALTERNATIVES = 3
 # ``tools:catalog:*`` entries cannot serve this — each holds one page of one query,
 # and they sit above the service. Shares the trigger catalog's TTL and deadline:
 # both are the same project-agnostic Composio catalog data.
+#
+# This is the ONLY catalog cache keyed by toolkit version, and deliberately so. It is
+# the only one a run reads, and it holds entries for 24 hours, so an unversioned key
+# here can execute a run against a snapshot a full day older than the alias it was
+# resolved from. The router's browse caches (``tools:catalog:actions``, ``:action``,
+# ``:integration``, and the rest) always ask for latest, hold entries for 5 minutes,
+# and feed display only — no execution reads them, and they self-correct within the
+# TTL. Versioning them would pin browsing to a run's version, which is the wrong
+# answer for a person looking at what an integration offers now.
 _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 
 # Enough to correct a typo without turning the error into a menu.

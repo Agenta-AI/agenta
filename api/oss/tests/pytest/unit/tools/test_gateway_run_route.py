@@ -363,6 +363,41 @@ async def test_an_incomplete_context_is_refused(monkeypatch, context):
 
 
 @pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", "", "   "])
+async def test_a_forged_run_post_naming_latest_never_reaches_the_provider(
+    monkeypatch, version
+):
+    """The rejection through the route, on the raw body a forged POST would send.
+
+    ``call_tool`` receives an already-parsed ``ToolCall``, so the refusal happens where
+    FastAPI validates the body. This drives that same parse over the whole payload, then
+    proves the provider stayed untouched. The route's own guard tests presence, not
+    value, so this is the check that closes the alias at the boundary.
+    """
+    provider = FakeProvider()
+    _router(monkeypatch, provider)
+
+    payload = {
+        "data": {
+            "id": "call_run_1",
+            "function": {"name": "gateway.run", "arguments": ARGUMENTS},
+        },
+        "context": {
+            "provider": "composio",
+            "integration": "github",
+            "connection": "github-work",
+            "tool": "CREATE_AN_ISSUE",
+            "toolkit_version": version,
+        },
+    }
+
+    with pytest.raises(ValidationError) as caught:
+        ToolCall.model_validate(payload)
+
+    assert "toolkit_version" in str(caught.value)
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", "", "   "])
 def test_a_context_version_that_is_not_concrete_is_refused(version):
     """The alias and a blank both mean "whatever is newest", which never reaches a run.
 

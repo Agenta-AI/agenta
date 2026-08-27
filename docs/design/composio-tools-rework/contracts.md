@@ -119,6 +119,14 @@ The API validates the connection here, as it does for the per-tool arm today. It
 read `policy`. It returns the catalog slice so the SDK makes one round trip per integration
 instead of one per tool.
 
+Only the whole-catalog cache that serves this response, `tools:catalog:all`, is keyed by
+toolkit version. It is the only cache a run reads and it holds entries for 24 hours, so an
+unversioned key there can run against a snapshot a day older than the alias it resolved.
+The router's browse caches (`tools:catalog:actions`, `:action`, `:integration`, and the
+rest) stay unversioned on purpose: they always ask for `latest`, hold entries for 5
+minutes, and feed display only. Someone reading an integration's page should see what it
+offers now, not what some run pinned.
+
 Legacy `gateway` entries in the same request keep returning `custom` specifications. The two
 arms can appear in one request during migration.
 
