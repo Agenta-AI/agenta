@@ -129,6 +129,48 @@ call this turn, and the resume answers that exact id. Regression coverage:
 Before the gateway existed, "allowed execution" and "paused call" were disjoint by construction,
 which is why the wait was safe to write.
 
+### `settleOpenToolCalls` takes `isExcluded`, not `shouldSettle`
+
+Read the first argument wrong and you misread all three call sites in `runTurn`. `otel.ts` skips
+every id the predicate matches, so:
+
+- `(id) => pause.isPausedToolCall(id) || pause.isAllowedExecution(id)` settles the ORPHANS and
+  deliberately spares paused calls and allowed executions. It is not what closes a parked call —
+  nothing closes a parked call, by design.
+- `(id) => id !== toolCallId` settles ONLY `toolCallId`, which is what the Pi batch branch wants.
+
+Both readings cost time during this fix: the design for it was written on "the settle below
+already gives the parked call its terminal state", and the first version of the regression test
+asserted a settlement that correctly never happens.
+
+### The shared fake harness cannot see this bug — do not write a red-first test through it
+
+`tests/utils/sandbox-agent-harness.ts`'s run stub answers `openToolCallIds()` with `[]`
+unconditionally and makes `settleOpenToolCalls` a no-op. Every terminalization assertion driven
+through `fakeHarness` alone therefore passes **vacuously**: the wait set is always empty, so no
+wait can ever be observed and no settlement can ever be recorded.
+
+This nearly produced a false green on this very fix. The first red-first attempt "passed" against
+the unfixed code, which looks exactly like a fix that was never needed.
+
+If you are writing a test about what terminalization does — waits, settlements, orphan sweeps —
+you need a transcript that tracks open calls. Two ways:
+
+1. Give the test its own tracking run object and inject it through `deps.createOtel`, as
+   `gateway-park-termination.test.ts` does. Everything else stays production wiring.
+2. Teach the shared stub to track calls for real.
+
+This fix took route 1 and deliberately did **not** change the shared stub: a large number of tests
+assert against its current shape, and widening it under a blocker fix would have mixed an
+unreviewed fixture change into a one-line behavior change. Route 2 is still the better long-term
+answer and is worth doing on its own.
+
+The only shared-harness change here was additive: an optional `afterPromptGates` hook, called
+after the permission gates and their follow-on events, which is the one window in which a test can
+act on a tool call the harness has both gated and opened. A gateway park needs exactly that
+window, because the ACP gate on the outer `run_tool` must be answered before the relay receives
+the call the gateway then parks.
+
 ## What was tried, and why it regressed — do not repeat this
 
 The obvious fix is to unblock the caller: have the relay write the same benign
