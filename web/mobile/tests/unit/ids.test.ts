@@ -1,15 +1,14 @@
-/**
- * Id generation across secure and insecure contexts.
- *
- * `crypto.randomUUID` is defined only in a secure context. Over plain HTTP — how the dev stack is
- * served — it is `undefined`, and because these ids are minted during render, every unguarded call
- * took the whole mobile screen down with "crypto.randomUUID is not a function".
- */
+// `crypto.randomUUID` needs a secure context; over plain HTTP the unguarded call blanked the screen.
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {newId} from "../../src/lib/ids"
 
+const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
 const withCrypto = (value: unknown) => vi.stubGlobal("crypto", value as typeof globalThis.crypto)
+
+/** The runtime's own implementation, captured before any stub replaces the global. */
+const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto)
 
 afterEach(() => {
     vi.unstubAllGlobals()
@@ -17,33 +16,46 @@ afterEach(() => {
 
 describe("newId", () => {
     it("uses crypto.randomUUID when the context is secure", () => {
-        const randomUUID = vi.fn(() => "11111111-2222-3333-4444-555555555555")
-        withCrypto({randomUUID})
+        const randomUUID = vi.fn(() => "11111111-2222-4333-8444-555555555555")
+        withCrypto({randomUUID, getRandomValues})
 
-        expect(newId()).toBe("11111111-2222-3333-4444-555555555555")
+        expect(newId()).toBe("11111111-2222-4333-8444-555555555555")
         expect(randomUUID).toHaveBeenCalledTimes(1)
     })
 
-    it("returns an id over plain HTTP, where randomUUID is missing", () => {
-        // The regression: this threw, during render, and blanked the screen.
-        withCrypto({})
+    it("builds a v4 UUID from getRandomValues over plain HTTP", () => {
+        // The regression: this threw, during render.
+        withCrypto({getRandomValues})
 
-        expect(() => newId()).not.toThrow()
-        expect(newId()).toMatch(/^[a-z0-9]+-[a-z0-9]+$/)
+        expect(newId()).toMatch(V4)
     })
 
-    it("survives crypto being absent altogether", () => {
+    it("sets the version and variant bits, not just the shape", () => {
+        withCrypto({getRandomValues})
+
+        for (let i = 0; i < 50; i++) {
+            const id = newId()
+            expect(id[14]).toBe("4")
+            expect("89ab").toContain(id[19])
+        }
+    })
+
+    it("does not repeat itself on the getRandomValues path", () => {
+        withCrypto({getRandomValues})
+
+        expect(new Set(Array.from({length: 500}, newId)).size).toBe(500)
+    })
+
+    it("still returns an id when crypto is absent altogether", () => {
         withCrypto(undefined)
 
-        expect(newId()).toBeTruthy()
+        expect(newId()).toMatch(/^id-[a-z0-9]+-[a-z0-9]+$/)
     })
 
-    it("does not repeat itself on the fallback path", () => {
-        // These ids key React lists and identify client-minted sessions, so a collision inside one
-        // tab would merge two sessions.
-        withCrypto({})
+    it("does not repeat itself on the counter path", () => {
+        // A collision inside one tab would merge two sessions.
+        withCrypto(undefined)
 
-        const ids = new Set(Array.from({length: 500}, () => newId()))
-        expect(ids.size).toBe(500)
+        expect(new Set(Array.from({length: 500}, newId)).size).toBe(500)
     })
 })
