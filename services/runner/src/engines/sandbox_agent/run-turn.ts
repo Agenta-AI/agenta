@@ -1144,8 +1144,17 @@ export async function runTurn(
       await pause.waitForEventDrain();
       parkStage("waitForEventDrain returned");
       settleBufferedPausedCompletions();
-      const openAllowedExecutions = openToolCallIds().filter((id) =>
-        pause.isAllowedExecution(id),
+      // A gateway run passes TWO gates on ONE tool-call id: the ACP gate on the outer `run_tool`,
+      // whose spec permission is `allow` and which therefore marks an allowed execution, and the
+      // gateway's semantic gate on the TARGET action, which answers `ask` and parks that same id.
+      // A call that is both cannot close — the human has not answered yet — so waiting for its
+      // closure burns the whole tool-call bound before the turn can end. Exclude it here, at the
+      // computation, rather than at the wait below: this list also seeds `parkedApprovedExecutions`
+      // on the Pi batch branch, where a parked call has no seed and would be carried and
+      // re-announced next turn as an approved execution it never was.
+      // Before the gateway, allowed and paused were disjoint by construction.
+      const openAllowedExecutions = openToolCallIds().filter(
+        (id) => pause.isAllowedExecution(id) && !pause.isPausedToolCall(id),
       );
       const piBatchBlockedByApproval = Boolean(
         opts.resume &&

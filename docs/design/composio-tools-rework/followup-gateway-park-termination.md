@@ -7,6 +7,16 @@ gateway gate parks at the relay execution seam, and no other tool does. It is fi
 because fixing it properly needs a design decision about the pause machinery, not a patch, and
 because D3 was closed by a client-side change that does not depend on it.
 
+> **Superseded in part, 2026-08-27.** The dominant cause of a cold ask-tier park failing to end
+> the turn was **not** the Pi relay block this document describes. It was terminalization waiting
+> on the parked tool call itself, for the full 30-minute tool-call bound. That is measured,
+> understood, and **fixed** — see
+> [The measured mechanism](#the-measured-mechanism-closure-wait-conflation-not-a-relay-block)
+> below, which takes precedence over
+> [Why it is gateway-specific](#why-it-is-gateway-specific) for this case. The rest of the
+> document is kept because the relay-block reasoning still applies to the `pi_core` shape it was
+> measured on, and because the "what was tried" section remains a live warning.
+
 ## Title
 
 Agent runner: a gateway `run_tool` approval park rides the relay timeout instead of ending the
@@ -35,11 +45,11 @@ runner logs `prompt stopReason=paused` when the turn actually ends and
 `[sessions/interactions] ingest OK` when the card's row lands, so the gap between them is the
 defect, measured directly.
 
-| pause kind | order | gap |
-| --- | --- | --- |
-| client-tool park | `paused` first, then the row | **+30 ms** |
-| built-in ACP approval park | `paused` first, then the row | **+48 ms** |
-| gateway `run_tool` park | the row first, then `paused` | **+59 s and +135 s** |
+| pause kind                 | order                        | gap                  |
+| -------------------------- | ---------------------------- | -------------------- |
+| client-tool park           | `paused` first, then the row | **+30 ms**           |
+| built-in ACP approval park | `paused` first, then the row | **+48 ms**           |
+| gateway `run_tool` park    | the row first, then `paused` | **+59 s and +135 s** |
 
 The persisted event sequence is structurally identical in all three cases
 (`tool_call → interaction_request → tool_result → done`). Nothing is missing and nothing is
@@ -57,6 +67,67 @@ symptom follows entirely from that delay.
 - A gateway call is executing **inside** the Pi extension's `relayToolCall`, which blocks on the
   response file. `pause.pause()` ends the turn logically, but the extension's tool promise stays
   pending, and the prompt cannot resolve until it returns.
+
+## The measured mechanism: closure-wait conflation, not a relay block
+
+Established on 2026-08-27 by instrumenting the teardown path with `[park-stage]` stage markers
+(commit `3fda24a9c1`, reverted once the fix landed) and running one ask-tier park on the
+`agenta-ee-dev-toolkit` stack, harness `claude`, model `claude-sonnet-5`.
+
+A gateway run passes **two gates on one tool-call id**, 3 ms apart:
+
+```
+06:16:20.893833Z [HITL] gate toolName="run_tool" permission=allow outcome=allow
+06:16:20.896926Z [HITL] gate toolName="run_tool" permission=ask  outcome=pendingApproval
+```
+
+The first is the ACP gate on the **outer** `run_tool`, whose spec permission is `allow`. It calls
+`onAllowedExecution` (`acp-interactions.ts:444`), which marks the id an allowed execution. The
+second is the gateway's **semantic** gate on the target action, which reads the policy, answers
+`ask`, and marks the same id a paused call. Nothing un-marks the first: `pause.ts` keeps two
+independent sets and has no un-mark.
+
+Paused-turn terminalization then computed its wait set as every open **allowed execution**, which
+included the parked call, and waited for a closure only a human can produce. The bound is
+`resolvedRunLimits.toolCallMs`, defaulting to `DEFAULT_TOOL_CALL_TIMEOUT_MS` = 30 minutes
+(`run-limits.ts`). The markers show the turn stopping dead after `waitForEventDrain returned` and
+resuming exactly 30 minutes later:
+
+```
+06:16:20.901179Z [park-stage] waitForEventDrain returned
+06:46:20.903076Z [park-stage] openAllowedExecutions settled     <- 30 min + 2 ms
+06:46:21.690858Z [park-stage] server run() returned stopReason=paused
+06:46:21.728225Z [sessions/alive] heartbeat OK ... running=false
+```
+
+Everything after the wait took 2 ms, which is what rules the rest of the teardown path out.
+
+**Why this is worse than "ends late".** `run()` never returns inside the window, so its `finally`
+never releases the alive watchdog and the stream row keeps reporting `running=true`. A resume
+arriving meanwhile finds the session busy, is marked `INTERRUPTED`, aborted, and evicted as
+`supersede-busy`. That is the wedge that made Approve appear to do nothing on the live stack.
+
+**The fix**, in `run-turn.ts` where the list is computed:
+
+```ts
+const openAllowedExecutions = openToolCallIds().filter(
+  (id) => pause.isAllowedExecution(id) && !pause.isPausedToolCall(id),
+);
+```
+
+At the computation and not at the wait, because the same list also seeds
+`parkedApprovedExecutions` on the Pi batch branch, where a parked call has no seed and would be
+carried and re-announced next turn as an approved execution it never was. (That second path was a
+correctness bug, not an approval bypass: `ApprovedExecutionGrants.grant` keys on
+`approvedCallKey(toolName, args)` and returns early when the call is unkeyable, so a seed with an
+undefined tool name grants nothing.)
+
+The parked call is deliberately **left open** — its `interaction_request` is the last word for the
+call this turn, and the resume answers that exact id. Regression coverage:
+`services/runner/tests/unit/gateway-park-termination.test.ts`.
+
+Before the gateway existed, "allowed execution" and "paused call" were disjoint by construction,
+which is why the wait was safe to write.
 
 ## What was tried, and why it regressed — do not repeat this
 
@@ -80,7 +151,7 @@ removes the late-but-real finish the client was at least eventually getting. Hen
 
 **The suspected mechanism**, for whoever picks this up: with the answer written,
 `relayToolCall` returns `RELAY_PAUSED`, `assertNotPaused` (`services/runner/src/tools/dispatch.ts`)
-throws inside the Pi extension, and Pi appears to treat that tool error as a *continuable* event —
+throws inside the Pi extension, and Pi appears to treat that tool error as a _continuable_ event —
 so the harness turn neither completes nor resolves the prompt, while `destroySession` has already
 run underneath it. This is a suspicion, not a confirmed finding: `unexpected paused relay answer`
 never appeared in the runner log, though that is not disconfirming, because the throw becomes a
@@ -100,17 +171,17 @@ observed Pi's side.
 2. **Give the relay-seam approval a presence on the ACP permission plane**, so it ends the turn
    the way a built-in approval does. This is the "live resume" design deferred during the rework;
    it is the larger change and would also make the approval live-resumable rather than cold-only.
-3. Answer the caller *and* ensure the harness turn is torn down deterministically — i.e. option 1
+3. Answer the caller _and_ ensure the harness turn is torn down deterministically — i.e. option 1
    from the QA round, plus whatever makes Pi stop rather than continue. Only viable once the
    mechanism above is actually observed.
 
 ## Related
 
-- [`followup-approval-wedge.md`](followup-approval-wedge.md) — a *different*, pre-existing defect
+- [`followup-approval-wedge.md`](followup-approval-wedge.md) — a _different_, pre-existing defect
   found in the same QA session (a cold replay cancels the row while the card stays on screen).
   The two can look alike from the UI and should not be conflated.
 - The client-side half of D3 was closed by keeping `liveGateInteractionRef` populated on error so
-  the SDK's late re-evaluation can still dispatch. That works with the *current* late-but-real
+  the SDK's late re-evaluation can still dispatch. That works with the _current_ late-but-real
   stream close, which is another reason the naive fast-answer fix must not be re-applied without
   re-checking the client.
 
@@ -137,7 +208,7 @@ Making it structural rather than incidental means queue-and-replay in the sessio
 hold gates that arrive with no `currentTurn` responder and deliver them once one attaches. Worth
 doing, and out of scope for a blocker fix.
 
-Related smell: there are six ways to reach `runTurn` (`server.ts` twice, `session-coordinator.ts`
-three times, `engine.ts` once). Six entry points is six chances for pre-turn setup to diverge —
+Related smell: there are six ways to reach `runTurn` (`server.ts` twice,
+`lifecycle/session-coordinator.ts` three times, `engine.ts` once). Six entry points is six chances for pre-turn setup to diverge —
 the seed read only stays uniform today because the three coordinator paths funnel through one
 adapter in `server.ts`. Consolidating them would make pre-turn work a single place to get right.

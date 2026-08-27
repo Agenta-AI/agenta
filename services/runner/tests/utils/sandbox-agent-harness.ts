@@ -26,6 +26,11 @@ export interface FakeOptions {
   promptEvents?: Array<Record<string, unknown>>;
   afterPromptEvents?: () => Promise<void> | void;
   postPermissionEvents?: Array<Record<string, unknown>>;
+  // Runs after the permission gates AND their follow-on events, which is the only window in
+  // which a test can act on a tool call the harness has both gated and opened. A gateway run
+  // needs exactly that window: the ACP gate on the outer `run_tool` must have been answered
+  // before the relay receives the call the gateway then parks.
+  afterPromptGates?: () => Promise<void> | void;
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
@@ -127,6 +132,7 @@ export function fakeHarness(options: FakeOptions = {}) {
         if (options.emitPermission) await flushPromises();
         for (const event of options.postPermissionEvents) eventHandler?.(event);
       }
+      await options.afterPromptGates?.();
       if (options.promptError) throw options.promptError;
       if (options.hangPrompt) {
         // Claude does not end a turn on an unanswered gate: the prompt hangs until the
