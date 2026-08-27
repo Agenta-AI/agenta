@@ -492,14 +492,6 @@ const LiveCard = ({
                 ) : null}
             </div>
 
-            {/* Always mounted: an error or hold line must render into space that already exists. */}
-            <div
-                aria-live="polite"
-                className={`h-4 text-xs ${stepper.error ? "text-colorError" : "text-colorTextTertiary"}`}
-            >
-                {stepper.error ?? stepper.hold ?? ""}
-            </div>
-
             <div className="flex flex-row-reverse items-center gap-2">
                 <Button size="sm" className={touchCls} onClick={stepper.primary}>
                     {stepper.primaryLabel}
@@ -516,6 +508,14 @@ const LiveCard = ({
                 >
                     {isReview ? "Decline" : "Skip"}
                 </Button>
+                <span
+                    aria-live="polite"
+                    className={`mr-auto truncate text-xs ${
+                        stepper.error ? "text-colorError" : "text-colorTextTertiary"
+                    }`}
+                >
+                    {stepper.error ?? stepper.hold ?? ""}
+                </span>
             </div>
         </div>
     )
