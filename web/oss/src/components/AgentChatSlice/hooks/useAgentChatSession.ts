@@ -32,10 +32,8 @@ import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/e
 import {
     agentShouldResumeAfterApproval,
     approvalResolution,
-    approvalResumeAction,
     buildAgentRequest,
     buildTurnCapture,
-    heldResumeDecision,
     isResumeSend,
     playgroundController,
     type LiveAgentInteraction,
@@ -252,17 +250,13 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    // A resume the stream was too busy to take; the effect below sends it once the stream settles.
-    const heldApprovalResumeRef = useRef(false)
-
-    const dispatchApprovalResume = useCallback(() => {
-        void sendMessage().catch(ignoreStreamRejection)
-    }, [sendMessage])
-
     /**
-     * Answer an approval durably, then resume. The row is the source of truth: a gateway approval is
-     * answered while the run stream is open, so the part flip can be discarded by a re-seed before
-     * anything acts on it. The runner reads the resolved row at turn start instead.
+     * Record an approval decision on the interaction row the runner parked.
+     *
+     * Durable half only — it does NOT resume. The park stream ends with a clean finish, so the SDK's
+     * own `sendAutomaticallyWhen` dispatch fires; a second dispatch from here raced it by 1 ms and
+     * each invoke cancelled the other's row as stale. The row write matters anyway: the runner seeds
+     * its decisions from `responded` rows, and a re-seed can discard the local part flip.
      */
     const answerApproval = useCallback(
         (approvalId: string, approved: boolean) => {
@@ -272,34 +266,18 @@ export const useAgentChatSession = ({
                 toolCallId: approvalId,
                 resolution: approvalResolution(approvalId, approved),
             })
-            if (approvalResumeAction(busyRef.current) === "hold") {
-                heldApprovalResumeRef.current = true
-                return
-            }
-            dispatchApprovalResume()
         },
-        [dispatchApprovalResume, recordInteractionAnswer, sessionId],
+        [recordInteractionAnswer, sessionId],
     )
 
-    // Both halves of the resume ride on the STREAM's state, never on part state (a re-seed reverts
-    // that) and never on the predicate's verdict (the SDK discards it on an errored stream).
+    // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
+    // send is a fact, and never in the predicate, whose `true` the SDK can still refuse.
     const previousStatusRef = useRef(status)
     useEffect(() => {
         const from = previousStatusRef.current
         previousStatusRef.current = status
-        // A request really went out — ours, or the SDK's own auto-resume. The gate it carried is
-        // spent, so the marker is consumed HERE, where a send is a fact.
-        const sent = isResumeSend({from, to: status})
-        if (sent) liveGateInteractionRef.current = null
-        const decision = heldResumeDecision({
-            busy,
-            held: heldApprovalResumeRef.current,
-            sent,
-        })
-        if (decision === "wait") return
-        heldApprovalResumeRef.current = false
-        if (decision === "dispatch") dispatchApprovalResume()
-    }, [busy, dispatchApprovalResume, status])
+        if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
+    }, [status])
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
@@ -494,9 +472,6 @@ export const useAgentChatSession = ({
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
         // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
         liveGateInteractionRef.current = null
-        // And the held resume with it: `stop()` settles the stream, which is exactly the signal the
-        // effect above dispatches on. Without this, a stop SENDS the resume it just cancelled.
-        heldApprovalResumeRef.current = false
         stop() // abort the client stream immediately
         if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.

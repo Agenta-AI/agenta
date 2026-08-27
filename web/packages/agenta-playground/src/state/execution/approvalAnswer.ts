@@ -2,16 +2,17 @@
  * The durable half of a HITL approval decision.
  *
  * The part-state route is structurally racy for a gateway approval: the run stream stays open while
- * the card is up, so the AI SDK skips its own resume dispatch (`status === "streaming"`), and when
- * the stream finally ends the transcript can be re-seeded from the stored record — which discards
- * the local `approval-responded` flip before anything retries.
+ * the card is up, and when it ends the transcript can be re-seeded from the stored record, which
+ * discards the local `approval-responded` flip. So the decision also goes to the interaction row the
+ * runner parked (`kind: "user_approval"`). The runner seeds its decision store from those rows at
+ * turn start, so a resumed run may legitimately carry `approval-requested` in its history and still
+ * execute.
  *
- * So the decision goes to the interaction row the runner parked (`kind: "user_approval"`), and the
- * resume is dispatched deliberately rather than inferred from part state. The runner seeds its
- * decision store from those rows at turn start, so a resumed run may legitimately carry
- * `approval-requested` in its history and still execute.
+ * The RESUME, by contrast, has exactly one owner: the AI SDK's own `sendAutomaticallyWhen`. A park
+ * stream ends with a clean finish, so the SDK's dispatch fires, and a second compensating dispatch
+ * from here sent two invokes 1 ms apart — each cancelling the other's interaction row as stale.
  *
- * Pure, so both `useChat` hosts share one implementation and the ordering is testable without React.
+ * Pure, so both `useChat` hosts share one implementation and the rules are testable without React.
  */
 
 /**
@@ -37,43 +38,12 @@ export function approvalResolution(approvalId: string, approved: boolean): Recor
 export type ChatStatusLike = "submitted" | "streaming" | "ready" | "error" | (string & {})
 
 /**
- * Whether a status change means a request really went out.
+ * Whether a status change means a resume request really went out.
  *
  * `submitted` is entered from one place only — the SDK's `makeRequest` — so this transition IS a
- * send, whoever started it. That makes it the only trustworthy evidence of a dispatch: the resume
- * predicate's `true` is not evidence, because the SDK's finish path reads
- * `if (predicate(...) && !isError)` and discards the verdict on an errored stream. A hold released
- * on the predicate's word is a hold released for a request that never left.
+ * send. It is what retires the live-gate marker: the predicate's `true` is not evidence of a send,
+ * because the SDK's finish path reads `if (predicate(...) && !isError)` and can still refuse.
  */
 export function isResumeSend({from, to}: {from: ChatStatusLike; to: ChatStatusLike}): boolean {
     return to === "submitted" && from !== "submitted"
 }
-
-/**
- * What to do with a held resume, on each stream-state change.
- *
- * `release` means someone else already sent, so the hold is satisfied without a second request.
- * `dispatch` means the stream settled with nothing sent — the gateway case, where the stream ends
- * by erroring and the SDK therefore skips its own resume.
- */
-export function heldResumeDecision({
-    busy,
-    held,
-    sent,
-}: {
-    busy: boolean
-    held: boolean
-    sent: boolean
-}): "wait" | "dispatch" | "release" {
-    if (!held) return "wait"
-    if (sent) return "release"
-    if (busy) return "wait"
-    return "dispatch"
-}
-
-/**
- * What to do with the resume at decision time. Dispatching into an open stream is what the SDK's own
- * guard refuses, so a busy stream holds the resume until it settles.
- */
-export const approvalResumeAction = (busy: boolean): "dispatch" | "hold" =>
-    busy ? "hold" : "dispatch"

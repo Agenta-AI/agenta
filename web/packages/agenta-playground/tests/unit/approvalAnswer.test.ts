@@ -1,20 +1,14 @@
 /**
- * The durable half of an approval decision — the row resolution and the resume dispatch ordering.
+ * The durable half of an approval decision: the row resolution, and what retires the gate marker.
  *
- * Both exist because the part-state route is racy for a gateway approval: the run stream is still
- * open when the card is answered, so the SDK skips its own dispatch, and a re-seed from the stored
- * transcript can discard the local `approval-responded` flip before anything retries. The decision
- * therefore goes to the interaction row, and the resume is dispatched on the STREAM's state, never
- * on the part's.
+ * The decision goes to the interaction row because the part-state route is racy — a re-seed from the
+ * stored transcript can discard the local `approval-responded` flip. The RESUME is not this file's
+ * business at all: the SDK's own `sendAutomaticallyWhen` owns it, alone, and the tests below pin
+ * that there is no second dispatch to race it with.
  */
 import {describe, expect, it} from "vitest"
 
-import {
-    approvalResolution,
-    approvalResumeAction,
-    heldResumeDecision,
-    isResumeSend,
-} from "../../src/state/execution/approvalAnswer"
+import {approvalResolution, isResumeSend} from "../../src/state/execution/approvalAnswer"
 
 describe("approvalResolution", () => {
     // The runner reads `verdict` and no other key, so these two assertions are the contract.
@@ -48,16 +42,6 @@ describe("approvalResolution", () => {
     })
 })
 
-describe("approvalResumeAction", () => {
-    it("dispatches immediately when the stream is idle", () => {
-        expect(approvalResumeAction(false)).toBe("dispatch")
-    })
-
-    it("holds while the stream is busy — the SDK's own guard refuses a send there", () => {
-        expect(approvalResumeAction(true)).toBe("hold")
-    })
-})
-
 describe("isResumeSend", () => {
     it("reads a move into submitted as a request going out", () => {
         // `submitted` is entered from `makeRequest` and nowhere else, so this transition IS a send.
@@ -65,8 +49,7 @@ describe("isResumeSend", () => {
         expect(isResumeSend({from: "ready", to: "submitted"})).toBe(true)
     })
 
-    it("does not read the original open stream as a send", () => {
-        // The state at click time. Reading this as a send would drop the hold before anything went.
+    it("does not read the open stream the card was answered on as a send", () => {
         expect(isResumeSend({from: "streaming", to: "streaming"})).toBe(false)
     })
 
@@ -80,122 +63,90 @@ describe("isResumeSend", () => {
     })
 })
 
-describe("heldResumeDecision", () => {
-    it("waits while the answered stream is still open", () => {
-        expect(heldResumeDecision({busy: true, held: true, sent: false})).toBe("wait")
-    })
-
-    it("dispatches when the stream settles with nothing sent", () => {
-        expect(heldResumeDecision({busy: false, held: true, sent: false})).toBe("dispatch")
-    })
-
-    it("releases the hold when a request really went out, without sending a second", () => {
-        expect(heldResumeDecision({busy: true, held: true, sent: true})).toBe("release")
-        expect(heldResumeDecision({busy: false, held: true, sent: true})).toBe("release")
-    })
-
-    it("does nothing when no resume is held", () => {
-        expect(heldResumeDecision({busy: false, held: false, sent: false})).toBe("wait")
-        expect(heldResumeDecision({busy: false, held: false, sent: true})).toBe("wait")
-    })
-})
-
-describe("the decision-time ordering, end to end", () => {
-    /** The click path: answer the row, then either dispatch or hold. */
-    const decide = (busy: boolean, approvalId: string, approved: boolean) => ({
-        written: approvalResolution(approvalId, approved),
-        action: approvalResumeAction(busy),
-    })
-
-    it("answers the row even when the resume has to wait (the gateway case)", () => {
-        const {written, action} = decide(true, "call_x|fc_y", true)
-        expect(action).toBe("hold")
-        // The answer is durable regardless of whether the resume can go out yet.
-        expect(written).toEqual({tool_call_id: "call_x|fc_y", verdict: "approved"})
-    })
-
-    it("answers and dispatches together when the stream is already idle", () => {
-        const {written, action} = decide(false, "call_x|fc_y", false)
-        expect(action).toBe("dispatch")
-        expect(written.verdict).toBe("denied")
-    })
-
-    it("holds while the answered stream is open, then dispatches once it settles", () => {
-        const {action} = decide(true, "call_x|fc_y", true)
-        expect(action).toBe("hold")
-        const chat = drive("streaming", true)
-        chat.step("streaming") // still the same open stream
-        expect(chat.dispatches).toBe(0)
-        chat.step("error")
-        expect(chat.dispatches).toBe(1)
-        chat.step("ready") // a later settle finds no hold
-        expect(chat.dispatches).toBe(1)
-    })
-})
-
 /**
- * The hook's held-resume effect, as a driver: one `step` per stream-state change.
+ * The hook's approval path, as a driver: `answer` is the click, `step` is one stream-state change.
  *
- * It exists because the whole defect lived in the ORDER of these steps, not in any single rule —
- * the predicate consumed the hold's token, then the SDK declined to send, and the hold refused a
- * dispatch for a request that never left.
+ * `dispatches` counts requests the CLIENT starts on its own. It must stay 0 forever. A compensating
+ * dispatch here produced two invokes 1 ms apart, and cancel-stale then cancelled the very row being
+ * answered, so the runner's resolveInteraction 404'd and every row ended `cancelled`.
  */
-const drive = (initial: string, held: boolean) => {
+const drive = (initial: string) => {
     let previous = initial
-    let holding = held
+    let marker: {kind: string; id: string} | null | undefined = null
     const chat = {
         dispatches: 0,
+        written: [] as Record<string, unknown>[],
+        /** The click: mark the gate live, write the row. No send. */
+        answer(id: string, approved: boolean) {
+            marker = {kind: "approval", id}
+            chat.written.push(approvalResolution(id, approved))
+        },
         step(status: string) {
-            const sent = isResumeSend({from: previous, to: status})
+            if (isResumeSend({from: previous, to: status})) marker = null
             previous = status
-            const busy = status === "submitted" || status === "streaming"
-            const decision = heldResumeDecision({busy, held: holding, sent})
-            if (decision === "wait") return
-            holding = false
-            if (decision === "dispatch") chat.dispatches += 1
         },
-        /** `handleStop`: the gate is void, so the hold goes with it. */
+        /** `handleStop`: the gate is void. */
         stop() {
-            holding = false
+            marker = null
         },
-        get held() {
-            return holding
+        get liveGate() {
+            return marker
         },
     }
     return chat
 }
 
-describe("the SDK's finish path, which the hold has to survive", () => {
-    it("leaves the hold armed when the predicate says yes on an errored stream", () => {
-        // The SDK reads `if (sendAutomaticallyWhen(...) && !isError)`: the predicate runs FIRST and
-        // its verdict is then thrown away. A predicate that consumed the hold would strand the
-        // answer here — this is the measured deadlock, and why the wrapper is side-effect-free.
+describe("the click path", () => {
+    it("writes the row and starts no request of its own", () => {
+        const chat = drive("streaming")
+        chat.answer("call_x|fc_y", true)
+        expect(chat.written).toEqual([{tool_call_id: "call_x|fc_y", verdict: "approved"}])
+        expect(chat.dispatches).toBe(0)
+    })
+
+    it("starts no request when the answered stream finishes either way", () => {
+        // Whatever the stream does next, the SDK's `sendAutomaticallyWhen` is the only sender.
+        for (const ending of ["ready", "error"]) {
+            const chat = drive("streaming")
+            chat.answer("call_x|fc_y", false)
+            chat.step(ending)
+            expect(chat.dispatches).toBe(0)
+        }
+    })
+
+    it("marks the gate live so the SDK's predicate resumes a decision made in this mount", () => {
+        const chat = drive("streaming")
+        chat.answer("call_x|fc_y", true)
+        expect(chat.liveGate).toEqual({kind: "approval", id: "call_x|fc_y"})
+    })
+})
+
+describe("retiring the live gate", () => {
+    it("retires it when the SDK's resume really goes out", () => {
+        const chat = drive("streaming")
+        chat.answer("call_x|fc_y", true)
+        chat.step("ready") // the clean park finish
+        expect(chat.liveGate).not.toBeNull() // the predicate still needs it here
+        chat.step("submitted") // the SDK's own resume
+        expect(chat.liveGate).toBeNull()
+    })
+
+    it("does not retire it on the predicate's word alone", () => {
+        // The SDK reads `if (sendAutomaticallyWhen(...) && !isError)` — the predicate runs first and
+        // its verdict can still be discarded, so a `true` is not evidence that anything was sent.
+        const chat = drive("streaming")
+        chat.answer("call_x|fc_y", true)
         const predicateVerdict = true
-        const isError = true
-        const sdkSent = predicateVerdict && !isError
-        expect(sdkSent).toBe(false)
-
-        const chat = drive("streaming", true)
-        chat.step("error")
-        expect(chat.dispatches).toBe(1)
+        expect(predicateVerdict && chat.liveGate !== null).toBe(true)
+        expect(chat.liveGate).not.toBeNull()
     })
 
-    it("clears the hold without a second dispatch when the SDK's own send is observed", () => {
-        // A clean finish: the SDK's predicate is true, `isError` is false, so it sends by itself.
-        const chat = drive("streaming", true)
-        chat.step("submitted")
-        expect(chat.dispatches).toBe(0)
-        expect(chat.held).toBe(false)
-        // And the resumed stream settling does not fire a duplicate.
-        chat.step("streaming")
-        chat.step("ready")
-        expect(chat.dispatches).toBe(0)
-    })
-
-    it("sends nothing after a stop, even though a stop settles the stream", () => {
-        const chat = drive("streaming", true)
+    it("retires it on a stop, which resumes nothing", () => {
+        const chat = drive("streaming")
+        chat.answer("call_x|fc_y", true)
         chat.stop()
-        chat.step("ready") // what `stop()` leaves behind
+        chat.step("ready")
+        expect(chat.liveGate).toBeNull()
         expect(chat.dispatches).toBe(0)
     })
 })

@@ -86,13 +86,7 @@ export {
 } from "./state"
 // The durable half: an approval decision goes to its interaction row, and the resume is dispatched
 // deliberately rather than inferred from part state (which a re-seed can discard).
-export {
-    approvalResolution,
-    approvalResumeAction,
-    heldResumeDecision,
-    isResumeSend,
-    type ChatStatusLike,
-} from "./state"
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./state"
 // Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state"
 // Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).

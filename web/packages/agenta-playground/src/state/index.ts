@@ -188,13 +188,7 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./execution"
-export {
-    approvalResolution,
-    approvalResumeAction,
-    heldResumeDecision,
-    isResumeSend,
-    type ChatStatusLike,
-} from "./execution"
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
 export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./execution"
 export {
