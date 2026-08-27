@@ -12,16 +12,16 @@
  * Uses a simple "Post" entity type to keep fixtures readable.
  */
 
-import {describe, it, expect, vi, beforeEach} from "vitest"
 import {atom, createStore} from "jotai"
 import {atomFamily} from "jotai-family"
+import {describe, it, expect, vi, beforeEach} from "vitest"
 
 import {createMolecule} from "../../src/shared/molecule/createMolecule"
 import type {QueryState} from "../../src/shared/molecule/types"
 
 // ── Fixture type ──────────────────────────────────────────────────────────────
 
-type Post = {
+interface Post {
     id: string
     title: string
     body: string

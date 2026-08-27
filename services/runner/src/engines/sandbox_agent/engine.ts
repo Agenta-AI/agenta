@@ -40,7 +40,7 @@ export async function runSandboxAgent(
   deps: SandboxAgentDeps = {},
   turnOptions: Pick<RunTurnOptions, "credential"> = {},
 ): Promise<AgentRunResult> {
-  const acquired = await acquireEnvironment(request, deps, signal);
+  const acquired = await acquireEnvironment(request, deps, signal, undefined, emit);
   if (!acquired.ok) return { ok: false, error: acquired.error };
   const env = acquired.env;
   let result: AgentRunResult | undefined;

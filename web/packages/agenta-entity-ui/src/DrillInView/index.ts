@@ -125,6 +125,9 @@ export type {
     WorkflowConfigPayload,
 } from "@agenta/ui/drill-in"
 
+// The workflow-as-tool reference bridge every host feeds into its own DrillInUIProvider.
+export {useWorkflowReferenceBridge} from "./bridges/useWorkflowReferenceBridge"
+
 // Core Types
 export type {
     // Data types
@@ -296,12 +299,18 @@ export {
     allowedProviders,
     buildModelOptionGroups,
     harnessAllowsModel,
+    bareConnectionModelId,
+    modelDisplayName,
     modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
     buildConnectionPickerRows,
+    firstPickerSelectionForConnection,
     pickerSelectionFrom,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
+    resolvePickerSelection,
     selectionFromModelRow,
     describeMcp,
     describeSkill,

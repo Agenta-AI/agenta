@@ -11,5 +11,5 @@ import type * as AgentaApi from "../../../../index.js";
 export interface UpdateSecretDto {
     secret_id: string;
     header?: AgentaApi.Header | null;
-    secret?: AgentaApi.SecretDto | null;
+    secret?: AgentaApi.UpdateSecretPayloadDto | null;
 }

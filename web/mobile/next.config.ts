@@ -2,8 +2,6 @@ import path from "path"
 
 import type {NextConfig} from "next"
 
-const isDevelopment = process.env.NODE_ENV === "development"
-
 const nextConfig: NextConfig = {
     // Path mount: Traefik routes PathPrefix(`/m`) here with NO stripprefix —
     // the app itself owns the prefix (assets, links, and routes all under /m).
@@ -13,12 +11,24 @@ const nextConfig: NextConfig = {
     // transpile the full dependency closure (chat → entities/playground/shared;
     // entities → sdk/api-client/shared/ui). Same mechanism as web/oss.
     transpilePackages: [
+        "@agenta/auth",
+        "@agenta/auth-ui",
         "@agenta/sdk",
         "@agentaai/api-client",
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/entities",
+        "@agenta/entity-ui",
+        "@agenta/navigation",
+        "@agenta/navigation-ui",
+        "@agenta/sessions",
+        "@agenta/sessions-ui",
+        "@agenta/settings",
+        "@agenta/settings-ui",
+        "@agenta/home-ui",
+        "@agenta/observability",
         "@agenta/playground",
+        "@agenta/playground-ui",
         "@agenta/chat",
     ],
     reactStrictMode: true,
@@ -27,11 +37,8 @@ const nextConfig: NextConfig = {
     // Workspace root, so standalone output nests as .next/standalone/mobile/
     // (same pattern as web/oss).
     outputFileTracingRoot: path.resolve(__dirname, ".."),
-    // Same policy as web/oss: lint/type gates run as dedicated turbo tasks,
-    // not inside `next build`.
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
+    // Same policy as web/oss: the type gate runs as a dedicated turbo task, not inside
+    // `next build`. (Next 16 removed the `eslint` option; `next build` no longer lints.)
     typescript: {
         ignoreBuildErrors: true,
     },
@@ -47,13 +54,18 @@ const nextConfig: NextConfig = {
             },
         ]
     },
-    ...(isDevelopment
-        ? {
-              turbopack: {
-                  root: path.resolve(__dirname, ".."),
-              },
-          }
-        : {}),
+    // Turbopack drives both `next dev` and `next build` in Next 16, so this is no longer
+    // dev-only: the build needs the same workspace root to resolve the monorepo.
+    turbopack: {
+        root: path.resolve(__dirname, ".."),
+        // Optional zod-alternative peers the AI SDK guards with try/catch. Resolving them
+        // to an empty module keeps the unused adapters out of the graph.
+        resolveAlias: {
+            effect: "./src/lib/emptyModule.ts",
+            arktype: "./src/lib/emptyModule.ts",
+            "@valibot/to-json-schema": "./src/lib/emptyModule.ts",
+        },
+    },
 }
 
 export default nextConfig

@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import type {QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom, useAtomValue, useSetAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
 
 import {fetchTriggerEvents} from "../api"

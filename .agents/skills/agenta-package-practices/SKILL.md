@@ -42,6 +42,10 @@ Is the code used by 2+ features, or could be?
 - **No legacy compat shims in packages.** Keep `OldFormat → NewFormat` adapters in the
   app layer. Packages stay clean.
 - **No `any` types.** Packages enforce `@typescript-eslint/no-explicit-any: error`.
+- **Never import the `queryClient` singleton.** Reach the cache with
+  `getHostQueryClient()` from `@agenta/shared/api`, resolved per call. The singleton is the
+  host's to install; on a host that brought its own client, writes to it silently do nothing.
+  Lint-enforced. Contract: `web/AGENTS.md` § "The QueryClient host contract".
 - **Use exported subpaths**, not internal paths:
   `import {x} from "@agenta/entities/testcase"`, not
   `from "@agenta/entities/src/testcase/state/molecule"`.

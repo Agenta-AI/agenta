@@ -1,7 +1,11 @@
 import {useCallback, useRef, useState} from "react"
 
-import {createToolConnection, fetchToolConnection} from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {
+    createToolConnection,
+    fetchToolConnection,
+    invalidateToolConnections,
+} from "@agenta/entities/gatewayTool"
+import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {
@@ -82,10 +86,9 @@ export default function ConnectDrawer({
         onClose()
     }, [onClose, integrationName, buildDefaultSlug])
 
-    const invalidateConnections = useCallback(() => {
-        queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
-        queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})
-    }, [])
+    // The shared one, not a local copy: it also invalidates ["triggers", "connections"], which
+    // this drawer was missing — a tool connected here left the triggers list stale.
+    const invalidateConnections = invalidateToolConnections
 
     const handleSubmit = useCallback(async () => {
         // Was the antd `required` rule on the slug Form.Item — now the direct path.

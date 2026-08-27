@@ -1,7 +1,9 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    type AttachmentLimits,
     DEFAULT_ATTACHMENT_LIMITS,
+    describeAccepted,
     formatBytes,
     isAcceptedType,
     validateIncoming,
@@ -19,8 +21,18 @@ describe("isAcceptedType", () => {
         expect(isAcceptedType("image/png", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
     })
 
-    it("rejects an unlisted type", () => {
-        expect(isAcceptedType("application/zip", DEFAULT_ATTACHMENT_LIMITS)).toBe(false)
+    it("accepts any type under the defaults (the 'other' kind is enabled)", () => {
+        expect(isAcceptedType("application/zip", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
+    })
+
+    it("rejects a kind the limits exclude", () => {
+        const narrowed = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            kinds: ["image", "audio", "document"] as const,
+        }
+        expect(isAcceptedType("application/zip", {...narrowed, kinds: [...narrowed.kinds]})).toBe(
+            false,
+        )
     })
 })
 
@@ -46,20 +58,27 @@ describe("validateIncoming", () => {
         expect(rejections).toEqual([])
     })
 
-    it("rejects an unsupported media type", () => {
+    it("rejects a media type whose kind the limits exclude", () => {
+        const limits = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            kinds: ["image", "audio", "document"] as ("image" | "audio" | "document")[],
+        }
         const file = makeFile("a.zip", "application/zip", 1024)
-        const {accepted, rejections} = validateIncoming([file], 0)
+        const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([{name: "a.zip", reason: "isn't a supported file type"}])
     })
 
-    it("rejects a file over the per-file byte limit", () => {
-        const limits = {...DEFAULT_ATTACHMENT_LIMITS, maxBytes: 100}
+    it("rejects a file over its kind's byte limit", () => {
+        const limits = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            maxBytes: {...DEFAULT_ATTACHMENT_LIMITS.maxBytes, image: 100},
+        }
         const file = makeFile("big.png", "image/png", 200)
         const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([
-            {name: "big.png", reason: "is too large (200 B) · max 100 B per file"},
+            {name: "big.png", reason: "is too large (200 B) · max 100 B for images"},
         ])
     })
 
@@ -83,5 +102,35 @@ describe("validateIncoming", () => {
         const {accepted, rejections} = validateIncoming([a], 3, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([{name: "a.png", reason: "exceeds the 3-file limit"}])
+    })
+})
+
+// User-visible: the composer's empty state renders this ("Images and audio · up to N files").
+describe("describeAccepted", () => {
+    const withKinds = (kinds: AttachmentLimits["kinds"]): AttachmentLimits => ({
+        ...DEFAULT_ATTACHMENT_LIMITS,
+        kinds,
+    })
+
+    it("names a single kind", () => {
+        expect(describeAccepted(withKinds(["image"]))).toBe("Images")
+    })
+
+    // A two-item list takes a bare "and" — "Images, and audio" is not English.
+    it("joins two kinds without a comma", () => {
+        expect(describeAccepted(withKinds(["image", "audio"]))).toBe("Images and audio")
+    })
+
+    it("keeps the serial comma from three kinds up", () => {
+        expect(describeAccepted(withKinds(["image", "audio", "document"]))).toBe(
+            "Images, audio, and documents",
+        )
+        expect(describeAccepted(withKinds(["image", "audio", "document", "other"]))).toBe(
+            "Images, audio, documents, and other files",
+        )
+    })
+
+    it("says so when nothing is accepted", () => {
+        expect(describeAccepted(withKinds([]))).toBe("No attachments")
     })
 })

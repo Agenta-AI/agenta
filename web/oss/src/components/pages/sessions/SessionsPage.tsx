@@ -1,37 +1,26 @@
-import {Fragment, useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
-import {
-    SessionGroupHeader,
-    SessionListEmpty,
-    SessionListError,
-    SessionListLoadMore,
-    SessionListSkeleton,
-    SessionRow,
-} from "@agenta/sessions-ui"
+import {sessionListPolicies} from "@agenta/sessions/state"
+import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {Dropdown} from "antd"
+import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import clsx from "clsx"
-import {AnimatePresence, MotionConfig, motion} from "motion/react"
+import {useAtomValue} from "jotai"
 
-import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {
     useSessionActions,
     type SessionActionTarget,
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
-import {
-    mergeSessionMenuEntries,
-    selectSessionContextMenuItem,
-    toAntdMenuEntries,
-    toSessionMenuEntries,
-} from "./assets/menuEntries"
+import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
+import {agentsWorkflowsAtom} from "../agents/store"
+
+import {mergeSessionMenuEntries, toSessionMenuEntries} from "./assets/menuEntries"
 import SessionAutomationDrawers from "./components/SessionAutomationDrawers"
-import SessionFiltersBar from "./components/SessionFiltersBar"
 import {useSessionAutomationActions} from "./hooks/useSessionAutomationActions"
 
 interface Props {
@@ -40,13 +29,24 @@ interface Props {
     title?: string
 }
 
+const targetFor = (vm: SessionRowVm): SessionActionTarget => ({
+    sessionId: vm.id,
+    appId: vm.agentId,
+    name: vm.stream.name,
+    archived: Boolean(vm.stream.archived_at),
+})
+
 /**
- * The session list — sessions are the unit of work, so this is where they get organised. The
- * organisation (groups, pins, filter semantics, paging) is `@agenta/sessions`' decision and the
- * rows are `@agenta/sessions-ui`'s; this page owns the shell, the motion, and the app-side
- * actions (open on a playground, the shared context menu).
+ * The session list — the SHARED page body and filters shell (`@agenta/sessions-ui`, the same
+ * ones mobile renders), inside the desktop shell. This file owns only the app-side verbs:
+ * open on a playground, and the sessions context menu.
+ *
+ * Two shells over the same filter atoms, picked by `BROWSE_RAIL_MODE`: the default toolbar sits
+ * above the results inside the page's own column (#5833), the opt-in rail puts them beside it.
  */
 const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
+    // Only the toolbar/rail badge reads the list here; the shared view runs the same hook (same
+    // args → one query through the cache).
     const list = useSessionsList({
         agentId: scopedAgentId,
         defaultPolicy: sessionListPolicies.sessionsDefault,
@@ -55,127 +55,114 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     const {toggle: togglePin} = useSessionPins()
     const openSession = useOpenAgentSession()
     const sessionActions = useSessionActions()
-    const automationActions = useSessionAutomationActions()
-
-    const renderRow = useCallback(
-        (vm: SessionRowVm) => {
-            const target: SessionActionTarget = {
-                sessionId: vm.id,
-                appId: vm.agentId,
-                name: vm.stream.name,
-                archived: Boolean(vm.stream.archived_at),
-            }
-            const open = () => {
-                if (vm.agentId)
-                    openSession({
-                        appId: vm.agentId,
-                        sessionId: vm.id,
-                        title: vm.stream.name?.trim() || undefined,
-                    })
-            }
-            const onSelect = (key: string) => {
-                if (automationActions.onSelect(vm, key)) return
-                if (key === "open") open()
-                if (key === "rename") sessionActions.rename(target)
-                if (key === "pin") togglePin(vm.id)
-                if (key === "archive") void sessionActions.setArchived(target)
-                if (key === "delete") sessionActions.remove(target)
-            }
-            const items = mergeSessionMenuEntries(
-                toSessionMenuEntries(sessionActions.menuItems(target, {onOpen: open})),
-                automationActions.menuItems(vm),
-            )
-
-            return (
-                <motion.div
-                    key={vm.id}
-                    layout
-                    variants={ROW_VARIANTS}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    className="overflow-hidden"
-                >
-                    {/* Right-click stays an app affordance (antd, matching the playground's
-                        session bar); the row's own kebab renders the same verbs via the
-                        package's neutral menu. */}
-                    <Dropdown
-                        trigger={["contextMenu"]}
-                        menu={{
-                            items: toAntdMenuEntries(items),
-                            onClick: ({key, domEvent}) => {
-                                selectSessionContextMenuItem(domEvent, key, onSelect)
-                            },
-                        }}
-                    >
-                        <div>
-                            <SessionRow
-                                row={vm}
-                                showAgent={!scopedAgentId}
-                                menuItems={items}
-                                onMenuSelect={onSelect}
-                                onOpen={open}
-                                onTogglePin={togglePin}
-                            />
-                        </div>
-                    </Dropdown>
-                </motion.div>
-            )
-        },
-        [automationActions, openSession, scopedAgentId, sessionActions, togglePin],
+    const automation = useSessionAutomationActions()
+    const agents = useAtomValue(agentsWorkflowsAtom)
+    const agentOptions = useMemo(
+        () => agents.map((agent) => ({id: agent.workflowId, name: agent.name})),
+        [agents],
     )
 
-    return (
-        <>
+    const handleOpen = useCallback(
+        (vm: SessionRowVm) => {
+            if (vm.agentId)
+                openSession({
+                    appId: vm.agentId,
+                    sessionId: vm.id,
+                    title: vm.stream.name?.trim() || undefined,
+                })
+        },
+        [openSession],
+    )
+    const menuFor = useCallback(
+        (vm: SessionRowVm) =>
+            // Automation verbs (open the schedule/subscription, view the delivery) slot above the
+            // destructive divider — a trigger row IS its automation, so those read first (#5927).
+            mergeSessionMenuEntries(
+                toSessionMenuEntries(
+                    sessionActions.menuItems(targetFor(vm), {onOpen: () => handleOpen(vm)}),
+                ),
+                automation.menuItems(vm),
+            ),
+        [sessionActions, handleOpen, automation],
+    )
+    // Rename happens IN the row, so the page only supplies the commit — the list owns the edit.
+    const onRenameRow = useCallback(
+        (vm: SessionRowVm, name: string) => sessionActions.commitRename(targetFor(vm), name),
+        [sessionActions],
+    )
+
+    const onMenuSelect = useCallback(
+        (vm: SessionRowVm, key: string) => {
+            const target = targetFor(vm)
+            if (key === "open") handleOpen(vm)
+            if (key === "pin") togglePin(vm.id)
+            if (key === "archive") void sessionActions.setArchived(target)
+            if (key === "delete") sessionActions.remove(target)
+            automation.onSelect(vm, key)
+        },
+        [sessionActions, togglePin, handleOpen, automation],
+    )
+
+    if (!BROWSE_RAIL_MODE)
+        return (
+            // The page's own title and gutters, so sessions shares one column width with the rest
+            // of the app; the filters are a toolbar above the results.
             <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title={title}>
-                <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex min-h-0 flex-1 flex-col">
+                    {/* No `title` here — `PageLayout` already carries it; the bar would repeat it.
+                        `!px-0` drops the bar's own gutters: inside the page column they would
+                        indent search 16px past the rows underneath it. `!pt-0` for the same
+                        reason on the other axis — the bar's own top padding is for the screens
+                        where it IS the header, and here it stacks under `PageLayout`'s title,
+                        pushing the whole toolbar 12px below where the desktop app puts it. */}
                     <SessionFiltersBar
+                        className="!px-0 !pt-0"
                         waitingCount={list.waitingCount}
+                        agents={agentOptions}
                         hideAgentFilter={Boolean(scopedAgentId)}
                     />
 
-                    <div className="flex-1 min-h-0 overflow-y-auto">
-                        {list.isError ? (
-                            <SessionListError onRetry={list.refetch} />
-                        ) : list.isPending ? (
-                            <SessionListSkeleton />
-                        ) : (
-                            <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
-                                {/* Group headers sit OUTSIDE AnimatePresence. Framer bumps z-index on
-                                layout-animating elements, so an animated row paints over a sticky
-                                sibling no matter which element carries the `sticky`. Keeping the
-                                headers out of the animated subtree removes the fight entirely. */}
-                                {list.groups.map((group) => (
-                                    <Fragment key={group.key}>
-                                        {group.label ? (
-                                            <SessionGroupHeader label={group.label} />
-                                        ) : null}
-                                        <AnimatePresence initial={false}>
-                                            {group.rows.map(renderRow)}
-                                        </AnimatePresence>
-                                    </Fragment>
-                                ))}
-
-                                {list.paging.hasNext ? (
-                                    <SessionListLoadMore
-                                        loading={list.paging.isLoadingNext}
-                                        onClick={list.paging.loadNext}
-                                    />
-                                ) : null}
-
-                                {list.isEmpty ? (
-                                    <SessionListEmpty
-                                        filtered={list.filtersActive}
-                                        onClearFilters={list.resetFilters}
-                                    />
-                                ) : null}
-                            </MotionConfig>
-                        )}
-                    </div>
+                    <SessionsListView
+                        scopedAgentId={scopedAgentId}
+                        onOpenRow={handleOpen}
+                        menuFor={menuFor}
+                        onRenameRow={onRenameRow}
+                        onMenuSelect={onMenuSelect}
+                        className="min-h-0 flex-1 overflow-y-auto"
+                    />
                 </div>
+                {/* Trigger drawers the row menu opens; mounted at page level so they
+                    survive the row unmounting under them. */}
+                <SessionAutomationDrawers />
             </PageLayout>
+        )
+
+    return (
+        <PageLayout className="grow min-h-0 !p-0">
+            {/* The shared browse frame: filters live in the rail, so search never scrolls away
+                with the list. */}
+            <FilterRailLayout
+                rail={
+                    <SessionFiltersPanel
+                        title={title}
+                        waitingCount={list.waitingCount}
+                        agents={agentOptions}
+                        hideAgentFilter={Boolean(scopedAgentId)}
+                    />
+                }
+            >
+                <SessionsListView
+                    scopedAgentId={scopedAgentId}
+                    onOpenRow={handleOpen}
+                    menuFor={menuFor}
+                    onMenuSelect={onMenuSelect}
+                    className="min-h-0 flex-1 overflow-y-auto px-6 pb-4"
+                />
+            </FilterRailLayout>
+            {/* Trigger drawers the row menu opens; mounted at page level so they
+                survive the row unmounting under them. */}
             <SessionAutomationDrawers />
-        </>
+        </PageLayout>
     )
 }
 

@@ -27,6 +27,7 @@
 import {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
     workflowMolecule,
     type AgentTemplate,
 } from "@agenta/entities/workflow"
@@ -36,7 +37,7 @@ import {getDefaultStore} from "jotai"
 
 import {withBuildKitOverlay} from "./buildKitOverlay"
 import {agentChannelModeAtomFamily} from "./channelMode"
-import {executionHeadersAtom} from "./webWorkerIntegration"
+import {executionHeadersAtom} from "./executionHeaders"
 
 // Re-exported so existing consumers keep importing it from the request builder; the merge
 // implementation now lives in `buildKitOverlay.ts`.
@@ -324,6 +325,9 @@ export async function buildAgentRequest(
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
     const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
+    const buildKitDisabledOps = store.get(
+        workflowBuildKitDisabledOpsAtomFamily(entityId),
+    ) as string[]
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
@@ -332,6 +336,7 @@ export async function buildAgentRequest(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
             buildKitEnabled,
+            buildKitDisabledOps,
         ),
     ) as Record<string, unknown>
 

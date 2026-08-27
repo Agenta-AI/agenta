@@ -1,4 +1,5 @@
-import EmptyState from "@/oss/components/EmptyState"
+import {EmptyState} from "@agenta/ui/components/presentational"
+
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
 import EvaluationRunsCreateButton from "@/oss/components/EvaluationRunsTablePOC/components/EvaluationRunsCreateButton"
 

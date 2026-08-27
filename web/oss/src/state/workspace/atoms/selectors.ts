@@ -1,7 +1,6 @@
+import type {WorkspaceMember} from "@agenta/entities/organization"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {WorkspaceMember} from "@/oss/lib/Types"
 
 import {selectedOrgAtom} from "../../org/selectors/org"
 

@@ -1,12 +1,12 @@
 import {useEffect} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
+import {sessionListPolicies} from "@agenta/sessions/state"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {isValidUUID} from "@/oss/lib/helpers/validators"
-import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {projectSessionSummary, queryProjectSessions} from "./projectSessionsQuery"

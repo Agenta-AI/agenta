@@ -1,10 +1,7 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/hooks/useAgentChatQueue.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — every import already resolves to an allowed package dep.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground"
+import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 

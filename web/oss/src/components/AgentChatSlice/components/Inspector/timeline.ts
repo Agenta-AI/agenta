@@ -76,7 +76,8 @@ export interface TimelineEvent {
     at: number | null
     /** 1-based turn this event belongs to. */
     turn: number
-    /** Human tool label for tool_call/tool_result rows (filled by the view via resolveToolDisplay). */
+    /** The tool a tool_call/tool_result row is about. A result record carries only its id, so this
+     * is paired back from the call it answers. */
     toolName?: string
 }
 
@@ -113,9 +114,18 @@ export function buildTimeline(records: SessionRecord[] | null | undefined): {
         return (a.event_index ?? 0) - (b.event_index ?? 0)
     })
     const events: TimelineEvent[] = []
+    // A tool_result carries only the call's id, so its name is remembered from the call.
+    const nameByCallId = new Map<string, string>()
     let turn = 1
     for (const record of sorted) {
         const type = recordEventType(record)
+        const payload =
+            record.payload && typeof record.payload === "object"
+                ? (record.payload as {id?: unknown; name?: unknown})
+                : undefined
+        const callId = typeof payload?.id === "string" ? payload.id : undefined
+        const name = typeof payload?.name === "string" ? payload.name : undefined
+        if (type === "tool_call" && callId && name) nameByCallId.set(callId, name)
         events.push({
             id: record.id,
             index: record.event_index ?? events.length,
@@ -124,6 +134,7 @@ export function buildTimeline(records: SessionRecord[] | null | undefined): {
             payload: record.payload,
             at: toMs(record.created_at),
             turn,
+            toolName: type === "tool_result" && callId ? nameByCallId.get(callId) : undefined,
         })
         if (type === "done") turn += 1
     }

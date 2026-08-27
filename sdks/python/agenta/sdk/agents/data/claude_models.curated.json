@@ -58,7 +58,7 @@
       "id": "opus[1m]",
       "provider": "anthropic",
       "source": "curated",
-      "name": "Claude Opus 4.8",
+      "name": "Claude Opus 5",
       "pricing": {
         "input_per_mtok": 5.0,
         "output_per_mtok": 25.0,
@@ -69,7 +69,7 @@
       "context_window": 1000000,
       "modalities": ["text", "image"],
       "label": "Opus (1M context)",
-      "description": "Strong reasoning below Fable, at a lower price, with the 1M-token context window.",
+      "description": "The current Opus tier: strong reasoning below Fable, at a lower price, with the 1M-token context window.",
       "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
     },
     {

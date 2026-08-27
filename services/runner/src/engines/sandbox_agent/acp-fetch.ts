@@ -9,12 +9,11 @@ import { Agent, fetch as undiciFetch } from "undici";
  * paused turn and the resume turn. A plain chat completes in seconds so it never trips this.
  *
  * The fix is to drive the ACP HTTP client through an undici dispatcher whose timeouts are wide
- * (wider than the total run deadline in `run-limits.ts`, so a pause is never the one that trips
- * this) or fully disabled (0), instead of undici's short default. We scope it to the ACP fetch the
+ * or fully disabled (0), instead of undici's short default. We scope it to the ACP fetch the
  * `sandbox-agent` SDK uses rather than touching the global dispatcher, so unrelated HTTP keeps its
- * safe defaults. This is the low-level backstop UNDER the total deadline: the total deadline is
- * what normally ends a wedged run; this only matters if the harness's own connection hangs in a
- * way our abort signal can't reach.
+ * safe defaults. The run's first-response, idle, and per-tool-call limits remain the primary
+ * wedge protection; these transport timeouts only matter if the harness's own connection hangs
+ * in a way our abort signal cannot reach.
  */
 
 /** `0` disables the timeout outright; otherwise the millisecond value (default or override). */
@@ -25,7 +24,7 @@ function envTimeoutMs(name: string, defaultMs: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultMs;
 }
 
-/** Wider than the total run deadline default so an ordinary run/pause never trips this first. */
+/** Wide enough for ordinary transport waits; a human-input pause disables run limits separately. */
 const DEFAULT_ACP_HEADERS_TIMEOUT_MS = 60 * 60_000; // 60 min
 const DEFAULT_ACP_BODY_TIMEOUT_MS = 60 * 60_000; // 60 min
 

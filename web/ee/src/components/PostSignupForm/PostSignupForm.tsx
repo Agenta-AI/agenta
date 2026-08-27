@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import type {Org} from "@agenta/entities/organization"
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
@@ -13,7 +14,6 @@ import {
 } from "posthog-js"
 import {flushSync} from "react-dom"
 
-import type {Org} from "@/oss/lib/Types"
 import {
     buildPostLoginPathResolved,
     waitForWorkspaceContext,
@@ -22,9 +22,14 @@ import {
 import PostSignupHeader from "./PostSignupHeader"
 import PostSignupSubmitting from "./PostSignupSubmitting"
 
-const mainContainerClass = "w-[400px] mx-auto h-[82vh] flex flex-col justify-between"
+const mainContainerClass = "w-[400px] mx-auto flex flex-col gap-4 pb-12"
+// The card paints its own surface from the same antd token layer that colors its
+// text, so background and foreground can never resolve to different themes. With
+// no background of its own it took the page color, which left no visible card
+// edge and made the text unreadable whenever the page surface and the antd
+// tokens disagreed.
 const containerClass =
-    "p-6 grid gap-8 rounded-lg shadow-[0px_9px_28px_8px_#0000000D,0px_3px_6px_-4px_#0000001F,0px_6px_16px_0px_#00000014] border border-colorBorder"
+    "p-6 grid gap-8 rounded-lg bg-[var(--ant-color-bg-elevated)] border border-solid border-[var(--ant-color-border-secondary)] shadow-[var(--ant-box-shadow)]"
 const formItemClass = "gap-2 [&>.ant-form-item-row>.ant-form-item-label]:font-medium"
 
 // Fisher-Yates shuffle algorithm
@@ -495,7 +500,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     size="large"
                     type="primary"
                     onClick={isLastStep ? form.submit : handleNextStep}
-                    className="w-full min-h-[32px] mt-2"
+                    className="w-full min-h-[32px]"
                     iconPlacement="end"
                     icon={<ArrowRight className="mt-[3px]" />}
                     disabled={!isCurrentStepValid}

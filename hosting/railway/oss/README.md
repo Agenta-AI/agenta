@@ -21,6 +21,7 @@ baseline.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
   - `/` -> web
+  - `/m`, `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`)
   - `/api/` -> api
   - `/services/` -> services
 
@@ -42,7 +43,7 @@ baseline.
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
 - `scripts/smoke.sh` - quick health checks
 - `scripts/upgrade.sh` - run full in-place upgrade flow
-- `scripts/build-and-push-images.sh` - build local `api/web/services/runner` images and push tags
+- `scripts/build-and-push-images.sh` - build local `api/web/web-mobile/services/runner` images and push tags
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-clone-create.sh` - create or update a PR preview environment (issue #5650)
 - `scripts/preview-clone-destroy.sh` - delete a PR preview environment (plus `--stale-hours` sweep)
@@ -175,13 +176,16 @@ content, kept in lockstep by `images/verify-wrappers.sh`).
 ### Security Note
 
 The scripts default to compose-like placeholder values for `AGENTA_AUTH_KEY`,
-`AGENTA_CRYPT_KEY`, `AGENTA_RUNNER_TOKEN`, and `POSTGRES_PASSWORD`. This is
-acceptable for throwaway test projects, but not for persistent deployments.
-For persistent deployments, set unique values:
+`AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, `AGENTA_RUNNER_TOKEN`, and
+`POSTGRES_PASSWORD`. This is acceptable for throwaway test projects, but not
+for persistent deployments. `AGENTA_SERVICES_INTERNAL_KEY` has no fallback to
+`AGENTA_AUTH_KEY`; API and Services must receive the same dedicated value.
+For persistent deployments, set a unique value for each credential:
 
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export AGENTA_SERVICES_INTERNAL_KEY="$(openssl rand -hex 32)"
 export AGENTA_RUNNER_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
@@ -206,6 +210,29 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 ./hosting/railway/oss/scripts/deploy-services.sh
 ./hosting/railway/oss/scripts/smoke.sh
 ```
+
+#### The mobile app (`/m`)
+
+A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
+compose stack, which now starts `web-mobile` by default. Set the flag before
+`bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
+`/m` and `/m/*` to it. The two gate keys below are optional now: both gates
+default on, so set them only to opt out (`false`).
+
+```bash
+export AGENTA_RAILWAY_WITH_MOBILE=true
+# The device gate is on by default; this line only makes it explicit. A phone
+# landing on a desktop route goes to /m. Set it to false to turn the gate off.
+export AGENTA_MOBILE_GATE=true
+# Let desktop browsers open /m directly instead of being bounced back. This one
+# IS a change from the default, and preview environments want it:
+export AGENTA_MOBILE_REVERSE_GATE=false
+```
+
+`bootstrap.sh` is the only place the flag is read. `configure.sh` and
+`deploy-from-images.sh` configure and deploy the service whenever it exists,
+so an existing deployment picks it up by re-running bootstrap with the flag.
+`ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment
 

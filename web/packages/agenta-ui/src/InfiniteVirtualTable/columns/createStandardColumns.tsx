@@ -2,23 +2,28 @@ import type {ComponentType, ReactNode} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
-import {Dropdown, Tooltip, Typography} from "antd"
-import type {MenuProps} from "antd"
-import type {ColumnsType, ColumnType} from "antd/es/table"
 
 import {InitialsAvatar} from "../../components/presentational/avatar"
 import {CopyButton} from "../../components/presentational/CopyButton"
 import {StatusIndicator, type StatusTone} from "../../components/presentational/status"
 import {Tag, type TagProps} from "../../components/presentational/tag"
 import {Button} from "../../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu"
+import {SimpleTooltip} from "../../components/ui/tooltip-composed"
 import {copyToClipboard} from "../../utils/copyToClipboard"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"
 import SkeletonLine from "../components/common/SkeletonLine"
+import {renderTableMenuItems, type TableMenuItem} from "../tableMenu"
 import type {InfiniteTableRowBase} from "../types"
 
 // Default fallback for UserReference - just shows the userId
 const DefaultUserReference = ({userId}: {userId: string | null | undefined}) => {
-    if (!userId) return <Typography.Text type="secondary">—</Typography.Text>
+    if (!userId) return <span className="text-colorTextSecondary">—</span>
     return <span className="truncate">{userId}</span>
 }
 
@@ -60,7 +65,7 @@ export interface TextColumnDef<T = unknown> {
     /** Lock column from being hidden in visibility menu (defaults to true if fixed is set) */
     columnVisibilityLocked?: boolean
     /** Custom value extractor for CSV export (read by useTableExport) */
-    exportValue?: (row: T, column?: ColumnsType<T>[number], columnIndex?: number) => unknown
+    exportValue?: (row: T, column?: ColumnDefs<T>[number], columnIndex?: number) => unknown
 }
 
 export interface DateColumnDef {
@@ -153,7 +158,7 @@ export interface ActionItem<T> {
     label: string
     icon?: ReactNode
     danger?: boolean
-    onClick: (record: T, event?: {domEvent: React.MouseEvent | React.KeyboardEvent}) => void
+    onClick: (record: T) => void
     /** Hide this action conditionally */
     hidden?: (record: T) => boolean
     /** Render the action but block it — e.g. while the same action is already running. */
@@ -225,7 +230,7 @@ export type StandardColumnDef<T = unknown> =
  */
 export function createStandardColumns<T extends InfiniteTableRowBase>(
     defs: StandardColumnDef<T>[],
-): ColumnsType<T> {
+): ColumnDefs<T> {
     return defs.map((def) => {
         switch (def.type) {
             case "text":
@@ -251,7 +256,7 @@ export function createStandardColumns<T extends InfiniteTableRowBase>(
     })
 }
 
-function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
+function createTextColumn<T>(def: TextColumnDef<T>): ColumnDef<T> {
     return {
         title: def.title,
         dataIndex: def.key,
@@ -263,14 +268,14 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
             if ((record as InfiniteTableRowBase).__isSkeleton) return <SkeletonLine width="55%" />
             if (def.render) return def.render(value, record)
             return value as ReactNode
-        }) as ColumnType<T>["render"],
+        }) as ColumnDef<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         ...(def.exportValue ? {exportValue: def.exportValue} : {}),
         onHeaderCell: () => ({
             style: {minWidth: def.width},
         }),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
 const formatDateCell = (value?: string | null) => {
@@ -288,7 +293,7 @@ const formatDateCell = (value?: string | null) => {
     }
 }
 
-function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
+function createDateColumn<T>(def: DateColumnDef): ColumnDef<T> {
     const width = def.width || 200
     return {
         title: def.title,
@@ -317,7 +322,7 @@ const readCell = <T,>(
     return typeof raw === "string" ? raw : ""
 }
 
-function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>): ColumnType<T> {
+function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getValue, emptyText = "—"} = def
 
     return {
@@ -330,7 +335,7 @@ function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>)
         render: (_value: unknown, record: T) => {
             if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
-            if (!text) return <Typography.Text type="secondary">{emptyText}</Typography.Text>
+            if (!text) return <span className="text-colorTextSecondary">{emptyText}</span>
             return (
                 <div className="h-full flex items-center min-w-0">
                     <span className="font-mono text-xs truncate" title={text}>
@@ -340,10 +345,10 @@ function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>)
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
-function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>): ColumnType<T> {
+function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getValue, emptyText = "—"} = def
 
     return {
@@ -356,7 +361,7 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
         render: (_value: unknown, record: T) => {
             if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
-            if (!text) return <Typography.Text type="secondary">{emptyText}</Typography.Text>
+            if (!text) return <span className="text-colorTextSecondary">{emptyText}</span>
             return (
                 // `group` + the button's group-hover keeps the copy affordance quiet until
                 // the row is hovered, matching the `⋯` button's behaviour.
@@ -378,12 +383,10 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
-function createEntityColumn<T extends InfiniteTableRowBase>(
-    def: EntityColumnDef<T>,
-): ColumnType<T> {
+function createEntityColumn<T extends InfiniteTableRowBase>(def: EntityColumnDef<T>): ColumnDef<T> {
     const {key, title, width, fixed, getName, getChips, hideAvatar} = def
 
     return {
@@ -433,12 +436,12 @@ function createEntityColumn<T extends InfiniteTableRowBase>(
             )
         },
         onHeaderCell: () => ({style: {minWidth: width}}),
-    } as ColumnType<T>
+    } as ColumnDef<T>
 }
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
+): ColumnDef<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
     const {
         items,
         width = 56, // TODO: try 61px here
@@ -475,12 +478,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
-            // Build menu items from config
-            // MenuInfo interface from antd/rc-menu
-            interface MenuInfo {
-                domEvent: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
-            }
-            const menuItems: NonNullable<MenuProps["items"]> = []
+            const menuItems: TableMenuItem[] = []
 
             items.forEach((item) => {
                 if ("type" in item && item.type === "divider") {
@@ -508,10 +506,9 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     icon: actionItem.icon,
                     danger: actionItem.danger,
                     disabled: isDisabled,
-                    onClick: (e: MenuInfo) => {
-                        e.domEvent.stopPropagation()
+                    onClick: () => {
                         if (isDisabled) return
-                        actionItem.onClick(record, e)
+                        actionItem.onClick(record)
                     },
                 })
             })
@@ -523,8 +520,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     label: "Export row",
                     icon: <DownloadSimple size={16} />,
                     disabled: isExporting,
-                    onClick: (e: MenuInfo) => {
-                        e.domEvent.stopPropagation()
+                    onClick: () => {
                         if (!isExporting) {
                             onExportRow(record)
                         }
@@ -549,10 +545,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         key: "copy-id",
                         label: "Copy ID",
                         icon: <Copy size={16} />,
-                        onClick: (e: MenuInfo) => {
-                            e.domEvent.stopPropagation()
-                            copyToClipboard(recordId)
-                        },
+                        onClick: () => copyToClipboard(recordId),
                     })
                 }
             }
@@ -565,10 +558,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         key: "copy-slug",
                         label: "Copy Slug",
                         icon: <Copy size={16} />,
-                        onClick: (e: MenuInfo) => {
-                            e.domEvent.stopPropagation()
-                            copyToClipboard(slug)
-                        },
+                        onClick: () => copyToClipboard(slug),
                     })
                 }
             }
@@ -594,26 +584,36 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     className="w-full h-full flex items-center justify-center"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <Dropdown
-                        trigger={["click"]}
-                        // minWidth (not a fixed width) so long labels like "Switch to this
-                        // organization" grow the menu instead of wrapping onto two lines.
-                        styles={{root: {minWidth: 200}}}
-                        menu={{items: cleanedItems}}
-                    >
-                        <Tooltip title="Actions">
-                            <Button onClick={(e) => e.stopPropagation()} variant="ghost" size="sm">
-                                {<MoreOutlined />}
-                            </Button>
-                        </Tooltip>
-                    </Dropdown>
+                    <DropdownMenu>
+                        {/* Span keeps the tooltip trigger off the menu trigger's own element
+                            (see SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
+                        <SimpleTooltip title="Actions">
+                            <span className="inline-flex">
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        onClick={(e) => e.stopPropagation()}
+                                        variant="ghost"
+                                        size="sm"
+                                        aria-label="Actions"
+                                    >
+                                        <MoreOutlined />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                            </span>
+                        </SimpleTooltip>
+                        {/* minWidth (not a fixed width) so long labels like "Switch to this
+                            organization" grow the menu instead of wrapping onto two lines. */}
+                        <DropdownMenuContent align="end" className="min-w-[200px]">
+                            {renderTableMenuItems(cleanedItems)}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             )
         },
     }
 }
 
-function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>): ColumnType<T> {
+function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>): ColumnDef<T> {
     const {key, title, width = 180, getUserId} = def
 
     return {

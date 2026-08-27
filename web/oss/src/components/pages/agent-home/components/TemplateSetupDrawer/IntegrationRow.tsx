@@ -5,13 +5,12 @@ import {
     useToolIntegrationConnections,
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
+import {PROVIDERS, type RequiredIntegration} from "@agenta/entities/workflow"
 import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
 import {CheckCircle, Plugs} from "@phosphor-icons/react"
 import {Button} from "antd"
 import clsx from "clsx"
 import Image from "next/image"
-
-import {PROVIDERS, type RequiredIntegration} from "../../assets/templates"
 
 import SetupRow from "./SetupRow"
 

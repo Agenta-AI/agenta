@@ -1,6 +1,10 @@
 /**
  * Pins the running-elsewhere decision (#5844): the strip appeared in the very tab that had just
  * answered, because `is_running` is a 15s poll snapshot while the local run-state is instant.
+ *
+ * The settle stamp itself now lives in `@agenta/chat/state`'s `setSessionStatusAtom`, which already
+ * owns the run-state record and observes the transition; `sessions.runStatus.test.ts` pins its rules.
+ * What remains here is the running-elsewhere derivation that READS that stamp.
  */
 import {describe, expect, it} from "vitest"
 

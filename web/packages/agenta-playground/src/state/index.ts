@@ -457,3 +457,10 @@ export {
 // ============================================================================
 
 export {buildAssistantMessage, buildUserMessage} from "./helpers/messageFactory"
+export {
+    agentAutoCommitStatusAtomFamily,
+    agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
+    flushAgentAutoCommitAtom,
+    registerAgentAutoCommitHandler,
+} from "./execution"

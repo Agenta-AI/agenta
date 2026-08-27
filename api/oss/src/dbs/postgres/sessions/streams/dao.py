@@ -72,7 +72,10 @@ from oss.src.dbs.postgres.triggers.dbes import (
     TriggerScheduleDBE,
     TriggerSubscriptionDBE,
 )
-
+from oss.src.dbs.postgres.triggers.upsert_utils import (
+    build_trigger_delivery_conflict,
+    build_trigger_delivery_values,
+)
 
 _UUID_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
@@ -137,16 +140,10 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "status": claim_status.model_dump(mode="json", exclude_none=True),
             "data": {"session_id": session_id},
         }
-        index_elements = (
-            ["project_id", "schedule_id", "event_id"]
-            if by_schedule
-            else ["project_id", "subscription_id", "event_id"]
-        )
-        index_where = (
-            TriggerDeliveryDBE.schedule_id.isnot(None)
-            if by_schedule
-            else TriggerDeliveryDBE.subscription_id.isnot(None)
-        )
+        # Normalize/filter columns to the real table and reuse the shared conflict
+        # target builder so all call sites stay in parity.
+        delivery_values = build_trigger_delivery_values(delivery_values)
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
         parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
         active_flags = (
             {"is_active": True}
@@ -314,7 +311,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         stmt = stmt.where(SessionStreamDBE.project_id == project_id)
         if not filter.include_ended:
             stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
-        if not filter.include_archived:
+        if filter.archived_only:
+            stmt = stmt.where(SessionStreamDBE.archived_at.is_not(None))
+        elif not filter.include_archived:
             stmt = stmt.where(SessionStreamDBE.archived_at.is_(None))
         if filter.session_id is not None:
             stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
@@ -624,7 +623,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 user_id=user_id,
                 header=header,
             )
-            dbe.updated_at = datetime.now(timezone.utc)
+            # `updated_at` is deliberately not bumped: it is the last-ACTIVITY sort key, and
+            # renaming a session is not activity — bumping it teleports the row you just
+            # renamed to the top of every session list.
             await session.commit()
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)

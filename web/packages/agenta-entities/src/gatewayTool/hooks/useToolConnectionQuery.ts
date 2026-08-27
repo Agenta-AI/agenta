@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchToolConnection} from "../api"

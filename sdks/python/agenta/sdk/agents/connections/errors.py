@@ -55,6 +55,37 @@ class MissingCredentialError(ConnectionResolutionError):
         self.slug = slug
 
 
+class WriteOnlySecretError(ConnectionResolutionError):
+    """Raised when the chosen connection's key exists but came back redacted.
+
+    The vault holds a write-only secret for this connection: the platform runtime reads it
+    through a granted credential, but this caller's credential (typically an ApiKey in a
+    standalone run) only receives the redacted shape. The resolver falls back to the
+    provider's standard environment variable first; this is raised only when that key is
+    absent too, because passing the redacted (empty) key to a provider would fail with a
+    misleading auth error.
+    """
+
+    # A standalone run against a write-only secret is a config situation, not a server fault.
+    status_code = 422
+
+    def __init__(self, *, slug: Optional[str] = None, provider: str = "") -> None:
+        subject = (
+            f"connection '{slug}'" if slug else f"provider '{provider}' connection"
+        )
+        # The remediation the resolver itself already tried: it reads the provider's
+        # standard environment variable before raising, so this error means that key is
+        # missing too. Naming it keeps the instruction actionable and true.
+        super().__init__(
+            f"{subject} uses a write-only secret: Agenta stores the value but never "
+            "returns it, so only runs on the Agenta platform can use it. To run "
+            "outside the platform, provide the provider key in this run's environment "
+            "(for example OPENAI_API_KEY)."
+        )
+        self.slug = slug
+        self.provider = provider
+
+
 class InvalidConnectionConfigurationError(AgentConnectionError):
     """Raised when resolved routing and credentials form an unsafe combination."""
 

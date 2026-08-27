@@ -5,7 +5,7 @@ description: "Connect an agent to an HTTP MCP server and authenticate it with an
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 An MCP server gives your agent tools it can call. Connect one over HTTP and keep its key in an Agenta project secret. To learn how MCP compares with built-in integrations, see [Tools and integrations](/concepts/tools-and-integrations).
@@ -16,7 +16,7 @@ Have these ready:
 
 - **The server's HTTP URL**, such as `https://example.com/mcp`. Agenta supports HTTP connections, but not local processes over stdio.
 - **The authentication header and key**, if the server requires them. Check the server's documentation for the header name, such as `x-api-key`.
-- **An agent on the Claude Code or Codex harness.** MCP servers are available on both. If the agent runs on Pi, the **MCP servers** section does not appear in its configuration, and a run that declares one is refused. See [Choose a harness and model](/guides/choose-a-harness-and-model).
+- **An agent on the Claude Code or Codex harness.** MCP servers are available on both. If the agent runs on Pi, the **MCPs** section does not appear in its configuration, and a run that declares one is refused. See [Choose a harness and model](/guides/choose-a-harness-and-model).
 
 ## Store the key as a project secret first
 
@@ -29,18 +29,12 @@ The MCP form does not store the key directly. It references a project secret tha
 
 ## Add the server
 
-1. In the playground, set **Playground mode** to `Build`.
-2. In the **Configuration** column, find **MCP servers**, between **Tools** and **Skills**. Its summary reads `None` when the agent has no MCP servers yet.
-3. Click the `+` button on that row, labelled `Add MCP server`.
-4. Fill in the fields below, then click `Create`.
-5. Click `Commit` in the **Configuration** header to make the server part of a version.
+1. In the **Configuration** column, find **MCPs**, between **Tools** and **Skills**. Its summary reads `None` when the agent has no MCP servers yet.
+2. Click the `+` button on that row, labelled `Add MCP server`.
+3. Fill in the fields below, then click `Create`.
+4. Click `Commit` in the **Configuration** header to make the server part of a version.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/mcp-section.png")}
-  alt="The Configuration column of a Claude Code agent, with the MCP servers section between Tools and Skills and the Add MCP server tooltip on its plus button"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="17ccf3fe16305937aabc23ac8ffe00e9" height="400px" />
 
 | Field | What to enter |
 |---|---|
@@ -50,19 +44,12 @@ The MCP form does not store the key directly. It references a project secret tha
 | `Header name` | Shown for `Secret header`. The header the server requires, such as `x-api-key`. |
 | `Project secret` | Shown for `Secret header`. Pick the secret you created. The list reads `No project secrets found` when the project has none, so go back and create one in `Settings > Secrets`. |
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/mcp-new-server-drawer.png")}
-  alt="The New MCP server drawer with Server name, MCP URL, Authentication set to Secret header, Header name, and Project secret, and a Create button in the footer"
-  loading="lazy"
-/>
-
 ## The server's actions become tools
 
 The server's actions appear as tools labelled with the server name. When the agent calls one, it appears in the conversation and on any approval card.
 
 :::note
-The agent's `Policy` in the **Advanced** dialog governs MCP tools. They do not support per-tool `Permission` or `Auto-approve`. Under the default `Allow reads` policy, every MCP call asks for approval. To run MCP tools without approval, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+The agent's `Policy` in the **Advanced** dialog governs MCP tools. They have no per-tool `Permission`, and `Always allow` is not offered on their approval cards. Under the default `Allow reads` policy, every MCP call asks for approval. To run MCP tools without approval, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
 :::
 
 ## Next

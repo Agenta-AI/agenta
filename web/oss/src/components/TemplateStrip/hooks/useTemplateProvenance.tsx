@@ -3,8 +3,8 @@ import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 import {
     AGENT_TEMPLATES,
     templateBuilderMessage,
-    type AgentTemplate,
-} from "@/oss/components/pages/agent-home/assets/templates"
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 
 import TemplateChipDock from "../components/TemplateChipDock"
 
@@ -29,9 +29,9 @@ const DEFAULT_COMPOSER_CLASS =
  * still matches the seed verbatim. One instance per surface; never shared.
  */
 export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi}): {
-    selectedTemplate: AgentTemplate | null
+    selectedTemplate: AgentStarterTemplate | null
     selectedTemplateKey: string | null
-    pick: (template: AgentTemplate) => void
+    pick: (template: AgentStarterTemplate) => void
     clear: () => void
     /** Drop the chip without touching composer text — for callers (e.g. a revision swap) that must
      * reset provenance while preserving the user's in-progress draft. */
@@ -47,7 +47,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
     chipNode: ReactNode
     composerClassName: string
 } {
-    const [selectedTemplate, setSelectedTemplate] = useState<AgentTemplate | null>(null)
+    const [selectedTemplate, setSelectedTemplate] = useState<AgentStarterTemplate | null>(null)
 
     // Ref'd so callers can pass an inline object literal without destabilizing `pick`.
     const apiRef = useRef(composerApi)
@@ -59,7 +59,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
 
     // The last template shown in the chip, retained after a clear so the chip fades OUT with its
     // real content instead of flipping to the sizing placeholder mid-transition.
-    const lastTemplateRef = useRef<AgentTemplate | null>(null)
+    const lastTemplateRef = useRef<AgentStarterTemplate | null>(null)
 
     // Drop provenance without touching composer text — used when the text is already empty
     // (typed/deleted away) so we don't re-set already-empty content.
@@ -68,7 +68,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         setSelectedTemplate(null)
     }, [])
 
-    const pick = useCallback((template: AgentTemplate) => {
+    const pick = useCallback((template: AgentStarterTemplate) => {
         const seeded = templateBuilderMessage(template)
         apiRef.current.setText(seeded)
         seededTextRef.current = seeded.trim()

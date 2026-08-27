@@ -776,6 +776,10 @@ const EvaluationRunsTableActive = ({
                 rowHeight={ROW_HEIGHT}
                 fallbackControlsHeight={fallbackControlsHeight}
                 fallbackHeaderHeight={48}
+                containerClassName={clsx(
+                    autoHeight ? "w-full grow min-h-0 overflow-hidden" : "w-full overflow-hidden",
+                    "evaluation-runs-table__container",
+                )}
                 tableClassName="agenta-scenario-table"
                 tableProps={tableProps}
                 rowSelection={rowSelectionConfig}

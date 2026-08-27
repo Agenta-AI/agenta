@@ -3,6 +3,8 @@ import type {MobileProject} from "@/lib/context"
 export interface WorkspaceGroup {
     workspaceId: string
     workspaceName: string
+    /** The owning organization's name — what the switcher displays, matching the desktop. */
+    organizationName?: string
     projects: MobileProject[]
 }
 
@@ -15,6 +17,7 @@ export const groupByWorkspace = (projects: MobileProject[]): WorkspaceGroup[] =>
         const group = byWorkspace.get(project.workspace_id) ?? {
             workspaceId: project.workspace_id,
             workspaceName: project.workspace_name ?? "Workspace",
+            organizationName: project.organization_name ?? undefined,
             projects: [],
         }
         group.projects.push(project)

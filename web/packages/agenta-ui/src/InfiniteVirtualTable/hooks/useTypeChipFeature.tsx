@@ -1,10 +1,10 @@
 import {useCallback, useMemo} from "react"
 
 import {Tag} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {atom, useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import type {TableMenuItem} from "../tableMenu"
 import type {TypeChipConfig} from "../types"
 
 type TypeChipEnabledAtom = ReturnType<typeof atomWithStorage<boolean>>
@@ -23,7 +23,7 @@ function getOrCreateAtom(storageKey: string, defaultEnabled: boolean): TypeChipE
 export interface UseTypeChipFeatureResult<RecordType> {
     enabled: boolean
     setEnabled: (enabled: boolean) => void
-    menuItems: MenuProps["items"]
+    menuItems: TableMenuItem[] | undefined
     typeChips: TypeChipConfig<RecordType> | undefined
 }
 
@@ -50,7 +50,7 @@ export function useTypeChipFeature<RecordType>(
         [config, setStoredEnabled],
     )
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<TableMenuItem[] | undefined>(() => {
         if (!config?.storageKey && !config?.onEnabledChange) return undefined
 
         return [
@@ -58,10 +58,7 @@ export function useTypeChipFeature<RecordType>(
                 key: "type-chips-toggle",
                 label: enabled ? "Hide type chips" : "Show type chips",
                 icon: <Tag size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    setEnabled(!enabled)
-                },
+                onClick: () => setEnabled(!enabled),
             },
         ]
     }, [config?.onEnabledChange, config?.storageKey, enabled, setEnabled])

@@ -218,19 +218,32 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
     Setting ``gen_ai.usage.*`` here records them directly on that span (the root of its
     batch), so the trace shows the run's tokens and cost. Best-effort.
     """
-    if not usage or not usage.get("total"):
+    if not usage:
         return
     try:
         span = otel_trace.get_current_span()
-        input_tokens = int(usage.get("input") or 0)
-        output_tokens = int(usage.get("output") or 0)
-        span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
-        span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
-        span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
-        span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
-        span.set_attribute("gen_ai.usage.total_tokens", int(usage.get("total") or 0))
+        input_tokens = usage.get("input")
+        output_tokens = usage.get("output")
+        total_tokens = usage.get("total")
+
+        if any(
+            value is not None for value in (input_tokens, output_tokens, total_tokens)
+        ):
+            input_tokens = int(input_tokens or 0)
+            output_tokens = int(output_tokens or 0)
+            total_tokens = int(
+                total_tokens
+                if total_tokens is not None
+                else input_tokens + output_tokens
+            )
+            span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+            span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
+            span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
+            span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
+            span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+
         cost = usage.get("cost")
-        if cost:
+        if cost is not None:
             span.set_attribute("gen_ai.usage.cost", float(cost))
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to record usage on workflow span", exc_info=True)

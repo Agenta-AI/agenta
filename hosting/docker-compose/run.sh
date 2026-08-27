@@ -21,7 +21,11 @@ NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
 WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 LOCAL_OVERRIDES=true  # Auto-include docker-compose.<stage>.*.local.yml; disable with --no-local-overrides
-WITH_MOBILE=false  # Start the mobile web app (/m) via the with-web-mobile profile; enable with --with-mobile
+# The mobile web app (/m) starts with every stack. --no-mobile, or
+# AGENTA_MOBILE_ENABLED=false in the shell or in the resolved env file, drops it (the
+# service is scaled to 0 replicas). Resolved after the env file is known.
+WITH_MOBILE=true
+NO_MOBILE_FLAG=false
 declare -a EXTRA_COMPOSE_FILES=()  # Extra -f files from --compose-file (repeatable)
 declare -a RECREATE_SERVICES=()    # Services to surgically recreate via --recreate (repeatable)
 declare -a REBUILD_SERVICES=()     # Services to surgically rebuild + recreate via --rebuild (repeatable)
@@ -47,12 +51,14 @@ show_usage() {
     echo "  --no-cache              Build with --no-cache (requires --build)"
     echo ""
     echo "Web:"
-    echo "  --no-web                Alias for --web-mode none"
+    echo "  --no-web                Alias for --web-mode none; disables desktop and mobile web"
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
-    echo "  --with-mobile           Also start the mobile web app at /m (all stacks, incl. --dev;"
-    echo "                          the extra dev server costs ~0.5-1GB RAM — keep it off otherwise)"
+    echo "  --no-mobile             Do NOT start the mobile web app at /m. It starts by default on"
+    echo "                          every stack, incl. --dev, where the extra dev server costs"
+    echo "                          ~0.5-1GB RAM. Also disables the desktop redirect gate."
+    echo "  --with-mobile           Deprecated no-op: /m starts by default now."
     echo ""
     echo "Environment:"
     echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
@@ -257,7 +263,11 @@ while [[ "$#" -gt 0 ]]; do
             WITH_TUNNEL=false
             ;;
         --with-mobile)
+            # Deprecated: /m is on by default. Kept so old commands and scripts still run.
             WITH_MOBILE=true
+            ;;
+        --no-mobile)
+            NO_MOBILE_FLAG=true
             ;;
         --no-local-overrides)
             LOCAL_OVERRIDES=false
@@ -424,6 +434,32 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
+# Resolve the mobile opt-out. A backend-only run (--no-web / --web-mode none) disables both
+# web clients. Otherwise precedence is --no-mobile, then AGENTA_MOBILE_ENABLED in the shell,
+# then the same key in the resolved env file. run.sh does not source the env file (compose
+# reads it directly), so this one key is read out of it explicitly — an operator who writes
+# the opt-out where every other setting lives must get the opt-out.
+if [[ "$WEB_MODE" == "none" ]]; then
+    WITH_MOBILE=false
+elif $NO_MOBILE_FLAG; then
+    WITH_MOBILE=false
+elif [[ -n "${AGENTA_MOBILE_ENABLED:-}" ]]; then
+    # Explicit if, not `[[ ]] && ...`: under `set -e` a trailing false test exits the script.
+    if [[ "$AGENTA_MOBILE_ENABLED" == "false" ]]; then
+        WITH_MOBILE=false
+    fi
+elif grep -Eq '^[[:space:]]*AGENTA_MOBILE_ENABLED[[:space:]]*=[[:space:]]*"?false"?[[:space:]]*$' "$ENV_FILE_PATH"; then
+    WITH_MOBILE=false
+fi
+
+if ! $WITH_MOBILE; then
+    echo "Mobile web app (/m) disabled: starting web-mobile with 0 replicas."
+    # The desktop middleware defaults its phone gate on. Override compose interpolation when
+    # the target service is absent, so --no-mobile / AGENTA_MOBILE_ENABLED=false can never
+    # redirect phones to a backend that was deliberately scaled to zero.
+    export AGENTA_MOBILE_GATE=false
+fi
+
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
 
@@ -432,6 +468,27 @@ COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
 
 if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"
+fi
+
+# The dev web container runs as uid 10001 and writes generated files into the public/ directories
+# that compose bind-mounts from this checkout: entrypoint.sh writes __env.js, and the OSS and EE
+# dev scripts write the pdfjs worker. A fresh clone leaves those directories mode 755 owned by the
+# host user, so uid 10001 cannot write and the container crash-loops in the entrypoint before
+# Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
+# hold public static assets only, and the gh images bind-mount no source, so this is dev-only.
+if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
+    for _public_dir in ./web/oss/public ./web/ee/public ./web/mobile/public; do
+        [[ -d "$_public_dir" ]] || continue
+        chmod o+rwx "$_public_dir" 2>/dev/null ||
+            echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
+        # An __env.js or worker left behind by a host-side `pnpm dev` is owned by the host user,
+        # and the container overwrites the file in place, so widen those two as well.
+        for _generated in "$_public_dir/__env.js" "$_public_dir/pdf.worker.min.mjs"; do
+            if [[ -f "$_generated" ]]; then
+                chmod o+rw "$_generated" 2>/dev/null || true
+            fi
+        done
+    done
 fi
 
 if $WITH_NGINX; then
@@ -444,8 +501,13 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
-if $WITH_MOBILE; then
-    COMPOSE_CMD+=" --profile with-web-mobile"
+# The mobile app has no profile: it is part of the stack. Opting out means starting it
+# with 0 replicas, which is the only compose-native way to hold back one service of a
+# file that everything else in the stack shares. `--scale` is valid on `up` only, so it
+# is kept out of COMPOSE_CMD (which also drives `config`, `build`, `pull`, and `down`).
+UP_EXTRA_ARGS=""
+if ! $WITH_MOBILE; then
+    UP_EXTRA_ARGS=" --scale web-mobile=0"
 fi
 
 # --------------------------------------------------------------------------------------------
@@ -533,7 +595,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web-mobile --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"
@@ -547,7 +609,7 @@ if $DOWN; then
 fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans$UP_EXTRA_ARGS || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

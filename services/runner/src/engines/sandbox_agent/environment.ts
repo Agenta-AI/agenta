@@ -42,7 +42,11 @@ import {
   type SessionPermissionRequest,
 } from "sandbox-agent";
 
-import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
+import {
+  resolveRunSessionId,
+  type AgentRunRequest,
+  type EmitEvent,
+} from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
@@ -77,6 +81,7 @@ import {
   type MountCredentials,
 } from "./mount.ts";
 import {
+  PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
@@ -293,7 +298,14 @@ export async function acquireEnvironment(
   deps: SandboxAgentDeps = {},
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
+  emit?: EmitEvent,
 ): Promise<AcquireEnvironmentResult> {
+  emit?.({
+    type: "data",
+    name: "agent-status",
+    data: { phase: "environment_starting" },
+    transient: true,
+  });
   const setup = await prepareEnvironmentSetup(request, deps, presignedMount);
   if (!setup.ok) return setup;
   const {
@@ -308,6 +320,7 @@ export async function acquireEnvironment(
     localBuiltinGatingUnenforceable,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     logger,
     mcpAbort,
     piExtEnv,
@@ -374,6 +387,24 @@ export async function acquireEnvironment(
       session: environment.session,
       alreadyRequested: !!environment.sessionDestroyRequested,
     });
+    // Pi may have retained the original prompt's telemetry channel across an approval park.
+    // The harness is now quiescent and `agent_end` has had a chance to publish its partial trace;
+    // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
+    const piTraceExport = environment.piTraceExport;
+    if (piTraceExport) {
+      let pickedUpBatches = 0;
+      try {
+        pickedUpBatches = (await piTraceExport.finish()).pickedUpBatches;
+      } catch {}
+      if (pickedUpBatches === 0) {
+        await piTraceExport
+          .emitMissingBatchFallback(
+            "Pi session ended before publishing a valid trace batch",
+          )
+          .catch(() => {});
+      }
+    }
+    environment.piTraceExport = undefined;
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
     const { parked } = await teardownSandbox({
@@ -425,7 +456,6 @@ export async function acquireEnvironment(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
-      otlpAuthFilePath: environment.otlpAuthFilePath,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).
@@ -455,6 +485,11 @@ export async function acquireEnvironment(
     // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
     if (piModelConfigError) {
       throw piModelConfigError;
+    }
+    // Surface the root cause before extension-derived gates: an unwritable subscription mount can
+    // also prevent extension installation, but rebuilding the image cannot repair mount ownership.
+    if (localPiAgentDirUnwritable) {
+      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
@@ -1079,6 +1114,12 @@ export async function acquireEnvironment(
     );
 
     timingLog("acquire_total", acquireStartedAt);
+    emit?.({
+      type: "data",
+      name: "agent-status",
+      data: { phase: "environment_ready" },
+      transient: true,
+    });
     return { ok: true, env: environment };
   } catch (err) {
     const error = conciseError(
