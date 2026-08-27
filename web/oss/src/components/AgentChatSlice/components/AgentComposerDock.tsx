@@ -12,11 +12,11 @@ import {
 } from "@agenta/chat/components"
 import {
     type ConnectionDockState,
+    type ElicitationDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
 } from "@agenta/chat/hooks"
-import type {ElicitationDockState} from "@agenta/chat/hooks/useElicitationDock"
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"

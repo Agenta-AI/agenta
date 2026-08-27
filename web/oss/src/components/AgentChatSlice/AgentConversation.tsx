@@ -14,9 +14,12 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
-// Direct subpath, not the hooks barrel: that file belongs to another in-flight lane.
-import {useElicitationDock} from "@agenta/chat/hooks/useElicitationDock"
+import {
+    useAgentModelKeyStatus,
+    useConnectionDock,
+    useElicitationDock,
+    useVoiceComposer,
+} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"

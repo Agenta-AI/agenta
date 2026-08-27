@@ -16,7 +16,7 @@ import {memo} from "react"
 
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {ElicitationDock} from "@agenta/chat/components"
-import type {ElicitationDockState} from "@agenta/chat/hooks/useElicitationDock"
+import type {ElicitationDockState} from "@agenta/chat/hooks"
 
 interface AgentElicitationDockProps {
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */

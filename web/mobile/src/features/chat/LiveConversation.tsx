@@ -15,9 +15,8 @@ import {
     useAgentConversation,
     useAgentModelKeyStatus,
     useConnectionDock,
+    useElicitationDock,
 } from "@agenta/chat/hooks"
-// Direct subpath, not the hooks barrel: that file belongs to another in-flight lane.
-import {useElicitationDock} from "@agenta/chat/hooks/useElicitationDock"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
