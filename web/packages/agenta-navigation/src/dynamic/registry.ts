@@ -11,9 +11,10 @@ import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 
-import {withEntityGroups} from "./groups"
+import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
+    sidebarAgentLastUsedAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionScopeLimit,
@@ -72,6 +73,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     getOnClick: config.getOnClick ? (ref) => config.getOnClick!(ref as TRef) : undefined,
     wrapRow: config.wrapRow ? (ref, node) => config.wrapRow!(ref as TRef, node) : undefined,
     getGroupKey: config.getGroupKey ? (ref) => config.getGroupKey!(ref as TRef) : undefined,
+    ranksAtom: config.ranksAtom,
     groupsAtom: config.groupsAtom,
     toggleGroupAtom: config.toggleGroupAtom,
 })
@@ -151,25 +153,13 @@ const ENTITIES: SidebarEntity[] = [
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        // Most recently USED first — catalog order reads as random, and the ranks come off the
+        // sessions the rail already holds, so this costs no request. Same rule the mobile rail
+        // applies; Sessions is `alwaysOpen` here, so its query is subscribed either way.
+        ranksAtom: sidebarAgentLastUsedAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),
-    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, TESTSETS_SIDEBAR_KEY, {
-    //     kind: "testset",
-    //     listAtom: testsetsListAtom,
-    //     getLabel: (testset) => testset.name || "Untitled test set",
-    //     childPath: (testset) => `/testsets/${testset.id}`,
-    //     emptyLabel: "No test sets",
-    //     showAllPath: "/testsets",
-    // }),
-    // defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, EVALUATORS_SIDEBAR_KEY, {
-    //     kind: "evaluator",
-    //     listAtom: fromParts(evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom),
-    //     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled evaluator",
-    //     childPath: (workflow) => `/apps/${workflow.id}/overview`,
-    //     emptyLabel: "No evaluators",
-    //     showAllPath: "/evaluators",
-    // }),
 ]
 
 /** All dynamic entities keyed by their sidebar item key. */
@@ -186,7 +176,16 @@ export const sidebarEntitySourcesAtom = atom((get) => {
     const sources: Record<string, SidebarEntitySource> = {}
     for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
         const source = get(entity.activeSourceAtom)
-        sources[key] = withEntityGroups(source, entity.groupsAtom && get(entity.groupsAtom))
+        // Ranks are read only once the source HAS rows: a ranks atom reaches other entities'
+        // queries (agents rank off the sessions), and reading it unconditionally would subscribe
+        // those from a collapsed rail that renders nothing — the gate above exists to stop exactly
+        // that. `withRefsByRecency` no-ops on a non-ready source anyway.
+        let ordered = source
+        if (entity.ranksAtom && source.status === "ready") {
+            const ranks = get(entity.ranksAtom)
+            ordered = withRefsByRecency(source, (ref) => ranks.get(ref.id))
+        }
+        sources[key] = withEntityGroups(ordered, entity.groupsAtom && get(entity.groupsAtom))
     }
     return sources
 })

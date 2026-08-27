@@ -93,6 +93,9 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     }>
     /** Toggles a heading's collapse state. */
     toggleGroupAtom?: WritableAtom<string[], [string], void>
+    /** `ref.id -> last used, in ms`. Rows carrying a rank lead, newest first; the rest keep the
+     * source's order behind them. For a catalog whose own order reads as random. */
+    ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
 
 /**
@@ -117,6 +120,7 @@ export interface SidebarEntity {
     getOnClick?: (ref: SidebarEntityRef) => () => void
     wrapRow?: (ref: SidebarEntityRef, node: ReactNode) => ReactElement
     getGroupKey?: (ref: SidebarEntityRef) => string
+    ranksAtom?: Atom<ReadonlyMap<string, number>>
     groupsAtom?: Atom<{
         groups: SidebarEntityGroup[]
         collapsedKeys: string[]

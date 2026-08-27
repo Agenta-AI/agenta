@@ -1,10 +1,10 @@
 import {createElement} from "react"
 
+import {atom} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
     defineSidebarEntity,
-    groupingStartsFolded,
     livePollInterval,
     localSessionRefsMatching,
     resolveChildren,
@@ -471,5 +471,30 @@ describe("livePollInterval", () => {
         expect(livePollInterval(rows({}))).toBe(60_000)
         expect(livePollInterval([])).toBe(60_000)
         expect(livePollInterval(null)).toBe(60_000)
+    })
+})
+
+
+// The seam the Agents group is ordered through: ranks live in an atom the entity names, so the
+// registry can reorder any catalog without knowing what it holds.
+describe("defineSidebarEntity ranksAtom", () => {
+    const listAtom = atom({data: [], isPending: false, isError: false, error: null})
+    const config = {
+        kind: "app" as const,
+        listAtom,
+        getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
+        childPath: (r: SidebarEntityRef) => `/apps/${r.id}`,
+    }
+
+    it("carries the ranks atom onto the resolved entity", () => {
+        const ranks = atom<ReadonlyMap<string, number>>(new Map([["a1", 10]]))
+
+        expect(defineSidebarEntity("main", "agents", {...config, ranksAtom: ranks}).ranksAtom).toBe(
+            ranks,
+        )
+    })
+
+    it("leaves it undefined for an entity that does not rank", () => {
+        expect(defineSidebarEntity("main", "prompts", config).ranksAtom).toBeUndefined()
     })
 })
