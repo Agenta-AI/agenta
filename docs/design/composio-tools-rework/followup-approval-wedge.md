@@ -16,6 +16,17 @@ reconnects — the web container restarting, and plausibly any long connection d
 issues `cancel-stale` for the session, and the pending `session_interactions` row moves to
 `cancelled`.
 
+> **Amended 2026-08-27, after the runner teardown fix (`66161a658d`) and the frontend
+> single-resume fix.** Two premises this draft rests on have changed, and neither weakens the
+> finding. First, a parked stream no longer stays open for the whole relay timeout; it now ends
+> with a clean finish and no error frame, so the long-open connection that made a drop likely is
+> gone, and a cold replay now needs a real restart or reconnect rather than merely a slow park.
+> Second, a cold replay is no longer the only route to a `cancelled` row: while the frontend also
+> dispatched its own resume, one click sent two invokes 1 to 19 ms apart, and each one's
+> `cancel-stale` cancelled the row the other was answering — 3 of 3 runs ended `cancelled` with
+> `resolution` null, no restart involved. That second route is fixed; this wedge is not. When
+> reading a `cancelled` row as evidence for this issue, check the invoke count first.
+
 The playground keeps rendering that approval as a live card. Approve, Deny and Dismiss are all
 enabled and none of them does anything. The tool never runs and the card never clears. A full
 page reload does not clear it. The session is unusable until the user switches to another one.
