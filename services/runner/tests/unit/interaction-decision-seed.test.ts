@@ -237,12 +237,15 @@ describe("decisionsFromInteractionRows", () => {
 });
 
 describe("queryInteractions", () => {
-  it("posts the session id to the query endpoint", async () => {
+  it("scopes the query to the session, in the nested shape the endpoint reads", async () => {
     await queryInteractions("sess-1", () => "ApiKey k");
 
     assert.equal(requests.length, 1);
     assert.match(requests[0].url, /\/sessions\/interactions\/query$/);
-    assert.deepEqual(requests[0].body, { session_id: "sess-1" });
+    // NOT a flat `{ session_id }`: the endpoint reads `body.query`, so a flat field is ignored
+    // and every interaction in the PROJECT comes back. Adopting another session's answer would
+    // authorize a call this session's user never approved, so this shape is load-bearing.
+    assert.deepEqual(requests[0].body, { query: { session_id: "sess-1" } });
   });
 
   it("accepts a bare array and both wrapper shapes", async () => {

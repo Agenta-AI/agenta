@@ -320,7 +320,9 @@ export async function queryInteractions(
         "content-type": "application/json",
         authorization: auth(),
       },
-      body: JSON.stringify({ session_id: sessionId }),
+      // The filter is NESTED: the endpoint reads `body.query`, and a flat `session_id` is
+      // silently ignored — which returns every interaction in the PROJECT, not this session's.
+      body: JSON.stringify({ query: { session_id: sessionId } }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = interactionRowsOf(await res.json());
@@ -343,6 +345,10 @@ export type SeededDecision = {
 
 /**
  * The answered rows this session holds, as decision-map entries.
+ *
+ * Session scope is a security boundary, not a convenience: a row from ANOTHER session is another
+ * conversation's human answer, and adopting it would authorize a call this session's user never
+ * approved. The scope is enforced by the query's filter, so that filter must actually engage.
  *
  * Fail-closed at every step: only a `user_approval` row still in `responded` carries an answer
  * the turn has not already spent, and only a row naming its tool, its args, and a verdict can be
