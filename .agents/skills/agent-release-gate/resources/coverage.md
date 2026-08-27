@@ -199,6 +199,37 @@ exclude any turn it deliberately aborted or interrupted, which legitimately ends
 add `and not silent["violations"]` to its verdict — `resources/test_qa_matrix_lib_silent_turns.py`
 fails if a wired cell drops it.
 
+## Path-scoped cells: coverage the release's own diff demands
+
+Everything above is fixed. It runs identically for every release, which means a release that
+rewrote a subsystem gets the same coverage as one that never touched it — and the cell that would
+have caught the regression sits unrun, because running it depends on somebody remembering.
+
+`path_triggers.py` removes the remembering. It is one dict of path glob to cells. When the driver
+is given the release's diff (`--release-base <ref>`, or `--changed-path` for a checkout that is
+not the release branch), every rule whose glob matches a changed path contributes its cells, and
+those cells are MANDATORY for that release.
+
+| Rule | Cells it makes mandatory | Why this subsystem needs its own cell |
+|---|---|---|
+| `api/oss/src/core/tools/**`, `sdks/python/agenta/sdk/agents/platform/gateway.py`, `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`, `services/runner/src/tools/**`, `services/runner/src/engines/sandbox_agent/gateway-gate.ts` | `matrix_gw1_gateway_tools.py` | The gateway chain — the API's catalog and resolve, the SDK's two model-facing tools and its permission compiler, the runner's policy and semantic gate. `tool`, `approve`, and `deny` prove the approval machinery with a BUILTIN, never with a gateway tool, so nothing in the fixed matrix notices when a compiled policy and an enforced policy drift apart. Proposed in [`docs/design/composio-tools-rework/release-gate-changes.md`](../../../../docs/design/composio-tools-rework/release-gate-changes.md). |
+
+What the driver does with a mandatory cell depends on which kind it is:
+
+- **A `qa_product.py` cell** (`C3`, `X1`, …) is added to the run, even when `--cell` did not ask
+  for it. Nothing more is needed.
+- **A standalone `matrix_*.py` cell** is a separate process the driver cannot observe. It is
+  printed at the start, written to `mandatory.json`, and listed in `summary.md`. The release is
+  not green until that cell has a recorded result of its own.
+- **A cell that does not exist** stops the run before a single journey, naming the rule. The
+  release changed code the rule protects and the coverage was never written; a SKIP there would
+  be the exact false green this mechanism exists to prevent.
+
+Rules are data and unordered: matches are unioned, so two rules naming the same cell is fine.
+Matching is `fnmatch` over the whole repo-relative path, which means `*` crosses directory
+separators — `a/b/*` and `a/b/**` both mean the whole subtree. Write `**` for a subtree so the
+intent reads correctly, and name a file exactly when only that file should trigger.
+
 ## Optional probes (`qa_longctx.py`)
 
 Separate from the gate, these need live **Gmail and GitHub Composio connections** in the target

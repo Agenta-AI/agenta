@@ -31,6 +31,17 @@ def _is_no_auth_toolkit(toolkit: Dict[str, Any]) -> bool:
     return all((detail.get("mode") or "").upper() == "NO_AUTH" for detail in details)
 
 
+def _unmanaged_dcr_auth_scheme(toolkit: Dict[str, Any]) -> Optional[str]:
+    """Return Composio's DCR mode when the toolkit has no managed OAuth app."""
+    if toolkit.get("composio_managed_auth_schemes"):
+        return None
+    for detail in toolkit.get("auth_config_details") or []:
+        mode = detail.get("mode") or ""
+        if mode.upper() == "DCR_OAUTH":
+            return mode
+    return None
+
+
 class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
     """Composio V3 connection auth adapter — uses httpx directly (no SDK).
 
@@ -141,8 +152,8 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             ) from e
 
         # Step 2: create an auth config for this integration.
-        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
-        # oauth / None → use_composio_managed_auth.
+        # API keys and unmanaged DCR OAuth use the provider's exact custom scheme.
+        # Other OAuth toolkits use Composio's managed app.
         log.info(
             "initiate_connection: integration_key=%s auth_scheme=%r",
             integration_key,
@@ -159,6 +170,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
                 connection_data={"no_auth": True},
             )
 
+        dcr_auth_scheme = _unmanaged_dcr_auth_scheme(toolkit)
         if auth_scheme == "api_key":
             # Derive Composio authScheme from toolkit's auth_config_details.
             # Fall back to "API_KEY" as the common default.
@@ -172,6 +184,11 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             auth_config_body: Dict[str, Any] = {
                 "type": "use_custom_auth",
                 "authScheme": composio_auth_scheme,
+            }
+        elif dcr_auth_scheme:
+            auth_config_body = {
+                "type": "use_custom_auth",
+                "authScheme": dcr_auth_scheme,
             }
         else:
             auth_config_body = {"type": "use_composio_managed_auth"}

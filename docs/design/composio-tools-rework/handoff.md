@@ -74,6 +74,13 @@ and connections never reach the model. The decided design is three pages:
      reading real ones. Two follow-on text rounds (search-once wording; seven
      commit-engine message fixes) were in flight when this page was written; check
      `git log` on the branch.
+   - `f2cd74a014` supports unmanaged OAuth toolkits by translating public `oauth` intent to
+     Composio's provider-specific `DCR_OAUTH` scheme inside the adapter.
+   - `d024baf2e5` makes agent-authored integrations default to Allow all. Frontend PR #6311
+     carries the matching Playground default in `730c6850fb`; both preserve existing policies.
+   - The follow-up interface cleanup keeps compiled `gatewayPolicy` on the neutral session and
+     backend path instead of harness templates. Harness prompt composition receives only sorted
+     integration names, and gateway-tool and gateway-connection resolver roles are separate.
 
 ## Open items
 

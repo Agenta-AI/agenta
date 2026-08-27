@@ -302,33 +302,26 @@ def _gateway_connection_payload():
     builds, and the private policy they read. ``RUN_WORKFLOW`` carries no catalog read-only
     hint, so it pins the tri-state null form on the wire (qa.md case C27).
     """
+    gateway_policy = ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                toolkit_version="20250827_00",
+                tools={
+                    "GET_ISSUE": CompiledTool(permission="allow", read_only=True),
+                    "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
+                    "RUN_WORKFLOW": CompiledTool(permission="deny"),
+                },
+            )
+        }
+    )
     config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="gpt-5.5",
         # Straight from the producer, so the golden records what a real resolve emits.
-        custom_tools=_derived_tool_specs(),
+        custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
-        gateway_policy=ResolvedGatewayPolicy(
-            integrations={
-                "github": ResolvedGatewayIntegration(
-                    provider="composio",
-                    connection="github-work",
-                    toolkit_version="20250827_00",
-                    tools={
-                        "GET_ISSUE": CompiledTool(
-                            permission="allow",
-                            read_only=True,
-                            input_schema={
-                                "type": "object",
-                                "properties": {"number": {"type": "integer"}},
-                            },
-                        ),
-                        "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
-                        "RUN_WORKFLOW": CompiledTool(permission="deny"),
-                    },
-                )
-            }
-        ),
     )
     return request_to_wire(
         harness=HarnessKind.PI,
@@ -337,6 +330,7 @@ def _gateway_connection_payload():
         messages=[Message(role="user", content="close issue 12")],
         trace=None,
         session_id=None,
+        gateway_policy=gateway_policy,
     )
 
 

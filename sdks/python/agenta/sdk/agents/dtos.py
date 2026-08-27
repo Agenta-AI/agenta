@@ -722,11 +722,6 @@ class HarnessAgentTemplate(BaseModel):
     # resolver. It serializes as one consumer-owned ``modelConnection`` object.
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
-    # The compiled gateway connection policy, carried from the tool resolver. Private to the
-    # runner: it never reaches the harness, the sandbox, or a tool name. Every harness
-    # adapter threads it: a seam that drops it fails silently as an absent policy, which the
-    # runner reads as deny.
-    gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
@@ -769,22 +764,6 @@ class HarnessAgentTemplate(BaseModel):
         if rules:
             permissions["rules"] = rules
         return {"permissions": permissions}
-
-    def wire_gateway_policy(self) -> Dict[str, Any]:
-        """The ``gatewayPolicy`` field for the ``/run`` payload (contracts section 5).
-
-        One top-level field, not one per specification: both derived tools read the same
-        table, and the runner filters search results before it knows which tool the model
-        will run. Omitted when the agent has no ``gateway_connection`` entry, so a run
-        without one is byte-identical to before (the golden wire contract).
-
-        It sits beside :meth:`wire_permissions` rather than inside it: that plan is the
-        coarse harness-tool posture, while this is the per-integration table the runner's own
-        semantic gate reads. The two are different layers and neither can express the other.
-        """
-        if self.gateway_policy is None:
-            return {}
-        return {"gatewayPolicy": self.gateway_policy.to_wire()}
 
     def wire_tools(self) -> Dict[str, Any]:
         """The tool + permission fields this harness contributes to the ``/run`` payload."""
@@ -1141,9 +1120,9 @@ class SessionConfig(BaseModel):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     tool_callback: Optional[ToolCallback] = None
-    # The compiled gateway connection policy the tool resolver produced. It rides through to
-    # the harness config and out on the wire as ``gatewayPolicy``; ``None`` when the agent has
-    # no connection entry.
+    # The compiled gateway connection policy the tool resolver produced. It is runner policy,
+    # not harness configuration: the environment carries it directly to the backend and the
+    # /run serializer. ``None`` when the agent has no connection entry.
     gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
 
@@ -1165,6 +1144,13 @@ class SessionConfig(BaseModel):
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:
         return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    @property
+    def gateway_integration_names(self) -> List[str]:
+        """Configured integration names for model guidance, without exposing runner policy."""
+        if self.gateway_policy is None:
+            return []
+        return sorted(self.gateway_policy.integrations)
 
 
 # ---------------------------------------------------------------------------

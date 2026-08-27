@@ -40,6 +40,7 @@ from agenta.sdk.agents.tools import (
     coerce_tool_configs,
 )
 from agenta.sdk.agents.tools.interfaces import (
+    GatewayConnectionResolver,
     GatewayToolResolver,
     PlatformToolResolver,
     ToolSecretProvider,
@@ -61,6 +62,7 @@ async def resolve_tools(
     *,
     secret_provider: Optional[ToolSecretProvider] = None,
     gateway_resolver: Optional[GatewayToolResolver] = None,
+    gateway_connection_resolver: Optional[GatewayConnectionResolver] = None,
     workflow_resolver: Optional[WorkflowToolResolver] = None,
     platform_resolver: Optional[PlatformToolResolver] = None,
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
@@ -75,9 +77,13 @@ async def resolve_tools(
 
     ``permission_default`` is the agent-wide mode the gateway permission compiler applies to an
     ``inherit`` value on a ``gateway_connection`` entry. It is ignored by every other arm."""
+    default_gateway_resolver = AgentaGatewayToolResolver()
     return await ToolResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
-        gateway_resolver=gateway_resolver or AgentaGatewayToolResolver(),
+        gateway_resolver=gateway_resolver or default_gateway_resolver,
+        gateway_connection_resolver=(
+            gateway_connection_resolver or default_gateway_resolver
+        ),
         workflow_resolver=workflow_resolver or AgentaWorkflowToolResolver(),
         platform_resolver=platform_resolver or AgentaPlatformToolResolver(),
         missing_secret_policy=missing_secret_policy,

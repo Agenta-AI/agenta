@@ -27,6 +27,8 @@ class GatewayToolResolver(Protocol):
     ) -> GatewayToolResolution:
         """Resolve legacy per-tool gateway declarations into callback specifications."""
 
+
+class GatewayConnectionResolver(Protocol):
     async def resolve_connections(
         self,
         tools: Sequence[GatewayConnectionToolConfig],
@@ -35,11 +37,9 @@ class GatewayToolResolver(Protocol):
     ) -> GatewayConnectionResolution:
         """Resolve ``gateway_connection`` declarations into the two runtime tools.
 
-        A second method rather than a second arm of :meth:`resolve` because the two arms
-        return different things: the per-tool arm returns one specification per entry, and
-        this one returns a fixed pair of specifications plus the compiled policy the runner
-        enforces. ``mode`` is the agent-wide permission default the compiler applies to an
-        ``inherit`` value."""
+        Returns a fixed pair of specifications plus the compiled policy the runner enforces.
+        ``mode`` is the agent-wide permission default the compiler applies to an ``inherit``
+        value."""
 
 
 class WorkflowToolResolver(Protocol):

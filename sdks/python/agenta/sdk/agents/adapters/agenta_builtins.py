@@ -32,11 +32,10 @@ them with ``AGENTA_PREAMBLE``, which no other module owns.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from ..flags import ordered_operations_enabled
 from ..skills import SkillFile, SkillTemplate
-from ..tools.models import ResolvedGatewayPolicy
 from .agent_templates import build_agent_template_skill_files
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
@@ -1191,7 +1190,7 @@ def _join(*parts: Optional[str]) -> Optional[str]:
     return "\n\n".join(kept)
 
 
-def gateway_guidance(policy: Optional[ResolvedGatewayPolicy]) -> Optional[str]:
+def gateway_guidance(integration_names: Sequence[str]) -> Optional[str]:
     """The runtime instruction section for the two derived gateway tools.
 
     Built only when the agent has at least one ``gateway_connection`` entry, and never stored
@@ -1200,9 +1199,9 @@ def gateway_guidance(policy: Optional[ResolvedGatewayPolicy]) -> Optional[str]:
     ``runtime-tools.md``, "Prompt guidance". Capability grouping is deferred; V1 lists the
     integration names and invents no second classification.
     """
-    if policy is None or not policy.integrations:
+    if not integration_names:
         return None
-    integrations = ", ".join(sorted(policy.integrations))
+    integrations = ", ".join(sorted(integration_names))
     return f"""\
 ## Connected integrations
 
@@ -1227,7 +1226,7 @@ Configured integrations: {integrations}.
 
 def compose_gateway_guidance(
     user: Optional[str],
-    policy: Optional[ResolvedGatewayPolicy] = None,
+    integration_names: Sequence[str] = (),
 ) -> Optional[str]:
     """One prompt layer with the gateway guidance placed before the author's own text.
 
@@ -1238,16 +1237,16 @@ def compose_gateway_guidance(
     instructions file for the file-based harnesses, and ``append_system`` for Pi, whose
     AGENTS.md is purely authored.
     """
-    return _join(gateway_guidance(policy), user)
+    return _join(gateway_guidance(integration_names), user)
 
 
 def compose_instructions(
     user: Optional[str],
-    policy: Optional[ResolvedGatewayPolicy] = None,
+    integration_names: Sequence[str] = (),
 ) -> Optional[str]:
     """The AGENTS.md the Agenta harness ships: the base preamble, then the gateway guidance
     when the agent has a connection, then the author's instructions."""
-    return _join(AGENTA_PREAMBLE, compose_gateway_guidance(user, policy))
+    return _join(AGENTA_PREAMBLE, compose_gateway_guidance(user, integration_names))
 
 
 def compose_append_system(user: Optional[str]) -> Optional[str]:

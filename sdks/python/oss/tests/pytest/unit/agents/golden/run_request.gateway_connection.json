@@ -24,7 +24,7 @@
   "customTools": [
     {
       "name": "search_tools",
-      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with. Returns at most 5 results, best matches first \u2014 a cap, not the whole catalog. If the search fails, retry it once and no more. If nothing matched, search again with a more specific description of the task, then stop. Never invent an integration name.",
+      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with. Returns at most 5 results, best matches first \u2014 a cap, not the whole catalog. If the search fails, retry it once and no more. If nothing matched, search again with a more specific description of the task, then stop. Never invent an integration name. Connected integrations: github.",
       "inputSchema": {
         "type": "object",
         "properties": {

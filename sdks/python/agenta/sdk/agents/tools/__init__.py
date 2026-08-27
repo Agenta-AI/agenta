@@ -24,6 +24,7 @@ from .gateway_policy import (
     compile_gateway_permissions,
 )
 from .interfaces import (
+    GatewayConnectionResolver,
     GatewayToolResolver,
     PlatformToolResolver,
     ToolSecretProvider,
@@ -96,6 +97,7 @@ __all__ = [
     "MissingSecretPolicy",
     "ToolResolver",
     "ToolSecretProvider",
+    "GatewayConnectionResolver",
     "GatewayToolResolver",
     "WorkflowToolResolver",
     "PlatformToolResolver",

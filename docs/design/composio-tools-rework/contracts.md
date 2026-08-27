@@ -246,8 +246,11 @@ Mirror sites that change together:
   compile-time guard. Skipping it breaks `tsc`.
 - `sdks/python/agenta/sdk/agents/wire_models.py`.
 - `sdks/python/agenta/sdk/agents/utils/wire.py`.
-- `sdks/python/agenta/sdk/agents/dtos.py`, a new `wire_gateway_policy` method beside
-  `wire_permissions`.
+- `sdks/python/agenta/sdk/agents/dtos.py`, on `SessionConfig.gateway_policy`.
+- `sdks/python/agenta/sdk/agents/interfaces.py`, which carries the policy through the
+  neutral environment/backend session boundary rather than through a harness template.
+- `sdks/python/agenta/sdk/agents/utils/wire.py`, where `request_to_wire` emits the top-level
+  field.
 - The golden files under `sdks/python/oss/tests/pytest/unit/agents/golden/`.
 
 The field is omitted when the agent has no `gateway_connection` entry. A run without one
@@ -325,6 +328,28 @@ The runner parses that JSON, filters `results` against the resolved policy, caps
 five, and writes the filtered object back to the harness. When nothing remains, the runner
 writes the empty result and message fixed by `runtime-tools.md`.
 
+What the runner writes back always carries `connected_integrations`, whether or not anything
+matched:
+
+```json
+{
+  "results": [],
+  "message": "No configured tool matched. Connected integrations: github, slack. Try a more specific description or name one of them.",
+  "connected_integrations": ["github", "slack"]
+}
+```
+
+| Field | Role | Rules |
+| --- | --- | --- |
+| `results` | Data | At most five, already filtered. Empty when nothing survived. |
+| `message` | Data | Present only when `results` is empty. Names the connected integrations when there are any. |
+| `connected_integrations` | Data | Every configured integration NAME, sorted. Always present. Never a slug, a permission, or a tool key. |
+
+The runner derives it from the resolved policy's keys, so it costs no round trip and cannot
+drift from what the agent is actually connected to. It rides the matched case too: a search
+that answered from one integration is where a model most easily assumes a neighbouring app
+it does not have.
+
 A result never carries the connection slug, the provider account ID, the provider action ID,
 a permission value, or `read_only`.
 
@@ -394,8 +419,8 @@ Order, for each catalog tool:
 4. Under `allow_reads`, `read_only: true` becomes `allow`. `false` and absent become `ask`.
 
 The function is pure. It performs no input and output. It must not import an API model or a
-runner type. `mode` comes from `permission_default` on the harness template, which defaults
-to `allow_reads`.
+runner type. `mode` comes from `permission_default` on the agent template, which defaults to
+`allow_reads`.
 
 A configured tool key that is not in the catalog does not appear in the output. The compiler
 returns it in `stale_keys` so the authoring surface can report it.
@@ -426,6 +451,10 @@ question 1 in [plan.md](plan.md) for what to show when an author changes that mo
 
 Setting any per-tool value switches the shown preset to Custom, because `tools` is no longer
 empty. Picking a preset clears `tools`.
+
+New integrations are authored as Allow all (`default: "allow"`, empty `tools`) in both the
+Playground and agent-authored config. This creation default does not rewrite existing saved
+policies, and it does not remove the other presets.
 
 **The override count is the number of saved entries in `tools`.** There is one rule and both
 this file and [qa.md](qa.md) case F7 state it the same way.

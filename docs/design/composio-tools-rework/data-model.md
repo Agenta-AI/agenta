@@ -51,6 +51,11 @@ The connection resource and the agent policy have different owners and lifetimes
 project can reuse one connection across several agents and triggers. Each agent revision
 can apply a different policy without changing the shared connection.
 
+When either the Playground or an agent adds a new integration, it creates the policy with
+`default: "allow"` and an empty `tools` map. This is a creation default only: loading or
+changing the connection on an existing integration preserves its saved policy. Authors can
+still select `inherit`, `ask`, or `deny`, or add exact tool overrides.
+
 ## Permission values
 
 The connection default and each tool entry accept four values:

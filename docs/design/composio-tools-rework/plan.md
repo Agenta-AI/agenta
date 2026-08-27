@@ -388,13 +388,13 @@ prompt section.
   existing gateway branch.
 - `sdks/python/agenta/sdk/agents/tools/models.py`. Add the resolved policy models. Add the
   result type the gateway resolver returns.
-- `sdks/python/agenta/sdk/agents/dtos.py`. Add `wire_gateway_policy`, beside
-  `wire_permissions`.
+- `sdks/python/agenta/sdk/agents/dtos.py`. Keep the compiled policy on the neutral
+  `SessionConfig`; expose only sorted integration names to prompt composition.
 - `sdks/python/agenta/sdk/agents/wire_models.py`. Add the `gatewayPolicy` field.
 - `sdks/python/agenta/sdk/agents/utils/wire.py`. Emit the field.
 - `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`. Add the guidance builder.
 - `sdks/python/agenta/sdk/agents/adapters/harnesses.py`. Call the guidance builder from every
-  harness adapter.
+  harness adapter with integration names only; harness templates do not carry runner policy.
 - **The propagation path.** A compiled policy produced in the resolver does not reach
   `wire_models.py` on its own. Carry it explicitly through every seam between the two, and
   check each one, because a copy that drops the field fails silently as an absent policy,
@@ -402,7 +402,8 @@ prompt section.
   - `sdks/python/agenta/sdk/agents/handler.py`;
   - `ResolvedToolSet` in `tools/models.py`, which is what the resolver returns;
   - `SessionConfig`, which the handler builds from it;
-  - each harness-template copy seam in `dtos.py`, where a template is rebuilt field by field.
+  - the environment/backend session boundary in `interfaces.py` and the sandbox backend;
+  - `request_to_wire`, which emits the top-level policy independently of the harness template.
 - `services/runner/src/protocol.ts` and `services/runner/tests/unit/wire-contract.test.ts`.
   The passive TypeScript side. See "Wire ownership" below.
 
@@ -731,8 +732,9 @@ Picking a preset clears the override map.
 
 **The add drawer.** Search and add whole integrations. Quick-add from the project's existing
 connections. Pick a connection when several exist for one integration. Reuse the existing
-connect flow component for the Connect button. A new integration is added with the "Ask for
-write and delete" preset.
+connect flow component for the Connect button. A new integration is added with the "Allow all"
+preset (`default: "allow"`, empty `tools`). Prompt guidance remains the safety layer unless the
+author explicitly asks for restrictions.
 
 Choosing a different connection for an integration that is already configured **replaces**
 the existing entry in one write. It never appends a second one. The saved format allows only

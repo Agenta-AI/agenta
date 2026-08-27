@@ -189,19 +189,46 @@ The result does not contain:
 The model does not need those fields to call the tool. The runner already owns the
 compiled permission.
 
+### Connected integrations
+
+Every answer the runner writes back carries `connected_integrations`: the configured
+integration names, sorted. It is derived from the resolved policy's keys, so it costs no
+round trip and cannot drift from what the agent actually has.
+
+It rides both the matched and the empty case. Empty is the obvious one, but a partial answer
+is the other place a model drifts: it gets a hit from one app and assumes the neighbouring
+one it wanted is connected too.
+
+Names only. A connection slug, a permission value, and a tool key all stay out, exactly as
+they do from a result.
+
 ### No matching result
 
 If provider search succeeds but no configured, non-denied result remains, return a normal
-empty result with a short message:
+empty result with a short message that names the connected integrations:
 
 ```json
 {
   "results": [],
-  "message": "No configured tool matched this request. Try a more specific task description."
+  "message": "No configured tool matched. Connected integrations: github, slack. Try a more specific description or name one of them.",
+  "connected_integrations": ["github", "slack"]
 }
 ```
 
-The message must not suggest unconfigured integrations returned by Composio.
+An agent with no connection at all keeps the shorter sentence, so the message never ends on
+a dangling list:
+
+```json
+{
+  "results": [],
+  "message": "No configured tool matched this request. Try a more specific task description.",
+  "connected_integrations": []
+}
+```
+
+The message must not suggest unconfigured integrations returned by Composio. Naming the
+CONFIGURED ones is not that: they are the agent's own apps, and the prompt guidance and the
+`search_tools` description already list them.
 
 ### Search failure
 
@@ -315,6 +342,12 @@ The V1 section contains:
 
 Capability grouping such as "Messaging" or "Code" is deferred. V1 lists the configured
 integration names without inventing a second classification system.
+
+The names appear in three places, on purpose. The prompt guidance carries them once at the
+top of the run; the `search_tools` description carries them where the model reads them at
+every call, which a long context cannot push out of view; and every search answer carries
+them in `connected_integrations`, which is where the model is actually deciding what to try
+next. All three are the same names from the same resolved policy.
 
 ## Measurements
 

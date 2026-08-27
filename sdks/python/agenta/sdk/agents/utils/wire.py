@@ -36,6 +36,7 @@ from ..dtos import (
     RunContext,
     TraceContext,
 )
+from ..tools.models import ResolvedGatewayPolicy
 
 log = get_module_logger(__name__)
 
@@ -95,6 +96,7 @@ def request_to_wire(
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
 
@@ -102,8 +104,9 @@ def request_to_wire(
     own (Pi: built-ins + native specs, no gating; Claude: MCP specs + permission policy).
     ``config.wire_prompt()`` adds any system-prompt overrides the harness exposes (Pi's
     ``systemPrompt`` / ``appendSystemPrompt``); it is empty for harnesses that have none.
-    ``config.wire_gateway_policy()`` adds the private compiled policy for the agent's gateway
-    connections (``gatewayPolicy``), omitted when the agent has no connection entry.
+    ``gateway_policy`` is the private compiled policy for the agent's gateway connections. It
+    comes from the neutral session envelope rather than the harness config and is omitted when
+    the agent has no connection entry.
     ``config.wire_mcp()`` adds user-declared MCP servers, omitted when there are none so a
     tool-free run's payload is unchanged. ``config.wire_skills()`` adds resolved inline skill
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
@@ -151,7 +154,6 @@ def request_to_wire(
         "context": trace.context_to_wire() if trace else None,
         "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
-        **config.wire_gateway_policy(),
         **config.wire_prompt(),
         **config.wire_mcp(),
         **config.wire_skills(),
@@ -161,6 +163,8 @@ def request_to_wire(
         **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
+    if gateway_policy is not None:
+        payload["gatewayPolicy"] = gateway_policy.to_wire()
     if run_context is not None:
         run_context_wire = run_context.to_wire()
         if run_context_wire:

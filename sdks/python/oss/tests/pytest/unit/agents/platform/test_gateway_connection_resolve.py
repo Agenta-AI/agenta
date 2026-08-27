@@ -190,6 +190,55 @@ async def test_two_integrations_share_one_pair_of_specs(fake_http, connection):
     assert policy["github"]["tools"]["GET_ISSUE"]["permission"] == "allow"
 
 
+async def test_search_tools_names_the_connected_integrations(fake_http, connection):
+    """ "Never invent an integration name" is only actionable beside the real ones.
+
+    The description is read at every call, while the prompt guidance can fall out of a
+    long context, so the list belongs in both.
+    """
+    fake_http(
+        gateway,
+        payload={
+            "gateway_connections": [
+                _slice("slack", [{"key": "SEND_MESSAGE", "read_only": False}]),
+                _slice("github", [{"key": "GET_ISSUE", "read_only": True}]),
+            ]
+        },
+    )
+
+    resolution = await _resolver(connection).resolve_connections(
+        [
+            _connection_config("slack", slug="slack-main", default="allow"),
+            _connection_config("github"),
+        ],
+        mode="allow_reads",
+    )
+
+    search = next(s for s in resolution.tool_specs if s.name == "search_tools")
+    # Sorted, so the same agent always presents the same sentence.
+    assert search.description.endswith("Connected integrations: github, slack.")
+    # Names only. A slug is not the model's to know, and `run_tool` names no integration
+    # because it is told which one in the arguments.
+    for slug in ["github-work", "slack-main"]:
+        assert slug not in search.description
+    run = next(s for s in resolution.tool_specs if s.name == "run_tool")
+    assert "Connected integrations" not in run.description
+
+
+def test_an_empty_integration_list_leaves_no_dangling_sentence():
+    """The resolver's caller guards this, so it is only reachable by a future one.
+
+    Worth being total about: the failure mode is a malformed sentence in model-facing
+    text, which no type or test elsewhere would catch.
+    """
+    from agenta.sdk.agents.platform.gateway import _derived_tool_specs
+
+    search = next(s for s in _derived_tool_specs([]) if s.name == "search_tools")
+
+    assert "Connected integrations" not in search.description
+    assert search.description.endswith("Never invent an integration name.")
+
+
 async def test_agent_wide_mode_reaches_the_compiler(fake_http, connection):
     """``inherit`` resolves against the agent-wide mode, not against a fixed default."""
     fake_http(
@@ -261,7 +310,7 @@ async def test_stale_keys_reach_the_resolved_tool_set_as_warnings(
             ]
         },
     )
-    resolver = ToolResolver(gateway_resolver=_resolver(connection))
+    resolver = ToolResolver(gateway_connection_resolver=_resolver(connection))
 
     resolved = await resolver.resolve([_connection_config(tools={"GONE": "allow"})])
 
@@ -416,7 +465,11 @@ async def test_legacy_and_connection_entries_both_resolve(fake_http, connection)
             "gateway_connections": [_slice("github", _GITHUB_CATALOG)],
         },
     )
-    resolver = ToolResolver(gateway_resolver=_resolver(connection))
+    gateway_resolver = _resolver(connection)
+    resolver = ToolResolver(
+        gateway_resolver=gateway_resolver,
+        gateway_connection_resolver=gateway_resolver,
+    )
 
     resolved = await resolver.resolve(
         [

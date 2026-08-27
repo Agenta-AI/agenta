@@ -97,12 +97,17 @@ def _format_resolution_failure(status_code: int, detail: Optional[str]) -> str:
     return message
 
 
-def _derived_tool_specs() -> List[CallbackToolSpec]:
+def _derived_tool_specs(integration_names: Sequence[str]) -> List[CallbackToolSpec]:
     """The two runtime tools an agent with at least one connection entry gets.
 
     Fixed by contracts section 4 and built locally: the API never names them. One pair
     covers every configured integration, because the model selects the integration in the
     arguments rather than through the tool name.
+
+    ``search_tools`` names the connected integrations in its own description. "Never invent
+    an integration name" is only actionable next to the list of real ones, and a tool
+    description is read at every call while the prompt guidance can fall out of a long
+    context. Names only, the same ones the guidance already carries.
 
     Both carry ``permission: "allow"``. That is not an authorization decision. It only opens
     the coarse harness gate so the call reaches the runner; the real boundary is the runner's
@@ -111,6 +116,13 @@ def _derived_tool_specs() -> List[CallbackToolSpec]:
     harness would resolve ``run_tool`` through the agent-wide mode and raise a second,
     meaningless approval card named ``run_tool`` before the runner saw the tool key at all.
     """
+    # The resolver only runs with at least one entry, so the empty join is unreachable
+    # today. Kept total anyway: a dangling "Connected integrations: ." is model-facing text.
+    connected = (
+        f" Connected integrations: {', '.join(sorted(integration_names))}."
+        if integration_names
+        else ""
+    )
     return [
         CallbackToolSpec(
             name="search_tools",
@@ -121,6 +133,7 @@ def _derived_tool_specs() -> List[CallbackToolSpec]:
                 "matches first — a cap, not the whole catalog. If the search fails, retry it "
                 "once and no more. If nothing matched, search again with a more specific "
                 "description of the task, then stop. Never invent an integration name."
+                f"{connected}"
             ),
             input_schema={
                 "type": "object",
@@ -180,7 +193,7 @@ def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
 
 
 class AgentaGatewayToolResolver:
-    """`GatewayToolResolver` backed by the Agenta platform's `/tools/resolve` endpoint."""
+    """Gateway tool and connection resolvers backed by the Agenta platform."""
 
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
@@ -493,7 +506,7 @@ class AgentaGatewayToolResolver:
                 warnings.append(warning)
 
         return GatewayConnectionResolution(
-            tool_specs=_derived_tool_specs(),
+            tool_specs=_derived_tool_specs(list(integrations)),
             tool_callback=ToolCallback(
                 endpoint=f"{api_base}/tools/call",
                 authorization=authorization,

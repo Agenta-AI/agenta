@@ -76,7 +76,6 @@ class PiHarness(Harness):
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
-            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
@@ -84,7 +83,8 @@ class PiHarness(Harness):
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
             append_system=compose_gateway_guidance(
-                _opt_str(extras.get("append_system")), config.gateway_policy
+                _opt_str(extras.get("append_system")),
+                config.gateway_integration_names,
             ),
         )
 
@@ -103,13 +103,12 @@ class ClaudeHarness(Harness):
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
             agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_policy
+                config.agent.instructions, config.gateway_integration_names
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
-            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
@@ -132,13 +131,12 @@ class CodexHarness(Harness):
         # codex-specific parsing happens here; the runner just writes the files into the cwd.
         return CodexAgentTemplate(
             agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_policy
+                config.agent.instructions, config.gateway_integration_names
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
-            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
@@ -164,7 +162,7 @@ class AgentaHarness(Harness):
         extras = config.agent.harness_extras
         return AgentaAgentTemplate(
             agents_md=compose_instructions(
-                config.agent.instructions, config.gateway_policy
+                config.agent.instructions, config.gateway_integration_names
             ),
             model=config.agent.model,
             # See PiHarness: thread the structured ref so a named custom connection's {mode, slug}
@@ -173,7 +171,6 @@ class AgentaHarness(Harness):
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
-            gateway_policy=config.gateway_policy,
             mcp_servers=list(config.mcp_servers),
             # Force the platform skill(s) into every run, de-duped by name. A custom config that
             # drops the default template's `_agenta` embed still gets the platform skill.
