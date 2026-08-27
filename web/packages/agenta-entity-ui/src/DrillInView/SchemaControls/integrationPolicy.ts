@@ -70,8 +70,8 @@ export const INTEGRATION_PRESETS: IntegrationPresetDef[] = [
     },
 ]
 
-/** A newly added integration lands on "Ask for write and delete". */
-export const DEFAULT_INTEGRATION_PRESET: IntegrationPreset = "ask_writes"
+/** A newly added integration starts with every tool allowed. */
+export const DEFAULT_INTEGRATION_PRESET: IntegrationPreset = "allow_all"
 
 const integrationPresetDef = (preset: IntegrationPreset): IntegrationPresetDef =>
     INTEGRATION_PRESETS.find((def) => def.value === preset) ??
@@ -81,7 +81,7 @@ const integrationPresetDef = (preset: IntegrationPreset): IntegrationPresetDef =
 
 /** The policy a newly added integration is saved with. */
 export const DEFAULT_INTEGRATION_PERMISSIONS: GatewayConnectionPermissions = {
-    default: integrationPresetDef(DEFAULT_INTEGRATION_PRESET).permission ?? "inherit",
+    default: integrationPresetDef(DEFAULT_INTEGRATION_PRESET).permission ?? "allow",
     tools: {},
 }
 
@@ -110,7 +110,7 @@ export function readIntegrationPreset(permissions: GatewayConnectionPermissions)
     const overrideCount = Object.keys(permissions.tools).length
     if (overrideCount > 0) return {preset: "custom", overrideCount}
     const def = INTEGRATION_PRESETS.find((d) => d.permission === permissions.default)
-    return {preset: def?.value ?? "ask_writes", overrideCount: 0}
+    return {preset: def?.value ?? DEFAULT_INTEGRATION_PRESET, overrideCount: 0}
 }
 
 /** A policy as a row shows it: the preset it reads back as, and the preset's short label with the

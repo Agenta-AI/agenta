@@ -9,7 +9,7 @@
  * pick a connection when an integration has several, and Connect, which runs the existing
  * {@link ConnectDrawer} auth flow and then adds the integration.
  *
- * A new integration lands on "Ask for write and delete". Choosing another connection for an
+ * A new integration lands on "Allow all". Choosing another connection for an
  * integration that is already configured REPLACES its entry, keeping the policy already set.
  */
 import {useCallback, useEffect, useMemo, useState} from "react"

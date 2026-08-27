@@ -48,7 +48,7 @@ const noop = () => undefined
 const entry = (integration: string, slug: string) => ({
     type: "gateway_connection",
     connection: {provider: "composio", integration, slug},
-    policy: {permissions: {default: "inherit", tools: {}}},
+    policy: {permissions: {default: "allow", tools: {}}},
 })
 
 const legacyEntry = (integration: string, action: string, connection: string) => ({

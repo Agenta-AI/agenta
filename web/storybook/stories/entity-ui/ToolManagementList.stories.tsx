@@ -51,8 +51,8 @@ const legacyEntry = (integration: string, action: string, connection: string) =>
 })
 
 const TOOLS = [
-    // ask_writes — the default preset, written as `inherit` with no overrides.
-    entry("github", GITHUB_WORK.slug ?? "", {default: "inherit", tools: {}}),
+    // allow_all — the default preset, written as `allow` with no overrides.
+    entry("github", GITHUB_WORK.slug ?? "", {default: "allow", tools: {}}),
     // Custom · 2 — a preset plus two saved per-tool values.
     entry("slack", SLACK_OPS.slug ?? "", {
         default: "ask",

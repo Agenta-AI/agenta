@@ -83,12 +83,12 @@ const seeded = (catalog = GITHUB_TOOLS) => ({
 })
 
 /**
- * The default an integration is added with: `inherit` and no overrides, which reads as "Reads
- * freely, asks to write". Both groups are collapsed to their rollups until the author opens one.
+ * The default an integration is added with: `allow` and no overrides. Both groups are collapsed
+ * to their rollups until the author opens one.
  */
 export const Default: Story = {
     parameters: seeded(),
-    render: () => <DrawerHost permissions={{default: "inherit", tools: {}}} />,
+    render: () => <DrawerHost permissions={{default: "allow", tools: {}}} />,
 }
 
 /**

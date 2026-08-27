@@ -8,6 +8,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    DEFAULT_INTEGRATION_PERMISSIONS,
     DEFAULT_INTEGRATION_PRESET,
     integrationPermissionSummary,
     mergeToolPermission,
@@ -38,9 +39,10 @@ describe("writing a preset", () => {
         expect(write("deny_all")).toEqual({default: "deny", tools: {}})
     })
 
-    it("a new integration lands on the read-aware preset", () => {
-        expect(DEFAULT_INTEGRATION_PRESET).toBe("ask_writes")
-        expect(write(DEFAULT_INTEGRATION_PRESET)).toEqual({default: "inherit", tools: {}})
+    it("a new integration allows every tool with no overrides", () => {
+        expect(DEFAULT_INTEGRATION_PRESET).toBe("allow_all")
+        expect(DEFAULT_INTEGRATION_PERMISSIONS).toEqual({default: "allow", tools: {}})
+        expect(write(DEFAULT_INTEGRATION_PRESET)).toEqual(DEFAULT_INTEGRATION_PERMISSIONS)
     })
 })
 
@@ -81,7 +83,7 @@ describe("reading a preset back", () => {
         expect(overrideCount).toBe(1)
     })
 
-    it("falls back to the read-aware preset for a default no preset writes", () => {
+    it("falls back to the creation default for a value no preset writes", () => {
         const unknown = {default: "escalate", tools: {}} as unknown as GatewayConnectionPermissions
         expect(readIntegrationPreset(unknown).preset).toBe(DEFAULT_INTEGRATION_PRESET)
     })
