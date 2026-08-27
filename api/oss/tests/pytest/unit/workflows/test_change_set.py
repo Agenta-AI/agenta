@@ -26,6 +26,7 @@ from oss.src.core.workflows.change_set import (
     deep_merge,
     find_file_markers,
     item_key,
+    NEXT_STEPS,
     nearest_lines,
     subtree_scope,
     PLATFORM_GUIDANCE_START,
@@ -1876,8 +1877,12 @@ class TestMatchTolerance:
             base,
         )
         assert error.reason == Reason.TEXT_NOT_FOUND
-        # The next step is what recovers it: copy the text as it is actually stored.
-        assert "character for character" in error.next_step
+        # The next step is what recovers it, and it points at the nearest lines this refusal
+        # attaches — which is what the comment above describes. The older wording ("copy it
+        # character for character") named no new action: the model believes it already did
+        # that, which is why it sent this anchor.
+        assert "nearest_lines" in error.next_step
+        assert error.context.get("nearest_lines")
 
 
 # --------------------------------------------------------------------------------------
@@ -3549,3 +3554,50 @@ class TestGatewayConnectionItemIdentity:
                 )
             )
             assert error.reason == Reason.ITEM_KEY_UNDEFINED
+
+
+class TestNextStepsNameAnActionTheModelCanTake:
+    """A refusal's next_step must name a DIFFERENT action than the one that just failed.
+
+    These two were self-defeating rather than merely vague, which is why they are pinned
+    with assertions rather than left to review. A small model follows next_step literally:
+    told to fix a duplicate with the call that raises on duplicates, it loops.
+    """
+
+    def entry(self, name):
+        return {"type": "client", "name": name, "input_schema": {"type": "object"}}
+
+    def test_the_duplicate_key_next_step_does_not_send_the_model_back_to_remove_item(
+        self,
+    ):
+        # `remove_item` routes through `_find_item`, which is what raises DUPLICATE_ITEM_KEY,
+        # so a duplicated key is BY DEFINITION not addressable by it.
+        guidance = NEXT_STEPS[Reason.DUPLICATE_ITEM_KEY]
+
+        assert "replace_item" in guidance
+        assert "cannot be addressed by remove_item" in guidance
+
+    def test_add_item_shape_error_names_the_list_not_the_verb_that_failed(self):
+        # Rendered for add_item, the old text read "'add_item' addresses an object field ...
+        # Use add_item / replace_item / remove_item", i.e. use the verb you just used.
+        error = failure(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + [{"list": "tools", "key": "whatever"}],
+                    "value": self.entry("t1"),
+                }
+            )
+        )
+
+        assert error.reason == Reason.INVALID_TARGET_SHAPE
+        assert "targets the list itself" in error.message
+        assert "add_item / replace_item / remove_item" not in error.message
+
+    def test_the_text_not_found_next_step_points_at_the_lines_it_attaches(self):
+        # The model believes it already copied exactly — that is why it sent the anchor.
+        # "Copy it character for character" gave it no new action; nearest_lines does.
+        guidance = NEXT_STEPS[Reason.TEXT_NOT_FOUND]
+
+        assert "nearest_lines" in guidance
+        assert "character for character" not in guidance

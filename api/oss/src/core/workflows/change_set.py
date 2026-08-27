@@ -117,9 +117,10 @@ NEXT_STEPS: Dict[str, str] = {
         "operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
-        "Fix the last target segment: set / merge / remove / edit_text end with a field "
-        "name, add_item ends with a list name, replace_item / remove_item end with "
-        "{'list': ..., 'key': ...}."
+        "The message names the segment at fault. A segment is a field name, or "
+        "{'list': ..., 'key': ...} for one list entry; set / merge / remove / edit_text end "
+        "with a field name, add_item with a list name, replace_item / remove_item with a "
+        "selector."
     ),
     Reason.ITEM_ALREADY_EXISTS: (
         "Use replace_item to overwrite that entry. A different key only helps for a genuinely "
@@ -134,7 +135,8 @@ NEXT_STEPS: Dict[str, str] = {
         "Send remove_item for the old key, then add_item with the new value."
     ),
     Reason.DUPLICATE_ITEM_KEY: (
-        "Remove the duplicate entries with remove_item first, then send this change again."
+        "A duplicated key cannot be addressed by remove_item either. Use replace_item on the "
+        "key you meant, or set the whole list to the entries you want."
     ),
     Reason.ITEM_KEY_UNDEFINED: (
         "Give the new entry its key field: name for a skill or an MCP server; path for a "
@@ -151,7 +153,8 @@ NEXT_STEPS: Dict[str, str] = {
         "Correct the operation to the shape in the tool description and send it again."
     ),
     Reason.TEXT_NOT_FOUND: (
-        "Copy old_text from the configuration you read, character for character."
+        "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
+        "stored, or call read_config for that field and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
@@ -162,8 +165,8 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.EMPTY_OLD_TEXT: "Put the exact text you want to replace in old_text.",
     Reason.NO_CHANGE: (
-        "The new text equals the old text. Send the change you actually want, or send "
-        "nothing."
+        "The new text equals the old text. Send the edit you actually intended, or stop "
+        "editing this field."
     ),
     Reason.SOURCE_NOT_FOUND: (
         "Write the file under .agenta-imports/ first, then send the commit again."
@@ -1198,14 +1201,15 @@ def apply_text_edits(
             raise _Fail(
                 Reason.TEXT_NOT_FOUND,
                 f"edits[{index}].old_text does not occur in the target string. "
-                "The text must match exactly, with all whitespace and newlines.",
+                "details.nearest_lines holds the closest lines actually stored — copy one "
+                "of them into old_text.",
                 edit_index=index,
                 **({"nearest_lines": candidates} if candidates else {}),
             )
         if count > 1:
             raise _Fail(
                 Reason.TEXT_NOT_UNIQUE,
-                f"edits[{index}].old_text matched {count} times.",
+                f"edits[{index}].old_text matched at {count} positions (overlapping matches count).",
                 edit_index=index,
                 match_count=count,
             )
@@ -1266,8 +1270,14 @@ def _require_field_tail(segments: Sequence[Segment], verb: str) -> None:
     if isinstance(segments[-1], dict):
         raise _Fail(
             Reason.INVALID_TARGET_SHAPE,
-            f"'{verb}' addresses an object field, so the last target segment must be a "
-            "plain string. Use add_item / replace_item / remove_item for list entries.",
+            (
+                "'add_item' targets the list itself, so the last target segment must be "
+                "the list's name, not a {list, key} selector."
+                if verb == "add_item"
+                else f"'{verb}' addresses an object field, so the last target segment must "
+                "be a plain string. Use add_item / replace_item / remove_item for list "
+                "entries."
+            ),
         )
 
 

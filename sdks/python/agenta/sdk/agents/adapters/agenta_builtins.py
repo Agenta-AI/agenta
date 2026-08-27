@@ -1197,11 +1197,12 @@ def gateway_guidance(policy: Optional[ResolvedGatewayPolicy]) -> Optional[str]:
 You can reach these integrations with two tools: `search_tools` and `run_tool`.
 Configured integrations: {integrations}.
 
-- Search once, with a concrete description of the task you want to perform.
+- Search once per task, with a concrete description of what you want to do. Never repeat an
+  equivalent query — a second search that means the same thing returns the same results.
 - A search returns at most 5 results. That is a cap, not the whole catalog — if none fit,
   narrow the description rather than concluding no such tool exists.
-- "No configured tool matched this request." is not a failure and not a reason to stop at
-  once: search again with a more specific description, then report if it still finds nothing.
+- "No configured tool matched this request." is not a failure. Refine the query ONCE and
+  search again — that is what the message asks for — then report if it still finds nothing.
 - "Tool search is temporarily unavailable." is a temporary failure: retry it once and no more.
 - Use only an integration and a tool key that a search result returned. Never invent one.
   Pass the BARE tool key, not a prefixed provider action id such as `GMAIL_FETCH_EMAILS`.

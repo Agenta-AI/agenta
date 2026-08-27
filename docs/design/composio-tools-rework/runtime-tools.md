@@ -268,7 +268,8 @@ The SDK assembles a runtime instruction section when the agent has at least one
 The V1 section contains:
 
 1. The configured integration names.
-2. An instruction to search once with a concrete task description.
+2. An instruction to search once per task with a concrete description, refining the
+   query once if the result is empty, and never repeating an equivalent query.
 3. An instruction to use only a returned integration and tool key.
 4. An instruction to copy arguments from the returned schema.
 5. An instruction to retry search at most once after a temporary failure.

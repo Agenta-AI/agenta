@@ -575,8 +575,12 @@ def test_gateway_guidance_carries_all_six_prompt_items():
 
     # 1. The configured integration names.
     assert "Configured integrations: github, slack." in section
-    # 2. Search once, with a concrete task description.
-    assert "Search once, with a concrete description of the task" in section
+    # 2. Search once per task, with a concrete description, and no equivalent repeats.
+    assert "Search once per task, with a concrete description" in section
+    assert "Never repeat an\n  equivalent query" in section
+    # The empty result is a refine-once instruction, not a stop: the runner's own message
+    # asks for a more specific description, so the guidance must not contradict it.
+    assert "Refine the query ONCE and" in section
     # 3. Use only a returned integration and tool key.
     assert (
         "Use only an integration and a tool key that a search result returned"
