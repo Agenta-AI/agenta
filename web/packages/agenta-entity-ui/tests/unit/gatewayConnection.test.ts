@@ -20,6 +20,7 @@ import {
 import {
     buildGatewayConnectionEntry,
     buildIntegrationRows,
+    findTargetConnection,
     integrationRowIndices,
     parseGatewayConnection,
     removeIntegrationRow,
@@ -409,5 +410,52 @@ describe("a revision that already holds two entries for one integration", () => 
     it("reports every position the row occupies, entries and legacy alike", () => {
         const mixed = [...duplicated, legacyTool("tools__composio__github__GET_ISSUE__github-work")]
         expect(integrationRowIndices(buildIntegrationRows(mixed)[0])).toEqual([0, 2, 3])
+    })
+})
+
+describe("findTargetConnection", () => {
+    // A slug is unique only WITHIN a provider and integration; on the slug alone the permission
+    // drawer's header badge showed another integration's connection state as this one's.
+    const conn = (integration: string, slug: string, provider = "composio") =>
+        ({
+            id: `conn-${integration}-${slug}`,
+            slug,
+            name: slug,
+            provider_key: provider,
+            integration_key: integration,
+            flags: {is_active: true, is_valid: true},
+        }) as unknown as Parameters<typeof findTargetConnection>[0][number]
+
+    const shared = [conn("github", "work"), conn("linear", "work")]
+
+    it("picks the connection belonging to the target integration", () => {
+        expect(
+            findTargetConnection(shared, {provider: "composio", integration: "linear"}, "work"),
+        ).toMatchObject({integration_key: "linear"})
+    })
+
+    it("does not return another integration's connection with the same slug", () => {
+        expect(
+            findTargetConnection(shared, {provider: "composio", integration: "github"}, "work"),
+        ).toMatchObject({integration_key: "github"})
+    })
+
+    it("distinguishes two providers offering the same integration and slug", () => {
+        const providers = [conn("github", "work", "composio"), conn("github", "work", "nango")]
+        expect(
+            findTargetConnection(providers, {provider: "nango", integration: "github"}, "work"),
+        ).toMatchObject({provider_key: "nango"})
+    })
+
+    it("finds nothing when the integration has no connection under that slug", () => {
+        expect(
+            findTargetConnection(shared, {provider: "composio", integration: "slack"}, "work"),
+        ).toBeUndefined()
+    })
+
+    it("finds nothing for an empty slug, rather than the first connection", () => {
+        expect(
+            findTargetConnection(shared, {provider: "composio", integration: "github"}, ""),
+        ).toBeUndefined()
     })
 })
