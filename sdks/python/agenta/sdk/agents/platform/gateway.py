@@ -93,9 +93,7 @@ def _format_resolution_failure(status_code: int, detail: Optional[str]) -> str:
         return f"Gateway tool resolution failed (HTTP {status_code})"
     message = f"Gateway tool resolution failed: {detail} (HTTP {status_code})"
     if detail.startswith(_STALE_ACTION_PREFIX):
-        message += (
-            ". Remove or re-resolve this tool; the action is no longer in the catalog."
-        )
+        message += ". Remove or re-resolve this tool; it is no longer in the catalog."
     return message
 
 
@@ -119,7 +117,10 @@ def _derived_tool_specs() -> List[CallbackToolSpec]:
             description=(
                 "Find tools across the integrations connected to this agent. Describe the "
                 "task you want to perform; the result carries the integration, the tool key, "
-                "and the input schema to call it with."
+                "and the input schema to call it with. Returns at most 5 results, best "
+                "matches first — a cap, not the whole catalog. If the search fails, retry it "
+                "once and no more. If nothing matched, search again with a more specific "
+                "description of the task, then stop. Never invent an integration name."
             ),
             input_schema={
                 "type": "object",
@@ -137,8 +138,10 @@ def _derived_tool_specs() -> List[CallbackToolSpec]:
             name="run_tool",
             description=(
                 "Run one integration tool returned by search_tools. Pass the integration and "
-                "tool key exactly as they were returned, and arguments matching the returned "
-                "input schema."
+                "tool key exactly as they were returned — the bare tool key, NOT a prefixed "
+                "provider action id such as GMAIL_FETCH_EMAILS — and arguments matching the "
+                "returned input schema. A refused call will not succeed on a retry or with "
+                "reshaped arguments; report the refusal to the user instead."
             ),
             input_schema={
                 "type": "object",

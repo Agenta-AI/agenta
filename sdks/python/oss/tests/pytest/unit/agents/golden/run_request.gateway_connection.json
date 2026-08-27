@@ -24,7 +24,7 @@
   "customTools": [
     {
       "name": "search_tools",
-      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with.",
+      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with. Returns at most 5 results, best matches first \u2014 a cap, not the whole catalog. If the search fails, retry it once and no more. If nothing matched, search again with a more specific description of the task, then stop. Never invent an integration name.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -46,7 +46,7 @@
     },
     {
       "name": "run_tool",
-      "description": "Run one integration tool returned by search_tools. Pass the integration and tool key exactly as they were returned, and arguments matching the returned input schema.",
+      "description": "Run one integration tool returned by search_tools. Pass the integration and tool key exactly as they were returned \u2014 the bare tool key, NOT a prefixed provider action id such as GMAIL_FETCH_EMAILS \u2014 and arguments matching the returned input schema. A refused call will not succeed on a retry or with reshaped arguments; report the refusal to the user instead.",
       "inputSchema": {
         "type": "object",
         "properties": {

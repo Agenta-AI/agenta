@@ -200,7 +200,8 @@ A list of tool entries, each discriminated on `type`. Every entry except `gatewa
 may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
 `ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
 covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
-a top-level `permission` on one is refused. The seven `type` values:
+a top-level `permission` on one is refused. The `type` values, with `gateway` legacy —
+read it when a revision carries one, never write a new one:
 
 - `builtin` — legacy, accepted and ignored. The harness built-ins (`read`, `bash`, `edit`,
   `write`, `grep`, `find`, `ls`) are always available and are never listed in `tools`, so do not
@@ -208,9 +209,10 @@ a top-level `permission` on one is refused. The seven `type` values:
   refused comes from `runner.permissions.default` plus the `harness.permissions.allow` / `ask` /
   `deny` rule lists. Those seven names are also reserved: no tool of any other type may take one,
   and a config that does is refused.
-- `gateway` — a server-side gateway action (Composio). Do not hand-write it: run `discover_tools`
-  and copy what it returns, adding the `connection` slug once the connection is ready.
-  `{ "type": "gateway", "provider": "composio", "integration": "github",
+- `gateway` — LEGACY. ONE single gateway action, from before an agent could take a whole
+  integration. Do not write one: use `gateway_connection` below, which covers every action of
+  the integration with one entry. Kept so you can read and preserve what an older revision
+  already carries: `{ "type": "gateway", "provider": "composio", "integration": "github",
      "action": "GET_AN_ISSUE", "connection": "<connection-slug>" }`. `name` is optional.
 - `gateway_connection` — one whole gateway integration with one permission policy, which
   replaces a list of per-tool `gateway` entries. This is how you add a WHOLE integration:
@@ -335,7 +337,9 @@ L's name — write the selector instead of the list name, never both.
 ```
 
 The keyed lists: `skills` and `mcps` by `name`, `tools` by the tool's `name` (a `reference` tool
-by `name`, else its `slug`), and a skill's `files` by `path`. Any other list takes no selector.
+by `name`, else its `slug`; a `gateway_connection` by the derived key
+`gateway_connection:<provider>:<integration>`, e.g. `gateway_connection:composio:github`, since
+it carries no `name`), and a skill's `files` by `path`. Any other list takes no selector.
 
 ### The seven operations
 
@@ -499,8 +503,10 @@ Remove a skill — `remove_item`, target ending on the selector:
 }
 ```
 
-Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned and the
-`connection` slug filled in. Your existing tools stay as they are:
+Add an integration — ONE `add_item` on `tools` with a `gateway_connection` entry, carrying
+the REAL connection slug `discover_tools` reported as ready. That one entry covers every action
+of the integration; at run time the agent reaches them through `search_tools` and `run_tool`.
+Your existing tools stay as they are:
 
 ```json
 {
@@ -512,12 +518,15 @@ Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned
           "operation": "add_item",
           "target": ["parameters", "agent", "tools"],
           "value": {
-            "type": "gateway",
-            "provider": "composio",
-            "integration": "github",
-            "action": "GITHUB_CREATE_AN_ISSUE",
-            "connection": "conn_9f3a1c",
-            "name": "create_github_issue"
+            "type": "gateway_connection",
+            "connection": {
+              "provider": "composio",
+              "integration": "github",
+              "slug": "github-7f2a"
+            },
+            "policy": {
+              "permissions": { "default": "inherit", "tools": { "DELETE_REPOSITORY": "deny" } }
+            }
           }
         }
       ]
@@ -536,8 +545,9 @@ Don't forget:
   alone, so you never resend a list.
 - Copy `old_text` out of the read, character for character, including line breaks.
 - Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
+- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
+  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
+  commits without complaint and fails at run time as connection-not-found.
 - Touch `harness`, `runner`, `sandbox`, and `llm` only when you are intentionally changing them.
 """
 
@@ -656,12 +666,13 @@ ENTIRE current tools list, every entry you have, not this subset:
               { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
                                 "@ag.selector": { "path": "parameters.tool" } } },
               {
-                "type": "gateway",
-                "provider": "composio",
-                "integration": "github",
-                "action": "GITHUB_CREATE_AN_ISSUE",
-                "connection": "conn_9f3a1c",
-                "name": "create_github_issue"
+                "type": "gateway_connection",
+                "connection": {
+                  "provider": "composio",
+                  "integration": "github",
+                  "slug": "github-7f2a"
+                },
+                "policy": { "permissions": { "default": "inherit", "tools": {} } }
               }
             ]
           }
@@ -691,8 +702,9 @@ Don't forget:
   one-entry list wipes the rest.
 - Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
 - `message` is a real commit message. Say what changed and why, not a placeholder.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
+- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
+  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
+  commits without complaint and fails at run time as connection-not-found.
 - Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
   changing them; a narrow delta preserves them through the deep merge.
 """
@@ -923,7 +935,7 @@ Read `references/trigger-inputs.md` before you write a schedule or subscription'
 |---|---|---|
 | transform text the user pastes, such as summarize, rewrite, classify | nothing extra | `instructions.agents_md` only |
 | apply reusable know-how, such as a style guide or review rubric | a skill | one `skills` entry |
-| read or write in an outside tool, such as GitHub or Slack | gateway tools | `discover_tools`, then `tools` entries |
+| read or write in an outside tool, such as GitHub or Slack | a connected integration | `discover_tools`, then ONE `gateway_connection` entry on `tools` |
 | run on a clock | a schedule | `create_schedule` after committing |
 | react to an outside event | a subscription | `discover_triggers`, then `create_subscription` |
 
@@ -955,8 +967,10 @@ Do not discover tools or triggers for an ask that does not need them.
    - Right integration is not enough — read the matched event's description. A fragment like "new
      github issue" can match a `..._ARTIFACT_CREATED` event on the shared word "created" with a
      ready connection. Confirm the matched action or event actually does what the user asked.
-   - If nothing in the match or its alternatives plausibly corresponds, stop and tell the user the
-     integration does not support that action yet. Never wire the closest keyword hit.
+   - When picking a SUBSCRIPTION EVENT, if nothing in the match or its alternatives plausibly
+     corresponds, stop and tell the user the integration does not support it yet; never wire the
+     closest keyword hit. For TOOLS you enable the whole integration, so you are choosing the
+     integration, not the action — the run picks the action through `search_tools`.
 4. If a needed connection is not ready, call `request_connection` for that integration and stop.
    Give the user the connection request and wait for them. Re-run `discover_tools` after they
    connect; do not silently create, fake, or skip connections.
@@ -964,8 +978,9 @@ Do not discover tools or triggers for an ask that does not need them.
 
 _BUILD_STEP5_ORDERED = """\
 5. Configure yourself. `read_config` the parts you are about to change, then `commit_revision`
-   with that `base_revision_id`: `add_item` each chosen `capability.tool` entry and needed
-   alternative onto `tools`, and `set` `instructions.agents_md`. This is an approval stop. If the
+   with that `base_revision_id`: `add_item` ONE `gateway_connection` entry per integration you
+   need — provider, integration, the REAL ready slug, and a permissions policy — onto `tools`,
+   and `set` `instructions.agents_md`. This is an approval stop. If the
    commit is denied or fails, earlier connections or triggers are not undone.
 """
 
@@ -1021,11 +1036,18 @@ terminal action.
 
 Example:
 
-> Every run, do exactly these steps and nothing else: (1) call LIST_REPOSITORY_ISSUES for
-> owner/repo X; (2) call LIST_COMMITS for X; (3) write a 3-bullet digest; (4) call SEND_MESSAGE to
-> channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+> Every run, do exactly these steps and nothing else: (1) `search_tools` for "list issues in a
+> github repo" and `run_tool` the key it returns for owner/repo X; (2) the same for "list commits"
+> on X; (3) write a 3-bullet digest; (4) `search_tools` for "post a slack message" and `run_tool`
+> it to channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+
+Write instructions in terms of `search_tools` and `run_tool`, never a bare provider action name.
+An integration's actions are NOT separate tools at run time: the agent has exactly those two,
+and naming `LIST_REPOSITORY_ISSUES` as if it were callable sends the run looking for a tool that
+does not exist.
 
 - Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
+- You no longer choose actions when wiring: the whole integration is enabled. Steer the RUN instead — tell it in `agents_md` to search for the narrowest tool (a `FIND_*` or `GET_A_*` over a `LIST_ALL_*`), and `deny` list-dump actions you never want run in the entry's `policy.permissions.tools`.
 - Make the final numbered step the terminal side effect, such as the post or write.
 - Say "finish by doing step N" so the run does not stop after the early read steps.
 - Write the persona as an explicit imperative — who the agent is and what it does, stated as a
@@ -1158,7 +1180,7 @@ def gateway_guidance(policy: Optional[ResolvedGatewayPolicy]) -> Optional[str]:
 
     Built only when the agent has at least one ``gateway_connection`` entry, and never stored
     in the agent revision: the tools are derived at resolve time, so their instructions are
-    too. It names the configured integrations and the six V1 rules from
+    too. It names the configured integrations and the runtime rules from
     ``runtime-tools.md``, "Prompt guidance". Capability grouping is deferred; V1 lists the
     integration names and invents no second classification.
     """
@@ -1172,10 +1194,18 @@ You can reach these integrations with two tools: `search_tools` and `run_tool`.
 Configured integrations: {integrations}.
 
 - Search once, with a concrete description of the task you want to perform.
+- A search returns at most 5 results. That is a cap, not the whole catalog — if none fit,
+  narrow the description rather than concluding no such tool exists.
+- "No configured tool matched this request." is not a failure and not a reason to stop at
+  once: search again with a more specific description, then report if it still finds nothing.
+- "Tool search is temporarily unavailable." is a temporary failure: retry it once and no more.
 - Use only an integration and a tool key that a search result returned. Never invent one.
+  Pass the BARE tool key, not a prefixed provider action id such as `GMAIL_FETCH_EMAILS`.
 - Copy the arguments from the input schema the search result returned.
-- If a search fails temporarily, retry it once and no more.
-- Stop searching once a result is usable, and run it."""
+- Stop searching once a result is usable, and run it.
+- A run may pause for the user's approval or be refused outright: that is this agent's
+  permission policy, not a bug. A refusal will not succeed on a retry or with reshaped
+  arguments — report it instead of looping."""
 
 
 def compose_gateway_guidance(
