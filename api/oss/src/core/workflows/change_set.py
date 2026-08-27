@@ -136,7 +136,9 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.ITEM_KEY_UNDEFINED: (
         "Give the new entry its key field: name for a skill, an MCP server, or a tool; "
-        "path for a file. A gateway tool needs an explicit name."
+        "path for a file. A gateway tool needs an explicit name. A gateway_connection "
+        "entry needs connection.provider and connection.integration, which together are "
+        "its key."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -429,6 +431,25 @@ def remove_path(tree: dict, path: str) -> None:
 def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optional[str]:
     """The canonical effective tool name. Contract 4.2."""
     kind = entry.get("type")
+    if kind == "gateway_connection":
+        # A whole-integration entry carries NO name by design — it is the integration, not
+        # one action — so its identity is the connection it routes through. Provider plus
+        # integration is enough: `coerce_tool_configs` admits at most one entry per
+        # integration in a revision, so that pair is unique within the list it addresses.
+        #
+        # Synthetic and prefixed, unlike the bare names above, because those keys ARE the
+        # user-facing tool names and this one is derived. The prefix also keeps it from
+        # colliding with a legacy `gateway` key, which is `{integration}__{action}`.
+        connection = entry.get("connection")
+        if not isinstance(connection, dict):
+            return None
+        provider = connection.get("provider")
+        integration = connection.get("integration")
+        if not isinstance(provider, str) or not provider:
+            return None
+        if not isinstance(integration, str) or not integration:
+            return None
+        return f"gateway_connection:{provider}:{integration}"
     if kind == "gateway":
         name = entry.get("name")
         if name:

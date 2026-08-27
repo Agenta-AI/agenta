@@ -213,14 +213,23 @@ a top-level `permission` on one is refused. The seven `type` values:
   `{ "type": "gateway", "provider": "composio", "integration": "github",
      "action": "GET_AN_ISSUE", "connection": "<connection-slug>" }`. `name` is optional.
 - `gateway_connection` — one whole gateway integration with one permission policy, which
-  replaces a list of per-tool `gateway` entries. The Playground writes it when an author adds an
-  integration, so do not hand-write one: keep using `discover_tools` and `gateway` entries. Read
-  it, and keep it, when a revision already carries one.
+  replaces a list of per-tool `gateway` entries. This is how you add a WHOLE integration:
+  1. Get the REAL connection slug. Run `discover_tools` (or the connect flow) and read the slug
+     off a connection that already exists. NEVER invent one — a plausible-looking guess such as
+     `googledrive-main` commits without complaint and only fails when the agent next runs.
+  2. Add ONE entry with that connection and a policy, via `add_item` on
+     `parameters.agent.tools`. One entry per integration is the limit; a second for the same
+     integration is refused.
+  It is addressed for `replace_item` and `remove_item` by the key
+  `gateway_connection:<provider>:<integration>` — for example
+  `gateway_connection:composio:github`. The entry carries no `name`, so that derived key is its
+  only address. Read it, and keep it, when a revision already carries one.
   `{ "type": "gateway_connection", "connection": { "provider": "composio", "integration":
      "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "inherit",
      "tools": { "DELETE_REPOSITORY": "deny" } } } }`. Each permission is `inherit` / `allow` /
   `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
-  agent-wide runner policy.
+  agent-wide runner policy. The commit does not check that the slug exists, so a wrong one is
+  caught only when the agent next runs, as a connection-not-found failure naming the slug.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":

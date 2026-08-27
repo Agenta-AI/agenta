@@ -3366,3 +3366,186 @@ class TestTheAgentActionableEnvelope:
 
         assert detail["code"] == Reason.INVALID_DELTA
         assert "details" not in detail
+
+
+class TestGatewayConnectionItemIdentity:
+    """A whole-integration tool entry is addressable, though it carries no name.
+
+    Found live: an agent asked to add Google Drive sent `add_item` on
+    `parameters.agent.tools` with a `gateway_connection` value and got
+    `item_key_undefined` — "'add_item' cannot derive a key for the new 'tools' entry".
+    `_tool_name` had no branch for the type, and the entry has no `name` BY DESIGN: it
+    is the integration, not one action. Its identity is the connection it routes
+    through, and `coerce_tool_configs` admits at most one entry per integration, so
+    provider plus integration is unique within the list.
+    """
+
+    KEY = "gateway_connection:composio:googledrive"
+
+    def entry(self, integration="googledrive", slug="googledrive-7f2a"):
+        return {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": integration,
+                "slug": slug,
+            },
+            "policy": {"permissions": {"default": "ask_write", "tools": {}}},
+        }
+
+    def test_add_item_derives_the_key_from_the_connection(self):
+        tree = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(),
+                }
+            )
+        )
+
+        tools = tree["parameters"]["agent"]["tools"]
+        added = [t for t in tools if t.get("type") == "gateway_connection"]
+        assert len(added) == 1
+        assert added[0]["connection"]["integration"] == "googledrive"
+
+    def test_the_derived_key_is_provider_and_integration(self):
+        assert item_key("tools", self.entry()) == self.KEY
+
+    def test_replace_item_addresses_it_by_that_key(self):
+        base = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(),
+                }
+            )
+        )
+        swapped = self.entry(slug="googledrive-other")
+        swapped["policy"]["permissions"]["default"] = "deny"
+
+        tree = apply(
+            ops(
+                {
+                    "operation": "replace_item",
+                    "target": AGENT + [{"list": "tools", "key": self.KEY}],
+                    "value": swapped,
+                }
+            ),
+            base=base,
+        )
+
+        entries = [
+            t
+            for t in tree["parameters"]["agent"]["tools"]
+            if t.get("type") == "gateway_connection"
+        ]
+        assert len(entries) == 1
+        assert entries[0]["connection"]["slug"] == "googledrive-other"
+        assert entries[0]["policy"]["permissions"]["default"] == "deny"
+
+    def test_remove_item_addresses_it_by_that_key(self):
+        base = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(),
+                }
+            )
+        )
+
+        tree = apply(
+            ops(
+                {
+                    "operation": "remove_item",
+                    "target": AGENT + [{"list": "tools", "key": self.KEY}],
+                }
+            ),
+            base=base,
+        )
+
+        assert not [
+            t
+            for t in tree["parameters"]["agent"]["tools"]
+            if t.get("type") == "gateway_connection"
+        ]
+
+    def test_a_second_entry_for_the_same_integration_is_refused_as_a_duplicate(self):
+        """The one-per-integration rule surfaces here rather than at resolve time.
+
+        `coerce_tool_configs` enforces it downstream, but a delta that lands two entries
+        would otherwise commit and only fail later; the shared key makes `add_item`
+        refuse it with the reason the model can act on.
+        """
+        base = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(),
+                }
+            )
+        )
+
+        error = failure(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(slug="a-different-connection"),
+                }
+            ),
+            base=base,
+        )
+
+        assert error.reason == Reason.ITEM_ALREADY_EXISTS
+
+    def test_two_different_integrations_coexist(self):
+        base = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(),
+                }
+            )
+        )
+
+        tree = apply(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": self.entry(integration="gmail", slug="gmail-091"),
+                }
+            ),
+            base=base,
+        )
+
+        keys = {
+            item_key("tools", t)
+            for t in tree["parameters"]["agent"]["tools"]
+            if t.get("type") == "gateway_connection"
+        }
+        assert keys == {self.KEY, "gateway_connection:composio:gmail"}
+
+    def test_an_entry_with_no_connection_identity_is_still_refused(self):
+        """Fail closed: without provider AND integration there is no key to address."""
+        for broken in (
+            {"type": "gateway_connection"},
+            {"type": "gateway_connection", "connection": {}},
+            {"type": "gateway_connection", "connection": {"provider": "composio"}},
+            {"type": "gateway_connection", "connection": {"integration": "gmail"}},
+        ):
+            error = failure(
+                ops(
+                    {
+                        "operation": "add_item",
+                        "target": AGENT + ["tools"],
+                        "value": broken,
+                    }
+                )
+            )
+            assert error.reason == Reason.ITEM_KEY_UNDEFINED
