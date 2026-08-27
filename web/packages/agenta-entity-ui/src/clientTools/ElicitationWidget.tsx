@@ -1,51 +1,34 @@
 /**
- * Elicitation widget (interaction kinds M1) — renders a `render.kind: "elicitation"` client tool
- * as an inline form: the payload's flat JSON schema (MCP elicitation dialect) draws antd fields,
- * Accept validates and settles `{action: "accept", content}`, Decline/Dismiss settle their
- * structured actions, and every settled state replays as a single-line chip. All contract logic
- * (validation, envelopes, serialization, states) lives in @agenta/shared — this file is wiring.
+ * The transcript row for a `render.kind: "elicitation"` client tool.
+ *
+ * PASSIVE. The docked card above the composer owns the questions, the answers and every settle
+ * (@agenta/chat `ElicitationDock`); this row only marks that the agent asked, and replays what was
+ * answered. It settles NOTHING — not even a degradation. That used to live here and fired on any
+ * mount whose input failed to parse, including a still-streaming one, which killed requests that
+ * were about to work; the dock now owns it behind an "input has actually arrived" guard.
+ *
+ * Deliberately free of antd, dayjs, SchemaForm and ShortcutHint. The old inline card pulled all four
+ * in, and its two whole-tree `Form.useWatch([])` subscriptions re-rendered the transcript on every
+ * keystroke — a named cause of the jitter the docked card exists to remove. Keep this file at plain
+ * React plus @agenta/ui.
+ *
  * Contract: docs/design/agent-chat-interaction-kinds/decisions.md
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useMemo, useState} from "react"
 
 import {
     type ClientToolWidgetProps as ClientToolHandlerProps,
     isInteractionEndedOutput,
 } from "@agenta/shared/clientTools"
-import {useModifierKey} from "@agenta/shared/hooks"
 import {
-    type ElicitationResult,
-    buildAcceptResult,
-    buildCancelResult,
-    buildDeclineResult,
-    buildDegradationErrorText,
-    buildFormFieldsFromSchema,
+    buildElicitationSteps,
     deriveElicitationPartState,
+    formatStepValue,
     parseElicitationPayload,
-    partitionElicitationDraft,
-    serializeElicitationContent,
+    parseSecretRefusal,
 } from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
-import {ShortcutHint} from "@agenta/ui/rich-chat-input"
-import {Button, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
-// DELIBERATE RESIDUE — antd `Form` stays: it is SchemaForm's cross-package state engine
-// (registration, rules, useWatch); see the matching note in @agenta/entity-ui SchemaForm.
-import {Form} from "antd"
-import dayjs from "dayjs"
-
-import {
-    SchemaForm,
-    type SchemaFormHandle,
-    type StepInfo,
-    formatReviewValue,
-} from "@agenta/entity-ui/gatewayTool"
-
-/** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
-const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>
-
-/** In-progress field values survive a reload (localStorage draft keyed by the toolCallId). */
-const draftKeyFor = (toolCallId: string) => `agenta:elicitation-draft:${toolCallId}`
 
 /** Settled/parked single-line chip — one chrome for every terminal state (design: settled chip). */
 const Chip = ({
@@ -71,20 +54,17 @@ const Chip = ({
 
 /** Settled accept state — collapsible chip that reveals the submitted answers on click. */
 const SubmittedAnswers = ({
-    schema,
+    payload,
     content,
     message,
 }: {
-    schema: Record<string, unknown>
+    payload: Parameters<typeof buildElicitationSteps>[0]
     content: Record<string, unknown>
     message: string
 }) => {
     const [open, setOpen] = useState(false)
-    const fields = useMemo(
-        () => buildFormFieldsFromSchema(schema, "", {formats: true, openEnums: true}),
-        [schema],
-    )
-    const answered = fields.filter((f) => content[f.name] !== undefined && content[f.name] !== "")
+    const steps = useMemo(() => buildElicitationSteps(payload).steps, [payload])
+    const answered = steps.filter((step) => content[step.name] !== undefined)
     return (
         <div className="flex min-w-0 flex-col py-1">
             <button
@@ -104,13 +84,16 @@ const SubmittedAnswers = ({
             {answered.length > 0 ? (
                 <HeightCollapse open={open}>
                     <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
-                        {answered.map((f) => (
-                            <div key={f.name} className="flex items-baseline justify-between gap-3">
+                        {answered.map((step) => (
+                            <div
+                                key={step.name}
+                                className="flex items-baseline justify-between gap-3"
+                            >
                                 <span className="shrink-0 text-xs text-colorTextSecondary">
-                                    {f.label}
+                                    {step.label}
                                 </span>
                                 <span className="max-w-[70%] truncate text-right text-xs text-colorText">
-                                    {formatReviewValue(f, content[f.name])}
+                                    {formatStepValue(step, content[step.name])}
                                 </span>
                             </div>
                         ))}
@@ -121,97 +104,8 @@ const SubmittedAnswers = ({
     )
 }
 
-const ElicitationWidget = ({
-    meta,
-    settle,
-    degradedEarlierInTurn,
-    askerLabel,
-}: ClientToolHandlerProps) => {
-    const [form] = Form.useForm()
-    const formRef = useRef<SchemaFormHandle>(null)
-    const modifierKey = useModifierKey()
-    const [submitting, setSubmitting] = useState(false)
-    const [stepInfo, setStepInfo] = useState<StepInfo | null>(null)
-    // ⌘↵ only reaches this widget while focus lives inside it. Track that so the hint shows
-    // exactly when the shortcut works — a stepper auto-focuses; other forms once the user engages.
-    const [formFocused, setFormFocused] = useState(false)
-
+const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps) => {
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
-
-    // Accept stays disabled until every required question has an answer — a dominant, always-
-    // enabled primary invites submitting unfinished forms. Defaults count, so a fully-prefilled
-    // form is born ready (one-click accept). Decline/Dismiss stay available until a settle starts.
-    const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
-    const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
-    const missingRequired = requiredNames.filter((name) => {
-        const v = watchedValues?.[name]
-        return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)
-    })
-    const requiredReady = missingRequired.length === 0
-
-    // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
-    // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
-    const parked = !parsed.ok && degradedEarlierInTurn === true
-    const settledRef = useRef(false)
-    useEffect(() => {
-        if (parsed.ok || parked || settledRef.current || meta.settled) return
-        settledRef.current = true
-        settle({errorText: buildDegradationErrorText(parsed.reason)})
-    }, [parsed, parked, meta.settled, settle])
-
-    // Draft persistence: typed values live only in antd Form state, so a reload would lose them.
-    const draftKey = draftKeyFor(meta.toolCallId)
-    const clearDraft = () => {
-        try {
-            localStorage.removeItem(draftKey)
-        } catch {
-            // storage unavailable — drafts are best-effort
-        }
-    }
-    const persistDraft = (values: Record<string, unknown>) => {
-        try {
-            localStorage.setItem(draftKey, JSON.stringify(values))
-        } catch {
-            // storage unavailable — drafts are best-effort
-        }
-    }
-    // One settle per card: `meta.settled` only flips after an awaited record write, so without this
-    // latch a Decline landing on an in-flight Accept sends a second answer for the same tool call.
-    const settlingRef = useRef(false)
-    const settleAndClear: typeof settle = (
-        args: {output: Record<string, unknown>} | {errorText: string},
-    ) => {
-        if (settlingRef.current) return
-        settlingRef.current = true
-        setSubmitting(true)
-        clearDraft()
-        // Split by shape: `settle` is overloaded, so the union has to be narrowed to pick one.
-        if ("errorText" in args) {
-            settle(args)
-        } else {
-            settle(args)
-        }
-    }
-    const restoredRef = useRef(false)
-    useEffect(() => {
-        if (restoredRef.current || !parsed.ok || parked || meta.settled) return
-        restoredRef.current = true
-        try {
-            const raw = localStorage.getItem(draftKey)
-            if (!raw) return
-            const {plain, dates} = partitionElicitationDraft(
-                parsed.payload,
-                JSON.parse(raw) as Record<string, unknown>,
-            )
-            // DatePicker rejects strings — revive persisted ISO strings to dayjs.
-            form.setFieldsValue({
-                ...plain,
-                ...Object.fromEntries(Object.entries(dates).map(([k, v]) => [k, dayjs(v)])),
-            })
-        } catch {
-            // unreadable draft — fall back to schema defaults
-        }
-    }, [parsed, parked, meta.settled, draftKey, form])
 
     const partState = deriveElicitationPartState({
         state: meta.state,
@@ -221,6 +115,7 @@ const ElicitationWidget = ({
 
     // Settled replays: chip copy comes from the envelope (`humanFriendlyMessage`), never re-resolved.
     if (partState !== "pending") {
+        // An abandoned session's unsettled client tools are stamped with this on replay.
         if (isInteractionEndedOutput(meta.output)) {
             return (
                 <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
@@ -241,11 +136,7 @@ const ElicitationWidget = ({
                     : {}
             const message = envelopeMessage ?? "Provided the requested input."
             return parsed.ok && Object.keys(content).length > 0 ? (
-                <SubmittedAnswers
-                    schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
-                    content={content}
-                    message={message}
-                />
+                <SubmittedAnswers payload={parsed.payload} content={content} message={message} />
             ) : (
                 <Chip
                     icon={
@@ -280,164 +171,52 @@ const ElicitationWidget = ({
                     {envelopeMessage ?? "Dismissed the request."}
                 </Chip>
             )
+        return <DegradedChip reason={parsed.ok ? undefined : parsed.reason} />
+    }
+
+    // Pending but unrenderable: either the payload is still arriving, or the dock's degradation
+    // settle is in flight. Hold the row rather than returning null — a zero-height frame here shoved
+    // the transcript, and this is the branch the retry cap parks on.
+    if (!parsed.ok) {
+        if (degradedEarlierInTurn) return <DegradedChip reason={parsed.reason} />
         return (
-            <Chip
-                icon={<Warning size={13} weight="fill" className="shrink-0 text-colorWarning" />}
-                tone="warning"
-            >
-                Couldn’t render this request{parsed.ok ? "" : ` — ${parsed.reason}`}.
+            <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+                The agent is preparing a request…
             </Chip>
         )
     }
 
-    if (parked)
-        return (
-            <Chip
-                icon={<Warning size={13} weight="fill" className="shrink-0 text-colorWarning" />}
-                tone="warning"
-            >
-                This request needs attention — it couldn’t be rendered (
-                {parsed.ok ? "" : parsed.reason}).
-            </Chip>
-        )
-
-    if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
-
-    const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
-    // The composer dock and the turn's status line already say the run is parked on you. The
-    // dispatcher resolves the label, because the tool-display store lives in @agenta/chat and this
-    // package must not depend on it (see the layering note in ./registry.tsx).
-    const asker = askerLabel ? `Asked by ${askerLabel}` : null
-    const subtext = [asker, requiredCount > 0 ? `${requiredCount} required` : null]
-        .filter(Boolean)
-        .join(" · ")
-    const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
-
-    const handleAccept = async () => {
-        setSubmitting(true)
-        try {
-            const values = await form.validateFields()
-            const content = serializeElicitationContent(parsed.payload, values)
-            settleAndClear({
-                output: toOutput(buildAcceptResult(content, "Provided the requested input.")),
-            })
-            // Deliberately still submitting: the settle is fire-and-forget behind an awaited record
-            // write, so re-enabling here lets a second click fire a second settle.
-        } catch (err) {
-            // antd surfaces inline field errors; in stepper mode, jump to the failing question.
-            const first = (err as {errorFields?: {name: (string | number)[]}[]})?.errorFields?.[0]
-            if (first?.name) formRef.current?.goToField?.(first.name)
-            // The form is still open and answerable, so the button has to come back.
-            setSubmitting(false)
-        }
-    }
-
-    const inStepper = stepInfo?.isStepper === true && stepInfo.isReview === false
-    const handlePrimaryAction = () => {
-        if (inStepper) {
-            formRef.current?.next?.()
-            return
-        }
-        if (requiredReady && !submitting) void handleAccept()
-    }
-
+    // The tool's `message` is the agent's own framing and the only context it wrote, so it belongs
+    // here in the transcript rather than in the dock. No jump affordance: the dock is pinned above
+    // the composer and already on screen whenever it holds this call.
+    const count = buildElicitationSteps(parsed.payload).steps.length
     return (
-        <div
-            className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl"
-            onFocusCapture={() => setFormFocused(true)}
-            onBlurCapture={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                    setFormFocused(false)
-            }}
-            onKeyDownCapture={(event) => {
-                if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || event.repeat)
-                    return
-                event.preventDefault()
-                event.stopPropagation()
-                handlePrimaryAction()
-            }}
-        >
-            <div className="flex items-start gap-2">
-                <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
-                <div className="flex min-w-0 flex-col">
-                    <span className="text-xs text-colorText">{parsed.payload.message}</span>
-                    {/* Requester attribution (design D-spec); ours goes unnamed, the card IS the ask. */}
-                    {subtext ? (
-                        <span className="text-xs text-colorTextSecondary">{subtext}</span>
-                    ) : null}
-                </div>
-            </div>
-
-            <SchemaForm
-                ref={formRef}
-                schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
-                form={form}
-                formats
-                openEnums
-                stepper={stepperHint}
-                onValuesChange={persistDraft}
-                onStepChange={setStepInfo}
-            />
-
-            {/* ⌘↵ is advertised whenever it works: in a stepper (auto-focused) or in any form the
-                user has focused. Paging/pick hints are stepper-only. */}
-            {stepInfo && (stepInfo.isStepper || formFocused) ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5">
-                    {stepInfo.isStepper && stepInfo.canGoBack ? (
-                        <ShortcutHint keys={`${modifierKey} ←`} label="back" />
-                    ) : null}
-                    {stepInfo.isStepper && stepInfo.canGoNext ? (
-                        <ShortcutHint keys={`${modifierKey} →`} label="forward" />
-                    ) : null}
-                    {stepInfo.isStepper && stepInfo.pickable ? (
-                        <ShortcutHint keys="1–9" label="pick" />
-                    ) : null}
-                    <ShortcutHint keys={`${modifierKey} ↵`} label={inStepper ? "next" : "accept"} />
-                </div>
-            ) : null}
-
-            <div className="flex items-center gap-2">
-                {inStepper ? (
-                    <Button onClick={handlePrimaryAction}>Next</Button>
-                ) : (
-                    <LoadingButton
-                        loading={submitting}
-                        disabled={!requiredReady}
-                        title={
-                            requiredReady
-                                ? undefined
-                                : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
-                        }
-                        onClick={handlePrimaryAction}
-                    >
-                        Accept
-                    </LoadingButton>
-                )}
-                <Button
-                    variant="ghost"
-                    disabled={submitting}
-                    onClick={() =>
-                        settleAndClear({
-                            output: toOutput(buildDeclineResult("Declined the request.")),
-                        })
-                    }
-                >
-                    Decline
-                </Button>
-                <Button
-                    variant="ghost"
-                    className="ml-auto opacity-60"
-                    disabled={submitting}
-                    onClick={() =>
-                        settleAndClear({
-                            output: toOutput(buildCancelResult("Dismissed the request.")),
-                        })
-                    }
-                >
-                    Dismiss
-                </Button>
-            </div>
+        <div className="flex min-w-0 items-start gap-2 py-1">
+            <Question size={13} className="mt-0.5 shrink-0 text-colorTextTertiary" />
+            <span className="line-clamp-2 min-w-0 text-xs text-colorTextSecondary">
+                {parsed.payload.message}
+                <span className="text-colorTextTertiary">
+                    {" "}
+                    · {count} {count === 1 ? "question" : "questions"} · answering below
+                </span>
+            </span>
         </div>
+    )
+}
+
+/** A payload the dialect refused. The secret-shaped case gets the reason spelled out, because the
+ * dock's own refusal panel disappears with the dock and this row is the durable explanation. */
+const DegradedChip = ({reason}: {reason?: string}) => {
+    const secret = reason ? parseSecretRefusal(reason) : null
+    return (
+        <Chip
+            icon={<Warning size={13} weight="fill" className="shrink-0 text-colorWarning" />}
+            tone="warning"
+        >
+            {secret
+                ? `This request asked for an ${secret.property} — forms never carry secrets. Connect the credential instead.`
+                : `Couldn’t render this request${reason ? ` — ${reason}` : ""}.`}
+        </Chip>
     )
 }
 

@@ -246,6 +246,22 @@ export {
     type ElicitationResult,
 } from "./elicitation"
 
+// The question form as ordered steps — the docked card's model
+export {
+    buildElicitationSteps,
+    collectStepContent,
+    formatStepValue,
+    initialStepValues,
+    isStepAnswered,
+    parseSecretRefusal,
+    parseStepValue,
+    validateStep,
+    type ElicitationForm,
+    type ElicitationStep,
+    type ElicitationStepKind,
+    type ElicitationStepOption,
+} from "./elicitationSteps"
+
 // Polling utilities
 export {shortPoll} from "./shortPoll"
 
