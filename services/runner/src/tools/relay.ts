@@ -136,6 +136,16 @@ export function relayPollDelayMs(idlePolls: number): number {
 const PAUSED = Symbol("paused");
 
 /**
+ * A GATEWAY approval parked, as distinct from a client tool parking.
+ *
+ * The two differ in one way that matters to the relay: a client tool on Pi parks through Pi's own
+ * extension and wants no answer file, while a gateway call is blocked inside the extension's
+ * `relayToolCall` and must be answered or the turn cannot end. Distinguishing them here keeps
+ * that rule in the loop that writes the answer, rather than as a flag threaded through the seam.
+ */
+const GATEWAY_PAUSED = Symbol("gateway-paused");
+
+/**
  * A call the runner REFUSED, carrying the reason the model must read.
  *
  * Refusals used to travel as an ordinary return string, so the relay wrote `{ok: true, text}` and
@@ -427,7 +437,7 @@ async function executeRelayedTool(
   authorizer: RelayExecutionAuthorizer | undefined,
   gateway: GatewaySeam,
   log: ((msg: string) => void) | undefined,
-): Promise<string | RelayRefusal | typeof PAUSED> {
+): Promise<string | RelayRefusal | typeof PAUSED | typeof GATEWAY_PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
@@ -491,7 +501,7 @@ async function executeRelayedTool(
     if (verdict.kind === "deny") return new RelayRefusal(verdict.reason);
     if (verdict.kind === "pendingApproval") {
       gateway.gate.onPause?.();
-      return PAUSED;
+      return GATEWAY_PAUSED;
     }
     resolved = {
       kind: "run",
@@ -867,11 +877,23 @@ export function startToolRelay(
         // throws on it and the MCP shim turns that into `isError: true` with the reason, so the
         // model reads a refusal as a refusal rather than as an empty success.
         res = { ok: false, error: text.reason };
-      } else if (text === PAUSED) {
-        // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so
-        // it ends its blocking `tools/call` at once instead of waiting out the per-tool timeout and
-        // emitting a late error frame (see ClientToolPauseDisposition).
-        if (!writePausedAnswer) return;
+      } else if (text === PAUSED || text === GATEWAY_PAUSED) {
+        // A gateway approval ALWAYS answers, on every harness — that is the difference from a
+        // client-tool park, and it is deliberate.
+        //
+        // A client tool on Pi parks through Pi's own extension, so the relay writing nothing is
+        // correct there. A gateway call does NOT: it is executing inside the extension's
+        // `relayToolCall`, which blocks on this very file. With no answer the wait runs to
+        // `RELAY_TIMEOUT_MS`, and the prompt cannot resolve until it returns — measured live at
+        // 59s and 135s between the approval card and `stopReason=paused`, against ~30-50ms for
+        // the two pause kinds that work. The run request stays open for that whole window, which
+        // is what the client eventually reports as a failed run.
+        //
+        // The answer is not a success. On Pi it reaches `assertNotPaused` in `dispatch.ts`, which
+        // throws — so the model sees an error for a call that did not run, never a result. The
+        // non-Pi shim already received this same answer before this change (its disposition
+        // writes one), and the local loopback turns it into `MCP_PAUSED`.
+        if (text === PAUSED && !writePausedAnswer) return;
         res = { ok: true, paused: true };
       } else {
         res = { ok: true, text };

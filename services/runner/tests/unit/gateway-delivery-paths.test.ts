@@ -19,13 +19,25 @@ import assert from "node:assert/strict";
 import { createInteraction } from "../../src/sessions/interactions.ts";
 import { runResolvedToolAllowingPause } from "../../src/tools/dispatch.ts";
 import { RELAY_PAUSED } from "../../src/tools/relay-client.ts";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import {
+  localRelayHost,
+  startToolRelay,
+  RELAY_RES_SUFFIX,
+} from "../../src/tools/relay.ts";
+import {
+  CLIENT_TOOL_SPEC,
   RUN_TOOL_SPEC,
+  TOOL_CALLBACK,
   cleanupRelayDirs,
   forgeRelayRequest,
+  makeRelayDir,
   readRelayResponse,
   startGatewayRelay,
   stubToolCall,
+  until,
 } from "../utils/gateway.ts";
 
 const realFetch = globalThis.fetch;
@@ -224,6 +236,113 @@ describe("R13: a forged ask raises a real approval and pauses the turn", () => {
         "a real pause must not surface to the harness as a failed tool call",
       );
       assert.equal(relay.harness.pauses, 1);
+    } finally {
+      await relay.stop();
+    }
+  });
+});
+
+/**
+ * A park must not hold the caller's relay wait open.
+ *
+ * The gateway call executes INSIDE the caller's `relayToolCall`, which blocks on the response
+ * file. If the park writes nothing, that wait runs to `RELAY_TIMEOUT_MS` (60s) and the prompt
+ * cannot resolve until it returns — measured live at 59s and 135s between the approval card and
+ * `stopReason=paused`, against ~30-50ms for the two pause kinds that work. The run request stays
+ * open for that whole window, which is what the client reports as a failed run.
+ *
+ * A client-tool park on Pi is the opposite case and must stay as it is: it parks through Pi's own
+ * extension, so writing an answer there would be wrong. Both halves are asserted, because the fix
+ * is precisely that the two stopped being treated the same.
+ */
+describe("a gateway park answers the caller immediately", () => {
+  it("writes the paused answer even when the disposition says not to (Pi)", async () => {
+    // `writePausedAnswer: false` is the Pi disposition — the one that used to hang.
+    const relay = await startGatewayRelay({ writePausedAnswer: false });
+    const calls = stubToolCall({ created: true });
+    try {
+      const started = Date.now();
+      await forgeRelayRequest(relay.dir, "park-1", {
+        integration: "github",
+        tool: "CREATE_ISSUE",
+        arguments: { title: "bug" },
+      });
+      const response = await readRelayResponse(relay.dir, "park-1");
+      const elapsed = Date.now() - started;
+
+      assert.deepEqual(response, { ok: true, paused: true });
+      assert.ok(
+        elapsed < 2_000,
+        `the caller must be answered promptly, not after the relay timeout (took ${elapsed}ms)`,
+      );
+      assert.equal(calls.bodies.length, 0, "and the call still did not run");
+      assert.equal(relay.harness.pauses, 1, "the turn still parked");
+    } finally {
+      await relay.stop();
+    }
+  });
+
+  it("the answer is not a success the model can act on", async () => {
+    // `{ok: true, paused: true}` carries no `text`. On Pi it reaches `assertNotPaused` in
+    // dispatch.ts, which throws, so the model sees an error for a call that did not run — never
+    // a result. This pins the shape that guarantee rests on.
+    const relay = await startGatewayRelay({ writePausedAnswer: false });
+    stubToolCall({ created: true });
+    try {
+      await forgeRelayRequest(relay.dir, "park-2", {
+        integration: "github",
+        tool: "CREATE_ISSUE",
+        arguments: { title: "bug" },
+      });
+      const response = await readRelayResponse(relay.dir, "park-2");
+
+      assert.equal(response.paused, true);
+      assert.equal(
+        (response as { text?: string }).text,
+        undefined,
+        "a paused answer must carry no result text",
+      );
+    } finally {
+      await relay.stop();
+    }
+  });
+
+  it("a client-tool park on Pi still writes nothing", async () => {
+    // Unchanged on purpose: Pi parks a client tool through its own extension.
+    const dir = makeRelayDir();
+    let paused = 0;
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [CLIENT_TOOL_SPEC],
+      TOOL_CALLBACK,
+      undefined,
+      {
+        onClientTool: async () => "pendingApproval",
+        onPause: () => {
+          paused += 1;
+        },
+      },
+      undefined,
+      { writePausedAnswer: false },
+    );
+    await relay.ready;
+    try {
+      await forgeRelayRequest(
+        dir,
+        "client-park",
+        { integration: "slack" },
+        CLIENT_TOOL_SPEC.name,
+      );
+      await until(() => paused > 0, "the client-tool park");
+      // Give the loop room to write an answer if it were going to.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      assert.equal(
+        existsSync(join(dir, `client-park${RELAY_RES_SUFFIX}`)),
+        false,
+        "Pi's client-tool park must still write no answer file",
+      );
     } finally {
       await relay.stop();
     }
