@@ -23,9 +23,7 @@ type Reference = { id?: string; slug?: string; version?: string };
  * reference lists evaluation runs already store.
  */
 export type ReferenceKey =
-  | "workflow"
-  | "workflow_variant"
-  | "workflow_revision";
+  "workflow" | "workflow_variant" | "workflow_revision";
 
 /**
  * A reference that still says which entity it names after it leaves the keyed map. Stored
@@ -367,9 +365,20 @@ export function seedDecisionMap(
   seeded: readonly SeededDecision[],
 ): SeededDecision[] {
   const adopted: SeededDecision[] = [];
+  // Snapshot the TRANSCRIPT's keys before appending anything. Testing `map.has` as we go would
+  // make this loop's own first append look like history, so a second decision under the same
+  // key would be dropped again — the bug surviving its own fix.
+  const fromTranscript = new Set(map.keys());
   for (const entry of seeded) {
-    if (map.has(entry.key)) continue;
-    map.set(entry.key, [entry.decision]);
+    if (fromTranscript.has(entry.key)) continue;
+    // Append rather than replace. The decision store is a FIFO LIST per key precisely so two
+    // identical calls each resolve (`extractApprovalDecisions` pushes for the same reason), and
+    // the seeded path was the only one collapsing a key to a single decision. Two identical
+    // calls could each claim a durable row while only one answer reached the map, so the second
+    // call asked the human again for something they had already answered.
+    const decisions = map.get(entry.key) ?? [];
+    decisions.push(entry.decision);
+    map.set(entry.key, decisions);
     adopted.push(entry);
   }
   return adopted;

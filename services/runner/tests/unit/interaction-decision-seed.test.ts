@@ -311,6 +311,37 @@ describe("seedDecisionMap", () => {
     assert.deepEqual(taken, { decision: "deny", interactionToken: "tok-1" });
   });
 
+  it("keeps BOTH decisions when two identical calls were each answered", () => {
+    // Two identical calls both park, both get answered out of band, and
+    // `loadDurableDecisions` claims both rows. The store is a FIFO list per key exactly so two
+    // identical calls each resolve, but the seeded path used to `set` a single-element array —
+    // so the first call consumed the only decision and the second asked the human again for
+    // something they had already answered, with its row already terminal.
+    const map = new Map<string, unknown[]>();
+    const adopted = seedDecisionMap(
+      map,
+      decisionsFromInteractionRows([row(), row({ token: "tok-2" })]),
+    );
+    const gate = { executor: "relay" as const, toolName: "run_tool", args };
+    const decisions = new ConversationDecisions(map);
+
+    assert.equal(
+      adopted.length,
+      2,
+      "both claimed rows are reported as adopted",
+    );
+    assert.deepEqual(decisions.take(gate), {
+      decision: "allow",
+      interactionToken: "tok-1",
+    });
+    assert.deepEqual(
+      decisions.take(gate),
+      { decision: "allow", interactionToken: "tok-2" },
+      "the second identical call is answered by the second row, in row order",
+    );
+    assert.equal(decisions.take(gate), undefined, "and only twice");
+  });
+
   it("keeps the in-band envelope when a row names the same call", () => {
     const key = approvedCallKey("run_tool", args)!;
     const history = new Map<string, unknown[]>([[key, ["deny"]]]);
