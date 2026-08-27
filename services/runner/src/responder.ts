@@ -6,6 +6,8 @@
  * permission plan; adapters decide how to express each verdict on their own wire.
  */
 
+import { createHash } from "node:crypto";
+
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
@@ -80,6 +82,40 @@ export function approvedCallKey(
   const hash = stableArgsHash(args);
   if (hash === undefined) return undefined;
   return `${shape.toolName}#${hash}`;
+}
+
+/**
+ * The log-safe stand-in for an approval key.
+ *
+ * `approvedCallKey` embeds the FULL canonical arguments, so logging it put message bodies,
+ * recipient addresses and anything else a caller passed into the runner log — content the
+ * run's own deny-set never touches, because that set holds credentials and not user data.
+ *
+ * A digest keeps the whole diagnostic the key was logged for: the question is only ever
+ * whether the gate's key equals a stored one, and two digests differ exactly when the keys
+ * do. Both sides MUST digest through this one helper — a second implementation that drifts
+ * would report a mismatch that is an artifact of the logging rather than a real one.
+ */
+export function approvalKeyDigest(key: string | undefined): string {
+  if (!key) return "none";
+  return createHash("sha256").update(key).digest("hex").slice(0, 12);
+}
+
+/**
+ * The top-level argument names of a gated call, sorted, with no values.
+ *
+ * Narrow on purpose. The failure this is here to separate is identity drift — a stored key
+ * built from the INNER arguments while the gate asks with the OUTER ones — which a bare
+ * digest cannot distinguish from an ordinary miss. `integration,tool,arguments` against
+ * `body,recipient_email,subject` says which world each side is in at a glance. It does NOT
+ * recurse: deeper names are provider parameters and carry no diagnostic value here.
+ */
+export function topLevelArgNames(input: unknown): string[] {
+  const shape = storedDecisionKeyShape(undefined, input);
+  const args = shape.args;
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return [];
+  return Object.keys(args as Record<string, unknown>).sort();
 }
 
 /**
@@ -411,7 +447,9 @@ export function extractApprovalDecisions(
   }
   log?.(
     `[HITL] approval extract envelopes=${envelopes} keyed=${decisions.size} ` +
-      `unkeyable=${unkeyable} keys=${JSON.stringify([...decisions.keys()])}`,
+      `unkeyable=${unkeyable} keys=${JSON.stringify(
+        [...decisions.keys()].map(approvalKeyDigest),
+      )}`,
   );
   return decisions;
 }

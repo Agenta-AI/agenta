@@ -27,7 +27,12 @@ import {
   type GateDescriptor,
   type PermissionPlan,
 } from "../../permission-plan.ts";
-import { approvedCallKey, type Responder } from "../../responder.ts";
+import {
+  approvalKeyDigest,
+  approvedCallKey,
+  topLevelArgNames,
+  type Responder,
+} from "../../responder.ts";
 import { declinedByUserText } from "../../tools/denial-text.ts";
 import {
   gatewayToolUnavailableText,
@@ -93,7 +98,8 @@ export function buildGatewayToolGate({
       // the outcome alone, and a re-park looks identical either way.
       log(
         `[gateway] approval key target=${plan.display} ` +
-          `key=${JSON.stringify(approvedCallKey(request.toolName, request.input))}`,
+          `key=${approvalKeyDigest(approvedCallKey(request.toolName, request.input))} ` +
+          `argKeys=[${topLevelArgNames(request.input).join(",")}]`,
       );
       const verdict = await responder.onPermission({
         id: request.id,
