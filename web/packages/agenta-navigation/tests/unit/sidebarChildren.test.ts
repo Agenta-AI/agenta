@@ -6,6 +6,7 @@ import {describe, expect, it} from "vitest"
 import {
     defineSidebarEntity,
     livePollInterval,
+    agentRanksFromRows,
     localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
@@ -282,10 +283,12 @@ describe("sidebarSessionGroup", () => {
             key: "pinned",
             label: "Pinned",
         })
-        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toMatchObject({
-            key: "pinned",
-            label: "Pinned",
-        })
+        expect(sidebarSessionGroup(row({pinned: true, agentId: "a1"}), "agent", NOW)).toMatchObject(
+            {
+                key: "pinned",
+                label: "Pinned",
+            },
+        )
     })
 
     // The headings are sorted on this rank. Working in a session reorders the ROWS, and used to
@@ -365,7 +368,6 @@ describe("withRefsByRecency", () => {
         expect(withRefsByRecency(loading, () => 1)).toBe(loading)
     })
 })
-
 
 // The rail's filters are server predicates, and a host-contributed row never went through the
 // query — so each one has to be re-applied here or the row survives a filter that hid its peers.
@@ -452,15 +454,13 @@ describe("localSessionRefsMatching", () => {
     })
 })
 
-
 // The baseline is the half that is easy to lose: without it the rail can only ever show the run
 // you started yourself, because a turn under another agent reaches this client through the poll.
 describe("livePollInterval", () => {
     // Only `flags` is read; the rest of a SessionStream is irrelevant here.
     const rows = (...flags: {is_alive?: boolean; is_running?: boolean}[]) =>
-        flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<
-            typeof livePollInterval
-        >[0] & object[]
+        flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<typeof livePollInterval>[0] &
+            object[]
 
     it("polls fast while a session is alive or running", () => {
         expect(livePollInterval(rows({is_alive: true}))).toBe(15_000)
@@ -473,7 +473,6 @@ describe("livePollInterval", () => {
         expect(livePollInterval(null)).toBe(60_000)
     })
 })
-
 
 // The seam the Agents group is ordered through: ranks live in an atom the entity names, so the
 // registry can reorder any catalog without knowing what it holds.
@@ -496,5 +495,41 @@ describe("defineSidebarEntity ranksAtom", () => {
 
     it("leaves it undefined for an entity that does not rank", () => {
         expect(defineSidebarEntity("main", "prompts", config).ranksAtom).toBeUndefined()
+    })
+})
+
+
+// Agent ranks come from an UNFILTERED query so a session filter cannot reorder the Agents group.
+// The rows arrive newest-first, so an agent's first row is its most recent.
+describe("agentRanksFromRows", () => {
+    const row = (id: string, agent: string, updatedAt: string) =>
+        ({
+            session_id: id,
+            references: [{id: agent, key: "workflow"}],
+            updated_at: updatedAt,
+        }) as unknown as Parameters<typeof agentRanksFromRows>[0][number]
+
+    // Real UUIDs: `sessionOpenTarget` rejects a non-UUID reference id.
+    const A1 = "01a03ed2-c322-7493-b2a2-29b8ae273530"
+    const A2 = "01a03ed2-c322-7493-b2a2-29b8ae273531"
+
+    it("takes each agent's most recent row and skips the rest", () => {
+        const ranks = agentRanksFromRows([
+            row("s1", A1, "2026-08-20T10:00:00Z"),
+            row("s2", A2, "2026-08-19T10:00:00Z"),
+            row("s3", A1, "2026-08-10T10:00:00Z"),
+        ])
+
+        expect(ranks.get(A1)).toBe(Date.parse("2026-08-20T10:00:00Z"))
+        expect(ranks.get(A2)).toBe(Date.parse("2026-08-19T10:00:00Z"))
+        expect(ranks.size).toBe(2)
+    })
+
+    it("ignores a row that names no agent", () => {
+        const orphan = {session_id: "x", references: []} as unknown as Parameters<
+            typeof agentRanksFromRows
+        >[0][number]
+
+        expect(agentRanksFromRows([orphan]).size).toBe(0)
     })
 })

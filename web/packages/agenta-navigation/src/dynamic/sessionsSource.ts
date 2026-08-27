@@ -671,32 +671,57 @@ const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
 }
 
 /**
- * `agentId -> when it was last used`, in ms, off the sessions the rail already holds.
+ * Every agent's most recent session, UNFILTERED — the query that ranks the Agents group.
+ *
+ * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
+ * off it let a filter (one agent, one status, a narrower window) reorder the Agents group — a
+ * filter is not a use. Project-scoped, origin-agnostic, no activity floor, so an agent's rank is
+ * its true last activity. Low-priority and un-polled: agent order shifts when you USE an agent,
+ * which the rail's other queries already surface; a slow list does not need its own heartbeat.
+ * Gated like the facet, so a closed Sessions group fetches nothing.
+ */
+const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionStream[] | null>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["sidebar-agent-activity", projectId],
+            queryFn: ({signal}) =>
+                querySessions({
+                    projectId: projectId ?? "",
+                    includeArchived: false,
+                    limit: scopeLimit(scopeId),
+                    order: "descending",
+                    abortSignal: signal,
+                    lowPriority: true,
+                }),
+            enabled: Boolean(projectId) && sessionsGroupOpen(get, scopeId),
+            staleTime: 60_000,
+            refetchOnWindowFocus: true,
+        }
+    }),
+)
+
+/**
+ * `agentId -> when it was last used`, in ms, ranking the Agents group by recency.
  *
  * "Used" means a session ran, which is the product's own definition of agent activity (the home
- * roster reads the agent's most recent session). Derived rather than fetched: a timestamp per
- * agent would otherwise be one request each, and the rail has the sessions in hand.
- *
- * The catch, accepted deliberately: these sessions carry the rail's FILTERS and its activity
- * window, so narrowing to one agent or one status leaves the others without a timestamp and they
- * fall back to catalog order. The alternative is a second unfiltered query per project.
+ * roster reads the agent's most recent session). Server-ordered newest-first, so the FIRST row an
+ * agent owns is its most recent — later ones for the same agent are skipped.
  */
+export const agentRanksFromRows = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
+    const lastUsed = new Map<string, number>()
+    for (const row of rows) {
+        const agentId = sessionOpenTarget(row)?.appId
+        // First wins: the rows are newest-first, so an agent's first row is its most recent.
+        if (!agentId || lastUsed.has(agentId)) continue
+        const at = new Date(row.updated_at ?? row.created_at ?? 0).getTime()
+        if (Number.isFinite(at) && at > 0) lastUsed.set(agentId, at)
+    }
+    return lastUsed
+}
+
 export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) => {
-        const lastUsed = new Map<string, number>()
-        // GATED like the facet below: this is the Agents group reading the SESSIONS list, and an
-        // ungated read subscribes those queries from a rail whose Sessions group is closed — which
-        // is the polling the group's own gate exists to stop. Empty means catalog order.
-        if (!sessionsGroupOpen(get, scopeId)) return lastUsed
-        for (const ref of get(sidebarSessionRefsAtomFamily(scopeId))) {
-            if (!ref.agentId || !ref.activityAt) continue
-            const at = new Date(ref.activityAt).getTime()
-            if (!Number.isFinite(at)) continue
-            const current = lastUsed.get(ref.agentId)
-            if (current === undefined || at > current) lastUsed.set(ref.agentId, at)
-        }
-        return lastUsed
-    }),
+    atom((get) => agentRanksFromRows(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 
 /**
