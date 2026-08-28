@@ -555,7 +555,10 @@ const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper
                     onClick={() => stepper.goTo(index)}
                     // `border-transparent` is load-bearing: the app's button reset paints a border,
                     // so a bare <button> here drew an outline around every row.
-                    className={`flex h-[30px] min-w-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
+                    // shrink-0 for the same reason the option rows carry it: these are flex
+                    // children of a capped column, so a long form squashed every row instead of
+                    // scrolling — at 25 answers they rendered 24px against a declared 30px.
+                    className={`flex h-[30px] min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
                         index === stepper.cursor ? "bg-colorFillSecondary" : ""
                     }`}
                 >
