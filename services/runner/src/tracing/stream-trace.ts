@@ -19,6 +19,8 @@ export const STREAM_TRACE_ENV = "AGENTA_RUNNER_STREAM_TRACE";
 export interface StreamTrace {
   /** One arriving delta. `kind` is `message` or `thought`; `chars` is the delta's length. */
   record(kind: string, chars: number): void;
+  /** A text or reasoning block ended, so the next delta of that kind starts a new cadence. */
+  closeBlock(kind: string): void;
 }
 
 export interface StreamTraceOptions {
@@ -46,6 +48,11 @@ export function createStreamTrace({
       write(
         `[stream-trace] harness=${harness ?? "?"} kind=${kind} gap_ms=${gap} chars=${chars}\n`,
       );
+    },
+    // A tool call closes the open block and can run for minutes. Without this, the first delta
+    // of the next block would report that tool's runtime as a token-cadence gap.
+    closeBlock(kind) {
+      previous.delete(kind);
     },
   };
 }

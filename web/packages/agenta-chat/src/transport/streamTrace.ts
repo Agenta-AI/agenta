@@ -1,13 +1,7 @@
 /**
- * Client end of the stream inter-arrival trace (the runner's `stream-trace.ts` is the other end).
- *
- * Frame capture measured the transcript gaining one word every ~400ms. `useTypewriter` makes that
- * read as continuous typing, but the two probes together are what say WHERE the 400ms is spent:
- * gaps already present at the runner are upstream of us, gaps that appear only here belong to the
- * service or the network in between.
- *
- * Opt-in, like the runner half — arm it with `window.__agentaStreamTrace.enable()` (persisted, so
- * it survives the reload) and read it with `window.__agentaStreamTrace()`.
+ * Client end of the stream inter-arrival trace; the runner's `stream-trace.ts` is the other end.
+ * Gaps present at the runner are upstream of us, gaps only seen here belong to the hops between.
+ * Opt-in: `window.__agentaStreamTrace.enable()`, then `window.__agentaStreamTrace()`.
  */
 
 /** Enough for a long turn; the oldest entry is overwritten rather than growing without bound. */
@@ -15,6 +9,9 @@ const RING_SIZE = 2000
 
 /** localStorage key that arms recording. The helper is always installed; recording is not. */
 export const STREAM_TRACE_KEY = "agenta:stream-trace"
+
+/** The only chunk kinds that carry visible prose. */
+const PROSE_DELTA_TYPES = new Set(["text-delta", "reasoning-delta"])
 
 interface StreamTraceEntry {
     /** `performance.now()` when the chunk reached the client. */
@@ -114,7 +111,10 @@ export const recordStreamChunk = (chunk: unknown): void => {
         currentTurn += 1
         return
     }
-    if (typeof delta !== "string" || !type.endsWith("-delta")) return
+    // An allowlist, not a `-delta` suffix test: the contract is prose only, and leaning on the
+    // fact that `tool-input-delta` happens to name its field `inputTextDelta` would make that
+    // contract depend on an SDK field name rather than on this line.
+    if (typeof delta !== "string" || !PROSE_DELTA_TYPES.has(type)) return
     ring[writeIndex] = {
         at: performance.now(),
         kind: type.slice(0, -"-delta".length),

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   createStreamTrace,
@@ -16,7 +16,13 @@ const withFlag = (value: string | undefined) => {
   else process.env[STREAM_TRACE_ENV] = value;
 };
 
-afterEach(() => withFlag(undefined));
+// The flag is a real environment variable, so an operator running the suite with it already set
+// would otherwise flip the off-by-default assertion. Clear it going in, restore it going out.
+const inherited = process.env[STREAM_TRACE_ENV];
+
+beforeEach(() => withFlag(undefined));
+
+afterEach(() => withFlag(inherited));
 
 describe("createStreamTrace", () => {
   it("is off unless the flag is set", () => {
@@ -54,6 +60,27 @@ describe("createStreamTrace", () => {
     expect(lines[1]).toBe(
       "[stream-trace] harness=pi kind=thought gap_ms=400 chars=7",
     );
+  });
+
+  /**
+   * A tool call closes the open block and can run for minutes. Counting that as a token gap
+   * would report a multi-minute cadence for a stream that never slowed down.
+   */
+  it("does not carry a gap across a closed block", () => {
+    withFlag("1");
+    const lines: string[] = [];
+    let clock = 0;
+    const trace = createStreamTrace({
+      write: (line) => lines.push(line.trim()),
+      now: () => clock,
+    });
+
+    trace?.record("message", 5);
+    clock = 60_000; // a tool ran here
+    trace?.closeBlock("message");
+    trace?.record("message", 5);
+
+    expect(lines[1]).toContain("gap_ms=-");
   });
 
   it("keeps message and thought cadence separate", () => {

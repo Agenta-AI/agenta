@@ -1580,12 +1580,14 @@ export function createSandboxAgentOtel(
     if (textBlockId === undefined) return;
     record({ type: "message_end", id: textBlockId });
     textBlockId = undefined;
+    streamTrace?.closeBlock("message");
   }
 
   function closeReasoning(): void {
     if (reasoningBlockId === undefined) return;
     record({ type: "thought_end", id: reasoningBlockId });
     reasoningBlockId = undefined;
+    streamTrace?.closeBlock("thought");
   }
 
   /** Open (if needed) the assistant text block and emit the pure delta up to `target`. */
@@ -1721,10 +1723,16 @@ export function createSandboxAgentOtel(
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
-      streamTrace?.record("message", t.length);
       // Pi streams pure deltas; Claude streams deltas plus a cumulative snapshot.
       // Replace when a chunk is a superset of what we have, append otherwise.
-      if (t.startsWith(accumulated)) accumulated = t;
+      const messageSnapshot = t.startsWith(accumulated);
+      // Measure the NEW tail, not the chunk: a snapshot provider would otherwise report the
+      // whole accumulated answer as this delta's size.
+      streamTrace?.record(
+        "message",
+        messageSnapshot ? t.length - accumulated.length : t.length,
+      );
+      if (messageSnapshot) accumulated = t;
       else accumulated += t;
       // Live deltas run independent of span emission (text, not a span), so they flow even
       // when the harness self-instruments (emitSpans=false). `accumulated` is the cumulative
@@ -1737,8 +1745,12 @@ export function createSandboxAgentOtel(
     if (kind === "agent_thought_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
-      streamTrace?.record("thought", t.length);
-      if (t.startsWith(reasoningAccumulated)) reasoningAccumulated = t;
+      const thoughtSnapshot = t.startsWith(reasoningAccumulated);
+      streamTrace?.record(
+        "thought",
+        thoughtSnapshot ? t.length - reasoningAccumulated.length : t.length,
+      );
+      if (thoughtSnapshot) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);
       return;

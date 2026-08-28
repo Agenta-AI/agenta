@@ -146,6 +146,29 @@ describe("useTypewriter", () => {
     })
 
     /**
+     * A part goes urgent when a later part renders below it, which is normally AFTER its last
+     * delta. If the deadline only moved on new text, the drain would keep the calm horizon and
+     * the ordering guarantee would not hold in the one case `urgent` was written for.
+     */
+    it("shortens an in-flight drain when the part goes urgent", () => {
+        const target = "z".repeat(60)
+        const {result, rerender} = renderHook(({t, u}) => useTypewriter(t, {urgent: u}), {
+            initialProps: {t: "", u: false},
+        })
+
+        rerender({t: target, u: false})
+        runFrames(2)
+        const calmProgress = result.current.text.length
+
+        // No new text; only the urgency changes, exactly as a tool card landing below would do.
+        rerender({t: target, u: true})
+        runFrames(2)
+        const urgentProgress = result.current.text.length - calmProgress
+
+        expect(urgentProgress).toBeGreaterThan(calmProgress)
+    })
+
+    /**
      * The acceptance case, replayed from the frame capture that motivated this: a reasoning
      * block gained "Research" at ~1.85s and "Ledger:" at ~2.25s — two paints 400ms apart. The
      * point of the hook is that the same arrivals become continuous motion.

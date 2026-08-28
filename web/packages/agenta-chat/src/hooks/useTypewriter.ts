@@ -135,8 +135,7 @@ export function useTypewriter(target: string, {urgent = false}: TypewriterOption
     // -Infinity so the first frame after new text reveals at once instead of waiting an interval.
     const lastRevealRef = useRef(-Infinity)
     const rafRef = useRef(0)
-    const horizonRef = useRef(TYPEWRITER_HORIZON_MS)
-    horizonRef.current = urgent ? TYPEWRITER_URGENT_HORIZON_MS : TYPEWRITER_HORIZON_MS
+    const horizon = urgent ? TYPEWRITER_URGENT_HORIZON_MS : TYPEWRITER_HORIZON_MS
 
     const stop = useCallback(() => {
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -181,11 +180,15 @@ export function useTypewriter(target: string, {urgent = false}: TypewriterOption
             return
         }
         if (shownRef.current >= target.length) return
-        deadlineRef.current = performance.now() + horizonRef.current
+        // `horizon` is a dependency, not a ref read: a part goes urgent the moment a later part
+        // renders below it, which is usually AFTER its last delta. Recomputing the deadline only
+        // on new text would leave that drain finishing on the calm horizon, so the guarantee
+        // `urgent` exists for would not hold in the one case it was written for.
+        deadlineRef.current = performance.now() + horizon
         if (!rafRef.current) rafRef.current = requestAnimationFrame(tick)
         // `text` is out of the deps on purpose: it changes every frame from `tick`, and this
         // effect reacts only to a new target. The check above reads the prefix `tick` last painted.
-    }, [target, reduced, settle, tick])
+    }, [target, horizon, reduced, settle, tick])
 
     // No "stream ended, show everything" path: snapping there would pop the last horizon of
     // every turn, the exact defect this removes. The loop drains itself; this frees it on unmount.
