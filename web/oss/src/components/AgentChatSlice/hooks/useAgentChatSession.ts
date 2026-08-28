@@ -31,9 +31,12 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
+    isResumeSend,
     playgroundController,
+    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
@@ -45,7 +48,6 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
@@ -142,7 +144,9 @@ export const useAgentChatSession = ({
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
+    // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
 
     const {
@@ -168,14 +172,15 @@ export const useAgentChatSession = ({
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) => {
-            const shouldDispatch = agentShouldResumeAfterApproval({
+        // Side-effect-free on purpose: the SDK reads `predicate(...) && !isError`, so a `true` here
+        // is a proposal it can still refuse. Consuming anything from inside would spend the gate on
+        // a request that never left. The marker is consumed where a send is a fact — see the effect
+        // on `status` below.
+        sendAutomaticallyWhen: ({messages}) =>
+            agentShouldResumeAfterApproval({
                 messages,
                 liveInteraction: liveGateInteractionRef.current,
-            })
-            if (shouldDispatch) liveGateInteractionRef.current = null
-            return shouldDispatch
-        },
+            }),
         // The turn's trace may not be ingested yet when the row asks for its summary —
         // marking it fresh lets the trace queries retry through the ingestion lag
         // (historical traces get no such grace; a 404 there means the trace is gone).
@@ -196,9 +201,12 @@ export const useAgentChatSession = ({
             invalidateSessionListQueries()
         },
         onError: (err) => {
-            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
-            // set freezes records adoption for this mount and can resume a stale gate much later.
-            liveGateInteractionRef.current = null
+            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
+            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
+            // stream ends — often by erroring, right here. `null` made that last evaluation return
+            // false and stranded the answer; `undefined` lets the tail heuristics decide.
+            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
+            liveGateInteractionRef.current = undefined
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
             console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
@@ -242,6 +250,37 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
+    /**
+     * Answer an approval: record the decision on the row the runner parked, THEN flip the part.
+     *
+     * Ordered, not raced. This hook dispatches no resume of its own — the park stream ends with a
+     * clean finish, so the SDK's `sendAutomaticallyWhen` sends it — but the flip is what lets the
+     * SDK dispatch, and that resume's stale sweep cancels rows still `pending`, this one included.
+     * Released early, the sweep reached the API first and cancelled the row being answered.
+     */
+    const answerApproval = useCallback(
+        (approvalId: string, approved: boolean) =>
+            recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: approvalId,
+                        resolution: approvalResolution(approvalId, approved),
+                    }),
+                release: () => addToolApprovalResponse({id: approvalId, approved}),
+            }),
+        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+    )
+
+    // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
+    // send is a fact, and never in the predicate, whose `true` the SDK can still refuse.
+    const previousStatusRef = useRef(status)
+    useEffect(() => {
+        const from = previousStatusRef.current
+        previousStatusRef.current = status
+        if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
+    }, [status])
+
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
     // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
@@ -252,7 +291,7 @@ export const useAgentChatSession = ({
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
             // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
             // row, so the answer has to be durable first. Capped inside the helper.
-            void recordAnswerThenResume({
+            void recordAnswerThenRelease({
                 record: () =>
                     recordInteractionAnswer({
                         sessionId,
@@ -265,7 +304,7 @@ export const useAgentChatSession = ({
                                 : {outcome: "completed", output: output ?? {}}),
                         },
                     }),
-                resume: () => {
+                release: () => {
                     if (errorText !== undefined) {
                         addToolOutput({
                             state: "output-error",
@@ -499,6 +538,7 @@ export const useAgentChatSession = ({
         handleStop,
         handleClientToolOutput,
         markLiveGate,
+        answerApproval,
         resumeOrphaned,
         isSeen,
     }

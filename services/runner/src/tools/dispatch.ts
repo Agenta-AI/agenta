@@ -44,10 +44,15 @@ export interface RunResolvedToolOpts {
 }
 
 /**
- * This dispatch path (the Pi extension and the local loopback MCP) never opts into the cold-pause
- * protocol — `writePausedAnswer` is off for Pi and the local MCP parks in-process — so a
- * `RELAY_PAUSED` reaching here is a contract violation. Fail loud rather than laundering the
- * sentinel into a string; only the in-sandbox shim handles a pause.
+ * The Pi extension never opts into the cold-pause protocol (`writePausedAnswer` is off for Pi),
+ * so a `RELAY_PAUSED` reaching IT is a contract violation. Fail loud rather than laundering the
+ * sentinel into a string.
+ *
+ * The local loopback MCP is different since the gateway gate: that gate lives at the relay seam,
+ * so a gateway `ask` parks BELOW this dispatch rather than in the loopback handler above it, and
+ * the pause has to travel back up. `runResolvedToolAllowingPause` is what that caller uses; it
+ * hands the sentinel on so the handler can answer with its own `MCP_PAUSED` instead of turning a
+ * real pause into a tool error.
  */
 function assertNotPaused(
   name: string,
@@ -67,12 +72,30 @@ function assertNotPaused(
  *  - `client` → relay to the runner so it can pause the browser-fulfilled call.
  *  - default/`callback` → relay through the runner when `opts.relayDir` is set (Daytona),
  *    else POST directly to `opts.endpoint`.
+ *
+ * A paused relay answer throws here. Use `runResolvedToolAllowingPause` to handle one instead.
  */
 export async function runResolvedTool(
   spec: ResolvedToolSpec,
   params: unknown,
   opts: RunResolvedToolOpts,
 ): Promise<string> {
+  return assertNotPaused(
+    spec.name,
+    await runResolvedToolAllowingPause(spec, params, opts),
+  );
+}
+
+/**
+ * `runResolvedTool`, but the caller handles a pause. Used by the local loopback MCP handler,
+ * which can answer a paused call with its own pause sentinel; every other caller wants the
+ * throw. See `assertNotPaused`.
+ */
+export async function runResolvedToolAllowingPause(
+  spec: ResolvedToolSpec,
+  params: unknown,
+  opts: RunResolvedToolOpts,
+): Promise<string | typeof RELAY_PAUSED> {
   assertRequiredArguments(spec, params);
   if (spec.kind === "code") {
     // Code execution was removed (F-010). A code tool is refused up front in `buildRunPlan`;
@@ -83,16 +106,13 @@ export async function runResolvedTool(
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
-      return assertNotPaused(
+      return relayToolCall(
+        opts.relayDir,
         spec.name,
-        await relayToolCall(
-          opts.relayDir,
-          spec.name,
-          opts.toolCallId,
-          params,
-          spec.timeoutMs,
-          opts.signal,
-        ),
+        opts.toolCallId,
+        params,
+        spec.timeoutMs,
+        opts.signal,
       );
     }
     throw new Error(
@@ -101,16 +121,13 @@ export async function runResolvedTool(
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return assertNotPaused(
+    return relayToolCall(
+      opts.relayDir,
       spec.name,
-      await relayToolCall(
-        opts.relayDir,
-        spec.name,
-        opts.toolCallId,
-        params,
-        spec.timeoutMs,
-        opts.signal,
-      ),
+      opts.toolCallId,
+      params,
+      spec.timeoutMs,
+      opts.signal,
     );
   }
   return callAgentaTool(

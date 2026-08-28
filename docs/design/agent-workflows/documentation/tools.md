@@ -96,6 +96,7 @@ because it is the seam between the two lives of a tool:
 | --- | --- | --- |
 | `builtin` | nothing (legacy, dropped with a warning) | (none; not a spec) |
 | `gateway` | `CallbackToolSpec` with a `call_ref` slug | `callback` |
+| `gateway_connection` | the shared `search_tools` and `run_tool` specs plus a private resolved policy | `callback` |
 | `code` | `CodeToolSpec` with secrets in `env` | `code` |
 | `client` | `ClientToolSpec` | `client` |
 | `reference` | `CallbackToolSpec` with a `workflow.{axis}.*` `call_ref` | `callback` |
@@ -115,11 +116,16 @@ files under `services/oss/src/agent/tools/` are shims:
 `resolver.py` re-exports the SDK's `resolve_tools`; `gateway.py` and
 `secrets.py` re-export the SDK platform adapters. The real composition is
 `resolve_tools` in `sdks/python/agenta/sdk/agents/platform/resolve.py`, which builds a
-`ToolResolver` (`sdks/python/agenta/sdk/agents/tools/resolver.py`) wired with two
+`ToolResolver` (`sdks/python/agenta/sdk/agents/tools/resolver.py`) wired with
 Agenta-platform adapters: `AgentaNamedSecretProvider` for secrets and
-`AgentaGatewayToolResolver` for gateway tools (both in
+`AgentaGatewayToolResolver` for both gateway resolver roles (both in
 `sdks/python/agenta/sdk/agents/platform/`). The SDK owns the generic algorithm; the platform
 adapters plug in the Agenta-specific HTTP calls. The SDK never imports the service.
+
+The two gateway roles are separate ports even though the Agenta adapter implements both.
+`GatewayToolResolver` resolves legacy one-entry-per-action declarations.
+`GatewayConnectionResolver` resolves integration-level declarations into the two shared
+runtime tools and a compiled `ResolvedGatewayPolicy`.
 
 Resolution runs per type:
 
@@ -155,7 +161,12 @@ Resolution runs per type:
   the tool from the Composio catalog with its real description and input schema. It returns a
   `call_ref` slug of the form `tools.{provider}.{integration}.{action}.{connection}`. The
   resolver wraps each one in a `CallbackToolSpec` and attaches a single `ToolCallback` whose
-  endpoint is the API's `POST /tools/call`.
+   endpoint is the API's `POST /tools/call`.
+- **Gateway connection** uses the same platform adapter and `/tools/resolve` endpoint but a
+  separate resolver port. One integration-level config resolves to the shared `search_tools`
+  and `run_tool` specs, a callback, and private compiled policy. `SessionConfig` carries that
+  policy through the backend to the top-level `/run` `gatewayPolicy` field; harness configs do
+  not receive it. Harness prompt composition receives only sorted integration names.
 
 This is what "gateway tools are built at the service level" means in practice. The service
 does the connection check and the catalog lookup up front, so a bad connection fails the
@@ -171,7 +182,8 @@ external MCP server fails loudly.
 
 The whole resolved bundle then rides the `/run` wire: built-in names in `tools`, resolved
 specs in `customTools`, the callback in `toolCallback`, and resolved MCP servers in
-`mcpServers`.
+`mcpServers`. Integration-level gateway policy rides separately in `gatewayPolicy` because it
+is runner authorization policy, not a harness tool specification.
 
 ## How tools get delivered (the harness fork)
 

@@ -259,3 +259,31 @@ def test_legacy_builtin_entry_still_parses_with_its_permission_field():
         {"type": "builtin", "name": "bash", "permission": "deny"}
     )
     assert config.name == "bash"
+
+
+@pytest.mark.parametrize("version", ["latest", "LATEST", " latest ", " ", "\t"])
+def test_a_resolved_integration_refuses_a_version_that_is_not_concrete(version):
+    """The model is the last gate before the wire, so it refuses the alias and a blank.
+
+    ``min_length`` alone accepts a whitespace-only version, which would reach the API as
+    a routing value that names no version at all.
+    """
+    from agenta.sdk.agents.tools.models import ResolvedGatewayIntegration
+
+    with pytest.raises(ValidationError):
+        ResolvedGatewayIntegration(
+            provider="composio",
+            connection="github-work",
+            toolkit_version=version,
+        )
+
+
+def test_a_resolved_integration_keeps_a_concrete_version_trimmed():
+    from agenta.sdk.agents.tools.models import ResolvedGatewayIntegration
+
+    integration = ResolvedGatewayIntegration(
+        provider="composio",
+        connection="github-work",
+        toolkit_version=" 20250827_00 ",
+    )
+    assert integration.toolkit_version == "20250827_00"

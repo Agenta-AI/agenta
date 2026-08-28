@@ -146,8 +146,17 @@ export function agentShouldResumeAfterApproval({
             }
         }
     } else {
-        const last = messages[messages.length - 1]
-        if (last?.role === "assistant") message = last
+        // A failed turn stamps a run-error carrier — an assistant message with NO parts — onto the
+        // tail, which would otherwise hide the turn that owns the gate. Look past it, but stop at
+        // the first non-assistant message so this never reaches back into an earlier user turn.
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const candidate = messages[i]
+            if (candidate.role !== "assistant") break
+            if ((candidate.parts ?? []).length > 0) {
+                message = candidate
+                break
+            }
+        }
     }
     if (!message) return false
 
