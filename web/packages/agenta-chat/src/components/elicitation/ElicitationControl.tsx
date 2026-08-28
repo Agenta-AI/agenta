@@ -242,16 +242,18 @@ export const ElicitationControl = ({
                                 onCursor(index)
                                 onPick(row, index)
                             }}
-                            // The fill is the same whether the pointer is over the row or the
-                            // keyboard cursor sits on it; a picked row adds the weight and the
-                            // check. Hover belongs to CSS so it leaves when the pointer does —
-                            // driving it from state stranded the last hovered row lit.
+                            // Three states, two fills: a picked row takes the strongest one plus
+                            // the weight and the check, while the pointer and the keyboard cursor
+                            // share a lighter tint. They used to share the SELECTED fill, which
+                            // made merely pointing at a row look like having chosen it. Hover
+                            // belongs to CSS so it leaves when the pointer does — driving it from
+                            // state stranded the last hovered row lit.
                             className={`flex h-[30px] shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
                                 isSelected
                                     ? "bg-colorFillSecondary font-medium"
                                     : isCursor
-                                      ? "bg-colorFillSecondary"
-                                      : "hover:bg-colorFillSecondary"
+                                      ? "bg-colorFillTertiary"
+                                      : "hover:bg-colorFillTertiary"
                             }`}
                         >
                             <span className="shrink-0 text-[11px] tabular-nums text-colorText">
