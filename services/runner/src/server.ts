@@ -15,6 +15,7 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { loadDurableDecisions } from "./sessions/interactions.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -58,7 +59,12 @@ import {
   type KeepaliveConfig,
   type KeepaliveProviderName,
 } from "./engines/sandbox_agent/session-identity.ts";
-import { platformCredentialForRequest } from "./engines/sandbox_agent/runtime-policy.ts";
+import {
+  platformCredentialForRequest,
+  runCredential,
+} from "./engines/sandbox_agent/runtime-policy.ts";
+import { endpointHost } from "./tracing/export-diagnostics.ts";
+import { publicApiBaseConfigured } from "./tracing/otel.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { subscriptionStatusResponse } from "./subscription-status.ts";
@@ -223,8 +229,22 @@ const realKeepaliveEngine: KeepaliveEngine = {
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
   acquireEnvironment: (request, signal, presignedMount, emit) =>
     acquireEnvironment(request, {}, signal, presignedMount, emit),
-  runTurn: (env, request, emit, signal, opts) =>
-    runTurn(env, request, emit, signal, opts),
+  // Every coordinator dispatch reaches runTurn through here, so the pre-turn read lives here
+  // once rather than at each of its call sites. It must happen BEFORE runTurn: that function
+  // may not suspend before its permission responder is attached.
+  runTurn: async (env, request, emit, signal, opts) =>
+    runTurn(env, request, emit, signal, {
+      ...opts,
+      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+      seededDecisions:
+        opts?.seededDecisions ??
+        (await loadDurableDecisions(
+          env.sessionId,
+          runCredential(request),
+          env.logger,
+        )),
+    }),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
   // entirely live-applicable; this performs it and commits applied state only if all of it landed.
   applyReconcilePlan: (env, request, plan) =>
@@ -266,6 +286,11 @@ const realKeepaliveEngine: KeepaliveEngine = {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
         ...(credential ? { credential } : {}),
+        seededDecisions: await loadDurableDecisions(
+          acquired.env.sessionId,
+          runCredential(request),
+          acquired.env.logger,
+        ),
       });
       return result;
     } finally {
@@ -407,10 +432,17 @@ async function runAndStreamWithApiBaseResolved(
   // append, interaction rows) must see the SAME execution id the alive-lock and records use.
   request.turnId = turnId;
 
-  // Diagnostic: surface whether the session-owned persist/alive path is entered and
-  // whether the invoke credential arrived. Empty cred => heartbeat/persist would 401.
+  // Diagnostic: surface whether the session-owned persist/alive path is entered and whether the
+  // invoke credential arrived. Empty cred => heartbeat/persist would 401. The two empty cases have
+  // different fixes, so name them apart: ABSENT means the caller sent no credential, DROPPED means
+  // one arrived but did not attribute to this platform (see `platformCredentialForRequest`).
+  const credentialState = platformCredentialForRequest(request)
+    ? "present"
+    : runCredential(request)
+      ? "DROPPED(endpoint-not-agenta-ingest)"
+      : "ABSENT(caller-sent-none)";
   process.stderr.write(
-    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${platformCredentialForRequest(request) ? "present" : "MISSING"}\n`,
+    `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${credentialState}\n`,
   );
 
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
@@ -884,6 +916,19 @@ if (isEntrypoint(import.meta.url)) {
       process.stderr.write(
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
+      if (!publicApiBaseConfigured()) {
+        const internalApiHost = process.env.AGENTA_API_INTERNAL_URL
+          ? endpointHost(process.env.AGENTA_API_INTERNAL_URL)
+          : "unset";
+        process.stderr.write(
+          "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
+            "deployment's PUBLIC api base in their trace endpoint, so without it the runner " +
+            "cannot tell its own api from a third-party collector and cannot attribute the run " +
+            "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
+            `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
+            "in-network hop and does not substitute for it.\n",
+        );
+      }
       if (insecureEgressAllowed()) {
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCPs may " +

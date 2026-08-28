@@ -71,7 +71,14 @@ export {
     triggerSchedulesResponseSchema,
     triggerSubscriptionsResponseSchema,
 } from "./core"
-export {describeCron, nextCronRuns, validateCron} from "./core/cron"
+export {
+    describeCron,
+    MIN_CRON_INTERVAL_MINUTES,
+    nextCronRuns,
+    smallestCronGapMinutes,
+    validateCron,
+    validateSchedule,
+} from "./core/cron"
 export type {CronValidationResult} from "./core/cron"
 export {
     builderToCron,

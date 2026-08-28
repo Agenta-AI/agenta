@@ -594,19 +594,22 @@ export function transcriptToMessages(
         applyEvent(current, p, index, row.session_id)
     }
 
+    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
+    applyInteractionRowStates(index, options?.interactionRowStates)
+
     // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
     // once the user responded (a deny settles its own part via `tool_result denied`). The durable
     // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
     // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
+    // Runs AFTER the rows on purpose: this sweep knows only THAT a gate was answered, never how, so
+    // ahead of them it consumed the `approval-requested` state the row's verdict is applied to, and
+    // every denied gate replayed as approved.
     for (const d of drafts) {
         if (!d.resumed) continue
         for (const part of d.parts) {
             if (part.state === "approval-requested") part.state = "approval-responded"
         }
     }
-
-    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
-    applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
         // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
