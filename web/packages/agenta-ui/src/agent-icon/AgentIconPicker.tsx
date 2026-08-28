@@ -16,6 +16,7 @@ import {
 import {loadAgentIconCatalog, type PhosphorCatalogEntry} from "./catalog"
 import {
     AGENT_ICON_COLORS,
+    AGENT_ICON_CONIC,
     DEFAULT_AGENT_ICON,
     clamp,
     hexToHsv,
@@ -38,7 +39,6 @@ const GRID_H = 184
 /** The swatch row and the search field that sit between the header and the grid. The loading and
  * error states derive their height from this so the panel never resizes under the pointer. */
 const CONTROLS_H = 72
-const CONIC = "conic-gradient(#d61010,#faad14,#389e0d,#0e7490,#1668dc,#7c3aed,#d61010)"
 
 const SWATCH_BASE = "size-5 shrink-0 cursor-pointer rounded-full p-0"
 
@@ -129,7 +129,7 @@ const ColorSwatchRow = ({
             title="Custom colour"
             aria-label="Custom colour"
             className={SWATCH_PLAIN}
-            style={{background: CONIC}}
+            style={{background: AGENT_ICON_CONIC}}
         />
     </div>
 )
@@ -216,7 +216,10 @@ const CustomColorArea = ({
                     className={SWATCH_PLAIN}
                     // Brand accent, not currentColor: the text colour reads as a stray white ring
                     // in dark mode and says nothing about the control being active.
-                    style={{background: CONIC, ...selectedRing("var(--ag-colorPrimary)")}}
+                    style={{
+                        background: AGENT_ICON_CONIC,
+                        ...selectedRing("var(--ag-colorPrimary)"),
+                    }}
                 />
             </div>
             <div className="flex items-stretch gap-2.5 px-3 pb-3">

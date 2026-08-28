@@ -1,15 +1,19 @@
-import {useEffect, useState} from "react"
+import {useMemo} from "react"
 
-import {agentIconAtomFamily} from "@agenta/entities/workflow"
+import {agentIconAtomFamily, type AgentIconRecord} from "@agenta/entities/workflow"
 import {
     AGENT_ICON_CHIP_CLASS,
     AgentIcon,
     DEFAULT_AGENT_ICON,
     agentIconChipStyle,
-    loadAgentIconCatalog,
     type PhosphorCatalogEntry,
 } from "@agenta/ui/agent-icon"
 import {useAtom} from "jotai"
+
+import {AgentIconGrid} from "./AgentIconGrid"
+import {AgentIconSwatchRow} from "./AgentIconSwatchRow"
+import {AgentIconGridError, AgentIconGridLoading} from "./states/AgentIconStates"
+import {useAgentIconCatalog} from "./useAgentIconCatalog"
 
 import {Button} from "@/components/ui/button"
 import {
@@ -20,9 +24,6 @@ import {
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet"
-
-import {AgentIconGrid} from "./AgentIconGrid"
-import {AgentIconSwatchRow} from "./AgentIconSwatchRow"
 
 /**
  * Pick one agent's glyph and colour.
@@ -43,30 +44,19 @@ export const AgentIconSheet = ({
     onClose: () => void
 }) => {
     const [record, setRecord] = useAtom(agentIconAtomFamily(workflowId))
-    /** Kept so picking a colour before an icon still writes a glyph, not an empty path. */
-    const [seedPath, setSeedPath] = useState<string | null>(null)
+    const catalog = useAgentIconCatalog(open)
 
     const color = record?.color ?? DEFAULT_AGENT_ICON.color
     const iconName = record?.icon ?? DEFAULT_AGENT_ICON.icon
-    const path = record?.path ?? seedPath ?? ""
 
-    // The default glyph has to come from the catalog too, so picking a colour before an icon is not
-    // stored against an empty path. Only while the sheet is open — the catalog is a lazy chunk.
-    useEffect(() => {
-        if (!open || record?.path) return
-        let alive = true
-        loadAgentIconCatalog().then(
-            (entries) => {
-                if (alive) setSeedPath(entries.find((e) => e.name === iconName)?.path ?? "")
-            },
-            () => undefined,
-        )
-        return () => {
-            alive = false
-        }
-    }, [open, record?.path, iconName])
+    /** A stored record carries its glyph; before that it comes from the catalog, so a colour picked
+     * first is never written against an empty path — the record guard would reject it on read. */
+    const path = useMemo(
+        () => record?.path ?? catalog.entries?.find((entry) => entry.name === iconName)?.path ?? "",
+        [record?.path, catalog.entries, iconName],
+    )
 
-    const commit = (next: Partial<{icon: string; color: string; path: string}>) =>
+    const commit = (next: Partial<AgentIconRecord>) =>
         setRecord({icon: iconName, color, path, ...next})
 
     return (
@@ -90,19 +80,28 @@ export const AgentIconSheet = ({
                     <SheetDescription>Saves as you pick.</SheetDescription>
                 </SheetHeader>
 
-                <div className="flex flex-col gap-4 px-4">
-                    <AgentIconSwatchRow
-                        selected={record?.color ?? null}
-                        onPick={(hex) => commit({color: hex})}
-                    />
-                    <AgentIconGrid
-                        selectedName={record ? iconName : ""}
-                        color={color}
-                        onPick={(entry: PhosphorCatalogEntry) =>
-                            commit({icon: entry.name, path: entry.path})
-                        }
-                    />
-                </div>
+                {/* Nothing is pickable until the catalog lands: a colour committed against an empty
+                    path stores a record the guard rejects, so the pick would vanish silently. */}
+                {catalog.failed ? (
+                    <AgentIconGridError onRetry={catalog.retry} />
+                ) : !catalog.entries ? (
+                    <AgentIconGridLoading />
+                ) : (
+                    <div className="flex flex-col gap-4 px-4">
+                        <AgentIconSwatchRow
+                            selected={record?.color ?? null}
+                            onPick={(hex) => commit({color: hex})}
+                        />
+                        <AgentIconGrid
+                            entries={catalog.entries}
+                            selectedName={record ? iconName : ""}
+                            color={color}
+                            onPick={(entry: PhosphorCatalogEntry) =>
+                                commit({icon: entry.name, path: entry.path})
+                            }
+                        />
+                    </div>
+                )}
 
                 <SheetFooter>
                     <Button onClick={onClose}>Done</Button>

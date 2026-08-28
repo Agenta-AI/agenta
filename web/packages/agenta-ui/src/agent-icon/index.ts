@@ -10,6 +10,7 @@ export {AgentIconPicker} from "./AgentIconPicker"
 export {loadAgentIconCatalog, type PhosphorCatalogEntry} from "./catalog"
 export {
     AGENT_ICON_COLORS,
+    AGENT_ICON_CONIC,
     DEFAULT_AGENT_ICON,
     clamp,
     hexToHsv,

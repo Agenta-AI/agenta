@@ -4,18 +4,13 @@ import {
     AGENT_ICON_CHIP_CLASS,
     AgentIcon,
     agentIconChipStyle,
-    loadAgentIconCatalog,
     type PhosphorCatalogEntry,
 } from "@agenta/ui/agent-icon"
 import {SearchInput} from "@agenta/ui/ui"
 
-import {FOCUS_RING} from "@/lib/interactive"
+import {AgentIconGridEmpty} from "./states/AgentIconStates"
 
-import {
-    AgentIconGridEmpty,
-    AgentIconGridError,
-    AgentIconGridLoading,
-} from "./states/AgentIconStates"
+import {FOCUS_RING} from "@/lib/interactive"
 
 /**
  * Search over the icon set, then the icons.
@@ -24,36 +19,19 @@ import {
  * windowing library would cost more than it saves. The sheet is already the scroller.
  */
 export const AgentIconGrid = ({
+    entries,
     selectedName,
     color,
     onPick,
 }: {
+    entries: PhosphorCatalogEntry[]
     /** Empty until the agent has a stored choice, so nothing reads as picked before it is. */
     selectedName: string
     color: string
     onPick: (entry: PhosphorCatalogEntry) => void
 }) => {
-    const [catalog, setCatalog] = useState<PhosphorCatalogEntry[] | null>(null)
-    const [failed, setFailed] = useState(false)
-    const [attempt, setAttempt] = useState(0)
     const [query, setQuery] = useState("")
     const [search, setSearch] = useState("")
-
-    useEffect(() => {
-        let alive = true
-        setFailed(false)
-        loadAgentIconCatalog().then(
-            (entries) => {
-                if (alive) setCatalog(entries)
-            },
-            () => {
-                if (alive) setFailed(true)
-            },
-        )
-        return () => {
-            alive = false
-        }
-    }, [attempt])
 
     useEffect(() => {
         const id = setTimeout(() => setSearch(query.trim().toLowerCase()), 150)
@@ -63,21 +41,18 @@ export const AgentIconGrid = ({
     /** One string per icon, built once, so a keystroke is one `includes` per icon. */
     const haystacks = useMemo(
         () =>
-            catalog?.map(
+            entries.map(
                 (entry) =>
                     `${entry.name.replace(/-/g, " ")} ${entry.tags.join(" ")} ${entry.categories.join(" ")}`,
-            ) ?? [],
-        [catalog],
+            ),
+        [entries],
     )
 
-    const filtered = useMemo(() => {
-        if (!catalog) return []
-        if (!search) return catalog
-        return catalog.filter((_entry, index) => haystacks[index].includes(search))
-    }, [catalog, haystacks, search])
-
-    if (failed) return <AgentIconGridError onRetry={() => setAttempt((n) => n + 1)} />
-    if (!catalog) return <AgentIconGridLoading />
+    const filtered = useMemo(
+        () =>
+            search ? entries.filter((_entry, index) => haystacks[index].includes(search)) : entries,
+        [entries, haystacks, search],
+    )
 
     return (
         <div className="flex flex-col gap-3">
