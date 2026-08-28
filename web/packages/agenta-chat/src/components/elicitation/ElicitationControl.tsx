@@ -19,6 +19,9 @@ import {ElicitationChips} from "./ElicitationChips"
  * they get. */
 export const OPTIONS_MAX_H = 220
 /** Digits address the first nine rows. */
+/** Rows past this one keep their number but lose the digit shortcut: there is no key for 10.
+ * The number is the row's position, not a promise of an accelerator, so every row shows one —
+ * a bare `·` told the reader nothing and made a long list unreferenceable. */
 export const MAX_DIGIT_ROWS = 9
 
 const OTHER_LABEL = "Other — type a value"
@@ -248,7 +251,7 @@ export const ElicitationControl = ({
                             }`}
                         >
                             <span className="shrink-0 text-[11px] tabular-nums text-colorText">
-                                {index < MAX_DIGIT_ROWS ? `${index + 1}.` : "·"}
+                                {`${index + 1}.`}
                             </span>
                             {isOther ? (
                                 <input
