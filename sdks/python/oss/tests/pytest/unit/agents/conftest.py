@@ -146,6 +146,7 @@ class FakeBackend(Backend):
         run_context=None,
         session_id=None,
         effective_parameters=None,
+        gateway_policy=None,
     ) -> FakeSession:
         self.created_sessions.append(
             {
@@ -157,6 +158,7 @@ class FakeBackend(Backend):
                 "run_context": run_context,
                 "session_id": session_id,
                 "effective_parameters": effective_parameters,
+                "gateway_policy": gateway_policy,
             }
         )
         session = FakeSession(

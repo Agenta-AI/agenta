@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from oss.src.core.tools.dtos import (
+    ToolCatalogAction,
     ToolCatalogActionDetails,
     ToolCatalogActionsPage,
     ToolCatalogIntegration,
@@ -10,6 +11,11 @@ from oss.src.core.tools.dtos import (
     ToolExecutionRequest,
     ToolExecutionResponse,
 )
+
+# The search result keeps its provider-shaped model: it is the only search
+# implementation, and the whole discovery pipeline is typed on it. A neutral
+# shape would be a translation layer with one caller on each side.
+from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
 
 
 class ToolsGatewayInterface(ABC):
@@ -40,6 +46,16 @@ class ToolsGatewayInterface(ABC):
     ) -> Optional[ToolCatalogIntegration]: ...
 
     @abstractmethod
+    async def resolve_toolkit_version(
+        self,
+        *,
+        integration_key: str,
+        version: str = "latest",
+    ) -> str:
+        """Resolve a provider toolkit alias to one concrete version."""
+        ...
+
+    @abstractmethod
     async def list_actions(
         self,
         *,
@@ -49,15 +65,37 @@ class ToolsGatewayInterface(ABC):
         important: Optional[bool] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
+        toolkit_version: Optional[str] = None,
     ) -> ToolCatalogActionsPage: ...
+
+    @abstractmethod
+    async def list_all_actions(
+        self,
+        *,
+        integration_key: str,
+        toolkit_version: Optional[str] = None,
+    ) -> List[ToolCatalogAction]:
+        """Fetch one integration's whole catalog, following the cursor to exhaustion.
+
+        The provider owns its page size and cursor rules. A crawl that cannot finish
+        must raise rather than return a partial catalog, which the caller would cache.
+        """
+        ...
 
     @abstractmethod
     async def get_action(
         self,
         *,
-        integration_key: str,
         action_key: str,
-    ) -> Optional[ToolCatalogActionDetails]: ...
+        provider_action_id: str,
+        toolkit_version: Optional[str] = None,
+    ) -> Optional[ToolCatalogActionDetails]:
+        """Fetch one action's detail by the provider's own action ID.
+
+        ``action_key`` is echoed back as the Agenta key; the provider is addressed
+        only through ``provider_action_id``, which comes from the catalog.
+        """
+        ...
 
     @abstractmethod
     async def execute(
@@ -66,4 +104,20 @@ class ToolsGatewayInterface(ABC):
         request: ToolExecutionRequest,
     ) -> ToolExecutionResponse:
         """Execute a tool action."""
+        ...
+
+    @abstractmethod
+    async def search_capabilities(
+        self,
+        *,
+        use_cases: List[str],
+        user_id: str,
+        toolkits: Optional[List[str]] = None,
+    ) -> ComposioSearchResult:
+        """Search the provider's catalog semantically.
+
+        On the port rather than reached by attribute lookup, so a provider that cannot
+        search fails when its class is built instead of on a live agent turn.
+        ``toolkits`` scopes the search to those integrations natively.
+        """
         ...

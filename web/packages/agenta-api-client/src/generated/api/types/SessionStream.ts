@@ -18,6 +18,7 @@ export interface SessionStream {
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
+    references?: (AgentaApi.SessionReference[] | null) | undefined;
     archived_at?: (string | null) | undefined;
     origin?: (AgentaApi.SessionOrigin | null) | undefined;
     trigger?: (AgentaApi.SessionTrigger | null) | undefined;

@@ -5,6 +5,8 @@ import {HomeTaskComposer} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {newId} from "@/lib/ids"
+
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 /**
@@ -26,7 +28,7 @@ export const AgentComposer = ({
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
-    const [sessionId] = useState(() => crypto.randomUUID())
+    const [sessionId] = useState(() => newId())
     const attachments = useComposerAttachments({sessionId})
 
     const start = async ({text}: {agentId: string; text: string}) => {

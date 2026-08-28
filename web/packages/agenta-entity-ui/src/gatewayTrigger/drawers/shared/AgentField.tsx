@@ -6,6 +6,8 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} 
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {AgentGlyph} from "../../../agent"
+
 // ---------------------------------------------------------------------------
 // AgentField — picks the application a schedule runs. Sources the same
 // `appWorkflowsListQueryStateAtom` the workflow-revision cascader used at its root, so the
@@ -60,9 +62,15 @@ export function AgentField({
                 {options.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                         <span className="flex min-w-0 items-center gap-2">
-                            <Robot
+                            <AgentGlyph
+                                workflowId={o.id}
                                 size={14}
-                                className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                fallback={
+                                    <Robot
+                                        size={14}
+                                        className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                    />
+                                }
                             />
                             <span className="min-w-0 truncate">{o.label}</span>
                         </span>

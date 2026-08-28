@@ -21,6 +21,7 @@
 import {
     type CSSProperties,
     type DragEvent,
+    type MouseEvent,
     useCallback,
     useEffect,
     useId,
@@ -76,6 +77,9 @@ export interface MarkdownEditorProps {
     /** Fill the drawer height (fixed, tall) with the toolbar pinned and content scrolling. For an
      * editor that IS the whole drawer body. @default false */
     fill?: boolean
+    /** Fill whatever height the flex parent gives it (no viewport math), toolbar pinned and content
+     * scrolling. The parent chain must be a flex column with `min-h-0`. @default false */
+    grow?: boolean
     /** Cap the editor height (px or CSS length): content-sized up to the cap, then the toolbar pins
      * and the content scrolls inside. For an editor that's one field among others. */
     maxHeight?: number | string
@@ -129,6 +133,7 @@ export function MarkdownEditor({
     hideHeader = false,
     bordered = true,
     fill = false,
+    grow = false,
     maxHeight,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
@@ -222,7 +227,9 @@ export function MarkdownEditor({
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
     const toolbar = (
-        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
+        // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
+        // three sides — the top one doubling up with the container's own border.
+        <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
             <MarkdownToolbar disabled={editorDisabled || markdownView} />
             {viewToggle}
         </div>
@@ -246,11 +253,13 @@ export function MarkdownEditor({
     // Bound the box on this component's own wrapper (self-sized, so it doesn't depend on the parent
     // flex/height chain). `fill` = fixed drawer-body height (≈ header+footer+padding). `maxHeight` =
     // content-sized up to a cap. Either way the toolbar pins and content scrolls inside.
-    const boundStyle: CSSProperties | undefined = fill
-        ? {height: "calc(100vh - 152px)"}
-        : maxHeight != null
-          ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
-          : undefined
+    const boundStyle: CSSProperties | undefined = grow
+        ? undefined
+        : fill
+          ? {height: "calc(100vh - 152px)"}
+          : maxHeight != null
+            ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
+            : undefined
 
     const editorEl = (
         <SharedEditor
@@ -274,12 +283,40 @@ export function MarkdownEditor({
         />
     )
 
+    // The contenteditable is only as tall as its content, so a click in the empty space below it
+    // would otherwise land on the scroll region and focus nothing. Redirect those to the editor,
+    // caret at the end. Clicks on the text itself fall through untouched.
+    const focusOnBlankClick = (e: MouseEvent<HTMLDivElement>) => {
+        if (editorDisabled) return
+        const target = e.target as HTMLElement
+        if (target.closest('[contenteditable="true"]')) return
+        // Classic (space-taking) scrollbars dispatch mousedown to the scroll box itself; without
+        // this the handler would preventDefault the drag and jerk the caret to the end.
+        const rect = e.currentTarget.getBoundingClientRect()
+        if (
+            e.clientX - rect.left >= e.currentTarget.clientWidth ||
+            e.clientY - rect.top >= e.currentTarget.clientHeight
+        )
+            return
+        const input = e.currentTarget.querySelector<HTMLElement>('[contenteditable="true"]')
+        if (!input) return
+        e.preventDefault()
+        input.focus()
+        const range = document.createRange()
+        range.selectNodeContents(input)
+        range.collapse(false)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+    }
+
     // `md-prose` scopes the document prose styles (Option B) defined in editor-theme.css to these
     // Markdown editors only, so the shared prompt/chat editor theme is untouched.
     const body = showToolbar ? (
         <div
             className={cn(
                 "flex flex-col overflow-hidden",
+                grow && "min-h-0 flex-1",
                 bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1)]",
             )}
             style={boundStyle}
@@ -287,12 +324,21 @@ export function MarkdownEditor({
             {toolbar}
             {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
                 — in rendered/read-only view it has no focusable content of its own. */}
-            <div tabIndex={0} className="md-prose min-h-0 flex-1 overflow-y-auto">
+            <div
+                tabIndex={0}
+                className="md-prose min-h-0 flex-1 overflow-y-auto"
+                onMouseDown={focusOnBlankClick}
+            >
                 {editorEl}
             </div>
         </div>
-    ) : boundStyle ? (
-        <div tabIndex={0} className="md-prose overflow-y-auto" style={boundStyle}>
+    ) : boundStyle || grow ? (
+        <div
+            tabIndex={0}
+            className={cn("md-prose overflow-y-auto", grow && "min-h-0 flex-1")}
+            style={boundStyle}
+            onMouseDown={focusOnBlankClick}
+        >
             {editorEl}
         </div>
     ) : (
@@ -306,10 +352,12 @@ export function MarkdownEditor({
             enableTokens={false}
             showToolbar={false}
             disabled={editorDisabled}
+            // `!`: the provider hardcodes a `min-h-[70px]` floor that would block shrinking.
+            className={grow ? "!min-h-0 flex-1" : undefined}
         >
             {dropEnabled ? (
                 <div
-                    className="relative"
+                    className={cn("relative", grow && "flex min-h-0 flex-1 flex-col")}
                     onDragOverCapture={handleDragOver}
                     onDragLeaveCapture={handleDragLeave}
                     onDropCapture={handleDrop}
@@ -328,7 +376,9 @@ export function MarkdownEditor({
             )}
             <MarkdownViewSync enabled={markdownView} />
             <CodeHighlightSync />
-            <CodeBlockLanguageMenu editable={!editorDisabled} />
+            {/* Source view wraps the whole document in one markdown CodeNode — its picker is
+                meaningless there, so the menu is for author-inserted blocks in rich text only. */}
+            {!markdownView && <CodeBlockLanguageMenu editable={!editorDisabled} />}
         </EditorProvider>
     )
 }

@@ -185,7 +185,12 @@ const ReplayScreen = ({
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow key={turn.message.id} turn={turn} sessionId={sessionId} />
+                        <TurnRow
+                            workflowId={agentId}
+                            key={turn.message.id}
+                            turn={turn}
+                            sessionId={sessionId}
+                        />
                     ))}
                 <TurnStatusLine working={running} waitingForInput={pendingCount > 0} />
             </ContentRail>

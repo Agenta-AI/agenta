@@ -206,7 +206,10 @@ const SessionRowActions = ({
                                 data-open={open || undefined}
                                 // [font-family:inherit]: preflight is off, so a bare <button>
                                 // renders Arial while the rows around it render Inter.
-                                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+                                // Themed focus ring, not the UA blue: Radix returns focus to the
+                                // trigger on close, so `:focus-visible` matches and painted a stray
+                                // blue box over the row. `outline-none` drops the default.
+                                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
                             >
                                 <DotsThreeVerticalIcon size={16} weight="bold" />
                             </button>

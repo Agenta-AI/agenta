@@ -24,6 +24,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from ..dtos import HarnessAgentTemplate, HarnessKind, RunContext, TraceContext
 from ..interfaces import Backend, Sandbox, Session
+from ..tools.models import ResolvedGatewayPolicy
 
 
 class LocalBackend(Backend):
@@ -48,6 +49,7 @@ class LocalBackend(Backend):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:
         raise NotImplementedError(
             "LocalBackend is not implemented yet (Phase 3: Pi via bundled JS, "

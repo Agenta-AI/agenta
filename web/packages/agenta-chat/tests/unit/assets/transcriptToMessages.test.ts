@@ -781,6 +781,58 @@ describe("transcriptToMessages interaction-row precedence", () => {
         })
     })
 
+    // The gate is answered and the SAME turn resumes, with no user message between — the shape
+    // every real gateway approval has now that a park stream finishes cleanly and the run continues.
+    const resumedApprovalRecords = (): SessionRecord[] => [
+        record("r-user-1", {type: "message", text: "draft the email"}, "user"),
+        record("r-call", {
+            type: "tool_call",
+            id: "tool-1",
+            name: "run_tool",
+            input: {integration: "gmail", tool: "CREATE_EMAIL_DRAFT"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-msg", {type: "message", text: "I did not send it."}),
+        record("r-done", {type: "done"}),
+    ]
+
+    it("replays a DENIED gate on a resumed turn as denied", () => {
+        // The resumed-turn sweep knows only THAT the gate was answered. Running before the rows, it
+        // consumed `approval-requested`, the row's verdict was skipped, and the card claimed the
+        // user had approved a tool they refused.
+        const parts = allParts(
+            resumedApprovalRecords(),
+            rowStates(
+                rowState("approval-1", {
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "denied", tool_call_id: "tool-1"},
+                }),
+            ),
+        )
+
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1", approved: false},
+        })
+    })
+
+    it("still settles a resumed turn's gate when no row carries a verdict", () => {
+        // The sweep's own job, unchanged: a resumed gate must not replay as still awaiting the user.
+        const parts = allParts(resumedApprovalRecords())
+
+        expect(parts.some((part) => part.state === "approval-requested")).toBe(false)
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+        })
+    })
+
     it("keeps an answered approval row's approved verdict", () => {
         const parts = allParts(
             abandonedApprovalRecords(),

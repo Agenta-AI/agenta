@@ -3,6 +3,14 @@
  * Data-connected cells (activity, owner) and the classified agents list stay app-side and
  * arrive as slots/props; the components own only what an agent card or trigger row IS.
  */
+export {AgentChatAvatar, type AgentChatAvatarProps} from "./AgentChatAvatar"
+export {
+    AgentGlyph,
+    useAgentIconChrome,
+    useAgentIconRecord,
+    type AgentGlyphProps,
+    type AgentIconChrome,
+} from "./agentIcon"
 export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
 export {AgentConfigSummaryCard, type AgentConfigSummaryCardProps} from "./AgentConfigSummaryCard"

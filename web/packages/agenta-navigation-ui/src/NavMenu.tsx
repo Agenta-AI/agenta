@@ -119,9 +119,13 @@ const RowLabel = ({
     item: NavItem
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) => {
+    // Rows truncate at almost every rail width, so the label carries its own hover text: the
+    // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
+    // and both list groups hide their children there.
+    const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
     const content = (
         <span className="flex w-full items-center">
-            <span className="min-w-0 truncate">
+            <span className="min-w-0 truncate" title={hover}>
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}

@@ -494,8 +494,14 @@ def _delta_set_schema(description: str) -> Dict[str, Any]:
 _DISCOVER_TOOLS_DESCRIPTION = (
     "Discover the Agenta tools that fit a set of plain-language use cases. Returns the "
     "best-match tool per use case (with its input schema), companion/alternative tools, "
-    "each integration's connection state and how to connect it, and operating guidance. "
-    "Use it while wiring tools for an agent you are building."
+    "each integration's connection state, and operating guidance. Use it while wiring tools: "
+    "the result tells you which INTEGRATION covers each use case, and you add that whole "
+    "integration as ONE gateway_connection tool entry — never one entry per action. At run "
+    "time the agent reaches every action of it through search_tools and run_tool. When an "
+    "integration's state is ready, the slug it returns IS the connection slug to commit; "
+    "otherwise you get a connect affordance whose slug does not exist yet. Only ever commit a "
+    "slug that came back ready — an invented or not-yet-created slug commits cleanly and "
+    "fails at run time as connection-not-found."
 )
 _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -861,7 +867,10 @@ committed.
 
 TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
-stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name — but a
+gateway_connection entry has no name and is keyed
+gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github"),
+files (by path).
 
     ["parameters","agent",{"list":"skills","key":"release-qa"},
      {"list":"files","key":"checklist.md"},"content"]
@@ -1424,7 +1433,12 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "terminal_tool": {
                     "type": "string",
-                    "description": "Expected final/terminal tool name that must run and return.",
+                    "description": (
+                        "Expected final/terminal tool name that must run and return. For "
+                        "a gateway integration this is run_tool — the agent reaches every "
+                        "action through search_tools/run_tool — never a provider action "
+                        "name such as GITHUB_CREATE_AN_ISSUE."
+                    ),
                 }
             },
         },
@@ -1673,7 +1687,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="list_connections",
-            description="List trigger connections visible to this project.",
+            description=(
+                "List this project's provider connections, with their real slugs. Use it "
+                "for a trigger connection_id, and to get the ready connection slug for a "
+                "gateway_connection tool entry."
+            ),
             method="POST",
             path="/api/triggers/connections/query",
             input_schema=_EMPTY_INPUT_SCHEMA,
