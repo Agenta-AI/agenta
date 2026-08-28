@@ -126,7 +126,6 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
             onClose={onClose}
             width={520}
             destroyOnHidden
-            closeOnLayoutClick={false}
             footer={
                 <div className="flex w-full items-center justify-end gap-2">
                     <Button onClick={onClose} disabled={submitting}>

@@ -40,13 +40,23 @@ export function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: nu
     )
 }
 
-/** A sub-section label above a group of rows: uppercase text + a bordered count tag. */
-export function SubSectionHeader({label, count}: {label: string; count: number}) {
+/** A sub-section label above a group of rows: uppercase text + a bordered count tag, and an
+ *  optional right-aligned action (the integrations header carries its own add button). */
+export function SubSectionHeader({
+    label,
+    count,
+    action,
+}: {
+    label: string
+    count: number
+    action?: ReactNode
+}) {
     return (
         <div className="flex items-center gap-1.5 px-0.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             <span>{label}</span>
             {/* antd v6 `bordered` (truthy) is a no-op; colourless Tag == Badge `default`. */}
             <Badge className="m-0 px-1.5 text-[12px] font-normal leading-4">{count}</Badge>
+            {action ? <span className="ml-auto flex items-center">{action}</span> : null}
         </div>
     )
 }

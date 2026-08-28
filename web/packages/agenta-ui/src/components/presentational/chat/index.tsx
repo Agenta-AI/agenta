@@ -10,9 +10,12 @@ import {useEffect, useRef, type ReactNode} from "react"
 
 import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
 
-import {cn} from "../../../utils/styles"
+// The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
+// has to actually REPLACE the variant's padding/radius. With plain concatenation both land on the
+// element and CSS source order decides, so an override to a smaller scale silently loses.
 import {Button} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+import {cn} from "../../ui/utils"
 
 /** The antd-x loading dots: three 4px primary dots on a gentle bounce. */
 export const ChatTypingDots = ({className}: {className?: string}) => (
@@ -131,6 +134,10 @@ export const turnToolbarRevealClass =
  * its gap (gap-3) — so the row lines up with the MESSAGE, not the avatar: `left-11` starts where
  * the response text does, `right-11` ends where the user bubble does.
  */
+/** The user turn's bubble geometry, tighter than the antd-x default it inherits. Geometry only:
+ * the tint stays on the desktop, since `--ag-user-bubble-*` is not bridged into /m's tokens. */
+export const userBubbleContentClass = "min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2"
+
 export const turnToolbarClass = "absolute bottom-0 z-10 flex items-center gap-1"
 
 /** The turn row the reveal above hangs off. `pb-8` reserves the toolbar's lane so revealing it
@@ -279,7 +286,9 @@ export const ChatAttachmentCard = ({
  * keeps its own `-translate-x-1/2` (Tailwind composes the x and y translate into one transform, so
  * dropping it while hidden would slide the pill off-centre).
  *
- * Solid elevated surface, border and shadow: a transparent pill let streamed text bleed through it.
+ * Default control size (28px, 15px padding, 14px text) on the scale's 8px radius — the pill shape
+ * shrank the label into the corners. Solid elevated surface, border and a light shadow: a
+ * transparent pill let streamed text bleed through it.
  * `z-10` puts it above a transcript's bottom fade — source order alone left the gradient painting
  * over the pill whenever no turn was hovered to suppress the fade.
  */
@@ -305,13 +314,14 @@ export const ChatJumpToLatest = ({
         <Button
             ref={ref}
             variant="outline"
-            size="sm"
             onClick={onClick}
             tabIndex={show ? 0 : -1}
             aria-hidden={!show}
             aria-label="Jump to latest message"
             className={cn(
-                "border-colorBorderSecondary bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-[opacity,transform] duration-200 ease-out",
+                // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
+                // in dark mode, which would let streamed text read through the pill.
+                "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 text-xs shadow-sm transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,
             )}

@@ -288,6 +288,7 @@ export {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
     type ChatAttachmentCardProps,
     type ChatBubbleProps,
 } from "./chat"

@@ -10,6 +10,8 @@ Requires a running API.
 
 from uuid import uuid4
 
+import pytest
+
 
 def _create_workflow(authed_api):
     """Build a workflow + variant + committed revision; return its slug."""
@@ -51,7 +53,7 @@ def _create_workflow(authed_api):
     return slug
 
 
-def _schedule_payload(*, name=None, schedule="*/5 * * * *", workflow_slug=None):
+def _schedule_payload(*, name=None, schedule="*/30 * * * *", workflow_slug=None):
     slug = uuid4().hex[:8]
     data = {
         "event_key": "cron.tick",
@@ -123,6 +125,19 @@ class TestTriggerSchedulesValidation:
         )
         assert response.status_code == 422, response.text
 
+    @pytest.mark.parametrize(
+        "schedule", ["* * * * *", "*/5 * * * *", "0,1 * * * *", "0,1 0 31 1 *"]
+    )
+    def test_schedule_below_frequency_floor_is_rejected(self, authed_api, schedule):
+        """Every fire starts a billed agent run, so the API refuses a cadence
+        tighter than the floor and says so in the response body."""
+        response = authed_api(
+            "POST", "/triggers/schedules/", json=_schedule_payload(schedule=schedule)
+        )
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert "at most once every" in detail, detail
+
     def test_unresolvable_workflow_reference_is_rejected(self, authed_api):
         payload = _schedule_payload()
         payload["schedule"]["data"]["references"] = {
@@ -150,7 +165,7 @@ class TestTriggerSchedulesLifecycle:
         assert create.status_code == 200, create.text
         sched = create.json()["schedule"]
         schedule_id = sched["id"]
-        assert sched["data"]["schedule"] == "*/5 * * * *"
+        assert sched["data"]["schedule"] == "*/30 * * * *"
         assert sched["flags"]["is_active"] is True
         # The bound reference is stored VERBATIM, not pinned to a resolved
         # revision: a bare artifact slug means "resolve latest at trigger time",

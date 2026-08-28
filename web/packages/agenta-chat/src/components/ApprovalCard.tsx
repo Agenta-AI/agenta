@@ -8,7 +8,7 @@
  * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
  * card exists to remove.
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
@@ -67,8 +67,10 @@ export const ApprovalCard = ({
             else next.add(index)
             return next
         })
-    // Armed "don't ask again" intent — applied only when the user approves, never on its own.
+    // Armed auto-approve intent — applied only when the user approves, never on its own.
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
+    const alwaysAllowId = useId()
+    const alwaysAllowLabelId = `${alwaysAllowId}-label`
     // Which button fired, so the spinner lands on it (the hosts only report "busy").
     const [firedAction, setFiredAction] = useState<"approve" | "deny" | null>(null)
     const [steerOpen, setSteerOpen] = useState(false)
@@ -96,7 +98,7 @@ export const ApprovalCard = ({
         if (!responding) setFiredAction(null)
     }, [responding])
 
-    const {infoFor, grant} = useAlwaysAllowTool(entityId)
+    const {infoFor, grantMany} = useAlwaysAllowTool(entityId)
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
@@ -113,8 +115,15 @@ export const ApprovalCard = ({
 
     if (!current || !preview) return null
 
-    const grantInfo = infoFor(current.toolName)
-    const canAlwaysAllow = Boolean(grantInfo.eligible && !grantInfo.alreadyAllowed)
+    // A batch answers as a whole, so the grant covers every tool it would approve, not just the
+    // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
+    const grantableTools = [
+        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+    ].filter((toolName) => {
+        const info = infoFor(toolName)
+        return info.eligible && !info.alreadyAllowed
+    })
+    const canAlwaysAllow = grantableTools.length > 0
     // Touch must NOT change the chrome — the tap target extends invisibly instead.
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
@@ -123,7 +132,7 @@ export const ApprovalCard = ({
     const approve = () => {
         if (responding) return
         setFiredAction("approve")
-        if (alwaysAllowArmed && canAlwaysAllow) grant(current.toolName)
+        if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
@@ -246,18 +255,22 @@ export const ApprovalCard = ({
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
             <HeightCollapse className="-mt-1" open={!steerOpen} fade inert>
-                <div className="flex items-center gap-2">
+                {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
+                    instead of shoving Approve off a narrow screen. */}
+                <div className="flex flex-wrap items-center gap-2">
                     {canAlwaysAllow ? (
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-colorTextSecondary">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
                             <Checkbox
                                 checked={alwaysAllowArmed}
                                 disabled={responding}
                                 onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
+                                aria-labelledby={alwaysAllowLabelId}
+                                className="shrink-0"
                             />
-                            Don&apos;t ask again for this
+                            <span id={alwaysAllowLabelId}>Always auto-approve</span>
                         </label>
                     ) : null}
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
                         {steerEnabled ? (
                             <Button
                                 variant="ghost"
