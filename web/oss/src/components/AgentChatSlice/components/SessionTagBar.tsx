@@ -8,7 +8,7 @@ import {
     SessionTabStrip,
 } from "@agenta/sessions-ui"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {PencilSimple, X} from "@phosphor-icons/react"
+import {ArrowLineRight, PencilSimple, X, XSquare} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig} from "motion/react"
@@ -257,6 +257,8 @@ export interface SessionTagBarProps {
     /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
     addDisabled?: boolean
     onClose: (id: string) => void
+    /** Bulk closes from a tab's context menu ("Close other tabs" / "Close tabs to the right"). */
+    onCloseMany?: (ids: string[]) => void
     onRename: (id: string, title: string) => void
     /** Right-aligned extras (e.g. the session-history menu). */
     extra?: React.ReactNode
@@ -282,6 +284,7 @@ const SessionTagBar = ({
     onAdd,
     addDisabled = false,
     onClose,
+    onCloseMany,
     onRename,
     extra,
     leftExtra,
@@ -303,9 +306,49 @@ const SessionTagBar = ({
                 name: session.title,
                 archived: Boolean(session.archived),
             }
-            return {items: menuItems(target), onClick: onMenuClick(target)}
+            // Chrome's bulk closes. Pinned tabs survive "close others", as they do in a browser —
+            // and since pins lead the strip they are never "to the right" of anything anyway.
+            const index = sessions.findIndex((s) => s.id === session.id)
+            const others = sessions
+                .filter((s) => s.id !== session.id && !isPinned(s.id))
+                .map((s) => s.id)
+            const toRight = sessions
+                .slice(index + 1)
+                .filter((s) => !isPinned(s.id))
+                .map((s) => s.id)
+            const shared = onMenuClick(target)
+            return {
+                items: [
+                    ...menuItems(target),
+                    {type: "divider" as const},
+                    {
+                        key: "close",
+                        label: "Close",
+                        icon: <X size={14} />,
+                        disabled: sessions.length <= 1,
+                    },
+                    {
+                        key: "close-others",
+                        label: "Close other tabs",
+                        icon: <XSquare size={14} />,
+                        disabled: others.length === 0,
+                    },
+                    {
+                        key: "close-right",
+                        label: "Close tabs to the right",
+                        icon: <ArrowLineRight size={14} />,
+                        disabled: toRight.length === 0,
+                    },
+                ],
+                onClick: ({key}: {key: string}) => {
+                    if (key === "close") return onClose(session.id)
+                    if (key === "close-others") return onCloseMany?.(others)
+                    if (key === "close-right") return onCloseMany?.(toRight)
+                    shared({key})
+                },
+            }
         },
-        [menuItems, onMenuClick, scope],
+        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, scope, sessions],
     )
     // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
     // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).

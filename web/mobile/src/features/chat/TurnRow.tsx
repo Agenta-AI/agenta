@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {CollapsibleMessageBody, StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
@@ -37,8 +38,26 @@ import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
+/** Split out so a COLLAPSED fold does not run a frame loop revealing text nobody can see. */
+const ReasoningBody = ({text, urgent}: {text: string; urgent?: boolean}) => {
+    const {text: revealed} = useTypewriter(text, {urgent})
+    return (
+        <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
+            {revealed}
+        </div>
+    )
+}
+
 /** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
-const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) => {
+const ReasoningFold = ({
+    text,
+    streaming,
+    urgent,
+}: {
+    text: string
+    streaming: boolean
+    urgent?: boolean
+}) => {
     const [manual, setManual] = useState<boolean | null>(null)
     const open = manual ?? streaming
     return (
@@ -55,11 +74,7 @@ const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) =>
                 <Brain className="size-3" />
                 <span>{streaming ? "Thinking…" : "Thought"}</span>
             </button>
-            {open ? (
-                <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {text}
-                </div>
-            ) : null}
+            {open ? <ReasoningBody text={text} urgent={urgent} /> : null}
         </div>
     )
 }
@@ -262,6 +277,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 streaming={isLiveTextItem(turn, position)}
                                 text={item.part.text}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
@@ -274,6 +290,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 text={item.part.text}
                                 streaming={isLiveTextItem(turn, position)}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
