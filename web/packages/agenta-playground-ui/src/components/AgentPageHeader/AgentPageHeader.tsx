@@ -1,8 +1,13 @@
 import type {ReactNode} from "react"
 
-import {useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
+
+/** The bar's 24px chip: geometry only, so a host's colours (or the agent's) are the only ones set. */
+export const AGENT_CHIP_BOX = "flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+
+/** What the chip wears when nobody picked an icon. */
+export const AGENT_CHIP_FALLBACK = "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]"
 
 export interface AgentPageHeaderProps {
     /** Before the identity: the desktop's workflow kebab, the mobile screen's back link. */
@@ -18,9 +23,8 @@ export interface AgentPageHeaderProps {
     revision?: ReactNode
     /** Right-edge cluster: the mode switch, settings, and the desktop's evaluation actions. */
     actions?: ReactNode
-    /** The agent's workflow id, so the chip can wear that agent's own icon. Display only. */
-    workflowId?: string | null
-    /** Replaces the chip entirely — the desktop passes an interactive one that opens the picker. */
+    /** The agent's chip. Mobile passes a plain AgentGlyph; the desktop passes an interactive one
+     * that opens the icon picker. Omitted, the bar draws the shared robot. */
     icon?: ReactNode
     className?: string
 }
@@ -49,15 +53,8 @@ export const AgentPageHeader = ({
     revision,
     actions,
     className,
-    workflowId,
     icon,
 }: AgentPageHeaderProps) => {
-    const chrome = useAgentIconChrome(workflowId, {
-        size: 15,
-        fallbackGlyph: <Robot size={15} weight="fill" />,
-        fallbackClassName: "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]",
-    })
-
     return (
         <div
             // 48px is a phone touch target, not a desktop height: fixing it there made this bar
@@ -76,11 +73,8 @@ export const AgentPageHeader = ({
                     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                         {icon ?? (
                             <SimpleTooltip title="Agent">
-                                <span
-                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${chrome.className}`}
-                                    style={chrome.style}
-                                >
-                                    {chrome.glyph}
+                                <span className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}>
+                                    <Robot size={15} weight="fill" />
                                 </span>
                             </SimpleTooltip>
                         )}

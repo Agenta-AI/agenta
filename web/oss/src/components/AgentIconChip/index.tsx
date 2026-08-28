@@ -1,7 +1,6 @@
-import {useMemo} from "react"
-
 import {agentIconAtomFamily} from "@agenta/entities/workflow"
 import {useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "@agenta/playground-ui/agent-page-header"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {RobotIcon} from "@phosphor-icons/react"
 import {Tooltip} from "antd"
@@ -16,22 +15,18 @@ const AgentIconPicker = dynamic(
     {ssr: false},
 )
 
-const CHIP_BOX =
-    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 p-0 outline-offset-2"
-const DEFAULT_CHIP = "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]"
+const CHIP_BOX = `${AGENT_CHIP_BOX} border-0 p-0 outline-offset-2`
 
 /**
  * The playground header's agent chip — the one place the icon is editable. An ephemeral agent has
  * no persisted workflow to key the choice by, so it renders a plain, unclickable chip instead.
  */
 export const AgentIconTrigger = ({workflowId}: {workflowId: string | null}) => {
-    const [record, setRecord] = useAtom(
-        useMemo(() => agentIconAtomFamily(workflowId ?? ""), [workflowId]),
-    )
+    const [record, setRecord] = useAtom(agentIconAtomFamily(workflowId ?? ""))
     const chrome = useAgentIconChrome(workflowId, {
         size: 15,
         fallbackGlyph: <RobotIcon size={15} weight="fill" />,
-        fallbackClassName: DEFAULT_CHIP,
+        fallbackClassName: AGENT_CHIP_FALLBACK,
     })
 
     if (!workflowId) {

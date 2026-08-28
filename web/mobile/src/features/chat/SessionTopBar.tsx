@@ -1,5 +1,10 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {
+    AGENT_CHIP_BOX,
+    AgentPageHeader,
+    AgentRevisionStatus,
+} from "@agenta/playground-ui/agent-page-header"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
@@ -36,6 +41,9 @@ export const SessionTopBar = ({
     // Picking a revision pins the whole workspace to it (config AND the conversation's target),
     // as on the desktop; the pin lives per session and clears on commit.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    // Only override the bar's chip once this agent has an icon; uncustomised, the shared bar draws
+    // its own, so /m has no reason to carry a second robot.
+    const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
 
     return (
         <AgentPageHeader
@@ -45,7 +53,13 @@ export const SessionTopBar = ({
             // list is the drawer's Sessions entry, or the tab rail above the conversation.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             name={name || "Agent"}
-            workflowId={agentId}
+            icon={
+                chrome.customised ? (
+                    <span className={`${AGENT_CHIP_BOX} ${chrome.className}`} style={chrome.style}>
+                        {chrome.glyph}
+                    </span>
+                ) : undefined
+            }
             revision={
                 entityId ? (
                     <AgentRevisionStatus

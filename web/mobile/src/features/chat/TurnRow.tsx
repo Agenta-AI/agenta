@@ -6,7 +6,7 @@ import {StartupActivity, TurnFooter} from "@agenta/chat/components"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {useStartupPhase} from "@agenta/chat/state"
-import {useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
@@ -182,20 +182,8 @@ const TurnAvatar = ({
     isUser?: boolean
     workflowId?: string | null
 }) => {
-    const chrome = useAgentIconChrome(isUser ? null : workflowId, {size: 16, fallbackGlyph: null})
-
     if (isUser) return <ChatBubbleAvatar icon={<User className="size-4" />} />
-    if (!chrome.customised) return <ChatBubbleAvatar icon={<Bot className="size-4" />} />
-
-    // `size-6` is the ChatBubbleAvatar box, so the mark lines up with the user's.
-    return (
-        <span
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full ${chrome.className}`}
-            style={chrome.style}
-        >
-            {chrome.glyph}
-        </span>
-    )
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Bot className="size-4" />} />
 }
 
 const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: string | null}) => {

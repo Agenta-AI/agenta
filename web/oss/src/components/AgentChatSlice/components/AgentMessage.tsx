@@ -24,7 +24,7 @@ import {
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {useDriveArtifactId} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
@@ -201,31 +201,14 @@ export const RunErrorBody = ({
     )
 }
 
-/**
- * The bubble's avatar. An assistant turn wears the agent's own icon when one was picked; the user
- * and the uncustomised agent keep exactly the avatar they had.
- *
- * The workflow id rides the ambient drive session — the same context the in-thread file cards use —
- * rather than being threaded through the transcript's renderMessage.
- */
+/** The bubble's avatar — the agent's own mark, or the Robot every turn had before. */
 const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
     const artifactId = useDriveArtifactId()
     // A draft agent has no persisted id to key an icon by.
     const workflowId = artifactId && !isLocalDraftId(artifactId) ? artifactId : null
-    const chrome = useAgentIconChrome(isUser ? null : workflowId, {size: 16, fallbackGlyph: null})
 
     if (isUser) return <ChatBubbleAvatar icon={<User size={16} />} />
-    if (!chrome.customised) return <ChatBubbleAvatar icon={<Robot size={16} />} />
-
-    // size-6 is the ChatBubbleAvatar box, so the mark lines up with the user's.
-    return (
-        <span
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full ${chrome.className}`}
-            style={chrome.style}
-        >
-            {chrome.glyph}
-        </span>
-    )
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Robot size={16} />} />
 }
 
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
