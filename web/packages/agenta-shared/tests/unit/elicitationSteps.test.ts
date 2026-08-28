@@ -290,7 +290,7 @@ describe("validateStep", () => {
         },
     )
 
-    it.each(["^[A-Z]{3}$", "^\\d+$", "^(cat|dog)$"])(
+    it.each(["^[A-Z]{3}$", "^\\d+$", "^(cat|dog)$", "(a[+])+", "([*])+"])(
         "still enforces the ordinary pattern %s",
         (pattern) => {
             const {steps} = formOf(payload({code: {type: "string", pattern}}))

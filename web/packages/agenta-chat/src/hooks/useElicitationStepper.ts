@@ -55,7 +55,11 @@ const readDraft = (toolCallId: string, steps: ElicitationStep[]): Draft | null =
         // something to restore, and dropping it resurrects the defaults they declined.
         if (Object.keys(kept).length === 0 && !skipped.length) return null
         const index = typeof parsed.index === "number" ? parsed.index : 0
-        return {values: kept, skipped, index: Math.max(0, Math.min(index, steps.length))}
+        // Clamp to the real last screen, not to `steps.length`: a schema that shrank to one
+        // question has no review to land on, and an index past its only step renders neither the
+        // question nor the review while `primary()` happily completes.
+        const last = steps.length > 1 ? steps.length : Math.max(steps.length - 1, 0)
+        return {values: kept, skipped, index: Math.max(0, Math.min(index, last))}
     } catch {
         return null
     }

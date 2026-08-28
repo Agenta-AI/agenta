@@ -326,6 +326,23 @@ describe("content", () => {
 })
 
 describe("draft", () => {
+    it("clamps a draft saved against a bigger schema", () => {
+        const five = setup(FIVE)
+        // A draft with nothing in it is discarded on read, so give it a value the smaller schema
+        // still asks about — otherwise this test passes without exercising the clamp at all.
+        act(() => five.result.current.setValue("name", "Ada"))
+        act(() => five.result.current.goTo(4))
+        five.unmount()
+
+        // The agent re-asked with one question. Landing past its only step rendered neither the
+        // question nor a review, and the primary action completed without showing anything.
+        const one = setup(formOf({name: {type: "string", title: "Your name"}}))
+
+        expect(one.result.current.index).toBe(0)
+        expect(one.result.current.step?.name).toBe("name")
+        expect(one.result.current.isReview).toBe(false)
+    })
+
     it("carries the skips, so a reload does not resurrect a skipped default", () => {
         const form = formOf({
             region: {type: "string", title: "Region", default: "eu"},

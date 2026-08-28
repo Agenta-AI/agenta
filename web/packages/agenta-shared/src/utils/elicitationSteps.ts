@@ -123,10 +123,21 @@ const isCatastrophicPattern = (pattern: string): boolean => {
     // was itself polynomial on a crafted pattern, which is the same bug one level up (CodeQL 311).
     const quantified: boolean[] = []
     let depth = 0
+    // Inside a character class `+`, `*` and `{` are literals, so `(a[+])+` holds no inner
+    // quantifier and must stay enforced.
+    let inClass = false
     for (let i = 0; i < pattern.length; i++) {
         const char = pattern[i]
         if (char === "\\") {
             i++
+            continue
+        }
+        if (inClass) {
+            if (char === "]") inClass = false
+            continue
+        }
+        if (char === "[") {
+            inClass = true
             continue
         }
         if (char === "(") {
