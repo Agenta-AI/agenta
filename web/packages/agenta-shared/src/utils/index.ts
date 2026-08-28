@@ -211,6 +211,8 @@ export type {
 // Gateway Tool Slug utilities
 export {
     slugify as connectionSlugify,
+    connectionDisplayName,
+    defaultConnectionName,
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"

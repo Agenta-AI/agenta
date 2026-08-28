@@ -1,12 +1,13 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     createToolConnection,
     fetchToolConnection,
     invalidateToolConnections,
+    useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
-import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {
     Divider,
@@ -59,44 +60,54 @@ export default function ConnectDrawer({
     onSuccess,
 }: Props) {
     const [loading, setLoading] = useState(false)
-    // Track whether the user has manually edited the slug field.
-    // While false, slug auto-tracks the name field.
-    const slugTouchedRef = useRef(false)
+    // One suffix per drawer instance keeps the derived slug stable while the author edits the name.
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
-    const buildDefaultSlug = useCallback((name: string) => {
-        return generateDefaultSlug(name, slugSuffixRef.current)
-    }, [])
+    // The author names the connection; the slug is derived and never shown. The API rejects a null
+    // slug, so it is still computed and sent — it is just not something to author.
+    const {connections} = useToolConnectionsQuery()
+    const existingCount = connections.filter(
+        (connection) => connection.integration_key === integrationKey,
+    ).length
+    const seedName = defaultConnectionName(integrationName, existingCount)
 
-    // Explicitly controlled form state (the antd Form was internal-only here).
-    const [name, setName] = useState(integrationName)
-    const [slug, setSlug] = useState(() => buildDefaultSlug(integrationName || ""))
-    const [slugError, setSlugError] = useState<string | null>(null)
+    const nameTouchedRef = useRef(false)
+    const [name, setName] = useState(seedName)
+    const [nameError, setNameError] = useState<string | null>(null)
+    const slug = generateDefaultSlug(
+        name || integrationName || integrationKey,
+        slugSuffixRef.current,
+    )
+
+    // The connections list settles after mount, so the "(main)" / "(secondary)" seed can only be
+    // known late. Re-seed until the author types something of their own.
+    useEffect(() => {
+        if (!nameTouchedRef.current) setName(seedName)
+    }, [seedName])
 
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
     const handleClose = useCallback(() => {
-        slugTouchedRef.current = false
+        nameTouchedRef.current = false
         slugSuffixRef.current = randomAlphanumeric(3)
-        setName(integrationName)
-        setSlug(buildDefaultSlug(integrationName || ""))
-        setSlugError(null)
+        setName(seedName)
+        setNameError(null)
         setLoading(false)
         onClose()
-    }, [onClose, integrationName, buildDefaultSlug])
+    }, [onClose, seedName])
 
     // The shared one, not a local copy: it also invalidates ["triggers", "connections"], which
     // this drawer was missing — a tool connected here left the triggers list stale.
     const invalidateConnections = invalidateToolConnections
 
     const handleSubmit = useCallback(async () => {
-        // Was the antd `required` rule on the slug Form.Item — now the direct path.
-        if (!slug.trim()) {
-            setSlugError("Required")
+        // The name is now the only authored field, so it carries the validation the slug used to.
+        if (!name.trim() || !slug.trim()) {
+            setNameError("Required")
             return
         }
-        setSlugError(null)
+        setNameError(null)
         try {
             setLoading(true)
 
@@ -218,37 +229,20 @@ export default function ConnectDrawer({
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field label="Name" tooltip="Display name for this connection">
+                    <Field
+                        label="Name"
+                        required
+                        tooltip="Display name for this connection"
+                        error={nameError}
+                    >
                         <Input
                             placeholder={`e.g. My ${integrationName} Account`}
                             value={name}
+                            aria-invalid={nameError ? true : undefined}
                             onChange={(e) => {
+                                nameTouchedRef.current = true
                                 setName(e.target.value)
-                                // Was in the Input's onChange inside the antd Form —
-                                // slug auto-tracks name until the user edits the slug.
-                                if (!slugTouchedRef.current) {
-                                    setSlug(
-                                        buildDefaultSlug(e.target.value || integrationName || ""),
-                                    )
-                                }
-                            }}
-                        />
-                    </Field>
-
-                    <Field
-                        label="Slug"
-                        required
-                        tooltip="Unique identifier used in tool call slugs — lowercase letters, numbers, and hyphens only"
-                        error={slugError}
-                    >
-                        <Input
-                            placeholder={`e.g. my-${integrationKey}`}
-                            value={slug}
-                            aria-invalid={slugError ? true : undefined}
-                            onChange={(e) => {
-                                slugTouchedRef.current = true
-                                setSlug(e.target.value)
-                                if (slugError && e.target.value.trim()) setSlugError(null)
+                                if (nameError && e.target.value.trim()) setNameError(null)
                             }}
                         />
                     </Field>
