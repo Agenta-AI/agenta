@@ -610,6 +610,18 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
+        // Under AGENT grouping, order the headings by the SAME chat-session rank the Agents group
+        // uses — so the two agent lists agree and the busiest agent leads, not the alphabetical
+        // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
+        // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
+        if (groupBy === "agent") {
+            const ranks = get(sidebarAgentRanksAtomFamily(scopeId))
+            for (const [key, bucket] of labels) {
+                if (!key.startsWith("agent:") || key === UNASSIGNED_GROUP_KEY) continue
+                // NEGATED so more sessions sorts first, in the one ascending order compareGroups uses.
+                bucket.rank = -(ranks.get(key.slice("agent:".length)) ?? 0)
+            }
+        }
         // SORTED, not first-seen: the rows arrive in activity order, so taking their order made the
         // headings reshuffle every time you worked in a session. Only the rows under a heading move.
         const all: SidebarEntityGroup[] = [...labels]
