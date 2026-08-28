@@ -354,7 +354,12 @@ export const closeSessionsAtomFamily = atomFamily((key: string) =>
         const list = all[key] ?? []
         const messages = get(sessionMessagesAtom)
         const husks = new Set(
-            list.filter((s) => closing.has(s.id) && isSessionHusk(s, messages)).map((s) => s.id),
+            list
+                .filter(
+                    (s) =>
+                        closing.has(s.id) && isSessionHusk(s, sessionHasMessages(messages, s.id)),
+                )
+                .map((s) => s.id),
         )
         if (husks.size > 0) {
             set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !husks.has(s.id))})
