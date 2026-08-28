@@ -60,7 +60,6 @@ export default function TriggerScheduleDrawer() {
                 </span>
             }
             width={640}
-            closeOnLayoutClick={false}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}

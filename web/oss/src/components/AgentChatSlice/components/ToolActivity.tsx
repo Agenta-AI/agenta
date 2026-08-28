@@ -27,6 +27,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {extractCallDescription, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {
+    approvalVerdictText,
     groupLabelText,
     hasFailed,
     isNonFinalRunnerError,
@@ -53,10 +54,13 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
         return <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
     if (state === "approval-requested")
         return <Wrench size={13} className="shrink-0 text-colorWarning" />
-    // An answered gate whose execution landed on a sibling part (cold-replay fresh id). Usually
-    // deduped away in AgentMessage; if it slips through, show it as approved — never a stuck spinner.
+    // An answered gate whose execution landed on a sibling part; the glyph must follow the verdict.
     if (state === "approval-responded")
-        return <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        return approvalVerdictText(part) === "denied" ? (
+            <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
+        ) : (
+            <CheckCircle size={13} className="shrink-0 text-colorTextTertiary" />
+        )
     return <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
 }
 
@@ -142,9 +146,9 @@ const ToolRowView = memo(
             state === "approval-requested"
                 ? "Awaiting approval"
                 : state === "approval-responded"
-                  ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
-                      ? "denied"
-                      : "approved"
+                  ? // Never claim an approval nobody can evidence: a replayed gate whose verdict is
+                    // unknown reads "responded", not "approved". This is a permission surface.
+                    approvalVerdictText(part)
                   : live && running
                     ? "running…"
                     : rowSummary(part, display)

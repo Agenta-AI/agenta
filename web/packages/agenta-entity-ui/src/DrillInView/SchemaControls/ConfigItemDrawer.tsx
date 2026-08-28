@@ -125,8 +125,6 @@ export function ConfigItemDrawer({
             onClose={onCancel}
             placement="right"
             width={width}
-            // Explicit Cancel/Save only — an outside click must not silently drop the draft.
-            closeOnLayoutClick={false}
             // Lazy content: children aren't mounted until first open and are torn down on close,
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose
@@ -159,11 +157,14 @@ export function ConfigItemDrawer({
             extra={
                 jsonOnly ? null : (
                     <Segmented
+                        size="sm"
                         value={effectiveView}
                         onChange={(v) => onViewChange(v as ConfigItemView)}
                         options={[
-                            {label: "Form", value: "form"},
-                            {label: "JSON", value: "json"},
+                            // The sm track keeps `text-field-md` (14px); this drops the labels to
+                            // 12px to match the rest of the header.
+                            {label: "Form", value: "form", className: "text-field-sm"},
+                            {label: "JSON", value: "json", className: "text-field-sm"},
                         ]}
                         disabled={disabled}
                         aria-label="Item view"
@@ -172,10 +173,13 @@ export function ConfigItemDrawer({
             }
             footer={
                 <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
-                        {footerNote}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-2">
+                    {footerNote ? (
+                        <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
+                            {footerNote}
+                        </span>
+                    ) : null}
+                    {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Button variant="outline" onClick={onCancel}>
                             Cancel
                         </Button>

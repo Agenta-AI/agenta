@@ -99,6 +99,7 @@ class _CapturingBackend(Backend):
         session_id=None,
         # Interface parity only; these tests assert on the redaction scope, not the wire.
         effective_parameters=None,
+        gateway_policy=None,
     ) -> _FakeSession:
         self.captured_redactors.append(get_active_redactor())
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))

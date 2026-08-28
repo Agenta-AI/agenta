@@ -1455,7 +1455,6 @@ const FocusDrawer = () => {
             open={isOpen}
             onClose={handleClose}
             afterOpenChange={handleAfterOpenChange}
-            closeOnLayoutClick={false}
             expandable
             styles={{body: {padding: 0}, header: {padding: 16}}}
             sideContentDefaultSize={240}

@@ -1,0 +1,377 @@
+# Runtime tools for gateway connections
+
+This page defines the model-facing runtime tools derived from the saved
+`gateway_connection` entries in [data-model.md](data-model.md). Permission compilation
+and enforcement are defined in [permission-layers.md](permission-layers.md).
+
+This first version uses Composio's semantic tool search for ranking. A local search
+implementation is a follow-up that requires production evidence.
+
+## Decision
+
+When an agent has at least one `gateway_connection`, the platform gives the model two
+tools for the whole agent:
+
+- `search_tools`: find tools across configured integrations;
+- `run_tool`: run one selected integration tool.
+
+These are derived runtime tools. They are not saved configuration entries, do not appear
+in the agent's tool editor, and cannot be renamed independently.
+
+The model identifies an integration tool with two values:
+
+```text
+integration + tool key
+```
+
+For example:
+
+```text
+slack + SEND_MESSAGE
+```
+
+The tool key is the stable Agenta key used by the saved permission map. Provider action
+IDs remain internal.
+
+## V1 constraints
+
+- One agent revision contains at most one `gateway_connection` per provider and
+  integration.
+- The model does not select or receive a connection slug.
+- Search queries must be non-empty.
+- Search uses Composio's `COMPOSIO_SEARCH_TOOLS` operation.
+- Search results are filtered to configured, non-denied tools before reaching the model.
+- Each returned result includes its input schema.
+- The model is expected to search once, select a result, and run it.
+
+The project may contain several connections for one integration. The agent revision
+selects one of them for V1. Supporting several selected accounts for one integration
+requires a model-facing account-selection contract and is deferred.
+
+## Private runtime context
+
+At run start, the SDK sends the runner the private resolved gateway policy described in
+[permission-layers.md](permission-layers.md). It contains:
+
+- configured providers and integrations;
+- the selected connection slug for each integration;
+- the concrete toolkit version resolved for this run;
+- the catalog tool keys;
+- the compiled `allow`, `ask`, or `deny` value for each tool.
+
+This context is not part of either model-facing input schema. It does not enter the
+sandbox as editable data.
+
+It carries no input schemas, deliberately. The policy rides every run request, and schemas
+are large: for one `github` integration (871 actions) they measured 1.5 MiB against 60 KiB
+for identity alone, and `notion` grew 87-fold. The runner needs a schema only for the at
+most five results one search returns, so the API answers those from the pinned catalog it
+already holds and the policy stays small.
+
+## `search_tools`
+
+### Input
+
+```json
+{
+  "query": "send a message",
+  "integration": "slack"
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `query` | Yes | A non-empty description of the task the model wants to perform. |
+| `integration` | No | Restricts the request to one integration configured on the agent. |
+
+An unknown or unconfigured `integration` is rejected before the provider search. An empty
+query is invalid in V1. Listing every tool in an integration is deferred.
+
+### Provider search
+
+The Tools API calls Composio's `COMPOSIO_SEARCH_TOOLS` operation through the existing
+provider adapter. The existing response contains:
+
+- primary and related provider tool slugs;
+- descriptions;
+- inline input schemas;
+- provider toolkit identities.
+
+The existing API cache for provider search results remains in use. Cold search latency was
+measured at about 2.3 seconds on 2026-08-26. The V1 prompt tells the model to search once
+and reuse the returned schema.
+
+The current Composio adapter does not pass a toolkit filter. When the model supplies an
+integration, the API includes that integration in the provider use-case text. Regardless
+of provider behavior, returned results are filtered after translation.
+
+Before relying on query enrichment, implementation must check whether the current
+Composio operation supports a native toolkit filter. Use the native filter if available.
+
+Composio search ranks against its current catalog and does not accept a target toolkit
+version for each result. At run resolution, Agenta resolves each configured integration's
+`latest` alias to the concrete version in Composio's `meta.version` field. The private
+gateway policy carries that version, and the runner sends it back on every search as
+`context.toolkit_versions`.
+
+That pin is the join. The API keeps the ranking only for its order: it looks each hit up in
+the pinned catalog, replaces the schema search returned with the schema that version holds,
+and drops the hit when the pinned catalog has no such key or no usable object schema. The
+runner therefore receives inline schemas exactly as section 7 of
+[contracts.md](contracts.md) has always promised, and its own schema check stays a check
+rather than a substitution.
+
+One drift stays, and it is accepted. Search ranks against the catalog that is current when
+the search runs, while the run executes against the version pinned when the run started. A
+tool that Composio publishes between those two moments can rank in search and is then
+dropped, because the pinned catalog does not hold its key. The run resolves the alias at
+its own start, so the window is the length of one run, and the failure is a missing search
+result rather than a call against a schema that does not match what executes.
+
+The REST API version (`v3.1`) and toolkit version (`YYYYMMDD_NN`) are separate. The API
+version selects the Composio protocol. The toolkit version selects the tool identity and
+schema used for this run.
+
+### Translation and filtering
+
+The Tools API translates provider results into Agenta integration and tool keys, and
+answers each one from the pinned catalog. It does not decide agent permissions.
+
+1. Translate the provider slug into an integration and a tool key.
+2. Remove a result whose integration the request did not pin.
+3. Replace the schema search returned with the schema the pinned version holds.
+4. Remove a result the pinned catalog has no key for, or no usable object schema for.
+
+The trusted runner then filters what is left against its private resolved policy:
+
+1. Remove results from providers or integrations not configured on the agent.
+2. Remove tools missing from the resolved catalog policy.
+3. Remove tools whose compiled permission is `deny`.
+4. Remove results without a usable object input schema.
+5. Return at most five results.
+
+Filtering improves model behavior. It is not the execution boundary. `run_tool`
+independently checks every requested tool.
+
+The current callback path returns API text directly to the model. V1 therefore adds a
+trusted result-processing step for `search_tools` in the runner before the result is
+written back to the harness.
+
+### Output
+
+One result has this shape:
+
+```json
+{
+  "integration": "slack",
+  "tool": "SEND_MESSAGE",
+  "name": "Send message",
+  "description": "Post a message to a Slack channel.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "channel": {"type": "string"},
+      "text": {"type": "string"}
+    },
+    "required": ["channel", "text"]
+  }
+}
+```
+
+The result does not contain:
+
+- the connection slug;
+- the provider account ID;
+- the provider action ID;
+- permission values;
+- `read_only` classification.
+
+The model does not need those fields to call the tool. The runner already owns the
+compiled permission.
+
+### Connected integrations
+
+Every answer the runner writes back carries `connected_integrations`: the configured
+integration names, sorted. It is derived from the resolved policy's keys, so it costs no
+round trip and cannot drift from what the agent actually has.
+
+It rides both the matched and the empty case. Empty is the obvious one, but a partial answer
+is the other place a model drifts: it gets a hit from one app and assumes the neighbouring
+one it wanted is connected too.
+
+Names only. A connection slug, a permission value, and a tool key all stay out, exactly as
+they do from a result.
+
+### No matching result
+
+If provider search succeeds but no configured, non-denied result remains, return a normal
+empty result with a short message that names the connected integrations:
+
+```json
+{
+  "results": [],
+  "message": "No configured tool matched. Connected integrations: github, slack. Try a more specific description or name one of them.",
+  "connected_integrations": ["github", "slack"]
+}
+```
+
+An agent with no connection at all keeps the shorter sentence, so the message never ends on
+a dangling list:
+
+```json
+{
+  "results": [],
+  "message": "No configured tool matched this request. Try a more specific task description.",
+  "connected_integrations": []
+}
+```
+
+The message must not suggest unconfigured integrations returned by Composio. Naming the
+CONFIGURED ones is not that: they are the agent's own apps, and the prompt guidance and the
+`search_tools` description already list them.
+
+### Search failure
+
+Provider or transport failure returns an agent-actionable error:
+
+```json
+{
+  "code": "tool_search_unavailable",
+  "message": "Tool search is temporarily unavailable.",
+  "retryable": true,
+  "next_step": "Retry the search once."
+}
+```
+
+The prompt permits one retry for a temporary failure. It tells the model not to repeat
+equivalent searches indefinitely and never to invent a tool key.
+
+## `run_tool`
+
+### Input
+
+```json
+{
+  "integration": "slack",
+  "tool": "SEND_MESSAGE",
+  "arguments": {
+    "channel": "#general",
+    "text": "hello"
+  }
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `integration` | Yes | One integration configured on the agent. |
+| `tool` | Yes | The stable Agenta tool key returned by `search_tools`. |
+| `arguments` | Yes | One JSON object matching the returned input schema. |
+
+The model cannot supply a connection slug or provider action ID.
+
+### Runner gate
+
+The runner applies the private resolved policy before making the execution callback:
+
+1. Find the configured integration and tool key.
+2. Treat a missing integration or tool as `deny`.
+3. Apply the operator deny override.
+4. Apply the compiled tool permission.
+5. Reject `deny`, continue on `allow`, or start a user approval interaction on `ask`.
+
+Approval identity includes the integration, tool key, and canonical arguments. The
+approval card shows the integration tool and the arguments, not only the coarse
+`run_tool` name.
+
+The runner forwards exactly the arguments that were checked or approved. It does not
+silently rewrite malformed input.
+
+### API execution
+
+After the runner allows the call, it sends the selected provider, integration, connection,
+and tool key as private callback context. Only the integration tool's arguments remain in
+the callback function arguments. The API:
+
+1. Checks project-level `RUN_TOOLS` access.
+2. Resolves the project connection and checks that it is active and valid.
+3. Confirms that the tool key belongs to the selected integration at the run's concrete
+   toolkit version.
+4. Reads the canonical provider action ID from that version's catalog.
+5. Validates that `arguments` is an object. Invalid input returns an actionable error; it
+   is never replaced with `{}`.
+6. Executes through the provider adapter with the selected connection and the same concrete
+   toolkit version.
+
+The API validates resource identity and routing. It does not recompute the agent's
+permission policy.
+
+### Execution errors
+
+An unknown or stale tool key returns an error with up to five close keys from the same
+configured integration. A malformed argument payload returns the expected object shape.
+Provider failures keep their provider detail so the model can correct a valid but rejected
+request.
+
+## Call references
+
+The two resolved callback specifications use stable routing identities:
+
+```text
+gateway.search
+gateway.run
+```
+
+No integration, connection, provider action ID, or permission policy is encoded in these
+strings. The runner uses the private resolved policy for permission and connection
+selection. The API receives the selected connection through private callback context.
+
+## Prompt guidance
+
+The SDK assembles a runtime instruction section when the agent has at least one
+`gateway_connection`. It is not stored in the agent revision.
+
+The V1 section contains:
+
+1. The configured integration names.
+2. An instruction to search once per task with a concrete description, refining the
+   query once if the result is empty, and never repeating an equivalent query.
+3. An instruction to use only a returned integration and tool key.
+4. An instruction to copy arguments from the returned schema.
+5. An instruction to retry search at most once after a temporary failure.
+6. An instruction to stop searching after receiving a usable result.
+
+Capability grouping such as "Messaging" or "Code" is deferred. V1 lists the configured
+integration names without inventing a second classification system.
+
+The names appear in three places, on purpose. The prompt guidance carries them once at the
+top of the run; the `search_tools` description carries them where the model reads them at
+every call, which a long context cannot push out of view; and every search answer carries
+them in `connected_integrations`, which is where the model is actually deciding what to try
+next. All three are the same names from the same resolved policy.
+
+## Measurements
+
+Instrument V1 before replacing provider search. Record:
+
+- cold and cached search latency;
+- provider search failures;
+- searches per model task;
+- searches that return no permitted result after filtering;
+- results from unconfigured integrations before filtering;
+- selected result rank;
+- execution attempts without a prior successful search;
+- unknown or stale tool-key failures;
+- outcomes by model family and size.
+
+These measurements decide whether a local search implementation is needed.
+
+## Follow-ups
+
+- Local lexical search over the cached catalog.
+- A local fallback when Composio search is unavailable.
+- Empty-query listing for one configured integration.
+- Native provider-independent ranking.
+- Several selected connections for one integration.
+- Model-facing connection selection when several accounts are selected.
+- Capability grouping in prompt guidance.
+- More advanced fuzzy correction for unknown tool keys.

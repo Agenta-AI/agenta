@@ -5,7 +5,7 @@
  */
 import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
 
-import {parseGatewayTool, type ToolObj} from "../toolUtils"
+import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
@@ -171,9 +171,23 @@ export function describeTool(tool: unknown): ItemDescriptor {
         }
     }
 
-    // Third-party / gateway tool: canonical object or legacy slug.
-    const gateway = parseGatewayTool(t)
-    if (gateway) {
+    // A gateway entry: a whole integration, or one third-party action (canonical or legacy slug).
+    const entry = parseGatewayEntry(t)
+    if (entry?.kind === "connection") {
+        const {connection} = entry
+        return {
+            name: capitalizeFirst(connection.integration),
+            monoName: false,
+            mono: monogram(connection.integration),
+            color: "#1c2c3d",
+            icon: <Plugs size={15} weight="fill" />,
+            tags: [connection.integration],
+            typeLabel: "integration",
+            subtitle: `Integration · ${connection.integration} · ${connection.connection} connection`,
+        }
+    }
+    if (entry) {
+        const gateway = entry.action
         // Some action keys repeat the integration (GITHUB_ADD_...) — drop it; the group header
         // already names the app. Then humanize the key into a readable label.
         const intgPrefix = `${gateway.integration.toUpperCase()}_`

@@ -1,4 +1,9 @@
 export type {
+    GatewayConnectionPolicy,
+    GatewayConnectionRef,
+    GatewayConnectionToolConfig,
+    GatewayPermission,
+    GatewayPermissions,
     Status,
     ToolAuthScheme,
     ToolCall,

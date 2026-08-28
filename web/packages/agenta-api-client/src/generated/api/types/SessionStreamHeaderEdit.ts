@@ -4,7 +4,9 @@
  * The rename edit: a full-PUT of the header fields only.
  *
  * Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
- * liveness-only writes can never carry name/description, and vice versa.
+ * liveness-only writes can never carry name/description, and vice versa. The one
+ * other header writer is the heartbeat's fill-once proposal, which goes through the
+ * DAO's NULL-guarded `fill_missing` and so cannot overwrite this edit.
  *
  * ``name`` may be omitted/``None`` (no change) or an empty string (the explicit
  * clear-title action the chat rail's rename path uses), but a NON-empty name must
