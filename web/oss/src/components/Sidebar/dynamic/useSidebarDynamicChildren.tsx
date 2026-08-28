@@ -1,5 +1,6 @@
 import {useEffect} from "react"
 
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {
     AGENTS_SIDEBAR_KEY,
     injectDynamicChildren,
@@ -9,7 +10,6 @@ import {
     type SidebarConfig,
     type SidebarRowIcons,
 } from "@agenta/navigation"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {RobotIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
