@@ -702,6 +702,10 @@ const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
                 querySessions({
                     projectId: projectId ?? "",
                     includeArchived: false,
+                    // CHATS only, not trigger runs: an agent that fires on a schedule would
+                    // otherwise rank on runs you never created, mismatching the handful of
+                    // conversations you actually had with it.
+                    excludeOrigin: "trigger",
                     limit: AGENT_RANK_WINDOW,
                     order: "descending",
                     abortSignal: signal,
@@ -716,12 +720,13 @@ const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * `agentId -> session count`, ranking the Agents group by how many sessions each has.
+ * `agentId -> chat-session count`, ranking the Agents group by how much you actually work with
+ * each agent.
  *
- * A busy agent leads, and the count barely moves session to session — so the order reads as
- * stable where "most recently used" reshuffled on every turn. Agents with no session are left out
- * (rank `undefined`), so they keep catalog order at the bottom, which is roughly creation order —
- * a new agent appends rather than jumping in. Counted over the frozen window above.
+ * CHATS only — the query above excludes trigger runs — so an automation-heavy agent ranks on the
+ * conversations you had, not the runs a schedule fired. A busy agent leads, the count barely moves
+ * session to session (stable, unlike recency), and an agent with no chat keeps catalog order at
+ * the bottom — a new one appends rather than jumping in. Counted over the frozen window above.
  */
 export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
     const counts = new Map<string, number>()
