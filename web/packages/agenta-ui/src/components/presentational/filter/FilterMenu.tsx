@@ -46,6 +46,9 @@ export interface FilterMenuFacet {
     emptyLabel?: string
     /** Multi-choice only: the summary past one selection, e.g. `(n) => `${n} agents``. */
     manyLabel?: (count: number) => string
+    /** Multi-choice only: the option value that stands for "none selected". It renders checked
+     * while the set is empty, and picking it clears the set — a way back to "all" from the menu. */
+    noneValue?: string
     icon?: ReactNode
 }
 
@@ -117,7 +120,11 @@ export const FilterMenu = ({
                 {facets?.map((facet) => {
                     const selected = facet.multiple ? (facet.values ?? []) : []
                     const isOn = (value: string) =>
-                        facet.multiple ? selected.includes(value) : value === facet.value
+                        facet.multiple
+                            ? value === facet.noneValue
+                                ? selected.length === 0
+                                : selected.includes(value)
+                            : value === facet.value
                     // Multi: nothing selected IS the default, so the summary reads as neutral.
                     const offDefault = facet.multiple
                         ? selected.length > 0
@@ -162,11 +169,11 @@ export const FilterMenu = ({
                                                 return
                                             }
                                             event.preventDefault()
-                                            onFacetToggle?.(
-                                                facet.key,
-                                                option.value,
-                                                !selected.includes(option.value),
-                                            )
+                                            const on =
+                                                option.value === facet.noneValue
+                                                    ? selected.length === 0
+                                                    : !selected.includes(option.value)
+                                            onFacetToggle?.(facet.key, option.value, on)
                                         }}
                                     >
                                         <span

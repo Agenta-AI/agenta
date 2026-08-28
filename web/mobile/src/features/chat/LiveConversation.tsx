@@ -4,6 +4,7 @@ import {
     BOTTOM_FADE_HOVER_HIDE,
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
+    jumpGateOpen,
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
@@ -224,6 +225,13 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
+    // surface has no question-form dock yet, so only approvals and connect cards can gate it.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
+    })
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
@@ -279,6 +287,7 @@ export const LiveConversation = ({
                 ) : null}
                 {visibleTurns.map((turn) => (
                     <TurnRow
+                        workflowId={agentId}
                         key={turn.message.id}
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
@@ -306,7 +315,7 @@ export const LiveConversation = ({
                 onScroll={autoScroll.onScroll}
                 scrollOverlay={
                     <ChatJumpToLatest
-                        show={autoScroll.showJump}
+                        show={autoScroll.showJump && !gateOpen}
                         onClick={autoScroll.jumpToLatest}
                     />
                 }

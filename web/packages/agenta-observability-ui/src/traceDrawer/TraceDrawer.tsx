@@ -40,7 +40,6 @@ const TraceDrawer = () => {
             open={open}
             onClose={handleClose}
             width={drawerWidth}
-            closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
             styles={{body: {padding: 0}}}
             destroyOnHidden

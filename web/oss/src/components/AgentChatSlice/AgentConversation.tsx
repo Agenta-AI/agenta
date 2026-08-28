@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject
 import {
     describeAccepted,
     filesToParts,
+    jumpGateOpen,
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -61,6 +62,7 @@ import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
+import {isAltChord, isOverlayOpen} from "./hooks/useSessionShortcuts"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
@@ -71,6 +73,7 @@ import {
     bumpSessionActivityAtomFamily,
     firstUserText,
 } from "./state/sessions"
+import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -382,6 +385,13 @@ const AgentConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    // A docked gate holds the jump pill back: same bottom corner, and a paused run has nothing
+    // arriving below to jump to.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
+    })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -430,6 +440,47 @@ const AgentConversation = ({
         submit({text: pendingRun.text})
         setPendingRun(null)
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
+
+    // Run-level shortcuts. They live here, not in the panel's session hook, because only this
+    // conversation knows whether a run is in flight and what it is waiting on. Bubble phase, so an
+    // open picker or dialog that stops propagation still gets Escape first.
+    useEffect(() => {
+        if (activeSessionId !== sessionId) return
+        const onKey = (e: KeyboardEvent) => {
+            if (isOverlayOpen()) return
+            // An IME user presses Escape to cancel composition, not to stop the run.
+            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
+                e.preventDefault()
+                handleStop()
+                return
+            }
+            // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
+            // grant a tool the user never read.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                handleApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+
+    // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
+    // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
+    // too. The frame claims the nonce, not the effect body: StrictMode replays the mount, and
+    // claiming it up front would leave the replay with nothing to do.
+    const focusRequest = useAtomValue(focusComposerRequestAtom)
+    const consumedFocusNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!matchesSessionRequest(focusRequest, scopeKey, sessionId)) return
+        const {nonce} = focusRequest
+        if (consumedFocusNonceRef.current === nonce) return
+        requestAnimationFrame(() => {
+            if (consumedFocusNonceRef.current === nonce) return
+            consumedFocusNonceRef.current = nonce
+            richInputRef.current?.focus()
+        })
+    }, [focusRequest, scopeKey, sessionId])
 
     // Exactly one scroll engine owns the transcript: Virtuoso when it's enabled in the playground
     // settings, the SC-1..4 DOM engine otherwise (each bails on the other's flag). Both act on the
@@ -661,8 +712,12 @@ const AgentConversation = ({
                             absolute bar in build and reclaims the space in chat. It lives on the
                             TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
                             beside it keeps a fixed top and doesn't ride the transition upward.
-                            box-border so the padding fits inside h-full (preflight is off). */}
-                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            box-border so the padding fits inside h-full (preflight is off).
+                            NO column gap: the transcript's bottom fade is meant to dissolve content
+                            into the composer edge, and a gap between them left a dead band of canvas
+                            that read as the transcript being cut short. Docked chrome below carries
+                            its own `mb-2`, so nothing here depended on the gap for separation. */}
+                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
                                 {/* At the limit the overlay says so rather than inviting a drop it is
                             about to reject wholesale. */}
                                 {isDragging && (
@@ -703,6 +758,7 @@ const AgentConversation = ({
                                     virt={virt}
                                     scroll={scroll}
                                     showJump={showJump}
+                                    gateOpen={gateOpen}
                                     placeholder={
                                         <TranscriptPlaceholder
                                             entityId={entityId}

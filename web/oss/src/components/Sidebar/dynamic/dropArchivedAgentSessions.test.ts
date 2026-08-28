@@ -10,6 +10,7 @@ const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef
     pinned: false,
     alive: false,
     running: false,
+    isAutomation: false,
     archived: false,
     agentName: null,
     ...over,
@@ -118,5 +119,28 @@ describe("withLocalSessions", () => {
         const refs = [ref({id: "a"}), ref({id: "b"})]
 
         expect(withLocalSessions(refs, []).map((r) => r.id)).toEqual(["a", "b"])
+    })
+
+    // A row key IS the session id, so a twin renders two rows that both take the selected pill.
+    it("keeps one row when the same session arrives twice", () => {
+        const merged = withLocalSessions([ref({id: "twin"}), ref({id: "twin"})], [])
+
+        expect(merged.map((r) => r.id)).toEqual(["twin"])
+    })
+
+    // The server row is polled, so a turn running in THIS browser reads as idle on it.
+    it("takes liveness from the host row when the server already knows the session", () => {
+        const merged = withLocalSessions(
+            [ref({id: "shared"})],
+            [ref({id: "shared", running: true})],
+        )
+
+        expect(merged.map((r) => [r.id, r.running])).toEqual([["shared", true]])
+    })
+
+    it("keeps one row when a local session repeats", () => {
+        const merged = withLocalSessions([], [ref({id: "local"}), ref({id: "local"})])
+
+        expect(merged.map((r) => r.id)).toEqual(["local"])
     })
 })

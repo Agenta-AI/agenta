@@ -6,6 +6,8 @@ import {useAtomValue} from "jotai"
 
 import {isHarnessBuiltinTool} from "../DrillInView/SchemaControls/toolUtils"
 
+import {useAgentIconChrome} from "./agentIcon"
+
 /** The model an agent runs on, from either config shape. */
 const agentModel = (config: unknown): string | null => {
     const a = (config as {agent?: {llm?: {model?: unknown}; model?: unknown}} | null)?.agent
@@ -39,14 +41,23 @@ export const capabilityLabel = (config: unknown): string | null => {
     return parts.length ? parts.join(" · ") : null
 }
 
-const Bot = ({size = 34}: {size?: number}) => (
-    <span
-        className="flex shrink-0 items-center justify-center rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
-        style={{width: size, height: size}}
-    >
-        <Robot size={Math.round(size * 0.5)} className="text-colorTextSecondary" />
-    </span>
-)
+const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null}) => {
+    const glyph = Math.round(size * 0.5)
+    const chrome = useAgentIconChrome(workflowId, {
+        size: glyph,
+        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
+        fallbackClassName: "border border-solid border-colorBorderSecondary bg-colorBgContainer",
+    })
+
+    return (
+        <span
+            className={`flex shrink-0 items-center justify-center rounded-lg ${chrome.className}`}
+            style={{width: size, height: size, ...chrome.style}}
+        >
+            {chrome.glyph}
+        </span>
+    )
+}
 
 /**
  * Who you are about to talk to: the agent's name, the model it runs on, what it can reach, and the
@@ -64,6 +75,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+    const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const model = agentModel(config)
     const capabilities = capabilityLabel(config)
     const summary = agentSummary(config)
@@ -75,7 +87,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
             }`}
         >
             <div className="flex items-center gap-2.5">
-                <Bot />
+                <Bot workflowId={workflowId} />
                 <div className="min-w-0">
                     <span
                         className="block truncate text-sm font-medium text-colorText"
