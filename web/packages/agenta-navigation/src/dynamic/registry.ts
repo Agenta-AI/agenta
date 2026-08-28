@@ -7,7 +7,6 @@ import {
     // nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
@@ -137,13 +136,6 @@ const ENTITIES: SidebarEntity[] = [
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
         kind: "app",
         icon: createElement(RobotIcon, {size: 14}),
-        // Per row: this agent's own glyph. A component, not an element — getIcon is not a hook seam.
-        getIcon: (workflow) =>
-            createElement(AgentGlyph, {
-                workflowId: workflow.id,
-                size: 14,
-                fallback: createElement(RobotIcon, {size: 14}),
-            }),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
