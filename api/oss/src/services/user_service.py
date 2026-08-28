@@ -152,10 +152,8 @@ async def generate_user_password_reset_link(
         PermissionError: If the target user does not belong to the caller's organization.
     """
 
-    target_org_data = await db_manager.get_user_org_and_workspace_id(user_id=user_id)
-    if str(caller_org_id) not in [
-        str(org_id) for org_id in target_org_data.get("organization_ids", [])
-    ]:
+    target_org_id, _ = await db_manager.get_user_org_and_workspace_id(user_id=user_id)
+    if str(target_org_id) != str(caller_org_id):
         raise PermissionError("Target user does not belong to caller's organization")
 
     user = await db_manager.get_user_with_id(user_id=user_id)
