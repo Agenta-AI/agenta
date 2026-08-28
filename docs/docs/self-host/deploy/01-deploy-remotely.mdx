@@ -232,6 +232,41 @@ traefik:
 
 Recreate the API and Traefik containers afterwards.
 
+### Agent Runs Fail With `record log is unreadable; cannot rebuild the conversation`
+
+This applies if the deployment answers on a public hostname and agent runs fail while the rest of
+the app works. Other symptoms of the same cause: an agent that forgets earlier turns, or runner logs
+showing `cred=DROPPED(endpoint-not-agenta-ingest)` and `HTTP 401` on `/sessions/records/ingest`,
+`/sessions/records/query`, and `/sessions/streams/heartbeat`.
+
+**Cause:** The trace endpoint on the run does not match the runner's configured `AGENTA_API_URL`.
+Each run carries the endpoint the API built from its public base, for example
+`https://agenta.example.com/api/otlp/v1/traces`, while the runner may know only its internal hop,
+`http://api:8000`, or a different public base. A strict credential check then withholds the run's
+credential, and the API rejects every callback. Conversation history is never written or read back.
+
+When `AGENTA_API_URL` is unset, the runner keeps the credential and logs a warning that names the
+missing variable. On a runner with this fallback,
+`cred=DROPPED(endpoint-not-agenta-ingest)` means `AGENTA_API_URL` is set but does not match the
+run's endpoint. Set it correctly in either case so the runner can attribute the credential.
+
+**Solution:** Set `AGENTA_API_URL` to the same public API base the `api` and `services` containers
+use, and recreate the runner:
+
+```bash
+docker compose up -d --force-recreate runner
+```
+
+Compose reads `AGENTA_API_URL` from the shell (or `--env-file`) when it builds the runner's
+environment, not from a service's `env_file`. Setting it only in a file that is passed as `env_file`
+reaches the API and services containers but not the runner. Confirm it landed:
+
+```bash
+docker compose exec runner printenv AGENTA_API_URL
+```
+
+Sessions that ran while this was broken keep the gaps in their history. New sessions are unaffected.
+
 ### Nginx-Specific Issues
 
 If you chose the Nginx deployment option:

@@ -1,6 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
+import {
+    useToolConnectionsQuery,
+    useToolsConnections,
+    type CreateConnectionInput,
+} from "@agenta/entities/gatewayTool"
+import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {
     Button,
     Dialog,
@@ -49,10 +54,23 @@ export default function ConnectModal({
 }: Props) {
     const {handleCreate, invalidate} = useToolsConnections(integrationKey)
     const [loading, setLoading] = useState(false)
-    const [slug, setSlug] = useState("")
-    const [name, setName] = useState("")
-    const [slugError, setSlugError] = useState<string | null>(null)
+
+    // The author names the connection; the slug is derived from it and never shown.
+    const {connections} = useToolConnectionsQuery()
+    const existingCount = connections.filter(
+        (connection) => connection.integration_key === integrationKey,
+    ).length
+    const seedName = defaultConnectionName(integrationName, existingCount)
+    const slugSuffixRef = useRef(randomAlphanumeric(3))
+    const nameTouchedRef = useRef(false)
+
+    const [name, setName] = useState(seedName)
+    const [nameError, setNameError] = useState<string | null>(null)
     const [createError, setCreateError] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (!nameTouchedRef.current) setName(seedName)
+    }, [seedName])
 
     /** The OAuth popup watcher. Held in a ref so unmount and a retry can both stop it. */
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -67,28 +85,30 @@ export default function ConnectModal({
 
     const handleClose = useCallback(() => {
         clearPoll()
-        setSlug("")
-        setName("")
-        setSlugError(null)
+        nameTouchedRef.current = false
+        slugSuffixRef.current = randomAlphanumeric(3)
+        setName(seedName)
+        setNameError(null)
         setCreateError(null)
         setLoading(false)
         onClose()
-    }, [clearPoll, onClose])
+    }, [clearPoll, onClose, seedName])
 
     const handleSubmit = useCallback(async () => {
-        if (!slug.trim()) {
-            setSlugError("Required")
+        const trimmedName = name.trim()
+        if (!trimmedName) {
+            setNameError("Required")
             return
         }
-        setSlugError(null)
+        setNameError(null)
         setCreateError(null)
 
         try {
             setLoading(true)
 
             const payload: CreateConnectionInput = {
-                slug: slug.trim(),
-                name: name.trim() || slug.trim(),
+                slug: generateDefaultSlug(trimmedName, slugSuffixRef.current),
+                name: trimmedName,
                 mode: selectedMode,
             }
 
@@ -133,7 +153,7 @@ export default function ConnectModal({
                 error instanceof Error ? error.message : "Couldn't create the connection",
             )
         }
-    }, [slug, name, selectedMode, clearPoll, handleCreate, handleClose, invalidate])
+    }, [name, selectedMode, clearPoll, handleCreate, handleClose, invalidate])
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : handleClose())}>
@@ -144,22 +164,19 @@ export default function ConnectModal({
 
                 <div className="flex flex-col gap-4">
                     <Field
-                        label="Connection Slug"
+                        label="Name"
                         required
-                        tooltip="A unique identifier for this connection"
-                        error={slugError}
+                        tooltip="Display name for this connection"
+                        error={nameError}
                     >
                         <Input
-                            value={slug}
-                            onChange={(event) => setSlug(event.target.value)}
-                            placeholder="e.g. my-gmail"
-                        />
-                    </Field>
-
-                    <Field label="Display Name">
-                        <Input
                             value={name}
-                            onChange={(event) => setName(event.target.value)}
+                            aria-invalid={nameError ? true : undefined}
+                            onChange={(event) => {
+                                nameTouchedRef.current = true
+                                setName(event.target.value)
+                                if (nameError && event.target.value.trim()) setNameError(null)
+                            }}
                             placeholder="e.g. My Gmail Account"
                         />
                     </Field>

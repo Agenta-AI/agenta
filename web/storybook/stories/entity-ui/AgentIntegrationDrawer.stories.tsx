@@ -12,6 +12,7 @@ import {
     GITHUB_WORK,
     integrationQueries,
     LINEAR_BROKEN,
+    LOWERCASE_CATEGORIES,
     SLACK_OPS,
 } from "../../fixtures/gatewayIntegration"
 
@@ -132,6 +133,44 @@ export const InvalidConnection: Story = {
         },
     },
     render: () => <DrawerHost />,
+}
+
+/**
+ * The categories as the provider actually sends them: lowercase, and more of them than the rail can
+ * show at once. They must read as names, and the list must scroll on its own without carrying the
+ * "Categories" heading and "All apps" off the top.
+ *
+ * GitHub and Slack are connected AND still listed under "All apps" — connecting again is the only
+ * way to add a second account, so the catalog never subtracts what is already connected.
+ */
+export const LowercaseCategories: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, SLACK_OPS],
+                    categories: LOWERCASE_CATEGORIES,
+                }),
+        },
+    },
+    render: () => <DrawerHost />,
+}
+
+/**
+ * Two accounts for one app, shown by NAME. The slug is an identifier that happens to be unique;
+ * it tells an author nothing about which account they are picking.
+ */
+export const NamedConnections: Story = {
+    parameters: {
+        agenta: {
+            queries: (scope: StoryScope) =>
+                integrationQueries(scope, {
+                    connections: [GITHUB_WORK, GITHUB_PERSONAL, SLACK_OPS],
+                    categories: LOWERCASE_CATEGORIES,
+                }),
+        },
+    },
+    render: () => <DrawerHost tools={[entry("github", GITHUB_WORK.slug ?? "")]} />,
 }
 
 /**

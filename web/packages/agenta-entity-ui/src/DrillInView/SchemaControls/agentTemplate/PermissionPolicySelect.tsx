@@ -44,6 +44,8 @@ export interface PermissionPolicySelectProps {
     container?: HTMLElement | null
     /** Trigger sizing/colour override — the drawer's per-tool select is a compact inline chip. */
     triggerClassName?: string
+    /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
+    contentClassName?: string
     size?: "sm" | "default"
 }
 
@@ -57,6 +59,7 @@ export function PermissionPolicySelect({
     onOpenChange,
     container,
     triggerClassName = "w-full",
+    contentClassName,
     size,
 }: PermissionPolicySelectProps) {
     const selected = options.find((option) => option.value === value)
@@ -76,7 +79,7 @@ export function PermissionPolicySelect({
                     </span>
                 </SelectValue>
             </SelectTrigger>
-            <SelectContent container={container}>
+            <SelectContent container={container} className={contentClassName}>
                 {options.map((option) => (
                     <div key={option.value}>
                         {option.separatorBefore ? <SelectSeparator /> : null}
@@ -84,7 +87,7 @@ export function PermissionPolicySelect({
                             <span className="flex items-center gap-2.5 py-0.5">
                                 {option.icon}
                                 <span className="flex flex-col">
-                                    <span>{option.title}</span>
+                                    <span className="whitespace-nowrap">{option.title}</span>
                                     <span className="text-xs leading-snug text-colorTextTertiary">
                                         {option.help}
                                     </span>

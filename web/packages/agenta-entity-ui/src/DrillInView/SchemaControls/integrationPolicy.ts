@@ -181,6 +181,22 @@ export interface CatalogToolInfo {
     stale?: boolean
 }
 
+/**
+ * Whether a tool row should offer its "Show more" toggle.
+ *
+ * `overflows` is the row's own width measurement, taken only while collapsed. Two rules it cannot
+ * supply: a description carrying a NEWLINE hides text no width measurement can see, and a row with
+ * no description at all must never offer a toggle — a row reused for the same tool key after the
+ * description went away keeps the last measurement, and without this it grew a toggle over nothing.
+ */
+export function isDescriptionTruncatable(
+    description: string | undefined,
+    overflows: boolean,
+): boolean {
+    if (!description) return false
+    return description.includes("\n") || overflows
+}
+
 export interface ToolPartition {
     readOnly: CatalogToolInfo[]
     write: CatalogToolInfo[]
