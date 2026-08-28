@@ -417,8 +417,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
      */
     const openIntegrationPermissions = useCallback(
         (row: IntegrationRow) => {
-            migrateIntegrationEntries({provider: row.provider, integration: row.integration})
+            // Target first: the migration write below re-renders the tree and swallowed the open.
             setPermissionTarget({provider: row.provider, integration: row.integration})
+            migrateIntegrationEntries({provider: row.provider, integration: row.integration})
         },
         [migrateIntegrationEntries],
     )

@@ -16,6 +16,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     isConnectionValid,
+    toolIntegrationDetailQueryFamily,
     toolIntegrationsSearchAtom,
     useToolCatalogCategories,
     useToolCatalogIntegrations,
@@ -25,15 +26,19 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {connectionDisplayName} from "@agenta/shared/utils"
 import {ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, RadioGroup, RadioGroupItem, SearchInput, Spinner} from "@agenta/ui/ui"
 import {Check, Plugs} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
+
+import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
+import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
 
 type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
@@ -76,10 +81,9 @@ function groupConnections(connections: ToolConnection[]): ConnectedGroup[] {
     return [...groups.values()]
 }
 
-const connectionLabel = (connection: ToolConnection): string => {
-    const slug = connection.slug ?? ""
-    return connection.name && connection.name !== slug ? `${slug} · ${connection.name}` : slug
-}
+/** Connections are shown by NAME. The slug is an identifier, not a label. */
+const connectionLabel = (connection: ToolConnection | undefined): string =>
+    connectionDisplayName(connection)
 
 /** A row in "Connected in your workspace": quick-add, or open the connection chooser. */
 function ConnectedRow({
@@ -98,6 +102,10 @@ function ConnectedRow({
     const [choosing, setChoosing] = useState(false)
     const currentSlug = row?.entry?.connection
     const [selected, setSelected] = useState(() => currentSlug ?? group.connections[0]?.slug ?? "")
+    const selectedName = connectionLabel(
+        group.connections.find((connection) => connection.slug === selected) ??
+            group.connections[0],
+    )
 
     // Adding again would give one integration two model-facing surfaces, so one the agent already
     // holds offers no Add. Choosing another connection edits the entry, which an integration still
@@ -193,7 +201,7 @@ function ConnectedRow({
                                 setChoosing(false)
                             }}
                         >
-                            {added ? `Use ${selected}` : `Add with ${selected}`}
+                            {added ? `Use ${selectedName}` : `Add with ${selectedName}`}
                         </Button>
                     </div>
                 </div>
@@ -231,18 +239,19 @@ function CategoryRail({
     onSelect,
 }: {
     active: string | null
-    onSelect: (category: string | null) => void
+    onSelect: (category: CategorySelection | null) => void
 }) {
     const {categories, isLoading} = useToolCatalogCategories()
     return (
-        <div className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] p-3">
-            <span className="px-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+        // min-h-0: without it the rail's own content sets its height and the list never scrolls.
+        <div className="flex min-h-0 w-44 shrink-0 flex-col gap-1 border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] p-3">
+            <span className="shrink-0 px-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Categories
             </span>
             <button
                 type="button"
                 onClick={() => onSelect(null)}
-                className={`cursor-pointer rounded border-0 px-2 py-1 text-left text-[13px] ${
+                className={`shrink-0 cursor-pointer rounded border-0 px-2 py-1 text-left text-[13px] ${
                     active === null
                         ? "bg-[var(--ag-colorFillSecondary)] font-medium"
                         : "bg-transparent text-[var(--ag-colorTextSecondary)]"
@@ -251,20 +260,24 @@ function CategoryRail({
                 All apps
             </button>
             {isLoading ? <Spinner size="small" /> : null}
-            {categories.map((category) => (
-                <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => onSelect(category.id)}
-                    className={`cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] ${
-                        active === category.id
-                            ? "bg-[var(--ag-colorFillSecondary)] font-medium"
-                            : "bg-transparent text-[var(--ag-colorTextSecondary)]"
-                    }`}
-                >
-                    {category.name}
-                </button>
-            ))}
+            {/* Only the categories scroll; the heading and All apps stay put. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                {categories.map((category) => (
+                    <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => onSelect({id: category.id, name: category.name})}
+                        // The provider sends these lowercase; capitalize would mangle CRM and HR.
+                        className={`shrink-0 cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] uppercase tracking-wide ${
+                            active === category.id
+                                ? "bg-[var(--ag-colorFillSecondary)] font-medium"
+                                : "bg-transparent text-[var(--ag-colorTextSecondary)]"
+                        }`}
+                    >
+                        {category.name}
+                    </button>
+                ))}
+            </div>
         </div>
     )
 }
@@ -276,7 +289,7 @@ function IntegrationCatalogContent({
     onAddIntegration,
 }: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
     const [query, setQuery] = useState("")
-    const [category, setCategoryState] = useState<string | null>(null)
+    const [category, setCategoryState] = useState<CategorySelection | null>(null)
     const [connectTarget, setConnectTarget] = useState<CatalogIntegration | null>(null)
     // The integration a just-finished connect flow should land, once its connection shows up.
     const [pendingAdd, setPendingAdd] = useState<string | null>(null)
@@ -310,18 +323,54 @@ function IntegrationCatalogContent({
     )
 
     const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
+
+    // Read through the SAME query atoms each row uses, so this shares their cache.
     const connectedKeys = useMemo(
-        () => new Set(allConnectedGroups.map((group) => group.integrationKey)),
+        () => allConnectedGroups.map((group) => group.integrationKey).sort(),
         [allConnectedGroups],
     )
-    // Filter here rather than inside each row, so the section count matches the rows it heads.
-    const connectedGroups = useMemo(() => {
-        const needle = query.trim().toLowerCase()
-        if (!needle) return allConnectedGroups
-        return allConnectedGroups.filter((group) =>
-            group.integrationKey.toLowerCase().includes(needle),
-        )
-    }, [allConnectedGroups, query])
+    const connectedDetailsAtom = useMemo(
+        () =>
+            atom((get) =>
+                connectedKeys.map((key) => ({
+                    key,
+                    integration: get(toolIntegrationDetailQueryFamily(key)).data?.integration,
+                })),
+            ),
+        [connectedKeys],
+    )
+    const connectedDetails = useAtomValue(connectedDetailsAtom)
+    const {categoriesByIntegration, namesByIntegration} = useMemo(() => {
+        const categoriesMap = new Map<string, readonly string[]>()
+        const namesMap = new Map<string, string>()
+        for (const {key, integration} of connectedDetails) {
+            if (!integration) continue
+            categoriesMap.set(key, integration.categories ?? [])
+            if (integration.name) namesMap.set(key, integration.name)
+        }
+        return {categoriesByIntegration: categoriesMap, namesByIntegration: namesMap}
+    }, [connectedDetails])
+
+    // Filtered here, not inside each row, so the section count matches the rows it heads.
+    const {connected: connectedGroups, connectable: catalogRows} = useMemo(
+        () =>
+            catalogSections({
+                integrations,
+                groups: allConnectedGroups,
+                query,
+                category,
+                categoriesByIntegration,
+                namesByIntegration,
+            }),
+        [
+            integrations,
+            allConnectedGroups,
+            query,
+            category,
+            categoriesByIntegration,
+            namesByIntegration,
+        ],
+    )
     const rowsByIntegration = useMemo(
         () => new Map(integrationRows.map((row) => [groupKey(row.provider, row.integration), row])),
         [integrationRows],
@@ -355,18 +404,13 @@ function IntegrationCatalogContent({
         setPendingAdd(null)
     }, [pendingAdd, allConnectedGroups, addIntegration])
 
-    const catalogRows = useMemo(
-        () => integrations.filter((integration) => !connectedKeys.has(integration.key)),
-        [integrations, connectedKeys],
-    )
-
     return (
         <div className="flex min-h-0 flex-1">
             <CategoryRail
-                active={category}
+                active={category?.id ?? null}
                 onSelect={(next) => {
                     setCategoryState(next)
-                    setCategory?.(next)
+                    setCategory?.(next?.id ?? null)
                 }}
             />
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -401,7 +445,7 @@ function IntegrationCatalogContent({
                         </div>
                     ) : catalogRows.length === 0 ? (
                         <span className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
-                            No apps left to connect here.
+                            No apps here.
                         </span>
                     ) : (
                         <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
@@ -460,7 +504,7 @@ export function AgentIntegrationDrawer({
             open={open}
             onClose={onClose}
             placement="right"
-            width={680}
+            width={INTEGRATION_DRAWER_WIDTH}
             // Explicit exit only — an accidental backdrop click mid-connect must not drop the flow.
             closeOnLayoutClick={false}
             destroyOnClose
