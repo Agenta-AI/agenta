@@ -292,11 +292,10 @@ const LiveCard = ({
                 target.tagName === "TEXTAREA" ||
                 target.isContentEditable)
 
-        // Everywhere but a prose field, Cmd/Ctrl+Enter fires the primary action — it is the only
-        // way forward from a multi-select or the review list. In the multiline field it belongs to
-        // the newline instead, the way it does in the composer.
+        // The one key that moves the form on, from every step kind and from the review list.
+        // Plain Enter belongs to whatever control is focused: a newline in the textarea, the
+        // calendar on a date trigger, a pick on an option row, an entry in a chip field.
         if (mod && event.key === "Enter") {
-            if (step?.kind === "multiline" && typing) return
             event.preventDefault()
             stepper.primary()
             return
@@ -329,19 +328,6 @@ const LiveCard = ({
             return
         }
 
-        // A date step parks focus on the picker's trigger, where Enter would open the calendar.
-        // Keep Enter meaning "next", as it does in every other field; Space still opens the
-        // picker, and once it is open its keys never reach here (Radix portals the content).
-        if (
-            event.key === "Enter" &&
-            !typing &&
-            (step?.kind === "date" || step?.kind === "date-time")
-        ) {
-            event.preventDefault()
-            stepper.primary()
-            return
-        }
-
         // The review screen is a list of answers: walk it and press Enter to go fix one.
         if (isReview) {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -349,15 +335,9 @@ const LiveCard = ({
                 stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, steps.length)
                 return
             }
-            // Enter SENDS here, as it commits on every other step. It used to jump to the cursor
-            // row, and since the cursor starts at zero, arriving at the review and pressing Enter
-            // threw the user back to question one. Editing a row is still one keystroke: the rows
-            // are real buttons, so Tab reaches one and Enter activates it — let that through.
-            if (event.key === "Enter" && !typing) {
-                if (target?.closest?.("[data-elicitation-review-row]")) return
-                event.preventDefault()
-                stepper.primary()
-            }
+            // Enter belongs to the focused row here — the rows are real buttons, so Tab reaches
+            // one and Enter opens that question for editing. Sending is Cmd/Ctrl+Enter, handled
+            // above, the same key that advanced every step on the way here.
             return
         }
 
@@ -486,7 +466,6 @@ const LiveCard = ({
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
                             onCursor={stepper.setCursor}
-                            onSubmit={stepper.primary}
                         />
                     </>
                 ) : null}

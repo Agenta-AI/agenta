@@ -17,8 +17,6 @@ export interface ElicitationChipsProps {
     touch?: boolean
     inputRef: React.Ref<HTMLInputElement>
     onChange: (value: string[]) => void
-    /** Enter on an empty field: this step is done, move on. */
-    onSubmit: () => void
 }
 
 /** Tolerates the comma string a draft written before chips existed still holds. */
@@ -38,7 +36,6 @@ export const ElicitationChips = ({
     touch,
     inputRef,
     onChange,
-    onSubmit,
 }: ElicitationChipsProps) => {
     const [draft, setDraft] = useState("")
     // The entry a duplicate press pointed at. Without this the keystroke does nothing visible at
@@ -69,11 +66,11 @@ export const ElicitationChips = ({
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === "Enter") {
+            // Cmd/Ctrl+Enter leaves the step, and the card handles it; plain Enter only ever adds
+            // an entry here.
+            if (event.metaKey || event.ctrlKey) return
             event.preventDefault()
-            // An empty field means the user is done adding, so Enter leaves the step — the same
-            // rule every other field here follows.
-            if (!draft.trim()) onSubmit()
-            else commit(draft)
+            commit(draft)
             return
         }
         if (event.key === ",") {

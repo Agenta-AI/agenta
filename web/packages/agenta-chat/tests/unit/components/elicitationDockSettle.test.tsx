@@ -128,7 +128,7 @@ describe("chrome", () => {
         expect(filled()).toEqual(["filled", "empty"])
 
         fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
-        fireEvent.click(screen.getByText("Next"))
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true})
 
         expect(filled()).toEqual(["filled", "filled"])
     })
@@ -167,7 +167,7 @@ describe("settling", () => {
         expect(onOutput.mock.calls[0][0].output).toMatchObject({action: "cancel"})
     })
 
-    it("sends on Enter from the review screen, instead of jumping back to question one", () => {
+    it("sends on Cmd+Enter from the review screen", () => {
         const {onOutput} = setup()
 
         fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
@@ -176,8 +176,7 @@ describe("settling", () => {
         fireEvent.click(screen.getByText("Review"))
         expect(screen.getByText("Send answers")).toBeTruthy()
 
-        // The cursor starts at row zero, so this used to walk the user back to the first question.
-        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter"})
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true})
 
         expect(onOutput).toHaveBeenCalledTimes(1)
         const {output} = onOutput.mock.calls[0][0]
@@ -218,25 +217,28 @@ describe("refusal", () => {
 })
 
 describe("automation", () => {
-    it("advances on Enter in a text field", () => {
+    it("advances on Cmd+Enter in a text field", () => {
         setup()
 
         fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        // Plain Enter belongs to the field; the modifier is what leaves the step.
         fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter"})
+        expect(screen.getByText("1/2")).toBeTruthy()
 
+        fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter", metaKey: true})
         expect(screen.getByText("2/2")).toBeTruthy()
     })
 
     it("shows the validation error instead of advancing on an empty required field", () => {
         setup()
 
-        fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter"})
+        fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter", metaKey: true})
 
         expect(screen.getByText("This one is required")).toBeTruthy()
         expect(screen.getByText("1/2")).toBeTruthy()
     })
 
-    it("commits a textarea on Enter, the same rule as the chat composer", () => {
+    it("advances a textarea on Cmd+Enter, leaving plain Enter to the newline", () => {
         const {onOutput} = setup({
             message: "One question",
             requestedSchema: {
@@ -247,9 +249,9 @@ describe("automation", () => {
         const box = screen.getByLabelText("Note")
 
         fireEvent.change(box, {target: {value: "line one"}})
-        fireEvent.keyDown(box, {key: "Enter"})
+        fireEvent.keyDown(box, {key: "Enter", metaKey: true})
 
-        // One question means no review step: Enter is the send.
+        // One question means no review step, so the modifier sends outright.
         expect(onOutput).toHaveBeenCalledTimes(1)
     })
 
@@ -270,7 +272,7 @@ describe("automation", () => {
         expect(screen.getByText("1/1")).toBeTruthy()
     })
 
-    it("breaks the line on Cmd+Enter, the same key the composer uses", () => {
+    it("leaves plain Enter alone in a textarea, so the browser inserts the newline", () => {
         const {onOutput} = setup({
             message: "One question",
             requestedSchema: {
@@ -281,11 +283,11 @@ describe("automation", () => {
         const field = screen.getByLabelText("Notes") as HTMLTextAreaElement
 
         fireEvent.change(field, {target: {value: "one"}})
-        fireEvent.keyDown(field, {key: "Enter", metaKey: true})
+        fireEvent.keyDown(field, {key: "Enter"})
 
-        // The modifier used to fire the primary action, which plain Enter already did.
+        // Nothing intercepts it, so the browser's own newline stands and the step does not move.
         expect(onOutput).not.toHaveBeenCalled()
-        expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("one\n")
+        expect(screen.getByText("1/1")).toBeTruthy()
     })
 
     it("advances immediately on a digit, with no hold", () => {
@@ -584,8 +586,10 @@ describe("the controls the dialect grew", () => {
         expect(screen.getAllByText("agenta")).toHaveLength(1)
 
         fireEvent.change(field, {target: {value: ""}})
-        // Enter on an empty field means "done adding", so it settles the one-question form.
+        // Enter only ever adds an entry here; the modifier is what settles the one-question form.
         fireEvent.keyDown(field, {key: "Enter"})
+        expect(onOutput).not.toHaveBeenCalled()
+        fireEvent.keyDown(field, {key: "Enter", metaKey: true})
         expect(onOutput).toHaveBeenCalledTimes(1)
         const {output} = onOutput.mock.calls[0][0]
         expect(output.content.repos).toEqual(["agenta"])

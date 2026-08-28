@@ -99,7 +99,6 @@ export interface ElicitationControlProps {
     onPick: (row: OptionRow, index: number) => void
     onCursor: (index: number) => void
     /** Enter in a single-line field: commit this answer and move on. */
-    onSubmit: () => void
 }
 
 const inputCls =
@@ -113,7 +112,6 @@ export const ElicitationControl = ({
     onChange,
     onPick,
     onCursor,
-    onSubmit,
 }: ElicitationControlProps) => {
     const rows = useMemo(() => optionRowsFor(step), [step])
     const multi = isMultiSelect(step)
@@ -131,32 +129,7 @@ export const ElicitationControl = ({
     }, [step.name, selected, checked, onCursor])
     // Enter commits and moves on — including in the textarea, matching the chat composer's rule.
     // Shift+Enter is the newline there, as it is in the composer.
-    const submitOnEnter = (event: React.KeyboardEvent) => {
-        if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.shiftKey) return
-        event.preventDefault()
-        onSubmit()
-    }
 
-    /**
-     * The composer's contract, applied to the one control here that holds prose: Enter commits and
-     * Cmd/Ctrl+Enter breaks the line. Without this the modifier fired the primary action, which
-     * Enter already did, so the card spent two keys on one job and left the newline on Shift —
-     * a key the composer never advertises. Shift+Enter still works; it just isn't the taught one.
-     */
-    const newlineOrSubmit = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            const el = event.currentTarget
-            const {selectionStart: start, selectionEnd: end} = el
-            const text = String(value ?? "")
-            onChange(`${text.slice(0, start)}\n${text.slice(end)}`)
-            // The value round-trips through the parent, so the caret has to be put back after it
-            // returns, or it snaps to the end of everything already typed.
-            requestAnimationFrame(() => el.setSelectionRange(start + 1, start + 1))
-            return
-        }
-        submitOnEnter(event)
-    }
     // One ref for whichever single-line-or-textarea control this step renders, so the focus effect
     // below does not have to know which branch ran.
     const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
@@ -275,7 +248,6 @@ export const ElicitationControl = ({
                                     data-elicitation-other
                                     value={otherText}
                                     placeholder={OTHER_LABEL}
-                                    onKeyDown={submitOnEnter}
                                     onChange={(event) =>
                                         onChange(nextOtherValue(event.target.value))
                                     }
@@ -379,7 +351,6 @@ export const ElicitationControl = ({
                 touch={touch}
                 inputRef={fieldRef as React.Ref<HTMLInputElement>}
                 onChange={onChange}
-                onSubmit={onSubmit}
             />
         )
     }
@@ -390,10 +361,9 @@ export const ElicitationControl = ({
                 ref={fieldRef as React.Ref<HTMLTextAreaElement>}
                 aria-label={step.label}
                 value={String(value ?? "")}
-                // Enter commits here, so say where the newline went — unless a touch surface, which
-                // has no keyboard to teach.
-                placeholder={touch ? undefined : "⌘/Ctrl+Enter for a new line"}
-                onKeyDown={newlineOrSubmit}
+                // Enter is the newline here, as it is in any textarea. The key worth teaching is
+                // the one that leaves the step.
+                placeholder={touch ? undefined : "⌘/Ctrl+Enter to continue"}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
                 onChange={(event) => onChange(event.target.value)}
@@ -408,7 +378,6 @@ export const ElicitationControl = ({
                 ref={fieldRef as React.Ref<HTMLInputElement>}
                 type="number"
                 aria-label={step.label}
-                onKeyDown={submitOnEnter}
                 value={value === undefined || value === null ? "" : String(value)}
                 onChange={(event) =>
                     onChange(event.target.value === "" ? undefined : Number(event.target.value))
@@ -426,7 +395,6 @@ export const ElicitationControl = ({
             // No placeholder: the schema's words are already on the question line above, and
             // repeating a sentence inside the field only overflows it.
             placeholder={undefined}
-            onKeyDown={submitOnEnter}
             onChange={(event) => onChange(event.target.value)}
             className={inputCls}
         />
