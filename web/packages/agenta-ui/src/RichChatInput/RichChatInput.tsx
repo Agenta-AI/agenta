@@ -233,7 +233,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
                 beginDictation: () => {
                     const editor = editorRef.current
-                    if (editor) dictationRef.current = beginDictation(editor)
+                    if (!editor) return
+                    // Settle any session still open (a re-press while the last one is closing) so
+                    // its words stay put instead of being orphaned at interim opacity.
+                    dictationRef.current?.end()
+                    dictationRef.current = beginDictation(editor)
                 },
                 updateDictation: (finalText: string, interimText: string) =>
                     dictationRef.current?.update(finalText, interimText),

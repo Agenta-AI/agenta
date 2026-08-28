@@ -22,6 +22,41 @@ export interface ToolGrantInfo {
 
 const INELIGIBLE: ToolGrantInfo = {eligible: false, alreadyAllowed: false}
 
+interface AppliedPermission {
+    toolName: string
+    /** Landed on a `tools[]` entry rather than a harness allow-rule — decides which section pulses. */
+    viaToolsEntry: boolean
+}
+
+/**
+ * Apply one permission flip per tool onto a SINGLE evolving `parameters`, so a batch lands as one
+ * write. Each `with*` helper returns a whole new object, so applying them against the same base
+ * would keep only the last tool. Ineligible names (platform ops, client tools, MCP) are skipped.
+ */
+export function foldPermissions(
+    parameters: Record<string, unknown> | null,
+    toolNames: string[],
+    allowed: boolean,
+): {next: Record<string, unknown> | null; applied: AppliedPermission[]} {
+    let next = parameters
+    const applied: AppliedPermission[] = []
+    for (const toolName of [...new Set(toolNames)]) {
+        // Route to the field that matches the gate's tool class (see infoFor). `tools[]` first:
+        // its per-tool permission outranks a rule, and a verbatim pattern would match its slug.
+        const tool = findGrantableTool(next, toolName)
+        const pattern = tool ? null : gateRulePattern(toolName)
+        const step = tool
+            ? withToolPermission(next, toolName, allowed ? "allow" : "ask")
+            : pattern
+              ? withHarnessToolAllow(next, pattern, allowed)
+              : null
+        if (!step) continue
+        next = step
+        applied.push({toolName, viaToolsEntry: Boolean(tool)})
+    }
+    return {next, applied}
+}
+
 /**
  * "Always allow this tool" for the approval card.
  *
@@ -72,58 +107,61 @@ export function useAlwaysAllowTool(entityId?: string) {
         [entityId, config],
     )
 
-    // Inverse of grant: put the tool back to gated. Reads the LATEST config (ref), since Undo fires
+    // Inverse of grant: put the tools back to gated. Reads the LATEST config (ref), since Undo fires
     // seconds after the grant and the draft may have moved on.
-    const revoke = useCallback(
-        (toolName: string): boolean => {
-            if (!entityId) return false
-            const cfg = configRef.current
-            // Same routing as `grant` — `tools[]` first, then the harness allow-rule.
-            const tool = findGrantableTool(cfg, toolName)
-            const pattern = tool ? null : gateRulePattern(toolName)
-            const next = tool
-                ? withToolPermission(cfg, toolName, "ask")
-                : pattern
-                  ? withHarnessToolAllow(cfg, pattern, false)
-                  : null
-            if (!next) return false
+    const revokeMany = useCallback(
+        (toolNames: string[]): string[] => {
+            if (!entityId) return []
+            // One folded write: each `with*` returns a whole new `parameters`, so N separate
+            // `setConfiguration` calls in a tick would each build on the same stale base.
+            const {next, applied} = foldPermissions(configRef.current, toolNames, false)
+            if (!applied.length || !next) return []
             setConfiguration(entityId, next)
-            return true
+            return applied.map((entry) => entry.toolName)
         },
         [entityId, setConfiguration],
     )
+    const revoke = useCallback(
+        (toolName: string): boolean => revokeMany([toolName]).length > 0,
+        [revokeMany],
+    )
 
-    const grant = useCallback(
-        (toolName: string): boolean => {
-            if (!entityId) return false
-            // Route to the field that matches the gate's tool class (see infoFor). `tools[]` first:
-            // its per-tool permission outranks a rule, and a verbatim pattern would match its slug.
-            const tool = findGrantableTool(config, toolName)
-            const pattern = tool ? null : gateRulePattern(toolName)
-            const next = tool
-                ? withToolPermission(config, toolName, "allow")
-                : pattern
-                  ? withHarnessToolAllow(config, pattern, true)
-                  : null
-            if (!next) return false
+    const grantMany = useCallback(
+        (toolNames: string[]): string[] => {
+            if (!entityId) return []
+            const {next, applied} = foldPermissions(config, toolNames, true)
+            if (!applied.length || !next) return []
             setConfiguration(entityId, next)
+            const granted = applied.map((entry) => entry.toolName)
             // A harness allow-rule writes `harness.permissions`, which surfaces in the Advanced →
             // Permissions group (and classifies as an "advanced" draft change); gateway/custom-function
             // tools write `tools[]`, surfaced in the Tools section. Pulse the section the change lands in.
+            const sectionKeys = [
+                ...new Set(applied.map((entry) => (entry.viaToolsEntry ? "tools" : "advanced"))),
+            ]
             raiseDraftSignal({
                 revisionId: entityId,
-                sectionKeys: [tool ? "tools" : "advanced"],
+                sectionKeys,
                 origin: "approval-dock",
-                summary: `Always allow ${toolName}`,
+                summary:
+                    granted.length > 1
+                        ? `Always allow ${granted.length} tools`
+                        : `Always allow ${granted[0]}`,
                 // Friendly display (matches the approval card) — a gateway tool's raw name is a slug.
-                label: resolveToolDisplay(toolName).activity.running,
-                toolName,
+                label:
+                    granted.length > 1
+                        ? `${granted.length} tools`
+                        : resolveToolDisplay(granted[0]).activity.running,
+                toolNames: granted,
                 at: Date.now(),
             })
-            return true
+            return granted
         },
         [entityId, config, setConfiguration, raiseDraftSignal],
     )
-
-    return {infoFor, grant, revoke}
+    const grant = useCallback(
+        (toolName: string): boolean => grantMany([toolName]).length > 0,
+        [grantMany],
+    )
+    return {infoFor, grant, grantMany, revoke, revokeMany}
 }
