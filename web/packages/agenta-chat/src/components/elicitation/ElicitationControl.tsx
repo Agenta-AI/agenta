@@ -343,7 +343,7 @@ export const ElicitationControl = ({
                 value={String(value ?? "")}
                 // Enter now commits here, so say where the newline went — unless a real hint or a
                 // touch surface (no keyboard) owns the line instead.
-                placeholder={step.hint ?? (touch ? undefined : "Shift ↵ for a new line")}
+                placeholder={touch ? undefined : "Shift ↵ for a new line"}
                 onKeyDown={submitOnEnter}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
@@ -374,7 +374,9 @@ export const ElicitationControl = ({
             ref={fieldRef as React.Ref<HTMLInputElement>}
             aria-label={step.label}
             value={String(value ?? "")}
-            placeholder={step.hint}
+            // No placeholder: the schema's words are already on the question line above, and
+            // repeating a sentence inside the field only overflows it.
+            placeholder={undefined}
             onKeyDown={submitOnEnter}
             onChange={(event) => onChange(event.target.value)}
             className={inputCls}
