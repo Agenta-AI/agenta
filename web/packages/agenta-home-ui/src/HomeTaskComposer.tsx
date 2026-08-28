@@ -2,6 +2,7 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {RobotIcon} from "@phosphor-icons/react"
 
@@ -90,7 +91,16 @@ export const HomeTaskComposer = ({
                             >
                                 <SelectValue placeholder="Select an agent">
                                     <span className="inline-flex items-center gap-1.5">
-                                        <RobotIcon size={14} className="text-colorTextTertiary" />
+                                        <AgentGlyph
+                                            workflowId={effectiveAgentId}
+                                            size={14}
+                                            fallback={
+                                                <RobotIcon
+                                                    size={14}
+                                                    className="text-colorTextTertiary"
+                                                />
+                                            }
+                                        />
                                         {selectedName}
                                     </span>
                                 </SelectValue>

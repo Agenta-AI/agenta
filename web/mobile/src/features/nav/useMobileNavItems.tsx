@@ -1,6 +1,7 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
@@ -94,6 +95,13 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
     kind: "app",
     icon: createElement(Bot, {size: 14}),
+    // Per row: this agent's own glyph, falling back to the shared one.
+    getIcon: (workflow) =>
+        createElement(AgentGlyph, {
+            workflowId: workflow.id,
+            size: 14,
+            fallback: createElement(Bot, {size: 14}),
+        }),
     listAtom: agentWorkflowsListQueryStateAtom,
     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
     childPath: (workflow) => `/agents/${workflow.id}`,

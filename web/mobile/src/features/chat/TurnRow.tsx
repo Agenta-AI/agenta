@@ -7,6 +7,7 @@ import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
 import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
@@ -190,14 +191,25 @@ const RunErrorCallout = ({text}: {text: string}) => {
  * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
  * progress rather than a stall, and /m dropped that narration entirely.
  */
-const PendingTurn = ({sessionId}: {sessionId: string}) => {
+const TurnAvatar = ({
+    isUser = false,
+    workflowId,
+}: {
+    isUser?: boolean
+    workflowId?: string | null
+}) => {
+    if (isUser) return <ChatBubbleAvatar icon={<User className="size-4" />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Bot className="size-4" />} />
+}
+
+const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: string | null}) => {
     const startupPhase = useStartupPhase(sessionId)
     return (
         <div className={`${turnRowClass} justify-start`}>
             <ChatBubble
                 placement="start"
                 variant="borderless"
-                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
+                avatar={<TurnAvatar workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 content={
                     startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
@@ -218,6 +230,7 @@ export const TurnRow = ({
     onClientToolOutput,
     onRewind,
     sessionId,
+    workflowId,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -228,6 +241,8 @@ export const TurnRow = ({
     onRewind?: (turn: TurnViewModel) => void
     /** Scopes the startup narration to this conversation. */
     sessionId: string
+    /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
+    workflowId?: string | null
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
@@ -252,7 +267,7 @@ export const TurnRow = ({
     // Only the turn being generated shows the loading state, and only until it has content —
     // the same gate the desktop uses.
     if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
-        return <PendingTurn sessionId={sessionId} />
+        return <PendingTurn sessionId={sessionId} workflowId={workflowId} />
     }
 
     const body = (
@@ -332,13 +347,7 @@ export const TurnRow = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser ? "filled" : "borderless"}
-                avatar={
-                    <ChatBubbleAvatar
-                        icon={
-                            turn.isUser ? <User className="size-4" /> : <Bot className="size-4" />
-                        }
-                    />
-                }
+                avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
                     content: turn.isUser

@@ -271,6 +271,7 @@ export const LiveConversation = ({
                 ) : null}
                 {visibleTurns.map((turn) => (
                     <TurnRow
+                        workflowId={agentId}
                         key={turn.message.id}
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
