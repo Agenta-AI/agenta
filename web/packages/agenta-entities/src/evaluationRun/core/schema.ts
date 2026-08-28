@@ -25,20 +25,21 @@ export type EvaluationRunStepType = z.infer<typeof evaluationRunStepTypeSchema>
 export const evaluationRunStepOriginSchema = z.enum(["custom", "human", "auto"])
 export type EvaluationRunStepOrigin = z.infer<typeof evaluationRunStepOriginSchema>
 
-const EVALUATION_RUN_MAPPING_KINDS = [
-    "testset",
-    "query",
-    "invocation",
-    "annotation",
-    // legacy / alternate taxonomy still accepted defensively
-    "input",
-    "ground_truth",
-    "application",
-    "evaluator",
-] as const
-// The backend defines mapping kinds as a free-form string and may add values.
+// The backend defines mapping kinds as a free-form string and may add values,
+// so the schema stays permissive and the type only documents the known kinds
+// (the `string & {}` arm keeps editor autocomplete while accepting new values).
 export const evaluationRunMappingKindSchema = z.string()
-export type EvaluationRunMappingKind = (typeof EVALUATION_RUN_MAPPING_KINDS)[number] | (string & {})
+export type EvaluationRunMappingKind =
+    | "testset"
+    | "query"
+    | "invocation"
+    | "annotation"
+    // legacy / alternate taxonomy still accepted defensively
+    | "input"
+    | "ground_truth"
+    | "application"
+    | "evaluator"
+    | (string & {})
 
 // ============================================================================
 // SUB-SCHEMAS
