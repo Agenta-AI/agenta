@@ -1,7 +1,6 @@
 import {useMemo, useState} from "react"
 
 import {
-    NamePromptModal,
     ProjectOrgSwitcherView,
     type SwitcherEntry,
     type SwitcherThemeControl,
@@ -14,6 +13,8 @@ import {fetchProjects, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
+
+import {CreateProjectSheet} from "./CreateProjectSheet"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -130,12 +131,9 @@ export const DrawerProjectSwitcher = ({
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
             />
-            <NamePromptModal
-                title="Create project"
-                label="Project name"
-                placeholder="Project name"
+            <CreateProjectSheet
                 open={createOpen}
-                onCancel={() => setCreateOpen(false)}
+                onOpenChange={setCreateOpen}
                 onSubmit={(name) => createProject.mutate(name)}
                 isPending={createProject.isPending}
             />
