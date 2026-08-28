@@ -13,5 +13,4 @@ export {getPendingConnectInteractions, getConnectInteractions} from "./connectIn
 export {
     getPendingElicitationInteractions,
     hasEarlierElicitationDegradation,
-    isElicitationInteraction,
 } from "./elicitationInteractions"

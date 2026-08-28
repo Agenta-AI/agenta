@@ -48,8 +48,9 @@ const CARD_MIN_H = 168
 /** The control area's floor, so a one-line input reserves as much room as a short option list. */
 const CONTROL_MIN_H = 62
 
+/** The reserved box itself: geometry lives here ONCE, so no state can drift out of it. */
 const CARD_SURFACE =
-    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer"
+    "rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer flex flex-col gap-2.5 p-3 px-3.5 shadow-sm"
 
 export interface ElicitationDockProps {
     elicits: ElicitationDockState
@@ -65,10 +66,7 @@ export interface ElicitationDockProps {
 
 /** A settled or unrenderable card still holds the box while the host animates the collapse. */
 const Shell = ({children, className}: {children: React.ReactNode; className?: string}) => (
-    <div
-        className={`${CARD_SURFACE} flex flex-col gap-2.5 p-3 px-3.5 shadow-sm ${className ?? ""}`}
-        style={{minHeight: CARD_MIN_H}}
-    >
+    <div className={`${CARD_SURFACE} ${className ?? ""}`} style={{minHeight: CARD_MIN_H}}>
         {children}
     </div>
 )
@@ -274,15 +272,6 @@ const LiveCard = ({
         [step, stepper, multi, focusOther],
     )
 
-    const toggleRow = useCallback(
-        (row: OptionRow, index: number) => {
-            if (!step) return
-            if (row.value === null) return focusOther(index)
-            stepper.toggle(step.name, row.value)
-        },
-        [step, stepper, focusOther],
-    )
-
     // Row-driven steps and the review list put focus on the card itself, so digits and arrows work
     // immediately. Free-text steps focus their input instead (see ElicitationControl).
     useEffect(() => {
@@ -387,7 +376,7 @@ const LiveCard = ({
         if (event.key === " " && multi) {
             event.preventDefault()
             const row = rows[cursor]
-            if (row) toggleRow(row, cursor)
+            if (row) pickRow(row, cursor)
             return
         }
         if (event.key === "Enter") {
@@ -411,7 +400,7 @@ const LiveCard = ({
             }
             onKeyDownCapture={onKeyDown}
             onPointerDownCapture={stepper.cancelHold}
-            className={`${CARD_SURFACE} flex flex-col gap-2.5 p-3 px-3.5 shadow-sm outline-none`}
+            className={`${CARD_SURFACE} outline-none`}
             style={{minHeight: CARD_MIN_H}}
         >
             <Eyebrow label={askerLabel}>
@@ -484,7 +473,6 @@ const LiveCard = ({
                             touch={touch}
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
-                            onToggle={toggleRow}
                             onCursor={stepper.setCursor}
                             onSubmit={stepper.primary}
                         />

@@ -89,9 +89,8 @@ export interface ElicitationControlProps {
     touch?: boolean
     onChange: (value: unknown) => void
     /** Pick a row: sets the value AND advances (single-select only). */
+    /** Picks a row. A multi-select toggles instead of advancing — the caller owns that rule. */
     onPick: (row: OptionRow, index: number) => void
-    /** Toggle a row without advancing (multi-select only). */
-    onToggle: (row: OptionRow, index: number) => void
     onCursor: (index: number) => void
     /** Enter in a single-line field: commit this answer and move on. */
     onSubmit: () => void
@@ -107,7 +106,6 @@ export const ElicitationControl = ({
     touch,
     onChange,
     onPick,
-    onToggle,
     onCursor,
     onSubmit,
 }: ElicitationControlProps) => {
@@ -188,8 +186,7 @@ export const ElicitationControl = ({
                                     otherRef.current?.focus({preventScroll: true})
                                     return
                                 }
-                                if (multi) onToggle(row, index)
-                                else onPick(row, index)
+                                onPick(row, index)
                             }}
                             className={`flex h-[30px] cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
                                 isSelected
