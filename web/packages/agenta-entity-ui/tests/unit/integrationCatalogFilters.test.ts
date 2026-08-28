@@ -9,11 +9,7 @@ import {
 const DEV = {id: "developer-tools", name: "developer tools"}
 const COMMS = {id: "communication", name: "communication"}
 
-const groups = [
-    {integrationKey: "github"},
-    {integrationKey: "slack"},
-    {integrationKey: "linear"},
-]
+const groups = [{integrationKey: "github"}, {integrationKey: "slack"}, {integrationKey: "linear"}]
 
 const categoriesByIntegration = new Map<string, readonly string[]>([
     ["github", ["developer tools"]],
@@ -68,7 +64,9 @@ describe("filterConnectedGroups", () => {
     })
 
     it("filters the CONNECTED list by the selected category, not just the catalog", () => {
-        expect(keys(filterConnectedGroups({...base, query: "", category: COMMS}))).toEqual(["slack"])
+        expect(keys(filterConnectedGroups({...base, query: "", category: COMMS}))).toEqual([
+            "slack",
+        ])
     })
 
     it("applies the search and the category together", () => {

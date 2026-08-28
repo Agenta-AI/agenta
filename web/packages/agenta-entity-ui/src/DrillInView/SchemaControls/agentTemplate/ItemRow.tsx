@@ -116,9 +116,7 @@ export function ItemRow({
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
-            // The WHOLE row opens the item. The right-hand group (status, tags, `extra`, chevron)
-            // used to be dead: a click on the chevron — where the affordance points — did nothing,
-            // which read as "the row needs several clicks". The remove button stops propagation.
+            // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",

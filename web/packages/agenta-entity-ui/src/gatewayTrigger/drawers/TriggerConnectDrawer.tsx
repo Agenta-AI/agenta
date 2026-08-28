@@ -90,8 +90,7 @@ export default function TriggerConnectDrawer({
     const nameTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
-    // The author names the connection; the slug is derived and never shown. The API rejects a null
-    // slug, so it is still computed and sent — it is just not something to author.
+    // The slug is derived, not authored. Still sent: the API 500s on a null one.
     const {connections} = useTriggerConnectionsQuery()
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
@@ -108,8 +107,7 @@ export default function TriggerConnectDrawer({
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
-    // Re-seed per open, and again when the connections list settles and the "(main)" /
-    // "(secondary)" count becomes known — but never over something the author typed.
+    // Re-seed per open and when the count lands, but never over something the author typed.
     useEffect(() => {
         if (!open) return
         nameTouchedRef.current = false

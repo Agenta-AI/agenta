@@ -1,6 +1,6 @@
+import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-import ConnectDrawer from "../../../packages/agenta-entity-ui/src/gatewayTool/drawers/ConnectDrawer"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
 

@@ -33,6 +33,7 @@ import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionSta
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
+    isDescriptionTruncatable,
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
@@ -113,15 +114,16 @@ const ToolRow = memo(function ToolRow({
     const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
     const [overflows, setOverflows] = useState(false)
     const description = tool.description?.trim()
-    // A line break hides text no width measurement can see, so it counts as truncation on its own.
-    const multiline = Boolean(description?.includes("\n"))
-    // Measured only while collapsed: expanding changes the very box the measurement reads, which
-    // is what used to make the toggle vanish on the way back.
+    // Measured only while collapsed: expanding changes the very box the measurement reads.
     useLayoutEffect(() => {
+        if (!description) {
+            setOverflows(false)
+            return
+        }
         if (!preview || expanded) return
         setOverflows(preview.scrollWidth > preview.clientWidth)
     }, [preview, expanded, description])
-    const truncatable = multiline || overflows
+    const truncatable = isDescriptionTruncatable(description, overflows)
 
     return (
         <div
@@ -492,8 +494,7 @@ function DrawerTitle({
     const connection = findTargetConnection(connections, target, connectionSlug)
 
     return (
-        // w-full + min-w-0: the header is a flex-1 title slot that will not shrink on its own, so
-        // without these the status badge is pushed past the drawer's edge.
+        // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
             <ProviderLogo logo={integration?.logo ?? null} size={22} />
             <div className="flex min-w-0 flex-1 flex-col">

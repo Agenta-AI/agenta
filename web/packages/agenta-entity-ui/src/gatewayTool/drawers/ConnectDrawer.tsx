@@ -63,8 +63,7 @@ export default function ConnectDrawer({
     // One suffix per drawer instance keeps the derived slug stable while the author edits the name.
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
-    // The author names the connection; the slug is derived and never shown. The API rejects a null
-    // slug, so it is still computed and sent — it is just not something to author.
+    // The slug is derived, not authored. Still sent: the API 500s on a null one.
     const {connections} = useToolConnectionsQuery()
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
@@ -79,8 +78,7 @@ export default function ConnectDrawer({
         slugSuffixRef.current,
     )
 
-    // The connections list settles after mount, so the "(main)" / "(secondary)" seed can only be
-    // known late. Re-seed until the author types something of their own.
+    // The connections count lands after mount, so re-seed until the author types their own.
     useEffect(() => {
         if (!nameTouchedRef.current) setName(seedName)
     }, [seedName])

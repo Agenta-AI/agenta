@@ -267,8 +267,7 @@ function CategoryRail({
                         key={category.id}
                         type="button"
                         onClick={() => onSelect({id: category.id, name: category.name})}
-                        // The provider sends these lowercase; uppercase matches the drawer's other
-                        // labels and keeps acronyms (CRM, HR) right, which capitalize would not.
+                        // The provider sends these lowercase; capitalize would mangle CRM and HR.
                         className={`shrink-0 cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] uppercase tracking-wide ${
                             active === category.id
                                 ? "bg-[var(--ag-colorFillSecondary)] font-medium"
@@ -325,8 +324,7 @@ function IntegrationCatalogContent({
 
     const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
 
-    // The connected integrations' catalog details, read through the SAME query atoms each row uses,
-    // so this shares their cache instead of fetching again. Needed for the category filter below.
+    // Read through the SAME query atoms each row uses, so this shares their cache.
     const connectedKeys = useMemo(
         () => allConnectedGroups.map((group) => group.integrationKey).sort(),
         [allConnectedGroups],
@@ -353,8 +351,7 @@ function IntegrationCatalogContent({
         return {categoriesByIntegration: categoriesMap, namesByIntegration: namesMap}
     }, [connectedDetails])
 
-    // Both sections in one call. Filtering the connected list here rather than inside each row
-    // keeps the section count equal to the rows it heads.
+    // Filtered here, not inside each row, so the section count matches the rows it heads.
     const {connected: connectedGroups, connectable: catalogRows} = useMemo(
         () =>
             catalogSections({

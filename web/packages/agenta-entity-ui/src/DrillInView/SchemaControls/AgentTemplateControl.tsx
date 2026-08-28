@@ -417,8 +417,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
      */
     const openIntegrationPermissions = useCallback(
         (row: IntegrationRow) => {
-            // Target first: migration writes the whole config back up the tree, and a re-render
-            // cascade from that write used to swallow the open on a legacy row's first click.
+            // Target first: the migration write below re-renders the tree and swallowed the open.
             setPermissionTarget({provider: row.provider, integration: row.integration})
             migrateIntegrationEntries({provider: row.provider, integration: row.integration})
         },
