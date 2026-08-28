@@ -4,6 +4,8 @@
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {stableStringify} from "@agenta/entities/workflow/commitDiff"
+
 import type {ConfigItemView} from "../ConfigItemDrawer"
 
 import {cloneItem} from "./agentTemplateUtils"
@@ -25,6 +27,8 @@ export function useConfigItemDrawer({
 }) {
     const [editing, setEditing] = useState<EditingState | null>(null)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
+    // What the drawer opened with, so Save can tell an untouched item from an edited one.
+    const [opened, setOpened] = useState<string>("")
     const [drawerView, setDrawerView] = useState<ConfigItemView>("form")
     // JSON-view parse validity from the open drawer's JsonObjectEditor; blocks Save while the raw
     // JSON is invalid. Reset when the open item changes — each editor is keyed/remounts and starts
@@ -37,6 +41,7 @@ export function useConfigItemDrawer({
     const openCreate = useCallback(
         (kind: ItemKind, seed: Record<string, unknown>, view: ConfigItemView) => {
             setDraft(seed)
+            setOpened(stableStringify(seed))
             setDrawerView(view)
             setEditing({kind, mode: "create", index: -1})
         },
@@ -44,7 +49,9 @@ export function useConfigItemDrawer({
     )
     const openEdit = useCallback(
         (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => {
-            setDraft(cloneItem(item))
+            const initial = cloneItem(item)
+            setDraft(initial)
+            setOpened(stableStringify(initial))
             setDrawerView(view)
             setEditing({kind, mode: "edit", index})
         },
@@ -82,6 +89,10 @@ export function useConfigItemDrawer({
         [editing, draft],
     )
 
+    // Nothing to commit when the draft still matches what the drawer opened with. Key order is
+    // normalised, so a JSON-view reformat that changes no values still counts as untouched.
+    const draftUnchanged = useMemo(() => stableStringify(draft) === opened, [draft, opened])
+
     return {
         editing,
         draft,
@@ -96,5 +107,6 @@ export function useConfigItemDrawer({
         commitDraft,
         removeItem,
         draftInvalid,
+        draftUnchanged,
     }
 }
