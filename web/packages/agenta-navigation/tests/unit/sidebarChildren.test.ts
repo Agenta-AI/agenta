@@ -525,11 +525,7 @@ describe("agentSessionCounts", () => {
     const A2 = "01a03ed2-c322-7493-b2a2-29b8ae273531"
 
     it("counts each agent's sessions", () => {
-        const counts = agentSessionCounts([
-            row("s1", A1),
-            row("s2", A2),
-            row("s3", A1),
-        ])
+        const counts = agentSessionCounts([row("s1", A1), row("s2", A2), row("s3", A1)])
 
         expect(counts.get(A1)).toBe(2)
         expect(counts.get(A2)).toBe(1)
