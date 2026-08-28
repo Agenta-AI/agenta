@@ -186,6 +186,17 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
         )
     }
 
+    // A schema this size arrives in pieces, and each piece parses: the count climbed 3 → 11 → 27
+    // while the row re-rendered, the text grew past one line, and the clamp flipped height on every
+    // frame. That is the shimmer in the transcript. Hold the settled copy until the input is whole.
+    if (meta.state !== "input-available") {
+        return (
+            <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+                The agent is preparing a request…
+            </Chip>
+        )
+    }
+
     // The tool's `message` is the agent's own framing and the only context it wrote, so it belongs
     // here in the transcript rather than in the dock. No jump affordance: the dock is pinned above
     // the composer and already on screen whenever it holds this call.
