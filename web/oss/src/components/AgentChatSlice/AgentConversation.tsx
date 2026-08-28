@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject
 import {
     describeAccepted,
     filesToParts,
+    jumpGateOpen,
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -369,6 +370,13 @@ const AgentConversation = ({
         enabled: !busy && !stopped,
         approvalsPending: pendingApprovals.length > 0,
     })
+    // A docked gate holds the jump pill back: same bottom corner, and a paused run has nothing
+    // arriving below to jump to.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
+    })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
@@ -689,8 +697,12 @@ const AgentConversation = ({
                             absolute bar in build and reclaims the space in chat. It lives on the
                             TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
                             beside it keeps a fixed top and doesn't ride the transition upward.
-                            box-border so the padding fits inside h-full (preflight is off). */}
-                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            box-border so the padding fits inside h-full (preflight is off).
+                            NO column gap: the transcript's bottom fade is meant to dissolve content
+                            into the composer edge, and a gap between them left a dead band of canvas
+                            that read as the transcript being cut short. Docked chrome below carries
+                            its own `mb-2`, so nothing here depended on the gap for separation. */}
+                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
                                 {/* At the limit the overlay says so rather than inviting a drop it is
                             about to reject wholesale. */}
                                 {isDragging && (
@@ -731,6 +743,7 @@ const AgentConversation = ({
                                     virt={virt}
                                     scroll={scroll}
                                     showJump={showJump}
+                                    gateOpen={gateOpen}
                                     placeholder={
                                         <TranscriptPlaceholder
                                             entityId={entityId}

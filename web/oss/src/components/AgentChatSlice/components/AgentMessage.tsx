@@ -12,11 +12,17 @@ import {
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
-import {AudioPlayer, StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {
+    AudioPlayer,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
+    messageBodyKey,
     reasoningKey,
     setExpandedAtom,
     useStartupPhase,
@@ -34,6 +40,7 @@ import {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
@@ -574,18 +581,28 @@ const AgentMessage = ({
         />
     )
 
+    // A long pasted message clamps behind "Show more" so it can't bury the reply it belongs to.
+    // User turns only: an agent answer is the thing you came to read.
+    const contentBody = isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(message.id)}>
+            {defaultBody}
+        </CollapsibleMessageBody>
+    ) : (
+        defaultBody
+    )
+
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
         showError && !isError ? (
             <div className="flex min-w-0 max-w-full flex-col gap-2">
-                {defaultBody}
+                {contentBody}
                 {errorBody}
             </div>
         ) : isError ? (
             errorBody
         ) : (
-            defaultBody
+            contentBody
         )
 
     // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
@@ -617,7 +634,7 @@ const AgentMessage = ({
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
+                        ? `${userBubbleContentClass} border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]`
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}

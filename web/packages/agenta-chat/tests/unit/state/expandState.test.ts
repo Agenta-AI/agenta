@@ -5,6 +5,7 @@ import {describe, expect, it} from "vitest"
 import {
     errorKey,
     expandedKeysForMessages,
+    messageBodyKey,
     expandedValueAtomFamily,
     pruneExpandedAtom,
     reasoningKey,
@@ -22,6 +23,10 @@ describe("expandState key builders", () => {
         expect(errorKey("m1")).toBe("m1::error")
     })
 
+    it("builds a body key from the message id", () => {
+        expect(messageBodyKey("m1")).toBe("m1::body")
+    })
+
     it("builds a tool row key from the tool call id", () => {
         expect(toolRowKey("tool-1")).toBe("tool::row::tool-1")
     })
@@ -32,7 +37,7 @@ describe("expandState key builders", () => {
 })
 
 describe("expandedKeysForMessages", () => {
-    it("emits an error key for every message plus reasoning/tool keys for their parts", () => {
+    it("emits error and body keys for every message plus reasoning/tool keys for their parts", () => {
         const messages = [
             {
                 id: "m1",
@@ -50,6 +55,7 @@ describe("expandedKeysForMessages", () => {
         expect(keys).toEqual(
             new Set([
                 errorKey("m1"),
+                messageBodyKey("m1"),
                 reasoningKey("m1", 0),
                 toolRowKey("tool-1"),
                 toolGroupKey("tool-1"),
@@ -63,7 +69,9 @@ describe("expandedKeysForMessages", () => {
         const messages = [
             {id: "m1", role: "assistant", parts: [{type: "tool-bash", state: "input-available"}]},
         ] as unknown as UIMessage[]
-        expect(expandedKeysForMessages(messages)).toEqual(new Set([errorKey("m1")]))
+        expect(expandedKeysForMessages(messages)).toEqual(
+            new Set([errorKey("m1"), messageBodyKey("m1")]),
+        )
     })
 })
 
