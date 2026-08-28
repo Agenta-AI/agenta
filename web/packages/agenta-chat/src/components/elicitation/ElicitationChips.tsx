@@ -119,15 +119,23 @@ export const ElicitationChips = ({
                 ref={inputRef}
                 aria-label={label}
                 value={draft}
-                // The question line above already carries the step's hint; this slot is the only
-                // place the commit keystroke can be taught.
-                placeholder={chips.length ? "" : touch ? "Add one" : "Add one, ↵"}
+                placeholder={chips.length ? "" : "Add one"}
                 onKeyDown={onKeyDown}
                 onChange={(event) => setDraft(event.target.value)}
                 // A typed word left behind on blur reads as data loss, so commit it.
                 onBlur={() => commit(draft)}
                 className="min-w-[80px] flex-1 border-none bg-transparent text-[13px] text-colorText outline-none placeholder:text-colorTextTertiary"
             />
+            {/* The commit key sits at the field's edge, where the option rows put theirs, rather
+                than inside the placeholder where it read as part of the prompt. */}
+            {touch ? null : (
+                <kbd
+                    aria-hidden
+                    className="ml-auto shrink-0 pr-0.5 font-sans text-[9px] text-colorTextQuaternary"
+                >
+                    ↵
+                </kbd>
+            )}
         </div>
     )
 }
