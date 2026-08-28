@@ -51,8 +51,8 @@ import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import Markdown from "../assets/markdown"
 
+import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
 interface AgentMessageProps {
@@ -86,10 +86,13 @@ const ReasoningPart = ({
     text,
     streaming,
     stateKey,
+    urgent,
 }: {
     text: string
     streaming: boolean
     stateKey: string
+    /** Something already renders below this block, so it must not keep typing. */
+    urgent?: boolean
 }) => {
     // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
     // manual toggle sticks. State is keyed + persisted (expandState) so it survives a Virtuoso unmount
@@ -124,7 +127,12 @@ const ReasoningPart = ({
             >
                 <div className="min-h-0 overflow-hidden">
                     <div className="mt-1 ml-5 text-colorTextTertiary">
-                        <Markdown content={text} className="!text-xs" streaming={streaming} />
+                        <StreamingMarkdown
+                            content={text}
+                            className="!text-xs"
+                            streaming={streaming}
+                            urgent={urgent}
+                        />
                     </div>
                 </div>
             </div>
@@ -496,10 +504,12 @@ const AgentMessage = ({
                 -1,
             )
             return (
-                <Markdown
+                <StreamingMarkdown
                     key={partKey}
                     content={text}
                     streaming={isStreaming && i === lastTextIndex}
+                    // Something already renders below this part, so it must not keep typing.
+                    urgent={i !== message.parts.length - 1}
                 />
             )
         }
@@ -512,6 +522,7 @@ const AgentMessage = ({
                     stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
+                    urgent={i !== message.parts.length - 1}
                 />
             )
         }

@@ -10,7 +10,12 @@ import {
     type CSSProperties,
 } from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    sessionStatusAtomFamily,
+} from "@agenta/chat/state"
+import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
@@ -21,11 +26,13 @@ import {
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import {projectIdAtom} from "@/oss/state/project"
 
+import {shouldCancelRunOnClose} from "./assets/closeSessionCancel"
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
 import InspectSessionButton from "./components/Inspector/InspectSessionButton"
@@ -49,6 +56,7 @@ import {
     addSessionAtomFamily,
     adoptSessionAtomFamily,
     closeSessionAtomFamily,
+    closeSessionsAtomFamily,
     pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
     sessionsListAtomFamily,
@@ -117,8 +125,35 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const closeSessions = useSetAtom(closeSessionsAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    const projectId = useAtomValue(projectIdAtom)
+    const store = useStore()
+    // Closing a running tab IS a stop, so it sends the same cooperative cancel the Stop button does.
+    const cancelIfRunning = useCallback(
+        (id: string) => {
+            const status = store.get(sessionStatusAtomFamily(id))
+            if (projectId && shouldCancelRunOnClose({status, projectId})) {
+                commandSessionStream({sessionId: id, projectId}).catch(() => {})
+            }
+        },
+        [projectId, store],
+    )
+    const handleClose = useCallback(
+        (id: string) => {
+            cancelIfRunning(id)
+            closeSession(id)
+        },
+        [cancelIfRunning, closeSession],
+    )
+    const handleCloseMany = useCallback(
+        (ids: string[]) => {
+            ids.forEach(cancelIfRunning)
+            closeSessions(ids)
+        },
+        [cancelIfRunning, closeSessions],
+    )
     // Stable identity: the tag bar forwards this straight to each memo'd chip.
     const handleRename = useCallback(
         (id: string, title: string) => renameSession({id, title}),
@@ -176,15 +211,20 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
+    //
+    // Held too until a project resolves: the session store drops every write made without one, so
+    // seeding early latched `seeded` against a session that was never stored, and the latch only
+    // re-arms while the list is empty — which the reconciler ends by filling history (#6295).
     const seeded = useRef(false)
     useEffect(() => {
+        if (!projectId) return
         if (pendingOpensForScope.length > 0) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession, pendingOpensForScope])
+    }, [projectId, sessions.length, addSession, pendingOpensForScope])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
@@ -410,7 +450,8 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         onSelect={setActiveSession}
                                         onAdd={addSession}
                                         addDisabled={addLocked}
-                                        onClose={closeSession}
+                                        onClose={handleClose}
+                                        onCloseMany={handleCloseMany}
                                         onRename={handleRename}
                                         showSessions={!chatMaximized}
                                         leftExtra={
