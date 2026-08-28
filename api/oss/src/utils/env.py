@@ -1675,6 +1675,31 @@ class SuperTokensConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Triggers
+# ---------------------------------------------------------------------------
+
+
+class TriggersConfig(BaseModel):
+    """Guardrails for trigger schedules."""
+
+    # The smallest gap allowed between two consecutive fires of a schedule's cron
+    # expression. Every fire starts an agent run in its own sandbox, so `* * * * *`
+    # bills 1440 runs a day; and because a run routinely outlives one minute, such a
+    # schedule also overlaps itself. Enforced on create and edit only, so rows stored
+    # before the floor existed keep firing until someone edits them.
+    #
+    # The web mirrors this default as MIN_CRON_INTERVAL_MINUTES so the drawer can
+    # reject a value before submitting. Lowering this below that constant makes the
+    # client stricter than the server until the two are changed together.
+    schedule_min_interval_minutes: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
+        )
+        or 15
+    )
+
+
+# ---------------------------------------------------------------------------
 # Auth — derived flags. Kept as a convenience facade reading from
 # identity.* (OIDC) and agenta.access.email_disabled (email).
 # ---------------------------------------------------------------------------
@@ -1761,6 +1786,7 @@ class EnvironSettings(BaseModel):
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
+    triggers: TriggersConfig = TriggersConfig()
 
     model_config = ConfigDict(extra="ignore")
 
