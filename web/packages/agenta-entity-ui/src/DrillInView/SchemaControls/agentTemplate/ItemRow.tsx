@@ -116,6 +116,10 @@ export function ItemRow({
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // The WHOLE row opens the item. The right-hand group (status, tags, `extra`, chevron)
+            // used to be dead: a click on the chevron — where the affordance points — did nothing,
+            // which read as "the row needs several clicks". The remove button stops propagation.
+            onClick={interactive ? onEdit : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
@@ -126,12 +130,11 @@ export function ItemRow({
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
-                (axe nested-interactive) — same split as SubscriptionChildRow. The outer flex
-                still supplies the gap between the two groups, so geometry is unchanged. */}
+                (axe nested-interactive) — same split as SubscriptionChildRow. It carries the
+                keyboard affordance only; the click is handled once, on the row. */}
             <div
                 role={interactive ? "button" : undefined}
                 tabIndex={interactive ? 0 : undefined}
-                onClick={interactive ? onEdit : undefined}
                 onKeyDown={
                     interactive
                         ? (e) => {
