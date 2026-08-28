@@ -88,32 +88,6 @@ const mix = (hex: string, target: number, amount: number): string =>
         )
         .join("")
 
-/** Perceived lightness, 0..255. */
-const luma = (hex: string): number => {
-    const [r, g, b] = toRgb(hex)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-/**
- * A colour light enough to vanish on its own tint is darkened until it cannot. The OS picker will
- * happily hand back `#FFFFFF`, which would otherwise render a white glyph on a white chip.
- */
-export const readableInk = (hex: string): string => {
-    if (luma(hex) <= 170) return hex
-    const [r, g, b] = toRgb(hex)
-    const amount = Math.min(0.75, (luma(hex) - 170) / 170 + 0.25)
-    return (
-        "#" +
-        [r, g, b]
-            .map((c) =>
-                Math.round(c * (1 - amount))
-                    .toString(16)
-                    .padStart(2, "0"),
-            )
-            .join("")
-    )
-}
-
 /** A custom colour has no hand-tuned pair, so lighten it 88% toward white for the chip. */
 export const tintFor = (hex: string): string => mix(hex, 255, 0.88)
 
@@ -136,6 +110,36 @@ export const darkTintFor = (hex: string): string => {
 export const tintForColor = (hex: string): string => {
     const match = AGENT_ICON_COLORS.find(([solid]) => solid.toLowerCase() === hex.toLowerCase())
     return match ? match[1] : tintFor(hex)
+}
+
+/** WCAG relative luminance, the input to a contrast ratio. */
+const relativeLuminance = (hex: string): number => {
+    const [r, g, b] = toRgb(hex).map((c) => {
+        const s = c / 255
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+const contrastRatio = (a: string, b: string): number => {
+    const [high, low] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
+    return (high + 0.05) / (low + 0.05)
+}
+
+/** WCAG's floor for a graphical object. The glyph is an icon, not body text. */
+const MIN_GLYPH_CONTRAST = 3
+
+/**
+ * The glyph ink for a colour, darkened until it clears 3:1 on its own tint. Perceived lightness
+ * alone is not enough: mid-greys like `#A9A9A9` read as dark yet land at 2.16:1 on their tint.
+ */
+export const readableInk = (hex: string): string => {
+    const tint = tintForColor(hex)
+    let ink = hex
+    for (let step = 0; step < 20 && contrastRatio(ink, tint) < MIN_GLYPH_CONTRAST; step++) {
+        ink = mix(ink, 0, 0.1)
+    }
+    return ink
 }
 
 export const isHexColor = (value: string): boolean => /^#?[0-9a-f]{6}$/i.test(value.trim())

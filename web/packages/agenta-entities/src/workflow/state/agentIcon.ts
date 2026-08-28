@@ -27,19 +27,56 @@ const STORAGE_KEY = "agenta:agent-icon:1"
  * realistic number of agents rather than a round one. */
 const MAX_ENTRIES = 50
 
-/** The shapes the generator emits. Anything else in a stored path is not ours. */
-const SVG_SHAPES = /^<(path|circle|rect|line|polyline|polygon|ellipse|g)\b[^>]*\/?>$/
+/** The shapes the generator emits, and only quoted attributes after the tag name. */
+const SVG_SHAPE =
+    /^<(?:path|circle|rect|line|polyline|polygon|ellipse|g)((?:\s+[a-zA-Z-]+=(?:"[^"]*"|'[^']*'))*)\s*\/?>$/
+const SVG_ATTR = /\s+([a-zA-Z-]+)=(?:"[^"]*"|'[^']*')/g
+
+/** Geometry and presentation only. The allowlist is what keeps `onload` and friends out. */
+const SVG_ATTRS = new Set([
+    "d",
+    "cx",
+    "cy",
+    "r",
+    "rx",
+    "ry",
+    "x",
+    "y",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "width",
+    "height",
+    "points",
+    "transform",
+    "fill",
+    "fill-rule",
+    "fill-opacity",
+    "clip-rule",
+    "opacity",
+    "stroke",
+    "stroke-width",
+    "stroke-linecap",
+    "stroke-linejoin",
+])
+
+const isSvgShape = (tag: string): boolean => {
+    const match = SVG_SHAPE.exec(tag)
+    if (!match) return false
+    return [...match[1].matchAll(SVG_ATTR)].every(([, name]) => SVG_ATTRS.has(name))
+}
 
 /**
  * localStorage is outside the trust boundary and `path` reaches `dangerouslySetInnerHTML`, so an
- * entry is validated element by element rather than trusted for starting with `<`.
+ * entry is validated element by element and attribute by attribute.
  */
 export const isAgentIconPath = (path: string): boolean => {
     if (!path.startsWith("<")) return false
     const tags = path.match(/<[^>]*>/g)
     // Only whitespace may sit between shapes; any other text means it is not a generated glyph.
     if (!tags || tags.join("") !== path.replace(/>\s+</g, "><")) return false
-    return tags.every((tag) => SVG_SHAPES.test(tag))
+    return tags.every(isSvgShape)
 }
 
 /** Exported for its own tests — a validator, not a second storage seam. */

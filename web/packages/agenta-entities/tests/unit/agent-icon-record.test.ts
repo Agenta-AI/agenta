@@ -49,6 +49,12 @@ describe("isAgentIconRecord", () => {
             "<img src=x onerror=alert(1)>",
             "<foreignObject><body>x</body></foreignObject>",
             '<a href="javascript:alert(1)"><path d="M0,0"/></a>',
+            // A shape name is not enough: the attributes decide.
+            '<path onload="alert(1)"/>',
+            '<path d="M0,0Z" onclick="alert(1)"/>',
+            "<path d='M0,0Z' onmouseover='alert(1)'/>",
+            '<g style="background:url(javascript:alert(1))"><path d="M0,0Z"/></g>',
+            '<path d="M0,0Z" xlink:href="#x"/>',
         ]) {
             expect(isAgentIconPath(path)).toBe(false)
             expect(isAgentIconRecord({...valid, path})).toBe(false)

@@ -33,6 +33,14 @@ export const AgentIconSwatchRow = ({
 
     useEffect(() => () => (timer.current ? clearTimeout(timer.current) : undefined), [])
 
+    // Reset clears the record while this row stays mounted; a queued commit must not bring it back.
+    useEffect(() => {
+        if (selected !== null) return
+        if (timer.current) clearTimeout(timer.current)
+        timer.current = null
+        setPreview(null)
+    }, [selected])
+
     /** A queued custom commit must not land on top of a palette pick made just after it. */
     const cancelPending = () => {
         if (timer.current) clearTimeout(timer.current)

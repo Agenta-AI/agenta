@@ -82,15 +82,37 @@ describe("tintForColor", () => {
     })
 })
 
+/** WCAG contrast, mirrored here so the assertion states the contract rather than the maths. */
+const contrast = (a: string, b: string) => {
+    const channel = (hex: string) => {
+        const [r, g, b2] = toRgb(hex).map((c) => {
+            const s = c / 255
+            return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+        })
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b2
+    }
+    const [high, low] = [channel(a), channel(b)].sort((x, y) => y - x)
+    return (high + 0.05) / (low + 0.05)
+}
+
 describe("readableInk", () => {
-    it("leaves a colour dark enough to read alone", () => {
-        for (const [solid] of AGENT_ICON_COLORS) expect(readableInk(solid)).toBe(solid)
+    it("clears 3:1 on its own tint for every palette colour", () => {
+        for (const [solid] of AGENT_ICON_COLORS) {
+            expect(contrast(readableInk(solid), tintForColor(solid))).toBeGreaterThanOrEqual(3)
+        }
     })
 
-    it("darkens a near-white pick so it cannot vanish on its own tint", () => {
-        for (const hex of ["#FFFFFF", "#FDFDFF", "#F0F0F0"]) {
+    it("leaves a colour that already clears the floor untouched", () => {
+        for (const hex of ["#113955", "#1668DC", "#000000"]) {
+            expect(readableInk(hex)).toBe(hex)
+        }
+    })
+
+    it("darkens anything that would not clear it, near-white and mid-grey alike", () => {
+        // #A9A9A9 reads as dark yet lands at 2.16:1 on its own tint.
+        for (const hex of ["#FFFFFF", "#FDFDFF", "#F0F0F0", "#A9A9A9", "#FFFF00"]) {
             expect(luma(readableInk(hex))).toBeLessThan(luma(hex))
-            expect(luma(readableInk(hex))).toBeLessThan(luma(tintFor(hex)))
+            expect(contrast(readableInk(hex), tintForColor(hex))).toBeGreaterThanOrEqual(3)
         }
     })
 })
