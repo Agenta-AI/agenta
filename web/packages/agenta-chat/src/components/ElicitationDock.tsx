@@ -290,7 +290,11 @@ const LiveCard = ({
                 target.tagName === "TEXTAREA" ||
                 target.isContentEditable)
 
+        // Everywhere but a prose field, Cmd/Ctrl+Enter fires the primary action — it is the only
+        // way forward from a multi-select or the review list. In the multiline field it belongs to
+        // the newline instead, the way it does in the composer.
         if (mod && event.key === "Enter") {
+            if (step?.kind === "multiline" && typing) return
             event.preventDefault()
             stepper.primary()
             return

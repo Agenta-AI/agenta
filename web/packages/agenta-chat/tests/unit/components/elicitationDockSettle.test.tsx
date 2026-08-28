@@ -253,6 +253,24 @@ describe("automation", () => {
         expect(screen.getByText("1/1")).toBeTruthy()
     })
 
+    it("breaks the line on Cmd+Enter, the same key the composer uses", () => {
+        const {onOutput} = setup({
+            message: "One question",
+            requestedSchema: {
+                type: "object",
+                properties: {notes: {type: "string", title: "Notes", format: "multiline"}},
+            },
+        })
+        const field = screen.getByLabelText("Notes") as HTMLTextAreaElement
+
+        fireEvent.change(field, {target: {value: "one"}})
+        fireEvent.keyDown(field, {key: "Enter", metaKey: true})
+
+        // The modifier used to fire the primary action, which plain Enter already did.
+        expect(onOutput).not.toHaveBeenCalled()
+        expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("one\n")
+    })
+
     it("advances immediately on a digit, with no hold", () => {
         setup()
 

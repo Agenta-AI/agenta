@@ -120,6 +120,27 @@ export const ElicitationControl = ({
         event.preventDefault()
         onSubmit()
     }
+
+    /**
+     * The composer's contract, applied to the one control here that holds prose: Enter commits and
+     * Cmd/Ctrl+Enter breaks the line. Without this the modifier fired the primary action, which
+     * Enter already did, so the card spent two keys on one job and left the newline on Shift —
+     * a key the composer never advertises. Shift+Enter still works; it just isn't the taught one.
+     */
+    const newlineOrSubmit = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            const el = event.currentTarget
+            const {selectionStart: start, selectionEnd: end} = el
+            const text = String(value ?? "")
+            onChange(`${text.slice(0, start)}\n${text.slice(end)}`)
+            // The value round-trips through the parent, so the caret has to be put back after it
+            // returns, or it snaps to the end of everything already typed.
+            requestAnimationFrame(() => el.setSelectionRange(start + 1, start + 1))
+            return
+        }
+        submitOnEnter(event)
+    }
     // One ref for whichever single-line-or-textarea control this step renders, so the focus effect
     // below does not have to know which branch ran.
     const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
@@ -341,10 +362,10 @@ export const ElicitationControl = ({
                 ref={fieldRef as React.Ref<HTMLTextAreaElement>}
                 aria-label={step.label}
                 value={String(value ?? "")}
-                // Enter now commits here, so say where the newline went — unless a real hint or a
-                // touch surface (no keyboard) owns the line instead.
-                placeholder={touch ? undefined : "Shift + Enter for a new line"}
-                onKeyDown={submitOnEnter}
+                // Enter commits here, so say where the newline went — unless a touch surface, which
+                // has no keyboard to teach.
+                placeholder={touch ? undefined : "⌘/Ctrl+Enter for a new line"}
+                onKeyDown={newlineOrSubmit}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}
                 onChange={(event) => onChange(event.target.value)}
