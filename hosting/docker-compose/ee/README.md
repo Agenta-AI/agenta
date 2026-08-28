@@ -22,6 +22,7 @@ Open `.env.ee.gh` and set the required values:
 AGENTA_LICENSE=ee
 AGENTA_AUTH_KEY=<generate with: openssl rand -hex 32>
 AGENTA_CRYPT_KEY=<generate with: openssl rand -hex 32>
+AGENTA_SERVICES_INTERNAL_KEY=<generate with: openssl rand -hex 32>
 ```
 
 See [Environment Variables](#environment-variables) for what else you can configure.
@@ -134,6 +135,7 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 | `AGENTA_LICENSE` | Must be `ee`. |
 | `AGENTA_AUTH_KEY` | Secret for internal service authentication. Generate with `openssl rand -hex 32`. |
 | `AGENTA_CRYPT_KEY` | Encryption key for sensitive data at rest. Generate with `openssl rand -hex 32`. |
+| `AGENTA_SERVICES_INTERNAL_KEY` | Proves the Services container is the platform runtime, so a run can read write-only secret values. Set the same value on the API and the Services container; no fallback to `AGENTA_AUTH_KEY`. Generate with `openssl rand -hex 32`. |
 | `AGENTA_WEB_URL` | Public URL of the web frontend (default: `http://localhost`). |
 | `AGENTA_API_URL` | Public URL of the API (default: `http://localhost/api`). |
 | `AGENTA_SERVICES_URL` | Public URL of the services endpoint (default: `http://localhost/services`). |
