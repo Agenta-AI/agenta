@@ -37,6 +37,16 @@ uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
+**EXPORT the three variables, do not just set them.** The driver falls back to an env FILE when
+`AGENTA_*` is absent from its environment, which is helpful interactively and dangerous in a
+release run: a credentials file of bare `KEY=value` lines sourced with `. file` sets the shell
+only, the child `uv run` process inherits nothing, and the driver silently runs the whole gate
+against WHATEVER DEPLOYMENT the fallback file names. The failure surfaces as `401 Invalid
+credentials` from a stage whose key you just watched answer 200, or worse as a green run
+recorded against the wrong stack. Use `set -a` around the source, or `export` each variable,
+and confirm the stage in the results before trusting them. (Cost a staging gate run on
+2026-08-28; the fallback degrades to "wrong deployment", never to "no credentials".)
+
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
