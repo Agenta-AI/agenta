@@ -228,7 +228,6 @@ export const ElicitationControl = ({
                             aria-describedby={
                                 row.description ? `${describedBy}-${index}` : undefined
                             }
-                            onMouseEnter={() => onCursor(index)}
                             onClick={() => {
                                 // The Other row is a text field, not an answer: focus it instead of
                                 // committing an empty pick and moving on.
@@ -237,17 +236,22 @@ export const ElicitationControl = ({
                                     otherRef.current?.focus({preventScroll: true})
                                     return
                                 }
+                                // A click is deliberate where a hover is not, so it takes the
+                                // keyboard cursor with it: arrowing afterwards carries on from the
+                                // row the user just touched.
+                                onCursor(index)
                                 onPick(row, index)
                             }}
+                            // The fill is the same whether the pointer is over the row or the
+                            // keyboard cursor sits on it; a picked row adds the weight and the
+                            // check. Hover belongs to CSS so it leaves when the pointer does —
+                            // driving it from state stranded the last hovered row lit.
                             className={`flex h-[30px] shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
                                 isSelected
                                     ? "bg-colorFillSecondary font-medium"
                                     : isCursor
-                                      ? // Same fill as a picked row: quaternary was too faint to
-                                        // show where the cursor was. The check and the weight are
-                                        // what still tell the two apart.
-                                        "bg-colorFillSecondary"
-                                      : ""
+                                      ? "bg-colorFillSecondary"
+                                      : "hover:bg-colorFillSecondary"
                             }`}
                         >
                             <span className="shrink-0 text-[11px] tabular-nums text-colorText">
