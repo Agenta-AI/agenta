@@ -471,6 +471,37 @@ describe("the controls the dialect grew", () => {
         )
     })
 
+    it("keeps the cursor row in view once a long list starts scrolling", () => {
+        const scrolled: {text: string; arg: {block?: string}}[] = []
+        // jsdom does not implement scrollIntoView, so record the calls rather than the geometry.
+        // Restored at the end: leaving the stub installed breaks every later test in this file.
+        const original = Element.prototype.scrollIntoView
+        Element.prototype.scrollIntoView = function (arg?: unknown) {
+            scrolled.push({text: (this.textContent || "").trim(), arg: (arg ?? {}) as object})
+        } as typeof Element.prototype.scrollIntoView
+        try {
+            setup(
+                oneOf({
+                    model: {
+                        type: "string",
+                        title: "Model",
+                        enum: Array.from({length: 24}, (_, i) => `model-${i}`),
+                    },
+                }),
+            )
+
+            const card = screen.getByRole("group")
+            for (let i = 0; i < 12; i++) fireEvent.keyDown(card, {key: "ArrowDown"})
+
+            const last = scrolled[scrolled.length - 1]
+            expect(last.text).toContain("model-12")
+            // Anything but "nearest" scrolls the transcript behind the dock.
+            expect(last.arg.block).toBe("nearest")
+        } finally {
+            Element.prototype.scrollIntoView = original
+        }
+    })
+
     it("adds an Other entry to a multi-select instead of replacing what is picked", () => {
         const {onOutput} = setup(
             oneOf({

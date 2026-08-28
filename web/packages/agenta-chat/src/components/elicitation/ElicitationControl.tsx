@@ -125,7 +125,15 @@ export const ElicitationControl = ({
     const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
     const otherRef = useRef<HTMLInputElement>(null)
     const dateBoxRef = useRef<HTMLDivElement>(null)
+    const cursorRowRef = useRef<HTMLDivElement>(null)
     const describedBy = useId()
+
+    // Past the sixth row the list scrolls, and an arrow key was moving a cursor nobody could see.
+    // `block: "nearest"` is load-bearing: anything else scrolls the transcript behind the dock.
+    // Optional call because jsdom does not implement it, and a missing scroll must never throw.
+    useEffect(() => {
+        cursorRowRef.current?.scrollIntoView?.({block: "nearest"})
+    }, [cursor])
 
     // Focus follows the step — on first render and on every move, forward or back — so a typed
     // answer never needs a click first. `preventScroll` is non-negotiable: a bare .focus() inside
@@ -186,6 +194,7 @@ export const ElicitationControl = ({
                     return (
                         <div
                             key={row.label}
+                            ref={isCursor ? cursorRowRef : undefined}
                             role={multi ? "checkbox" : "radio"}
                             aria-checked={isSelected}
                             tabIndex={-1}
