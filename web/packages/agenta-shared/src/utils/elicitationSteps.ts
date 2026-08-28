@@ -118,8 +118,48 @@ const optionsOf = (field: ElicitationFieldSchema): ElicitationStepOption[] | und
  * that can pin the browser thread on a crafted answer, screen those out and let the value through
  * unchecked: an unenforced constraint the agent can re-ask about beats a frozen tab.
  */
-const isCatastrophicPattern = (pattern: string): boolean =>
-    /\((?:[^()]*[+*])\)[+*]/.test(pattern) || /\([^()]*\{\d+,\}?\}[^()]*\)[+*]/.test(pattern)
+const isCatastrophicPattern = (pattern: string): boolean => {
+    // Scanned by hand rather than matched with a regex: the regex that screened for this shape
+    // was itself polynomial on a crafted pattern, which is the same bug one level up (CodeQL 311).
+    const quantified: boolean[] = []
+    let depth = 0
+    for (let i = 0; i < pattern.length; i++) {
+        const char = pattern[i]
+        if (char === "\\") {
+            i++
+            continue
+        }
+        if (char === "(") {
+            quantified.push(false)
+            depth++
+            continue
+        }
+        if (char === ")") {
+            const inner = quantified.pop() ?? false
+            depth--
+            const next = pattern[i + 1]
+            if (inner && (next === "+" || next === "*" || next === "{")) return true
+            continue
+        }
+        if ((char === "+" || char === "*" || char === "{") && depth > 0)
+            quantified[quantified.length - 1] = true
+    }
+    return false
+}
+
+/**
+ * One `@` with something either side, and a dot inside the domain. Written as index arithmetic
+ * rather than the obvious `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, whose two adjacent greedy runs are
+ * polynomial on input like `a@` followed by many `!.` (CodeQL 312).
+ */
+const isEmailShaped = (text: string): boolean => {
+    const at = text.indexOf("@")
+    if (at <= 0 || at !== text.lastIndexOf("@") || at === text.length - 1) return false
+    if (/\s/.test(text)) return false
+    const domain = text.slice(at + 1)
+    const dot = domain.lastIndexOf(".")
+    return dot > 0 && dot < domain.length - 1
+}
 
 /** Numeric hint from the schema bounds, so the design's `1–90 days` reads true. */
 const rangeHint = (field: ElicitationFieldSchema): string | undefined => {
@@ -259,8 +299,7 @@ export function validateStep(step: ElicitationStep, value: unknown): string | nu
         if (step.kind === "date" || step.kind === "date-time") {
             if (!dayjs(text).isValid()) return "That isn't a real date"
         }
-        if (step.format === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text))
-            return "Needs a valid email address"
+        if (step.format === "email" && !isEmailShaped(text)) return "Needs a valid email address"
         if (step.format === "uri") {
             try {
                 new URL(text)

@@ -281,15 +281,38 @@ describe("validateStep", () => {
         expect(validateStep(steps[0], "@daily")).toBeNull()
     })
 
-    it("skips a catastrophic pattern rather than handing it to RegExp.test", () => {
-        // The schema is model-authored, so a nested quantifier could pin the browser thread.
-        const {steps} = formOf(payload({code: {type: "string", pattern: "(a+)+$"}}))
+    it.each(["(a+)+$", "(a*)*$", "^(a+)*", "(a{2,})+", "((ab)+)+"])(
+        "skips the catastrophic pattern %s rather than handing it to RegExp.test",
+        (pattern) => {
+            // The schema is model-authored, so a nested quantifier could pin the browser thread.
+            const {steps} = formOf(payload({code: {type: "string", pattern}}))
+            expect(validateStep(steps[0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!")).toBeNull()
+        },
+    )
 
-        expect(validateStep(steps[0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!")).toBeNull()
-        // A normal pattern still enforces.
-        const {steps: ok} = formOf(payload({code: {type: "string", pattern: "^[A-Z]{3}$"}}))
-        expect(validateStep(ok[0], "abc")).toBe("That doesn't match the expected format")
-        expect(validateStep(ok[0], "ABC")).toBeNull()
+    it.each(["^[A-Z]{3}$", "^\\d+$", "^(cat|dog)$"])(
+        "still enforces the ordinary pattern %s",
+        (pattern) => {
+            const {steps} = formOf(payload({code: {type: "string", pattern}}))
+            expect(validateStep(steps[0], "!!!")).toBe("That doesn't match the expected format")
+        },
+    )
+
+    it("checks an email by hand, so a crafted address cannot stall the check", () => {
+        const {steps} = formOf(payload({who: {type: "string", format: "email"}}))
+        const ok = (value: string) => validateStep(steps[0], value) === null
+
+        expect(ok("ada@example.com")).toBe(true)
+        expect(ok("ada@mail.example.co.uk")).toBe(true)
+        expect(ok("ada@example")).toBe(false)
+        expect(ok("@example.com")).toBe(false)
+        expect(ok("ada@@example.com")).toBe(false)
+        expect(ok("ada@.com")).toBe(false)
+        expect(ok("ada@example.")).toBe(false)
+        // The shape CodeQL flagged on the old regex. It is invalid either way (trailing dot); what
+        // matters is that the check is index arithmetic now, so it returns instead of backtracking.
+        expect(ok(`a@${"!.".repeat(2000)}`)).toBe(false)
+        expect(ok(`a@${"!.".repeat(2000)}x`)).toBe(true)
     })
 
     it("lets an unanswered optional step through", () => {
