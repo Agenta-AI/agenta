@@ -175,7 +175,7 @@ async def reset_user_password(request: Request, user_id: str):
         user_password = await user_service.generate_user_password_reset_link(
             user_id=user_id,
             admin_user_id=request.state.user_id,
-            caller_org_id=str(request.state.organization_id)
+            caller_org_id=str(request.state.organization_id),
         )
     except PermissionError as exc:
         return JSONResponse(

@@ -227,6 +227,13 @@ class TestNonexistentTargetUser:
 
         project = _make_project(organization_id=ORG_A_ID)
 
+        target_org_data = {
+            "id": TARGET_NONEXISTENT_USER_ID,
+            "uid": str(uuid4()),
+            "organization_ids": [ORG_A_ID],
+            "workspace_ids": [str(uuid4())],
+        }
+
         with (
             patch(
                 "oss.src.routers.user_profile.db_manager.get_project_by_id",
@@ -237,7 +244,11 @@ class TestNonexistentTargetUser:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "oss.src.services.db_manager.get_user_org_and_workspace_id",
+                "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
+                AsyncMock(return_value=target_org_data),
+            ),
+            patch(
+                "oss.src.services.user_service.db_manager.get_user_with_id",
                 AsyncMock(
                     side_effect=NoResultFound(
                         f"User with uid {TARGET_NONEXISTENT_USER_ID} not found"
