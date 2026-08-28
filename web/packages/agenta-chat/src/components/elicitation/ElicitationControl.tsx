@@ -98,6 +98,9 @@ export interface ElicitationControlProps {
     /** Picks a row. A multi-select toggles instead of advancing — the caller owns that rule. */
     onPick: (row: OptionRow, index: number) => void
     onCursor: (index: number) => void
+    /** Enter on a single-line field. The textarea, the pickers and the chip field all have their
+     * own use for the key, so only text and number hand it back to the form. */
+    onSubmit: () => void
     /** Enter in a single-line field: commit this answer and move on. */
 }
 
@@ -112,6 +115,7 @@ export const ElicitationControl = ({
     onChange,
     onPick,
     onCursor,
+    onSubmit,
 }: ElicitationControlProps) => {
     const rows = useMemo(() => optionRowsFor(step), [step])
     const multi = isMultiSelect(step)
@@ -120,6 +124,14 @@ export const ElicitationControl = ({
     // Land the cursor on the answer this step already holds. It used to reset to the first row, so
     // a step with a default showed a lit row 1 beside a picked row 2, which reads as a hover the
     // pointer left behind. Keyed to the step, so arrowing away from the answer still works.
+    // A single-line field has no other meaning for Enter, and "type, Enter, next" is the habit
+    // everywhere else. Only text and number use this; every richer control keeps the key.
+    const submitOnEnter = (event: React.KeyboardEvent) => {
+        if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.shiftKey) return
+        event.preventDefault()
+        onSubmit()
+    }
+
     const landedRef = useRef<string | null>(null)
     useEffect(() => {
         if (landedRef.current === step.name) return
@@ -395,6 +407,7 @@ export const ElicitationControl = ({
             // No placeholder: the schema's words are already on the question line above, and
             // repeating a sentence inside the field only overflows it.
             placeholder={undefined}
+            onKeyDown={submitOnEnter}
             onChange={(event) => onChange(event.target.value)}
             className={inputCls}
         />

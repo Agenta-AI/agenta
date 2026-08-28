@@ -466,6 +466,7 @@ const LiveCard = ({
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
                             onCursor={stepper.setCursor}
+                            onSubmit={stepper.primary}
                         />
                     </>
                 ) : null}

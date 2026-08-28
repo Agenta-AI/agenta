@@ -217,16 +217,16 @@ describe("refusal", () => {
 })
 
 describe("automation", () => {
-    it("advances on Cmd+Enter in a text field", () => {
+    it("advances a single-line field on either Enter or Cmd+Enter", () => {
         setup()
 
+        // A one-line field has no other use for the key, unlike the textarea or the pickers.
         fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
-        // Plain Enter belongs to the field; the modifier is what leaves the step.
         fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter"})
-        expect(screen.getByText("1/2")).toBeTruthy()
-
-        fireEvent.keyDown(screen.getByLabelText("Your name"), {key: "Enter", metaKey: true})
         expect(screen.getByText("2/2")).toBeTruthy()
+
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true, shiftKey: false})
+        expect(screen.getByText("Send answers")).toBeTruthy()
     })
 
     it("shows the validation error instead of advancing on an empty required field", () => {
