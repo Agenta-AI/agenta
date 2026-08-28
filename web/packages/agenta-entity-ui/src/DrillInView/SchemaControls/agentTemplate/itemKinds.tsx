@@ -12,7 +12,7 @@ import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
 import {skillDraftError} from "../skillName"
 import {ToolFormView} from "../ToolFormView"
-import {parseGatewayTool} from "../toolUtils"
+import {parseGatewayEntry} from "../toolUtils"
 
 import {
     describeMcp,
@@ -82,15 +82,16 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
         },
-        // Function, workflow-reference, and gateway tools (either encoding) have a structured Form;
-        // only bare builtin/provider tools (a naked `type`) stay JSON-only. A canonical gateway
-        // object opens the Form via `parseGatewayTool`; a legacy one is already a function tool.
-        editView: (item) =>
-            isFunctionTool(item) || isReferenceTool(item) || parseGatewayTool(item)
-                ? "form"
-                : "json",
-        jsonOnly: (draft) =>
-            !isFunctionTool(draft) && !isReferenceTool(draft) && !parseGatewayTool(draft),
+        // Function, workflow-reference, and gateway ACTION tools (either encoding) have a
+        // structured Form. Bare builtin/provider tools (a naked `type`) stay JSON-only, and so
+        // does an integration entry: it is edited in the permission drawer, so a reader who does
+        // reach it here (a diff row, a raw inspection) gets the JSON rather than an empty form.
+        editView: (item) => {
+            const entry = parseGatewayEntry(item)
+            if (entry?.kind === "connection") return "json"
+            return isFunctionTool(item) || isReferenceTool(item) || entry ? "form" : "json"
+        },
+        jsonOnly: (draft) => ITEM_KINDS.tool.editView(draft) === "json",
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),

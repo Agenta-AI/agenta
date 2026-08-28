@@ -171,6 +171,7 @@ not a harness, sandbox, or provider model axis.
 | Cell | Tier | What it pins | Extra requirement |
 |---|---|---|---|
 | `matrix_i1_settlement.py` | coached, mechanism-level | The 3 card kinds x complete/decline/walk-away table against the live API. Answered form/connect rows must be `responded` with their exact resolution; approvals must be `resolved` with a strict verdict; abandoned rows must be swept from `pending` to `cancelled` without an invented answer; non-approval `resolved` attempts must return 409. The script sends the atomic transition itself because that write belongs to the browser. | none beyond the three gate environment variables |
+| `matrix_gw1_gateway_tools.py` | coached, one mechanism-blind leg | The gateway tool surface against a real provider, in three legs. **search**: `search_tools` offers the allowed and ask tools and the DENIED key never appears in the payload the model reads. **allow_run**: the allowed tool executes unattended and returns a genuine provider result, asserted on the wire rather than on the model's word for it. **ask_run**: the SAME tool, re-gated to `ask` so policy is the only variable, parks; its stored row names the right integration and tool key; it is answered through the **interactions API**, the durable plane a reloaded browser uses and the one no other cell exercises; the row ends `resolved`/`approved`. Every leg folds `check_no_silent_turn`. | one valid Composio connection (defaults to the no-auth `text_to_pdf`; `--integration` / `--connection` to move it) and a working model provider |
 | `matrix_i2_card_journeys.py` | coached, mechanism-level | The six scripted journeys from `docs/design/client-tool-interaction-lifecycle/qa.md`: compound form/reload/connect-decline/schedule, form then connect, two connects, close/reopen, real Telegram create/remove/re-create, and decline/retry. Reload and reopen are fresh row/record reads, not browser automation; each journey names its wire-level limit. The Telegram journey validates a real bot against Telegram's own API and drives Agenta's connection lifecycle, but STOPS before entering the credential on the provider's hosted page — that step is browser-only, so the connection never reaches `is_valid` and the journey reports the gap in `not_covered`. Run qa.md journey 5 by hand in exploratory QA. | a funded model connection for the two same-session/record probes; `TELEGRAM_BOT_TOKEN` for the real Telegram journey |
 
 I2 reports an unset `TELEGRAM_BOT_TOKEN` as a loud journey `SKIP` and makes the aggregate cell
@@ -198,6 +199,37 @@ exclude any turn it deliberately aborted or interrupted, which legitimately ends
 `matrix_w5.py` shows the pattern by checking only its post-interrupt turns. When you add a cell,
 add `and not silent["violations"]` to its verdict — `resources/test_qa_matrix_lib_silent_turns.py`
 fails if a wired cell drops it.
+
+## Path-scoped cells: coverage the release's own diff demands
+
+Everything above is fixed. It runs identically for every release, which means a release that
+rewrote a subsystem gets the same coverage as one that never touched it — and the cell that would
+have caught the regression sits unrun, because running it depends on somebody remembering.
+
+`path_triggers.py` removes the remembering. It is one dict of path glob to cells. When the driver
+is given the release's diff (`--release-base <ref>`, or `--changed-path` for a checkout that is
+not the release branch), every rule whose glob matches a changed path contributes its cells, and
+those cells are MANDATORY for that release.
+
+| Rule | Cells it makes mandatory | Why this subsystem needs its own cell |
+|---|---|---|
+| `api/oss/src/core/tools/**`, `sdks/python/agenta/sdk/agents/platform/gateway.py`, `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`, `services/runner/src/tools/**`, `services/runner/src/engines/sandbox_agent/gateway-gate.ts` | `matrix_gw1_gateway_tools.py` | The gateway chain — the API's catalog and resolve, the SDK's two model-facing tools and its permission compiler, the runner's policy and semantic gate. `tool`, `approve`, and `deny` prove the approval machinery with a BUILTIN, never with a gateway tool, so nothing in the fixed matrix notices when a compiled policy and an enforced policy drift apart. Proposed in [`docs/design/composio-tools-rework/release-gate-changes.md`](../../../../docs/design/composio-tools-rework/release-gate-changes.md). |
+
+What the driver does with a mandatory cell depends on which kind it is:
+
+- **A `qa_product.py` cell** (`C3`, `X1`, …) is added to the run, even when `--cell` did not ask
+  for it. Nothing more is needed.
+- **A standalone `matrix_*.py` cell** is a separate process the driver cannot observe. It is
+  printed at the start, written to `mandatory.json`, and listed in `summary.md`. The release is
+  not green until that cell has a recorded result of its own.
+- **A cell that does not exist** stops the run before a single journey, naming the rule. The
+  release changed code the rule protects and the coverage was never written; a SKIP there would
+  be the exact false green this mechanism exists to prevent.
+
+Rules are data and unordered: matches are unioned, so two rules naming the same cell is fine.
+Matching is `fnmatch` over the whole repo-relative path, which means `*` crosses directory
+separators — `a/b/*` and `a/b/**` both mean the whole subtree. Write `**` for a subtree so the
+intent reads correctly, and name a file exactly when only that file should trigger.
 
 ## Optional probes (`qa_longctx.py`)
 

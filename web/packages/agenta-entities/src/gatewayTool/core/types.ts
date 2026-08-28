@@ -71,6 +71,14 @@ export type ToolConnectionResponse = AgentaApi.ToolConnectionResponse
 export type ToolConnectionsResponse = AgentaApi.ToolConnectionsResponse
 export type ToolConnectionStatus = AgentaApi.ToolConnectionStatus
 
+// Gateway connection entry (the saved agent-configuration shape)
+export type GatewayConnectionToolConfig = AgentaApi.GatewayConnectionToolConfig
+export type GatewayConnectionRef = AgentaApi.GatewayConnectionRef
+export type GatewayConnectionPolicy = AgentaApi.GatewayConnectionPolicy
+export type GatewayPermissions = AgentaApi.GatewayPermissions
+/** The four policy values, sourced from the wire so a fifth cannot appear without a compile error. */
+export type GatewayPermission = AgentaApi.GatewayPermissions["default"]
+
 // ---------------------------------------------------------------------------
 // Tool execution
 // ---------------------------------------------------------------------------

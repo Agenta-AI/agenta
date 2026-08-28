@@ -10,7 +10,11 @@ import {
   type StoredPermissionDecisions,
   type Verdict,
 } from "../../src/permission-plan.ts";
-import type { AgentRunRequest, PermissionMode, ToolPermission } from "../../src/protocol.ts";
+import type {
+  AgentRunRequest,
+  PermissionMode,
+  ToolPermission,
+} from "../../src/protocol.ts";
 
 const originalDenyEnv = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
 
@@ -52,7 +56,14 @@ describe("decide truth table", () => {
 
             assert.deepEqual(
               decide(gate, plan, stored),
-              { kind: expectedVerdict(defaultMode, specPermission, readOnlyHint, storedDecision) },
+              {
+                kind: expectedVerdict(
+                  defaultMode,
+                  specPermission,
+                  readOnlyHint,
+                  storedDecision,
+                ),
+              },
               `default=${defaultMode} spec=${specPermission ?? "unset"} readOnly=${String(
                 readOnlyHint,
               )} stored=${storedDecision ?? "none"}`,
@@ -264,7 +275,10 @@ describe("effectivePermission rule matching", () => {
     assert.equal(
       effectivePermission(
         { executor: "relay", toolName: "MyTool" },
-        { default: "deny", rules: [{ pattern: "mytool", permission: "allow" }] },
+        {
+          default: "deny",
+          rules: [{ pattern: "mytool", permission: "allow" }],
+        },
       ),
       "deny",
     );
@@ -356,13 +370,63 @@ describe("permissionsFromRequest", () => {
     });
   });
 
+  /**
+   * R6. The old test asserted only the returned PLAN, and never built a gate carrying an
+   * explicit permission — which is exactly where the hole was. `effectivePermission` read the
+   * specification permission first and the switch only replaced the plan default, so an
+   * authored `allow` beat the operator during an incident. It must not.
+   */
+  it("R6: the kill-switch beats an explicit spec permission at the decision, not just in the plan", () => {
+    const plan: PermissionPlan = { default: "allow", rules: [] };
+    const gate: GateDescriptor = {
+      executor: "relay",
+      toolName: "run_tool",
+      specPermission: "allow",
+    };
+
+    assert.equal(effectivePermission(gate, plan), "allow");
+
+    process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
+
+    assert.equal(
+      effectivePermission(gate, plan),
+      "deny",
+      "the switch is a top-priority condition, ahead of the spec permission",
+    );
+    assert.deepEqual(
+      decide(gate, plan, {
+        take: () => "allow",
+      }),
+      { kind: "deny" },
+      "and it is read before any stored answer is consulted",
+    );
+  });
+
+  it("R6: the switch reaches a plan that was built before it was turned on", () => {
+    // The plan is built ONCE at run start. Reading the switch from it cannot reach a live run.
+    const plan = permissionsFromRequest({
+      permissions: { default: "allow" },
+    } as AgentRunRequest);
+    assert.equal(plan.default, "allow");
+
+    process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
+
+    assert.equal(
+      effectivePermission({ executor: "relay", readOnlyHint: true }, plan),
+      "deny",
+    );
+  });
+
   it("lets the env kill-switch beat an explicit allow block", () => {
     const previous = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
     try {
       process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
       assert.deepEqual(
         permissionsFromRequest({
-          permissions: { default: "allow", rules: [{ pattern: "Bash", permission: "allow" }] },
+          permissions: {
+            default: "allow",
+            rules: [{ pattern: "Bash", permission: "allow" }],
+          },
         } as AgentRunRequest),
         { default: "deny", rules: [] },
       );
@@ -417,7 +481,11 @@ function expectedVerdict(
   readOnlyHint: boolean | undefined,
   storedDecision: "allow" | "deny" | undefined,
 ): Verdict["kind"] {
-  const permission = expectedPermission(defaultMode, specPermission, readOnlyHint);
+  const permission = expectedPermission(
+    defaultMode,
+    specPermission,
+    readOnlyHint,
+  );
   if (permission === "allow") return "allow";
   if (permission === "deny") return "deny";
   return storedDecision ?? "pendingApproval";

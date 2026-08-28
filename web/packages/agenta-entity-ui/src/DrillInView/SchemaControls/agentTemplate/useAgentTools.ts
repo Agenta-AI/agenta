@@ -7,8 +7,22 @@ import {useCallback, useMemo, type MutableRefObject} from "react"
 
 import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui/drill-in"
 
+import {migrateIntegration} from "../gatewayMigration"
+import {DEFAULT_INTEGRATION_PERMISSIONS, mergeToolPermission} from "../integrationPolicy"
 import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import {gatewayToolIdentity, parseGatewayTool, type ToolObj} from "../toolUtils"
+import {
+    buildIntegrationRows,
+    findGatewayConnectionIndex,
+    parseGatewayConnection,
+    removeIntegrationRow,
+    setGatewayConnectionPermissions,
+    upsertGatewayConnection,
+    type GatewayConnectionPermissions,
+    type GatewayConnectionTarget,
+    type GatewayPermission,
+    type IntegrationRow,
+    type ToolObj,
+} from "../toolUtils"
 
 import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
@@ -132,36 +146,63 @@ export function useAgentTools({
         [tools],
     )
 
-    // Encoding-independent identities of the gateway tools present — the drawer's added-state.
-    // Derived from the SAME `tools` memo as `selectedToolNames`, so the two never drift.
-    const selectedGatewayIds = useMemo(
-        () =>
-            new Set(
-                tools
-                    .map((t) => {
-                        const v = parseGatewayTool(t)
-                        return v ? gatewayToolIdentity(v) : null
-                    })
-                    .filter((s): s is string => Boolean(s)),
-            ),
-        [tools],
-    )
+    // ── Integrations: one `gateway_connection` entry per provider and integration ────────────
+    const integrationRows = useMemo(() => buildIntegrationRows(tools), [tools])
 
-    // Remove EXACTLY ONE identity match (toggle-off) — never all duplicates, per the design.
-    const removeGatewayToolByIdentity = useCallback(
-        (identity: string) => {
-            let removed = false
+    /**
+     * Add an integration, or point an already-configured one at another connection. Either way it
+     * is ONE write to ONE entry: the saved format allows a single entry per provider and
+     * integration, so appending a second would produce a revision the SDK refuses to parse. A swap
+     * keeps the policy the author already set and changes the connection slug alone.
+     */
+    const setIntegrationConnection = useCallback(
+        (target: GatewayConnectionTarget, connectionSlug: string) => {
+            const index = findGatewayConnectionIndex(tools, target)
+            const existing = index >= 0 ? parseGatewayConnection(tools[index]) : null
             setTools(
-                tools.filter((t) => {
-                    if (removed) return true
-                    const v = parseGatewayTool(t)
-                    if (v && gatewayToolIdentity(v) === identity) {
-                        removed = true
-                        return false
-                    }
-                    return true
+                upsertGatewayConnection(tools, {
+                    ...target,
+                    connection: connectionSlug,
+                    permissions: existing?.permissions ?? DEFAULT_INTEGRATION_PERMISSIONS,
                 }),
             )
+        },
+        [tools, setTools],
+    )
+
+    const setIntegrationPermissions = useCallback(
+        (target: GatewayConnectionTarget, permissions: GatewayConnectionPermissions) =>
+            setTools(setGatewayConnectionPermissions(tools, target, permissions)),
+        [tools, setTools],
+    )
+
+    const setIntegrationToolPermission = useCallback(
+        (target: GatewayConnectionTarget, toolKey: string, permission: GatewayPermission) => {
+            const index = findGatewayConnectionIndex(tools, target)
+            const current = index >= 0 ? parseGatewayConnection(tools[index]) : null
+            if (!current || !toolKey) return
+            setTools(
+                setGatewayConnectionPermissions(
+                    tools,
+                    target,
+                    mergeToolPermission(current.permissions, toolKey, permission),
+                ),
+            )
+        },
+        [tools, setTools],
+    )
+
+    const removeIntegration = useCallback(
+        (row: IntegrationRow) => setTools(removeIntegrationRow(tools, row)),
+        [tools, setTools],
+    )
+
+    /** Fold an integration's legacy entries into one connection entry. An author action only —
+     *  never a page load, so viewing an untouched agent never rewrites it. */
+    const migrateIntegrationEntries = useCallback(
+        (target: GatewayConnectionTarget) => {
+            const next = migrateIntegration(tools, target)
+            if (next) setTools(next)
         },
         [tools, setTools],
     )
@@ -181,8 +222,12 @@ export function useAgentTools({
         handleRemoveToolByName,
         handleRemoveBuiltinTool,
         selectedToolNames,
-        selectedGatewayIds,
-        removeGatewayToolByIdentity,
         referenceableWorkflows,
+        integrationRows,
+        setIntegrationConnection,
+        setIntegrationPermissions,
+        setIntegrationToolPermission,
+        removeIntegration,
+        migrateIntegrationEntries,
     }
 }

@@ -164,6 +164,10 @@ skills-lock.json
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
 
+# Storybook build output and the VRT's diff PNGs.
+web/storybook/storybook-static/
+web/storybook/parity/__vrt__/
+
 # Test artifacts in any workspace (vitest/playwright write a junit report on every run).
 test-results/
 junit.xml

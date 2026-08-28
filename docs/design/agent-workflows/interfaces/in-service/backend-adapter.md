@@ -26,8 +26,10 @@ SandboxAgentBackend(
 )
 ```
 
-The session it creates builds the wire payload with `request_to_wire(harness=..., ...)` (see
-[Service to agent runner](../cross-service/service-to-agent-runner.md)) and delivers it:
+The session receives neutral run data, including optional compiled `gateway_policy`, and builds
+the wire payload with `request_to_wire(harness=..., gateway_policy=..., ...)` (see
+[Service to agent runner](../cross-service/service-to-agent-runner.md)). The policy is not part
+of the harness-specific config. The backend then delivers the payload:
 
 ```python
 # batch
@@ -55,3 +57,6 @@ holds that id; the runner stays stateless.
   records.
 - **Result parsing and session carry-forward.** `result_from_wire` plus `_absorb_result` are
   how a multi-turn conversation keeps its id.
+- **Neutral gateway policy carry.** `Backend.create_session`, `SandboxAgentSession`, and
+  `request_to_wire` must keep the optional compiled policy in step. Do not route it through a
+  harness template.

@@ -111,7 +111,8 @@ export function ItemRow({
     extra?: ReactNode
     status?: ItemRowStatus
 }) {
-    const interactive = Boolean(onEdit) && !locked
+    // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
+    const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}

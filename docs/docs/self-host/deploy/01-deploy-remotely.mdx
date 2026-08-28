@@ -99,7 +99,7 @@ For more advanced settings like SSL, authentication, or custom ports, see our [c
 
 ## Step 3: Secure the Deployment
 
-The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The two Agenta keys ship as the literal string `replace-me`.
+The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The three Agenta keys ship as the literal string `replace-me`.
 
 :::warning Change these before the first start
 PostgreSQL applies `POSTGRES_USER` and `POSTGRES_PASSWORD` when it initializes its data volume. Setting them after the first start does not change an existing database.
@@ -118,6 +118,7 @@ POSTGRES_PASSWORD=<a password you generate>
 
 AGENTA_AUTH_KEY=<a random string>
 AGENTA_CRYPT_KEY=<a random string>
+AGENTA_SERVICES_INTERNAL_KEY=<a random string>
 ```
 
 Generate each key with:
@@ -128,6 +129,7 @@ openssl rand -hex 32
 
 - `AGENTA_AUTH_KEY` authenticates the admin API and signs the tokens Agenta issues. A caller who knows it is an admin on your deployment.
 - `AGENTA_CRYPT_KEY` encrypts the secrets Agenta stores, such as the model provider keys you add in the web interface. Any non-empty string works: Agenta derives the encryption key from it with SHA-256. Changing it later makes already-stored secrets undecryptable.
+- `AGENTA_SERVICES_INTERNAL_KEY` proves to the API that a caller is the platform runtime (the Services container), so a run can be issued a credential that reads write-only secret values. Set the same value on the API and the Services container; there is no fallback to `AGENTA_AUTH_KEY`. The API refuses to start while this is unset or still `replace-me`.
 
 The API builds its database URLs from `POSTGRES_USER` and `POSTGRES_PASSWORD`. If you also set `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, or `POSTGRES_URI_SUPERTOKENS` yourself, update the credentials in those URLs too.
 

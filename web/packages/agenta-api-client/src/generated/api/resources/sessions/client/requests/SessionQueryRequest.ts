@@ -10,14 +10,14 @@ export interface SessionQueryRequest {
     session?: AgentaApi.SessionPredicatesRequest | null;
     session_ids?: string[] | null;
     exclude?: AgentaApi.SessionExcludeRequest | null;
-    turn_references?: AgentaApi.Reference[] | null;
+    turn_references?: AgentaApi.SessionReference[] | null;
     include_ended?: boolean;
     include_archived?: boolean;
     archived_only?: boolean;
     include_total?: boolean;
     expand?: AgentaApi.SessionExpansion[];
     windowing?: AgentaApi.Windowing | null;
-    references?: AgentaApi.Reference[] | null;
+    references?: AgentaApi.SessionReference[] | null;
     search?: string | null;
     flags?: AgentaApi.SessionStreamQueryFlags | null;
     exclude_session_ids?: string[] | null;

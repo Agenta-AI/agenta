@@ -15,6 +15,8 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { runCredential } from "./engines/sandbox_agent/runtime-policy.ts";
+import { loadDurableDecisions } from "./sessions/interactions.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -223,8 +225,22 @@ const realKeepaliveEngine: KeepaliveEngine = {
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
   acquireEnvironment: (request, signal, presignedMount, emit) =>
     acquireEnvironment(request, {}, signal, presignedMount, emit),
-  runTurn: (env, request, emit, signal, opts) =>
-    runTurn(env, request, emit, signal, opts),
+  // Every coordinator dispatch reaches runTurn through here, so the pre-turn read lives here
+  // once rather than at each of its call sites. It must happen BEFORE runTurn: that function
+  // may not suspend before its permission responder is attached.
+  runTurn: async (env, request, emit, signal, opts) =>
+    runTurn(env, request, emit, signal, {
+      ...opts,
+      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+      seededDecisions:
+        opts?.seededDecisions ??
+        (await loadDurableDecisions(
+          env.sessionId,
+          runCredential(request),
+          env.logger,
+        )),
+    }),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
   // entirely live-applicable; this performs it and commits applied state only if all of it landed.
   applyReconcilePlan: (env, request, plan) =>
@@ -266,6 +282,11 @@ const realKeepaliveEngine: KeepaliveEngine = {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
         ...(credential ? { credential } : {}),
+        seededDecisions: await loadDurableDecisions(
+          acquired.env.sessionId,
+          runCredential(request),
+          acquired.env.logger,
+        ),
       });
       return result;
     } finally {
