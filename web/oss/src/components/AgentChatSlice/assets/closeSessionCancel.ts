@@ -1,5 +1,13 @@
 import {type SessionRunStatus} from "@agenta/chat/model"
 
+/**
+ * Kill switch, off while the close-time cancel is held back.
+ *
+ * Flip to `true` to restore the behaviour described below; nothing else has to change, and
+ * `closeSessionCancel.test.ts` pins both sides of this flag.
+ */
+export const CLOSE_CANCELS_RUN = false
+
 export interface CloseSessionCancelInputs {
     /** This browser's run-state for the session whose tab is being closed. */
     status: SessionRunStatus
@@ -18,4 +26,4 @@ export interface CloseSessionCancelInputs {
  * later, so closing its tab must not throw the turn away.
  */
 export const shouldCancelRunOnClose = ({status, projectId}: CloseSessionCancelInputs): boolean =>
-    Boolean(projectId) && status === "running"
+    CLOSE_CANCELS_RUN && Boolean(projectId) && status === "running"
