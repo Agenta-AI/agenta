@@ -177,9 +177,9 @@ async def reset_user_password(request: Request, user_id: str):
             admin_user_id=request.state.user_id,
             caller_org_id=str(request.state.organization_id),
         )
-    except PermissionError as exc:
+    except PermissionError:
         return JSONResponse(
-            {"detail": str(exc)},
+            {"detail": "You do not have permission to reset this user's password."},
             status_code=403,
         )
     except NoResultFound:
