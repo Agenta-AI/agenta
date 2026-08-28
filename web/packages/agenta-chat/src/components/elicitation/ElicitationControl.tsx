@@ -297,6 +297,8 @@ export const ElicitationControl = ({
         // other field in this card focuses with. Overridden here rather than in @agenta/ui: this is
         // the card's own focus language, not a change every DatePicker should inherit. DateTimePicker
         // holds two triggers and forwards className to their wrapper, hence the descendant reach.
+        // The placeholder stays generic: the schema's own words are already on the question line
+        // above, and a sentence-length hint overflowed the trigger. Truncated as a backstop.
         return (
             <div ref={dateBoxRef}>
                 {step.kind === "date" ? (
@@ -304,16 +306,16 @@ export const ElicitationControl = ({
                         value={current}
                         onChange={emit}
                         aria-label={step.label}
-                        placeholder={step.hint ?? "Pick a date"}
-                        className="focus-visible:outline-none focus-visible:border-primary"
+                        placeholder="Pick a date"
+                        className="min-w-0 focus-visible:outline-none focus-visible:border-primary [&>span]:truncate"
                     />
                 ) : (
                     <DateTimePicker
                         value={current}
                         onChange={emit}
                         aria-label={step.label}
-                        placeholder={step.hint ?? "Pick a date and time"}
-                        className="[&_button]:focus-visible:outline-none [&_button]:focus-visible:border-primary"
+                        placeholder="Pick a date and time"
+                        className="[&_button]:min-w-0 [&_button]:focus-visible:outline-none [&_button]:focus-visible:border-primary [&_span]:truncate"
                     />
                 )}
             </div>
