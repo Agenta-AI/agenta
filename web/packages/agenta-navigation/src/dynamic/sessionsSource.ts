@@ -677,15 +677,21 @@ const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
     return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
 }
 
+/** The window the agent ranking counts over. The server caps a page at 200; a project with more
+ * sessions than this ranks its long tail by catalog order, which is stable and good enough. */
+const AGENT_RANK_WINDOW = 200
+
 /**
- * Every agent's most recent session, UNFILTERED — the query that ranks the Agents group.
+ * Every agent's sessions, UNFILTERED — the query that ranks the Agents group.
  *
  * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
  * off it let a filter (one agent, one status, a narrower window) reorder the Agents group — a
- * filter is not a use. Project-scoped, origin-agnostic, no activity floor, so an agent's rank is
- * its true last activity. Low-priority and un-polled: agent order shifts when you USE an agent,
- * which the rail's other queries already surface; a slow list does not need its own heartbeat.
- * Gated like the facet, so a closed Sessions group fetches nothing.
+ * filter is not a use. Project-scoped, origin-agnostic, no activity floor.
+ *
+ * FROZEN per page load — `staleTime`/`gcTime: Infinity`, no focus refetch, no interval — so the
+ * order an agent lives at does not shift while you work: a new session bumps nothing until you
+ * reload. Agents are spatial memory, and a list that reshuffles under you loses that. Gated like
+ * the facet, so a closed Sessions group fetches nothing.
  */
 const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
@@ -696,39 +702,39 @@ const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
                 querySessions({
                     projectId: projectId ?? "",
                     includeArchived: false,
-                    limit: scopeLimit(scopeId),
+                    limit: AGENT_RANK_WINDOW,
                     order: "descending",
                     abortSignal: signal,
                     lowPriority: true,
                 }),
             enabled: Boolean(projectId) && sessionsGroupOpen(get, scopeId),
-            staleTime: 60_000,
-            refetchOnWindowFocus: true,
+            staleTime: Infinity,
+            gcTime: Infinity,
+            refetchOnWindowFocus: false,
         }
     }),
 )
 
 /**
- * `agentId -> when it was last used`, in ms, ranking the Agents group by recency.
+ * `agentId -> session count`, ranking the Agents group by how many sessions each has.
  *
- * "Used" means a session ran, which is the product's own definition of agent activity (the home
- * roster reads the agent's most recent session). Server-ordered newest-first, so the FIRST row an
- * agent owns is its most recent — later ones for the same agent are skipped.
+ * A busy agent leads, and the count barely moves session to session — so the order reads as
+ * stable where "most recently used" reshuffled on every turn. Agents with no session are left out
+ * (rank `undefined`), so they keep catalog order at the bottom, which is roughly creation order —
+ * a new agent appends rather than jumping in. Counted over the frozen window above.
  */
-export const agentRanksFromRows = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
-    const lastUsed = new Map<string, number>()
+export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
+    const counts = new Map<string, number>()
     for (const row of rows) {
         const agentId = sessionOpenTarget(row)?.appId
-        // First wins: the rows are newest-first, so an agent's first row is its most recent.
-        if (!agentId || lastUsed.has(agentId)) continue
-        const at = new Date(row.updated_at ?? row.created_at ?? 0).getTime()
-        if (Number.isFinite(at) && at > 0) lastUsed.set(agentId, at)
+        if (!agentId) continue
+        counts.set(agentId, (counts.get(agentId) ?? 0) + 1)
     }
-    return lastUsed
+    return counts
 }
 
-export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) => agentRanksFromRows(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 
 /**

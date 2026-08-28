@@ -14,7 +14,7 @@ import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
-    sidebarAgentLastUsedAtomFamily,
+    sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionScopeLimit,
@@ -162,10 +162,9 @@ const ENTITIES: SidebarEntity[] = [
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        // Most recently USED first — catalog order reads as random, and the ranks come off the
-        // sessions the rail already holds, so this costs no request. Same rule the mobile rail
-        // applies; Sessions is `alwaysOpen` here, so its query is subscribed either way.
-        ranksAtom: sidebarAgentLastUsedAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        // Busiest agent first, by session count — stable session to session, unlike recency,
+        // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
+        ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

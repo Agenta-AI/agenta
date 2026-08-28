@@ -7,7 +7,7 @@ import {
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
-    sidebarAgentLastUsedAtomFamily,
+    sidebarAgentRanksAtomFamily,
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
@@ -123,14 +123,13 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    // Most recently USED first — an agent list in catalog order reads as random. The ranks come
-    // off the sessions the rail already holds, so this costs no request; agents with none keep
-    // catalog order behind the ranked ones.
+    // Busiest agent first, by session count — stable session to session (frozen per page load),
+    // where recency reshuffled on every turn. Agents with no session keep catalog order below.
     const rawAgentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
-    const agentLastUsed = useAtomValue(sidebarAgentLastUsedAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const agentRanks = useAtomValue(sidebarAgentRanksAtomFamily(MOBILE_NAV_SCOPE_ID))
     const agentsSource = useMemo(
-        () => withRefsByRecency(rawAgentsSource, (ref) => agentLastUsed.get(ref.id)),
-        [agentLastUsed, rawAgentsSource],
+        () => withRefsByRecency(rawAgentsSource, (ref) => agentRanks.get(ref.id)),
+        [agentRanks, rawAgentsSource],
     )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())

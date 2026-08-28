@@ -6,7 +6,7 @@ import {describe, expect, it} from "vitest"
 import {
     defineSidebarEntity,
     livePollInterval,
-    agentRanksFromRows,
+    agentSessionCounts,
     localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
@@ -511,37 +511,36 @@ describe("defineSidebarEntity ranksAtom", () => {
     })
 })
 
-// Agent ranks come from an UNFILTERED query so a session filter cannot reorder the Agents group.
-// The rows arrive newest-first, so an agent's first row is its most recent.
-describe("agentRanksFromRows", () => {
-    const row = (id: string, agent: string, updatedAt: string) =>
+// Agents rank by session COUNT off an unfiltered, frozen query, so a filter cannot reorder them
+// and the order barely moves session to session.
+describe("agentSessionCounts", () => {
+    const row = (id: string, agent: string) =>
         ({
             session_id: id,
             references: [{id: agent, key: "workflow"}],
-            updated_at: updatedAt,
-        }) as unknown as Parameters<typeof agentRanksFromRows>[0][number]
+        }) as unknown as Parameters<typeof agentSessionCounts>[0][number]
 
     // Real UUIDs: `sessionOpenTarget` rejects a non-UUID reference id.
     const A1 = "01a03ed2-c322-7493-b2a2-29b8ae273530"
     const A2 = "01a03ed2-c322-7493-b2a2-29b8ae273531"
 
-    it("takes each agent's most recent row and skips the rest", () => {
-        const ranks = agentRanksFromRows([
-            row("s1", A1, "2026-08-20T10:00:00Z"),
-            row("s2", A2, "2026-08-19T10:00:00Z"),
-            row("s3", A1, "2026-08-10T10:00:00Z"),
+    it("counts each agent's sessions", () => {
+        const counts = agentSessionCounts([
+            row("s1", A1),
+            row("s2", A2),
+            row("s3", A1),
         ])
 
-        expect(ranks.get(A1)).toBe(Date.parse("2026-08-20T10:00:00Z"))
-        expect(ranks.get(A2)).toBe(Date.parse("2026-08-19T10:00:00Z"))
-        expect(ranks.size).toBe(2)
+        expect(counts.get(A1)).toBe(2)
+        expect(counts.get(A2)).toBe(1)
+        expect(counts.size).toBe(2)
     })
 
     it("ignores a row that names no agent", () => {
         const orphan = {session_id: "x", references: []} as unknown as Parameters<
-            typeof agentRanksFromRows
+            typeof agentSessionCounts
         >[0][number]
 
-        expect(agentRanksFromRows([orphan]).size).toBe(0)
+        expect(agentSessionCounts([orphan]).size).toBe(0)
     })
 })
