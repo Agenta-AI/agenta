@@ -167,6 +167,23 @@ describe("settling", () => {
         expect(onOutput.mock.calls[0][0].output).toMatchObject({action: "cancel"})
     })
 
+    it("sends on Enter from the review screen, instead of jumping back to question one", () => {
+        const {onOutput} = setup()
+
+        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        fireEvent.click(screen.getByText("Next"))
+        fireEvent.click(screen.getByRole("radio", {name: /Red/}))
+        fireEvent.click(screen.getByText("Review"))
+        expect(screen.getByText("Send answers")).toBeTruthy()
+
+        // The cursor starts at row zero, so this used to walk the user back to the first question.
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter"})
+
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        const {output} = onOutput.mock.calls[0][0]
+        expect(output.content).toEqual({name: "Ada", colour: "Red"})
+    })
+
     it("declines from the review screen", () => {
         const {onOutput} = setup()
 

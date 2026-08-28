@@ -349,9 +349,14 @@ const LiveCard = ({
                 stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, steps.length)
                 return
             }
+            // Enter SENDS here, as it commits on every other step. It used to jump to the cursor
+            // row, and since the cursor starts at zero, arriving at the review and pressing Enter
+            // threw the user back to question one. Editing a row is still one keystroke: the rows
+            // are real buttons, so Tab reaches one and Enter activates it — let that through.
             if (event.key === "Enter" && !typing) {
+                if (target?.closest?.("[data-elicitation-review-row]")) return
                 event.preventDefault()
-                stepper.goTo(cursor)
+                stepper.primary()
             }
             return
         }
@@ -558,6 +563,7 @@ const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper
                     // shrink-0 for the same reason the option rows carry it: these are flex
                     // children of a capped column, so a long form squashed every row instead of
                     // scrolling — at 25 answers they rendered 24px against a declared 30px.
+                    data-elicitation-review-row
                     className={`flex h-[30px] min-w-0 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent bg-transparent px-2 text-left ${
                         index === stepper.cursor ? "bg-colorFillSecondary" : ""
                     }`}
