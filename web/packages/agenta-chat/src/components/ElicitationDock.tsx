@@ -457,8 +457,7 @@ const LiveCard = ({
                 ) : step ? (
                     <>
                         <span className="text-[13px] font-medium leading-tight line-clamp-2">
-                            <span className="text-colorTextTertiary">{stepper.position}.</span>{" "}
-                            {step.label}
+                            <span className="text-colorText">{stepper.position}.</span> {step.label}
                             {step.hint ? (
                                 <span className="font-normal text-colorTextQuaternary">
                                     {" "}
