@@ -186,9 +186,11 @@ const RefusalPanel = ({reason, onSkip}: {reason: string; onSkip: () => void}) =>
     )
 }
 
+/** Same icon size and gap as ApprovalCard's eyebrow: the two docks stack, so a difference reads
+ * as a mistake rather than a distinction. */
 const Eyebrow = ({label, children}: {label?: string | null; children?: React.ReactNode}) => (
-    <div className="flex items-center gap-2">
-        <Question size={13} weight="fill" className="shrink-0 text-colorText" />
+    <div className="flex items-center gap-1.5">
+        <Question size={14} weight="fill" className="shrink-0 text-colorText" />
         <span className="text-xs font-medium text-colorText">{label || "Request input"}</span>
         {children}
     </div>
