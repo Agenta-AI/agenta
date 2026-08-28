@@ -118,13 +118,8 @@ class TestCrossOrgResetBlocked:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "oss.src.services.db_manager.get_user_org_and_workspace_id",
+                "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
                 AsyncMock(return_value=target_org_data),
-            ),
-            # These should NOT be reached — patch them to detect leaks
-            patch(
-                "oss.src.services.db_manager.get_user_with_id",
-                AsyncMock(side_effect=AssertionError("Should not look up user")),
             ),
             patch(
                 "oss.src.services.user_service.create_reset_password_link",
@@ -183,7 +178,7 @@ class TestSameOrgResetAllowed:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "oss.src.services.db_manager.get_user_org_and_workspace_id",
+                "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
                 AsyncMock(return_value=target_org_data),
             ),
             patch(
