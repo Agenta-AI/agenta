@@ -266,7 +266,12 @@ export const ElicitationControl = ({
                                 <>
                                     <span className="truncate">{row.label}</span>
                                     {row.description ? (
-                                        <SimpleTooltip title={row.description}>
+                                        <SimpleTooltip
+                                            title={row.description}
+                                            // To the side, not above: the default covered the rows
+                                            // the reader is comparing this one against.
+                                            side="right"
+                                        >
                                             <span
                                                 // Not focusable on purpose: a tab stop in every row
                                                 // would fight the arrow-key navigation. The row's
