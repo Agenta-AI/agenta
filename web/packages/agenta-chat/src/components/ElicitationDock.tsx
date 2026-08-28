@@ -462,7 +462,9 @@ const LiveCard = ({
                 ))}
             </div>
 
-            <div className="flex flex-col gap-2" style={{minHeight: CONTROL_MIN_H}}>
+            {/* pb-1 so the control does not sit flush against the actions; the card's own gap
+                alone read as cramped under a field. */}
+            <div className="flex flex-col gap-2 pb-1" style={{minHeight: CONTROL_MIN_H}}>
                 {isReview ? (
                     <ReviewList stepper={stepper} />
                 ) : step ? (
