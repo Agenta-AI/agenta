@@ -11,6 +11,10 @@ import {UsageCard} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {FOCUS_RING} from "@/lib/interactive"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -18,10 +22,6 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentComposer} from "./AgentComposer"
 import {AgentIconSheet} from "./AgentIconSheet"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {FOCUS_RING} from "@/lib/interactive"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's

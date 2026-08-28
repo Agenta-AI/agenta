@@ -10,11 +10,6 @@ import {
 } from "@agenta/ui/agent-icon"
 import {useAtom} from "jotai"
 
-import {AgentIconGrid} from "./AgentIconGrid"
-import {AgentIconSwatchRow} from "./AgentIconSwatchRow"
-import {AgentIconGridError, AgentIconGridLoading} from "./states/AgentIconStates"
-import {useAgentIconCatalog} from "./useAgentIconCatalog"
-
 import {Button} from "@/components/ui/button"
 import {
     Sheet,
@@ -24,6 +19,11 @@ import {
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet"
+
+import {AgentIconGrid} from "./AgentIconGrid"
+import {AgentIconSwatchRow} from "./AgentIconSwatchRow"
+import {AgentIconGridError, AgentIconGridLoading} from "./states/AgentIconStates"
+import {useAgentIconCatalog} from "./useAgentIconCatalog"
 
 /**
  * Pick one agent's glyph and colour.

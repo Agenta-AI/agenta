@@ -8,9 +8,9 @@ import {
 } from "@agenta/ui/agent-icon"
 import {SearchInput} from "@agenta/ui/ui"
 
-import {AgentIconGridEmpty} from "./states/AgentIconStates"
-
 import {FOCUS_RING} from "@/lib/interactive"
+
+import {AgentIconGridEmpty} from "./states/AgentIconStates"
 
 /**
  * Search over the icon set, then the icons.
