@@ -15,7 +15,6 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
-import { runCredential } from "./engines/sandbox_agent/runtime-policy.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
