@@ -19,6 +19,10 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {AgentComposer} from "./AgentComposer"
 import {AgentIconSheet} from "./AgentIconSheet"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {FOCUS_RING} from "@/lib/interactive"
+
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
  * sessions and automation runs from the same shared card hooks, and the shared read-only
