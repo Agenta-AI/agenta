@@ -462,17 +462,32 @@ caller's idle timeout on the streaming transport.
 
 ### Callback API
 
-Set on the `runner` service. It gives the runner the in-network address of the API for session
-heartbeats, working-directory mount signing, and the trace-export fallback.
+Set both on the `runner` service. The runner calls the API back for session heartbeats,
+conversation persistence, working-directory mount signing, and the trace-export fallback.
 
 | Variable | Role | Default | Helm |
 |---|---|---|---|
-| `AGENTA_API_INTERNAL_URL` | API locator for runner callbacks | Compose: `http://api:8000` | Wired by the chart |
+| `AGENTA_API_INTERNAL_URL` | Where the runner sends its callbacks | Compose: `http://api:8000` | Wired by the chart |
+| `AGENTA_API_URL` | Which trace endpoints the runner recognizes as this deployment | Unset | Wired by the chart |
 
-Point this at the API as reached from inside the runner container (its Compose or cluster service
-name, for example `http://api:8000`), not the public URL, which does not resolve inside a
-container. If it is unset, the runner falls back to the public `AGENTA_API_URL` and then to the
-base inferred from each request.
+The two answer different questions, and setting one does not cover the other.
+
+`AGENTA_API_INTERNAL_URL` is an address. Point it at the API as reached from inside the runner
+container (its Compose or cluster service name, for example `http://api:8000`), not the public URL,
+which does not resolve inside a container. If it is unset, the runner falls back to `AGENTA_API_URL`
+and then to the base inferred from each request.
+
+`AGENTA_API_URL` is an identity. Every run arrives carrying the trace endpoint the API built from
+its own public base, for example `https://agenta.example.com/api/otlp/v1/traces`. The runner uses
+that endpoint to decide whether the run's credential belongs to this platform or to a third-party
+OTLP collector the caller aimed the run at, and it forwards the credential to platform calls only in
+the first case. It cannot make that call from the internal address alone, because the internal hop
+never appears in a dispatched run.
+
+Set `AGENTA_API_URL` to the same public API base the `api` and `services` containers use. When it is
+unset, the runner logs a warning at startup, treats every run's credential as belonging to this
+platform, and logs a second warning naming the endpoint it could not attribute. Runs keep working;
+credentials aimed at a third-party collector are no longer kept out of platform calls.
 
 ### Internal settings
 
