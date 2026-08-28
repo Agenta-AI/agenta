@@ -10,7 +10,7 @@
  * resumes on whichever lands last.
  */
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react"
-import {afterEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {ElicitationDock} from "../../../src/components/ElicitationDock"
 import type {ElicitationDockState} from "../../../src/hooks/useElicitationDock"
@@ -43,6 +43,27 @@ const TWO_QUESTIONS = {
 // This config sets no `globals`, so RTL never registers its auto-cleanup and mounted cards would
 // otherwise pile up in one document (ApprovalCard.test.tsx unmounts by hand for the same reason).
 afterEach(cleanup)
+
+/**
+ * A fresh draft store per test. Every card here shares one `toolCallId`, so without this the
+ * stepper restores the PREVIOUS test's draft and opens on the question that test left off at —
+ * which is exactly how this file passed on Node 26 (whose own `localStorage` getter shadows
+ * jsdom's and reads back undefined, so nothing ever persisted) and failed in CI.
+ */
+beforeEach(() => {
+    let store = new Map<string, string>()
+    const stub: Storage = {
+        get length() {
+            return store.size
+        },
+        clear: () => void (store = new Map()),
+        getItem: (key) => store.get(key) ?? null,
+        key: (index) => [...store.keys()][index] ?? null,
+        removeItem: (key) => void store.delete(key),
+        setItem: (key, value) => void store.set(key, String(value)),
+    }
+    Object.defineProperty(window, "localStorage", {value: stub, configurable: true})
+})
 
 const setup = (input: unknown = TWO_QUESTIONS) => {
     const onOutput = vi.fn()
