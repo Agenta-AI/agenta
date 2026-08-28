@@ -105,22 +105,54 @@ describe("platform credential attribution", () => {
     assert.match(lines[0]!, /selfhosted\.example\.com/);
   });
 
+  it("does not log credentials embedded in an unattributed endpoint or configured base", () => {
+    vi.stubEnv(
+      "AGENTA_API_INTERNAL_URL",
+      "http://internal-user:internal-secret@api:8000/api?token=internal-query-secret",
+    );
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request(
+          "https://collector-user:collector-secret@collector.thirdparty.example/v1/traces?token=collector-query-secret",
+        ),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /collector\.thirdparty\.example/);
+    assert.match(lines[0]!, /api:8000/);
+    assert.doesNotMatch(lines[0]!, /collector-user|collector-secret/);
+    assert.doesNotMatch(lines[0]!, /internal-user|internal-secret/);
+  });
+
   it("drops the credential for a foreign endpoint once the public base IS configured", () => {
     // With the public base known, a non-matching endpoint really is someone else's collector,
     // so the third-party protection the strict check was written for stays armed.
-    vi.stubEnv("AGENTA_API_URL", PUBLIC_BASE);
+    vi.stubEnv(
+      "AGENTA_API_URL",
+      "https://platform-user:platform-secret@selfhosted.example.com/api?token=platform-query-secret",
+    );
     vi.stubEnv("AGENTA_API_INTERNAL_URL", INTERNAL_BASE);
     const { lines, log } = withLog();
 
     assert.equal(
       platformCredentialForRequest(
-        request("https://collector.thirdparty.example/v1/traces"),
+        request(
+          "https://collector-user:collector-secret@collector.thirdparty.example/v1/traces?token=collector-query-secret",
+        ),
         log,
       ),
       "",
     );
     assert.equal(lines.length, 1);
     assert.match(lines[0]!, /dropping the run credential/);
+    assert.match(lines[0]!, /collector\.thirdparty\.example/);
+    assert.match(lines[0]!, /selfhosted\.example\.com/);
+    assert.doesNotMatch(lines[0]!, /collector-user|collector-secret/);
+    assert.doesNotMatch(lines[0]!, /platform-user|platform-secret/);
   });
 
   it("returns empty without warning when the caller sent no credential", () => {

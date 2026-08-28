@@ -237,11 +237,16 @@ the app works. Other symptoms of the same cause: an agent that forgets earlier t
 showing `cred=DROPPED(endpoint-not-agenta-ingest)` and `HTTP 401` on `/sessions/records/ingest`,
 `/sessions/records/query`, and `/sessions/streams/heartbeat`.
 
-**Cause:** The `runner` service has no `AGENTA_API_URL`. Each run carries the trace endpoint the API
-built from its public base, for example `https://agenta.example.com/api/otlp/v1/traces`, while the
-runner knows only its internal hop, `http://api:8000`. The runner cannot tell that endpoint apart
-from a third-party OTLP collector, so it withholds the run's credential and every callback to the
-API is rejected. Conversation history is never written and never read back.
+**Cause:** The trace endpoint on the run does not match the runner's configured `AGENTA_API_URL`.
+Each run carries the endpoint the API built from its public base, for example
+`https://agenta.example.com/api/otlp/v1/traces`, while the runner may know only its internal hop,
+`http://api:8000`, or a different public base. A strict credential check then withholds the run's
+credential, and the API rejects every callback. Conversation history is never written or read back.
+
+When `AGENTA_API_URL` is unset, the runner keeps the credential and logs a warning that names the
+missing variable. On a runner with this fallback,
+`cred=DROPPED(endpoint-not-agenta-ingest)` means `AGENTA_API_URL` is set but does not match the
+run's endpoint. Set it correctly in either case so the runner can attribute the credential.
 
 **Solution:** Set `AGENTA_API_URL` to the same public API base the `api` and `services` containers
 use, and recreate the runner:

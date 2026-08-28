@@ -62,6 +62,7 @@ import {
   platformCredentialForRequest,
   runCredential,
 } from "./engines/sandbox_agent/runtime-policy.ts";
+import { endpointHost } from "./tracing/export-diagnostics.ts";
 import { publicApiBaseConfigured } from "./tracing/otel.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
@@ -896,12 +897,15 @@ if (isEntrypoint(import.meta.url)) {
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
       if (!publicApiBaseConfigured()) {
+        const internalApiHost = process.env.AGENTA_API_INTERNAL_URL
+          ? endpointHost(process.env.AGENTA_API_INTERNAL_URL)
+          : "unset";
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
             "deployment's PUBLIC api base in their trace endpoint, so without it the runner " +
             "cannot tell its own api from a third-party collector and cannot attribute the run " +
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
-            `AGENTA_API_INTERNAL_URL (${process.env.AGENTA_API_INTERNAL_URL ?? "unset"}) is the ` +
+            `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
             "in-network hop and does not substitute for it.\n",
         );
       }

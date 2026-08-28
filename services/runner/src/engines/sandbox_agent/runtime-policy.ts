@@ -8,6 +8,7 @@ import {
   resolveOtlpTraceEndpoint,
   type AuthorizationProvider,
 } from "../../tracing/otel.ts";
+import { endpointHost } from "../../tracing/export-diagnostics.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 
 type Log = (message: string) => void;
@@ -60,8 +61,8 @@ export function platformCredentialForRequest(
     if (!warnedEndpoints.has(endpoint)) {
       warnedEndpoints.add(endpoint);
       log(
-        `[sessions] WARNING: trace endpoint ${endpoint} matches no configured Agenta ingest ` +
-          `base (${configuredIngestBases().join(", ")}), and AGENTA_API_URL is not set, so the ` +
+        `[sessions] WARNING: trace endpoint host ${endpointHost(endpoint)} matches no configured ` +
+          `Agenta ingest host (${configuredIngestBases().map(endpointHost).join(", ")}), and AGENTA_API_URL is not set, so the ` +
           `run credential cannot be attributed. Using it for platform calls anyway. Set ` +
           `AGENTA_API_URL to this deployment's public api base (e.g. https://<host>/api) to ` +
           `attribute it properly and to keep third-party collector credentials out of platform calls.`,
@@ -73,8 +74,8 @@ export function platformCredentialForRequest(
   if (!warnedEndpoints.has(endpoint)) {
     warnedEndpoints.add(endpoint);
     log(
-      `[sessions] trace endpoint ${endpoint} is not Agenta ingest ` +
-        `(${configuredIngestBases().join(", ")}); dropping the run credential from platform ` +
+      `[sessions] trace endpoint host ${endpointHost(endpoint)} is not Agenta ingest ` +
+        `(${configuredIngestBases().map(endpointHost).join(", ")}); dropping the run credential from platform ` +
         `calls. Session persistence and history rebuild will fail with HTTP 401 if this ` +
         `endpoint IS this deployment's api base.`,
     );
