@@ -64,7 +64,6 @@ const CreateHumanEvaluatorDrawer = ({onEvaluatorCreated}: CreateHumanEvaluatorDr
             showOnly={{createEvaluatorUi: true}}
             initialStep={AnnotateDrawerSteps.CREATE_EVALUATOR}
             createEvaluatorProps={createEvaluatorProps}
-            closeOnLayoutClick={false}
         />
     )
 }

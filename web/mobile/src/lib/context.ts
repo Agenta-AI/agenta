@@ -1,3 +1,4 @@
+import {filterOutDemoProjects} from "@agenta/entities/project"
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
@@ -106,7 +107,9 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         const data = await getProjectsClient().getProjects()
         const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
         if (!projects) return {kind: "error"}
-        return {kind: "ok", projects}
+        // Hide demo projects, exactly as the desktop's projectsAtom does. Without this a mobile
+        // sign-in could resolve into a demo org the desktop never offers, with no way back out.
+        return {kind: "ok", projects: filterOutDemoProjects(projects)}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}

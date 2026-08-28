@@ -251,7 +251,7 @@ function CategoryRail({
             <button
                 type="button"
                 onClick={() => onSelect(null)}
-                className={`shrink-0 cursor-pointer rounded border-0 px-2 py-1 text-left text-[13px] ${
+                className={`shrink-0 cursor-pointer rounded border-0 px-2 py-1 text-left text-[13px] [font-family:inherit] ${
                     active === null
                         ? "bg-[var(--ag-colorFillSecondary)] font-medium"
                         : "bg-transparent text-[var(--ag-colorTextSecondary)]"
@@ -267,8 +267,7 @@ function CategoryRail({
                         key={category.id}
                         type="button"
                         onClick={() => onSelect({id: category.id, name: category.name})}
-                        // The provider sends these lowercase; capitalize would mangle CRM and HR.
-                        className={`shrink-0 cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] uppercase tracking-wide ${
+                        className={`shrink-0 cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] capitalize [font-family:inherit] ${
                             active === category.id
                                 ? "bg-[var(--ag-colorFillSecondary)] font-medium"
                                 : "bg-transparent text-[var(--ag-colorTextSecondary)]"
@@ -505,8 +504,6 @@ export function AgentIntegrationDrawer({
             onClose={onClose}
             placement="right"
             width={INTEGRATION_DRAWER_WIDTH}
-            // Explicit exit only — an accidental backdrop click mid-connect must not drop the flow.
-            closeOnLayoutClick={false}
             destroyOnClose
             title={
                 <div className="flex items-center gap-2">

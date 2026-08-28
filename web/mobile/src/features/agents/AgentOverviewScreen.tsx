@@ -1,13 +1,19 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {AgentActionsMenu, AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
+import {
+    AgentActionsMenu,
+    AgentOverviewBody,
+    agentAvatar,
+    useAgentIconChrome,
+} from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {FOCUS_RING} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -15,6 +21,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentComposer} from "./AgentComposer"
+import {AgentIconSheet} from "./AgentIconSheet"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
@@ -39,12 +46,18 @@ export const AgentOverviewScreen = ({
     const agent = agents.find((candidate) => candidate.id === agentId)
     const name = agent?.name || agent?.slug || "Agent"
     const avatar = agentAvatar(name, agentId)
+    const chrome = useAgentIconChrome(agentId, {
+        size: 16,
+        fallbackGlyph: avatar.initials,
+        fallbackClassName: "text-white",
+    })
     const agentNames = useMemo(
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
     )
 
     const sessionMenu = useSessionRowMenu(base)
+    const [iconSheetOpen, setIconSheetOpen] = useState(false)
 
     return (
         <>
@@ -68,12 +81,18 @@ export const AgentOverviewScreen = ({
                                 {/* Nav is the drawer, as on every other screen — not a per-screen
                                     back button. Home is one drawer entry away. */}
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <span
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-white"
-                                    style={{backgroundColor: avatar.color}}
+                                {/* The one place the icon is editable. /m is a read-only host for
+                                    agent CONFIG, but the icon is a local display preference, not
+                                    configuration. */}
+                                <button
+                                    type="button"
+                                    aria-label="Change agent icon"
+                                    onClick={() => setIconSheetOpen(true)}
+                                    className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 p-0 text-[11px] font-semibold ${FOCUS_RING} ${chrome.className}`}
+                                    style={chrome.style ?? {backgroundColor: avatar.color}}
                                 >
-                                    {avatar.initials}
-                                </span>
+                                    {chrome.glyph}
+                                </button>
                                 {/* No `flex-1`: the title sizes to its text so the kebab sits
                                     beside it, as on the desktop, instead of being pushed to the
                                     far edge. `min-w-0` still lets a long name truncate. */}
@@ -133,6 +152,11 @@ export const AgentOverviewScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
+            <AgentIconSheet
+                workflowId={agentId}
+                open={iconSheetOpen}
+                onClose={() => setIconSheetOpen(false)}
+            />
         </>
     )
 }
