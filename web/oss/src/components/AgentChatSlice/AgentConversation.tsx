@@ -15,7 +15,12 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
+import {
+    useAgentModelKeyStatus,
+    useConnectionDock,
+    useElicitationDock,
+    useVoiceComposer,
+} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
@@ -365,10 +370,20 @@ const AgentConversation = ({
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    // Parked question forms → the docked card owns their actions (the inline rows are markers).
+    // Same gate as the connect dock: the stream genuinely ends when an interaction parks, so `busy`
+    // is already false by the time the dock should open.
+    const elicits = useElicitationDock({
+        messages,
+        enabled: !busy && !stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        onOutput: handleClientToolOutput,
+    })
     const connects = useConnectionDock({
         messages,
         enabled: !busy && !stopped,
         approvalsPending: pendingApprovals.length > 0,
+        elicitationPending: elicits.open,
     })
     // A docked gate holds the jump pill back: same bottom corner, and a paused run has nothing
     // arriving below to jump to.
@@ -782,6 +797,7 @@ const AgentConversation = ({
                                     pendingApprovals={pendingApprovals}
                                     onApprovalResponse={handleApprovalResponse}
                                     connects={connects}
+                                    elicits={elicits}
                                     onClientToolOutput={handleClientToolOutput}
                                     onSubmit={handleSubmit}
                                     onStop={handleStop}

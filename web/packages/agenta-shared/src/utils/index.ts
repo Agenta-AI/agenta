@@ -238,7 +238,6 @@ export {
     deriveElicitationPartState,
     hasPriorElicitationDegradation,
     parseElicitationPayload,
-    partitionElicitationDraft,
     serializeElicitationContent,
     type ElicitationAction,
     type ElicitationFieldSchema,
@@ -247,6 +246,21 @@ export {
     type ElicitationRequestPayload,
     type ElicitationResult,
 } from "./elicitation"
+
+// The question form as ordered steps — the docked card's model
+export {
+    buildElicitationSteps,
+    collectStepContent,
+    formatStepValue,
+    initialStepValues,
+    isStepAnswered,
+    parseSecretRefusal,
+    validateStep,
+    type ElicitationForm,
+    type ElicitationStep,
+    type ElicitationStepKind,
+    type ElicitationStepOption,
+} from "./elicitationSteps"
 
 // Polling utilities
 export {shortPoll} from "./shortPoll"

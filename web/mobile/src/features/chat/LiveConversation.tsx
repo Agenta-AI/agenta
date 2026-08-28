@@ -8,10 +8,16 @@ import {
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
+    ElicitationDock,
     ConnectionFocusProvider,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
-import {useAgentConversation, useAgentModelKeyStatus, useConnectionDock} from "@agenta/chat/hooks"
+import {
+    useAgentConversation,
+    useAgentModelKeyStatus,
+    useConnectionDock,
+    useElicitationDock,
+} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
@@ -205,9 +211,19 @@ export const LiveConversation = ({
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
+    // Parked question forms → the docked card owns the questions and the answers; the transcript
+    // rows are passive markers.
+    const elicits = useElicitationDock({
+        messages: conversation.messages,
+        enabled: !streamingHere && !conversation.stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        onOutput: conversation.sendToolOutput,
+    })
     const connects = useConnectionDock({
         messages: conversation.messages,
         enabled: !streamingHere && !conversation.stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        elicitationPending: elicits.open,
     })
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
@@ -338,6 +354,19 @@ export const LiveConversation = ({
                                 entityId={entityId}
                                 bottomMost={false}
                             />
+                        ) : null}
+                        {/* Parked question forms, between approval and connect — the same order as
+                        desktop, and the same order as the keyboard precedence. */}
+                        {elicits.open ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <ElicitationDock
+                                        elicits={elicits}
+                                        onOutput={conversation.sendToolOutput}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
                         ) : null}
                         {/* Parked connections. The rail and padding are all this host adds; the dock
                         itself is the shared package component. */}

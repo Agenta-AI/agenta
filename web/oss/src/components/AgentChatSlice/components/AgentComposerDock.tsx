@@ -12,6 +12,7 @@ import {
 } from "@agenta/chat/components"
 import {
     type ConnectionDockState,
+    type ElicitationDockState,
     type QueuedMessage,
     type useComposerAttachments,
     type useVoiceComposer,
@@ -44,6 +45,7 @@ import ApprovalDock from "./ApprovalDock"
 import ConnectionDock from "./ConnectionDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
+import ElicitationDock from "./ElicitationDock"
 import QueuedMessages from "./QueuedMessages"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
@@ -68,6 +70,7 @@ const AgentComposerDock = ({
     pendingApprovals,
     onApprovalResponse,
     connects,
+    elicits,
     onClientToolOutput,
     onSubmit,
     onStop,
@@ -100,6 +103,8 @@ const AgentComposerDock = ({
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     connects: ConnectionDockState
+    /** Parked question forms the run is blocked on (from `useElicitationDock`). */
+    elicits: ElicitationDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
@@ -281,6 +286,14 @@ const AgentComposerDock = ({
                 {/* Parked client-tool interactions (connect): same placement contract as the
                     approval dock — the paused gate can't scroll out of reach, and "Not now"
                     is the escape hatch that resumes the run without connecting. */}
+                {/* Parked question forms: one question at a time, in a fixed-height card. Slotted
+                    between approval and connect because that is also the keyboard precedence, so
+                    visual order and shortcut order can never disagree. */}
+                <ElicitationDock
+                    className={CHAT_COLUMN}
+                    elicits={elicits}
+                    onOutput={onClientToolOutput}
+                />
                 <ConnectionDock
                     className={CHAT_COLUMN}
                     connects={connects}
