@@ -343,7 +343,7 @@ export const ElicitationControl = ({
                 value={String(value ?? "")}
                 // Enter now commits here, so say where the newline went — unless a real hint or a
                 // touch surface (no keyboard) owns the line instead.
-                placeholder={touch ? undefined : "Shift ↵ for a new line"}
+                placeholder={touch ? undefined : "Shift + Enter for a new line"}
                 onKeyDown={submitOnEnter}
                 // Capped: past this the card scrolls the textarea rather than growing the dock.
                 autoSize={{minRows: 3, maxRows: 8}}

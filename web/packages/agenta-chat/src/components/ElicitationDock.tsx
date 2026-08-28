@@ -484,7 +484,7 @@ const LiveCard = ({
                     {stepper.primaryLabel}
                 </Button>
                 <Button
-                    variant="outline"
+                    variant="ghost"
                     className={touchCls}
                     onClick={() =>
                         isReview
