@@ -119,6 +119,16 @@ export const ElicitationControl = ({
     const multi = isMultiSelect(step)
     const selected = selectedRowFor(step, value)
     const checked = selectedRowsFor(step, value)
+    // Land the cursor on the answer this step already holds. It used to reset to the first row, so
+    // a step with a default showed a lit row 1 beside a picked row 2, which reads as a hover the
+    // pointer left behind. Keyed to the step, so arrowing away from the answer still works.
+    const landedRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (landedRef.current === step.name) return
+        landedRef.current = step.name
+        const first = selected >= 0 ? selected : Math.min(...(checked.size ? [...checked] : [0]))
+        if (first > 0) onCursor(first)
+    }, [step.name, selected, checked, onCursor])
     // Enter commits and moves on — including in the textarea, matching the chat composer's rule.
     // Shift+Enter is the newline there, as it is in the composer.
     const submitOnEnter = (event: React.KeyboardEvent) => {
@@ -301,8 +311,9 @@ export const ElicitationControl = ({
                                 </>
                             )}
                             {/* One trailing slot: a picked row shows its check and drops the
-                                shortcut hints, which have nothing left to teach on it. */}
-                            {multi && isSelected && !isOther ? (
+                                shortcut hints, which have nothing left to teach on it. Single
+                                and multi alike — a chosen row is a chosen row. */}
+                            {isSelected && !isOther ? (
                                 <Check
                                     size={12}
                                     weight="bold"
