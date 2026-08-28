@@ -9,7 +9,7 @@ import {useEffect, useId, useMemo, useRef} from "react"
 
 import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
 import {AutosizeTextarea, DatePicker, DateTimePicker, Input, SimpleTooltip} from "@agenta/ui/ui"
-import {Check, Question} from "@phosphor-icons/react"
+import {Check, Info} from "@phosphor-icons/react"
 
 import {ElicitationChips} from "./ElicitationChips"
 
@@ -280,7 +280,7 @@ export const ElicitationControl = ({
                                                 onClick={(event) => event.stopPropagation()}
                                                 className="flex shrink-0 items-center text-colorTextTertiary hover:text-colorText"
                                             >
-                                                <Question size={11} weight="bold" />
+                                                <Info size={11} weight="bold" />
                                             </span>
                                         </SimpleTooltip>
                                     ) : null}
