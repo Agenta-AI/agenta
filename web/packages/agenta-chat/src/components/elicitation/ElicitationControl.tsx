@@ -13,7 +13,10 @@ import {Check, Question} from "@phosphor-icons/react"
 
 import {ElicitationChips} from "./ElicitationChips"
 
-/** Enough rows to see the shape of the list; past this it scrolls rather than growing the card. */
+/** Enough rows to see the shape of the list; past this it scrolls rather than growing the card.
+ * Rows carry `shrink-0`: they are flex children of a capped column, so without it a list that
+ * overflows squashes every row instead of scrolling, and the more options a step has the thinner
+ * they get. */
 export const OPTIONS_MAX_H = 220
 /** Digits address the first nine rows. */
 export const MAX_DIGIT_ROWS = 9
@@ -233,7 +236,7 @@ export const ElicitationControl = ({
                                 }
                                 onPick(row, index)
                             }}
-                            className={`flex h-[30px] cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
+                            className={`flex h-[30px] shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
                                 isSelected
                                     ? "bg-colorFillSecondary font-medium"
                                     : isCursor
