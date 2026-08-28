@@ -125,8 +125,6 @@ export function ConfigItemDrawer({
             onClose={onCancel}
             placement="right"
             width={width}
-            // Explicit Cancel/Save only — an outside click must not silently drop the draft.
-            closeOnLayoutClick={false}
             // Lazy content: children aren't mounted until first open and are torn down on close,
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose

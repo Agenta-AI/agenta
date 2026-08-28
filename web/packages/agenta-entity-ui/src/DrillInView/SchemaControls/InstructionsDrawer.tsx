@@ -85,8 +85,6 @@ export function InstructionsDrawer({
             onClose={onCancel}
             placement="right"
             width={920}
-            // Explicit Cancel/Save only — an outside click must not silently drop the draft.
-            closeOnLayoutClick={false}
             destroyOnClose
             title={<span className="truncate font-mono text-sm font-medium">{filename}</span>}
             extra={

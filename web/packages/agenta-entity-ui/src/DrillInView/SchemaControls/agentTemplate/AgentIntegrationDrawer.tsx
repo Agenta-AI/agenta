@@ -461,8 +461,6 @@ export function AgentIntegrationDrawer({
             onClose={onClose}
             placement="right"
             width={680}
-            // Explicit exit only — an accidental backdrop click mid-connect must not drop the flow.
-            closeOnLayoutClick={false}
             destroyOnClose
             title={
                 <div className="flex items-center gap-2">
