@@ -75,8 +75,6 @@ const TemplateSetupDrawer = ({template, open, onClose, onCreate}: TemplateSetupD
             open={open}
             onClose={onClose}
             placement="right"
-            // Explicit Cancel/Create only — an outside click must not discard an in-progress setup.
-            closeOnLayoutClick={false}
             width={600}
             title={
                 template ? (

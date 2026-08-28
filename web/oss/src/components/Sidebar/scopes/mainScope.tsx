@@ -39,8 +39,8 @@ const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
 const useMainSidebarSelection = (): SidebarSelection => {
     const highlightHome = useAtomValue(homeNavHighlightedAtom)
     // A session row links to its AGENT's playground, so the route cannot tell the two apart and
-    // the agent row won every tie. Pin the open session instead; the shell falls back to the
-    // route match when that row is filtered out of the rail.
+    // the agent row won every tie. Pin the open session instead; when that row is not rendered
+    // (its group collapsed, or filtered out) the shell selects nothing rather than the agent.
     const activeSessionId = useAtomValue(activePlaygroundSessionIdAtom)
     return useMemo(() => {
         if (highlightHome) return {mode: "route", selectedKeyOverride: HOME_SIDEBAR_KEY}

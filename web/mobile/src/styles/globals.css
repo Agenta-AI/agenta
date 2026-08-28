@@ -421,6 +421,8 @@
         @apply border-border outline-ring/50;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply text-foreground;
+        /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
+        background: var(--ag-sidebar-bg);
     }
 }

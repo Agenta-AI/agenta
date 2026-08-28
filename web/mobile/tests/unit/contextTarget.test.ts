@@ -16,7 +16,6 @@ const project = (projectId: string, workspaceId: string) =>
 
 const group = (workspaceId: string, projectIds: string[]): WorkspaceGroup => ({
     workspaceId,
-    workspaceName: workspaceId,
     projects: projectIds.map((id) => project(id, workspaceId)),
 })
 

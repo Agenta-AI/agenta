@@ -11,6 +11,7 @@ from .models import (
     BuiltinToolConfig,
     ClientToolConfig,
     CodeToolConfig,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     PlatformToolConfig,
     ReferenceToolConfig,
@@ -66,6 +67,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         (
             BuiltinToolConfig,
             GatewayToolConfig,
+            GatewayConnectionToolConfig,
             CodeToolConfig,
             ClientToolConfig,
             ReferenceToolConfig,
@@ -89,6 +91,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     if data.get("type") in {
         "builtin",
         "gateway",
+        "gateway_connection",
         "code",
         "client",
         "reference",
@@ -107,17 +110,42 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     raise ToolConfigurationError("Unsupported tool configuration shape", value=value)
 
 
+def _check_one_entry_per_integration(
+    tool_config: ToolConfig, seen: set[tuple[str, str]]
+) -> None:
+    """One revision holds at most one connection entry per provider and integration.
+
+    Two entries for one integration would give the same tool key two policies with no rule
+    to choose between them. ``TOOL_CONFIG_ADAPTER`` cannot enforce it: that adapter
+    validates one entry at a time and never sees the list.
+    """
+    if not isinstance(tool_config, GatewayConnectionToolConfig):
+        return
+    key = (tool_config.connection.provider, tool_config.connection.integration)
+    if key in seen:
+        raise ToolConfigurationError(
+            f"Duplicate gateway connection entry for provider '{key[0]}' and "
+            f"integration '{key[1]}': an agent revision holds at most one"
+        )
+    seen.add(key)
+
+
 def coerce_tool_configs(
     values: Optional[Sequence[Any]],
     *,
     on_error: Literal["raise", "collect"] = "raise",
 ) -> ToolConfigParseResult:
-    """Convert legacy values, either raising or returning structured diagnostics."""
+    """Convert legacy values, either raising or returning structured diagnostics.
+
+    It is also the one entry point that sees a whole revision's list, so a rule that spans
+    entries is enforced here: see :func:`_check_one_entry_per_integration`.
+    """
     if on_error not in {"raise", "collect"}:
         raise ValueError("on_error must be 'raise' or 'collect'")
 
     tool_configs: list[ToolConfig] = []
     diagnostics: list[ToolConfigDiagnostic] = []
+    seen_connections: set[tuple[str, str]] = set()
     for index, value in enumerate(values or []):
         if value is None:
             error = ToolConfigurationError(
@@ -127,7 +155,9 @@ def coerce_tool_configs(
             )
         else:
             try:
-                tool_configs.append(coerce_tool_config(value))
+                tool_config = coerce_tool_config(value)
+                _check_one_entry_per_integration(tool_config, seen_connections)
+                tool_configs.append(tool_config)
                 continue
             except ToolConfigurationError as exc:
                 error = ToolConfigurationError(

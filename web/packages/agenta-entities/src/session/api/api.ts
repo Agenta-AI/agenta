@@ -8,7 +8,6 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import type {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -206,8 +205,7 @@ export async function transitionInteraction({
             session_id: sessionId,
             token,
             status,
-            // The generated type predates the widened resolution payload.
-            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+            resolution,
         },
         projectScopedRequest(projectId, appId, abortSignal),
     )

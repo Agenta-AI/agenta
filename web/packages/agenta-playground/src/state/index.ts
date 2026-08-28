@@ -188,6 +188,8 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./execution"
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./execution"
+export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
 export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./execution"
 export {

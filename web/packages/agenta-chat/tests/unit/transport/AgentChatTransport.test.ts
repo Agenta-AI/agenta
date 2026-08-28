@@ -128,11 +128,10 @@ describe("AgentChatTransport", () => {
         ])
     })
 
-    // Smoothing re-emits a coarse backend delta as word-sized pieces. Past the per-chunk time
-    // budget the per-piece delay falls below a millisecond, which used to disable yielding
-    // altogether and flush the whole thing from one `pull()`. Pieces now carry across pulls, so
-    // what must be proved is that the text still reassembles EXACTLY and in order.
-    it("re-emits an oversized delta piece by piece without losing or reordering any of it", async () => {
+    // The transport used to re-split coarse deltas into words on a timer. Typing cadence now
+    // lives at paint (`useTypewriter`), so the contract here is the opposite one: deltas reach
+    // the consumer WHOLE, in order, with nothing added, dropped, or delayed.
+    it("passes an oversized delta through whole, in order", async () => {
         const words = Array.from({length: 4000}, (_, i) => `w${i}`)
         const text = words.join(" ")
         const sseBody =
@@ -170,10 +169,8 @@ describe("AgentChatTransport", () => {
         )
 
         const deltas = chunks.filter((c) => c.type === "text-delta") as {delta: string}[]
-        // Genuinely split up, not passed through whole…
-        expect(deltas.length).toBeGreaterThan(1000)
-        // …and byte-identical once reassembled, in order.
-        expect(deltas.map((c) => c.delta).join("")).toBe(text)
+        expect(deltas).toHaveLength(1)
+        expect(deltas[0].delta).toBe(text)
         // The surrounding chunks keep their positions around it.
         expect(chunks[0]).toMatchObject({type: "start"})
         expect(chunks[chunks.length - 1]).toMatchObject({type: "finish"})

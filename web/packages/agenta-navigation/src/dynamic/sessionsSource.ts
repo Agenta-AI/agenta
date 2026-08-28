@@ -4,10 +4,10 @@ import {
     appWorkflowsListQueryAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {sessionOpenTarget} from "@agenta/sessions/row"
+import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -20,7 +20,6 @@ import {
 
 import {
     PINNED_GROUP_KEY,
-    groupingStartsFolded,
     sidebarSessionToggledGroupsAtomFamily,
     ACTIVITY_WINDOW_HOURS,
     sidebarSessionFiltersAtomFamily,
@@ -42,6 +41,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     agentName?: string | null
     /** A turn is in flight — the row spins. Resolved for rendered rows only. */
     running: boolean
+    /** A trigger-originated run, not a human chat — the row carries the automation glyph. */
+    isAutomation: boolean
     /** A human gate is open on this session. Resolved for grouped scopes only. */
     waiting?: boolean
     /** Deliberately hidden. The row fades and its menu drops the verbs that make no sense. */
@@ -52,6 +53,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     groupKey?: string
     /** That heading's text. Carried here so the headings atom needs no second derivation. */
     groupLabel?: string
+    /** Where that heading sorts, ascending. Resolved with the bucket — see `sidebarSessionGroup`. */
+    groupRank?: number
 }
 
 /** Deliberately small — the sidebar shows the top of the list, and the sessions page owns
@@ -94,23 +97,36 @@ const requestFilters = (filters: SidebarSessionFilters) => {
         flags: Object.keys(flags).length ? flags : undefined,
         // The rail never lists archived sessions; the sessions page owns the archive.
         includeArchived: false,
-        // A SWAP, not a widening — the same contract the sessions page's toggle has: off lists
-        // what you started, on lists what your triggers ran. Mixing the two would bury the
-        // conversations you are having under a schedule that runs hourly. Both directions are the
-        // server's own `origin` predicate, so neither narrows a page after fetching it.
-        origin: filters.showAutomations ? ("trigger" as const) : undefined,
-        excludeOrigin: filters.showAutomations ? undefined : ("trigger" as const),
+        // Chat and automation SWAP the list; `all` mixes them. Every direction is the server's
+        // own `origin` predicate, so none of them narrows a page after fetching it.
+        origin: filters.type === "automation" ? ("trigger" as const) : undefined,
+        excludeOrigin: filters.type === "chat" ? ("trigger" as const) : undefined,
         oldest: hours ? new Date(Date.now() - hours * 3_600_000).toISOString() : undefined,
     }
 }
 
+/** Fast enough that a dot clears about when the stream does. */
+const LIVE_POLL_MS = 15_000
+
+/** Slow enough to be background noise, quick enough to notice a run you did not start. */
+const IDLE_POLL_MS = 60_000
+
 /**
- * Poll only while something can still change: a row's dot is driven by `is_alive`, which the
- * server flips when the stream ends — with no request, the dot stays filled until you reload.
- * Stops once every row is idle, so a quiet rail costs nothing.
+ * Poll fast while something can still change, slowly the rest of the time.
+ *
+ * A row's dot is driven by `is_alive`/`is_running`, which the server flips when the stream ends —
+ * with no request, the dot stays filled until you reload. The BASELINE matters just as much: a
+ * turn started under another agent (a trigger, another browser) is invisible to this client, so a
+ * rail that stopped polling when it looked quiet could never discover it, and only the session you
+ * were driving yourself ever appeared to run.
+ *
+ * Both intervals are gated: the source only subscribes while the Sessions group is open and the
+ * rail is expanded, and React Query holds the timer while the window is unfocused.
  */
-const livePollInterval = (rows: SessionStream[] | null | undefined) =>
-    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running) ? 15_000 : false
+export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
+    (rows ?? []).some((row) => row.flags?.is_alive || row.flags?.is_running)
+        ? LIVE_POLL_MS
+        : IDLE_POLL_MS
 
 /**
  * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
@@ -197,7 +213,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.agentIds,
                 filters.status,
                 filters.activity,
-                filters.showAutomations,
+                filters.type,
                 waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
@@ -252,7 +268,7 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 pinnedIds,
                 filters.agentIds,
                 filters.status,
-                filters.showAutomations,
+                filters.type,
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
@@ -296,6 +312,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
         running: Boolean(row.flags?.is_running),
+        isAutomation: isAutomationSession(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
     }
 }
@@ -347,6 +364,31 @@ export const dropArchivedAgentSessions = (
         : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
 
 /**
+ * The rail's filters, applied to the rows the HOST contributes.
+ *
+ * Every filter is a server predicate, and a local row never went through the query — so without
+ * this a chat stayed listed, and selected, under Automation or under another agent's filter. The
+ * activity window is the one exemption: a session you have open is current by definition.
+ */
+export const localSessionRefsMatching = (
+    local: readonly SessionSidebarRef[],
+    filters: SidebarSessionFilters,
+    waitingIds: ReadonlySet<string>,
+): SessionSidebarRef[] =>
+    local.filter((ref) => {
+        // A client-created chat is never a trigger run.
+        if (filters.type === "automation") return false
+        if (filters.agentIds.length > 0) {
+            if (!ref.agentId || !filters.agentIds.includes(ref.agentId)) return false
+        }
+        const waiting = waitingIds.has(ref.sessionId) || Boolean(ref.waiting)
+        if (filters.status === "running") return ref.running
+        if (filters.status === "waiting") return waiting
+        if (filters.status === "idle") return !ref.running && !waiting && !ref.alive
+        return true
+    })
+
+/**
  * Host-local rows lead the RECENT rows but never displace pins: pins are pulled to the top because
  * they are conversations you return to over days, and a session you happen to have open must not
  * push them down. A server row for the same session wins once it exists — it carries the resolved
@@ -358,9 +400,36 @@ export const withLocalSessions = (
 ): SessionSidebarRef[] => {
     const known = new Set(server.map((ref) => ref.sessionId))
     const fresh = local.filter((ref) => !known.has(ref.sessionId))
-    const pinned = server.filter((ref) => ref.pinned)
-    const rest = server.filter((ref) => !ref.pinned)
-    return [...pinned, ...fresh, ...rest]
+    const hosted = new Map(local.map((ref) => [ref.sessionId, ref]))
+    // The server row wins on identity and LOSES on liveness: `is_running` is mirrored onto a row
+    // this rail polls, so a turn running in this very browser read as idle until the poll caught
+    // up — which is why only one session ever appeared to be running.
+    const live = server.map((ref) => {
+        const host = hosted.get(ref.sessionId)
+        if (!host) return ref
+        return {
+            ...ref,
+            running: ref.running || host.running,
+            waiting: ref.waiting || host.waiting,
+        }
+    })
+    const pinned = live.filter((ref) => ref.pinned)
+    const rest = live.filter((ref) => !ref.pinned)
+    // Deduped: a row key is its session id, so a session reaching this twice renders two rows that
+    // BOTH match the selected key — the rail's white pill landing on rows nobody selected.
+    return uniqueBySession([...pinned, ...fresh, ...rest])
+}
+
+/** First occurrence wins — the merge above already put every row in the order it should hold. */
+const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[] => {
+    const seen = new Set<string>()
+    const unique: SessionSidebarRef[] = []
+    for (const ref of refs) {
+        if (seen.has(ref.sessionId)) continue
+        seen.add(ref.sessionId)
+        unique.push(ref)
+    }
+    return unique
 }
 
 /**
@@ -375,7 +444,12 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pinned = new Set(get(pinnedSessionIdsAtom))
         const waitingIds = new Set(get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? [])
-        const pinnedRows = get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []
+        // Filtered by the CURRENT pin set, not taken as the query left it: unpinning mints a new
+        // query key, and the placeholder hands back the previous rows (forever, once the last pin
+        // goes and the query disables) — rows the recent window now returns too.
+        const pinnedRows = (get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => pinned.has(row.session_id),
+        )
         // Pins come from their own by-id query; the recent window drops them so nothing shows twice.
         const recentRows = (get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? []).filter(
             (row) => !pinned.has(row.session_id),
@@ -386,7 +460,10 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
-        const all = withLocalSessions(server, get(localSessionRefsAtom))
+        const all = withLocalSessions(
+            server,
+            localSessionRefsMatching(get(localSessionRefsAtom), filters, waitingIds),
+        )
         // "Idle" is `is_alive: false` on the server, which also matches a session whose turn ended
         // with a gate still open. That session is WAITING — the shared status rule ranks a gate
         // above liveness — so it is subtracted here. The only client-side narrowing in this file,
@@ -411,18 +488,38 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         return merged.map((ref) => {
             const named = {
                 ...ref,
-                waiting: waitingIds.has(ref.sessionId),
+                // OR, not a replacement: a gate the host already knows about is open before the
+                // interactions query has a row for it.
+                waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
                 agentName: ref.agentId
                     ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
                     : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
-            return {...named, groupKey: group.key, groupLabel: group.label}
+            return {
+                ...named,
+                groupKey: group.key,
+                groupLabel: group.label,
+                groupRank: group.rank,
+            }
         })
     }),
 )
 
 const UNASSIGNED_GROUP_KEY = "agent:none"
+
+/** Below every other rank: pins lead under every grouping. Finite, so ranks subtract cleanly. */
+const PINNED_GROUP_RANK = Number.MIN_SAFE_INTEGER
+
+/** Above every other rank, for a bucket with no date to sort on. */
+const UNDATED_GROUP_RANK = Number.MAX_SAFE_INTEGER
+
+/** A heading, plus where it sorts — ascending, ties broken by label. */
+interface SessionGroupBucket {
+    key: string
+    label: string
+    rank: number
+}
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -442,18 +539,21 @@ const startOfDay = (time: number) => {
  * supposed to settle. Only today and yesterday keep words, because those are the two dates people
  * read faster as names. The year is added once it is not the current one.
  */
-const dateBucket = (activityAt: string | null | undefined, now: number) => {
-    if (!activityAt) return {key: "date:unknown", label: "No activity"}
+const dateBucket = (activityAt: string | null | undefined, now: number): SessionGroupBucket => {
+    if (!activityAt) return {key: "date:unknown", label: "No activity", rank: UNDATED_GROUP_RANK}
     const at = new Date(activityAt)
-    const days = Math.round((startOfDay(now) - startOfDay(at.getTime())) / DAY)
-    if (days <= 0) return {key: "date:today", label: "Today"}
-    if (days === 1) return {key: "date:yesterday", label: "Yesterday"}
+    const day = startOfDay(at.getTime())
+    // NEGATED so the newest day sorts first, in the one ascending order every grouping shares.
+    const rank = -day
+    const days = Math.round((startOfDay(now) - day) / DAY)
+    if (days <= 0) return {key: "date:today", label: "Today", rank}
+    if (days === 1) return {key: "date:yesterday", label: "Yesterday", rank}
     const year = at.getFullYear()
     const label = `${MONTHS[at.getMonth()]} ${at.getDate()}${
         year === new Date(now).getFullYear() ? "" : `, ${year}`
     }`
     // Keyed by the calendar day, not the label: two Augusts a year apart must not share a heading.
-    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label}
+    return {key: `date:${year}-${at.getMonth() + 1}-${at.getDate()}`, label, rank}
 }
 
 /**
@@ -466,38 +566,67 @@ export const sidebarSessionGroup = (
     ref: SessionSidebarRef,
     groupBy: SidebarSessionGroupBy,
     now: number,
-): {key: string; label: string} => {
-    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned"}
-    if (groupBy === "none") return {key: "recent", label: "Recent"}
+): SessionGroupBucket => {
+    if (ref.pinned) return {key: PINNED_GROUP_KEY, label: "Pinned", rank: PINNED_GROUP_RANK}
+    if (groupBy === "none") return {key: "recent", label: "Recent", rank: 1}
     if (groupBy === "date") return dateBucket(ref.activityAt, now)
     if (groupBy === "status") {
-        if (ref.running) return {key: "status:running", label: "Running"}
-        return ref.alive ? {key: "status:live", label: "Live"} : {key: "status:idle", label: "Idle"}
+        // A gate ranks above liveness, the same rule the status FILTER applies — without its own
+        // bucket a session waiting on you fell into Idle (or Live), where the amber dot contradicts
+        // the heading. Order mirrors the filter: Running, Awaiting input, Live, Idle.
+        if (ref.running) return {key: "status:running", label: "Running", rank: 0}
+        if (ref.waiting) return {key: "status:waiting", label: "Awaiting input", rank: 1}
+        return ref.alive
+            ? {key: "status:live", label: "Live", rank: 2}
+            : {key: "status:idle", label: "Idle", rank: 3}
     }
-    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet"}
+    // Agents share a rank and sort by name; only "No agent yet" is pushed past them.
+    if (!ref.agentId) return {key: UNASSIGNED_GROUP_KEY, label: "No agent yet", rank: 1}
     // `||`, not `??`: an artifact whose name resolves to "" must still get a heading you can read.
-    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent"}
+    return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent", rank: 0}
 }
+
+/** Ascending by rank, ties broken by label. */
+const compareGroups = (a: {label: string; rank: number}, b: {label: string; rank: number}) =>
+    a.rank - b.rank || a.label.localeCompare(b.label)
 
 /** The entity reads the bucket off the row — resolved upstream, so a `groupBy` change flows. */
 export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
     ref.groupKey ?? PINNED_GROUP_KEY
 
 /**
- * The group headings the Sessions rows sit under: Pinned first, then each agent in order of its
- * most recent session. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
+ * The group headings the Sessions rows sit under, in a fixed order: Pinned first, then whatever
+ * the grouping ranks. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
  * all fall outside it is dropped there rather than here.
  */
 export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const refs = get(sidebarSessionRefsAtomFamily(scopeId))
-        const labels = new Map<string, string>()
+        const labels = new Map<string, {label: string; rank: number}>()
         for (const ref of refs) {
             const key = sidebarSessionGroupKey(ref)
-            if (!labels.has(key)) labels.set(key, ref.groupLabel ?? "Other")
+            if (!labels.has(key)) {
+                labels.set(key, {label: ref.groupLabel ?? "Other", rank: ref.groupRank ?? 0})
+            }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
-        const all: SidebarEntityGroup[] = [...labels].map(([key, label]) => ({key, label}))
+        // Under AGENT grouping, order the headings by the SAME chat-session rank the Agents group
+        // uses — so the two agent lists agree and the busiest agent leads, not the alphabetical
+        // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
+        // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
+        if (groupBy === "agent") {
+            const ranks = get(sidebarAgentRanksAtomFamily(scopeId))
+            for (const [key, bucket] of labels) {
+                if (!key.startsWith("agent:") || key === UNASSIGNED_GROUP_KEY) continue
+                // NEGATED so more sessions sorts first, in the one ascending order compareGroups uses.
+                bucket.rank = -(ranks.get(key.slice("agent:".length)) ?? 0)
+            }
+        }
+        // SORTED, not first-seen: the rows arrive in activity order, so taking their order made the
+        // headings reshuffle every time you worked in a session. Only the rows under a heading move.
+        const all: SidebarEntityGroup[] = [...labels]
+            .sort(([, a], [, b]) => compareGroups(a, b))
+            .map(([key, {label}]) => ({key, label}))
         // "None" still separates the pins — a pinned conversation is one you keep coming back to,
         // and burying it in the run of recent rows is what the heading exists to prevent. With no
         // pins there is nothing to separate, so the list goes fully flat.
@@ -509,15 +638,12 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         const groups: SidebarEntityGroup[] =
             groupBy === "none" && !labels.has(PINNED_GROUP_KEY) ? [] : all
         const dirty = get(sidebarSessionFiltersDirtyAtomFamily(scopeId))
-        // The stored set flips a heading away from its grouping's default, so a regrouping keeps
-        // whatever you chose without carrying the previous grouping's keys.
-        const folded = groupingStartsFolded(groupBy)
+        // Headings open by default; the stored set is what you folded, and it survives a
+        // regrouping because it holds no grouping's keys of its own.
         const toggled = new Set(get(sidebarSessionToggledGroupsAtomFamily(scopeId)))
         return {
             groups,
-            collapsedKeys: groups
-                .filter((group) => folded !== toggled.has(group.key))
-                .map((group) => group.key),
+            collapsedKeys: groups.filter((g) => toggled.has(g.key)).map((g) => g.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,
         }
@@ -546,28 +672,86 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * `agentId -> when it was last used`, in ms, off the sessions the rail already holds.
+ * Is the Sessions group open enough to read its list from outside it?
  *
- * "Used" means a session ran, which is the product's own definition of agent activity (the home
- * roster reads the agent's most recent session). Derived rather than fetched: a timestamp per
- * agent would otherwise be one request each, and the rail has the sessions in hand.
- *
- * The catch, accepted deliberately: these sessions carry the rail's FILTERS and its activity
- * window, so narrowing to one agent or one status leaves the others without a timestamp and they
- * fall back to catalog order. The alternative is a second unfiltered query per project.
+ * `alwaysOpen` HAS to be in this test: Sessions is rendered always-open on desktop, so its key is
+ * never written to the persisted open set — reading only that set left the Agent facet with no
+ * options to offer. `idleReadyAtom` holds every such read until after first paint.
  */
-export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) => {
-        const lastUsed = new Map<string, number>()
-        for (const ref of get(sidebarSessionRefsAtomFamily(scopeId))) {
-            if (!ref.agentId || !ref.activityAt) continue
-            const at = new Date(ref.activityAt).getTime()
-            if (!Number.isFinite(at)) continue
-            const current = lastUsed.get(ref.agentId)
-            if (current === undefined || at > current) lastUsed.set(ref.agentId, at)
+const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
+    const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
+        SESSIONS_SIDEBAR_KEY,
+    )
+    const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
+    return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
+}
+
+/** The window the agent ranking counts over. The server caps a page at 200; a project with more
+ * sessions than this ranks its long tail by catalog order, which is stable and good enough. */
+const AGENT_RANK_WINDOW = 200
+
+/**
+ * Every agent's sessions, UNFILTERED — the query that ranks the Agents group.
+ *
+ * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
+ * off it let a filter (one agent, one status, a narrower window) reorder the Agents group — a
+ * filter is not a use. Project-scoped, origin-agnostic, no activity floor.
+ *
+ * FROZEN per page load — `staleTime`/`gcTime: Infinity`, no focus refetch, no interval — so the
+ * order an agent lives at does not shift while you work: a new session bumps nothing until you
+ * reload. Agents are spatial memory, and a list that reshuffles under you loses that. Gated like
+ * the facet, so a closed Sessions group fetches nothing.
+ */
+const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionStream[] | null>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["sidebar-agent-activity", projectId],
+            queryFn: ({signal}) =>
+                querySessions({
+                    projectId: projectId ?? "",
+                    includeArchived: false,
+                    // CHATS only, not trigger runs: an agent that fires on a schedule would
+                    // otherwise rank on runs you never created, mismatching the handful of
+                    // conversations you actually had with it.
+                    excludeOrigin: "trigger",
+                    limit: AGENT_RANK_WINDOW,
+                    order: "descending",
+                    abortSignal: signal,
+                    lowPriority: true,
+                }),
+            enabled: Boolean(projectId) && sessionsGroupOpen(get, scopeId),
+            staleTime: Infinity,
+            gcTime: Infinity,
+            refetchOnWindowFocus: false,
         }
-        return lastUsed
     }),
+)
+
+/**
+ * `agentId -> chat-session count`, ranking the Agents group by how much you actually work with
+ * each agent.
+ *
+ * CHATS only — the query above excludes trigger runs — so an automation-heavy agent ranks on the
+ * conversations you had, not the runs a schedule fired. A busy agent leads, the count barely moves
+ * session to session (stable, unlike recency), and an agent with no chat keeps catalog order at
+ * the bottom — a new one appends rather than jumping in. Counted over the frozen window above.
+ */
+export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<string, number> => {
+    const counts = new Map<string, number>()
+    for (const row of rows) {
+        const agentId = sessionOpenTarget(row)?.appId
+        if (!agentId) continue
+        counts.set(agentId, (counts.get(agentId) ?? 0) + 1)
+    }
+    return counts
+}
+
+export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
 )
 
 /**
@@ -580,17 +764,7 @@ export const sidebarAgentLastUsedAtomFamily = atomFamily((scopeId: string) =>
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
-        // `alwaysOpen` HAS to be in this test: Sessions is rendered always-open, so its key is
-        // never written to the persisted open set — reading only that set left this empty, and
-        // the Agent facet had no options to offer.
-        const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(
-            SESSIONS_SIDEBAR_KEY,
-        )
-        const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY)
-        if ((!alwaysOpen && !inlineOpen && !popupOpen) || !get(idleReadyAtom)) return []
+        if (!sessionsGroupOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({

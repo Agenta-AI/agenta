@@ -136,6 +136,12 @@ export {
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
+// ============================================================================
+// AGENT ICON (per-agent glyph + colour, persisted client-side)
+// ============================================================================
+
+export {agentIconAtomFamily, type AgentIconRecord} from "./agentIcon"
+
 export {readPersistedAgentType} from "./persistedAgentType"
 
 // Union atoms (app + evaluator combined)

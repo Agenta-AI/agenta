@@ -19,7 +19,7 @@ import {
 import type {ApprovalPreview, ApprovalPreviewItem} from "../skin/types"
 
 import {BUILTIN_APPROVAL_DESCRIBERS} from "./approvalDescribers"
-import {asSentence, oneLine} from "./approvalDescribers/approvalText"
+import {asSentence, fieldLabel, oneLine, readableFieldRows} from "./approvalDescribers/approvalText"
 import {summarizeApprovalInput} from "./approvalInputSummary"
 import type {PendingApproval} from "./approvals"
 
@@ -27,26 +27,6 @@ export type {ApprovalPreview, ApprovalPreviewItem}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
-
-/** `file_path` → `File path`. Field names are the only labels an unregistered tool gives us. */
-const fieldLabel = (field: string): string => {
-    const words = field
-        .replace(/[_-]+/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .trim()
-    return words ? `${words[0].toUpperCase()}${words.slice(1).toLowerCase()}` : field
-}
-
-/** A scalar rendered for a human: strings as-is, arrays joined, everything else skipped. */
-const readableValue = (value: unknown): string | undefined => {
-    if (typeof value === "string") return value.trim() || undefined
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    if (Array.isArray(value)) {
-        const parts = value.filter((item) => typeof item === "string" || typeof item === "number")
-        return parts.length === value.length && parts.length ? parts.join(", ") : undefined
-    }
-    return undefined
-}
 
 /**
  * Rows for a tool with no describer: one per readable top-level argument, labelled by its field
@@ -56,11 +36,7 @@ const readableValue = (value: unknown): string | undefined => {
 const genericItems = (input: unknown): ApprovalPreviewItem[] => {
     if (typeof input === "string" && input.trim()) return [{title: "Input", detail: oneLine(input)}]
     if (!isRecord(input)) return []
-    const items: ApprovalPreviewItem[] = []
-    for (const [field, value] of Object.entries(input)) {
-        const readable = readableValue(value)
-        if (readable) items.push({title: fieldLabel(field), detail: oneLine(readable)})
-    }
+    const items = readableFieldRows(input)
     if (items.length) return items
     // Nothing structured was readable — fall back to the payload's single primary field, if it
     // has one (a bash gate is its command, not a bag of arguments).
