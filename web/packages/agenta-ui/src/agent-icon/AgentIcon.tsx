@@ -1,6 +1,6 @@
 import {memo, type CSSProperties, type ReactNode} from "react"
 
-import {darkColorFor, darkTintFor, tintForColor} from "./colors"
+import {darkColorFor, darkTintFor, readableInk, tintForColor} from "./colors"
 
 /** What the picker hands back and what we persist. The tint and the SVG are NOT part of it: the
  * tint derives from the colour, and the glyph is looked up by name. */
@@ -51,7 +51,8 @@ export const AGENT_ICON_CHIP_CLASS = `bg-[var(--agent-icon-bg)] dark:bg-[var(--a
  * unreadable on a dark surface and a custom colour has no dark pair to look up. */
 export const agentIconChipStyle = (color: string): CSSProperties =>
     ({
-        "--agent-icon-fg": color,
+        // Darkened when the pick is light enough to disappear on its own tint.
+        "--agent-icon-fg": readableInk(color),
         "--agent-icon-bg": tintForColor(color),
         "--agent-icon-fg-dark": darkColorFor(color),
         "--agent-icon-bg-dark": darkTintFor(color),

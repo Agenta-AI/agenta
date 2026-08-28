@@ -27,13 +27,22 @@ const STORAGE_KEY = "agenta:agent-icon:1"
  * realistic number of agents rather than a round one. */
 const MAX_ENTRIES = 50
 
+/** The shapes the generator emits. Anything else in a stored path is not ours. */
+const SVG_SHAPES = /^<(path|circle|rect|line|polyline|polygon|ellipse|g)\b[^>]*\/?>$/
+
 /**
- * localStorage is outside the trust boundary and `path` reaches `dangerouslySetInnerHTML`, so a
- * hand-edited or stale entry is dropped rather than rendered.
- *
- * Exported for its own tests only — it is a validator, not a second storage seam, so it does not
- * widen what the backend swap has to preserve.
+ * localStorage is outside the trust boundary and `path` reaches `dangerouslySetInnerHTML`, so an
+ * entry is validated element by element rather than trusted for starting with `<`.
  */
+export const isAgentIconPath = (path: string): boolean => {
+    if (!path.startsWith("<")) return false
+    const tags = path.match(/<[^>]*>/g)
+    // Only whitespace may sit between shapes; any other text means it is not a generated glyph.
+    if (!tags || tags.join("") !== path.replace(/>\s+</g, "><")) return false
+    return tags.every((tag) => SVG_SHAPES.test(tag))
+}
+
+/** Exported for its own tests — a validator, not a second storage seam. */
 export const isAgentIconRecord = (value: unknown): value is AgentIconRecord => {
     const r = value as AgentIconRecord | null
     return (
@@ -42,7 +51,7 @@ export const isAgentIconRecord = (value: unknown): value is AgentIconRecord => {
         typeof r.icon === "string" &&
         typeof r.color === "string" &&
         typeof r.path === "string" &&
-        r.path.startsWith("<")
+        isAgentIconPath(r.path)
     )
 }
 
@@ -58,14 +67,15 @@ export const agentIconAtomFamily = atomFamily((workflowId: string) =>
     atom(
         (get) => {
             if (!workflowId) return null
-            const stored = get(agentIconMapAtom)[workflowId]
+            // A literal `null` in localStorage reaches us as null, not the default.
+            const stored = get(agentIconMapAtom)?.[workflowId]
             return isAgentIconRecord(stored) ? stored : null
         },
         (get, set, next: AgentIconRecord | null) => {
             if (!workflowId) return
             set(
                 agentIconMapAtom,
-                writeBounded(get(agentIconMapAtom), workflowId, next, MAX_ENTRIES),
+                writeBounded(get(agentIconMapAtom) ?? {}, workflowId, next, MAX_ENTRIES),
             )
         },
     ),

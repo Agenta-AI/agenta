@@ -88,6 +88,32 @@ const mix = (hex: string, target: number, amount: number): string =>
         )
         .join("")
 
+/** Perceived lightness, 0..255. */
+const luma = (hex: string): number => {
+    const [r, g, b] = toRgb(hex)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/**
+ * A colour light enough to vanish on its own tint is darkened until it cannot. The OS picker will
+ * happily hand back `#FFFFFF`, which would otherwise render a white glyph on a white chip.
+ */
+export const readableInk = (hex: string): string => {
+    if (luma(hex) <= 170) return hex
+    const [r, g, b] = toRgb(hex)
+    const amount = Math.min(0.75, (luma(hex) - 170) / 170 + 0.25)
+    return (
+        "#" +
+        [r, g, b]
+            .map((c) =>
+                Math.round(c * (1 - amount))
+                    .toString(16)
+                    .padStart(2, "0"),
+            )
+            .join("")
+    )
+}
+
 /** A custom colour has no hand-tuned pair, so lighten it 88% toward white for the chip. */
 export const tintFor = (hex: string): string => mix(hex, 255, 0.88)
 

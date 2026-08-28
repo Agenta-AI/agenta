@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {isAgentIconRecord} from "../../src/workflow/state/agentIcon"
+import {isAgentIconPath, isAgentIconRecord} from "../../src/workflow/state/agentIcon"
 
 const valid = {icon: "robot", color: "#113955", path: "<rect width='256' height='256'/>"}
 
@@ -40,6 +40,30 @@ describe("isAgentIconRecord", () => {
         expect(isAgentIconRecord({...valid, path: ""})).toBe(false)
         expect(isAgentIconRecord({...valid, path: "javascript:alert(1)"})).toBe(false)
         expect(isAgentIconRecord({...valid, path: "onload=alert(1)"})).toBe(false)
+    })
+
+    it("rejects markup that is not a plain SVG shape", () => {
+        for (const path of [
+            "<script>alert(1)</script>",
+            '<path d="M0,0" onload="alert(1)"><script>x</script>',
+            "<img src=x onerror=alert(1)>",
+            "<foreignObject><body>x</body></foreignObject>",
+            '<a href="javascript:alert(1)"><path d="M0,0"/></a>',
+        ]) {
+            expect(isAgentIconPath(path)).toBe(false)
+            expect(isAgentIconRecord({...valid, path})).toBe(false)
+        }
+    })
+
+    it("accepts the shapes the generator emits", () => {
+        for (const path of [
+            '<path d="M0,0Z"/>',
+            '<circle cx="128" cy="128" r="96"/>',
+            '<rect width="256" height="256"/>',
+            '<path d="M0,0Z"/><circle cx="1" cy="1" r="1"/>',
+        ]) {
+            expect(isAgentIconPath(path)).toBe(true)
+        }
     })
 
     it("rejects markup that does not start at the first character", () => {

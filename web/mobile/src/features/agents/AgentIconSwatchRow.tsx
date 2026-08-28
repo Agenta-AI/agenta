@@ -33,6 +33,18 @@ export const AgentIconSwatchRow = ({
 
     useEffect(() => () => (timer.current ? clearTimeout(timer.current) : undefined), [])
 
+    /** A queued custom commit must not land on top of a palette pick made just after it. */
+    const cancelPending = () => {
+        if (timer.current) clearTimeout(timer.current)
+        timer.current = null
+        setPreview(null)
+    }
+
+    const pickPalette = (hex: string) => {
+        cancelPending()
+        onPick(hex)
+    }
+
     const pickCustom = (next: string) => {
         if (!isHexColor(next)) return
         const hex = normalizeHex(next).toUpperCase()
@@ -56,7 +68,7 @@ export const AgentIconSwatchRow = ({
                         type="button"
                         aria-label={solid}
                         aria-pressed={isSelected}
-                        onClick={() => onPick(solid)}
+                        onClick={() => pickPalette(solid)}
                         // size-8 is a thumb, not the desktop's size-5 cursor target.
                         className="size-8 shrink-0 cursor-pointer rounded-full border border-solid border-black/10 p-0 dark:border-white/20"
                         style={{

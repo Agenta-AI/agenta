@@ -10,6 +10,7 @@ import {
     hsvToHex,
     isHexColor,
     normalizeHex,
+    readableInk,
     tintFor,
     tintForColor,
     toRgb,
@@ -65,7 +66,9 @@ describe("tintForColor", () => {
     })
 
     it("matches a palette colour regardless of case", () => {
-        expect(tintForColor("#113955".toLowerCase())).toBe("#E5F1F9")
+        // A-F digits, so lowercasing actually changes the string.
+        expect(tintForColor("#ca8a04")).toBe(tintForColor("#CA8A04"))
+        expect(tintForColor("#ca8a04")).toBe("#FBF4DF")
     })
 
     it("derives a tint for a colour the palette does not have", () => {
@@ -75,6 +78,19 @@ describe("tintForColor", () => {
     it("always derives something lighter than the colour", () => {
         for (const hex of ["#000000", "#123456", "#7C3AED", "#D61010"]) {
             expect(luma(tintFor(hex))).toBeGreaterThan(luma(hex))
+        }
+    })
+})
+
+describe("readableInk", () => {
+    it("leaves a colour dark enough to read alone", () => {
+        for (const [solid] of AGENT_ICON_COLORS) expect(readableInk(solid)).toBe(solid)
+    })
+
+    it("darkens a near-white pick so it cannot vanish on its own tint", () => {
+        for (const hex of ["#FFFFFF", "#FDFDFF", "#F0F0F0"]) {
+            expect(luma(readableInk(hex))).toBeLessThan(luma(hex))
+            expect(luma(readableInk(hex))).toBeLessThan(luma(tintFor(hex)))
         }
     })
 })
