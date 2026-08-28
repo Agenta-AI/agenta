@@ -278,6 +278,21 @@ describe("skip", () => {
     })
 })
 
+describe("skip", () => {
+    it("lets a one-question required form finish once its question is skipped", () => {
+        // total === 1 has no next step to move to, so skip() leaves the index on the step it just
+        // declined. Re-validating it there trapped the form with no way out.
+        const onComplete = vi.fn()
+        const {result} = setup(formOf({name: {type: "string"}}, ["name"]), onComplete)
+
+        act(() => result.current.skip())
+        act(() => result.current.primary())
+
+        expect(result.current.error).toBeNull()
+        expect(onComplete).toHaveBeenCalledWith({})
+    })
+})
+
 describe("content", () => {
     it("sends exactly the answered keys", () => {
         const onComplete = vi.fn()
@@ -311,6 +326,24 @@ describe("content", () => {
 })
 
 describe("draft", () => {
+    it("carries the skips, so a reload does not resurrect a skipped default", () => {
+        const form = formOf({
+            region: {type: "string", title: "Region", default: "eu"},
+            note: {type: "string", title: "Note"},
+        })
+        const first = setup(form)
+        expect(first.result.current.content).toEqual({region: "eu"})
+
+        // Skipping a defaulted field clears it. Saving only the values would restore the default
+        // on the next mount and submit an answer the user explicitly declined.
+        act(() => first.result.current.skip())
+        expect(first.result.current.content).toEqual({})
+        first.unmount()
+
+        const second = setup(form)
+        expect(second.result.current.content).toEqual({})
+    })
+
     it("restores values and the user's place on remount", () => {
         vi.useFakeTimers()
         const first = setup()

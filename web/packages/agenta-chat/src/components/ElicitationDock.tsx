@@ -166,7 +166,7 @@ const RefusalPanel = ({reason, onSkip}: {reason: string; onSkip: () => void}) =>
                     <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-[13px] font-medium">
                             {secret
-                                ? `This request asked for an ${secret.property} — forms never carry secrets.`
+                                ? `This request asked for ${secret.property} — forms never carry secrets.`
                                 : "This request couldn't be shown as a form."}
                         </span>
                         <span className="text-xs text-colorTextSecondary">

@@ -52,12 +52,15 @@ export interface ElicitationDockState {
 
 /** Fully arrived. `input-streaming` and the `{}` input-refresh announce (sdk `vercel/stream.py`)
  * both parse as garbage but are not degradations — settling either kills a working request. */
-const payloadArrived = (meta: ClientToolMeta): boolean =>
-    meta.state === "input-available" &&
-    typeof meta.input === "object" &&
-    meta.input !== null &&
-    !Array.isArray(meta.input) &&
-    Object.keys(meta.input as Record<string, unknown>).length > 0
+const payloadArrived = (meta: ClientToolMeta): boolean => {
+    if (meta.state !== "input-available") return false
+    // The `{}` input-refresh announce (stream.py) is the one shape still worth waiting on. A
+    // string, array or null is malformed and will never improve, so let it settle rather than
+    // parking the run behind a Skip the user has to find.
+    if (typeof meta.input === "object" && meta.input !== null && !Array.isArray(meta.input))
+        return Object.keys(meta.input as Record<string, unknown>).length > 0
+    return meta.input !== undefined
+}
 
 export const useElicitationDock = ({
     messages,

@@ -154,9 +154,24 @@ export const ElicitationControl = ({
     }, [step.name, step.kind, rows.length])
 
     if (rows.length) {
-        // The Other row holds whatever was typed rather than a listed value.
+        // A multi-select's Other row is one MORE answer, never a replacement for the toggled ones:
+        // writing the scalar straight through dropped every picked option and put a string on a
+        // wire the schema declared as an array.
+        const listed = new Set((step.options ?? []).map((option) => option.value))
+        const picked = Array.isArray(value) ? (value as string[]) : []
         const otherActive =
             !multi && selected === rows.length - 1 && rows[rows.length - 1].value === null
+        const otherText = multi
+            ? (picked.find((item) => !listed.has(item)) ?? "")
+            : otherActive
+              ? String(value ?? "")
+              : ""
+        const nextOtherValue = (text: string): unknown => {
+            if (!multi) return text
+            const kept = picked.filter((item) => listed.has(item))
+            return text.trim() ? [...kept, text] : kept
+        }
+
         return (
             <div
                 className="flex flex-col gap-1.5 overflow-y-auto"
@@ -203,10 +218,12 @@ export const ElicitationControl = ({
                                 <input
                                     ref={otherRef}
                                     data-elicitation-other
-                                    value={otherActive ? String(value ?? "") : ""}
+                                    value={otherText}
                                     placeholder={OTHER_LABEL}
                                     onKeyDown={submitOnEnter}
-                                    onChange={(event) => onChange(event.target.value)}
+                                    onChange={(event) =>
+                                        onChange(nextOtherValue(event.target.value))
+                                    }
                                     className="min-w-0 flex-1 border-none bg-transparent text-xs text-colorText outline-none placeholder:text-colorTextTertiary"
                                 />
                             ) : (

@@ -31,6 +31,8 @@ const DRAFT_DEBOUNCE_MS = 400
 
 interface Draft {
     values: Record<string, unknown>
+    /** Without this a reload turns a skipped default back into an answer and sends it. */
+    skipped?: string[]
     /** Restoring the VALUES but not the place would drop the user back at question one. */
     index: number
 }
@@ -46,9 +48,14 @@ const readDraft = (toolCallId: string, steps: ElicitationStep[]): Draft | null =
         // place. A stale draft should degrade to "some answers survived", never to a crash.
         const names = new Set(steps.map((step) => step.name))
         const kept = Object.fromEntries(Object.entries(values).filter(([name]) => names.has(name)))
-        if (Object.keys(kept).length === 0) return null
+        const skipped = Array.isArray(parsed.skipped)
+            ? parsed.skipped.filter((name): name is string => names.has(name))
+            : []
+        // Skips count as content: a draft whose only news is "the user declined these" still has
+        // something to restore, and dropping it resurrects the defaults they declined.
+        if (Object.keys(kept).length === 0 && !skipped.length) return null
         const index = typeof parsed.index === "number" ? parsed.index : 0
-        return {values: kept, index: Math.max(0, Math.min(index, steps.length))}
+        return {values: kept, skipped, index: Math.max(0, Math.min(index, steps.length))}
     } catch {
         return null
     }
@@ -101,7 +108,7 @@ type Action =
     | {type: "error"; error: string}
     | {type: "toggle"; name: string; option: string}
     | {type: "skip"; name: string}
-    | {type: "restore"; values: Record<string, unknown>; index: number}
+    | {type: "restore"; values: Record<string, unknown>; skipped: string[]; index: number}
 
 const reducer = (state: State, action: Action): State => {
     switch (action.type) {
@@ -171,7 +178,12 @@ const reducer = (state: State, action: Action): State => {
             }
         }
         case "restore":
-            return {...state, values: {...state.values, ...action.values}, index: action.index}
+            return {
+                ...state,
+                values: {...state.values, ...action.values},
+                skipped: action.skipped,
+                index: action.index,
+            }
         default:
             return state
     }
@@ -291,7 +303,13 @@ export const useElicitationStepper = ({
         if (restoredRef.current === toolCallId) return
         restoredRef.current = toolCallId
         const draft = readDraft(toolCallId, steps)
-        if (draft) dispatch({type: "restore", values: draft.values, index: draft.index})
+        if (draft)
+            dispatch({
+                type: "restore",
+                values: draft.values,
+                skipped: draft.skipped ?? [],
+                index: draft.index,
+            })
     }, [toolCallId, steps])
 
     // Debounced, not per keystroke: a synchronous JSON.stringify + setItem on every character was a
@@ -310,13 +328,13 @@ export const useElicitationStepper = ({
     }, [toolCallId])
 
     useEffect(() => {
-        pendingRef.current = {values: state.values, index: state.index}
+        pendingRef.current = {values: state.values, skipped: state.skipped, index: state.index}
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = setTimeout(flushDraft, DRAFT_DEBOUNCE_MS)
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current)
         }
-    }, [state.values, state.index, flushDraft])
+    }, [state.values, state.skipped, state.index, flushDraft])
 
     useEffect(() => flushDraft, [flushDraft])
 
@@ -364,7 +382,9 @@ export const useElicitationStepper = ({
     )
 
     const primary = useCallback(() => {
-        if (step) {
+        // A skipped step is not an empty answer, it is a declined one: validating it again traps a
+        // one-question required form, whose skip has no next step to move to.
+        if (step && !state.skipped.includes(step.name)) {
             const blocked = validateStep(step, state.values[step.name])
             if (blocked) {
                 dispatch({type: "error", error: blocked})
@@ -376,7 +396,7 @@ export const useElicitationStepper = ({
             return
         }
         dispatch({type: "goTo", index: state.index + 1})
-    }, [step, state.values, state.index, lastIndex, onComplete, content])
+    }, [step, state.skipped, state.values, state.index, lastIndex, onComplete, content])
 
     const skip = useCallback(() => {
         if (step) dispatch({type: "skip", name: step.name})

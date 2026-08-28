@@ -112,6 +112,15 @@ const optionsOf = (field: ElicitationFieldSchema): ElicitationStepOption[] | und
     })
 }
 
+/**
+ * A nested quantifier — `(a+)+`, `(a*)*`, `(a+)*` — is the classic catastrophic-backtracking shape,
+ * and `pattern` reaches us from a schema the MODEL wrote. Rather than hand `RegExp.test` something
+ * that can pin the browser thread on a crafted answer, screen those out and let the value through
+ * unchecked: an unenforced constraint the agent can re-ask about beats a frozen tab.
+ */
+const isCatastrophicPattern = (pattern: string): boolean =>
+    /\((?:[^()]*[+*])\)[+*]/.test(pattern) || /\([^()]*\{\d+,\}?\}[^()]*\)[+*]/.test(pattern)
+
 /** Numeric hint from the schema bounds, so the design's `1–90 days` reads true. */
 const rangeHint = (field: ElicitationFieldSchema): string | undefined => {
     const {minimum: min, maximum: max} = field
@@ -263,7 +272,7 @@ export function validateStep(step: ElicitationStep, value: unknown): string | nu
             return `At least ${step.minLength} characters`
         if (step.maxLength !== undefined && text.length > step.maxLength)
             return `At most ${step.maxLength} characters`
-        if (step.pattern !== undefined) {
+        if (step.pattern !== undefined && !isCatastrophicPattern(step.pattern)) {
             try {
                 if (!new RegExp(step.pattern).test(text))
                     return "That doesn't match the expected format"

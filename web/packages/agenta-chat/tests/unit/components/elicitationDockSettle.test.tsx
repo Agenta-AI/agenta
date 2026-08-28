@@ -471,6 +471,27 @@ describe("the controls the dialect grew", () => {
         )
     })
 
+    it("adds an Other entry to a multi-select instead of replacing what is picked", () => {
+        const {onOutput} = setup(
+            oneOf({
+                notify: {
+                    type: "array",
+                    title: "Notify on",
+                    items: {type: "string", enum: ["success", "failure"]},
+                },
+            }),
+        )
+
+        fireEvent.click(screen.getAllByRole("checkbox")[0])
+        fireEvent.change(screen.getByPlaceholderText(/Other/), {target: {value: "digest"}})
+        fireEvent.click(screen.getByText("Send answers"))
+
+        // Writing the scalar straight through dropped every picked option and put a string on a
+        // wire the schema declared as an array.
+        const {output} = onOutput.mock.calls[0][0]
+        expect(output.content.notify).toEqual(["success", "digest"])
+    })
+
     it("collects a free-form array as chips, one entry at a time", () => {
         const {onOutput} = setup(
             oneOf({repos: {type: "array", title: "Repos", items: {type: "string"}}}),

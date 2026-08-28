@@ -214,7 +214,7 @@ const DegradedChip = ({reason}: {reason?: string}) => {
             tone="warning"
         >
             {secret
-                ? `This request asked for an ${secret.property} — forms never carry secrets. Connect the credential instead.`
+                ? `This request asked for ${secret.property} — forms never carry secrets. Connect the credential instead.`
                 : `Couldn’t render this request${reason ? ` — ${reason}` : ""}.`}
         </Chip>
     )

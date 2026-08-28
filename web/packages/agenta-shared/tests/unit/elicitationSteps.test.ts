@@ -281,6 +281,17 @@ describe("validateStep", () => {
         expect(validateStep(steps[0], "@daily")).toBeNull()
     })
 
+    it("skips a catastrophic pattern rather than handing it to RegExp.test", () => {
+        // The schema is model-authored, so a nested quantifier could pin the browser thread.
+        const {steps} = formOf(payload({code: {type: "string", pattern: "(a+)+$"}}))
+
+        expect(validateStep(steps[0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaa!")).toBeNull()
+        // A normal pattern still enforces.
+        const {steps: ok} = formOf(payload({code: {type: "string", pattern: "^[A-Z]{3}$"}}))
+        expect(validateStep(ok[0], "abc")).toBe("That doesn't match the expected format")
+        expect(validateStep(ok[0], "ABC")).toBeNull()
+    })
+
     it("lets an unanswered optional step through", () => {
         const {steps} = formOf(payload({note: {type: "string"}}))
         expect(validateStep(steps[0], undefined)).toBeNull()
