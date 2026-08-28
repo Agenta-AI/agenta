@@ -6,7 +6,12 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // Imported from source: the DrillInView barrel does not re-export the permission drawer.
 import {IntegrationPermissionDrawer} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/IntegrationPermissionDrawer"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
-import {GITHUB_TOOLS, GITHUB_WORK, integrationQueries} from "../../fixtures/gatewayIntegration"
+import {
+    GITHUB_TOOLS,
+    GITHUB_TOOLS_VERBOSE,
+    GITHUB_WORK,
+    integrationQueries,
+} from "../../fixtures/gatewayIntegration"
 
 // Shows what is SAVED; it never resolves `inherit`, because only the runner computes an effective
 // permission.
@@ -147,6 +152,17 @@ export const WithAgentPolicy: Story = {
 export const UnmigratedTwoConnections: Story = {
     parameters: seeded(),
     render: () => <DrawerHost permissions={null} connectionSlug="" />,
+}
+
+/**
+ * Descriptions that do not fit one line. Expanding a row must keep the permission select where it
+ * was, keep the provider's line breaks, and keep the toggle through a Show more / Show less round
+ * trip. "Merge pull request" has a short first line and a hidden second one — the toggle has to
+ * offer itself for that too, which a width measurement alone never sees.
+ */
+export const LongDescriptions: Story = {
+    parameters: seeded(GITHUB_TOOLS_VERBOSE),
+    render: () => <DrawerHost permissions={{default: "inherit", tools: {}}} />,
 }
 
 /** Read-only revision: every control is inert, and the policy stays readable. */

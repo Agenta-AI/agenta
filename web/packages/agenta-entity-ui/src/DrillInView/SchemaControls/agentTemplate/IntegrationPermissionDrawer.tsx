@@ -13,7 +13,7 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useMemo, useState} from "react"
+import {memo, useLayoutEffect, useMemo, useState} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -56,6 +56,7 @@ import type {
     GatewayPermission,
 } from "../toolUtils"
 
+import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import {humanizeActionKey} from "./itemDescriptors"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
@@ -110,10 +111,17 @@ const ToolRow = memo(function ToolRow({
 }) {
     const [expanded, setExpanded] = useState(false)
     const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
+    const [overflows, setOverflows] = useState(false)
     const description = tool.description?.trim()
-    // Offer "Show more" only when the one-line preview actually cuts the text off. A character
-    // count guesses, and guesses both ways at this font size.
-    const truncatable = Boolean(preview && preview.scrollWidth > preview.clientWidth)
+    // A line break hides text no width measurement can see, so it counts as truncation on its own.
+    const multiline = Boolean(description?.includes("\n"))
+    // Measured only while collapsed: expanding changes the very box the measurement reads, which
+    // is what used to make the toggle vanish on the way back.
+    useLayoutEffect(() => {
+        if (!preview || expanded) return
+        setOverflows(preview.scrollWidth > preview.clientWidth)
+    }, [preview, expanded, description])
+    const truncatable = multiline || overflows
 
     return (
         <div
@@ -121,9 +129,11 @@ const ToolRow = memo(function ToolRow({
                 expanded ? "bg-[var(--ag-colorFillQuaternary)]" : ""
             }`}
         >
-            <div className="flex items-center gap-2.5">
+            {/* items-start, not items-center: the select must stay put while the row grows. */}
+            <div className="flex items-start gap-2.5">
                 <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex items-center gap-1.5">
+                    {/* Matches the select's h-control so the name line stays level with it. */}
+                    <div className="flex min-h-[28px] items-center gap-1.5">
                         <span className="truncate text-[13px] font-medium">
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
@@ -140,11 +150,22 @@ const ToolRow = memo(function ToolRow({
                         <span
                             ref={setPreview}
                             className={`text-xs text-[var(--ag-colorTextTertiary)] ${
-                                expanded ? "hidden" : "truncate"
+                                expanded
+                                    ? "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
+                                    : "truncate"
                             }`}
                         >
                             {description}
                         </span>
+                    ) : null}
+                    {truncatable ? (
+                        <button
+                            type="button"
+                            onClick={() => setExpanded((value) => !value)}
+                            className="mt-1 w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
+                        >
+                            {expanded ? "Show less" : "Show more"}
+                        </button>
                     ) : null}
                 </div>
                 <PermissionPolicySelect
@@ -156,25 +177,13 @@ const ToolRow = memo(function ToolRow({
                     aria-label={`Permission for ${tool.key}`}
                     triggerClassName={
                         permission === "deny"
-                            ? "w-auto shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
-                            : "w-auto shrink-0"
+                            ? "w-auto min-w-[132px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
+                            : "w-auto min-w-[132px] shrink-0"
                     }
+                    // The panel is pinned to the trigger; a compact chip wraps every option label.
+                    contentClassName="w-auto min-w-[260px]"
                 />
             </div>
-            {expanded && description ? (
-                <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                    {description}
-                </span>
-            ) : null}
-            {truncatable ? (
-                <button
-                    type="button"
-                    onClick={() => setExpanded((value) => !value)}
-                    className="w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
-                >
-                    {expanded ? "Show less" : "Show more"}
-                </button>
-            ) : null}
         </div>
     )
 })
@@ -370,7 +379,8 @@ function DrawerBody({
             : null
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+        // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
+        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4 [scrollbar-gutter:stable]">
             <div className="flex flex-col gap-1.5">
                 <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                     Default permission
@@ -482,7 +492,9 @@ function DrawerTitle({
     const connection = findTargetConnection(connections, target, connectionSlug)
 
     return (
-        <div className="flex items-center gap-2.5">
+        // w-full + min-w-0: the header is a flex-1 title slot that will not shrink on its own, so
+        // without these the status badge is pushed past the drawer's edge.
+        <div className="flex w-full min-w-0 items-center gap-2.5">
             <ProviderLogo logo={integration?.logo ?? null} size={22} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm font-semibold">
@@ -495,7 +507,8 @@ function DrawerTitle({
             </div>
             {/* Shows Pending and Inactive too, which is exactly what an author needs here. */}
             {connection ? (
-                <span className="shrink-0 font-normal">
+                // text-xs: the drawer title is 16px, and every other meta label here is 12px.
+                <span className="shrink-0 text-xs font-normal">
                     <ConnectionStatusBadge connection={connection} />
                 </span>
             ) : null}
@@ -514,7 +527,7 @@ export function IntegrationPermissionDrawer({
             open={open}
             onClose={onClose}
             placement="right"
-            width={480}
+            width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={<DrawerTitle target={body.target} connectionSlug={body.connectionSlug} />}
             styles={{
