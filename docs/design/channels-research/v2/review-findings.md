@@ -2173,6 +2173,1081 @@
   rather than editing `service.py`, which it does not own — the right call. The
   spec is the thing that was stale, not the implementation.
 
+### F69. Two migrations claim revision oss000000021, so the branch cannot migrate any v0.112.1 database
+
+- ID: `F69`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Deployability`
+- Summary: The branch's `add_channels` migration and the release's
+  `add_session_streams_references` both carry revision id `oss000000021` (the
+  collision arrived with the v0.112.1 merge). Alembic stops with "multiple head
+  revisions" and the API never starts. Every fresh deployment of the branch fails
+  before the first request.
+- Evidence: the first bring-up of the CU-C stack; alembic container exit 1 with
+  `Multiple head revisions are present`.
+- Files: `api/oss/databases/postgres/migrations/core_oss/versions/`
+- Suggested Fix: PR #6070 renumbers `add_channels` to `oss000000022`. A dev
+  database that already applied the old id needs its `alembic_version_oss` row
+  bumped by hand.
+
+### F70. The connection create form cannot succeed, and every failure reads "Connection already exists"
+
+- ID: `F70`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `channel_connections.slug` is NOT NULL, the web create form sends no
+  slug, and the service derives none. Every UI create dies on the insert. The
+  IntegrityError fallback in `_connection_conflict` labels every unrecognized
+  database error "Connection already exists" (409, `conflict: null`), which points
+  the operator at a duplicate that does not exist. Each failed attempt also leaks
+  one orphaned CHANNEL_SECRET row, because the credential write commits before the
+  connection insert fails.
+- Evidence: five consecutive 409s on the CU-C stack with verified Slack
+  credentials; postgres log shows `null value in column "slug" ... violates
+  not-null constraint`; five orphaned CHANNEL_SECRET rows in `secrets`.
+- Files: `api/oss/src/core/channels/service.py` (create_connection,
+  `_connection_conflict`), `web/.../Channels/components/ConnectionFormDrawer`
+- Suggested Fix: derive a slug when the caller sends none (hotfix deployed on the
+  CU-C stack: `f"{channel}-{uuid4().hex[:8]}"`). Decide the naming (workspace
+  name?), make the 409 fallback name the real constraint, and clean up or reuse
+  the orphaned secret on retry.
+
+### F71. Slack's URL-verification handshake is not implemented, so no events URL can ever be registered
+
+- ID: `F71`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack registers an events URL only after posting a `url_verification`
+  challenge that the endpoint must echo. Nothing in the tree handles it. The
+  handshake payload carries no workspace identity, so the ingress treats it as an
+  unverifiable event and answers 401. Slack shows "URL isn't verified" forever and
+  delivers nothing, which blocks the whole wave-6 exit condition.
+- Evidence: repeated 401s on `/channels/slack/events/` during setup on the CU-C
+  stack; `grep -r url_verification` finds no handler.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py`
+- Suggested Fix: the CU-C hotfix echoes the challenge before the normal ingest
+  path (shape-strict, unsigned events still 401). Decide whether the echo should
+  attempt signature verification against active Slack connections, and add a test.
+
+### F72. Every top-level channel message died in dispatch on a missing thread_ts
+
+- ID: `F72`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack puts `thread_ts` only on replies inside a thread. The THREAD key
+  declares the field required, so a plain channel mention raised
+  `ChannelLocatorIncomplete` in the dispatch worker. The bot answered inside
+  existing threads and silently ignored everything else.
+- Evidence: worker-queues traceback on the CU-C stack: `Locator for slack is
+  missing declared thread key field: thread_ts`.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py` (parse_event)
+- Suggested Fix: PR #6071. A top-level message roots its thread under its own ts,
+  which is Slack's own model; the reply then threads under the mention.
+
+### F73. Agents registered through the UI reference their workflow under a key nothing resolves
+
+- ID: `F73`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `AgentFormDrawer` writes `references: {main: {id}}`. The workflows
+  service resolves only the workflow/application/evaluator families, so the
+  reference hydrates nothing and every run fails with "Workflow revision has no
+  runnable service URL". The suite never sees it because every fixture writes
+  `workflow_revision` directly. No agent registered through the UI has ever run.
+- Evidence: inbox dispatcher error on the CU-C stack; the roster row carried
+  `{"main": {...}}` with a workflow_variants id.
+- Files: `web/oss/src/components/pages/settings/Channels/components/AgentFormDrawer.tsx`
+- Suggested Fix: the CU-C hotfix writes `workflow_variant`. The real fix is an
+  entity picker that knows which grain it holds, plus a repair pass for rows
+  already written with `main`.
+
+### F74. The first post of any thread went out with an empty locator
+
+- ID: `F74`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `_send`'s no-receipt branch posted with `locator={}` although the
+  thread row holds the full target. The Slack adapter needs `locator["channel"]`,
+  so the first answer on any thread raised KeyError and was never delivered. Same
+  class as F63: a read with no writer, alive because fixtures seed receipts.
+- Evidence: worker-streams traceback `KeyError: 'channel'` on the CU-C stack; the
+  playground showed the answer while Slack showed the indicator forever.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py` (_send)
+- Suggested Fix: PR #6072 passes the thread and uses its locator for the first post.
+
+### F75. A parked turn's approval card does not reach Slack usably
+
+- ID: `F75`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Three stacked defects on the approval surface. (a) When a turn parks
+  on an approval, the card often never posts; the indicator sits on "Working…"
+  until the approval expires (600s) and the run dies. (b) When the card posts, it
+  is bare: `_render_content` handles only `text` and `button` parts and silently
+  drops the `card` part carrying the title, tool, and arguments. (c) The card can
+  land top-level in the channel rather than in its thread. Until this works, any
+  agent whose policy can park is unusable over Slack.
+- Evidence: live session `9ea17f78…` on the CU-C stack expired on
+  `approval-ttl-expire`; a later card rendered as two naked buttons in the
+  channel.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py` (_render_content),
+  `api/oss/src/core/channels/render/render.py`, outbox turn-event flow
+- Suggested Fix: render the card part as a section block; post through the
+  thread locator; make the paused-turn event reach the outbox reliably.
+
+### F76. A consumed approval choice is never cleared, so every click replays as a new run
+
+- ID: `F76`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `resolve` reads `thread.data.pending_choice`, resolves the token, and
+  never clears it. Every further click on the same card resolves again and starts
+  a fresh turn whose input is the label ("Approve"). The operator clicked three
+  times and got three runs; the clicks even entered the transcript as text.
+- Evidence: live CU-C session transcript containing
+  `1421approveapproveapprove`; one outbox item per click.
+- Files: `api/oss/src/core/channels/service.py` (resolve, ~line 1340)
+- Suggested Fix: clear or version the pending choice when a token resolves;
+  ignore a token that was already consumed.
+
+### F77. A failed delivery is dropped, and the answer is lost forever
+
+- ID: `F77`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: When the Slack API rejects a post or edit, `process_batch` logs and
+  drops the stream message. No retry, no dead-letter, no payload capture. One
+  live answer died on an `invalid_blocks` rejection that an identical replay
+  passed two minutes later; that answer is unrecoverable and the message shows
+  "Working…" forever.
+- Evidence: worker-streams error at 19:36:09 on the CU-C stack
+  (turn `bf28fa0d…`); the same chat.update succeeded on manual replay.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py` (process_batch)
+- Suggested Fix: retry with backoff, log the rejected payload verbatim, and
+  park undeliverable items in a visible state instead of CREATED-forever.
+
+### F78. Turn-ended events can be lost around worker restarts
+
+- ID: `F78`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `open`
+- Category: `Robustness`
+- Summary: Two live turns completed their runs, but their turn-ended events were
+  never processed after a worker-streams restart window; the indicators stayed
+  "Working…" and a later restart did not reclaim the pending stream messages.
+  Whether the consumer group ACKs before handling, or the pending list is never
+  reclaimed, needs a look.
+- Evidence: turns at 19:36:24 and 19:43 on the CU-C stack with `end_time` set on
+  the trace but no outbox edit and no error line.
+- Files: `api/oss/src/tasks/asyncio/shared/consumer.py`, channels outbox worker
+- Suggested Fix: verify ACK-after-handle, and reclaim pending entries on start.
+
+### F79. The ingress drops space_kind, so every space lands as `group`
+
+- ID: `F79`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The adapter classifies the space (`classify_space_kind`), and the
+  ingress then omits the field from `ChannelInboxEventCreate`, so `resolve`
+  falls back to GROUP for every space. A public channel stored as `group` means
+  a kind-level grant ("allow in all channels") never matches. Instance grants
+  and the default agent mask it, which is why CU-C testing still worked.
+- Evidence: a public Slack channel's space row with `kind=group` on the CU-C
+  stack.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py` (_ingest)
+- Suggested Fix: pass `inbound.space_kind` through to the event create, plus a
+  seam test.
+
+### F80. Backfill concatenates channel history into one unattributed string
+
+- ID: `F80`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: With backfill on, a new thread's first turn receives the whole
+  channel history as one string with no separators and no speaker attribution.
+  The model read "remember this number 1421approveapproveapprove" as one
+  utterance, and five parked turns each re-answered the same blob, producing a
+  burst of near-identical replies.
+- Evidence: inbox record on the CU-C stack whose text is every prior message
+  joined with no delimiter; the live session transcript.
+- Files: channels compose path (`compose_input`) and the backfill writer
+- Suggested Fix: one content block per message with speaker attribution, or a
+  clearly delimited transcript format.
+
+### F81. First-ever execution of the written suites: four failures, one fixture clash
+
+- ID: `F81`
+- Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Tests`
+- Summary: The 83 written-but-never-run channels tests executed for the first
+  time against the CU-C stack. Integration: 61/65. The failures:
+  `_FakeSlackAdapter` lacks `detect_deactivation`, so two ingress-seam tests 500
+  (the fake drifted from the adapter interface, the project's recurring defect
+  shape); the DM exit-condition test ingests but resolves to None; the
+  app-uninstalled test fails signature verification with 401. Acceptance: green
+  where runnable; three tests stay skipped pending live Slack credentials; the
+  differential test errors when it shares a session with the bridge test but
+  passes alone.
+- Evidence: pytest runs on the CU-C stack, 2026-08-14.
+- Files: `api/oss/tests/pytest/integration/channels/`,
+  `api/oss/tests/pytest/acceptance/channels/`
+- Suggested Fix: triage each; start with the fake-adapter drift, since it hides
+  whatever the two 500ing tests were written to prove.
+
+### F82. The bot answered its own edits, in a self-sustaining paid loop
+
+- ID: `F82`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: Editing the "Working…" indicator into the answer (`chat.update`) comes
+  back as a `message_changed` event. Slack puts the authored message one level
+  down in `event["message"]` and leaves the outer event authorless, so
+  `is_bot_authored` saw no `bot_id` and no matching `user` and the adapter read
+  our own edit as fresh human input. The edit carries a synthetic `ts`, so it
+  rooted a **phantom thread**, minted a fresh session, ran a real turn, posted,
+  edited that post, and came round again. `parse_event` had no `subtype`
+  handling at all — `grep -rn subtype api/oss/src/core/channels/` returned zero
+  hits — so nothing else stopped it either.
+- Evidence: observed four levels deep on the CU-C stack, one paid run every
+  ~14s, each with its own session and thread row. It also explains the stray
+  top-level posts in the earlier manual test. After the hotfix, three human
+  messages produced exactly three events and zero phantoms.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py` (parse_event,
+  `adapter.py:235-276`), `api/oss/src/core/channels/adapters/slack/mapping.py`
+  (`is_bot_authored`, `mapping.py:92-99`)
+- Suggested Fix: PR #6079. `parse_event` drops `message_changed` and
+  `message_deleted` outright — no path processes an edit, so admitting one can
+  only re-run an answered turn — and `is_bot_authored` reads the nested
+  message's author too. If edit-following is ever wanted it needs a deliberate
+  design (update the existing turn, never open a new one).
+
+### F83. The trigger policy is computed and never read, so every message runs a paid turn
+
+- ID: `F83`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `resolve_policy` computes a trigger set (`utils.py:153-165`, returned
+  at `utils.py:193`) and **no caller ever reads it** — `policy.triggers` and
+  `policy.backfill` have zero readers anywhere in `api/oss/src`; only
+  `policy.forwardfill` is consulted (`service.py:1452`). `_addressed_agent`
+  falls through to the connection's default agent unconditionally
+  (`service.py:1422-1425`), and the dispatcher cannot consult `event.addressed`
+  even in principle: the adapters set it (`adapter.py:276`), but
+  `ChannelInboxEventCreate` and `ChannelInboxEventData` have no such field and
+  the ingress drops it (`ingress.py:245-254`). Any channel chatter runs the
+  agent and costs a run.
+- Evidence: four out of four unaddressed messages on the CU-C stack ran a full
+  turn and answered. Confirmed independently on the agenta bench channel, with
+  no Slack in the path, so this is core and not adapter-specific.
+- Files: `api/oss/src/core/channels/utils.py:153-198`,
+  `api/oss/src/core/channels/service.py:1388-1425`,
+  `api/oss/src/core/channels/dtos.py:785` (`addressed`, never persisted),
+  `api/oss/src/apis/fastapi/channels/ingress.py:245-254`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py:284-347`
+- Suggested Fix: decide where triggers gate — the design question is whether an
+  unaddressed message is refused at ingress (cheapest, no row) or at dispatch
+  (auditable). Either way `addressed` has to survive persistence first.
+  Pairs with F94, which is the same gap admitting system messages.
+
+### F84. Forwardfill is keyed per thread on one side and per space on the other: flood or amnesia, nothing between
+
+- ID: `F84`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `select_forwardfill_range` takes its offset from
+  `fetch_latest_trigger(thread_id=…)` (`fill.py:130-133`) and then reads the
+  range with `query_events_since(space_id=…)` (`fill.py:135-138`). A new thread
+  has no trigger row, so the offset is None and the range opens *from the
+  beginning of the whole space* — every fresh session is fed the entire channel
+  history. On a DM this made the bot obey the OLDEST instruction in the glued
+  history. Turning the lever off is not a workaround: with `forwardfill=false`
+  a threaded follow-up composes only its own message and the agent has no
+  memory of the thread at all. The two settings are flood and amnesia; neither
+  is a usable conversation.
+- Evidence: both directions verified live on the CU-C stack. Flood: a DM
+  session that answered against a much earlier instruction. Amnesia: a wave-2
+  threaded follow-up with `forwardfill=false` where the agent had no knowledge
+  of its own previous message in the same thread.
+- Files: `api/oss/src/core/channels/fill.py:115-139`,
+  `api/oss/src/core/channels/service.py:1445-1450` (`compose_input`)
+- Suggested Fix: make offset and range agree — both per thread. This is
+  required for a usable threaded conversation, not a cleanup. Distinct from
+  F80, which is about the *shape* of filled history (no attribution, no
+  delimiters); fixing one leaves the other. See also F104 on attribution and
+  F30 on the duplicated range helper.
+
+### F85. A turn-ended event can outrun the record it describes, and the empty fold took delivery down with it
+
+- ID: `F85`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Robustness`
+- Summary: Root cause of the intermittent `invalid_blocks` rejections in F77.
+  The turn-ended event reaches the outbox worker before the agent's final
+  record commits (~150ms measured), `on_turn_ended` reads no records for the
+  turn and folds to an empty answer, and `_render_content` then emitted a
+  section block with empty `mrkdwn` text — the guard was `if texts:`, and a
+  list holding one empty string is truthy. Slack rejects the whole payload, the
+  edit never lands, and the indicator sits on "Working…" forever. Intermittent
+  by timing, not by content: the same answer replayed two minutes later passed.
+- Evidence: the two rejections seen in wave 2 were both pre-fix and zero
+  occurred after; a forced-empty fold reproduced the rejection on demand; the
+  agenta bench control saw three empty deliveries before the fix and none
+  after, with no Slack in the path.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py` (`on_turn_ended`,
+  `outbox.py:136-165`), `api/oss/src/core/channels/adapters/slack/adapter.py`
+  (`_render_content`, `adapter.py:560-590`),
+  `api/oss/src/core/channels/render/render.py:41-43, 124-137`
+- Suggested Fix: PR #6079 closes the four surfaces — bounded re-read of the
+  records, no empty section block, a still-empty fold leaves the indicator
+  un-edited and logs loudly, and a blocks rejection retries text-only with the
+  payload logged. **The ordering guarantee is still open**: a turn-ended event
+  that can precede the record it describes is a seam, and a re-read is a
+  timeout, not a barrier.
+
+### F86. DECISION: one durable agent folder spans every space and every user
+
+- ID: `F86`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open (decision required — not a defect)`
+- Category: `Design`
+- Summary: The agent mount is keyed by artifact and name with `session_id`
+  NULL (`mounts/service.py:536-556`, slug at `service.py:119-127`), so there is
+  one folder per agent for the whole project, and the runner's system prompt
+  tells the agent in plain words that the folder "persists across all of your
+  sessions" and to write remembered facts there
+  (`agent-mount-guidance.ts:43`). Nothing misbehaves. But a fact a user tells
+  the bot privately in a DM lands in a folder the same agent reads in a public
+  channel, for every user, indefinitely. The design meets a context it was not
+  written for: channels put many principals behind one agent identity.
+- Evidence: demonstrated live across spaces on the CU-C stack — a file written
+  by a DM session at 09:59 was read by a fresh public-channel session at 10:03,
+  because the agent autonomously reaches for its remembered-facts files when
+  asked a vague question. Per-session cwd mounts
+  (`mounts/service.py:474-505`) do isolate correctly; the convergence is the
+  artifact-keyed agent drive alone, which also reconciles F90 — session ids
+  that genuinely differ do get separate working directories.
+- Files: `api/oss/src/core/mounts/service.py:65, 119-127, 474-505, 536-556`,
+  `services/runner/src/engines/sandbox_agent/agent-mount-guidance.ts:40-58`
+- Suggested Fix: no fix will ship from QA. This is an explicit product decision
+  before real workspaces: scope the durable folder per space, per user, or keep
+  it global and document it loudly at connection time. The Context Folders PRD
+  is where the scoping question belongs.
+
+### F87. Nothing ever writes a delivery failure, though the states exist
+
+- ID: `F87`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: `ChannelDeliveryState` already declares `FAILED` and `ABANDONED`
+  (`dtos.py:82-89`), and the outbox row already carries a `status` column
+  through `StatusDBA` (`dbas.py:164`, `dtos.py:731`) that the DAO write accepts
+  (`dao.py:1661-1669`). **No code path writes any of them.** The only
+  transition ever made is to `SENT` (`outbox.py:244-247`, the single
+  `transition_outbox_event` call, which passes no status), so a delivery that
+  fails raises out of `_send` and leaves the row in `CREATED` — indistinguishable
+  from "not yet attempted", with `updated_at` never moving. A rejected Slack
+  edit leaves the row `SENT` with stale content instead. Nothing monitoring
+  deliveries can see one die.
+- Evidence: confirmed on two channels. On Slack, a rejected edit left a SENT
+  row whose content never matched what the user saw. On the bridge, a failed
+  delivery left a CREATED row with `updated_at` NULL, identical to a row the
+  worker had not reached yet — the bridge author's finding (6), and the reason
+  a failure is invisible from outside.
+- Files: `api/oss/src/core/channels/dtos.py:82-89, 731, 742`,
+  `api/oss/src/tasks/asyncio/channels/outbox.py:121, 200-252`,
+  `api/oss/src/dbs/postgres/channels/dao.py:1646, 1661-1674`
+- Suggested Fix: write the states that already exist — `FAILED` with the error
+  text on a rejection, `ABANDONED` when retries are exhausted. This is the
+  observability half of F77 (which asks for the retry); the two want doing
+  together, and F107 depends on this one, because the idempotency key derives
+  from `updated_at` and so never changes while a row is stuck in CREATED.
+
+### F88. In a DM, the reply threads under the user's message and disappears from the conversation
+
+- ID: `F88`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Every reply posts with the inbound message's `thread_ts`
+  (`adapter.py:297`). In a channel that is right. In a DM it puts the answer in
+  a thread the user has to open, so the DM view looks unanswered. This cost us
+  most of a wave: the exit-condition DM was recorded as silent when it had in
+  fact been answered every time.
+- Evidence: the DM wave's initial "no reply" diagnosis on the CU-C stack,
+  overturned by finding the answers inside per-message threads.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:291-303`
+- Suggested Fix: post flat in a DM (`space_kind` already distinguishes it), and
+  keep threading for channels. Worth deciding alongside F96, since both turn on
+  what a space's identity means.
+
+### F89. Markdown is delivered to Slack raw
+
+- ID: `F89`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The agent writes `**bold**` and Slack shows literal asterisks.
+  Nothing converts markdown to Slack's mrkdwn dialect: the Slack capability
+  declares `"format": "markdown"` (`capabilities.py:22`) and `RenderPart.format`
+  carries it through (`render/dtos.py:17`, set at `render/render.py:132`), but
+  `_render_content` never inspects it — the only two `mrkdwn` mentions in
+  `api/oss/src` are raw block emissions.
+- Evidence: every formatted answer delivered during the QA session; asterisks,
+  backticks and heading markers all arrive as text.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:560-590`,
+  `api/oss/src/core/channels/adapters/slack/capabilities.py:22`
+- Suggested Fix: a pure markdown→mrkdwn helper in
+  `adapters/slack/mapping.py` beside `format_attribution`, applied in
+  `_render_content` when the part declares markdown. Note the mirror-image
+  finding on the bridge, F108: there a `plain` declaration is ignored in the
+  other direction.
+
+### F90. `!new` does not start a new session
+
+- ID: `F90`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `dispatch_new` closes the current thread row (`commands.py:120-138`)
+  and nothing else. The session id is derived deterministically from the space
+  and thread locator (`service.py:1373`, `session_id=str(thread_key or
+  space.external_key)`), so the "new" thread composes the SAME id: conversation
+  memory and the working directory both survive. The reset command resets
+  nothing a user would notice.
+- Evidence: verified on the CU-C stack with fills off, so history could not be
+  the explanation — after `!new` the agent recalled a planted token from before
+  the reset and read a file the "previous" session had written.
+- Files: `api/oss/src/core/channels/commands.py:28, 59-96, 120-138, 195-260`,
+  `api/oss/src/core/channels/service.py:1312-1328, 1366-1378`,
+  `api/oss/src/core/channels/utils.py:32-66`
+- Suggested Fix: `!new` has to mint an identity of its own — a nonce or
+  generation counter in the thread key — so the derived session id actually
+  differs. Note this is also the clean half of F86: session-keyed mounts do
+  isolate; they were never given distinct sessions to isolate.
+
+### F91. A policy-only agent edit silently clears the default flag, and the connection goes mute
+
+- ID: `F91`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `ChannelAgentEdit.flags` has a `default_factory`
+  (`dtos.py:504-506`), so an edit that omits flags means "reset", not
+  "unchanged" — and `is_default` defaults to False (`dtos.py:268`). The
+  mapping writes it unconditionally (`mappings.py:205`, `data` likewise at
+  `mappings.py:204`). Change a policy and the agent stops being the default;
+  the connection is then left with no default at all and every unaddressed
+  message — including `!new` — is silently discarded.
+- Evidence: reproduced on the CU-C stack; the channel went quiet after a
+  policy-only edit and the roster showed no default agent.
+- Files: `api/oss/src/core/channels/dtos.py:265-268, 504-506`,
+  `api/oss/src/core/channels/service.py:719-732`,
+  `api/oss/src/dbs/postgres/channels/mappings.py:204-205`,
+  `api/oss/src/apis/fastapi/channels/router.py:957-985`
+- Suggested Fix: make omitted fields mean unchanged — `Optional[...] = None`
+  on the edit model, and write only what the caller sent. Same defect family
+  as F98 on connections, and worth one fix pass across every channels edit
+  model rather than two.
+
+### F92. A second message mid-turn kills the running turn, and both can die
+
+- ID: `F92`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: Two quick messages in one thread and one aborts the other with
+  "This operation was aborted". The loser is lost with no user feedback, and
+  which one dies is nondeterministic. The overlap guard never engages: it
+  retries only `TurnRefused` (`inbox.py:417`), which is raised by matching an
+  exception's **class name string** — `if type(e).__name__ ==
+  "SessionTurnInUse"` (`inbox.py:510-511`) — and the abort arrives as a
+  different exception entirely. The channels path invokes through
+  `invoke_workflow_detached` (`inbox.py:503`), so the original 409 has to
+  survive an HTTP boundary for that name match to hold at all.
+- Evidence: verified twice on the CU-C stack, including on a stable stack with
+  no restart in the window. Wave 5 saw the worse shape on Slack: BOTH messages
+  died, where the agenta bench had lost only one.
+- Files: `api/oss/src/tasks/asyncio/channels/inbox.py:55-69, 389-459, 503-511`,
+  `api/oss/src/core/sessions/streams/service.py:258, 938`
+- Suggested Fix: match on a typed exception across the boundary rather than a
+  class name, and decide the product behaviour — queue the second message
+  behind the first, or refuse it visibly. Silent loss is the one option that
+  should be off the table.
+
+### F93. Any non-object JSON body reaches an AttributeError before authentication
+
+- ID: `F93`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: The ingress calls `adapter.connection_locator(...)`
+  (`ingress.py:199-203`) **before** `verify_signature` (`ingress.py:216`), and
+  the agenta adapter's locator does `payload.get("project")` on whatever
+  `json.loads` returned (`agenta/adapter.py:74-75`, `_parse_json` at
+  `adapter.py:198-202`). A body of `[]`, `5`, `"x"` or `true` is valid JSON and
+  not a dict, so it raises `AttributeError` and the route answers 500 with no
+  credential required. Systemic, not adapter-specific: the Slack route has the
+  same shape at `slack/adapter.py:198` via `_parse_slack_payload`
+  (`adapter.py:459-477`).
+- Evidence: unauthenticated 500 on `POST /channels/agenta/events/` on the CU-C
+  stack with a bare JSON array as the body.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py:101-118, 199-216`,
+  `api/oss/src/core/channels/adapters/agenta/adapter.py:74-75, 198-202`,
+  `api/oss/src/core/channels/adapters/slack/adapter.py:198, 459-477`
+- Suggested Fix: a shape guard in each `_parse_*` — a non-dict payload is a
+  400, decided once, before any adapter touches it.
+
+### F94. Inviting the bot to a channel runs an unprompted paid turn
+
+- ID: `F94`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack delivers `channel_join` as an ordinary `message` event with a
+  real `user` and no `bot_id`, and `parse_event` filters only `block_actions`,
+  non-`event_callback` payloads, and bot authorship. So the join resolves to
+  the default agent and runs a turn: on the CU-C stack the bot posted an
+  unsolicited "Welcome to the channel!" the moment it was invited. Same root as
+  F83 — nothing decides what counts as a trigger, and system messages are not
+  even considered.
+- Evidence: the invite on the CU-C stack, with the reply visible in the
+  channel and a paid run behind it.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:235-276`,
+  `api/oss/src/core/channels/adapters/slack/manifest.py:36-39`
+- Suggested Fix: fixes with F83. Whatever gates triggers must exclude system
+  subtypes; the subtype drop landed in F82 handles only edits and deletions.
+
+### F95. A grant row with NULL data crashes the dispatcher, and every refusal looks the same
+
+- ID: `F95`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The grant's `data` column is nullable
+  (`shared/dbas.py:217-220` via `dbas.py:84`) and the DTO requires an object
+  (`dtos.py:577, 597`), and the mapping validates it unguarded —
+  `data=ChannelGrantData.model_validate(grant_dbe.data)` at `mappings.py:335`,
+  one line above a `flags` read that *does* guard with `or {}`. A single NULL
+  row makes `query_matching_grants` raise inside `resolve`, so every matching
+  event dies. The dispatcher has no `try/except` on that path; the error
+  escapes into the taskiq task, which retries five times and drops the message.
+  From outside it is indistinguishable from a working DENY. The broader gap:
+  refusals of every kind — deactivated, denied, crashed — leave no status and
+  no reason anywhere, so all drops look identical.
+- Evidence: a hand-written grant row on the CU-C stack with NULL data silenced
+  the channel; the agent looked deactivated. Found only by reading the worker
+  traceback.
+- Files: `api/oss/src/dbs/postgres/channels/mappings.py:335-336`,
+  `api/oss/src/core/channels/dtos.py:339-340, 577, 597`,
+  `api/oss/src/dbs/postgres/channels/dbas.py:84`,
+  `api/oss/src/core/channels/service.py:1273-1293`,
+  `api/oss/src/tasks/taskiq/channels/inbox_worker.py:37-66`
+- Suggested Fix: two independent fixes. Close the schema/DTO mismatch (default
+  the data, or make the column NOT NULL with a backfill). Separately, give
+  refusals a recorded reason — a dropped event with no reason is the shape that
+  made this cost an afternoon.
+
+### F96. A space's stored locator carries whichever thread happened to create it
+
+- ID: `F96`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `get_or_create_space` stores the inbound event's locator verbatim —
+  `data=ChannelSpaceData(external_locator=event.data.external_locator)`
+  (`service.py:1245`) — and a Slack locator always carries `thread_ts`
+  (`mapping.py:38-47`). The SPACE *key* is correctly narrowed to `team` and
+  `channel` by `compose_external_key` (`service.py:1226-1230`,
+  `utils.py:49-64`), so nothing is misrouted today, but the row that represents
+  an entire channel holds one arbitrary thread's timestamp. Anything that later
+  posts "to the space" from that locator will post into that thread.
+- Evidence: every space row created during the QA session on the CU-C stack
+  carries a `thread_ts`.
+- Files: `api/oss/src/core/channels/service.py:1226-1247`,
+  `api/oss/src/core/channels/adapters/slack/capabilities.py:36-38`,
+  `api/oss/src/core/channels/adapters/slack/mapping.py:38-47`
+- Suggested Fix: narrow the persisted locator to the grain's declared fields —
+  the declaration in `capabilities.py:37` already says which those are — the
+  same way the key is narrowed.
+
+### F97. No bridge can get past its first event: the registration handshake has no route
+
+- ID: `F97`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `parse_hello` (`bridge/hello.py:25-41`) has **zero callers** in
+  `api/oss/src`, and no `/bridge/hello` route exists — the ingress mounts only
+  `POST /bridge/events/` (`ingress.py:92-99`). So contract §4 never runs, no
+  capability declaration is ever acquired, the adapter degrades to
+  `_DEFAULT_CAPABILITIES` (`bridge/adapter.py:39-42, 85-101`), the SPACE key
+  composes to None, and every inbound bridge event dies as a raw pydantic
+  crash — while the bridge receives a 202 saying all is well. A bridge author
+  following the contract exactly cannot get one event through.
+- Evidence: reproduced end to end in wave 6 on the CU-C stack. With
+  capabilities hand-injected onto `connection.data`, everything downstream
+  works: full delivery round-tripped twice, receipts and idempotency keys
+  included, and wave 7 then drove a real Telegram bridge to a live answer.
+- Files: `api/oss/src/core/channels/adapters/bridge/hello.py:13-41`,
+  `api/oss/src/apis/fastapi/channels/ingress.py:92-127`,
+  `api/oss/src/core/channels/adapters/bridge/adapter.py:39-42, 85-101`
+- Suggested Fix: mount the hello route and call `parse_hello` from it; persist
+  the declared capabilities on the connection.
+- Notes: **correction to F63.** F63 states that nothing writes `delivery_url`
+  and therefore every bridge reply fails. That premise is factually wrong — the
+  create path writes it, and delivery round-trips cleanly once capabilities
+  exist. The only missing piece on this path is the hello route. F63 should be
+  rewritten rather than closed, since its wider point about
+  fixtures-that-bypass-the-write-path still stands. See also F105 for the
+  second half of the §4 problem: the example in the contract is itself wrong.
+
+### F98. The connection edit route destroys connections, and a plain rename bricks one permanently
+
+- ID: `F98`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `edit_connection` stores the caller's `data` verbatim —
+  `connection_dbe.data = connection.data` (`mappings.py:131`) — and
+  `ChannelConnectionEdit.data` is `Optional[Dict] = None` (`dtos.py:468`). So an
+  edit that *includes* data wipes whatever it omits (the nested identity goes,
+  and signed ingress 401s afterwards), and an edit that omits data entirely —
+  a rename — nulls the whole blob: `connection_locator`,
+  `credential_secret_id`, `capabilities`, `team_id`, `signing_secret`,
+  `delivery_url`. The credential reference is not derivable from anything else,
+  so **a rename permanently bricks the connection**. `credential_secret_id`
+  survives only on the credentials-rotation branch (`service.py:461-470`).
+  `flags` has the same defect at `dtos.py:472` / `mappings.py:132`.
+- Evidence: reproduced on the CU-C stack against an untouched control
+  connection, which kept working while the renamed one could not be recovered.
+- Files: `api/oss/src/core/channels/service.py:418-482`,
+  `api/oss/src/dbs/postgres/channels/mappings.py:131-132`,
+  `api/oss/src/core/channels/dtos.py:468-472`,
+  `api/oss/src/apis/fastapi/channels/router.py:752-784`
+- Suggested Fix: omitted means unchanged, and merge rather than replace for
+  `data`. Same family as F91; fix both edit models in one pass. Worth a test
+  that renames a connection and then asserts it still ingests a signed event —
+  the defect is invisible to any test that only reads back the row it wrote.
+
+### F99. Long answers are torn mid-word, and the splitter meant to prevent it is dead code
+
+- ID: `F99`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The render layer slices text at a bare 3,000 characters with no
+  boundary awareness (`render.py:119-144`, `max_chars` from
+  `capabilities.py:22`), so a chunk ends "…chunking " and the next starts
+  "test." — and a code fence or table split that way arrives corrupted. The
+  adapter's own `split_for_max_chars` (`mapping.py:106-117`, `MAX_CHARS = 4000`)
+  is unreachable: every part reaching `post_message` has already been cut to
+  ≤3,000, so its length check always holds and its loop body never runs. Blocks
+  also ride every chunk.
+- Evidence: wave 5 on the CU-C stack — byte-exact parity across three chunks,
+  with two visible mid-word tears.
+- Files: `api/oss/src/core/channels/render/render.py:119-144`,
+  `api/oss/src/core/channels/adapters/slack/mapping.py:11, 106-117`,
+  `api/oss/src/core/channels/adapters/slack/adapter.py:291`
+- Suggested Fix: split on line, then word, boundaries at the render layer, and
+  either delete the adapter's splitter or make it the only one. Two splitters
+  at two limits, one of them unreachable, is how the boundary-aware one came to
+  be the dead one.
+
+### F100. Permission mode `ask` silently no-ops on channels: the write executed ungated
+
+- ID: `F100`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `open`
+- Category: `Security`
+- Summary: A channel turn passes **no permission mode at all** — the request
+  built at `inbox.py:492-500` carries references, session id and inputs, and
+  nothing else; `grep -rn permission` over the channels tree returns nothing.
+  An agent configured with `ask` performed a write with no park, no interaction
+  row, and no card. The operator believes writes are gated and they are not.
+- Evidence: verified live on the CU-C stack with a control — a marker
+  instruction edited into the same statement proved the revision was read
+  fresh, so the ungated write was the current configuration's behaviour and not
+  a stale revision. Worth reconciling: on 2026-08-14 a channel run under
+  `allow_reads` DID park at the runner, so the no-op is specific to `ask` or to
+  this path, and the difference is not yet explained.
+- Files: `api/oss/src/tasks/asyncio/channels/inbox.py:492-500`,
+  `sdks/python/agenta/sdk/agents/wire_models.py:330`,
+  `sdks/python/agenta/sdk/agents/tools/models.py:25-26, 50-61`
+- Suggested Fix: pass the agent's permission configuration on the channels
+  invoke path, and add a seam test that asserts the mode reaches the runner
+  request. Then F101 — because a mode that parks is only useful if a channel
+  can answer the park.
+
+### F101. Approvals cannot work under per-message session scope, and answering one summons the wrong agent
+
+- ID: `F101`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Two defects that together make the approval surface unusable.
+  (a) Under `session_scope: message`, `resolve` sets `thread = None` and
+  performs no lookup (`service.py:1312-1328`), so the pending-choice read at
+  `service.py:1334-1338` is always None by construction and a click can never
+  match — while the outbox still *writes* a pending choice on every rendered
+  card (`outbox.py:175-188`), and any ACTION event is discarded outright at
+  `service.py:1344-1350`. (b) The thread lookup keys on agent id
+  (`service.py:1323-1328`), so a user who replies "Approve" in another agent's
+  thread is routed to the DEFAULT agent on a brand-new thread — which duly
+  answered with nonsense. Separately, `resolve_pending_choice` only feeds the
+  label back as ordinary text (`service.py:1461`); it never answers the
+  interaction row, so a genuine park would stay parked.
+- Evidence: wave 5 on the CU-C stack. No human click was ever needed because
+  nothing ever parked (F100); the "Approve" reply that did happen went to the
+  wrong agent and produced an unrelated answer. On the bridge the same shape
+  strands a chat on "Working" with no way out — the bridge author's finding
+  (5) is this defect seen from outside.
+- Files: `api/oss/src/core/channels/service.py:1312-1362, 1461, 1613-1645`,
+  `api/oss/src/tasks/asyncio/channels/outbox.py:175-188`,
+  `api/oss/src/core/channels/dtos.py:55-61, 367`
+- Suggested Fix: a design seam, not a patch. An approval belongs to the turn
+  that parked, so its resolution has to be addressable independently of the
+  session scope — and a reply that resolves a choice must route to the agent
+  that asked. Pairs with F75 and F76, which are the same surface's earlier
+  defects.
+
+### F102. Fixing F79 is a breaking change: today's grants go silent
+
+- ID: `F102`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Deployability`
+- Summary: Every space recorded so far landed as `group` (F79). Existing grants
+  were written against that mis-recorded kind. The moment the ingress passes
+  `space_kind` through and public channels start registering as `topic`, every
+  kind-level grant written against `group` stops matching and the granted
+  agents go silent everywhere — no error, no log, exactly the shape of a
+  working DENY (see F95).
+- Evidence: wave 3/4 on the CU-C stack pinned the F79 mechanism exactly — the
+  adapter classifies correctly and the persisted event data simply has no
+  `space_kind` key — which is what makes the corollary certain rather than
+  suspected.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py` (_ingest),
+  `api/oss/src/core/channels/service.py` (resolve)
+- Suggested Fix: ship the F79 fix together with a migration that rewrites
+  existing `group` grants to the kind their space will now classify as. A
+  data migration and a code fix that must land in the same release.
+
+### F103. Channel sessions are unclassified and named from raw message text
+
+- ID: `F103`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: A channel thread becomes a real session row, but nothing marks it as
+  one. `SessionOrigin` has only `manual` and `trigger`
+  (`sessions/types.py:49-51`); automation stamps itself with attribution tags
+  (`streams/mappings.py:56-64`) and channels stamp nothing, so the decode
+  default (`mappings.py:94-98`) classifies every Slack session as `manual` —
+  indistinguishable from a human playground session, with no record of which
+  channel or space it came from. Naming is worse: the channels path invokes
+  `invoke_workflow_detached` directly (`inbox.py:503-508`) and never reaches
+  `derive_session_name` (`streams/service.py:121-136`), so names fall back to
+  the raw first message, mention markup and sigils included.
+- Evidence: the sessions list on the CU-C stack after the QA session, holding
+  one session literally named `Approve *Sent using* Claude`, with nothing
+  distinguishing any of them from playground work. Raised by Mahmoud.
+- Files: `api/oss/src/core/sessions/types.py:49-51`,
+  `api/oss/src/dbs/postgres/sessions/streams/mappings.py:36-98`,
+  `api/oss/src/core/sessions/streams/service.py:88-136`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py:503-508`
+- Suggested Fix: reuse the tagging structure automation already uses — origin
+  `channel` plus channel and space references — and derive the name from
+  sigil-stripped text. Cheap, and it happens at dispatch time where both
+  facts are already in hand.
+
+### F104. The sender is captured on every event and dropped at composition
+
+- ID: `F104`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: The agent never learns who is speaking, and nothing structural
+  prevents it. `ChannelInboxEventProcessed.sender` holds the platform user id
+  (`dtos.py:394-403`), every adapter populates it, and it persists — its only
+  consumer picks an Agenta user id (`inbox.py:143`). `compose_input` then
+  concatenates every event's content into one undifferentiated user message
+  (`service.py:1456-1463`, final shape at `inbox.py:496-498`). A helper for
+  exactly this exists with zero callers: `format_attribution`
+  (`mapping.py:100-103`). The design's "no sender field" posture is about the
+  wire protocol; it says nothing about attribution at compose time.
+- Evidence: proven on Telegram in wave 7 — a real human's message reached the
+  agent with the sender id recorded on the event row and absent from everything
+  the model saw.
+- Files: `api/oss/src/core/channels/dtos.py:394-403`,
+  `api/oss/src/core/channels/service.py:1427-1468`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py:128-178, 496-498`,
+  `api/oss/src/core/channels/adapters/slack/mapping.py:100-103`
+- Suggested Fix: render attribution per message block at compose time — the
+  same place the fill composes history — and give adapters a capability to
+  resolve display names (Slack: `users.info` with a cache; bridges: a sender
+  field the bridge may fill). No schema change is needed for the id, and one
+  lookup path covers names. Do it with F84's composition work, and it also
+  answers F80's attribution half.
+
+### F105. The contract's own §4 example configures one session per message
+
+- ID: `F105`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: A bridge author who copies the capability declaration from
+  `contract.md:47-71` gets `session_scope: message`, and therefore a brand-new
+  session for every inbound message: no memory, no follow-ups, and — per F101 —
+  no possibility of ever answering an approval. The doc presents it as the
+  worked example, with no note that it is the narrowest option and no
+  statement of what the alternative buys. The permitted vocabulary is not in
+  the document at all; it lives in `dtos.py:55-57`.
+- Evidence: wave 6 on the CU-C stack, building a bridge from the contract
+  alone — amnesia on every second message, traced back to the copied example.
+- Files: `docs/design/channels-research/v2/contract.md:42-76`,
+  `api/oss/src/core/channels/dtos.py:55-61`
+- Suggested Fix: make the example `thread`, and state the scopes and their
+  consequences in prose beside it. An example is the part that gets copied, so
+  it should be the recommended configuration rather than the minimal one.
+
+### F106. The delivery failure report's shape is learnable only from our source
+
+- ID: `F106`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: A bridge reports a failed delivery by answering **HTTP 200 with a
+  top-level `"error"` string** — `raise_for_status()` runs first
+  (`bridge/adapter.py:241`) and only then is the body inspected
+  (`receipt.py:24-36`), so an error on a 5xx never reaches the check and is
+  read as a network fault instead. None of that is documented: the contract's
+  only word on failure is prose at `contract.md:267-269` ("the bridge must…
+  report it") with no status code, no field name, and no shape. The only way to
+  learn it is to read our source.
+- Evidence: wave 6 on the CU-C stack — the bridge author's finding (3),
+  discovered by reading `receipt.py` after a reported failure was silently
+  treated as success.
+- Files: `docs/design/channels-research/v2/contract.md:267-269`,
+  `api/oss/src/core/channels/adapters/bridge/receipt.py:24-36`,
+  `api/oss/src/core/channels/adapters/bridge/adapter.py:241`
+- Suggested Fix: document the failure envelope in the contract with an example,
+  and accept the same envelope on a 4xx/5xx as well — a bridge that reports a
+  failure the honest HTTP way should not have its report discarded.
+
+### F107. An idempotency key is reused across semantically different content after a failed delivery
+
+- ID: `F107`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `compose_idempotency_key` keys off `updated_at`
+  (`utils.py:79-96`), and `updated_at` moves only on a SENT transition
+  (`dao.py:1673-1674`, whose sole caller passes SENT — see F87). So while a row
+  is stuck in CREATED, the "Working…" indicator and the real answer that
+  replaces it are sent under the **same** key. The contract instructs bridges to
+  deduplicate on it (`contract.md:213-219, 247-253`). A spec-compliant bridge
+  therefore drops the answer permanently and leaves the user looking at
+  "Working…" — the more correct the bridge, the worse the outcome.
+- Evidence: wave 6 on the CU-C stack — the bridge author's finding (4), traced
+  from a deduplicating bridge that never showed an answer after a first
+  delivery failed.
+- Files: `api/oss/src/core/channels/utils.py:79-96`,
+  `api/oss/src/tasks/asyncio/channels/outbox.py:211-213`,
+  `api/oss/src/dbs/postgres/channels/dao.py:1673-1674`,
+  `docs/design/channels-research/v2/contract.md:213-230`
+- Suggested Fix: derive the key from the content, or from an attempt counter
+  that advances on every send — not from a timestamp that only a success
+  advances. Blocked in practice on F87: as long as a failure writes nothing,
+  nothing about the row changes between attempts.
+
+### F108. A declared `text.format: plain` is not enforced on what we deliver
+
+- ID: `F108`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: A bridge declaring `"text": {"format": "plain"}` — the shape shown
+  in the contract's own example (`contract.md:61`) — still receives the model's
+  markdown verbatim, asterisks and all. The declaration is carried
+  (`render/dtos.py:17`) and never acted on. The bridge's only options are to
+  render markdown it said it could not, or to strip it itself.
+- Evidence: wave 6 on the CU-C stack — the bridge author's finding (7);
+  markdown asterisks delivered to a bridge that declared plain.
+- Files: `api/oss/src/core/channels/render/dtos.py:17`,
+  `api/oss/src/core/channels/render/render.py:119-137`,
+  `api/oss/src/core/channels/dtos.py:168`
+- Suggested Fix: honour the declared format at the render layer — strip to
+  plain when plain is declared. The mirror image of F89, where Slack declares
+  markdown and gets no conversion; one format-aware render step answers both.
+
+### F109. Delivery is synchronous with an undocumented ~10s deadline, and only timeouts are retried
+
+- ID: `F109`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: Bridge delivery blocks on the bridge's HTTP response with a 10-second
+  timeout (`_DELIVER_TIMEOUT_SECONDS = 10.0`, `bridge/adapter.py:33`, applied at
+  `adapter.py:240`). The contract never mentions a timeout or deadline — `grep
+  -ci timeout contract.md` is 0 — and offers no receipt-later option, so a
+  bridge whose platform is slow has no compliant way to acknowledge now and
+  deliver shortly. Worse, the retry semantics differ by failure kind with no
+  rule behind the difference: a timed-out delivery is redelivered later, while
+  every other failure is dropped and never retried (F77).
+- Evidence: observed live on Telegram in wave 7 — a delivery that exceeded the
+  deadline was redelivered after the answer had already arrived, producing a
+  duplicate, out-of-order "Working…" message below the answer the user was
+  reading.
+- Files: `api/oss/src/core/channels/adapters/bridge/adapter.py:33, 227-241`,
+  `docs/design/channels-research/v2/contract.md`
+- Suggested Fix: document the deadline, and give the contract an
+  acknowledge-now/deliver-soon shape so a slow platform is not a failure. Then
+  make retry a property of the delivery, not of which exception happened to be
+  raised — with F87 and F77.
+
+### F110. The generated Slack manifest asks for DM events it cannot receive
+
+- ID: `F110`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Deployability`
+- Summary: `build_slack_manifest` subscribes to `message.im` and requests the
+  DM scopes (`manifest.py:35-41`) but never enables App Home messaging —
+  `app_home` / `messages_tab_enabled` appear nowhere in the repository. Every
+  app created from our manifest therefore has a read-only DM: the user cannot
+  type to the bot at all until an operator finds the toggle in the Slack UI by
+  hand. Nothing in the setup document mentions it.
+- Evidence: the wave-6 exit-condition DM was unreachable on the CU-C stack
+  until Mahmoud enabled the Messages tab manually.
+- Files: `api/oss/src/core/channels/adapters/slack/manifest.py:25-50`
+- Suggested Fix: add `features.app_home.messages_tab_enabled` (with
+  `home_tab_enabled` decided alongside) to the generated manifest — two lines,
+  and it removes a manual step no operator can be expected to guess.
+
+### F111. A refused backfill is re-attempted and double-logged on every single dispatch
+
+- ID: `F111`
+- Origin: `wave-6 CU-C (live QA, 2026-08-17)`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `open`
+- Category: `Robustness`
+- Summary: The backfill attempt is guarded by the space's `is_backfilled` flag
+  and the static capability declaration, but **not** by the effective backfill
+  policy — `resolution.policy.backfill` has no reader anywhere (the same gap as
+  F83's triggers). `is_backfilled` is only set on success (`fill.py:107-110`),
+  so in a channel where the bot lacks `channels:history` every message
+  re-attempts the Slack call, fails, and logs the refusal twice: once in
+  `fill.py:78-82` and again at the caller (`inbox.py:274-280`).
+- Evidence: "backfill refused: invalid_arguments" on every dispatch throughout
+  the CU-C QA session, with backfill configured off.
+- Files: `api/oss/src/core/channels/fill.py:64-83, 107-110`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py:251-280`
+- Suggested Fix: read the policy before attempting, and remember a refusal so
+  it is attempted once per space rather than once per message. Drop one of the
+  two log lines.
+
 ## Closed Findings
 
 ### [CLOSED] F1. Nothing connected the ingress, the workers, the registry or the configuration router
