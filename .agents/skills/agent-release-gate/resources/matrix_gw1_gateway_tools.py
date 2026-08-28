@@ -71,6 +71,11 @@ PROVIDER = os.environ.get("AGENTA_QA_GW1_PROVIDER", "openrouter")
 # `agenta` reads the project's vault key; `self_managed` uses the operator's own subscription.
 # Overridable because a deployment that has no vault key for the model still has to run GW1.
 CONNECTION_MODE = os.environ.get("AGENTA_QA_GW1_CONNECTION_MODE", "agenta")
+# Not every deployment enables the local sandbox: a cloud stage answers `sandbox 'local' is
+# not enabled on this deployment` with a 403, which fails every leg for an environment reason
+# that reads exactly like a product failure. This cell is about the GATEWAY, not the sandbox,
+# so the sandbox is a knob and `daytona` is the right value on any stage that refuses local.
+SANDBOX = os.environ.get("AGENTA_QA_GW1_SANDBOX", "local")
 
 # An upstream MODEL-provider failure is not a product verdict. A gate that fails a release
 # because a provider key ran out of daily credit teaches people to ignore red, so these are
@@ -83,6 +88,9 @@ UPSTREAM_MARKERS = (
     "rate limit",
     "insufficient_quota",
     "quota",
+    # The stage refusing the sandbox is an environment answer too, and it arrives as a 403
+    # naming the sandbox. Set AGENTA_QA_GW1_SANDBOX=daytona and re-run.
+    "is not enabled on this deployment",
 )
 
 
@@ -217,7 +225,7 @@ def agent_parameters(
             "mcps": [],
             "skills": [],
             "harness": {"kind": "pi_core"},
-            "sandbox": {"kind": "local"},
+            "sandbox": {"kind": SANDBOX},
         }
     }
 
