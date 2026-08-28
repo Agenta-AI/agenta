@@ -216,7 +216,10 @@ export const ElicitationControl = ({
                                 isSelected
                                     ? "bg-colorFillSecondary font-medium"
                                     : isCursor
-                                      ? "bg-colorFillQuaternary"
+                                      ? // Same fill as a picked row: quaternary was too faint to
+                                        // show where the cursor was. The check and the weight are
+                                        // what still tell the two apart.
+                                        "bg-colorFillSecondary"
                                       : ""
                             }`}
                         >
