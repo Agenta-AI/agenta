@@ -267,10 +267,10 @@ describe("validateStep", () => {
         expect(validateStep(stepBy(steps, "who"), "ada@example")).toBe(
             "Needs a valid email address",
         )
+        // A uri is NOT checked: "agenta.ai" is a real address that only a standards reading calls
+        // malformed, and blocking on it taught the user nothing they wanted to know.
         expect(validateStep(stepBy(steps, "where"), "https://agenta.ai")).toBeNull()
-        expect(validateStep(stepBy(steps, "where"), "agenta.ai")).toBe(
-            "Needs a full URL, including the scheme",
-        )
+        expect(validateStep(stepBy(steps, "where"), "agenta.ai")).toBeNull()
         expect(validateStep(stepBy(steps, "due"), "2026-03-04")).toBeNull()
         expect(validateStep(stepBy(steps, "due"), "the 4th")).toBe("That isn't a real date")
     })

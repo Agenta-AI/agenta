@@ -63,7 +63,8 @@ export interface ElicitationStep {
     maxLength?: number
     pattern?: string
     default?: unknown
-    /** A `text` step whose value has a checkable shape. Drives `validateStep`, not the control. */
+    /** A `text` step whose value has a known shape. Only `email` is enforced; `uri` rides along
+     * for the hint and for anything later that wants to key on it. */
     format?: "email" | "uri"
     /**
      * Set when the wire asked for something richer than this version renders. The step still works —
@@ -305,19 +306,14 @@ export function validateStep(step: ElicitationStep, value: unknown): string | nu
 
     if (typeof value === "string") {
         const text = value.trim()
-        // Format checks the dialect implies but never enforced. Cron is deliberately absent: a
-        // valid-but-odd expression is a scheduling decision for the agent, not a typo to reject.
+        // Format checks the dialect implies but never enforced. Two are deliberately absent: a
+        // valid-but-odd cron is a scheduling decision for the agent, not a typo to reject, and a
+        // uri check rejected "agenta.ai" — a real address that only a standards reading calls
+        // malformed. Neither is worth blocking a user over; the agent can re-ask.
         if (step.kind === "date" || step.kind === "date-time") {
             if (!dayjs(text).isValid()) return "That isn't a real date"
         }
         if (step.format === "email" && !isEmailShaped(text)) return "Needs a valid email address"
-        if (step.format === "uri") {
-            try {
-                new URL(text)
-            } catch {
-                return "Needs a full URL, including the scheme"
-            }
-        }
         if (step.minLength !== undefined && text.length < step.minLength)
             return `At least ${step.minLength} characters`
         if (step.maxLength !== undefined && text.length > step.maxLength)
