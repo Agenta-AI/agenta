@@ -217,10 +217,12 @@ const currentOpenIds = (get: Getter, key: string): string[] => get(openIdsByAppA
  * dropped rather than left in history. Reload-proof (reads persisted title + messages), so it also
  * catches never-run sessions whose in-memory "fresh" marker was lost to a reload.
  */
-export const isSessionHusk = (
-    session: AgentChatSession,
-    messages: Record<string, UIMessage[]>,
-): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
+export const isSessionHusk = (session: AgentChatSession, hasMessages: boolean): boolean =>
+    !session.serverKnown && !session.title?.trim() && !hasMessages
+
+/** Does this session hold any message? The one thing `isSessionHusk` needs off the record. */
+export const sessionHasMessages = (messages: Record<string, UIMessage[]>, id: string): boolean =>
+    Boolean(messages[id]?.length)
 
 /** Ordering key: most-recent message first, falling back to creation time, then 0 (pre-upgrade
  * sessions with neither sort last, preserving their order). */
@@ -312,7 +314,7 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
 
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
-        if (session && isSessionHusk(session, get(sessionMessagesAtom))) {
+        if (session && isSessionHusk(session, sessionHasMessages(get(sessionMessagesAtom), id))) {
             set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
             clearSessionEphemera(id)
         }
@@ -393,7 +395,11 @@ export const pruneSessionHusksAtomFamily = atomFamily((key: string) =>
         const open = new Set(currentOpenIds(get, key))
         const messages = get(sessionMessagesAtom)
         const staleIds = new Set(
-            list.filter((s) => !open.has(s.id) && isSessionHusk(s, messages)).map((s) => s.id),
+            list
+                .filter(
+                    (s) => !open.has(s.id) && isSessionHusk(s, sessionHasMessages(messages, s.id)),
+                )
+                .map((s) => s.id),
         )
         if (staleIds.size === 0) return
         set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !staleIds.has(s.id))})
@@ -844,6 +850,14 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/**
+ * Per-session "does it hold a message", as a focused selector. A BOOLEAN for the same reason as
+ * the selector above: the rail reads it per row, and the whole record changes on every token.
+ */
+export const sessionHasMessagesAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionMessagesAtom, (all) => sessionHasMessages(all, id)),
 )
 
 /** Active tab title without subscribing to streamed assistant content. */

@@ -934,8 +934,10 @@ export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>(
 export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    // `deleted_at` too, like the prompts list above: an archived agent kept listing in the rail
+    // and in the session filter's agent facet, where picking it emptied a list it could not fill.
     const data = (agentFlagsQuery.data ?? []).filter(
-        (workflow) => workflow.flags?.is_agent === true,
+        (workflow) => !workflow.deleted_at && workflow.flags?.is_agent === true,
     )
     return {
         data,

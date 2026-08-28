@@ -8,7 +8,7 @@ import {
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
-    sidebarAgentLastUsedAtomFamily,
+    sidebarAgentRanksAtomFamily,
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
@@ -31,6 +31,7 @@ import {
     Circle,
     HelpCircle,
     LoaderCircle,
+    Zap,
     Github,
     House,
     MessagesSquare,
@@ -65,16 +66,25 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Amber for a session blocked on you. `--ag-run-status-warning` rather than
         // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
         // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) =>
-            session.running
-                ? createElement(LoaderCircle, {size: 12, className: "animate-spin"})
-                : createElement(Circle, {
-                      size: 8,
-                      fill: session.waiting || session.alive ? "currentColor" : "none",
-                      className: session.waiting
-                          ? "text-[var(--ag-run-status-warning)]"
-                          : undefined,
-                  }),
+        getIcon: (session) => {
+            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
+            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
+            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
+            if (session.running)
+                return createElement(LoaderCircle, {size: 12, className: "animate-spin"})
+            if (session.isAutomation)
+                return createElement(Zap, {
+                    size: 12,
+                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
+                    fill: session.waiting || session.alive ? "currentColor" : "none",
+                    className: amber,
+                })
+            return createElement(Circle, {
+                size: 8,
+                fill: session.waiting || session.alive ? "currentColor" : "none",
+                className: amber,
+            })
+        },
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
@@ -121,14 +131,13 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    // Most recently USED first — an agent list in catalog order reads as random. The ranks come
-    // off the sessions the rail already holds, so this costs no request; agents with none keep
-    // catalog order behind the ranked ones.
+    // Busiest agent first, by session count — stable session to session (frozen per page load),
+    // where recency reshuffled on every turn. Agents with no session keep catalog order below.
     const rawAgentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
-    const agentLastUsed = useAtomValue(sidebarAgentLastUsedAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const agentRanks = useAtomValue(sidebarAgentRanksAtomFamily(MOBILE_NAV_SCOPE_ID))
     const agentsSource = useMemo(
-        () => withRefsByRecency(rawAgentsSource, (ref) => agentLastUsed.get(ref.id)),
-        [agentLastUsed, rawAgentsSource],
+        () => withRefsByRecency(rawAgentsSource, (ref) => agentRanks.get(ref.id)),
+        [agentRanks, rawAgentsSource],
     )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
