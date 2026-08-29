@@ -905,22 +905,42 @@ export async function runWithKeepalive(
     // Comparing anyway evicts the warm session on every turn of every conversation. The session
     // id already binds the request to this conversation; the client simply no longer asserts it.
     const clientAssertsHistory = !carriesMinimalHistory(request);
-    let mismatch: string | undefined;
-    if (cfgFp !== existing.configFingerprint) mismatch = "config";
-    else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
-      mismatch = "history";
-    else if (credMismatch) mismatch = credMismatch;
-    else if (
-      // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
-      // rebuild at the boundary rather than let the turn die under the mount.
-      mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
-    )
-      mismatch = "credentials-expiring";
-    else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
+    /**
+     * EVERY reason is re-evaluated after a repair, not only the first one found.
+     *
+     * The old shape was an else-if chain feeding the two repair doors below, and a successful
+     * repair set `mismatch = undefined`. That cleared the answer to EVERY question when the
+     * repair had answered exactly one: a model switch riding with an edited transcript took the
+     * live route and then continued warm on a native conversation that still held the unedited
+     * turn; paired with a rotated credential it ran on the old baked key; paired with an
+     * expiring mount lease it let the turn die under the mount. So a repair marks ITS reason
+     * repaired and asks again, and the remaining checks keep their order and their comments.
+     */
+    const repaired = new Set<string>();
+    const firstMismatch = (): string | undefined => {
+      if (!repaired.has("config") && cfgFp !== existing.configFingerprint)
+        return "config";
+      if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
+        return "history";
+      if (credMismatch && !repaired.has(credMismatch)) return credMismatch;
+      if (
+        // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
+        // rebuild at the boundary rather than let the turn die under the mount.
+        mountCredentialsExpireBy(
+          existing.credentialEpoch,
+          requiredValidThroughMs,
+        )
+      )
+        return "credentials-expiring";
+      if (!tailIsFreshUserMessage(request)) return "tail";
+      return undefined;
+    };
+    let mismatch = firstMismatch();
 
     // STEP 6. A pure configuration mismatch gets one chance to be satisfied on the live
     // environment. Everything else — credentials, continuity, an expiring lease — is decided
-    // above and never reaches this door.
+    // by `firstMismatch` and never reaches this door; a successful apply answers ONLY the
+    // config question, so the remaining reasons are asked again.
     if (mismatch === "config") {
       // Pass the plan we ACTED ON: the apply has already committed the new applied state, so
       // recomputing here would yield an empty plan and the counter could not name the route.
@@ -933,13 +953,15 @@ export async function runWithKeepalive(
           "environment",
           appliedPlan,
         );
-        mismatch = undefined;
+        repaired.add("config");
+        mismatch = firstMismatch();
       }
     }
 
     // STEP 8. A rotated credential gets the same chance. The other credential mismatches do NOT:
     // `credentials-expired` and `credentials-expiring` are mount-lease facts that the mount
     // subsystem repairs by re-signing, and delivering a model key would not extend a lease.
+    // Same contract as step 6: a delivery answers only the rotation, so ask again.
     if (mismatch === "credentials-rotated") {
       const deliveredPlan = await tryCredentialRoute(existing);
       if (deliveredPlan) {
@@ -951,7 +973,8 @@ export async function runWithKeepalive(
           deliveredPlan,
           "rotate-in-place",
         );
-        mismatch = undefined;
+        repaired.add("credentials-rotated");
+        mismatch = firstMismatch();
       }
     }
 
