@@ -14,17 +14,18 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
     title: "@agenta/ui/Domain/KeyboardShortcuts",
-    component: KeyboardShortcutsSheet,
+    component: ShortcutsHelpButton,
+    subcomponents: {KeyboardShortcutsSheet, ShortcutKeys},
     parameters: {
         layout: "padded",
         docs: {
             description: {
                 component:
-                    "Forty-three keyboard shortcuts ship in the agent playground. Six of them tell you they exist. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.",
+                    "Forty-three keyboard shortcuts ship in the agent playground. Six of them tell you they exist. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
             },
         },
     },
-} satisfies Meta<typeof KeyboardShortcutsSheet>
+} satisfies Meta<typeof ShortcutsHelpButton>
 export default meta
 type Story = StoryObj
 
@@ -118,13 +119,17 @@ export const ShortcutsSheet: Story = {
     ),
 }
 
-/** The keys ride on affordances the reader already hovers. */
-export const Placements: Story = {
+/**
+ * The keys ride on affordances the reader already hovers. Only the two side panels are wired in
+ * this change; the session tab menu, the search box and the stop button are listed as follow-up
+ * in docs/design/playground-shortcut-discoverability/status.md.
+ */
+export const PanelTooltips: Story = {
     render: () => (
         <div className="flex flex-col">
             <Frame
                 title="The two side panels"
-                note="Each caret carries its own key. Alt+C shows or hides the configuration; Alt+O shows or hides the files pane."
+                note="Each caret names its own key on hover, and carries it as aria-keyshortcuts for a screen reader. Alt+C shows or hides the configuration; Alt+O shows or hides the files pane."
             >
                 <div className="flex items-center gap-3">
                     <SimpleTooltip
@@ -149,64 +154,6 @@ export const Placements: Story = {
                             <CaretDoubleLeft size={14} />
                         </Button>
                     </SimpleTooltip>
-                </div>
-            </Frame>
-
-            <Frame
-                title="Other tooltips"
-                note="Every control whose action has a key names it on hover."
-            >
-                <div className="flex flex-wrap items-center gap-2">
-                    <SimpleTooltip
-                        title={
-                            <span className="flex items-center gap-1.5">
-                                New session <ShortcutKeys id="session.new" tone="inverse" />
-                            </span>
-                        }
-                    >
-                        <Button variant="outline">+</Button>
-                    </SimpleTooltip>
-                    <SimpleTooltip
-                        title={
-                            <span className="flex items-center gap-1.5">
-                                Search sessions <ShortcutKeys id="session.search" tone="inverse" />
-                            </span>
-                        }
-                    >
-                        <Button variant="outline">Search</Button>
-                    </SimpleTooltip>
-                    <SimpleTooltip
-                        title={
-                            <span className="flex items-center gap-1.5">
-                                Stop <ShortcutKeys id="run.stop" tone="inverse" />
-                            </span>
-                        }
-                    >
-                        <Button variant="outline">Stop</Button>
-                    </SimpleTooltip>
-                </div>
-            </Frame>
-
-            <Frame
-                title="Session tab menu"
-                note="A right-aligned key column, blank on the rows that have no key."
-            >
-                <div className="w-[260px] rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-md">
-                    {[
-                        {label: "Rename", id: "session.rename"},
-                        {label: "Archive", id: "session.archive"},
-                        {label: "Pin", id: undefined},
-                        {label: "Close", id: "session.close"},
-                        {label: "Close other tabs", id: undefined},
-                    ].map((row) => (
-                        <div
-                            key={row.label}
-                            className="flex items-center gap-3 rounded px-2.5 py-1.5 text-xs text-colorText hover:bg-colorFillTertiary"
-                        >
-                            <span className="flex-1">{row.label}</span>
-                            {row.id ? <ShortcutKeys id={row.id} /> : null}
-                        </div>
-                    ))}
                 </div>
             </Frame>
         </div>

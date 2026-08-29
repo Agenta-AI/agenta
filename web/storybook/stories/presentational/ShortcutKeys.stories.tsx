@@ -50,6 +50,41 @@ export const Tones: Story = {
     ),
 }
 
+/**
+ * Decorative against announced. Inside a button the label already names the action, so the caps
+ * are `aria-hidden` and the key reaches assistive tech through `aria-keyshortcuts` instead. In the
+ * sheet and in a tooltip the caps ARE the content, so they stay announced. Neither state is
+ * reachable by clicking, which is why it is a story.
+ */
+export const Decorative: Story = {
+    render: () => (
+        <div className="flex flex-col gap-4 text-xs">
+            <div className="flex items-center gap-3">
+                <span className="w-40 text-colorTextSecondary">Inside a button</span>
+                <span
+                    aria-keyshortcuts="Escape"
+                    className="inline-flex items-center gap-1.5 rounded border border-solid border-colorBorder px-3 py-1.5"
+                >
+                    Deny <ShortcutKeys id="approval.deny" aria-hidden />
+                </span>
+                <span className="text-colorTextTertiary">
+                    accessible name stays &ldquo;Deny&rdquo;
+                </span>
+            </div>
+            <div className="flex items-center gap-3">
+                <span className="w-40 text-colorTextSecondary">In the sheet</span>
+                <span className="inline-flex items-center gap-3">
+                    <span>Deny</span>
+                    <ShortcutKeys id="approval.deny" />
+                </span>
+                <span className="text-colorTextTertiary">
+                    the keys are the content, so announced
+                </span>
+            </div>
+        </div>
+    ),
+}
+
 /** Every binding the playground ships, straight out of the registry. */
 export const EveryBinding: Story = {
     render: () => (
