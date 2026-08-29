@@ -2,17 +2,17 @@
  * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
- * of collapsible accordion sections (Model, Instructions, Tools, MCP servers,
- * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
- * pattern can roll out to other config surfaces.
+ * of collapsible accordion sections (Model, Instructions, Integrations, Subagents,
+ * MCP servers, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
+ * so the same pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). Its `value` IS the agent template (the `parameters.agent` object,
  * just as the prompt control's value is the prompt template): the portable definition
  * (instructions/llm/tools/mcps/skills) is FLAT on it, and the execution parts
  * (harness/runner/sandbox) are nested sub-objects. It reuses the existing schema controls rather
- * than inventing new ones: the model selector (GroupedChoiceControl), the agent tool picker
- * (AgentToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
+ * than inventing new ones: the model selector (GroupedChoiceControl), the integration and
+ * subagent lists (ToolManagementList + SubagentList), the MCP server editor (McpServerItemControl), enum
  * selects (harness, sandbox, permission policy), and a textarea (agents_md). The shape is the
  * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground resolves
@@ -37,7 +37,15 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Cpu, FileText, GraduationCap, Plugs, SlidersHorizontal, Wrench} from "@phosphor-icons/react"
+import {
+    Cpu,
+    FileText,
+    GraduationCap,
+    Plugs,
+    PuzzlePiece,
+    SlidersHorizontal,
+    UsersThree,
+} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -53,7 +61,6 @@ import {
     type AgentTemplateSectionDescriptor,
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
@@ -66,7 +73,11 @@ import {
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
 import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
-import {ToolManagementList} from "./agentTemplate/ToolManagementList"
+import {
+    selectSubagentTools,
+    SubagentList,
+    ToolManagementList,
+} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -77,13 +88,11 @@ import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {
     findIntegrationRow,
-    isHarnessBuiltinTool,
     integrationRowConnection,
     parseGatewayEntry,
     type GatewayConnectionTarget,
     type GatewayEntry,
     type IntegrationRow,
-    type ToolObj,
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
@@ -401,11 +410,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
         tools,
-        handleAddTool,
         handleAddWorkflowReference,
-        handleRemoveToolByName,
-        handleRemoveBuiltinTool,
-        selectedToolNames,
         referenceableWorkflows,
         integrationRows,
         setIntegrationConnection,
@@ -441,12 +446,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [permissionTarget, integrationRows],
     )
 
-    // Legacy harness built-in entries render nowhere (ToolManagementList drops them), so the
-    // header count and the section's open state must ignore them too.
-    const visibleToolCount = useMemo(
-        () => tools.filter((tool) => !isHarnessBuiltinTool(tool)).length,
-        [tools],
+    // The referenced workflows the surface calls SUBAGENTS, with their index in the flat `tools`
+    // array preserved (edit and remove address it by index).
+    const subagentTools = useMemo(
+        () => selectSubagentTools(tools, integrationRows),
+        [tools, integrationRows],
     )
+    // Each list section counts only the kind it renders. Function tool definitions, provider
+    // built-ins, and legacy harness built-ins render nowhere, so no count includes them.
+    const integrationCount = integrationRows.length
+    const subagentCount = subagentTools.length
 
     // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
@@ -468,10 +477,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [openCreate],
     )
 
-    // Controlled open-state for the four list sections so the accordion can react to the agent
+    // Controlled open-state for the list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
     const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
-        tools: visibleToolCount > 0,
+        tools: integrationCount > 0,
+        subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
         skills: skills.length > 0,
         triggers: triggerCount > 0,
@@ -483,12 +493,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     const sectionCounts = useMemo(
         () => ({
-            tools: visibleToolCount,
+            tools: integrationCount,
+            subagents: subagentCount,
             mcp: mcpServers.length,
             skills: skills.length,
             triggers: triggerCount,
         }),
-        [visibleToolCount, mcpServers.length, skills.length, triggerCount],
+        [integrationCount, subagentCount, mcpServers.length, skills.length, triggerCount],
     )
     useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
@@ -801,27 +812,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
-    // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
-    // drive the same add flow.
-    const toolSelectorProps = {
-        onAddTool: handleAddTool,
-        onRemoveTool: handleRemoveToolByName,
-        onRemoveBuiltinTool: handleRemoveBuiltinTool,
-        selectedToolNames,
-        selectedTools: tools as ToolObj[],
-        existingToolCount: tools.length,
-        gatewayTools,
-        onReferenceWorkflow: workflowReference?.enabled
-            ? () => {
-                  // Opening the picker is the point the workflow list is actually needed — activate
-                  // the (lazy) bridge so it resolves now instead of on every playground load.
-                  workflowReference.activate?.()
-                  setReferenceSelectorOpen(true)
-              }
-            : undefined,
-        // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
-        onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
-    }
+    // The Subagents add button. Opening the picker is the point the workflow list is actually
+    // needed, so activate the (lazy) bridge here instead of on every playground load.
+    const openSubagentSelector = workflowReference?.enabled
+        ? () => {
+              workflowReference.activate?.()
+              setReferenceSelectorOpen(true)
+          }
+        : undefined
+    // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
+    const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
 
     // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
     // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
@@ -883,29 +883,26 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 </div>
             ),
         },
+        // Connected apps. Both this section and Subagents read the same `tools` field, so they
+        // share its draft/validation indicator key.
         hasTools && {
             key: "tools",
-            icon: <Wrench size={16} />,
-            title: fieldTitle("tools", "Tools"),
-            summary: countSummary(visibleToolCount, "tool"),
+            icon: <PuzzlePiece size={16} />,
+            title: "Integrations",
+            summary: countSummary(integrationCount, "integration"),
             indicator: sectionIndicator("tools"),
-            extra: !disabled ? (
-                <AgentToolSelectorPopover
-                    {...toolSelectorProps}
-                    trigger={<SectionAddButton label="Add tool" disabled={disabled} />}
-                />
-            ) : undefined,
-            defaultOpen: visibleToolCount > 0,
+            // One action, so the header plus opens the drawer directly instead of a menu.
+            extra:
+                !disabled && openIntegrationDrawer
+                    ? headerAddButton("Add integration", openIntegrationDrawer)
+                    : undefined,
+            defaultOpen: integrationCount > 0,
             content: (
                 <ToolManagementList
                     tools={tools}
                     integrationRows={integrationRows}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
                     disabled={disabled}
                     statusFor={toolStatusFor}
-                    onAddIntegration={gatewayTools?.enabled ? openIntegration : undefined}
                     onOpenIntegration={
                         gatewayTools?.enabled ? openIntegrationPermissions : undefined
                     }
@@ -913,16 +910,41 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         removeIntegration(row)
                         closeEditor()
                     }}
-                    // The empty-state add is the same popover as the header +.
+                    // The empty-state add opens the same drawer as the header +.
                     emptyAdd={
-                        <AgentToolSelectorPopover
-                            {...toolSelectorProps}
-                            trigger={<AddTextLink label="add a tool" />}
-                        />
+                        <AddTextLink label="add an integration" onClick={openIntegrationDrawer} />
                     }
                 />
             ),
         },
+        // Published workflows this agent can call. Saved as `{type: "reference"}` inside the same
+        // `tools` array, so the section renders whenever the bridge is on OR the config has one.
+        hasTools &&
+            (Boolean(openSubagentSelector) || subagentCount > 0) && {
+                key: "subagents",
+                icon: <UsersThree size={16} />,
+                title: "Subagents",
+                summary: countSummary(subagentCount, "subagent"),
+                indicator: sectionIndicator("tools"),
+                extra:
+                    !disabled && openSubagentSelector
+                        ? headerAddButton("Add subagent", openSubagentSelector)
+                        : undefined,
+                defaultOpen: subagentCount > 0,
+                content: (
+                    <SubagentList
+                        entries={subagentTools}
+                        openEdit={openEdit}
+                        removeItem={removeItem}
+                        closeEditor={closeEditor}
+                        disabled={disabled}
+                        statusFor={toolStatusFor}
+                        emptyAdd={
+                            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
+                        }
+                    />
+                ),
+            },
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,

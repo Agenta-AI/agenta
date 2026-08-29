@@ -14,13 +14,15 @@ import {
     GraduationCap,
     Plugs,
     Plus,
+    PuzzlePiece,
     SlidersHorizontal,
-    Wrench,
+    UsersThree,
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Button as AntButton, Tooltip as AntTooltip, Typography as AntTypography} from "antd"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
+import {integrationQueries, GITHUB_WORK, SLACK_OPS} from "../../fixtures/gatewayIntegration"
 
 // AgentTemplateControl — the agent playground's left config panel and the composition root of
 // `SchemaControls/agentTemplate/*`. Its own antd surface was small (three `Tooltip` + icon
@@ -117,8 +119,19 @@ const AGENT_VALUE = {
     },
     harness: {kind: "claude_code"},
     tools: [
-        {name: "web_search", description: "Search the web"},
-        {name: "read_file", description: "Read a file from the workspace"},
+        {
+            type: "gateway_connection",
+            connection: {provider: "composio", integration: "github", slug: GITHUB_WORK.slug ?? ""},
+            policy: {permissions: {default: "allow", tools: {}}},
+        },
+        {
+            type: "reference",
+            name: "triage_ticket",
+            slug: "support-triage",
+            ref_by: "version",
+            version: "3",
+            description: "Reads a support ticket and returns its severity and owning team.",
+        },
     ],
     mcps: [{name: "linear", url: "https://mcp.linear.app/sse"}],
     skills: [{name: "release-notes", description: "Draft release notes from a changelog"}],
@@ -150,8 +163,10 @@ const HARNESS_CATALOG = {
     },
 }
 
-const agentQueries = (_scope: StoryScope): [readonly unknown[], unknown][] => [
+// The integration queries come along so the Integrations rows resolve their app name and logo.
+const agentQueries = (scope: StoryScope): [readonly unknown[], unknown][] => [
     [["workflows", "catalog", "harnesses"], HARNESS_CATALOG],
+    ...integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
 ]
 
 // ---------------------------------------------------------------------------
@@ -174,7 +189,7 @@ const renderPanel = (schema: unknown, value: unknown, disabled?: boolean) => (
     </div>
 )
 
-/** Everything configured: model + harness, instructions, two tools, an MCP server, a skill. */
+/** Everything configured: model + harness, instructions, an integration, a subagent, an MCP server, a skill. */
 export const Configured: Story = {
     args: {
         schema: AGENT_SCHEMA as SchemaProperty,
@@ -274,12 +289,21 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "tools",
-        icon: <Wrench size={16} />,
-        title: "Tools",
-        summary: "2 tools",
-        extra: <SectionAddButton label="Add tool" onClick={noop} />,
+        icon: <PuzzlePiece size={16} />,
+        title: "Integrations",
+        summary: "1 integration",
+        extra: <SectionAddButton label="Add integration" onClick={noop} />,
         defaultOpen: true,
-        content: <Body>web_search · read_file</Body>,
+        content: <Body>Github</Body>,
+    },
+    {
+        key: "subagents",
+        icon: <UsersThree size={16} />,
+        title: "Subagents",
+        summary: "1 subagent",
+        extra: <SectionAddButton label="Add subagent" onClick={noop} />,
+        defaultOpen: true,
+        content: <Body>triage_ticket</Body>,
     },
     {
         key: "mcp",
@@ -321,8 +345,8 @@ export const SectionList: Story = {
         <div data-vrt-subject className="flex max-w-[520px] flex-col px-4">
             <AgentTemplateSectionList
                 sections={SECTIONS}
-                controlledKeys={new Set(["tools", "mcp", "skills"])}
-                openByKey={{tools: true, mcp: false, skills: false}}
+                controlledKeys={new Set(["tools", "subagents", "mcp", "skills"])}
+                openByKey={{tools: true, subagents: true, mcp: false, skills: false}}
                 onOpenChange={noop}
             />
         </div>

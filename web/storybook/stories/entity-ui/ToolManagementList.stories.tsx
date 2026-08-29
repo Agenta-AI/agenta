@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the DrillInView barrel does not re-export the tools list.
+// Imported from source: the DrillInView barrel does not re-export the integration list.
 import {ToolManagementList} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ToolManagementList"
 import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
@@ -16,10 +16,12 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The Tools section's integration rows. Each row summarizes one integration's " +
+                    "The Integrations section body. Each row summarizes one integration's " +
                     "saved policy as a preset label, or as 'Custom · N' when per-tool overrides " +
                     "are saved. An integration still held in the pre-rework per-action format is " +
-                    "tagged 'old format' and shows no policy, because it has none yet.",
+                    "tagged 'old format' and shows no policy, because it has none yet. The list " +
+                    "draws no sub-header and no add button: the accordion section header owns " +
+                    "the title, the count, and the plus.",
             },
         },
     },
@@ -59,11 +61,7 @@ const TOOLS = [
 const listArgs = (tools: unknown[]) => ({
     tools,
     integrationRows: buildIntegrationRows(tools),
-    openEdit: noop,
-    removeItem: noop,
-    closeEditor: noop,
-    emptyAdd: null,
-    onAddIntegration: noop,
+    emptyAdd: <a>add an integration</a>,
     onOpenIntegration: noop,
     onRemoveIntegration: noop,
 })
@@ -116,5 +114,20 @@ export const ReadOnly: Story = {
                 integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
         },
     },
+    render: (args) => Frame(<ToolManagementList {...args} />),
+}
+
+/**
+ * No integrations yet. The body is one line that carries the add link, because the section header's
+ * plus is easy to miss on a section the reader has just opened for the first time.
+ */
+export const Empty: Story = {
+    args: listArgs([]),
+    render: (args) => Frame(<ToolManagementList {...args} />),
+}
+
+/** Read-only and empty: the line disappears rather than offering an add the revision cannot do. */
+export const EmptyReadOnly: Story = {
+    args: {...listArgs([]), disabled: true},
     render: (args) => Frame(<ToolManagementList {...args} />),
 }

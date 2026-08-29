@@ -1,11 +1,18 @@
 /**
- * ToolManagementList
+ * ToolManagementList and SubagentList
  *
- * The Tools section body. Connected apps are listed as INTEGRATIONS: one row per integration,
- * whatever format its entries are saved in. Adding an integration adds all of its tools, so the row
- * summarizes the integration's permission policy and opens the permission drawer; there is no
- * per-row expansion and no per-row plus any more. The other kinds — workflow references, tool
- * definitions, and built-ins — stay flat row lists.
+ * The two agent-config section bodies that read the flat `tools` array. ToolManagementList is the
+ * INTEGRATIONS body: one row per connected app, whatever format its entries are saved in. Adding an
+ * integration adds all of its tools, so the row summarizes the integration's permission policy and
+ * opens the permission drawer; there is no per-row expansion and no per-row plus. SubagentList is
+ * the SUBAGENTS body: the referenced workflows the agent can call, as a flat row list.
+ *
+ * Neither body draws a sub-header any more. Each is the whole content of its own accordion section,
+ * and that section's header owns the title, the count, and the add button.
+ *
+ * Function tool definitions and provider built-ins are deliberately NOT rendered. Tool definitions
+ * were removed as a feature. An older config may still carry either kind: those entries stay in the
+ * saved config and still run, but this panel neither lists nor edits them.
  *
  * A row is built from BOTH saved formats. An integration still on the legacy per-action entries
  * carries an "old format" tag until its drawer is opened, which is what migrates it.
@@ -19,14 +26,13 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {integrationPermissionSummary} from "../integrationPolicy"
-import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
+import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
-import {describeTool, isFunctionTool} from "./itemDescriptors"
+import {describeTool} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"
-import {SectionAddButton} from "./SectionAddButton"
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -142,60 +148,23 @@ export interface ToolManagementListProps {
     /** The integration rows, derived from the same `tools` by the owning hook. Passed in rather
      *  than rebuilt here, so the rows this list renders ARE the ones the drawers act on. */
     integrationRows: IntegrationRow[]
-    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
-    removeItem: (kind: "tool", index: number) => void
-    closeEditor: () => void
     disabled?: boolean
-    /** Opens the add-integration drawer (the integrations header plus). */
-    onAddIntegration?: () => void
     /** Opens one integration's permission drawer. Migrates its legacy entries first. */
     onOpenIntegration?: (row: IntegrationRow) => void
     /** Drops every entry an integration owns, in one write. */
     onRemoveIntegration?: (row: IntegrationRow) => void
-    /** Add trigger shown in the empty state (the tool selector popover). */
+    /** Add trigger shown in the empty state. Opens the add-integration drawer directly. */
     emptyAdd: ReactNode
     /** Per-tool draft/validation status (unsaved edits, missing fields). */
     statusFor?: ToolStatusFor
 }
 
-/** A flat, headed sub-section of bordered item rows (references / definitions / built-in). */
-function FlatToolSection({
-    label,
-    entries,
-    openEdit,
-    removeItem,
-    closeEditor,
-    disabled,
-    statusFor,
-}: {
-    label: string
-    entries: IndexedTool[]
-    openEdit: ToolManagementListProps["openEdit"]
-    removeItem: ToolManagementListProps["removeItem"]
-    closeEditor: () => void
-    disabled?: boolean
-    statusFor?: ToolStatusFor
-}) {
-    if (entries.length === 0) return null
+/** Shared empty-state line, so both bodies read the same. */
+function EmptyLine({label, add}: {label: string; add: ReactNode}) {
     return (
-        <div className="flex flex-col gap-2">
-            <SubSectionHeader label={label} count={entries.length} />
-            <div className="flex flex-col gap-2">
-                {entries.map(({item, index}) => (
-                    <ItemRow
-                        key={`tool-${index}`}
-                        descriptor={describeTool(item)}
-                        onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
-                        onRemove={() => {
-                            removeItem("tool", index)
-                            closeEditor()
-                        }}
-                        disabled={disabled || ITEM_KINDS.tool.isReadOnly(item)}
-                        status={statusFor?.(item, index)}
-                    />
-                ))}
-            </div>
-        </div>
+        <span className="text-xs text-[var(--ag-zinc-5)]">
+            {label} — {add}
+        </span>
     )
 }
 
@@ -207,7 +176,6 @@ function IntegrationSection({
     rows,
     tools,
     disabled,
-    onAddIntegration,
     onOpenIntegration,
     onRemoveIntegration,
     statusFor,
@@ -215,22 +183,12 @@ function IntegrationSection({
     rows: IntegrationRow[]
     tools: unknown[]
     disabled?: boolean
-    onAddIntegration?: () => void
     onOpenIntegration?: (row: IntegrationRow) => void
     onRemoveIntegration?: (row: IntegrationRow) => void
     statusFor?: ToolStatusFor
 }) {
     return (
         <div className="flex flex-col gap-2">
-            <SubSectionHeader
-                label="Integrations"
-                count={rows.length}
-                action={
-                    !disabled && onAddIntegration ? (
-                        <SectionAddButton label="Add integration" onClick={onAddIntegration} />
-                    ) : undefined
-                }
-            />
             {rows.map((row) => (
                 <IntegrationListRow
                     key={`${row.provider}:${row.integration}`}
@@ -246,94 +204,102 @@ function IntegrationSection({
     )
 }
 
+/**
+ * The Integrations section body: one row per connected app, no sub-header. The section header owns
+ * the add button, so this list renders rows only.
+ */
 export function ToolManagementList({
     tools,
     integrationRows,
-    openEdit,
-    removeItem,
-    closeEditor,
     disabled,
-    onAddIntegration,
     onOpenIntegration,
     onRemoveIntegration,
     emptyAdd,
     statusFor,
 }: ToolManagementListProps) {
-    // Partition the rest by kind, preserving each tool's original index (edit and remove address
-    // the flat array). The integration rows already claim their own positions.
-    const {references, definitions, builtins, visibleCount} = useMemo(() => {
-        const references: IndexedTool[] = []
-        const definitions: IndexedTool[] = []
-        const builtins: IndexedTool[] = []
-        const claimed = new Set(integrationRows.flatMap(integrationRowIndices))
-        tools.forEach((item, index) => {
-            // Legacy harness built-ins are inert: they render nowhere.
-            if (isHarnessBuiltinTool(item) || claimed.has(index)) return
-            const t = (item ?? {}) as Record<string, unknown>
-            if (t.type === "reference") {
-                references.push({item, index})
-                return
-            }
-            if (!isFunctionTool(item)) {
-                builtins.push({item, index})
-                return
-            }
-            definitions.push({item, index})
-        })
-        const visibleCount = claimed.size + references.length + definitions.length + builtins.length
-        return {references, definitions, builtins, visibleCount}
-    }, [tools, integrationRows])
-
-    // A config carrying only legacy built-in entries renders as empty, so it gets the empty state.
-    if (visibleCount === 0) {
+    if (integrationRows.length === 0) {
         if (disabled) return null
-        return (
-            <span className="text-xs text-[var(--ag-zinc-5)]">
-                {ITEM_KINDS.tool.emptyLabel} — {emptyAdd}
-            </span>
-        )
+        return <EmptyLine label="No integrations yet" add={emptyAdd} />
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            {integrationRows.length > 0 && (
-                <IntegrationSection
-                    rows={integrationRows}
-                    tools={tools}
-                    disabled={disabled}
-                    onAddIntegration={onAddIntegration}
-                    onOpenIntegration={onOpenIntegration}
-                    onRemoveIntegration={onRemoveIntegration}
-                    statusFor={statusFor}
+        <IntegrationSection
+            rows={integrationRows}
+            tools={tools}
+            disabled={disabled}
+            onOpenIntegration={onOpenIntegration}
+            onRemoveIntegration={onRemoveIntegration}
+            statusFor={statusFor}
+        />
+    )
+}
+
+/**
+ * The referenced workflows the agent can call, which the product calls SUBAGENTS. They live in the
+ * same flat `tools` array as everything else and are saved as `{type: "reference"}`, so the wire
+ * format keeps the old name; only the surface says "subagent".
+ *
+ * Each entry keeps its index in that array, because edit and remove address it by index.
+ */
+export function selectSubagentTools(
+    tools: unknown[],
+    integrationRows: IntegrationRow[],
+): IndexedTool[] {
+    const claimed = new Set(integrationRows.flatMap(integrationRowIndices))
+    const entries: IndexedTool[] = []
+    tools.forEach((item, index) => {
+        // Legacy harness built-ins are inert: they render nowhere.
+        if (isHarnessBuiltinTool(item) || claimed.has(index)) return
+        const t = (item ?? {}) as Record<string, unknown>
+        if (t.type === "reference") entries.push({item, index})
+    })
+    return entries
+}
+
+export interface SubagentListProps {
+    entries: IndexedTool[]
+    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
+    removeItem: (kind: "tool", index: number) => void
+    closeEditor: () => void
+    disabled?: boolean
+    /** Add trigger shown in the empty state. Opens the workflow picker directly. */
+    emptyAdd: ReactNode
+    statusFor?: ToolStatusFor
+}
+
+/**
+ * The Subagents section body: a flat row list, no sub-header. The section header owns the add
+ * button, which opens the workflow picker directly.
+ */
+export function SubagentList({
+    entries,
+    openEdit,
+    removeItem,
+    closeEditor,
+    disabled,
+    emptyAdd,
+    statusFor,
+}: SubagentListProps) {
+    if (entries.length === 0) {
+        if (disabled) return null
+        return <EmptyLine label="No subagents yet" add={emptyAdd} />
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            {entries.map(({item, index}) => (
+                <ItemRow
+                    key={`tool-${index}`}
+                    descriptor={describeTool(item)}
+                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
+                    onRemove={() => {
+                        removeItem("tool", index)
+                        closeEditor()
+                    }}
+                    disabled={disabled || ITEM_KINDS.tool.isReadOnly(item)}
+                    status={statusFor?.(item, index)}
                 />
-            )}
-            <FlatToolSection
-                label="Workflow references"
-                entries={references}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
-            <FlatToolSection
-                label="Tool definitions"
-                entries={definitions}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
-            <FlatToolSection
-                label="Built-in"
-                entries={builtins}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
+            ))}
         </div>
     )
 }
