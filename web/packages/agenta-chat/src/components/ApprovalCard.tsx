@@ -11,6 +11,7 @@
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
@@ -29,6 +30,12 @@ export interface ApprovalCardProps {
     steerEnabled?: boolean
     /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. */
     touch?: boolean
+    /**
+     * Where the approve and deny keys are printed. `buttons` puts a keycap inside each action,
+     * `line` puts both on one row under the actions, `none` prints nothing and leaves the keys
+     * discoverable only from the shortcuts sheet. Touch mode drops the hints either way.
+     */
+    shortcutHints?: "buttons" | "line" | "none"
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null
     /** Answer ONE gate; `message` carries a steer note WITH a denial. */
@@ -47,6 +54,7 @@ export const ApprovalCard = ({
     entityId,
     steerEnabled = false,
     touch = false,
+    shortcutHints = "buttons",
     errorText,
     onRespond,
     onApproveAll,
@@ -128,6 +136,9 @@ export const ApprovalCard = ({
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
+    // A touch reader has no keyboard, so neither hint earns its space there.
+    const capsInButtons = !touch && shortcutHints === "buttons"
+    const capsOnLine = !touch && shortcutHints === "line"
 
     const approve = () => {
         if (responding) return
@@ -289,6 +300,9 @@ export const ApprovalCard = ({
                             onClick={deny}
                         >
                             {batched && onDenyAll ? "Deny all" : "Deny"}
+                            {capsInButtons ? (
+                                <ShortcutKeys id="approval.deny" className="ml-1.5" />
+                            ) : null}
                         </LoadingButton>
                         <LoadingButton
                             disabled={responding}
@@ -297,9 +311,26 @@ export const ApprovalCard = ({
                             onClick={approve}
                         >
                             {batched ? "Approve all" : "Approve"}
+                            {capsInButtons ? (
+                                <ShortcutKeys
+                                    id="approval.approve"
+                                    tone="inverse"
+                                    className="ml-1.5"
+                                />
+                            ) : null}
                         </LoadingButton>
                     </div>
                 </div>
+                {capsOnLine ? (
+                    <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px] text-colorTextTertiary">
+                        <span className="flex items-center gap-1">
+                            <ShortcutKeys id="approval.approve" /> approve
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <ShortcutKeys id="approval.deny" /> deny
+                        </span>
+                    </div>
+                ) : null}
             </HeightCollapse>
 
             {/* Steer: an inline redirect note. Unmounted (not merely collapsed) while the flag is
