@@ -25,7 +25,9 @@ const FAKE_FACETS: FacetDigests = Object.fromEntries(
 ) as FacetDigests;
 import {
   approvalDecisionForToolCall,
+  changedConfigFields,
   computeCredentialEpoch,
+  configFieldDigests,
   configFingerprint,
   credentialEpochMismatch,
   credentialEpochValid,
@@ -72,7 +74,7 @@ describe("resolvesToLocalProvider (local/remote gate)", () => {
 // hand the pool a fingerprint of its own.
 function fakeEnv(configFp = "cfg") {
   const state = { destroyed: 0, reasons: [] as string[] };
-  const applied = new AppliedState(configFp, FAKE_FACETS);
+  const applied = new AppliedState(configFp, FAKE_FACETS, {});
   let done = false;
   return {
     state,
@@ -256,6 +258,25 @@ describe("configFingerprint", () => {
     model: "m1",
     messages: [{ role: "user", content: "hi" }],
   };
+
+  it("names the changed fields on a config mismatch, values never", () => {
+    // The `mismatch (config)` eviction line logs WHICH fields differ; each side is a digest
+    // map, so no config value can reach a log through this path.
+    const before = configFieldDigests(base);
+    const after = configFieldDigests({
+      ...base,
+      permissions: { default: "deny" },
+      mcpServers: [{ name: "gh" }],
+    } as unknown as AgentRunRequest);
+    assert.deepEqual(changedConfigFields(after, before), [
+      "mcpServers",
+      "permissions",
+    ]);
+    assert.deepEqual(changedConfigFields(after, undefined), []);
+    for (const digest of Object.values(after)) {
+      assert.match(digest, /^[0-9a-f]{64}$/);
+    }
+  });
 
   it("excludes the derived gateway guidance, so an integration add never evicts", () => {
     // The guidance text carries the integration NAMES as examples and refreshes at
@@ -1035,7 +1056,7 @@ describe("SessionPool", () => {
   it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS);
+    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const stoppingEnv = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1109,7 +1130,7 @@ describe("SessionPool", () => {
 
   it("a strict stopping entry cannot be checked out or reparked over", async () => {
     let releaseTeardown: (() => void) | undefined;
-    const envApplied = new AppliedState("cfg", FAKE_FACETS);
+    const envApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1156,7 +1177,7 @@ describe("SessionPool", () => {
   it("non-strict capacity still frees the seat before teardown completes", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS);
+    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
@@ -1436,7 +1457,7 @@ describe("SessionPool", () => {
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
     const aState = { destroyed: 0, reasons: [] as string[] };
-    const aApplied = new AppliedState("cfg", FAKE_FACETS);
+    const aApplied = new AppliedState("cfg", FAKE_FACETS, {});
     const aEnv = {
       state: aState,
       get appliedState() {

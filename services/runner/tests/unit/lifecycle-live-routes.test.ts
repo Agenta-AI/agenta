@@ -167,6 +167,7 @@ function makeEngine(options: EngineOptions = {}) {
             (env as unknown as FakeEnv).commitApplied({
               configFingerprint: fp,
               facets: normalizeDesiredState(request, fp).digests,
+              fieldDigests: {},
             });
             return true;
           },
@@ -412,7 +413,10 @@ describe("THE RELEASE BLOCKER: an instructions change REBUILDS", () => {
     await runWithKeepalive(next, undefined, undefined, ctx);
 
     assert.equal(env1.appliedState.configFingerprint, fingerprintBefore);
-    assert.notEqual(env1.appliedState.configFingerprint, configFingerprint(next));
+    assert.notEqual(
+      env1.appliedState.configFingerprint,
+      configFingerprint(next),
+    );
     assert.equal(env1.appliedState.generation, before);
   });
 

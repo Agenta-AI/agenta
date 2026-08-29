@@ -273,6 +273,7 @@ export interface SessionEnvironment {
   commitApplied: (result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }) => void;
   plan: RunPlan;
   logger: Log;

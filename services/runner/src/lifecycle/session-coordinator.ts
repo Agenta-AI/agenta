@@ -52,7 +52,9 @@ import { desiredCredentialSetFor } from "../providers/daytona-credential-deliver
 import {
   approvalDecisionForToolCall,
   assertsPriorConversation,
+  changedConfigFields,
   computeCredentialEpoch,
+  configFieldDigests,
   configFingerprint,
   credentialEpochMismatch,
   carriesApprovalReplyOnly,
@@ -827,7 +829,12 @@ export async function runWithKeepalive(
     // where `reserve` would) means unmounting and deleting that cwd out from under the environment
     // just built on it. That is the original bug in a narrower window, so the claim happens here.
     await pool.evict(key, "pre-acquire", "failed-turn");
-    const acq = await engine.acquireEnvironment(request, signal, signed, trackedEmit);
+    const acq = await engine.acquireEnvironment(
+      request,
+      signal,
+      signed,
+      trackedEmit,
+    );
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     const leaseMs = installedMountLease(env.installedMountExpiries);
@@ -955,7 +962,21 @@ export async function runWithKeepalive(
       mismatch = "mount-lost";
 
     if (mismatch) {
-      klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
+      // A config mismatch names the changed FIELDS (names only — the digests never carry
+      // values), so "what evicted this warm session" is answerable from the log line alone
+      // instead of needing production database access to reconstruct.
+      const changedFields =
+        mismatch === "config"
+          ? changedConfigFields(
+              configFieldDigests(request),
+              existing.environment.appliedState.fieldDigests,
+            )
+          : [];
+      klog(
+        `mismatch (${mismatch}) key=${key}` +
+          (changedFields.length ? ` fields=[${changedFields.join(",")}]` : "") +
+          `; evict + cold`,
+      );
       // A transcript mismatch is a decision about the CONVERSATION, not the environment, so it
       // is logged but never counted against the router. See `DecisionScope`.
       shadowRoute(
