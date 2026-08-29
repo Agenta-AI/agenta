@@ -7,13 +7,14 @@
  */
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
-import {ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
+import {KeyboardShortcutsSheet, ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleLeft, CaretDoubleRight, GearSix, Robot} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
-    title: "Playground/Keyboard shortcuts",
+    title: "@agenta/ui/Domain/KeyboardShortcuts",
+    component: KeyboardShortcutsSheet,
     parameters: {
         layout: "padded",
         docs: {
@@ -23,7 +24,7 @@ const meta = {
             },
         },
     },
-} satisfies Meta
+} satisfies Meta<typeof KeyboardShortcutsSheet>
 export default meta
 type Story = StoryObj
 
