@@ -2,11 +2,14 @@ import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
 import {
+  configuredIngestBases,
   isAgentaIngest,
   platformAuthorizationProvider,
+  publicApiBaseConfigured,
   resolveOtlpTraceEndpoint,
   type AuthorizationProvider,
 } from "../../tracing/otel.ts";
+import { endpointHost } from "../../tracing/export-diagnostics.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
@@ -21,16 +24,65 @@ export function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
+/** Endpoints already warned about, so a per-turn read warns once instead of every run. */
+const warnedEndpoints = new Set<string>();
+
+/** Test-only: forget which endpoints have warned, so a case can assert on its own warning. */
+export function resetPlatformCredentialWarnings(): void {
+  warnedEndpoints.clear();
+}
+
 /**
  * The legacy wire has one authorization header for two possible owners. Treat it as an Agenta
  * platform credential only when the configured destination is Agenta ingest; for an external
  * collector it belongs exclusively to that collector and must never enter platform calls.
+ *
+ * That attribution is only decidable once the runner knows its platform's PUBLIC api base
+ * (`AGENTA_API_URL`), because the public form is what a dispatched run carries: the API hands the
+ * SDK `https://<host>/api`, while the runner's own hop is usually the internal `http://api:8000`.
+ * A runner told ONLY its internal hop cannot tell its own API under its public name from a
+ * third-party collector. Refusing there fails closed on the wrong axis — it silently strips the
+ * credential from every run in an otherwise healthy self-hosted deployment, and the damage
+ * surfaces far away as a 401 on session persistence. So the strict check arms itself only when
+ * the operator has supplied the base that makes it decidable, and otherwise keeps the credential
+ * and says loudly what to configure.
  */
-export function platformCredentialForRequest(request: AgentRunRequest): string {
+export function platformCredentialForRequest(
+  request: AgentRunRequest,
+  log: Log = (message) => process.stderr.write(`${message}\n`),
+): string {
   const endpoint = resolveOtlpTraceEndpoint(
     request.telemetry?.exporters?.otlp?.endpoint,
   );
-  return isAgentaIngest(endpoint) ? runCredential(request) : "";
+  if (isAgentaIngest(endpoint)) return runCredential(request);
+
+  const credential = runCredential(request);
+  if (!credential) return "";
+
+  if (!publicApiBaseConfigured()) {
+    if (!warnedEndpoints.has(endpoint)) {
+      warnedEndpoints.add(endpoint);
+      log(
+        `[sessions] WARNING: trace endpoint host ${endpointHost(endpoint)} matches no configured ` +
+          `Agenta ingest host (${configuredIngestBases().map(endpointHost).join(", ")}), and AGENTA_API_URL is not set, so the ` +
+          `run credential cannot be attributed. Using it for platform calls anyway. Set ` +
+          `AGENTA_API_URL to this deployment's public api base (e.g. https://<host>/api) to ` +
+          `attribute it properly and to keep third-party collector credentials out of platform calls.`,
+      );
+    }
+    return credential;
+  }
+
+  if (!warnedEndpoints.has(endpoint)) {
+    warnedEndpoints.add(endpoint);
+    log(
+      `[sessions] trace endpoint host ${endpointHost(endpoint)} is not Agenta ingest ` +
+        `(${configuredIngestBases().map(endpointHost).join(", ")}); dropping the run credential from platform ` +
+        `calls. Session persistence and history rebuild will fail with HTTP 401 if this ` +
+        `endpoint IS this deployment's api base.`,
+    );
+  }
+  return "";
 }
 
 export interface RunOtlpTarget {

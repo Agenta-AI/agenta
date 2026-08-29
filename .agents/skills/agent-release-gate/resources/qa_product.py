@@ -31,6 +31,8 @@ import uuid
 
 import httpx
 
+from path_triggers import changed_paths, mandatory_cells
+
 HERE = pathlib.Path(__file__).resolve().parent
 # Results land in the CURRENT working directory, never inside the skill, so repeated runs do not
 # accumulate in the tree. Override with AGENTA_QA_RUNS_DIR (absolute or relative to the CWD).
@@ -2262,6 +2264,26 @@ def main() -> int:
         "--env-file",
         help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
     )
+    p.add_argument(
+        "--release-base",
+        help=(
+            "git ref the release branches from (e.g. `origin/main`). The driver reads the "
+            "release's own changed paths, activates the matching rules in path_triggers.py, and "
+            "adds the cells they make MANDATORY to this run. Pass it on every release run."
+        ),
+    )
+    p.add_argument(
+        "--changed-path",
+        action="append",
+        help=(
+            "a changed path, instead of asking git. Repeatable. For a deployment whose checkout "
+            "is not the release branch, and for testing the rules themselves."
+        ),
+    )
+    p.add_argument(
+        "--repo",
+        help="repository the release diff is read from (default: the current directory)",
+    )
     args = p.parse_args()
 
     resolve_credentials(args.env_file)
@@ -2279,6 +2301,52 @@ def main() -> int:
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
+
+    # Path-scoped rules: the release's own diff decides what else must run. Resolved BEFORE the
+    # run so a mandatory cell is added to the selection rather than reported as missing after the
+    # fact, and so a rule naming a cell nobody has written yet fails immediately instead of
+    # spending the whole matrix first.
+    triggered: dict = {}
+    if args.release_base or args.changed_path:
+        paths = list(args.changed_path or [])
+        if args.release_base:
+            repo = pathlib.Path(args.repo) if args.repo else None
+            paths += changed_paths(args.release_base, repo=repo)
+        triggered = mandatory_cells(paths)
+    missing_cells = [
+        cell for cell in triggered if cell not in CELLS and not (HERE / cell).exists()
+    ]
+    external_cells = [
+        cell for cell in triggered if cell not in CELLS and cell not in missing_cells
+    ]
+    for cell in triggered:
+        if cell in CELLS and cell not in cells:
+            cells.append(cell)
+    if triggered:
+        print("Path-scoped rules make these cells MANDATORY for this release:")
+        for cell, why in triggered.items():
+            where = (
+                "added to this run"
+                if cell in CELLS
+                else (
+                    "MISSING — no such cell exists"
+                    if cell in missing_cells
+                    else "run it separately"
+                )
+            )
+            print(f"  {cell} ({where})")
+            for path in why:
+                print(f"      because this release changed {path}")
+        print()
+    if missing_cells:
+        # The release changed code a rule protects and the cell that protects it does not exist.
+        # Reporting that as a skip would be the exact failure this mechanism exists to prevent:
+        # a gate green on coverage nobody wrote.
+        raise SystemExit(
+            "The release diff makes these cells mandatory, but they do not exist in "
+            f"{HERE}: {', '.join(missing_cells)}. Write the cell, or change the rule in "
+            "path_triggers.py that demands it. Do not run the gate without it."
+        )
     selected_custom_cells = [cell for cell in ("P2", "P2b", "P3") if cell in cells]
     if selected_custom_cells and not args.custom_slug:
         # Fail fast, before creating a run directory or spending any journeys: P2 (OpenRouter as
@@ -2350,6 +2418,21 @@ def main() -> int:
             + " |"
         )
     table = "\n".join(lines)
+    if triggered:
+        # A separate file, never a key inside results.json: that file is a flat cell -> result map
+        # that the seeds and the failure scan both walk, and a non-cell entry in it would break
+        # them.
+        (outdir / "mandatory.json").write_text(json.dumps(triggered, indent=2))
+        table += "\n\nMandatory for this release, by path rule:\n\n"
+        table += "| cell | run here | because this release changed |\n|---|---|---|\n"
+        for cell, why in triggered.items():
+            here = "yes" if cell in CELLS else "no — run it separately"
+            table += f"| {cell} | {here} | {', '.join(why)} |\n"
+        if external_cells:
+            table += (
+                "\nThis release is NOT green until every cell above marked "
+                "`run it separately` has a recorded result.\n"
+            )
     (outdir / "summary.md").write_text(table + "\n")
     print("\n" + table)
     print(f"\nresults: {outdir}")

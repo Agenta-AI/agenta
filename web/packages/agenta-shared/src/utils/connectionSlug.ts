@@ -39,3 +39,27 @@ export function generateDefaultSlug(name: string, suffix = randomAlphanumeric(3)
     const base = slugify(name)
     return base ? `${base}-${suffix}` : suffix
 }
+
+/** Ordinal words for the first connections of an integration; later ones fall back to a number. */
+const CONNECTION_ORDINALS = ["main", "secondary"]
+
+/**
+ * The name a new connection is offered, given how many the integration already has.
+ * "GitHub" → "GitHub (main)", then "GitHub (secondary)", then "GitHub (3)".
+ */
+export function defaultConnectionName(integrationName: string, existingCount = 0): string {
+    const base = integrationName.trim() || "Connection"
+    const index = Math.max(0, Math.trunc(existingCount))
+    const ordinal = CONNECTION_ORDINALS[index] ?? String(index + 1)
+    return `${base} (${ordinal})`
+}
+
+/**
+ * What a connection is CALLED in the UI. A slug is an identifier, never a label — it only stands
+ * in when a connection carries no name at all.
+ */
+export function connectionDisplayName(
+    connection: {name?: string | null; slug?: string | null} | null | undefined,
+): string {
+    return connection?.name?.trim() || connection?.slug?.trim() || ""
+}

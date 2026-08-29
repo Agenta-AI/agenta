@@ -251,7 +251,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         )
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-        resolved_tools = await comp.resolve_tools(agent_template.tools)
+        # The agent-wide mode reaches the gateway permission compiler only here: an
+        # ``inherit`` in a saved connection policy resolves against it, so a resolve that
+        # does not carry it would compile a different policy than the run enforces.
+        resolved_tools = await comp.resolve_tools(
+            agent_template.tools,
+            permission_default=agent_template.permission_default,
+        )
         resolved_mcp = await comp.resolve_mcp_servers(
             agent_template.mcp_servers,
             tool_specs=resolved_tools.tool_specs,
@@ -318,6 +324,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             effective_parameters=parameters,
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
+            # The private per-tool decisions for the agent's gateway connections. It must
+            # reach the wire: an absent policy reads as deny at the runner, so a seam that
+            # drops it fails as a silently tool-less agent rather than as an error.
+            gateway_policy=resolved_tools.gateway_policy,
             mcp_servers=resolved_mcp,
         )
 

@@ -26,6 +26,7 @@ import {
   buildWorkflowReferenceList,
   createInteraction,
   resolveInteraction,
+  seedDecisionMap,
 } from "../../sessions/interactions.ts";
 import { toolSpecsByName } from "../../tools/public-spec.ts";
 import {
@@ -68,6 +69,7 @@ import {
   findSwallowedPiError,
   isOnlyHarnessRetryNotices,
 } from "./pi-error.ts";
+import { buildGatewayToolGate } from "./gateway-gate.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
 import {
   buildApprovedContentWiring,
@@ -128,6 +130,15 @@ export async function runTurn(
   signal?: AbortSignal,
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
+  // INVARIANT: this function MUST REACH `attachPermissionResponder` WITHIN ONE MACROTASK TICK
+  // of being invoked. The session-lifetime `onPermissionRequest` registered in
+  // `acquireEnvironment` routes every gate into `env.currentTurn.onPermissionRequest`, which is
+  // `undefined` until that call wires it. A gate that arrives before then takes the between-turns
+  // branch in `session-events.ts` (`routePermissionRequestToActiveTurn`) and is answered
+  // `reject` by policy — so a legitimate gate becomes a refusal the user never sees a card for.
+  // It is a yield, not a timing race, so making awaited work faster does not shrink the
+  // exposure. Do NOT add unconditional I/O anywhere above that call; hand pre-turn reads in
+  // through `opts` instead (see `opts.seededDecisions`).
   const { plan, logger, deps } = env;
   const initialCredential = opts.credential ?? (() => runCredential(request));
   const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
@@ -611,16 +622,32 @@ export async function runTurn(
       },
       onPermissionRequest: undefined,
     };
-    activeTurn = turn;
-    env.currentTurn = turn;
-
     const permissionPlan = permissionsFromRequest(request);
-    const storedDecisionMap = extractApprovalDecisions(request);
-    if (storedDecisionMap.size > 0) {
+    // Unconditional: an EMPTY decision map on a turn the transcript called a resume is the
+    // interesting case, and the old `size > 0` guard was exactly the condition that hid it.
+    const storedDecisionMap = extractApprovalDecisions(request, logger);
+    // The transcript is not the only place an answer can live: a client that answered out of
+    // band, or whose resume never reached us, leaves the decision only on the interactions
+    // plane. The caller reads and claims those rows (`loadDurableDecisions`) and hands them in,
+    // so this merge is SYNCHRONOUS — see the invariant at the top of this function.
+    //
+    // History wins: `seedDecisionMap` sets only keys the transcript does not already carry,
+    // because an envelope this turn actually received in band is the fresher fact.
+    const adopted = seedDecisionMap(
+      storedDecisionMap,
+      opts.seededDecisions ?? [],
+    );
+    if (adopted.length) {
       logger(
-        `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
+        `[HITL] seeded decisions from interaction rows: ${JSON.stringify(adopted.map((entry) => entry.key))}`,
       );
     }
+    logger(
+      `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
+    );
+
+    activeTurn = turn;
+    env.currentTurn = turn;
     const decisions = new ConversationDecisions(
       storedDecisionMap,
       extractClientToolOutputs(request),
@@ -670,11 +697,19 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
-    const resolvedInteractionTokens = new Set<string>();
+    // Seeded with the tokens the CALLER already claimed. `loadDurableDecisions` resolves a row
+    // before adopting its decision, so those rows are terminal before this turn starts, and any
+    // further transition on them is a guaranteed 404. Without this seed a healthy run logged
+    // `resolve failed ... HTTP 404` every time — an error line for work that had already
+    // succeeded, which is worse than noise: it trains the reader to ignore a real failure.
+    const resolvedInteractionTokens = new Set<string>(
+      (opts.seededDecisions ?? []).map((entry) => entry.token),
+    );
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
     ): void => {
+      const alreadyResolved = resolvedInteractionTokens.has(token);
       resolvedInteractionTokens.add(token);
       if (verdict) {
         run.emitEvent({
@@ -684,6 +719,13 @@ export async function runTurn(
           payload: verdict,
         });
       }
+      // The EVENT above still goes out — a re-raised gate answered from a seeded decision is a
+      // real answer the UI must see, and suppressing it would leave the approval part stuck in
+      // the UI while the run moves on. Only the durable transition is skipped, because the row is
+      // already terminal. A claimed token may have emitted this event in an EARLIER turn too, so
+      // a client can see it twice for the same id; same id and same payload, so it must be
+      // treated as idempotent rather than as two answers.
+      if (alreadyResolved) return;
       const cred = runCredential(request);
       if (!cred) return;
       void resolveInteraction(
@@ -718,7 +760,7 @@ export async function runTurn(
     settleInBandInteractions = async (): Promise<void> => {
       const cred = runCredential(request);
       if (!cred) return;
-      const settling: Promise<void>[] = [];
+      const settling: Promise<unknown>[] = [];
       for (const answer of extractInBandApprovalAnswers(request)) {
         if (resolvedInteractionTokens.has(answer.token)) continue;
         resolvedInteractionTokens.add(answer.token);
@@ -943,6 +985,22 @@ export async function runTurn(
       executionGrants,
     });
 
+    // The semantic gateway gate. It is wired for EVERY harness and every placement, because the
+    // relay seam it runs at is the one point all of them pass through and no dialog upstream has
+    // decided anything about the integration tool the model named.
+    const gatewayGate = buildGatewayToolGate({
+      responder,
+      run,
+      pause,
+      recordPendingInteraction,
+      toolCallIndex: plan.isPi ? undefined : env.toolCallIndex,
+      permissionPlan,
+      onNonParkablePause: () => {
+        env.nonParkablePauseCount += 1;
+      },
+      log: logger,
+    });
+
     if (plan.tools.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -964,6 +1022,8 @@ export async function runTurn(
             plan.tools.clientToolPauseDisposition,
           ),
           authorizer: approvedContent.authorizer,
+          gatewayPolicy: request.gatewayPolicy,
+          gatewayGate,
         },
       );
       // Ordering invariant: the relay's stale-file sweep must complete before the
@@ -1114,8 +1174,17 @@ export async function runTurn(
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
       settleBufferedPausedCompletions();
-      const openAllowedExecutions = openToolCallIds().filter((id) =>
-        pause.isAllowedExecution(id),
+      // A gateway run passes TWO gates on ONE tool-call id: the ACP gate on the outer `run_tool`,
+      // whose spec permission is `allow` and which therefore marks an allowed execution, and the
+      // gateway's semantic gate on the TARGET action, which answers `ask` and parks that same id.
+      // A call that is both cannot close — the human has not answered yet — so waiting for its
+      // closure burns the whole tool-call bound before the turn can end. Exclude it here, at the
+      // computation, rather than at the wait below: this list also seeds `parkedApprovedExecutions`
+      // on the Pi batch branch, where a parked call has no seed and would be carried and
+      // re-announced next turn as an approved execution it never was.
+      // Before the gateway, allowed and paused were disjoint by construction.
+      const openAllowedExecutions = openToolCallIds().filter(
+        (id) => pause.isAllowedExecution(id) && !pause.isPausedToolCall(id),
       );
       const piBatchBlockedByApproval = Boolean(
         opts.resume &&

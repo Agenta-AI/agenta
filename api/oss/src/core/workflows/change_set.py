@@ -117,26 +117,33 @@ NEXT_STEPS: Dict[str, str] = {
         "operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
-        "Fix the last target segment: set / merge / remove / edit_text end with a field "
-        "name, add_item ends with a list name, replace_item / remove_item end with "
-        "{'list': ..., 'key': ...}."
+        "The message names the segment at fault. A segment is a field name, or "
+        "{'list': ..., 'key': ...} for one list entry; set / merge / remove / edit_text end "
+        "with a field name, add_item with a list name, replace_item / remove_item with a "
+        "selector."
     ),
     Reason.ITEM_ALREADY_EXISTS: (
-        "Use replace_item to overwrite that entry, or add_item with a different key."
+        "Use replace_item to overwrite that entry. A different key only helps for a genuinely "
+        "different entry — one integration takes one gateway_connection entry."
     ),
     Reason.ITEM_NOT_FOUND: (
-        "Call read_config for that list to see the keys it holds, then retry with a key "
-        "from it."
+        "Call read_config with a {list, key} selector for that list: its refusal lists "
+        "every key the list actually holds. A gateway_connection entry's key is "
+        "gateway_connection:<connection.provider>:<connection.integration>."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
         "Send remove_item for the old key, then add_item with the new value."
     ),
     Reason.DUPLICATE_ITEM_KEY: (
-        "Remove the duplicate entries with remove_item first, then send this change again."
+        "A duplicated key cannot be addressed by remove_item either. Use replace_item on the "
+        "key you meant, or set the whole list to the entries you want."
     ),
     Reason.ITEM_KEY_UNDEFINED: (
-        "Give the new entry its key field: name for a skill, an MCP server, or a tool; "
-        "path for a file. A gateway tool needs an explicit name."
+        "Give the new entry its key field: name for a skill or an MCP server; path for a "
+        "file. For a tool the key depends on its type: gateway_connection needs "
+        "connection.provider and connection.integration (together they are its key); "
+        "gateway needs an explicit name; reference needs name or slug; platform is keyed "
+        "by op; everything else needs name."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -146,7 +153,8 @@ NEXT_STEPS: Dict[str, str] = {
         "Correct the operation to the shape in the tool description and send it again."
     ),
     Reason.TEXT_NOT_FOUND: (
-        "Copy old_text from the configuration you read, character for character."
+        "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
+        "stored, or call read_config for that field and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
@@ -157,8 +165,8 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.EMPTY_OLD_TEXT: "Put the exact text you want to replace in old_text.",
     Reason.NO_CHANGE: (
-        "The new text equals the old text. Send the change you actually want, or send "
-        "nothing."
+        "The new text equals the old text. Send the edit you actually intended, or stop "
+        "editing this field."
     ),
     Reason.SOURCE_NOT_FOUND: (
         "Write the file under .agenta-imports/ first, then send the commit again."
@@ -429,6 +437,25 @@ def remove_path(tree: dict, path: str) -> None:
 def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optional[str]:
     """The canonical effective tool name. Contract 4.2."""
     kind = entry.get("type")
+    if kind == "gateway_connection":
+        # A whole-integration entry carries NO name by design — it is the integration, not
+        # one action — so its identity is the connection it routes through. Provider plus
+        # integration is enough: `coerce_tool_configs` admits at most one entry per
+        # integration in a revision, so that pair is unique within the list it addresses.
+        #
+        # Synthetic and prefixed, unlike the bare names above, because those keys ARE the
+        # user-facing tool names and this one is derived. The prefix also keeps it from
+        # colliding with a legacy `gateway` key, which is `{integration}__{action}`.
+        connection = entry.get("connection")
+        if not isinstance(connection, dict):
+            return None
+        provider = connection.get("provider")
+        integration = connection.get("integration")
+        if not isinstance(provider, str) or not provider:
+            return None
+        if not isinstance(integration, str) or not integration:
+            return None
+        return f"gateway_connection:{provider}:{integration}"
     if kind == "gateway":
         name = entry.get("name")
         if name:
@@ -910,12 +937,13 @@ def _find_item(
     if len(matches) > 1:
         raise _Fail(
             Reason.DUPLICATE_ITEM_KEY,
-            f"{where}: '{list_name}' holds {len(matches)} entries named {key!r}",
+            f"{where}: '{list_name}' holds {len(matches)} entries with key {key!r}",
             match_count=len(matches),
         )
     if not matches:
         raise _Fail(
-            Reason.ITEM_NOT_FOUND, f"{where}: '{list_name}' has no entry named {key!r}"
+            Reason.ITEM_NOT_FOUND,
+            f"{where}: '{list_name}' has no entry with key {key!r}",
         )
     return collection, matches[0]
 
@@ -1173,14 +1201,15 @@ def apply_text_edits(
             raise _Fail(
                 Reason.TEXT_NOT_FOUND,
                 f"edits[{index}].old_text does not occur in the target string. "
-                "The text must match exactly, with all whitespace and newlines.",
+                "details.nearest_lines holds the closest lines actually stored — copy one "
+                "of them into old_text.",
                 edit_index=index,
                 **({"nearest_lines": candidates} if candidates else {}),
             )
         if count > 1:
             raise _Fail(
                 Reason.TEXT_NOT_UNIQUE,
-                f"edits[{index}].old_text matched {count} times.",
+                f"edits[{index}].old_text matched at {count} positions (overlapping matches count).",
                 edit_index=index,
                 match_count=count,
             )
@@ -1241,8 +1270,14 @@ def _require_field_tail(segments: Sequence[Segment], verb: str) -> None:
     if isinstance(segments[-1], dict):
         raise _Fail(
             Reason.INVALID_TARGET_SHAPE,
-            f"'{verb}' addresses an object field, so the last target segment must be a "
-            "plain string. Use add_item / replace_item / remove_item for list entries.",
+            (
+                "'add_item' targets the list itself, so the last target segment must be "
+                "the list's name, not a {list, key} selector."
+                if verb == "add_item"
+                else f"'{verb}' addresses an object field, so the last target segment must "
+                "be a plain string. Use add_item / replace_item / remove_item for list "
+                "entries."
+            ),
         )
 
 
@@ -1260,7 +1295,12 @@ def _derived_key(list_name: str, value: Any, verb: str) -> str:
     if key is None:
         raise _Fail(
             Reason.ITEM_KEY_UNDEFINED,
-            f"'{verb}' cannot derive a key for the new '{list_name}' entry.",
+            f"'{verb}' cannot derive a key for the new '{list_name}' entry"
+            + (
+                f" of type {value.get('type')!r}."
+                if isinstance(value, dict) and value.get("type")
+                else "."
+            ),
         )
     return key
 
@@ -1419,8 +1459,8 @@ def _apply_operation(
         if list_name not in KEY_FIELDS:
             raise _Fail(
                 Reason.UNKEYED_COLLECTION,
-                f"'{list_name}' is not a name-addressed list "
-                f"(known: {', '.join(sorted(KEY_FIELDS))})",
+                f"'{list_name}' is not a keyed list (keyed lists: skills and mcps by "
+                f"name, files by path, tools by their type's key rule)",
             )
         collection = _walk(root, segments)
         if not isinstance(collection, list):
@@ -1432,7 +1472,7 @@ def _apply_operation(
         if any(item_key(list_name, entry) == key for entry in collection):
             raise _Fail(
                 Reason.ITEM_ALREADY_EXISTS,
-                f"'{list_name}' already holds an entry named {key!r}.",
+                f"'{list_name}' already holds an entry with key {key!r}.",
             )
         collection.append(deepcopy(value))
         touched.item(segments)
@@ -1451,7 +1491,7 @@ def _apply_operation(
         if new_key != key:
             raise _Fail(
                 Reason.ITEM_RENAME_NOT_ALLOWED,
-                f"the target names {key!r} but the value is named {new_key!r}.",
+                f"the target's key is {key!r} but the value's key derives to {new_key!r}.",
             )
         collection[position] = deepcopy(value)
         touched.item(segments[:-1] + [list_name])
@@ -1482,8 +1522,8 @@ def _require_keyed_list(list_name: Any) -> None:
     if list_name not in KEY_FIELDS:
         raise _Fail(
             Reason.UNKEYED_COLLECTION,
-            f"'{list_name}' is not a name-addressed list "
-            f"(known: {', '.join(sorted(KEY_FIELDS))})",
+            f"'{list_name}' is not a keyed list (keyed lists: skills and mcps by "
+            f"name, files by path, tools by their type's key rule)",
         )
 
 

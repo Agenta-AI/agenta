@@ -35,7 +35,7 @@ from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
-from .tools.models import PermissionMode, coerce_tool_spec
+from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
 
 
 # ---------------------------------------------------------------------------
@@ -1128,6 +1128,10 @@ class SessionConfig(BaseModel):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     tool_callback: Optional[ToolCallback] = None
+    # The compiled gateway connection policy the tool resolver produced. It is runner policy,
+    # not harness configuration: the environment carries it directly to the backend and the
+    # /run serializer. ``None`` when the agent has no connection entry.
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
 
     @field_validator("tool_specs", mode="before")
@@ -1148,6 +1152,13 @@ class SessionConfig(BaseModel):
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:
         return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    @property
+    def gateway_integration_names(self) -> List[str]:
+        """Configured integration names for model guidance, without exposing runner policy."""
+        if self.gateway_policy is None:
+            return []
+        return sorted(self.gateway_policy.integrations)
 
 
 # ---------------------------------------------------------------------------

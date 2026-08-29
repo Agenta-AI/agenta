@@ -5,6 +5,8 @@ import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
+import {newId} from "@/lib/ids"
+
 import type {useNewAgentAction} from "../agents/useNewAgentAction"
 
 import {FIRST_RUN_COPY, FIRST_RUN_STARTERS} from "./copy"
@@ -38,7 +40,7 @@ export const FirstRunComposer = ({
 }) => {
     const inputRef = useRef<RichChatInputHandle | null>(null)
     const [sessionId] = useState(() => {
-        const id = crypto.randomUUID()
+        const id = newId()
         // Same reason as Home's composer: a session minted here has no durable records yet.
         markSessionFresh(id)
         return id

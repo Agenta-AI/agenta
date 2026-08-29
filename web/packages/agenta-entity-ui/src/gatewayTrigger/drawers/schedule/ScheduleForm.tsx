@@ -10,7 +10,7 @@ import {
     triggerApiErrorMessage,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
-    validateCron,
+    validateSchedule,
     cronToBuilder,
     type TriggerScheduleCreate,
     type TriggerScheduleData,
@@ -132,7 +132,9 @@ export function ScheduleForm({
         // The binding is derived from the stored references, never re-picked on open.
     }, [isEdit, schedule, scheduleFetching, scheduleId])
 
-    const cronValidation = useMemo(() => validateCron(cron), [cron])
+    // Field shape plus cadence: the API rejects anything tighter than its frequency
+    // floor, and Save stays disabled rather than letting the user learn that on submit.
+    const cronValidation = useMemo(() => validateSchedule(cron), [cron])
     const versionChosen = !!activeBinding.workflowId || !!activeBinding.variantId
 
     // Save enables only on draft changes vs the starting point (loaded schedule in edit,
@@ -327,10 +329,14 @@ export function ScheduleForm({
         onSaved,
     ])
 
-    // Create is gated on completeness; edit on having changed something.
+    // A valid cron gates both modes: an edit that loosens nothing but retypes the
+    // expression can still drop below the frequency floor, and Save must go dead
+    // rather than bounce off handleSubmit with a toast. Beyond that, create is gated
+    // on completeness and edit on having changed something.
     const canSubmit =
         !isDeleted &&
-        (isEdit ? isDirty : cronValidation.valid && versionChosen && !!composedMessage.trim())
+        cronValidation.valid &&
+        (isEdit ? isDirty : versionChosen && !!composedMessage.trim())
 
     if (isEdit && scheduleLoading) {
         return <ScheduleFormSkeleton showAgent={!playgroundEntityId} />

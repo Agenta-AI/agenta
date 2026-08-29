@@ -61,6 +61,9 @@ export type SidebarKindIcon = (kind: SidebarEntity["kind"]) => ReactNode
  * playground's local tab cache. Same seam as `localSessionRefsAtom`: the package composes what
  * it is given.
  */
+/** Per-row icon renderers, injected by the app: this package stays headless and only calls them. */
+export type SidebarRowIcons = Record<string, (ref: SidebarEntityRef) => ReactElement>
+
 export type SidebarRowWrappers = Record<
     string,
     (ref: SidebarEntityRef, node: ReactNode) => ReactElement
@@ -78,6 +81,7 @@ export const resolveChildren = (
     idleFallback?: SidebarConfig[],
     kindIcon?: SidebarKindIcon,
     wrapRow?: SidebarRowWrappers[string],
+    rowIcon?: SidebarRowIcons[string],
 ): SidebarConfig[] => {
     const icon = () => entity.icon ?? kindIcon?.(entity.kind)
     const status = source?.status ?? "idle"
@@ -152,7 +156,7 @@ export const resolveChildren = (
         link: entity.childLink(ref, projectURL),
         // A row can own more routes than it navigates to.
         matchLinks: entity.childMatchLinks?.(ref, projectURL),
-        icon: entity.getIcon?.(ref) ?? icon(),
+        icon: rowIcon?.(ref) ?? entity.getIcon?.(ref) ?? icon(),
         rowClassName: entity.getRowClassName?.(ref),
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),
@@ -189,11 +193,13 @@ export const useSidebarDynamicChildren = ({
     projectURL,
     kindIcon,
     rowWrappers,
+    rowIcons,
 }: {
     /** The active project's URL prefix — route shape is shared, the base is the app's. */
     projectURL: string | undefined
     kindIcon?: SidebarKindIcon
     rowWrappers?: SidebarRowWrappers
+    rowIcons?: SidebarRowIcons
 }): Record<string, SidebarConfig[]> => {
     const sources = useAtomValue(sidebarEntitySourcesAtom)
     const cachedChildrenRef = useRef<
@@ -219,10 +225,11 @@ export const useSidebarDynamicChildren = ({
                 idleFallback,
                 kindIcon,
                 rowWrappers?.[key],
+                rowIcons?.[key],
             )
         }
         return result
-    }, [sources, projectURL, kindIcon, rowWrappers])
+    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.
