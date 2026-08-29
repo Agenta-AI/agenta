@@ -29,7 +29,7 @@ from ..dtos import (
 )
 from ..interfaces import Environment, Harness
 from ..tools.models import ToolSpec, coerce_tool_spec
-from .agenta_builtins import compose_gateway_guidance
+from .agenta_builtins import gateway_guidance_field
 
 
 def _opt_str(value: Any) -> Any:
@@ -74,9 +74,9 @@ class PiHarness(Harness):
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
-            append_system=compose_gateway_guidance(
-                _opt_str(extras.get("append_system")),
-                config.gateway_integration_names,
+            append_system=_opt_str(extras.get("append_system")),
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "appendSystemPrompt"
             ),
         )
 
@@ -94,8 +94,9 @@ class ClaudeHarness(Harness):
         # adapter) renders `.claude/settings.json` as a generic `harnessFiles` entry. No
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
-            agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_integration_names
+            agents_md=config.agent.instructions,
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "agentsMd"
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -122,8 +123,9 @@ class CodexHarness(Harness):
         # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
         # codex-specific parsing happens here; the runner just writes the files into the cwd.
         return CodexAgentTemplate(
-            agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_integration_names
+            agents_md=config.agent.instructions,
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "agentsMd"
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,

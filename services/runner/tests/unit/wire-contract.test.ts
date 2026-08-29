@@ -50,6 +50,7 @@ const KNOWN_REQUEST_KEYS = [
   "toolCallback",
   "permissions",
   "gatewayPolicy",
+  "gatewayGuidance",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",

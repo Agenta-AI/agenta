@@ -677,8 +677,25 @@ export function buildRunPlan(
   const systemPrompt = isPi
     ? request.systemPrompt?.trim() || undefined
     : undefined;
+  // The gateway guidance is spliced HERE, at environment build time, guidance first and the
+  // author's text after it (the platform half leads, matching the old composed order). It is
+  // excluded from the session fingerprint on purpose, so this is the only moment the names
+  // list can change: a warm session keeps the text it was built with (the wording says the
+  // list may be stale), and the next cold or reopened session picks up the current names.
+  const guidance = request.gatewayGuidance?.text?.trim() || undefined;
+  const spliceGuidance = (
+    carrier: "appendSystemPrompt" | "agentsMd",
+    authored: string | undefined,
+  ): string | undefined => {
+    if (!guidance || request.gatewayGuidance?.carrier !== carrier)
+      return authored;
+    return authored ? `${guidance}\n\n${authored}` : guidance;
+  };
   const appendSystemPrompt = isPi
-    ? request.appendSystemPrompt?.trim() || undefined
+    ? spliceGuidance(
+        "appendSystemPrompt",
+        request.appendSystemPrompt?.trim() || undefined,
+      )
     : undefined;
 
   // Debug assertions: the derived run state must be self-consistent before the engine acts on
@@ -760,7 +777,10 @@ export function buildRunPlan(
       prompt: {
         text: prompt,
         turnText: buildTurnText(request, log),
-        agentsMd: request.agentsMd?.trim() || undefined,
+        agentsMd: spliceGuidance(
+          "agentsMd",
+          request.agentsMd?.trim() || undefined,
+        ),
         systemPrompt,
         appendSystemPrompt,
         hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
