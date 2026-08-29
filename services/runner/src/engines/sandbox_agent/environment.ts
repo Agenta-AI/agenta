@@ -62,6 +62,7 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
+import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   daytonaCredentialDeliveryPort,
@@ -583,6 +584,28 @@ export async function acquireEnvironment(
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
+
+    // CREDENTIAL PREFLIGHT (fresh Daytona sandboxes with an opaque model key and a declared
+    // endpoint). Kicked off HERE, right after the sandbox exists, and awaited at the very end of
+    // acquire, so it runs concurrently with the mounts/workspace/session work below and the
+    // common case pays nothing. See `credential-preflight.ts` for the race it closes.
+    const modelSecretCandidate =
+      plan.credentials.daytonaSecretPlan?.candidates.find(
+        (candidate) => candidate.consumer.kind === "model",
+      );
+    const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
+    const credentialPreflight =
+      plan.isDaytona &&
+      acquiredSandbox.mode === "create" &&
+      modelSecretCandidate &&
+      preflightBaseUrl
+        ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
+            sandbox: environment.sandbox,
+            baseUrl: preflightBaseUrl,
+            apiKeyVar: modelSecretCandidate.binding.name,
+            log: logger,
+          })
+        : undefined;
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
@@ -1112,6 +1135,12 @@ export async function acquireEnvironment(
     environment.session.onPermissionRequest((req: any) =>
       routePermissionRequestToActiveTurn(environment, req),
     );
+
+    if (credentialPreflight) {
+      const preflightAwaitStartedAt = Date.now();
+      await credentialPreflight;
+      timingLog("credential_preflight", preflightAwaitStartedAt);
+    }
 
     timingLog("acquire_total", acquireStartedAt);
     emit?.({
