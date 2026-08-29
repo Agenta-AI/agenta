@@ -37,6 +37,7 @@ const setup = (overrides: Partial<UseSessionShortcutsParams> = {}) => {
         onCloseSession: vi.fn(),
         onSearch: vi.fn(),
         onToggleConfigPanel: vi.fn(),
+        onToggleFilesPane: vi.fn(),
     }
     const Probe = () => {
         useSessionShortcuts({sessions, activeId: "s2", ...handlers, ...overrides})
@@ -121,16 +122,31 @@ describe("useSessionShortcuts", () => {
         expect(onJump).not.toHaveBeenCalled()
     })
 
-    it("opens, closes, searches and toggles the config panel", () => {
-        const {onNewSession, onCloseSession, onSearch, onToggleConfigPanel} = setup()
-        press("KeyC")
+    it("opens, closes, searches and toggles both side panels", () => {
+        const {onNewSession, onCloseSession, onSearch, onToggleConfigPanel, onToggleFilesPane} =
+            setup()
+        press("KeyN")
         press("KeyW")
-        press("KeyF")
-        press("KeyB")
+        press("KeyK")
+        press("KeyC")
+        press("KeyO")
         expect(onNewSession).toHaveBeenCalled()
         expect(onCloseSession).toHaveBeenCalledWith("s2")
         expect(onSearch).toHaveBeenCalled()
         expect(onToggleConfigPanel).toHaveBeenCalled()
+        expect(onToggleFilesPane).toHaveBeenCalled()
+    })
+
+    // The letters that browsers claim: Chrome/Edge open their menu on Alt+F, Firefox opens a menu
+    // on Alt+F/E/V/S/B/T/H, and both focus the address bar on Alt+D. None may be bound here.
+    it("binds no letter a browser menu already claims", () => {
+        const handlers = setup()
+        for (const code of ["KeyF", "KeyE", "KeyV", "KeyS", "KeyB", "KeyT", "KeyH", "KeyD"]) {
+            press(code)
+        }
+        for (const handler of Object.values(handlers)) {
+            expect(handler).not.toHaveBeenCalled()
+        }
     })
 
     it("refuses to close the last remaining session", () => {

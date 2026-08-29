@@ -4,3 +4,4 @@ export {
     useShortcutsSheetHotkey,
     type KeyboardShortcutsSheetProps,
 } from "./KeyboardShortcutsSheet"
+export {ShortcutsHelpButton, type ShortcutsHelpButtonProps} from "./ShortcutsHelpButton"

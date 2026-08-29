@@ -36,6 +36,7 @@ export interface Shortcut {
 
 export type ShortcutGroupId =
     | "sessions"
+    | "panels"
     | "run"
     | "composer"
     | "picker"
@@ -44,9 +45,11 @@ export type ShortcutGroupId =
     | "elicitation"
     | "voice"
     | "rename"
+    | "help"
 
 export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     sessions: "Sessions",
+    panels: "Side panels",
     run: "While the agent runs",
     composer: "Composer",
     picker: "Command picker",
@@ -55,6 +58,7 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     elicitation: "Forms the agent asks",
     voice: "Voice",
     rename: "Renaming a session",
+    help: "Help",
 }
 
 export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
@@ -74,7 +78,7 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "Z",
         alt: {modifiers: ["alt"], key: "X"},
     },
-    {id: "session.new", group: "sessions", label: "New session", modifiers: ["alt"], key: "C"},
+    {id: "session.new", group: "sessions", label: "New session", modifiers: ["alt"], key: "N"},
     {
         id: "session.close",
         group: "sessions",
@@ -102,14 +106,23 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         group: "sessions",
         label: "Search sessions",
         modifiers: ["alt"],
-        key: "F",
+        key: "K",
     },
+
+    // Side panels — ShowConfigPanelButton.tsx, OpenFilesPaneButton.tsx
     {
-        id: "session.config",
-        group: "sessions",
+        id: "panel.config",
+        group: "panels",
         label: "Show or hide the configuration",
         modifiers: ["alt"],
-        key: "B",
+        key: "C",
+    },
+    {
+        id: "panel.files",
+        group: "panels",
+        label: "Show or hide the files pane",
+        modifiers: ["alt"],
+        key: "O",
     },
 
     // The running turn — AgentConversation.tsx
@@ -215,6 +228,9 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "",
     },
     {id: "voice.cancel", group: "voice", label: "Cancel the recording", key: "Esc"},
+
+    // Help — KeyboardShortcutsSheet.tsx
+    {id: "help.sheet", group: "help", label: "Keyboard shortcuts", key: "?"},
 
     // Inline rename — SessionTabLabel.tsx
     {id: "rename.commit", group: "rename", label: "Save the name", key: "↵"},

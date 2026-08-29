@@ -15,6 +15,7 @@ export interface UseSessionShortcutsParams {
     onCloseSession: (id: string) => void
     onSearch: () => void
     onToggleConfigPanel: () => void
+    onToggleFilesPane: () => void
 }
 
 /** A bare Alt chord: no AltGr (Ctrl+Alt), no Cmd or Shift, not a repeat or an IME keystroke.
@@ -51,15 +52,20 @@ const steppedSession = <T extends {id: string}>(
 
 /**
  * Session shortcuts for the agent playground: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
- * `Alt+X` step to the previous/next one (wrapping), `Alt+C` opens a new session, `Alt+W` closes the
- * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+F` searches, `Alt+B` toggles the config
- * panel. Stop and approve live with the conversation that owns the run, not here.
+ * `Alt+X` step to the previous/next one (wrapping), `Alt+N` opens a new session, `Alt+W` closes the
+ * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+K` searches, `Alt+C` toggles the config
+ * panel, `Alt+O` toggles the files pane. Stop and approve live with the conversation that owns the
+ * run, not here.
  *
  * Alt alone, because ⌘/Ctrl+digit is browser tab switching on every OS, and one binding for all
  * platforms (the label differs, the keys don't). Matched on `event.code`: macOS Option+1 reports
  * `event.key` as `¡`. Excluding `ctrlKey` keeps European AltGr (which reports as Ctrl+Alt) typing
  * normally. These fire from any focus context, the composer included — that's the point of a
  * modifier combo here, and no plain-key binding is introduced that could swallow typed text.
+ *
+ * The letters avoid every browser menu mnemonic: Chrome and Edge open their menu on `Alt+F`/`Alt+E`,
+ * Firefox opens File/Edit/View/History/Bookmarks/Tools/Help on `Alt+F/E/V/S/B/T/H`, and both focus
+ * the address bar on `Alt+D`. Search moved off `F` and the config panel off `B` for that reason.
  */
 export function useSessionShortcuts({
     sessions,
@@ -72,6 +78,7 @@ export function useSessionShortcuts({
     onCloseSession,
     onSearch,
     onToggleConfigPanel,
+    onToggleFilesPane,
 }: UseSessionShortcutsParams) {
     useEffect(() => {
         if (!enabled) return
@@ -104,19 +111,24 @@ export function useSessionShortcuts({
                 return
             }
 
-            if (e.code === "KeyC") {
+            if (e.code === "KeyN") {
                 claim()
                 onNewSession()
                 return
             }
-            if (e.code === "KeyF") {
+            if (e.code === "KeyK") {
                 claim()
                 onSearch()
                 return
             }
-            if (e.code === "KeyB") {
+            if (e.code === "KeyC") {
                 claim()
                 onToggleConfigPanel()
+                return
+            }
+            if (e.code === "KeyO") {
+                claim()
+                onToggleFilesPane()
                 return
             }
 
@@ -150,5 +162,6 @@ export function useSessionShortcuts({
         onCloseSession,
         onSearch,
         onToggleConfigPanel,
+        onToggleFilesPane,
     ])
 }
