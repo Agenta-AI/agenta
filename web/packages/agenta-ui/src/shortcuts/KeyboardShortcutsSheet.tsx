@@ -30,23 +30,23 @@ export const KeyboardShortcutsSheet = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={cn("max-w-[720px] p-0", className)}>
+            <DialogContent className={cn("max-w-[min(1040px,calc(100vw-2rem))] p-0", className)}>
                 <DialogHeader className="border-0 border-b border-solid border-colorBorderSecondary px-5 py-3.5">
                     <DialogTitle className="text-sm">Keyboard shortcuts</DialogTitle>
                     <DialogDescription className="text-xs">
                         Press ? at any time to open this list.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="max-h-[70vh] gap-x-8 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 sm:columns-2">
+                <div className="max-h-[70vh] gap-x-8 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 sm:columns-2 lg:columns-3">
                     {groups.map((group) => (
-                        <section key={group.id} className="mb-5 break-inside-avoid">
+                        <section key={group.id} className="mb-4 break-inside-avoid">
                             <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-colorTextTertiary">
                                 {group.title}
                             </h4>
                             {group.shortcuts.map((shortcut) => (
                                 <div
                                     key={shortcut.id}
-                                    className="flex items-center gap-3 py-1 text-xs text-colorTextSecondary"
+                                    className="flex items-center gap-3 py-0.5 text-xs text-colorTextSecondary"
                                 >
                                     <span className="flex-1">
                                         {shortcut.label}

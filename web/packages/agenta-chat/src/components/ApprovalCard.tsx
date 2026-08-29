@@ -10,6 +10,8 @@
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
+import {shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
@@ -155,6 +157,10 @@ export const ApprovalCard = ({
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
+            // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
+            // Escape for a dialog, menu or popover but still lets it reach us, and it never
+            // touches Cmd+Enter, which only the overlay check catches.
+            if (event.defaultPrevented || isOverlayOpen()) return
             if (steerOpen) return
             const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
@@ -291,10 +297,12 @@ export const ApprovalCard = ({
                             loading={responding && firedAction === "deny"}
                             className={touchCls}
                             onClick={deny}
+                            aria-keyshortcuts={shortcutAria("approval.deny")}
                         >
                             {batched && onDenyAll ? "Deny all" : "Deny"}
+                            {/* Decorative: the button's own label already names the action. */}
                             {showKeys ? (
-                                <ShortcutKeys id="approval.deny" className="ml-1.5" />
+                                <ShortcutKeys id="approval.deny" aria-hidden className="ml-1.5" />
                             ) : null}
                         </LoadingButton>
                         <LoadingButton
@@ -302,12 +310,14 @@ export const ApprovalCard = ({
                             loading={responding && firedAction === "approve"}
                             className={touchCls}
                             onClick={approve}
+                            aria-keyshortcuts={shortcutAria("approval.approve")}
                         >
                             {batched ? "Approve all" : "Approve"}
                             {showKeys ? (
                                 <ShortcutKeys
                                     id="approval.approve"
                                     tone="inverse"
+                                    aria-hidden
                                     className="ml-1.5"
                                 />
                             ) : null}

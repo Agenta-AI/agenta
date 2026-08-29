@@ -27,6 +27,8 @@ export interface ShortcutKeysProps {
     /** `chip` sits on a surface; `inverse` sits inside a dark tooltip or a filled button. */
     tone?: "chip" | "inverse"
     size?: "sm" | "md"
+    /** Hide from assistive tech where an adjacent label already names the action. */
+    "aria-hidden"?: boolean
     className?: string
 }
 
@@ -74,6 +76,7 @@ export const ShortcutKeys = ({
     showAlt = false,
     tone = "chip",
     size = "sm",
+    "aria-hidden": ariaHidden,
     className,
 }: ShortcutKeysProps) => {
     const mac = useIsMacPlatform()
@@ -85,7 +88,10 @@ export const ShortcutKeys = ({
     const mirror = showAlt ? shortcut?.alt : undefined
 
     return (
-        <span className={cn("inline-flex items-center gap-1 align-middle", className)}>
+        <span
+            aria-hidden={ariaHidden}
+            className={cn("inline-flex items-center gap-1 align-middle", className)}
+        >
             <Caps faces={shortcutFaces(primary, mac)} tone={tone} size={size} />
             {mirror ? (
                 <>

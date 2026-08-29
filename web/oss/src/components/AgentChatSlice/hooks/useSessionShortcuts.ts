@@ -1,5 +1,7 @@
 import {useEffect} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
+
 /** How many open sessions the digit row can reach. */
 export const SESSION_SHORTCUT_MAX = 9
 
@@ -22,15 +24,6 @@ export interface UseSessionShortcutsParams {
  * Exported because the run-level shortcuts live with the conversation that owns the run. */
 export const isAltChord = (e: KeyboardEvent): boolean =>
     e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat && !e.isComposing
-
-/** True while an antd confirm/modal or a Radix dialog owns the screen. No global open-dialog state
- * exists to ask, and these dialogs come from `modal.confirm`, so the DOM is the only witness. */
-export const isOverlayOpen = (): boolean =>
-    Boolean(
-        document.querySelector(
-            '.ant-modal-wrap:not([style*="display: none"]), [role="dialog"][data-state="open"]',
-        ),
-    )
 
 /** Physical keys that step through the strip, one session at a time. Z and X sit directly above
  * Alt/Option, so the whole set stays under one resting hand — the reason they're positions

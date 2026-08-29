@@ -9,7 +9,7 @@ import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
 import {ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDoubleLeft, CaretDoubleRight} from "@phosphor-icons/react"
+import {CaretDoubleLeft, CaretDoubleRight, GearSix, Robot} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
@@ -19,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Forty-one keyboard shortcuts ship in the agent playground. Six of them tell you they exist. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.",
+                    "Forty-three keyboard shortcuts ship in the agent playground. Six of them tell you they exist. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.",
             },
         },
     },
@@ -85,18 +85,23 @@ export const ShortcutsSheet: Story = {
     render: () => (
         <div className="flex flex-col gap-5">
             <Frame
-                title="The button, where it sits in the session bar"
-                note="Beside Inspect, History and the files pane. Hover it to see the key; click it to open the sheet."
+                title="The button, at the right edge of the playground top bar"
+                note="The last control in the bar, after the settings gear. Hover it to see the key; click it to open the sheet."
             >
-                <div className="flex w-[420px] items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-1.5">
-                    <span className="rounded bg-colorFillTertiary px-2.5 py-1 text-xs font-medium text-colorText">
-                        Refund flow
+                <div className="flex w-[520px] items-center justify-between gap-4 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-2">
+                    <span className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-colorFillSecondary">
+                            <Robot size={15} weight="fill" />
+                        </span>
+                        <span className="text-[16px] font-semibold text-colorText">
+                            Refund agent
+                        </span>
                     </span>
-                    <span className="px-2.5 py-1 text-xs text-colorTextSecondary">
-                        Issue triage
-                    </span>
-                    <span className="ml-auto flex items-center gap-0.5">
-                        <ShortcutsHelpButton />
+                    <span className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" aria-label="Playground settings">
+                            <GearSix size={16} />
+                        </Button>
+                        <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
                     </span>
                 </div>
             </Frame>

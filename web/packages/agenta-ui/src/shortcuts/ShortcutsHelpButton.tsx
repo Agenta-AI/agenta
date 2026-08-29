@@ -1,12 +1,13 @@
 /**
  * The visible way into the shortcuts sheet, and the owner of the `?` hotkey.
  *
- * A hotkey with no button teaches nobody, so the two ship together: this sits in the session bar
- * beside the other icon controls, and pressing `?` anywhere outside a text field opens the same
- * sheet. Linear pairs `?` with a Help entry in its sidebar for the same reason.
+ * A hotkey with no button teaches nobody, so the two ship together: this sits at the right edge of
+ * the playground top bar, and pressing `?` anywhere outside a text field opens the same sheet.
+ * Linear pairs `?` with a Help entry in its sidebar for the same reason.
  */
 import {useCallback, useState} from "react"
 
+import {shortcutAria} from "@agenta/shared/utils"
 import {Keyboard} from "@phosphor-icons/react"
 
 import {Button, SimpleTooltip} from "../components/ui"
@@ -43,6 +44,7 @@ export const ShortcutsHelpButton = ({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Keyboard shortcuts"
+                    aria-keyshortcuts={shortcutAria("help.sheet")}
                     onClick={() => setOpen(true)}
                     className={className}
                 >

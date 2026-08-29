@@ -132,8 +132,9 @@ describe("granting a batch", () => {
         act(() => {
             box.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
-        const approveAll = [...host.querySelectorAll("button")].find(
-            (node) => node.textContent === "Approve all",
+        // Prefix, not equality: the button also carries its keycap, so its text is "Approve all⌘↵".
+        const approveAll = [...host.querySelectorAll("button")].find((node) =>
+            node.textContent?.startsWith("Approve all"),
         )!
         act(() => {
             approveAll.dispatchEvent(new MouseEvent("click", {bubbles: true}))
@@ -153,8 +154,8 @@ describe("granting a batch", () => {
         act(() => {
             box.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
-        const deny = [...host.querySelectorAll("button")].find(
-            (node) => node.textContent === "Deny",
+        const deny = [...host.querySelectorAll("button")].find((node) =>
+            node.textContent?.startsWith("Deny"),
         )!
         act(() => {
             deny.dispatchEvent(new MouseEvent("click", {bubbles: true}))
@@ -196,6 +197,21 @@ describe("keyboard shortcuts", () => {
             window.dispatchEvent(new KeyboardEvent("keydown", {bubbles: true, ...init}))
         })
 
+    /** What Radix does: cancel the key in the capture phase, but let it keep propagating. */
+    const pressCancelled = (init: KeyboardEventInit) =>
+        act(() => {
+            const event = new KeyboardEvent("keydown", {
+                bubbles: true,
+                cancelable: true,
+                ...init,
+            })
+            window.addEventListener("keydown", (e) => e.preventDefault(), {
+                capture: true,
+                once: true,
+            })
+            window.dispatchEvent(event)
+        })
+
     it("approves on Cmd/Ctrl+Enter and denies on Escape", () => {
         const responses: {approved: boolean}[] = []
         const {cleanup} = mount({
@@ -232,6 +248,46 @@ describe("keyboard shortcuts", () => {
         press({key: "Enter", metaKey: true})
         press({key: "Escape"})
         expect(responses).toEqual([])
+        cleanup()
+    })
+
+    // Radix handles Escape in the capture phase and calls preventDefault, but never
+    // stopPropagation, so a dialog's Escape still reached this window listener and silently
+    // denied the gate behind it. Cmd+Enter was never intercepted at all and silently approved it.
+    it("answers nothing while a dialog owns the screen", () => {
+        const responses: unknown[] = []
+        const {cleanup} = mount({onRespond: () => responses.push(1)})
+
+        const dialog = document.createElement("div")
+        dialog.setAttribute("role", "dialog")
+        dialog.setAttribute("data-state", "open")
+        document.body.appendChild(dialog)
+
+        press({key: "Escape"})
+        press({key: "Enter", metaKey: true})
+        expect(responses).toEqual([])
+
+        // The same two keys answer the gate again the moment the dialog closes.
+        dialog.remove()
+        press({key: "Escape"})
+        expect(responses).toEqual([1])
+
+        cleanup()
+    })
+
+    // A dropdown or popover is role="menu", not role="dialog", so the overlay check cannot see it.
+    // Radix cancels the key though, which is the only signal left. Repro: park a gate, open the
+    // top bar's settings menu, press Escape. The menu closed AND the gate was denied.
+    it("answers nothing when a menu already cancelled the key", () => {
+        const responses: unknown[] = []
+        const {cleanup} = mount({onRespond: () => responses.push(1)})
+
+        pressCancelled({key: "Escape"})
+        expect(responses).toEqual([])
+
+        press({key: "Escape"})
+        expect(responses).toEqual([1])
+
         cleanup()
     })
 })

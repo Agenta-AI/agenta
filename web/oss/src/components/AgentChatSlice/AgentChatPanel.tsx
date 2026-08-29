@@ -25,7 +25,6 @@ import {
     type PendingSessionOpen,
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -472,7 +471,6 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                                         sessionId={activeId ?? null}
                                                     />
                                                     <SessionHistoryMenu />
-                                                    <ShortcutsHelpButton />
                                                     <OpenFilesPaneButton
                                                         sessionId={activeId ?? null}
                                                     />

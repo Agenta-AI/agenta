@@ -39,6 +39,7 @@ export type ShortcutGroupId =
     | "panels"
     | "run"
     | "composer"
+    | "commands"
     | "picker"
     | "approval"
     | "connection"
@@ -52,7 +53,8 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     panels: "Side panels",
     run: "While the agent runs",
     composer: "Composer",
-    picker: "Command picker",
+    commands: "The / menu",
+    picker: "Permission picker",
     approval: "Approval card",
     connection: "Connection dock",
     elicitation: "Forms the agent asks",
@@ -78,7 +80,14 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "Z",
         alt: {modifiers: ["alt"], key: "X"},
     },
-    {id: "session.new", group: "sessions", label: "New session", modifiers: ["alt"], key: "N"},
+    {
+        id: "session.new",
+        group: "sessions",
+        label: "New session",
+        modifiers: ["alt"],
+        key: "N",
+        when: "the agent has answered once",
+    },
     {
         id: "session.close",
         group: "sessions",
@@ -139,6 +148,7 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         label: "Approve the first parked gate",
         modifiers: ["alt"],
         key: "G",
+        when: "a gate is waiting",
     },
 
     // Composer — RichChatInput / SubmitPlugin
@@ -149,7 +159,19 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
     {id: "composer.italic", group: "composer", label: "Italic", modifiers: ["mod"], key: "I"},
     {id: "composer.commands", group: "composer", label: "Open commands", key: "/"},
 
-    // Command picker — useRovingList.ts
+    // The / menu — SlashCommandPlugin.tsx. It binds no Home, End or ArrowLeft; those belong to
+    // the permission picker below, which is a different surface with its own key handler.
+    {
+        id: "commands.move",
+        group: "commands",
+        label: "Move through the list",
+        key: "↑",
+        alt: {key: "↓"},
+    },
+    {id: "commands.pick", group: "commands", label: "Pick the command", key: "↵", alt: {key: "⇥"}},
+    {id: "commands.dismiss", group: "commands", label: "Close the menu", key: "Esc"},
+
+    // The permission picker the / menu opens — useRovingList.ts
     {id: "picker.move", group: "picker", label: "Move through the list", key: "↑", alt: {key: "↓"}},
     {
         id: "picker.ends",
@@ -264,7 +286,52 @@ export const shortcutFaces = (
     return chord.key ? [...modifiers, chord.key] : modifiers
 }
 
-/** A flat text label, for a tooltip title or an aria-keyshortcuts attribute. */
+/** Display glyph to the name `aria-keyshortcuts` expects. Anything absent passes through. */
+const ARIA_KEY: Record<string, string> = {
+    "↵": "Enter",
+    Esc: "Escape",
+    "⌫": "Backspace",
+    "⇥": "Tab",
+    "←": "ArrowLeft",
+    "→": "ArrowRight",
+    "↑": "ArrowUp",
+    "↓": "ArrowDown",
+}
+
+/** Modifier to its ARIA name. `mod` has no single name, so it expands to both alternatives. */
+const ARIA_MODIFIER: Record<ShortcutModifier, string[]> = {
+    mod: ["Meta", "Control"],
+    alt: ["Alt"],
+    ctrl: ["Control"],
+    shift: ["Shift"],
+}
+
+/**
+ * The value for `aria-keyshortcuts`, built from the same entry the keycaps are drawn from, so a
+ * moved key updates the attribute too. Returns "" for a range like `1…9`, which names no single
+ * key; callers omit the attribute rather than announce something false.
+ */
+export const shortcutAria = (id: string): string => {
+    const shortcut = BY_ID.get(id)
+    if (!shortcut) return ""
+    const chords = [shortcut, ...(shortcut.alt ? [shortcut.alt] : [])]
+    const values: string[] = []
+    for (const chord of chords) {
+        if (!chord.key || chord.key.includes("…")) continue
+        const key = ARIA_KEY[chord.key] ?? chord.key
+        // Every combination of the alternatives: `mod` alone already yields Meta and Control.
+        let combos: string[][] = [[]]
+        for (const modifier of chord.modifiers ?? []) {
+            combos = combos.flatMap((combo) =>
+                ARIA_MODIFIER[modifier].map((name) => [...combo, name]),
+            )
+        }
+        for (const combo of combos) values.push([...combo, key].join("+"))
+    }
+    return values.join(" ")
+}
+
+/** A flat text label, for a tooltip title. */
 export const shortcutText = (
     chord: {modifiers?: ShortcutModifier[]; key: string},
     mac = isMacPlatform(),
