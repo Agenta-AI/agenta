@@ -82,6 +82,14 @@ describe("acceptedRepresentations", () => {
     ).toEqual(["json", "markdown"]);
   });
 
+  it("lets a specific q=0 override a wildcard that accepted it", () => {
+    // The exact range is more specific than text/*, so HTML is rejected even
+    // though the wildcard would have taken it. RFC 9110 12.5.1.
+    expect(acceptedRepresentations("text/*;q=1, text/html;q=0")).toEqual([
+      "markdown",
+    ]);
+  });
+
   it("returns nothing when we serve none of the accepted types", () => {
     expect(acceptedRepresentations("image/webp")).toEqual([]);
   });

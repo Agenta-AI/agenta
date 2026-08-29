@@ -75,6 +75,19 @@ describe("mdxToMarkdown", () => {
     );
   });
 
+  it("protects tilde fences and multi-backtick spans", () => {
+    const tilde = "Before\n\n~~~tsx\nconst x = <Foo bar />;\n~~~\n\nAfter";
+    expect(mdxToMarkdown(tilde)).toContain("const x = <Foo bar />;");
+    expect(mdxToMarkdown("Use ``<InlineCTA />`` here.")).toBe(
+      "Use ``<InlineCTA />`` here.",
+    );
+  });
+
+  it("does not mistake prose for a code placeholder", () => {
+    // The placeholder is NUL-wrapped precisely so this text survives.
+    expect(mdxToMarkdown("A CODE0 B")).toBe("A CODE0 B");
+  });
+
   it("passes ordinary markdown through unchanged", () => {
     const source = "## Heading\n\n- one\n- two\n\n[link](https://agenta.ai)";
     expect(mdxToMarkdown(source)).toBe(source);

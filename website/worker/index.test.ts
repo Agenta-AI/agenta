@@ -111,6 +111,11 @@ describe("406", () => {
     expect(body.error.code).toBe("not_acceptable");
   });
 
+  it("406s a missing path too when nothing we serve is acceptable", async () => {
+    // There is no language to answer the 404 in, so the 406 is the honest reply.
+    expect((await get("/nope", "image/webp")).status).toBe(406);
+  });
+
   it("never 406s a browser or a wildcard client", async () => {
     for (const accept of [
       "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

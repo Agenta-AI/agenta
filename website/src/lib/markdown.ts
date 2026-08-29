@@ -73,18 +73,23 @@ export function markdownResponse(body: string): Response {
  */
 export function mdxToMarkdown(body: string): string {
   // Code may legitimately contain anything that looks like JSX (`<InlineCTA />`
-  // in a sentence about the component, for instance). Pull every fenced block
-  // and inline span out first, rewrite around them, then put them back.
+  // in a sentence about the component, for instance). Pull every code region
+  // out first, rewrite around them, then put them back.
+  //
+  // Both fence characters and any run of backticks count, because markdown
+  // allows all of them. The placeholder is wrapped in NUL bytes, which cannot
+  // appear in a post, so prose that happens to read "CODE0" is never mistaken
+  // for one.
   const code: string[] = [];
+  const stash = (match: string) => {
+    code.push(match);
+    return `\u0000${code.length - 1}\u0000`;
+  };
   const withoutCode = body
-    .replace(/```[\s\S]*?```/g, (match) => {
-      code.push(match);
-      return ` CODE${code.length - 1} `;
-    })
-    .replace(/`[^`\n]*`/g, (match) => {
-      code.push(match);
-      return ` CODE${code.length - 1} `;
-    });
+    // Fenced blocks: ``` or ~~~, closed by at least as many of the same char.
+    .replace(/^(\s*)(`{3,}|~{3,})[\s\S]*?^\s*\2\s*$/gm, stash)
+    // Inline spans: a run of backticks closed by an equal run.
+    .replace(/(`+)(?:(?!\1)[\s\S])*\1/g, stash);
 
   const rewritten = withoutCode
     // ESM imports at the top of a post.
@@ -103,6 +108,6 @@ export function mdxToMarkdown(body: string): string {
     .replace(/\n{3,}/g, "\n\n");
 
   return rewritten
-    .replace(/ CODE(\d+) /g, (_match, index: string) => code[Number(index)])
+    .replace(/\u0000(\d+)\u0000/g, (_match, index: string) => code[Number(index)])
     .trim();
 }

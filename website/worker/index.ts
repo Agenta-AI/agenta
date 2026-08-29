@@ -82,6 +82,16 @@ async function handle(request: Request, env: Env): Promise<Response> {
     }
   }
 
+  // Nothing we serve is acceptable: say so, whether or not the path exists.
+  // /api/* is the exception below — it has no HTML representation to offer.
+  if (accepted.length === 0 && !url.pathname.startsWith("/api/")) {
+    return respond(notAcceptableJson(url.pathname), method, {
+      status: 406,
+      type: JSON_TYPE,
+      cache: "no-store",
+    });
+  }
+
   // Fetch the page before deciding: a path that does not exist owes the client
   // a 404 in its own language, not a 406 about representations of nothing.
   const asset = await env.ASSETS.fetch(request);

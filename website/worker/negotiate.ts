@@ -66,17 +66,50 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
 
 const ALL: Representation[] = ["html", "markdown", "json"];
 
-/** The representations one media type stands for, in the order it implies. */
-function representationsFor(type: string): Representation[] {
-  if (MARKDOWN_TYPES.has(type)) return ["markdown"];
-  if (HTML_TYPES.has(type)) return ["html"];
-  if (type === "application/json") return ["json"];
-  if (type === "*/*") return ALL;
-  // `text/*` covers html and markdown; html first, since that is what a browser
-  // or crawler sending text/* expects.
-  if (type === "text/*") return ["html", "markdown"];
-  if (type === "application/*") return ["json"];
-  return [];
+/** The media types each representation answers to. */
+const MEDIA_TYPES: Record<Representation, string[]> = {
+  // A client asking only for XHTML or XML still gets the HTML page: those
+  // clients (unfurlers, XHTML-era agents) read it fine, and a 406 would be a
+  // worse answer than a slightly broader content type.
+  html: ["text/html", "application/xhtml+xml", "application/xml"],
+  markdown: ["text/markdown", "text/x-markdown"],
+  json: ["application/json"],
+};
+
+/**
+ * The quality this header assigns a representation, resolved against the most
+ * specific range that matches it (RFC 9110 §12.5.1).
+ *
+ * Specificity matters for exclusions: in `text/*;q=1, text/html;q=0` the exact
+ * range wins, so HTML is rejected even though the wildcard accepted it.
+ */
+function qualityFor(
+  entries: AcceptEntry[],
+  representation: Representation,
+): { q: number; index: number } {
+  let bestSpecificity = -1;
+  let bestQ = 0;
+  let bestIndex = 0;
+
+  MEDIA_TYPES[representation].forEach((mediaType) => {
+    const [type] = mediaType.split("/");
+    entries.forEach((entry, index) => {
+      const specificity =
+        entry.type === mediaType
+          ? 2
+          : entry.type === `${type}/*`
+            ? 1
+            : entry.type === "*/*"
+              ? 0
+              : -1;
+      if (specificity <= bestSpecificity) return;
+      bestSpecificity = specificity;
+      bestQ = entry.q;
+      bestIndex = index;
+    });
+  });
+
+  return bestSpecificity < 0 ? { q: 0, index: 0 } : { q: bestQ, index: bestIndex };
 }
 
 /**
@@ -90,19 +123,18 @@ function representationsFor(type: string): Representation[] {
 export function acceptedRepresentations(
   header: string | null | undefined,
 ): Representation[] {
-  const parsed = parseAccept(header);
+  const entries = parseAccept(header);
   // No header at all (or nothing parseable): the client takes anything.
-  if (parsed.length === 0) return ALL;
+  if (entries.length === 0) return ALL;
 
-  const accepted: Representation[] = [];
-  for (const { type, q } of parsed) {
-    // q=0 is an explicit rejection, not a low preference.
-    if (q === 0) continue;
-    for (const representation of representationsFor(type)) {
-      if (!accepted.includes(representation)) accepted.push(representation);
-    }
-  }
-  return accepted;
+  return ALL.map((representation) => ({
+    representation,
+    ...qualityFor(entries, representation),
+  }))
+    .filter((candidate) => candidate.q > 0)
+    // Highest quality first; between equals, whichever the client named first.
+    .sort((a, b) => b.q - a.q || a.index - b.index)
+    .map((candidate) => candidate.representation);
 }
 
 /**
