@@ -1,17 +1,10 @@
 /**
- * The 404 page — the same full-screen surface in oss, ee and mobile.
+ * The 404 page: the same full-screen surface in oss, ee and mobile.
  *
- * Deliberately signed-out: a bad link arrives from outside the app as often as from inside it,
- * so this reads the same whether or not a session exists. That is why it is here beside
- * `AuthShell` rather than in a product package, and why it is built from auth.css's scoped
- * tokens: the page ground, the yellow keycap and the surface button already exist there, and
- * this screen adds no colour of its own.
- *
- * Plain elements only, like everything else in this package — the desktop apps render it inside
- * antd and the mobile app inside shadcn, and it must not care which.
- *
- * Routing arrives as props because "home" is not the same place in each host, and because the
- * package has no router of its own.
+ * It sits beside `AuthShell` because it is the other surface a signed-out visitor lands on,
+ * and it is built from the same scoped auth.css tokens. Plain elements only, like the rest of
+ * this package, so it renders the same inside antd and inside shadcn. Routing arrives as a
+ * prop; the package has no router of its own.
  */
 import {useEffect, useState} from "react"
 
@@ -28,9 +21,8 @@ export interface NotFoundScreenProps {
 }
 
 export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
-    // Next prerenders /404, where `asPath` is the literal "/404" rather than the address the
-    // visitor asked for, so the real one can only be printed after mount — otherwise it
-    // hydrates against different text.
+    // Next prerenders /404 with `asPath` as the literal "/404", so the real address is
+    // client-only or it hydrates against different text.
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
 
@@ -74,7 +66,7 @@ export const NotFoundScreen = ({onBack, path}: NotFoundScreenProps) => {
                 </div>
             </div>
 
-            {/* The technical half, last and quietest: useful in a bug report, noise to everyone else. */}
+            {/* Quietest text on the page: it is here to be quoted into a bug report. */}
             <p className="auth-404-code px-6 pb-10 text-center">
                 Error 404
                 {mounted && path ? (

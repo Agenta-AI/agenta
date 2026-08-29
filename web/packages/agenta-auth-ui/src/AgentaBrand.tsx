@@ -1,27 +1,16 @@
 import type {SVGProps} from "react"
 
 /**
- * The Agenta brand marks as inline SVG, for the surfaces that cannot reach `public/`.
+ * The Agenta brand marks as inline SVG, for surfaces that cannot reach `public/`: the mobile
+ * app's `/m` basePath breaks a bare `src="/assets/..."`, and a package ships no assets.
  *
- * The sign-in page hands `AuthShell` an `<img>` from its own asset folder, which works because
- * oss and ee serve from the root. The mobile app does not — its `/m` basePath is missing from a
- * bare `src="/assets/..."` — and neither can a package that ships no assets of its own. So the
- * paths live here, and the mark carries the theme accent through a class (`dark:` — every app
- * toggles `.dark` on `<html>`) instead of swapping two files per theme.
- *
- * Geometry matches the desktop rail: the wordmark's 361x80 box renders at 99x22, the mark's
- * 171x140 box at 20x20. `packages/agenta-navigation-ui/src/SidebarLogo.tsx` still carries its
- * own copy of these paths — pulling them from here would point the navigation package at the
- * auth package, which is the wrong direction for that dependency.
+ * `packages/agenta-navigation-ui/src/SidebarLogo.tsx` keeps its own copy of these paths;
+ * importing them from here would point the navigation package at the auth package.
  */
 const MARK_CLASS = "fill-[#1E1C1D] dark:fill-[#F2F25C]"
 
 export interface AgentaMarkProps extends SVGProps<SVGSVGElement> {
-    /**
-     * Replaces the brand accent on the leaf. The 404 page passes `fill-current` for both marks:
-     * its big leaf is a glyph inside the word "404", and its header logo reads as one white
-     * wordmark on dark rather than white lettering beside a yellow leaf.
-     */
+    /** Replaces the brand accent on the leaf. The 404 page passes `fill-current`. */
     markClassName?: string
 }
 

@@ -428,10 +428,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
-    // Read from the router, not the layout-flags atom: that atom is keyed on the parsed URL,
-    // which never says "/404", and it recomputes only when the URL snapshot changes — leaving
-    // it stale on the hop off a 404 back into the app. /404 renders bare like the auth screens:
-    // a bad link has to explain itself without a shell or a session.
+    // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
+    // stale on the hop off a 404. /404 renders bare like the auth screens.
     const router = useRouter()
     const isBareRoute = isAuthRoute || router.pathname === "/404"
 
