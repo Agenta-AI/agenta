@@ -225,6 +225,7 @@ export class PiModelConfigError extends Error {
 /** Pi identity check, mirroring `buildRunPlan` (an empty harness defaults to `pi_core`). */
 function isPiHarness(harness: string | undefined): boolean {
   const resolved = harness || "pi_core";
+  // "pi_agenta" is the removed experiment's spelling, still read as Pi (see run-plan.ts).
   return resolved === "pi_core" || resolved === "pi_agenta";
 }
 

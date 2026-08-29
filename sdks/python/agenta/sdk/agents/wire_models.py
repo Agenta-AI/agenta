@@ -501,7 +501,7 @@ class WireRunRequest(_WireModel):
 
     Every field is optional on the wire (the contract is implicitly all-optional), so the schema
     expresses "optional" while the producer's omit-when-empty behavior stays in ``wire.py`` and
-    is pinned by the golden fixtures. The harness selects the agent (``pi_core`` / ``pi_agenta``
+    is pinned by the golden fixtures. The harness selects the agent (``pi_core``
     / ``claude``); there is no engine selector on the wire (A3 removed the legacy backend).
     """
 

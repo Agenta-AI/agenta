@@ -615,8 +615,9 @@ export interface GatewayPolicy {
 
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * Harness id: "pi_core" | "claude" | "codex". `pi_core` drives the ACP agent "pi";
+   * "pi_agenta" (a removed 2026 experiment) is still read as `pi_core` so an old
+   * stored request replays. "claude" drives
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;

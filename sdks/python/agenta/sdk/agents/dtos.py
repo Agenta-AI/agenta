@@ -46,13 +46,11 @@ from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spe
 class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
-    ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
-    policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code.
+    ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
-    AGENTA = "pi_agenta"
     CODEX = "codex"
 
     @classmethod
@@ -60,7 +58,13 @@ class HarnessKind(str, Enum):
         """Accept either an enum or a loose string (the playground sends a string)."""
         if isinstance(value, cls):
             return value
-        return cls(str(value).lower())
+        normalized = str(value).lower()
+        # ``pi_agenta`` was a short-lived experiment (Pi plus a forced Agenta overlay), removed
+        # 2026-08-29. Revisions saved while it existed still carry the value, so reading maps it
+        # to plain Pi instead of refusing to load the config.
+        if normalized == "pi_agenta":
+            normalized = "pi_core"
+        return cls(normalized)
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +76,7 @@ class HarnessKind(str, Enum):
 # ``engines/running/interfaces.py``). The namespace is ``harness`` and the trailing ``v0`` is
 # bumped only when the harness contract shape breaks. This is purely the INTERFACE identity the
 # agent_template schema advertises; the stored/wire harness VALUE stays the bare enum string
-# (``pi_core`` / ``pi_agenta`` / ``claude``), which the runner reads as the runtime selector.
+# (``pi_core`` / ``claude`` / ``codex``), which the runner reads as the runtime selector.
 
 
 class HarnessIdentity(BaseModel):
@@ -96,11 +100,6 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessKind.PI.value,
         slug=f"agenta:harness:{HarnessKind.PI.value}:v0",
         name="Pi",
-    ),
-    HarnessIdentity(
-        value=HarnessKind.AGENTA.value,
-        slug=f"agenta:harness:{HarnessKind.AGENTA.value}:v0",
-        name="Pi (Agenta)",
     ),
     HarnessIdentity(
         value=HarnessKind.CLAUDE.value,
@@ -1072,14 +1071,6 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         if not files:
             return {}
         return {"harnessFiles": files}
-
-
-class AgentaAgentTemplate(PiAgentTemplate):
-    """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
-    system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
-    inline packages, not through ``wire_tools`` (skills are not tools)."""
-
-    harness: ClassVar[HarnessKind] = HarnessKind.AGENTA
 
 
 # ---------------------------------------------------------------------------

@@ -83,9 +83,7 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
-    )
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output

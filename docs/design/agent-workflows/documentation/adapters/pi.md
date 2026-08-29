@@ -10,7 +10,7 @@ pages first. This page assumes the relay and the wire contract.
 ## How Pi runs
 
 Pi runs over ACP, through sandbox-agent (`engines/sandbox_agent.ts`). The harness value
-`pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced opinion) both map to the `pi`
+`pi_core` (and the legacy `pi_agenta` spelling of a removed experiment) both map to the `pi`
 ACP agent. This is the one engine the runner has. The sandbox-agent daemon starts the
 `pi-acp` adapter, which starts the `pi` CLI.
 
