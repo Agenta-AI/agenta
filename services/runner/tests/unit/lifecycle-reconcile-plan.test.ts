@@ -246,6 +246,15 @@ describe("plan construction per facet", () => {
 
   it("an unknown harness fails closed to a rebuild", () => {
     assert.equal(harnessKind({ ...BASE, harness: "future-thing" } as never), "unknown");
+    // The wire spellings of Pi, and the empty default, all resolve to the "pi" capability row —
+    // "pi_core" landing in `unknown` sent every playground run to the fail-closed all-rebuild row.
+    assert.equal(harnessKind({ ...BASE, harness: "pi_core" } as never), "pi");
+    assert.equal(harnessKind({ ...BASE, harness: "pi_agenta" } as never), "pi");
+    assert.equal(harnessKind({ ...BASE, harness: undefined } as never), "pi");
+    assert.equal(
+      capabilitiesFor({ ...BASE, harness: "pi_core" } as never).model,
+      "apply-live",
+    );
     const capabilities = capabilitiesFor({ ...BASE, harness: "future-thing" } as never);
     assert.equal(capabilities.toolCatalog, "rebuild-sandbox");
     assert.equal(capabilities.workspaceFiles, "rebuild-sandbox");
