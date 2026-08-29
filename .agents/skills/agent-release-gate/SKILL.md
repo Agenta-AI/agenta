@@ -344,10 +344,13 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
 
 - `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
   itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
-  must stay warm; an instructions edit, a permissions edit and a tool-catalog edit must escalate)
-  and reports the `model` case rather than guessing at a deployment's connection shape. This is
-  the cell that would have caught the `cold1` rot described below.
+  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
+  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
+  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
+  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
+  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
+  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
+  that would have caught the `cold1` rot described below.
 - `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
   combination: an approval answered while a config change rides along in the SAME request. It is
   the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
