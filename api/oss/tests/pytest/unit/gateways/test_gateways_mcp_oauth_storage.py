@@ -57,6 +57,7 @@ class _FakeSecretsDAO:
         project_id=None,
         organization_id=None,
         user_id=None,
+        resolve_update=None,
     ):
         self.update_calls += 1
         scoped = self._scoped(project_id)

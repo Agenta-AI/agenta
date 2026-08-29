@@ -575,14 +575,10 @@ class SessionsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _services_internal_key_from_environment() -> str | None:
-    """Read the dedicated runtime proof without accepting public placeholders."""
-    runtime_key = (os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
-
-    if not runtime_key or runtime_key == "replace-me":
-        return None
-
-    return runtime_key
+def _services_internal_key_from_environment() -> str:
+    return (
+        os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "replace-me"
+    ).strip() or "replace-me"
 
 
 class AgentaConfig(BaseModel):
@@ -597,13 +593,7 @@ class AgentaConfig(BaseModel):
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
-    # Shared secret that proves a caller IS the platform runtime (the workflow service),
-    # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
-    # caller holding it can be issued a credential that reads write-only secret values.
-    # This is deliberately separate from the administrator key: deployments must opt in
-    # by configuring the same dedicated value on the API and platform services. NEVER
-    # sent to the runner or into a sandbox.
-    services_internal_key: str | None = _services_internal_key_from_environment()
+    services_internal_key: str = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()

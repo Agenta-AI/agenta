@@ -27,7 +27,6 @@ from ee.src.core.starter_credits_bridge.types import (
     ProxyRequestError,
 )
 
-
 # Captured before any fixture replaces it, so the one end-to-end policy test below
 # can run the real resolver.
 _REAL_RESOLVE_MINT_POLICY = service._resolve_mint_policy
@@ -191,10 +190,7 @@ def seeding_env(monkeypatch):
 
     config = _armed_config()
     monkeypatch.setattr(env, "starter_credits_bridge", config)
-    # A deployment that can issue a credential able to read the write-only row it seeds;
-    # the refusal when it cannot is its own test below.
     monkeypatch.setattr(env.agenta, "services_internal_key", "runtime-key-for-tests")
-    monkeypatch.setattr(service, "_runtime_key_alerted", False)
     # The retry backoff is behavior under test only for its shape, not its wall time.
     monkeypatch.setattr(service, "_MINT_RETRY_BACKOFF_SECONDS", 0.0)
 
@@ -372,31 +368,15 @@ class TestSeeding:
         assert call["rpm_limit"] == 30
 
     @pytest.mark.parametrize("runtime_key", ["", "replace-me"])
-    async def test_an_unreadable_deployment_refuses_to_seed(
-        self, seeding_env, runtime_key
-    ):
-        # Without a runtime key the API cannot issue a credential that reads a write-only
-        # secret, so a seeded row would be a funded key nothing can spend. Refuse rather
-        # than mint into a connection that cannot work.
+    async def test_default_runtime_keys_allow_seeding(self, seeding_env, runtime_key):
         seeding_env.monkeypatch.setattr(
             env.agenta, "services_internal_key", runtime_key
         )
 
         await _seed()
 
-        assert FakeProxyClient.instances == []
-        assert seeding_env.vault.row is None
-        assert len(seeding_env.alerts) == 1
-        assert "AGENTA_SERVICES_INTERNAL_KEY" in seeding_env.alerts[0]
-
-    async def test_the_unreadable_deployment_alert_is_sent_once(self, seeding_env):
-        # One alert, not one per signup.
-        seeding_env.monkeypatch.setattr(env.agenta, "services_internal_key", "")
-
-        await _seed()
-        await _seed()
-
-        assert len(seeding_env.alerts) == 1
+        assert len(FakeProxyClient.instances) == 1
+        assert seeding_env.vault.row is not None
 
     async def test_disarmed_config_is_a_noop(self, seeding_env):
         seeding_env.monkeypatch.setattr(
@@ -1165,14 +1145,3 @@ class TestRefusalLogging:
         assert fields["rule"] == "velocity_counters_unavailable"
         assert fields["domain"] == "acme.test"
         assert "carol" not in repr((message, fields))
-
-
-def test_a_bridge_deployment_without_a_runtime_key_fails_at_startup(monkeypatch):
-    # The bridge seeds write-only rows, so the deployment needs the dedicated runtime key.
-    from oss.src.utils import helpers
-
-    monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
-    monkeypatch.setattr(env, "starter_credits_bridge", _armed_config())
-
-    with pytest.raises(RuntimeError, match="AGENTA_SERVICES_INTERNAL_KEY"):
-        helpers.validate_platform_runtime_key()

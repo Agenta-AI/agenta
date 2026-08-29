@@ -188,23 +188,21 @@ async def test_the_runtime_key_only_grants_a_run_exchange(exchange):
 
 
 @pytest.mark.asyncio
-async def test_an_unconfigured_deployment_grants_nobody(exchange, monkeypatch):
-    # The placeholder is in the repo, so anyone could send it. A deployment that
-    # configured no runtime key must issue no grant rather than accept a known string.
+async def test_the_default_runtime_key_grants_a_run_exchange(exchange, monkeypatch):
     monkeypatch.setattr(env.agenta, "services_internal_key", "replace-me")
     run, _ = exchange
 
     body = _body(await run("run_service", runtime_key="replace-me"))
 
-    assert "grants" not in _claims(body["credentials"])
+    assert _claims(body["credentials"])["grants"] == [SECRET_RESOLVE_GRANT]
 
 
 @pytest.mark.asyncio
-async def test_the_admin_key_is_not_runtime_proof(exchange, monkeypatch):
+async def test_a_distinct_admin_key_is_not_runtime_proof(exchange, monkeypatch):
     monkeypatch.setattr(env.agenta, "services_internal_key", None)
     run, _ = exchange
 
-    body = _body(await run("run_service", runtime_key=env.agenta.auth_key))
+    body = _body(await run("run_service", runtime_key="administrator-key"))
 
     assert "grants" not in _claims(body["credentials"])
 

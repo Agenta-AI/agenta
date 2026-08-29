@@ -4,7 +4,7 @@ import { describe, it } from "vitest";
 import { applyCodexAcpApprovalPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
- * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.6.2,
+ * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.7.0,
  * `dist/index.js`, `src/AgentMode.ts` section). Keep it byte-exact: the patch's only job
  * is to rewrite this shape, so a fixture that drifts from the real bundle proves nothing.
  */
@@ -13,9 +13,11 @@ var MODE_CONFIG_ID = "mode";
 var AgentMode = class _AgentMode {
   static ReadOnly = new _AgentMode(
     "read-only",
-    "Read-only",
-    "Requires approval to edit files and run commands.",
+    "Ask for approval",
+    "Always ask to edit external files and use the internet",
+    "standard",
     "on-request",
+    "user",
     {
       "type": "readOnly",
       "networkAccess": false
@@ -24,9 +26,11 @@ var AgentMode = class _AgentMode {
   );
   static Agent = new _AgentMode(
     "agent",
-    "Agent",
-    "Read and edit files, and run commands.",
+    "Approve for me",
+    "Only ask for actions detected as potentially unsafe",
+    "auto_review",
     "on-request",
+    "auto_review",
     {
       type: "workspaceWrite",
       writableRoots: [],
@@ -38,9 +42,11 @@ var AgentMode = class _AgentMode {
   );
   static AgentFullAccess = new _AgentMode(
     "agent-full-access",
-    "Agent (full access)",
-    "Codex can edit files outside this workspace and run commands with network access. Exercise caution when using.",
+    "Full access",
+    "Unrestricted access to the internet and any file on your computer",
+    "full_access",
     "never",
+    "user",
     { "type": "dangerFullAccess" },
     "danger-full-access"
   );
@@ -59,7 +65,7 @@ describe("applyCodexAcpApprovalPatch", () => {
     const patched = patchedSource(AGENT_MODE_SECTION);
     assert.match(
       patched,
-      /"agent-full-access",[\s\S]*?"on-request",\s*\{ "type": "dangerFullAccess" \}/,
+      /"agent-full-access",[\s\S]*?"full_access",\s*"on-request",\s*"user",\s*\{ "type": "dangerFullAccess" \}/,
     );
     assert.equal(patched.includes('"never"'), false);
   });
@@ -80,8 +86,8 @@ describe("applyCodexAcpApprovalPatch", () => {
     assert.equal(
       patched,
       AGENT_MODE_SECTION.replace(
-        `    "never",\n    { "type": "dangerFullAccess" },`,
-        `    "on-request",\n    { "type": "dangerFullAccess" },`,
+        `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,
+        `    "on-request",\n    "user",\n    { "type": "dangerFullAccess" },`,
       ),
     );
   });

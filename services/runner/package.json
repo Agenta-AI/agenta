@@ -6,9 +6,9 @@
   "packageManager": "pnpm@10.30.0",
   "description": "Agenta sandbox-agent runner. Reads one /run request and drives a coding harness.",
   "runtimeAgentPins": {
-    "_comment": "Harness adapters the sandbox-agent daemon installs at runtime (not npm dependencies of this package). Codex is pinned in the runner image build (docker/Dockerfile.{gh,dev}) via `install-agent codex --agent-process-version`, per decision D-005; recorded here next to the sandbox-agent pin so a version bump is discoverable. Codex is Apache-2.0 (bakeable); Claude Code is proprietary and installed at runtime by Anthropic (never pinned/baked).",
-    "@agentclientprotocol/codex-acp": "1.6.2",
-    "@openai/codex": "0.149.1"
+    "_comment": "Codex ACP and CLI versions baked into docker/Dockerfile.{gh,dev}; these are runtime pins, not package dependencies.",
+    "@agentclientprotocol/codex-acp": "1.7.0",
+    "codex-cli": "0.150.1"
   },
   "scripts": {
     "run:cli": "tsx src/cli.ts",

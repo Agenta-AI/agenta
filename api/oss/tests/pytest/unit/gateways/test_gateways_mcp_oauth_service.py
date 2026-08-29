@@ -82,6 +82,7 @@ class _FakeSecretsDAO:
         project_id=None,
         organization_id=None,
         user_id=None,
+        resolve_update=None,
     ):
         scoped = self._scoped(project_id)
         stored = next((r for r in scoped if r.id == secret_id), None)

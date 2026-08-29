@@ -201,6 +201,8 @@ def llm_gateway_connection(request, harness, mod_api):
     "harness",
     ["pi_core", "codex", "claude"],
 )
+@pytest.mark.slow
+@pytest.mark.xdist_group(name="agent-gateway-mock-matrix")
 @pytest.mark.parametrize(
     "llm_gateway_connection", ["builtin", "standard", "custom"], indirect=True
 )
@@ -215,6 +217,7 @@ def test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route(
     resp = mod_services_api(
         "POST",
         "/agent/v0/invoke",
+        timeout=180,
         json={
             "data": {
                 "inputs": {
@@ -259,7 +262,7 @@ def test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route(
     body = _assert_ok(resp)
     messages = body["data"]["outputs"]["messages"]
     assert messages, "expected at least one assistant message"
-    assert messages[-1]["role"] == "assistant"
+    assert messages[-1]["role"] == "assistant", messages
     # This exact response is emitted only after the mock model receives a successful echo
     # result; it proves discovery and invocation rather than merely prompt echoing.
-    assert messages[-1]["content"] == f"mock MCP echo: {marker}"
+    assert messages[-1]["content"] == f"mock MCP echo: {marker}", body

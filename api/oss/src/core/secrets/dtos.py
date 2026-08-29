@@ -152,10 +152,13 @@ SecretDataDTO = Union[
 
 
 def _validate_secret_data_based_on_kind(
-    values: Dict[str, Any],
+    values: Dict[str, Any] | BaseModel,
     *,
     value_required: bool,
 ) -> Dict[str, Any]:
+    if isinstance(values, BaseModel):
+        values = values.model_dump(mode="python")
+
     kind = values.get("kind")
     if isinstance(kind, SecretKind):
         kind = kind.value
@@ -291,11 +294,7 @@ def _validate_secret_data_based_on_kind(
             )
         provider = data.get("provider")
         required_fields = {"client_id", "issuer_url", "scopes"}
-        if (
-            not isinstance(provider, dict)
-            or not required_fields.issubset(provider)
-            or (value_required and provider.get("client_secret") in (None, ""))
-        ):
+        if not isinstance(provider, dict) or not required_fields.issubset(provider):
             raise ValueError(
                 "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
             )

@@ -149,10 +149,13 @@ class _InMemorySecretsDAO:
         project_id=None,
         organization_id=None,
         user_id=None,
+        resolve_update=None,
     ):
         existing = await self.get_by_id(secret_id, project_id=project_id)
         if existing is None:
             return None
+        if resolve_update is not None:
+            update_secret_dto = resolve_update(existing, update_secret_dto)
         updated = SecretResponseDTO(
             id=existing.id,
             slug=existing.slug,

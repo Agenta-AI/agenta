@@ -534,15 +534,22 @@ def test_oauth_provider_kind_decides_shape_though_sso_provider_shares_it():
     assert type(secret.secret.data) is OAuthProviderDTO
 
 
-@pytest.mark.parametrize(
-    "missing", ["client_id", "client_secret", "issuer_url", "scopes"]
-)
+@pytest.mark.parametrize("missing", ["client_id", "issuer_url", "scopes"])
 def test_create_oauth_provider_rejects_missing_field(missing):
     payload = _oauth_provider_payload()
     del payload["secret"]["data"]["provider"][missing]
 
     with pytest.raises(ValidationError, match="OAuthProviderSettingsDTO"):
         CreateSecretDTO.model_validate(payload)
+
+
+def test_create_oauth_provider_allows_a_public_client_without_a_secret():
+    payload = _oauth_provider_payload()
+    del payload["secret"]["data"]["provider"]["client_secret"]
+
+    secret = CreateSecretDTO.model_validate(payload)
+
+    assert secret.secret.data.provider.client_secret is None
 
 
 def _oauth_grant_payload(**grant):

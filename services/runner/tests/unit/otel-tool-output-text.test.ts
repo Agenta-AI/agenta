@@ -6,7 +6,7 @@
  * arrays, so every codex tool result stored and streamed EMPTY — successes and errors alike — and
  * nothing caught it because this path had no test.
  *
- * The rawOutput fixtures below are the shapes `@agentclientprotocol/codex-acp` 1.6.2 actually
+ * The rawOutput fixtures below are the shapes `@agentclientprotocol/codex-acp` 1.7.0 actually
  * builds (`dist/index.js`: `createMcpRawOutput`, `completeCommandExecutionEvent`, and the unified
  * exec function-call path). Keep them faithful to the bundle — a fixture invented here proves
  * nothing about the bridge.

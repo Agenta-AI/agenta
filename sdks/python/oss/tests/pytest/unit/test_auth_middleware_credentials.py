@@ -107,26 +107,13 @@ async def test_no_runtime_key_means_no_header(platform, monkeypatch):
     assert "X-Agenta-Runtime-Key" not in (platform.last_headers or {})
 
 
-async def test_a_missing_runtime_key_says_so_once(platform, monkeypatch, caplog):
-    # The failure it causes reports a missing provider key, which is the wrong advice for
-    # this cause. The standalone-run advice is misleading here, and an operator who never
-    # set the dedicated runtime key has no other way to reach the actual cause.
-    monkeypatch.setattr(auth_module, "_RUNTIME_KEY", "")
-    monkeypatch.setattr(auth_module, "_RUNTIME_KEY_WARNED", False)
+async def test_placeholder_runtime_key_rides_the_exchange(platform, monkeypatch):
+    monkeypatch.setattr(auth_module, "_RUNTIME_KEY", "replace-me")
     platform.body = {"effect": "allow", "credentials": "Secret general-token"}
 
-    with caplog.at_level("WARNING"):
-        await _get_credentials()
-        await _get_credentials()
+    await _get_credentials()
 
-    notices = [
-        record
-        for record in caplog.records
-        if "no platform runtime key configured" in record.getMessage()
-    ]
-    assert len(notices) == 1
-    assert "AGENTA_SERVICES_INTERNAL_KEY" in notices[0].getMessage()
-    assert "AGENTA_AUTH_KEY" not in notices[0].getMessage()
+    assert platform.last_headers["X-Agenta-Runtime-Key"] == "replace-me"
 
 
 def test_runtime_key_configuration_never_falls_back_to_the_admin_key(monkeypatch):
@@ -137,10 +124,10 @@ def test_runtime_key_configuration_never_falls_back_to_the_admin_key(monkeypatch
         lambda name, default=None: configured.get(name, default),
     )
 
-    assert auth_module._runtime_key_from_environment() == ""
+    assert auth_module._runtime_key_from_environment() == "replace-me"
 
 
-def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
+def test_runtime_key_placeholder_is_the_default(monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "getenv",
@@ -149,4 +136,4 @@ def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
         ),
     )
 
-    assert auth_module._runtime_key_from_environment() == ""
+    assert auth_module._runtime_key_from_environment() == "replace-me"

@@ -15,7 +15,6 @@ from supertokens_python.framework.fastapi import (
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import (
-    validate_platform_runtime_key,
     validate_required_env_vars,
     warn_deprecated_env_vars,
 )
@@ -298,7 +297,6 @@ async def lifespan(*args, **kwargs):
 
     warn_deprecated_env_vars()
     validate_required_env_vars()
-    validate_platform_runtime_key()
 
     await _triggers_broker.startup()
 

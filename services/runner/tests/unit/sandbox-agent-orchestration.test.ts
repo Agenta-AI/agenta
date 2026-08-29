@@ -520,6 +520,35 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("recognizes the Docker host alias of the configured local API", () => {
+    const previous = process.env.AGENTA_API_URL;
+    process.env.AGENTA_API_URL = "http://localhost:18080/api";
+    try {
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "http://host.docker.internal:18080/api/otlp/v1/traces",
+              headers: { authorization: "Secret caller" },
+            },
+          },
+        },
+      };
+
+      assert.equal(platformCredentialForRequest(request), "Secret caller");
+      assert.equal(
+        resolveRunOtlpTarget(request, () => "Secret refreshed")
+          .authorizationSource,
+        "platform",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.AGENTA_API_URL;
+      else process.env.AGENTA_API_URL = previous;
+    }
+  });
+
   it("keeps platform rotation away from third-party collector credentials", () => {
     vi.stubEnv("AGENTA_API_URL", "https://api.agenta.test/api");
     let live = "Secret initial";

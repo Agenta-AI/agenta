@@ -115,17 +115,13 @@ ENV HOME=/home/node
 
 USER node
 
-# Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
-# @agentclientprotocol/codex-acp from the npm registry with a floating range at first Codex use,
-# so a later release could drift protocol behavior. The pinned install generates a lockfile for
-# the adapter and bundled Codex CLI. The daemon finds the adapter present at runtime and skips
-# the floating fetch. Codex (codex-acp + @openai/codex) is Apache-2.0, so baking it is licensing-
-# clean, unlike proprietary Claude Code. Pinned versions recorded next to the sandbox-agent pin in
-# package.json. Runs as `node` so the install lands in the runtime user's HOME.
-# PIN: @agentclientprotocol/codex-acp 1.6.2 (bundles @openai/codex 0.149.1).
+# Install the pinned Codex ACP adapter and native CLI before the daemon starts.
+# PIN: codex-cli 0.150.1 + @agentclientprotocol/codex-acp 1.7.0.
 # The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
 # pin script resolves the daemon binary via the runner's own daemon.ts resolution.
-RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.6.2 -n
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-version rust-v0.150.1 --agent-process-version 1.7.0 -n
+
+ENV CODEX_PATH=/home/node/.local/share/sandbox-agent/bin/codex
 
 # Decouple approvals from the full-access sandbox in the adapter we just pinned (decision D-008
 # amendment). codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which

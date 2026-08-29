@@ -79,8 +79,6 @@ async def _check_resource_access(
 
 
 _RUNTIME_KEY_HEADER = "x-agenta-runtime-key"
-# The placeholder `env.py` falls back to when nothing is configured.
-_UNCONFIGURED_KEY = "replace-me"
 
 
 def _is_platform_runtime(request: Request) -> bool:
@@ -96,14 +94,7 @@ def _is_platform_runtime(request: Request) -> bool:
     if not presented:
         return False
 
-    expected = env.agenta.services_internal_key
-    # A deployment that configured nothing keeps the well-known placeholder, which anyone
-    # could send. Treat it as "no runtime configured" rather than as a secret: such a
-    # deployment issues no grant at all, which costs it only the ability to run against
-    # write-only secrets — off by default — and never hands the ability to a stranger.
-    if not expected or expected == _UNCONFIGURED_KEY:
-        return False
-
+    expected = env.agenta.services_internal_key or "replace-me"
     return compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
 

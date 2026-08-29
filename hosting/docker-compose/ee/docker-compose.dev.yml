@@ -182,16 +182,10 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            AGENTA_RUNNER_INTERNAL_URL: http://runner:8765
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
             AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
-            # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
-            # address + shared token as the `services` container's runner_url().
-            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
-            # Unset leaves the code default (3600s) in place.
-            AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS: ${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -421,10 +415,8 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            AGENTA_RUNNER_INTERNAL_URL: http://runner:8765
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
