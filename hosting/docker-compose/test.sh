@@ -283,6 +283,8 @@ run_runner() {
     fi
     echo "[test.sh] Installing runner packages: ${root}"
     (cd "$root" && pnpm install --frozen-lockfile)
+    echo "[test.sh] Building runner extensions: ${root}"
+    (cd "$root" && pnpm run build:extension)
     local -a runner_layers=("${layers[@]+"${layers[@]}"}") runner_args=("${forwarded[@]+"${forwarded[@]}"}")
     [[ "$selected_layer" == true ]] || runner_layers=(unit integration acceptance)
     if [[ "$time_profile" == true ]]; then
