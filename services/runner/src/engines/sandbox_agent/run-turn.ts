@@ -1292,6 +1292,12 @@ export async function runTurn(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
+        {
+          connection: {
+            slug: request.connection?.slug,
+            deployment: request.modelConnection?.deployment,
+          },
+        },
       );
       swallowedError = classified.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
@@ -1373,7 +1379,13 @@ export async function runTurn(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan) },
+      {
+        authFault: () => describeCodexSubscriptionAuthFault(plan),
+        connection: {
+          slug: request.connection?.slug,
+          deployment: request.modelConnection?.deployment,
+        },
+      },
     );
     const error = classified.message;
     await harnessTrace.cancelBeforeDrain();

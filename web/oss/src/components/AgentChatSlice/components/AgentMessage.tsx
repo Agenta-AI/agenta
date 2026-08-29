@@ -75,6 +75,10 @@ interface AgentMessageProps {
     /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
      * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
     turnTraceId?: string
+    /** Re-run this failed turn — the same regenerate wiring as the Stopped → Resend affordance.
+     * Stable across renders (the message to retry is passed in, not closed over); the parent
+     * passes it only on the last turn while a retry can actually run, so it gates position. */
+    onRetry?: (messageId: string) => void
 }
 
 /**
@@ -146,6 +150,13 @@ const STARTER_CREDIT_CODES = new Set([
     "starter_credits_program_paused",
 ])
 
+/** Transient failure classes where the honest advice is simply to run the turn again. */
+const RETRYABLE_CODES = new Set([
+    "credential_delivery_failed",
+    "starter_credits_unavailable",
+    "rate_limited",
+])
+
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
 
@@ -158,11 +169,14 @@ export const RunErrorBody = ({
     text,
     stateKey,
     code,
+    onRetry,
 }: {
     text: string
     stateKey: string
     /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
     code?: string
+    /** Re-run the failed turn; offered only for the transient classes in RETRYABLE_CODES. */
+    onRetry?: () => void
 }) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
@@ -170,6 +184,7 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
+    const offerRetry = !!onRetry && !!code && RETRYABLE_CODES.has(code)
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -209,6 +224,12 @@ export const RunErrorBody = ({
                     >
                         {/* TODO(copy: owner) */}
                         Add your key
+                    </Button>
+                )}
+                {offerRetry && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+                        {/* TODO(copy: owner) */}
+                        Try again
                     </Button>
                 )}
             </div>
@@ -343,6 +364,7 @@ const AgentMessage = ({
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
+    onRetry,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
@@ -598,6 +620,7 @@ const AgentMessage = ({
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
+            onRetry={onRetry ? () => onRetry(message.id) : undefined}
         />
     )
 

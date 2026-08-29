@@ -92,6 +92,52 @@ describe("conciseError", () => {
     );
   });
 
+  it("classifies an unsubstituted Daytona placeholder as credential delivery, not the user's key", () => {
+    // The LiteLLM refusal body when the sandbox's opaque placeholder reaches it raw: the user's
+    // key is fine, so the add-a-key advice would be wrong (found live, 2026-08-29, EU cloud).
+    const result = classifyRunError(
+      new Error(
+        "401 LiteLLM Virtual Key expected. Received=dtn_****9maz, expected to start with 'sk-'.",
+      ),
+      "pi_core",
+      "openai",
+    );
+    assert.equal(result.code, "credential_delivery_failed");
+    assert.equal(
+      result.message,
+      "A temporary issue kept this run's credentials from reaching the model. Send the message again.",
+    );
+  });
+
+  it("classifies a raw dtn_secret_ placeholder echo the same way", () => {
+    const result = classifyRunError(
+      new Error("401 Unauthorized: invalid api key 'dtn_secret_abc123'"),
+      "pi_core",
+      "openai",
+    );
+    assert.equal(result.code, "credential_delivery_failed");
+  });
+
+  it("names the connection, not the dialect family, for a custom-deployment auth failure", () => {
+    // A custom OpenAI-compatible connection resolves provider family "openai" for its DIALECT.
+    // A Gemini run through such a connection must not read "add the project's OpenAI key".
+    assert.equal(
+      conciseError(new Error("Authentication required"), "pi_core", "openai", {
+        connection: { slug: "starter-credits", deployment: "custom" },
+      }),
+      "pi_core: model authentication failed — add the 'starter-credits' connection's API key to the project vault, or log in (OAuth).",
+    );
+  });
+
+  it("keeps the family hint when the deployment is not custom", () => {
+    assert.equal(
+      conciseError(new Error("Authentication required"), "pi_core", "openai", {
+        connection: { slug: "openai", deployment: "direct" },
+      }),
+      "pi_core: model authentication failed — add the project's OpenAI key to the project vault, or log in (OAuth).",
+    );
+  });
+
   it("formats a corrupt image provider error as a friendly message", () => {
     assert.equal(
       conciseError(
