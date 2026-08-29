@@ -68,7 +68,7 @@ def services_api(cls_account, ag_env):
             method=method,
             url=url,
             headers=headers,
-            timeout=BASE_TIMEOUT,
+            timeout=INVOKE_TIMEOUT,
             **kwargs,
         )
 
@@ -99,7 +99,7 @@ def mod_api(mod_account, ag_env):
             url=url,
             headers=headers,
             params=params,
-            timeout=INVOKE_TIMEOUT,
+            timeout=BASE_TIMEOUT,
             **kwargs,
         )
 
@@ -120,13 +120,14 @@ def mod_services_api(mod_account, ag_env):
     def _request(method: str, path: str, **kwargs):
         url = f"{services_url}{path}"
         headers = kwargs.pop("headers", {})
+        timeout = kwargs.pop("timeout", INVOKE_TIMEOUT)
         headers.setdefault("Authorization", credentials)
         return _request_with_gateway_retry(
             requests.request,
             method=method,
             url=url,
             headers=headers,
-            timeout=INVOKE_TIMEOUT,
+            timeout=timeout,
             **kwargs,
         )
 

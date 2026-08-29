@@ -8,7 +8,7 @@
  * Semantic contract tests, not byte goldens (the relay wire-format golden lives in
  * relay-client.test.ts):
  *  - the env/specs-file contract fails LOUD on any defect (`loadShimConfig`),
- *  - the pure handler mirrors tool-mcp-http.ts (initialize / tools-list / tools-call), serves
+ *  - the pure handler mirrors tool-mcp-http.ts (discovery / tools-list / tools-call), serves
  *    only public fields, honors the snake-case `input_schema` accessor, and never writes a
  *    relay file for an unknown tool,
  *  - the shim's published request is accepted end-to-end by a REAL `startToolRelay` loop over
@@ -160,26 +160,26 @@ describe("loadShimConfig (fail-loud env contract)", () => {
 });
 
 describe("tool-mcp-stdio handler", () => {
-  it("initialize -> serverInfo + tools capability, echoing the client's protocol version", async () => {
+  it("server/discover advertises the current protocol and tools capability", async () => {
     const res: any = await handleToolMcpMessage(
       {
         jsonrpc: "2.0",
         id: 1,
-        method: "initialize",
-        params: { protocolVersion: "2024-11-05" },
+        method: "server/discover",
       },
       specs,
       tempDir("agenta-tool-mcp-"),
     );
     assert.equal(res.id, 1);
-    assert.equal(res.result.protocolVersion, "2024-11-05");
-    assert.equal(res.result.serverInfo.name, "agenta-tools");
+    assert.equal(res.result.resultType, "complete");
+    assert.deepEqual(res.result.supportedVersions, ["2026-07-28"]);
+    assert.equal(res.result._meta["io.modelcontextprotocol/serverInfo"].name, "agenta-tools");
     assert.ok(res.result.capabilities.tools);
   });
 
-  it("a notification (no id) returns undefined (no response written)", async () => {
+  it("a request without an id returns undefined (no response written)", async () => {
     const res = await handleToolMcpMessage(
-      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { jsonrpc: "2.0", method: "tools/list" },
       specs,
       tempDir("agenta-tool-mcp-"),
     );
@@ -488,7 +488,7 @@ describe("shim -> real relay loop round trip (semantic writer/reader contract)",
 });
 
 describe("stdio loop", () => {
-  it("stdout carries only complete JSON-RPC lines; notifications produce none", async () => {
+  it("stdout carries only complete JSON-RPC lines; requests without ids produce none", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
     const chunks: string[] = [];
@@ -501,10 +501,10 @@ describe("stdio loop", () => {
       output,
     );
     input.write(
-      `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`,
+      `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "server/discover" })}\n`,
     );
     input.write(
-      `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
+      `${JSON.stringify({ jsonrpc: "2.0", method: "tools/list" })}\n`,
     );
     input.write("\n"); // blank line: ignored
     input.write("{not json}\n"); // parse error: logged and answered with id:null
@@ -530,7 +530,7 @@ describe("stdio loop", () => {
       );
       return JSON.parse(chunk);
     });
-    // 4 responses (initialize, parse error, tools/list, unknown-tool error); the notification
+    // 4 responses (discovery, parse error, tools/list, unknown-tool error); the request without an id
     // and blank line produce nothing on stdout.
     assert.deepEqual(
       responses.map((r) => r.id),

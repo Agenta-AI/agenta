@@ -480,6 +480,21 @@ def _has_invalid_secrets_error(response: Any) -> bool:
 
 
 class VaultMiddleware:
+    @staticmethod
+    def _is_agent_request(request: WorkflowServiceRequest) -> bool:
+        """Agent model connections resolve in API core, never from a vault prefetch.
+
+        The legacy vault middleware predates gateway routing and loads the complete project
+        vault into the service process.  An agent request carries its configuration under
+        ``data.parameters.agent``; its model route is instead resolved by the dedicated,
+        non-secret gateway-core endpoint.
+        """
+        data = request.data
+        parameters = data.parameters if data is not None else None
+        return isinstance(parameters, dict) and isinstance(
+            parameters.get("agent"), dict
+        )
+
     async def __call__(
         self,
         request: WorkflowServiceRequest,
@@ -492,21 +507,22 @@ class VaultMiddleware:
 
         credentials = None
 
-        with suppress():
-            ctx = RunningContext.get()
-            credentials = ctx.credentials
+        if not self._is_agent_request(request):
+            with suppress():
+                ctx = RunningContext.get()
+                credentials = ctx.credentials
 
-            secrets, vault_secrets, local_secrets = await get_secrets(
-                api_url,
-                credentials,
-                host,
-                scope_type,
-                scope_id,
-            )
+                secrets, vault_secrets, local_secrets = await get_secrets(
+                    api_url,
+                    credentials,
+                    host,
+                    scope_type,
+                    scope_id,
+                )
 
-            ctx.secrets = secrets
-            ctx.vault_secrets = vault_secrets
-            ctx.local_secrets = local_secrets
+                ctx.secrets = secrets
+                ctx.vault_secrets = vault_secrets
+                ctx.local_secrets = local_secrets
 
         response = await call_next(request)
 

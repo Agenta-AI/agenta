@@ -47,7 +47,7 @@ import { toolSpecsByName } from "./public-spec.ts";
 
 type Log = (message: string) => void;
 
-const DEFAULT_PROTOCOL = "2025-06-18";
+const MCP_PROTOCOL_VERSION = "2026-07-28";
 /** Loopback only: never reachable off-host. Access also requires a per-server bearer token. */
 const HOST = "127.0.0.1";
 
@@ -114,17 +114,22 @@ async function handle(
 ): Promise<unknown | undefined | typeof MCP_PAUSED> {
   const { id, method, params } = message ?? {};
 
-  // Notifications (no id, e.g. notifications/initialized) need no response.
   if (id === undefined || id === null) return undefined;
 
-  if (method === "initialize") {
+  if (method === "server/discover") {
     return {
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: params?.protocolVersion ?? DEFAULT_PROTOCOL,
+        resultType: "complete",
+        supportedVersions: [MCP_PROTOCOL_VERSION],
         capabilities: { tools: {} },
-        serverInfo: { name: "agenta-tools", version: "0.1.0" },
+        _meta: {
+          "io.modelcontextprotocol/serverInfo": {
+            name: "agenta-tools",
+            version: "0.1.0",
+          },
+        },
       },
     };
   }

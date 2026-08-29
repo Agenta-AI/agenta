@@ -15,7 +15,6 @@ from supertokens_python.framework.fastapi import (
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import (
-    validate_platform_runtime_key,
     validate_required_env_vars,
     warn_deprecated_env_vars,
 )
@@ -167,6 +166,37 @@ from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+
+# Gateway storage, services, management routers, and data-plane proxies.
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
+from oss.src.core.gateways.policy.resolution import SecretsResolver
+from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    RelayLLMAdapter,
+)
+from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.providers.mock.adapter import (
+    DeployableMockMCPAdapter,
+    MockMCPAdapter,
+)
+from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
+from oss.src.core.gateways.mcps.providers.composio.standard import (
+    StandardComposioMCPAdapter,
+)
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
+
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -267,7 +297,6 @@ async def lifespan(*args, **kwargs):
 
     warn_deprecated_env_vars()
     validate_required_env_vars()
-    validate_platform_runtime_key()
 
     await _triggers_broker.startup()
 
@@ -1069,6 +1098,72 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
+# Gateway storage and policy services.
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
+
+secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+)
+
+gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
+
+llm_gateway_service = LLMGatewayService(
+    llm_endpoints_dao=llm_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    upstream_registry=LLMUpstreamRegistry(
+        adapters={
+            "relay": RelayLLMAdapter(),
+            "mock": MockLLMAdapter(),
+        }
+    ),
+)
+
+mcp_gateway_service = MCPGatewayService(
+    mcp_endpoints_dao=mcp_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    connections_service=connections_service,
+    agenta_tools_router=tools,
+    upstream_registry=MCPUpstreamRegistry(
+        adapters={
+            "http": HttpMCPAdapter(),
+            "mock": MockMCPAdapter(),
+            "mock_http": DeployableMockMCPAdapter(),
+            "composio_standard": StandardComposioMCPAdapter(
+                api_url=env.composio.api_url,
+            ),
+            **(
+                {
+                    "composio": ComposioMCPAdapter(
+                        api_key=env.composio.api_key,  # type: ignore[arg-type] # .enabled
+                        api_url=env.composio.api_url,
+                    )
+                }
+                if env.composio.enabled
+                else {}
+            ),
+        }
+    ),
+)
+
+mcp_oauth_connect_service = MCPOAuthConnectService(
+    vault_service=vault_service,
+    client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+    secret_key=env.agenta.crypt_key,
+)
+
+llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
+llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_gateway_router = MCPGatewayRouter(
+    mcp_gateway_service=mcp_gateway_service,
+    oauth_connect_service=mcp_oauth_connect_service,
+)
+mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+mcp_oauth_client_metadata_router = MCPOAuthClientMetadataRouter()
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1502,6 +1597,32 @@ app.include_router(
     router=triggers.admin_router,
     prefix="/admin/triggers",
     tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=llm_gateway_router.router,
+    prefix="/gateways/llms",
+    tags=["Gateway: LLM"],
+)
+app.include_router(
+    router=llm_gateway_proxy.router,
+    prefix="/gateways/llms",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.router,
+    prefix="/gateways/mcps",
+    tags=["Gateway: MCP"],
+)
+app.include_router(
+    router=mcp_gateway_proxy.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_oauth_client_metadata_router.router,
+    prefix="/gateways/mcps",
     include_in_schema=False,
 )
 

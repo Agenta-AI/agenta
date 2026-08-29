@@ -884,7 +884,7 @@ def test_id_index_maps_artifact_and_variant_to_current_across_versions():
 
 
 # ---------------------------------------------------------------------------
-# Query regression: is_static is never a stored fact, so it never filters
+# `is_static` is computed and never filters the query.
 # ---------------------------------------------------------------------------
 
 
@@ -1005,3 +1005,68 @@ def test_request_input_matches_golden_response_fixture():
     assert golden["degradation_error_text"].startswith(
         "elicitation: unsupported payload — "
     )
+
+
+# ---------------------------------------------------------------------------
+# Gateway-target request-connection support
+# ---------------------------------------------------------------------------
+
+
+def _request_connection_tool() -> dict:
+    from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+
+    revision = StaticWorkflowCatalog().retrieve_revision(
+        slug=REQUEST_CONNECTION_WORKFLOW_SLUG
+    )
+    assert revision is not None
+    return revision.data.parameters["tool"]
+
+
+def test_request_connection_schema_requires_exactly_one_path():
+    """Either `integration` or `target` is required, never both. The `mode`/`slug`
+    fields (integration-only) are unchanged in shape."""
+    tool = _request_connection_tool()
+    schema = tool["input_schema"]
+    assert set(schema["properties"]) == {"integration", "target", "slug", "mode"}
+    assert schema["required"] == []
+    assert schema["oneOf"] == [
+        {"required": ["integration"], "not": {"required": ["target"]}},
+        {"required": ["target"], "not": {"required": ["integration"]}},
+    ]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["mode"]["enum"] == ["oauth", "api_key"]
+
+
+def test_request_connection_target_shape():
+    """The new `target` object discriminates by `plane` and names the provider/server."""
+    tool = _request_connection_tool()
+    target = tool["input_schema"]["properties"]["target"]
+    assert target["type"] == "object"
+    assert target["required"] == ["plane", "name"]
+    assert target["additionalProperties"] is False
+    assert target["properties"]["plane"]["enum"] == ["llm", "mcp"]
+    assert target["properties"]["name"]["type"] == "string"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"integration": "slack"},
+        {"target": {"plane": "llm", "name": "openai"}},
+        {"target": {"plane": "mcp", "name": "acme-notion"}},
+    ],
+)
+def test_request_connection_coerces_to_client_tool_config_for_both_paths(call):
+    """Both the existing integration path and the new gateway-target path are valid CALLS of
+    the same tool config — this asserts the tool config itself (unchanged shape: type,
+    render), not the call, since the call is model-authored input, not part of the config."""
+    from agenta.sdk.agents.tools.compat import coerce_tool_config
+    from agenta.sdk.agents.tools.models import ClientToolConfig
+
+    tool = _request_connection_tool()
+    coerced = coerce_tool_config(tool)
+    assert isinstance(coerced, ClientToolConfig)
+    assert coerced.render == {"kind": "connect"}
+    assert coerced.name == "request_connection"
+    # The call itself must validate against the schema's declared properties.
+    assert set(call) <= set(tool["input_schema"]["properties"])

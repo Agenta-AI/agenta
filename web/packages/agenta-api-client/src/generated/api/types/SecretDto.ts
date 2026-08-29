@@ -13,6 +13,7 @@ export interface SecretDto {
 export namespace SecretDto {
     export type Data =
         | AgentaApi.StandardProviderDto
+        | AgentaApi.McpStandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto

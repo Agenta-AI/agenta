@@ -684,10 +684,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
-  it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
-    // The core of F-032: an http user MCP on Pi previously passed the stdio gate, then
-    // buildSessionMcpServers returned [] for Pi -> the server was dropped with NO log and an
-    // HTTP 200. It must now fail loud, not silently succeed. Fails before any cwd is created.
+  it("accepts a Pi run carrying a registered gateway HTTP MCP server", () => {
     let created = false;
     const result = buildRunPlan(
       {
@@ -696,8 +693,18 @@ describe("buildRunPlan", () => {
         messages: [{ role: "user", content: "hello" }],
         mcpServers: [
           {
-            name: "linear",
-            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            name: "mock",
+            connection: {
+              type: "http",
+              url: "https://api.example.test/gateways/mcps/standard/mock",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
             policy: { tools: { mode: "all" } },
           },
         ],
@@ -710,14 +717,46 @@ describe("buildRunPlan", () => {
       },
     );
 
+    assert.equal(result.ok, true);
+    assert.equal(created, true);
+  });
+
+  it("rejects a direct Pi MCP URL before creating a cwd", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_agenta",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "direct",
+            connection: {
+              type: "http",
+              url: "https://mcp.example.test/mcp",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createLocalCwd: () => {
+          created = true;
+          return "/tmp/local-cwd";
+        },
+      },
+    );
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /not supported on the Pi harness/);
-    assert.equal(
-      created,
-      false,
-      "fails before any cwd is created (up-front gate)",
-    );
+    assert.match(result.error, /registered Agenta gateway route/);
+    assert.equal(created, false);
   });
 
   it("allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)", () => {

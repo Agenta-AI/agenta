@@ -403,6 +403,7 @@ export interface RunSeedSource {
   modelConnection?: {
     environment?: Record<string, string>;
     credentials?: Array<{ value?: string }>;
+    gatewayCredentials?: { value?: string };
   };
   /** Resolved MCP servers: each connection's typed secret header credential values. */
   mcpServers?: Array<{
@@ -429,6 +430,7 @@ export function requestSecretValues(
     ...(request.modelConnection?.credentials ?? []).map(
       (credential) => credential.value,
     ),
+    request.modelConnection?.gatewayCredentials?.value,
     ...(request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map(
         (credential) => credential.value,
@@ -439,7 +441,6 @@ export function requestSecretValues(
 
 /**
  * Mount credentials visible to a sandbox process and therefore eligible to appear in Pi spans.
- * Keep this one projection shared by the runner redactor and the per-turn Pi control writer.
  */
 export interface SandboxVisibleSecretSource {
   mountCreds?: {
@@ -465,7 +466,7 @@ export function sandboxVisibleSecretValues(
 }
 
 /**
- * The runner's per-run deny-set (WP1.1). The run's resolved credential values ride the typed
+ * The runner's per-run deny-set. The run's resolved credential values ride the typed
  * `modelConnection` / `mcpServers` wire shapes and never appear in the sidecar's own process
  * env, so a process-env-only seed would miss exactly the highest-value secrets — they must be
  * seeded from the REQUEST (`requestSecretValues`).

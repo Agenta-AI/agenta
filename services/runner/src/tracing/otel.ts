@@ -344,6 +344,13 @@ export function isAgentaIngest(endpoint: string): boolean {
   const normalize = (value: string): string | undefined => {
     try {
       const url = new URL(value);
+      if (
+        url.hostname === "localhost" ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname === "host.docker.internal"
+      ) {
+        url.hostname = "localhost";
+      }
       const path = url.pathname.replace(/\/+$/, "") || "/";
       return `${url.origin}${path}`;
     } catch {
@@ -1386,10 +1393,11 @@ function splitModel(model?: string): { provider?: string; id?: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-export interface SandboxAgentOtelInit extends Omit<
-  Partial<RunConfig>,
-  "authorization" | "serializedBatchTransport"
-> {
+export interface SandboxAgentOtelInit
+  extends Omit<
+    Partial<RunConfig>,
+    "authorization" | "serializedBatchTransport"
+  > {
   /**
    * Authorization for the OTLP exporter. The runner supplies a provider so a long-lived turn
    * uses the latest session credential when it exports. A string remains accepted for local
@@ -1838,8 +1846,8 @@ export function createSandboxAgentOtel(
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : (usage?.total ?? 0),
-        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
+        total: typeof total === "number" ? total : usage?.total ?? 0,
+        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
       };
       record({ type: "usage", ...usage });
     }

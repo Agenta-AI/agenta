@@ -250,6 +250,35 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("recognizes the Docker host alias of the configured local API", () => {
+    const previous = process.env.AGENTA_API_URL;
+    process.env.AGENTA_API_URL = "http://localhost:18080/api";
+    try {
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "http://host.docker.internal:18080/api/otlp/v1/traces",
+              headers: { authorization: "Secret caller" },
+            },
+          },
+        },
+      };
+
+      assert.equal(platformCredentialForRequest(request), "Secret caller");
+      assert.equal(
+        resolveRunOtlpTarget(request, () => "Secret refreshed")
+          .authorizationSource,
+        "platform",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.AGENTA_API_URL;
+      else process.env.AGENTA_API_URL = previous;
+    }
+  });
+
   it("keeps platform rotation away from third-party collector credentials", () => {
     vi.stubEnv("AGENTA_API_URL", "https://api.agenta.test/api");
     let live = "Secret initial";
@@ -2139,6 +2168,7 @@ describe("runSandboxAgent orchestration", () => {
     // inputSchema (deferral would strip it -> empty tool input). The SDK only treats the exact
     // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
   });
 
   it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
@@ -2158,6 +2188,7 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, undefined);
   });
 
   it("never puts the OTLP bearer in the local Pi daemon's env", async () => {

@@ -32,6 +32,8 @@ import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/Ses
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {projectIdAtom} from "@/oss/state/project"
 
+import "./components/clientTools/registry"
+
 import {shouldCancelRunOnClose} from "./assets/closeSessionCancel"
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
@@ -104,7 +106,7 @@ const useCanPanesCoexist = () =>
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
  * generation arm beside chat and completion).
  *
- * Single view keeps the slice's session tab bar (design decision D2): parallel conversations,
+ * Single view keeps the slice's session tab bar: parallel conversations,
  * add with `+`, close with `×`, double-click to rename — rendered as a row of status-dotted tags
  * (`SessionTagBar`) whose bottom edge aligns with the config panel header. Sessions are app-scoped
  * (shared with the rest of the playground) and persist to localStorage, so tabs survive a reload;

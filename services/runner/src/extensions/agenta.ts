@@ -61,6 +61,10 @@ import {
   decodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "./model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  registerPiGatewayMcpTools,
+} from "./pi-mcp.ts";
 
 /** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
 export function readPiTurnTraceControl(
@@ -271,7 +275,7 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
   }
   if (spec.name === "request_connection") {
     guidelines.push(
-      "When calling request_connection, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key.",
+      "When calling request_connection for an external integration, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key. When a model or MCP call was refused because the target is not registered, call it instead with target: {plane: 'llm'|'mcp', name: <provider or server>} and omit integration/mode.",
     );
   }
   if (spec.name === "commit_revision") {
@@ -434,6 +438,7 @@ const factory = (pi: ExtensionAPI): void => {
   const hasBuiltinGating = isTruthyFlag(
     process.env.AGENTA_AGENT_BUILTIN_GATING,
   );
+  const gatewayMcpServers = process.env[PI_GATEWAY_MCP_SERVERS_ENV];
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (
     !modelProviderOverride &&
@@ -441,19 +446,30 @@ const factory = (pi: ExtensionAPI): void => {
     !hasTools &&
     !hasBuiltinActivation &&
     !hasBuiltinGating &&
+    !gatewayMcpServers &&
     !usageOut
   )
     return;
 
-  // Extension factories complete before Pi selects the configured model. Registering only a
-  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  // Register base URL and headers without replacing the built-in model catalog.
   if (modelProviderOverride) {
     pi.registerProvider(modelProviderOverride.provider, {
       baseUrl: modelProviderOverride.baseUrl,
+      ...(modelProviderOverride.headers
+        ? { headers: modelProviderOverride.headers }
+        : {}),
+      ...(modelProviderOverride.apiKey
+        ? { apiKey: modelProviderOverride.apiKey }
+        : {}),
     });
   }
 
   if (hasTools) registerTools(pi);
+  if (gatewayMcpServers) {
+    pi.on("before_agent_start", async () => {
+      await registerPiGatewayMcpTools(pi, gatewayMcpServers, log);
+    });
+  }
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
   // Pi records the native span tree and publishes raw OTLP bytes into its telemetry spool.

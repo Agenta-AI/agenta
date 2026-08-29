@@ -86,21 +86,9 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
-            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            - AGENTA_RUNNER_INTERNAL_URL=http://runner:8765
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            # kill's direct runner hop (W7.3, sandbox teardown) — same address + shared
-            # token as the `services` container's runner_url().
-            - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            - AGENTA_RUNNER_TOKEN=${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
-            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
-            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
-            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
-            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-us-east-1}
-            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
-            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
-            # Unset leaves the code default (3600s) in place.
-            - AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS=${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -280,17 +268,9 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
-            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            - AGENTA_RUNNER_INTERNAL_URL=http://runner:8765
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            - AGENTA_RUNNER_TOKEN=${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
-            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
-            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
-            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
-            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-us-east-1}
-            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
-            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network

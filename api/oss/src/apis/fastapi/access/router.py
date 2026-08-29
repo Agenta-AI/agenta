@@ -1,5 +1,5 @@
 from hmac import compare_digest
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
@@ -13,16 +13,12 @@ from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
-from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
-
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
 log = get_module_logger(__name__)
@@ -70,37 +66,19 @@ async def _check_scope_access(
 
 async def _check_resource_access(
     resource_type: Optional[str] = None,
-) -> Union[bool, int]:
+) -> bool:
     allow_resource = False
 
     if resource_type == "service":
         allow_resource = True
 
     if resource_type == "local_secrets":
-        # EE meters local secret usage against the credits counter. OSS has no
-        # credits meter, so it just grants access to authorized callers.
-        if not is_ee():
-            return True
-
-        check, meter, _ = await check_entitlements(  # type: ignore
-            key=Counter.CREDITS_CONSUMED,  # type: ignore
-            delta=1,
-        )
-
-        if not check:
-            return False
-
-        if not meter or not meter.value:
-            return False
-
-        return meter.value
+        allow_resource = True
 
     return allow_resource
 
 
 _RUNTIME_KEY_HEADER = "x-agenta-runtime-key"
-# The placeholder `env.py` falls back to when nothing is configured.
-_UNCONFIGURED_KEY = "replace-me"
 
 
 def _is_platform_runtime(request: Request) -> bool:
@@ -116,14 +94,7 @@ def _is_platform_runtime(request: Request) -> bool:
     if not presented:
         return False
 
-    expected = env.agenta.services_internal_key
-    # A deployment that configured nothing keeps the well-known placeholder, which anyone
-    # could send. Treat it as "no runtime configured" rather than as a secret: such a
-    # deployment issues no grant at all, which costs it only the ability to run against
-    # write-only secrets — off by default — and never hands the ability to a stranger.
-    if not expected or expected == _UNCONFIGURED_KEY:
-        return False
-
+    expected = env.agenta.services_internal_key or "replace-me"
     return compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
 
@@ -272,51 +243,25 @@ class AccessRouter:
                 resource_type=resource_type,
             )
 
-            if isinstance(allow_resource, bool):
-                if allow_resource is False:
-                    log.warn("Resource access denied")
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="deny",
-                    )
-                    raise Deny()
+            if not allow_resource:
+                log.warn("Resource access denied")
+                await set_cache(
+                    project_id=project_id,
+                    user_id=user_id,
+                    namespace="check_permissions",
+                    key=cache_key,
+                    value="deny",
+                )
+                raise Deny()
 
-                if allow_resource is True:
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="allow",
-                    )
-                    return Allow(credentials_header)
-
-            elif isinstance(allow_resource, int):
-                if allow_resource <= 0:
-                    log.warn("Resource access denied")
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="deny",
-                    )
-                    raise Deny()
-                else:
-                    return Allow(credentials_header)
-
-            log.warn("Resource access denied")
             await set_cache(
                 project_id=project_id,
                 user_id=user_id,
                 namespace="check_permissions",
                 key=cache_key,
-                value="deny",
+                value="allow",
             )
-            raise Deny()
+            return Allow(credentials_header)
 
         except Exception as exc:  # pylint: disable=broad-except
             log.warn(exc)

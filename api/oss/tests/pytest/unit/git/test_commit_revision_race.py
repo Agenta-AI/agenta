@@ -59,33 +59,57 @@ async def _exec(engine, sql, params=None):
         return result
 
 
-async def _existing_project_id(engine):
-    """A project that already exists in the target database, or None.
-
-    Every workflow table has a foreign key to `projects`, so an invented project id fails
-    the insert. This fixture attaches to a project instead of creating one. Creating one
-    is not portable: on EE a project also requires an organization and a workspace, and
-    seeding that chain would write rows outside the tables this test cleans up.
-    """
-    result = await _exec(
-        engine,
-        "SELECT id FROM projects WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1",
-    )
-    return result.scalar_one_or_none()
-
-
 @pytest.fixture
 async def variant(engine):
-    """An artifact and a variant to race on, removed afterwards.
+    """An isolated artifact and variant to race on, removed afterwards.
 
-    The project is borrowed and never deleted. Teardown removes only the rows this
-    fixture inserted.
+    The full unit suite uses xdist, so selecting an arbitrary existing project
+    made this fixture race another worker's project teardown. Create the small
+    parent hierarchy the workflow foreign keys require instead.
     """
-    project_id = await _existing_project_id(engine)
-    if project_id is None:
-        pytest.skip("no project in the target database to attach the fixture to")
-
+    user_id, organization_id, workspace_id, project_id = (uuid4() for _ in range(4))
     artifact_id, variant_id = uuid4(), uuid4()
+    await _exec(
+        engine,
+        "INSERT INTO users (id, uid, username, email) "
+        "VALUES (:id, :uid, :username, :email)",
+        {
+            "id": user_id,
+            "uid": str(user_id),
+            "username": f"git-race-{user_id.hex[:12]}",
+            "email": f"git-race-{user_id.hex[:12]}@example.com",
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO organizations (id, name, owner_id) VALUES (:id, :name, :owner_id)",
+        {
+            "id": organization_id,
+            "name": f"git-race-{organization_id.hex}",
+            "owner_id": user_id,
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO workspaces (id, name, organization_id) "
+        "VALUES (:id, :name, :organization_id)",
+        {
+            "id": workspace_id,
+            "name": f"git-race-{workspace_id.hex}",
+            "organization_id": organization_id,
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO projects (id, project_name, workspace_id, organization_id) "
+        "VALUES (:id, :project_name, :workspace_id, :organization_id)",
+        {
+            "id": project_id,
+            "project_name": f"git-race-{project_id.hex}",
+            "workspace_id": workspace_id,
+            "organization_id": organization_id,
+        },
+    )
     await _exec(
         engine,
         f"INSERT INTO {ARTIFACTS} (id, project_id, slug, created_at) "
@@ -117,6 +141,12 @@ async def variant(engine):
         await _exec(
             engine, f"DELETE FROM {table} WHERE {column} = :target", {"target": target}
         )
+    await _exec(engine, "DELETE FROM projects WHERE id = :id", {"id": project_id})
+    await _exec(engine, "DELETE FROM workspaces WHERE id = :id", {"id": workspace_id})
+    await _exec(
+        engine, "DELETE FROM organizations WHERE id = :id", {"id": organization_id}
+    )
+    await _exec(engine, "DELETE FROM users WHERE id = :id", {"id": user_id})
 
 
 async def _seed_head(engine, variant) -> UUID:

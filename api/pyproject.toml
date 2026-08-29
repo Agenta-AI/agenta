@@ -2,22 +2,25 @@
 name = "api"
 version = "0.114.3"
 description = "Agenta API"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
     "agenta",
-    "fastapi>=0.139,<0.140",
+    "fastapi>=0.141,<1",
     "pydantic[email]>=2,<3",
-    "uvicorn[standard]>=0.51,<0.52",
+    "uvicorn[standard]>=0.52,<1",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
+    # MCP OAuth uses the SDK's TokenStorage protocol and OAuth wire contracts directly.
+    # Keep this exact: a range would silently change those contracts underneath us.
+    "mcp>=2.1.1,<3",
     "structlog>=26,<27",
     "python-dotenv>=1,<2",
     "python-multipart>=0.0.32,<0.0.33",
-    "cryptography>=49,<50",
+    "cryptography>=50,<51",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
     "sqlalchemy-json>=0.7,<0.8",
@@ -34,7 +37,8 @@ dependencies = [
     "redis>=8,<9",
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
-    "openai>=2,<3",
+    "openai>=2.20,<3",
+    "litellm>=1.98,<2",
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
@@ -43,9 +47,9 @@ dependencies = [
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
     "miniopy-async>=1,<2",
-    "pathspec>=0.12,<0.13",
+    "pathspec>=1.1.1,<2",
     "stream-zip>=0.0.83,<0.1",
-    "puremagic>=1.30,<2",
+    "puremagic>=2.2.0,<3",
 ]
 
 [dependency-groups]

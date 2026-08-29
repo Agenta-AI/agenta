@@ -189,7 +189,11 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """
     data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
-        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
+        error_detail = data.get("errorDetail")
+        raise AgentRunFailed(
+            sanitize_runner_error(data.get("error")),
+            error_detail=error_detail if isinstance(error_detail, dict) else None,
+        )
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

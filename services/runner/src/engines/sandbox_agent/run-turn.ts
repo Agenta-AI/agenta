@@ -98,6 +98,23 @@ import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
+function isCodexMcpStartupDiagnostic(harness: string, update: unknown): boolean {
+  if (harness !== "codex" || !update || typeof update !== "object") return false;
+  const frame = update as Record<string, unknown>;
+  const id = frame.toolCallId;
+  const title = frame.title;
+  return (
+    frame.sessionUpdate === "tool_call" &&
+    frame.kind === "other" &&
+    frame.status === "failed" &&
+    typeof id === "string" &&
+    id.startsWith("mcp_startup.") &&
+    typeof title === "string" &&
+    title.startsWith("mcp__") &&
+    title.endsWith("__startup")
+  );
+}
+
 /**
  * Run one turn against an acquired environment: start a fresh otel run, wire this turn's pause
  * controller / decisions / responder into `env.currentTurn`, restart the tool relay,
@@ -509,6 +526,10 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        if (isCodexMcpStartupDiagnostic(plan.harness, update)) {
+          logger("[codex] ignored synthetic MCP startup diagnostic");
+          return;
+        }
         // Per-tool-call deadline: starts on the announcement, ends on a terminal status. Tracked
         // regardless of the pause-suppression below (a call already timed out must not linger just
         // because a later sibling frame gets suppressed).

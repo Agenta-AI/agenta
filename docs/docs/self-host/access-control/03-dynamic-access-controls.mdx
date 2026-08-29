@@ -106,7 +106,7 @@ Used by `counters` and `gauges` map values.
 
 ### Counter keys {#counter-keys}
 
-`evaluations_run`, `traces_ingested`, `traces_retrieved`, `credits_consumed`, `events_ingested`.
+`evaluations_run`, `traces_ingested`, `traces_retrieved`, `events_ingested`.
 
 `traces_ingested` and `events_ingested` are independent retention domains: each has its own
 counter, its own retention window, its own admin flush endpoint
@@ -158,7 +158,6 @@ starting point for any further customization via `AGENTA_ACCESS_PLANS`:
       "evaluations_run":  {"strict": true, "period": "monthly"},
       "traces_ingested":  {"period": "monthly"},
       "traces_retrieved": {"strict": true, "scope": "user", "period": "daily"},
-      "credits_consumed": {"strict": true, "period": "monthly"},
       "events_ingested":  {"period": "monthly"}
     },
     "gauges": {

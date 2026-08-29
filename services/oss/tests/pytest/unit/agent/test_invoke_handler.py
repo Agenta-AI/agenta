@@ -25,6 +25,8 @@ from agenta.sdk.agents import (
     ResolvedConnection,
     ResolvedToolSet,
 )
+from agenta.sdk.agents.connections import ModelRef, RuntimeAuthContext
+from agenta.sdk.agents.handler import _default_resolve_session_connection
 from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 
@@ -582,6 +584,29 @@ async def test_claude_unsupported_provider_rejected_pre_resolve(
 
     with pytest.raises(UnsupportedProviderError):
         await _invoke("claude", model={"provider": "openai", "model": "gpt-5.5"})
+
+
+async def test_development_mock_reaches_connection_resolution_for_every_harness():
+    """The mock is resolved by the gateway before harness-native dispatch."""
+    seen_harnesses = []
+
+    async def _resolve(*, model, context):
+        seen_harnesses.append(context.harness)
+        return ResolvedConnection(
+            provider="mock",
+            model=model.model,
+            deployment="mock",
+            credential_mode="none",
+        )
+
+    for harness in ("pi_core", "codex", "claude"):
+        await _default_resolve_session_connection(
+            ModelRef(provider="mock", model="mock/echo"),
+            RuntimeAuthContext(harness=harness),
+            resolve_connection=_resolve,
+        )
+
+    assert seen_harnesses == ["pi_core", "codex", "claude"]
 
 
 async def test_claude_bedrock_reaches_session(monkeypatch, fake_backend):

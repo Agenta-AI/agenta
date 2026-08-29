@@ -170,14 +170,10 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            AGENTA_RUNNER_INTERNAL_URL: http://runner:8765
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
-            # address + shared token as the `services` container's runner_url().
-            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
-            # Unset leaves the code default (3600s) in place.
-            AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS: ${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -405,10 +401,8 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
+            AGENTA_RUNNER_INTERNAL_URL: http://runner:8765
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -637,8 +631,10 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
-        # ports:
-        #     - "8333:8333"
+        # Loopback-only: host-run tests use this published S3 endpoint, while
+        # containers continue using the in-network `seaweedfs:8333` address.
+        ports:
+            - "127.0.0.1:${AGENTA_STORE_PORT:-8333}:8333"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -648,7 +644,7 @@ services:
             retries: 30
             start_period: 5s
 
-    ngrok:
+    ngrok-mounts:
         # === ACTIVATION =========================================== #
         # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
         # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
@@ -669,7 +665,7 @@ services:
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                echo "ngrok-mounts: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
                 exit 0
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
@@ -688,6 +684,65 @@ services:
         restart: on-failure
         depends_on:
             seaweedfs:
+                condition: service_healthy
+
+    ngrok-ingress:
+        # === ACTIVATION =========================================== #
+        # A SECOND tunnel, beside the store's, publishing THIS deployment's ingress on a public
+        # HTTPS address. It exists for the cases where something outside has to reach us: a
+        # platform posting a webhook, or an authorization server fetching a document we serve.
+        #
+        # It forwards to traefik, so every inbound route arrives on its normal path -- `/api/...`
+        # is already routed there, in the self-host compose files, and in production. So no
+        # integration needs a tunnel of its own; one endpoint serves channels, the model and MCP
+        # gateways, and anything added later.
+        #
+        # A browser redirect needs none of this: the user is already looking at this deployment,
+        # so the address that got them there is one their browser reaches.
+        #
+        # Separate from the `ngrok-mounts` service on purpose. That one publishes the object store and
+        # the runner finds it at `ngrok-mounts:4040`; keeping them apart means neither can be handed the
+        # other's URL. Costs two agent sessions -- if the plan allows only one, run a single agent
+        # with two named endpoints instead: the runner matches a tunnel by the upstream it
+        # forwards to, so that arrangement is safe too.
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: ngrok/ngrok:latest
+        # === EXECUTION ============================================ #
+        # Same shape as the store tunnel: without a token ngrok would exit non-zero and, under
+        # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
+        # NGROK_DOMAIN_INGRESS pins a reserved domain, which is what keeps an address we hand to a
+        # provider valid across restarts -- a rotating one invalidates every registration.
+        entrypoint: ["/bin/sh", "-c"]
+        command:
+            - |
+              if [ -z "$${NGROK_AUTHTOKEN}" ]; then
+                echo "ngrok-ingress: NGROK_AUTHTOKEN unset; no tunnel (ingress not published)."
+                exit 0
+              fi
+              DOMAIN_ARG=""
+              if [ -n "$${NGROK_DOMAIN_INGRESS}" ]; then
+                DOMAIN_ARG="--domain=$${NGROK_DOMAIN_INGRESS}"
+              fi
+              printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
+              exec /bin/ngrok http traefik:80 $${DOMAIN_ARG} --log stdout --config /tmp/ngrok.yml
+        # === CONFIGURATION ======================================== #
+        environment:
+            NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+            NGROK_DOMAIN_INGRESS: ${NGROK_DOMAIN_INGRESS:-}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # Nothing reads this agent's API today; the public URL is for a human to paste into a
+        # provider's configuration. Uncomment to inspect it from the host.
+        # ports:
+        #     - "4041:4040"
+        # === LIFECYCLE ============================================ #
+        # Not `always`: that would restart the intentional exit-0 above into a loop.
+        restart: on-failure
+        depends_on:
+            traefik:
                 condition: service_healthy
 
     traefik:
@@ -758,6 +813,65 @@ services:
     #
     #
     #
+    # Local gateway upstreams used by development and acceptance tests.
+    mock-llm-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.llms.providers.mock.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9091",
+            ]
+        # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
+        ports:
+            - "127.0.0.1:9091:9091"
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9091/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    mock-mcp-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.mcps.providers.mock.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9092",
+            ]
+        # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
+        ports:
+            - "127.0.0.1:9092:9092"
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9092/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
     #
     #
     #

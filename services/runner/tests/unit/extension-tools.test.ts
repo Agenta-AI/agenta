@@ -1,5 +1,5 @@
 /**
- * Regression: the Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
+ * The Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
  *
  * Guards QA finding F-005 (docs/design/agent-workflows/qa/findings.md): a build where the
  * extension stopped reading AGENTA_AGENT_TOOLS_PUBLIC_SPECS shipped custom tools that the model never
@@ -30,7 +30,10 @@ import {
   PI_TRACE_CONTROL_ENV,
   PI_TRACE_CONTROL_VERSION,
 } from "../../src/tracing/pi-spool-protocol.ts";
-import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import {
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+  validatePiModelProviderOverride,
+} from "../../src/extensions/model-provider-override.ts";
 import { refusedAtGateText } from "../../src/tools/denial-text.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 
@@ -100,6 +103,22 @@ function clearEnv() {
 afterEach(clearEnv);
 
 describe("agenta extension model provider override", () => {
+  it("rejects header-injection characters in override headers", () => {
+    for (const headers of [
+      { "X-AG-Credentials: injected": "ApiKey value" },
+      { "X-AG-Credentials\r\nX-Injected": "ApiKey value" },
+      { "X-AG-Credentials": "ApiKey value\nX-Injected: yes" },
+    ]) {
+      assert.throws(() =>
+        validatePiModelProviderOverride({
+          provider: "anthropic",
+          baseUrl: "https://gateway.example.test",
+          headers,
+        }),
+      );
+    }
+  });
+
   it("overrides the built-in provider during extension initialization", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -120,6 +139,47 @@ describe("agenta extension model provider override", () => {
     assert.deepEqual(pi.handlers, {});
   });
 
+  it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {
+    // A gateway-routed connection whose original deployment is "direct" (a plain provider_key
+    // connection) never goes through the custom-provider models.json path
+    // (isPiModelConfigApplicable requires a NAMED custom-agenta connection) -- this extension
+    // override is the ONLY place it can carry the header, or the run reaches the real provider
+    // with no credential and no visible failure.
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: {
+          baseUrl:
+            "https://gateway.example.com/gateways/llms/standard/anthropic",
+          headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+          apiKey: "agenta-gateway",
+        },
+      },
+    ]);
+  });
+
+  it("permits a local HTTP route only when it carries the gateway credential", () => {
+    assert.equal(
+      validatePiModelProviderOverride({
+        provider: "openai",
+        baseUrl: "http://api:8000/gateways/llms/builtin/mock/v1",
+        headers: { "X-AG-Credentials": "ApiKey gateway-credential" },
+      }).baseUrl,
+      "http://api:8000/gateways/llms/builtin/mock/v1",
+    );
+  });
+
   it("rejects malformed public override config before registration", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -128,7 +188,7 @@ describe("agenta extension model provider override", () => {
     });
     const pi = fakePi();
 
-    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.throws(() => factory(pi as any), /must be HTTPS/);
     assert.deepEqual(pi.registeredProviders, []);
 
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";
@@ -359,10 +419,7 @@ describe("agenta extension tool registration", () => {
 });
 
 /**
- * Regression: "Agent run failed: spawn E2BIG". The runner used to pack every hydrated tool spec
- * into AGENTA_AGENT_TOOLS_PUBLIC_SPECS; Linux rejects an execve whose env holds a string over
- * 131,072 bytes, so a large tool set killed the harness spawn. The specs now arrive in a file
- * named by AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE, and this is the read side of that contract.
+ * Tool specs arrive in a file named by AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE.
  */
 describe("agenta extension tool specs delivery", () => {
   const specsDirs: string[] = [];
@@ -746,5 +803,33 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       "it took the relay path",
     );
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WP26: request_connection's prompt guidance covers both the integration and the gateway-target call shapes", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "request_connection", description: "connect", kind: "client" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-unused";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) => line.includes("integration") && line.includes("mode"),
+      ),
+      "still guides the existing external-integration call shape",
+    );
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) =>
+          line.includes("target:") &&
+          line.includes("plane") &&
+          line.includes("not registered"),
+      ),
+      "also guides the new gateway-target call shape",
+    );
   });
 });

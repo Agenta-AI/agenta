@@ -41,6 +41,7 @@ export type {
 export {
     CustomProviderKind,
     CustomSecretFormat,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,

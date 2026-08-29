@@ -52,7 +52,6 @@ class Counter(str, Enum):
     EVALUATIONS_RUN = "evaluations_run"
     TRACES_INGESTED = "traces_ingested"
     TRACES_RETRIEVED = "traces_retrieved"
-    CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
     RECORDS_INGESTED = "records_ingested"
 
@@ -345,12 +344,6 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.DAILY,
                 scope=Scope.USER,
             ),
-            Counter.CREDITS_CONSUMED: Quota(
-                free=100,
-                limit=100,
-                strict=True,
-                period=Period.MONTHLY,
-            ),
             Counter.EVENTS_INGESTED: Quota(
                 retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
@@ -437,12 +430,6 @@ DEFAULT_ENTITLEMENTS = {
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
-            Counter.CREDITS_CONSUMED: Quota(
-                free=100,
-                limit=100,
-                strict=True,
-                period=Period.MONTHLY,
-            ),
             Counter.EVENTS_INGESTED: Quota(
                 retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
@@ -527,12 +514,6 @@ DEFAULT_ENTITLEMENTS = {
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
-            Counter.CREDITS_CONSUMED: Quota(
-                free=100,
-                limit=100,
-                strict=True,
-                period=Period.MONTHLY,
-            ),
             Counter.EVENTS_INGESTED: Quota(
                 retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
@@ -615,12 +596,6 @@ DEFAULT_ENTITLEMENTS = {
                 scope=Scope.USER,
                 period=Period.DAILY,
             ),
-            Counter.CREDITS_CONSUMED: Quota(
-                free=100,
-                limit=100,
-                strict=True,
-                period=Period.MONTHLY,
-            ),
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
@@ -654,10 +629,6 @@ DEFAULT_ENTITLEMENTS = {
                 strict=True,
                 scope=Scope.USER,
                 period=Period.DAILY,
-            ),
-            Counter.CREDITS_CONSUMED: Quota(
-                strict=True,
-                period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
@@ -701,7 +672,6 @@ CONSTRAINTS = {
             Counter.EVALUATIONS_RUN,
             Counter.TRACES_INGESTED,
             Counter.TRACES_RETRIEVED,
-            Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
             Counter.RECORDS_INGESTED,
         ],

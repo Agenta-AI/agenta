@@ -28,6 +28,11 @@ def _clean_env(monkeypatch):
     """No ambient config leaks in, so an unset connection truly resolves to ``None``."""
     for name in _ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    # The SDK tracing endpoint is another base-URL source, so unit tests clear it too.
+    import agenta as ag
+
+    if ag.tracing is not None:
+        monkeypatch.setattr(ag.tracing, "otlp_url", None)
     monkeypatch.setattr(
         "agenta.sdk.engines.tracing.propagation.inject",
         lambda carrier: carrier,
