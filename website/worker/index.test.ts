@@ -57,10 +57,29 @@ describe("markdown negotiation", () => {
     expect(response.headers.get("x-robots-tag")).toBe("noindex");
   });
 
-  it("falls back to HTML when no twin was built", async () => {
+  it("406s a markdown-only client when no twin was built", async () => {
+    // Honest: we cannot serve what it asked for, and it ruled out HTML.
+    // verify-build.mjs makes a missing twin a build failure, not a runtime one.
     const response = await get("/imprint", "text/markdown");
+    expect(response.status).toBe(406);
+  });
+
+  it("falls back to HTML when the client also accepts it", async () => {
+    const response = await get("/imprint", "text/markdown, text/html;q=0.5");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
+  });
+
+  it("prefers the twin over HTML for a client that wants JSON first", async () => {
+    // No JSON representation of a page exists, so markdown is the honest answer.
+    const response = await get("/pricing", "application/json, text/markdown");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+  });
+
+  it("406s a page request that only accepts JSON", async () => {
+    const response = await get("/pricing", "application/json");
+    expect(response.status).toBe(406);
   });
 
   it("advertises the twin and Vary on the HTML page", async () => {

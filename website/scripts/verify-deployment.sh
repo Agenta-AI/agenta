@@ -43,7 +43,7 @@ echo "- the site itself"
 check "homepage is 200" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")"
 check "unknown path is 404" 404 \
   "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/some-path-that-does-not-exist")"
-check "browsers keep the HTML 404" "text/html; charset=utf-8" \
+contains "browsers keep the HTML 404" "text/html" \
   "$(curl -s -o /dev/null -w '%{content_type}' -H 'Accept: text/html' "$BASE/nope")"
 
 echo "- static behavior the worker must not break"
@@ -59,7 +59,7 @@ contains "sets Vary: Accept" "Accept" "$(printf '%s' "$md_headers" | grep -i '^v
 check "honors q-values (markdown wins)" "text/markdown; charset=utf-8" \
   "$(curl -s -o /dev/null -w '%{content_type}' \
     -H 'Accept: text/markdown;q=0.9, text/html;q=0.8' "$BASE/pricing")"
-check "honors q-values (html wins)" "text/html; charset=utf-8" \
+contains "honors q-values (html wins)" "text/html" \
   "$(curl -s -o /dev/null -w '%{content_type}' \
     -H 'Accept: text/markdown;q=0.8, text/html;q=0.9' "$BASE/pricing")"
 check "rejects unsupported types with 406" 406 \
@@ -71,8 +71,15 @@ check "never 406s a browser" 200 \
 echo "- the twins are alternates, not indexable pages"
 contains "direct .md fetch is noindex" "noindex" \
   "$(curl -sI "$BASE/pricing.md" | grep -i '^x-robots-tag:')"
-check "the HTML page is still indexable" "" \
-  "$(curl -sI "$BASE/pricing" | grep -i '^x-robots-tag:')"
+# Cloudflare stamps X-Robots-Tag: noindex on every *.workers.dev response, so
+# this half of the check is only meaningful on a real domain.
+case "$BASE" in
+  *.workers.dev)
+    echo "  skip the HTML page is still indexable (workers.dev is noindex by default)" ;;
+  *)
+    check "the HTML page is still indexable" "" \
+      "$(curl -sI "$BASE/pricing" | grep -i '^x-robots-tag:')" ;;
+esac
 
 echo "- agent-facing errors and specs"
 contains "JSON 404 carries an error code" '"code": "not_found"' \

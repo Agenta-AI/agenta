@@ -35,8 +35,19 @@ const SERVERS = [
  * Exported for the unit test; the script body below is the CLI wrapper.
  */
 export function normalize(spec) {
-  if (!spec || typeof spec !== "object" || !spec.openapi || !spec.paths) {
-    throw new Error("not a valid OpenAPI document (missing `openapi`/`paths`)");
+  if (
+    !spec ||
+    typeof spec !== "object" ||
+    typeof spec.openapi !== "string" ||
+    typeof spec.info?.title !== "string" ||
+    typeof spec.info?.version !== "string" ||
+    !spec.paths ||
+    typeof spec.paths !== "object" ||
+    Array.isArray(spec.paths)
+  ) {
+    throw new Error(
+      "not a valid OpenAPI document (needs `openapi`, `info.title`, `info.version`, and `paths`)",
+    );
   }
 
   const paths = Object.fromEntries(

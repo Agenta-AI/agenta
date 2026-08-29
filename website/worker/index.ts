@@ -25,11 +25,11 @@
 // in negotiation must never be able to take the marketing site down.
 import {
   HEADERS,
+  acceptedRepresentations,
   errorJson,
   mdPath,
   notAcceptableJson,
   notFoundMarkdown,
-  pickRepresentation,
   type Representation,
 } from "./negotiate";
 
@@ -62,9 +62,15 @@ async function handle(request: Request, env: Env): Promise<Response> {
   // never negotiated — hand it straight to the asset server, headers untouched.
   if (!twin) return env.ASSETS.fetch(request);
 
-  const preference = pickRepresentation(request.headers.get("accept"));
+  const accepted = acceptedRepresentations(request.headers.get("accept"));
 
-  if (preference === "markdown") {
+  // Serve markdown when the client ranks it above HTML (or asks for it and not
+  // HTML at all). A client that prefers JSON but also takes markdown gets the
+  // twin, not HTML it never asked for; a page has no JSON representation.
+  for (const representation of accepted) {
+    if (representation === "html") break;
+    if (representation !== "markdown") continue;
+
     const markdown = await getAsset(env, url, twin);
     if (markdown) {
       return respond(await markdown.text(), method, {
@@ -76,16 +82,19 @@ async function handle(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  if (preference === "none") {
+  // Fetch the page before deciding: a path that does not exist owes the client
+  // a 404 in its own language, not a 406 about representations of nothing.
+  const asset = await env.ASSETS.fetch(request);
+  if (asset.status === 404) return notFound(env, url, accepted, method);
+
+  if (!accepted.includes("html")) {
+    // The page exists, but not in a shape this client will take.
     return respond(notAcceptableJson(url.pathname), method, {
       status: 406,
       type: JSON_TYPE,
       cache: "no-store",
     });
   }
-
-  const asset = await env.ASSETS.fetch(request);
-  if (asset.status === 404) return notFound(env, url, preference, method);
 
   return rewrap(asset, method, {
     // Point agents that do not guess at the markdown twin (RFC 8288).
@@ -163,10 +172,16 @@ function rewrap(
 async function notFound(
   env: Env,
   url: URL,
-  preference: Representation,
+  accepted: Representation[],
   method: string,
 ): Promise<Response> {
-  if (preference === "json" || url.pathname.startsWith("/api/")) {
+  // Answer in the first language the client named. /api/* has no HTML
+  // representation to fall back on, so it is always JSON.
+  const preference = url.pathname.startsWith("/api/")
+    ? "json"
+    : (accepted[0] ?? "html");
+
+  if (preference === "json") {
     return respond(
       errorJson({
         status: 404,

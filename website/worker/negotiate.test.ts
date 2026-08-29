@@ -4,7 +4,7 @@ import {
   mdPath,
   notFoundMarkdown,
   parseAccept,
-  pickRepresentation,
+  acceptedRepresentations,
 } from "./negotiate";
 
 describe("parseAccept", () => {
@@ -31,42 +31,59 @@ describe("parseAccept", () => {
   });
 });
 
-describe("pickRepresentation", () => {
+describe("acceptedRepresentations", () => {
   it("honors q-values in both directions", () => {
-    expect(pickRepresentation("text/markdown;q=0.9, text/html;q=0.8")).toBe(
-      "markdown",
-    );
-    expect(pickRepresentation("text/markdown;q=0.8, text/html;q=0.9")).toBe(
-      "html",
-    );
-  });
-
-  it("treats a wildcard or an absent header as no preference", () => {
-    expect(pickRepresentation("*/*")).toBe("any");
-    expect(pickRepresentation(null)).toBe("any");
-  });
-
-  it("ignores types the client explicitly rejected with q=0", () => {
-    expect(pickRepresentation("text/markdown;q=0, text/html")).toBe("html");
-  });
-
-  it("serves HTML to XHTML-era clients and unfurlers", () => {
-    expect(pickRepresentation("application/xhtml+xml")).toBe("html");
-    expect(pickRepresentation("application/xml")).toBe("html");
-    expect(pickRepresentation("text/*")).toBe("html");
-  });
-
-  it("matches a real browser Accept header to HTML", () => {
     expect(
-      pickRepresentation(
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      ),
+      acceptedRepresentations("text/markdown;q=0.9, text/html;q=0.8")[0],
+    ).toBe("markdown");
+    expect(
+      acceptedRepresentations("text/markdown;q=0.8, text/html;q=0.9")[0],
     ).toBe("html");
   });
 
-  it("reports `none` only when nothing we serve was accepted", () => {
-    expect(pickRepresentation("image/webp")).toBe("none");
-    expect(pickRepresentation("application/json")).toBe("json");
+  it("treats a wildcard or an absent header as accepting everything", () => {
+    expect(acceptedRepresentations("*/*")).toEqual([
+      "html",
+      "markdown",
+      "json",
+    ]);
+    expect(acceptedRepresentations(null)).toEqual(["html", "markdown", "json"]);
+  });
+
+  it("drops what the client rejected with q=0", () => {
+    expect(acceptedRepresentations("text/markdown;q=0, text/html")).toEqual([
+      "html",
+    ]);
+  });
+
+  it("accepts nothing when every type is rejected", () => {
+    // `Accept: text/html;q=0` is an explicit refusal, not a weak preference.
+    expect(acceptedRepresentations("text/html;q=0")).toEqual([]);
+  });
+
+  it("serves HTML to XHTML-era clients and unfurlers", () => {
+    expect(acceptedRepresentations("application/xhtml+xml")).toEqual(["html"]);
+    expect(acceptedRepresentations("application/xml")).toEqual(["html"]);
+    expect(acceptedRepresentations("text/*")).toEqual(["html", "markdown"]);
+  });
+
+  it("matches a real browser Accept header to HTML first", () => {
+    expect(
+      acceptedRepresentations(
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      )[0],
+    ).toBe("html");
+  });
+
+  it("keeps a second-choice representation we can actually serve", () => {
+    // JSON first, markdown second: the twin is the honest answer, not HTML.
+    expect(
+      acceptedRepresentations("application/json, text/markdown;q=0.8"),
+    ).toEqual(["json", "markdown"]);
+  });
+
+  it("returns nothing when we serve none of the accepted types", () => {
+    expect(acceptedRepresentations("image/webp")).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ describe("normalize", () => {
   it("replaces the relative server with the real cloud base URLs", () => {
     const output = normalize({
       openapi: "3.1.0",
-      info: { title: "Agenta API" },
+      info: { title: "Agenta API", version: "0.1.0" },
       // A relative "/api" would resolve against agenta.ai, which serves no API.
       servers: [{ url: "/api" }],
       paths: { "/apps": {} },
@@ -28,7 +28,7 @@ describe("normalize", () => {
   it("drops the admin surface but keeps the product API", () => {
     const output = normalize({
       openapi: "3.1.0",
-      info: {},
+      info: { title: "Agenta API", version: "0.1.0" },
       paths: { "/apps": {}, "/admin/simple/accounts/": {} },
     });
 
@@ -38,6 +38,14 @@ describe("normalize", () => {
   it("refuses anything that is not an OpenAPI document", () => {
     expect(() => normalize({ hello: "world" })).toThrow(/valid OpenAPI/);
     expect(() => normalize(null)).toThrow(/valid OpenAPI/);
+    // `info` is required by the spec: without it the published file would be
+    // syntactically fine and semantically useless to a client.
+    expect(() => normalize({ openapi: "3.1.0", paths: {} })).toThrow(
+      /valid OpenAPI/,
+    );
+    expect(() =>
+      normalize({ openapi: "3.1.0", info: { title: "x" }, paths: {} }),
+    ).toThrow(/valid OpenAPI/);
   });
 });
 

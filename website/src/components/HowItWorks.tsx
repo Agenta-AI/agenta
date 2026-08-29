@@ -1002,19 +1002,19 @@ export default function HowItWorks() {
                       gap: 16,
                     }}
                   >
-                    {/* Beat titles are <h3> under this section's <h2>: the
-                        accordion is the page's real substructure, and an outline
-                        extractor should see it. margin:0 keeps it pixel-identical
-                        (global.css carries no heading reset). */}
-                    <h3
+                    {/* Deliberately NOT a heading: this row is a role="button" accordion
+                        control, and a heading inside a button is exposed as
+                        presentational, so it would add nothing for assistive
+                        tech. The no-JS layout below carries the real <h3> —
+                        that is the markup crawlers receive. */}
+                    <span
                       style={{
-                        margin: 0,
                         font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
                         color: active ? "#F7F6F4" : "rgba(255,255,255,0.55)",
                       }}
                     >
                       {b.title}
-                    </h3>
+                    </span>
                     <Chevron active={active} />
                   </div>
                   <div

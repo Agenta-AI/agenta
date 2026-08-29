@@ -72,15 +72,21 @@ export function markdownResponse(body: string): Response {
  * — headings, lists, tables, fenced code — passes through untouched.
  */
 export function mdxToMarkdown(body: string): string {
-  // Fenced code may legitimately contain anything that looks like JSX; pull the
-  // fences out first, rewrite around them, then put them back.
-  const fences: string[] = [];
-  const withoutFences = body.replace(/```[\s\S]*?```/g, (match) => {
-    fences.push(match);
-    return ` FENCE${fences.length - 1} `;
-  });
+  // Code may legitimately contain anything that looks like JSX (`<InlineCTA />`
+  // in a sentence about the component, for instance). Pull every fenced block
+  // and inline span out first, rewrite around them, then put them back.
+  const code: string[] = [];
+  const withoutCode = body
+    .replace(/```[\s\S]*?```/g, (match) => {
+      code.push(match);
+      return ` CODE${code.length - 1} `;
+    })
+    .replace(/`[^`\n]*`/g, (match) => {
+      code.push(match);
+      return ` CODE${code.length - 1} `;
+    });
 
-  const rewritten = withoutFences
+  const rewritten = withoutCode
     // ESM imports at the top of a post.
     .replace(/^import\s.+?;?\s*$/gm, "")
     // BlogImage carries the real content: keep it as a markdown image.
@@ -97,6 +103,6 @@ export function mdxToMarkdown(body: string): string {
     .replace(/\n{3,}/g, "\n\n");
 
   return rewritten
-    .replace(/ FENCE(\d+) /g, (_match, index: string) => fences[Number(index)])
+    .replace(/ CODE(\d+) /g, (_match, index: string) => code[Number(index)])
     .trim();
 }

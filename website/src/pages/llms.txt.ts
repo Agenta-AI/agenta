@@ -41,7 +41,7 @@ ${API.map((item) => `- ${item}`).join("\n")}
 ## Machine-readable
 
 - Sitemap: ${SITE_URL}/sitemap-index.xml
-- Every page also serves a markdown representation: request it with \`Accept: text/markdown\`, or append \`.md\` to the path.
+- Every page also serves a markdown representation: request it with \`Accept: text/markdown\`, or append \`.md\` to the path (the homepage twin is \`/index.md\`).
 `;
 
 export const GET: APIRoute = () =>

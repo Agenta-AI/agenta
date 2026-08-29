@@ -6,8 +6,8 @@
 /** One parsed entry of an Accept header. */
 export type AcceptEntry = { type: string; q: number; specificity: number };
 
-/** What representation the client is asking for. */
-export type Representation = "html" | "markdown" | "json" | "any" | "none";
+/** A representation of a page this site can actually serve. */
+export type Representation = "html" | "markdown" | "json";
 
 /**
  * The `/*` policy from public/_headers. Cloudflare does NOT apply _headers to
@@ -64,27 +64,45 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
   return entries.sort((a, b) => b.q - a.q || b.specificity - a.specificity);
 }
 
-/** Which representation an Accept header asks for. */
-export function pickRepresentation(
+const ALL: Representation[] = ["html", "markdown", "json"];
+
+/** The representations one media type stands for, in the order it implies. */
+function representationsFor(type: string): Representation[] {
+  if (MARKDOWN_TYPES.has(type)) return ["markdown"];
+  if (HTML_TYPES.has(type)) return ["html"];
+  if (type === "application/json") return ["json"];
+  if (type === "*/*") return ALL;
+  // `text/*` covers html and markdown; html first, since that is what a browser
+  // or crawler sending text/* expects.
+  if (type === "text/*") return ["html", "markdown"];
+  if (type === "application/*") return ["json"];
+  return [];
+}
+
+/**
+ * Every representation the client will accept, best first.
+ *
+ * A ranked list rather than a single winner, because the best match is not
+ * always one we have: a client asking for JSON and markdown should get the
+ * markdown twin, not HTML it did not ask for. An empty list means nothing we
+ * serve was accepted, which is a 406.
+ */
+export function acceptedRepresentations(
   header: string | null | undefined,
-): Representation {
-  const entries = parseAccept(header).filter((entry) => entry.q > 0);
-  // No header, or a header we could not parse at all: treat as "anything".
-  if (entries.length === 0) return "any";
+): Representation[] {
+  const parsed = parseAccept(header);
+  // No header at all (or nothing parseable): the client takes anything.
+  if (parsed.length === 0) return ALL;
 
-  for (const { type } of entries) {
-    if (MARKDOWN_TYPES.has(type)) return "markdown";
-    if (HTML_TYPES.has(type)) return "html";
-    if (type === "application/json") return "json";
-    if (type === "*/*") return "any";
-    // `text/*` matches both html and markdown; html is the safer reading (it is
-    // what a browser or crawler sending text/* expects).
-    if (type === "text/*") return "html";
-    if (type === "application/*") return "json";
+  const accepted: Representation[] = [];
+  for (const { type, q } of parsed) {
+    // q=0 is an explicit rejection, not a low preference.
+    if (q === 0) continue;
+    for (const representation of representationsFor(type)) {
+      if (!accepted.includes(representation)) accepted.push(representation);
+    }
   }
-
-  // Present, fully specified, and matching nothing we serve → 406 territory.
-  return "none";
+  return accepted;
 }
 
 /**

@@ -68,6 +68,13 @@ describe("mdxToMarkdown", () => {
     expect(output).toContain("After");
   });
 
+  it("keeps a component name written as inline code", () => {
+    // A post explaining <InlineCTA /> in prose must not lose the example.
+    expect(mdxToMarkdown("Use `<InlineCTA />` to add a call to action.")).toBe(
+      "Use `<InlineCTA />` to add a call to action.",
+    );
+  });
+
   it("passes ordinary markdown through unchanged", () => {
     const source = "## Heading\n\n- one\n- two\n\n[link](https://agenta.ai)";
     expect(mdxToMarkdown(source)).toBe(source);
