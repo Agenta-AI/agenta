@@ -84,6 +84,9 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./state"
+// The durable half: an approval decision goes to its interaction row, never to part state alone.
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./state"
+export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state"
 // Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state"
 // Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).

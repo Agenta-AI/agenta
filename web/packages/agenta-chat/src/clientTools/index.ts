@@ -10,3 +10,7 @@
 export {default as ClientToolPart, type ClientToolOutputHandler} from "./ClientToolPart"
 export {clientToolMeta, isClientToolPart, clientToolName} from "./meta"
 export {getPendingConnectInteractions, getConnectInteractions} from "./connectInteractions"
+export {
+    getPendingElicitationInteractions,
+    hasEarlierElicitationDegradation,
+} from "./elicitationInteractions"

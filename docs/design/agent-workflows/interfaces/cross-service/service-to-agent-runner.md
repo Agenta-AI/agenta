@@ -63,6 +63,9 @@ group by job:
     "default": "allow_reads",            // "allow" | "ask" | "deny" | "allow_reads"
     "rules":   [ { "pattern": "Bash(rm:*)", "permission": "ask" } ]  // optional
   },
+  "gatewayPolicy": {                     // private compiled per-integration policy; omitted without gateway connections
+    "integrations": { "github": { "provider": "composio", "connection": "github-work", "tools": {} } }
+  },
   "sandboxPermission": { /* Layer 2 boundary; network enforced on Daytona, see sandbox-permission.md */ },
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 
@@ -85,6 +88,12 @@ group by job:
   }
 }
 ```
+
+`gatewayPolicy` is runner authorization policy, not harness configuration. The service keeps
+it on neutral `SessionConfig`, passes it through `Backend.create_session`, and
+`request_to_wire` emits it at the top level. Harness-specific templates never carry it; they
+receive only integration names for model guidance. The runner treats a missing integration or
+tool in a present policy as denied.
 
 `runContext` is the run's own context (its trace + workflow identity), filled by the service in
 `app.py` from `run_context()` (`tracing.py`) and refreshed each turn. It has two consumers. A

@@ -35,6 +35,15 @@ export function agentItemIdentity(kind: AgentItemKind, item: unknown, index: num
         // Workflow-reference tool — keyed by the slug it targets.
         if (rec.type === "reference" && typeof rec.slug === "string" && rec.slug)
             return `ref:${rec.slug}`
+        // Integration entry — keyed by the integration it governs. A revision holds at most one
+        // per provider and integration, so this survives reordering; positional would report a
+        // false add and remove when an earlier tool is deleted.
+        if (rec.type === "gateway_connection") {
+            const conn = isObj(rec.connection) ? rec.connection : undefined
+            const provider = typeof conn?.provider === "string" ? conn.provider : ""
+            const integration = typeof conn?.integration === "string" ? conn.integration : ""
+            if (provider && integration) return `integration:${provider}:${integration}`
+        }
         // Function / gateway tool — keyed by its function name (wrapped `function.name` or the
         // flat legacy shape `{name, description, parameters}`).
         const fn = isObj(rec.function) ? rec.function : undefined

@@ -1,7 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
-import {SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
@@ -120,84 +120,89 @@ export const SessionWorkspace = ({
 
     return (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
-            {/* The workspace column: the shared playground top bar, then the panes under it. The
-                column owns the top safe-area inset (the bar is the topmost chrome). */}
-            <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
-                <SessionTopBar
-                    entityId={entityId}
-                    agentId={agentId}
-                    sessionId={sessionId}
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                />
-
-                {/* One split at every width. On a phone the pane it does not show is CSS-hidden
-                    rather than dropped, which is what keeps both halves mounted exactly once. */}
-                <div className="min-h-0 min-w-0 flex-1">
-                    <SplitPane
-                        paneSide="start"
-                        paneSize={twoPane && showPane ? paneSize : 0}
-                        paneMin={300}
-                        paneMax={440}
-                        fillMin={420}
-                        // Phone: no divider, no drag, and the visible half takes the full width.
-                        animate={configSlide.animate}
-                        barHidden={!twoPane || !showPane}
-                        resizable={twoPane && showPane}
-                        paneGrow={!twoPane && showPane}
-                        paneClassName={!twoPane && !showPane ? "hidden" : undefined}
-                        fillClassName={!twoPane && showPane ? "hidden" : undefined}
-                        // Controlled width: the drag must write through per tick, or the pane only
-                        // snaps at pointer-up.
-                        onResize={(size) => setPaneSize(size)}
-                        onResizeEnd={(size) => setPaneSize(size)}
-                        className="h-full"
-                        pane={configSlide.keepMounted ? pane : null}
-                        fill={
-                            <SplitPane
-                                paneSide="end"
-                                paneSize={twoPane && filesOpen ? filesPaneSize : 0}
-                                paneMin={320}
-                                paneMax={560}
-                                fillMin={360}
-                                animate={filesSlide.animate}
-                                barHidden={!twoPane || !filesOpen}
-                                resizable={twoPane && filesOpen}
-                                // Controlled width, so the drag must write through per tick or the
-                                // pane only moves at pointer-up.
-                                onResize={(size) => setFilesPaneSize(size)}
-                                onResizeEnd={(size) => setFilesPaneSize(size)}
-                                className="h-full"
-                                pane={
-                                    filesSlide.keepMounted ? (
-                                        <SessionFilesPane
-                                            scope={filesScope}
-                                            sessionId={sessionId}
-                                        />
-                                    ) : null
-                                }
-                                fill={
-                                    <div className="ag-canvas flex h-full min-h-0 flex-col">
-                                        {/* The rail belongs to the WORKSPACE, not to one
-                                            conversation. It used to live inside the conversation's
-                                            pinned header, so keying that per session remounted the
-                                            rail too and reset its scroll to 0 — you would scroll a
-                                            long strip, pick a tab, and the strip snapped back to
-                                            the start. Up here it simply stays put. */}
-                                        <SessionTabs
-                                            sessionId={sessionId}
-                                            projectId={projectId}
-                                            workspaceId={workspaceId}
-                                            agentId={agentId}
-                                        />
-                                        <div className="min-h-0 flex-1">{chat}</div>
-                                    </div>
-                                }
-                            />
-                        }
+            {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
+                mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
+                and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
+            <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
+                {/* The workspace column: the shared playground top bar, then the panes under it. The
+                    column owns the top safe-area inset (the bar is the topmost chrome). */}
+                <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
+                    <SessionTopBar
+                        entityId={entityId}
+                        agentId={agentId}
+                        sessionId={sessionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
                     />
+
+                    {/* One split at every width. On a phone the pane it does not show is CSS-hidden
+                        rather than dropped, which is what keeps both halves mounted exactly once. */}
+                    <div className="min-h-0 min-w-0 flex-1">
+                        <SplitPane
+                            paneSide="start"
+                            paneSize={twoPane && showPane ? paneSize : 0}
+                            paneMin={300}
+                            paneMax={440}
+                            fillMin={420}
+                            // Phone: no divider, no drag, and the visible half takes the full width.
+                            animate={configSlide.animate}
+                            barHidden={!twoPane || !showPane}
+                            resizable={twoPane && showPane}
+                            paneGrow={!twoPane && showPane}
+                            paneClassName={!twoPane && !showPane ? "hidden" : undefined}
+                            fillClassName={!twoPane && showPane ? "hidden" : undefined}
+                            // Controlled width: the drag must write through per tick, or the pane only
+                            // snaps at pointer-up.
+                            onResize={(size) => setPaneSize(size)}
+                            onResizeEnd={(size) => setPaneSize(size)}
+                            className="h-full"
+                            pane={configSlide.keepMounted ? pane : null}
+                            fill={
+                                <SplitPane
+                                    paneSide="end"
+                                    paneSize={twoPane && filesOpen ? filesPaneSize : 0}
+                                    paneMin={320}
+                                    paneMax={560}
+                                    fillMin={360}
+                                    animate={filesSlide.animate}
+                                    barHidden={!twoPane || !filesOpen}
+                                    resizable={twoPane && filesOpen}
+                                    // Controlled width, so the drag must write through per tick or the
+                                    // pane only moves at pointer-up.
+                                    onResize={(size) => setFilesPaneSize(size)}
+                                    onResizeEnd={(size) => setFilesPaneSize(size)}
+                                    className="h-full"
+                                    pane={
+                                        filesSlide.keepMounted ? (
+                                            <SessionFilesPane
+                                                scope={filesScope}
+                                                sessionId={sessionId}
+                                            />
+                                        ) : null
+                                    }
+                                    fill={
+                                        <div className="ag-canvas flex h-full min-h-0 flex-col">
+                                            {/* The rail belongs to the WORKSPACE, not to one
+                                                conversation. It used to live inside the conversation's
+                                                pinned header, so keying that per session remounted the
+                                                rail too and reset its scroll to 0 — you would scroll a
+                                                long strip, pick a tab, and the strip snapped back to
+                                                the start. Up here it simply stays put. */}
+                                            <SessionTabs
+                                                sessionId={sessionId}
+                                                projectId={projectId}
+                                                workspaceId={workspaceId}
+                                                agentId={agentId}
+                                            />
+                                            <div className="min-h-0 flex-1">{chat}</div>
+                                        </div>
+                                    }
+                                />
+                            }
+                        />
+                    </div>
                 </div>
-            </div>
+            </DriveSessionProvider>
         </AppShell>
     )
 }

@@ -1,7 +1,6 @@
 import {useMemo, useState} from "react"
 
 import {
-    NamePromptModal,
     ProjectOrgSwitcherView,
     type SwitcherEntry,
     type SwitcherThemeControl,
@@ -13,16 +12,13 @@ import {useRouter} from "next/router"
 import {fetchProjects, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
-import {groupByWorkspace} from "../context/workspaceGroups"
+import {groupByOrganization} from "../context/workspaceGroups"
+
+import {CreateProjectSheet} from "./CreateProjectSheet"
 
 /**
- * The drawer's header switcher — the same designed component as the desktop rail, bound to
- * mobile's workspace/project data.
- *
- * The trigger names the ORGANIZATION, as the desktop does. Labelling it by workspace read
- * "Default" on every account whose projects sit in the one default workspace, which is all of
- * them; the org is the name a person recognises. The second panel still moves between
- * workspaces, which is the routable unit here (`/w/:id/p/:id`).
+ * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
+ * Both panels speak organizations, because every org's workspace is named "Default".
  */
 export const DrawerProjectSwitcher = ({
     workspaceId,
@@ -39,11 +35,18 @@ export const DrawerProjectSwitcher = ({
         staleTime: 30_000,
     })
     const groups = useMemo(
-        () => (query.data?.kind === "ok" ? groupByWorkspace(query.data.projects) : []),
+        () => (query.data?.kind === "ok" ? groupByOrganization(query.data.projects) : []),
         [query.data],
     )
 
-    const currentGroup = groups.find((group) => group.workspaceId === workspaceId)
+    // Matched on the project, not the workspace: one org can hold several workspaces.
+    const currentGroup =
+        groups.find((group) =>
+            group.projects.some(
+                (project) =>
+                    project.project_id === projectId && project.workspace_id === workspaceId,
+            ),
+        ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
     const currentProject = currentGroup?.projects.find(
         (project) => project.project_id === projectId,
     )
@@ -59,27 +62,26 @@ export const DrawerProjectSwitcher = ({
                 key: project.project_id,
                 name: project.project_name ?? "Project",
                 isActive: project.project_id === projectId,
-                onSelect: () => goTo(workspaceId, project.project_id),
+                onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [currentGroup?.projects, projectId, workspaceId],
+        [currentGroup?.projects, projectId],
     )
 
-    const workspaces = useMemo<SwitcherEntry[]>(
+    const organizations = useMemo<SwitcherEntry[]>(
         () =>
             groups.map((group) => ({
-                key: group.workspaceId,
-                name: group.workspaceName,
-                isActive: group.workspaceId === workspaceId,
-                // Entering a workspace lands on its first project; the drawer's project panel
-                // then narrows within it.
+                key: group.key,
+                name: group.organizationName,
+                isActive: group.key === currentGroup?.key,
+                // Entering an org lands on its first project; the project panel then narrows.
                 onSelect: () => {
                     const first = group.projects[0]
                     if (first) goTo(group.workspaceId, first.project_id)
                 },
             })),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [groups, workspaceId],
+        [groups, currentGroup?.key],
     )
 
     const [createOpen, setCreateOpen] = useState(false)
@@ -123,18 +125,15 @@ export const DrawerProjectSwitcher = ({
                 projectLabel={currentProject?.project_name ?? "Select project"}
                 orgLabel={currentGroup?.organizationName ?? "Organization"}
                 projects={projects}
-                orgs={workspaces}
-                orgNoun="workspace"
+                orgs={organizations}
+                orgNoun="organization"
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
             />
-            <NamePromptModal
-                title="Create project"
-                label="Project name"
-                placeholder="Project name"
+            <CreateProjectSheet
                 open={createOpen}
-                onCancel={() => setCreateOpen(false)}
+                onOpenChange={setCreateOpen}
                 onSubmit={(name) => createProject.mutate(name)}
                 isPending={createProject.isPending}
             />

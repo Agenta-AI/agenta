@@ -16,6 +16,11 @@
 // ---------------------------------------------------------------------------
 
 export type {
+    GatewayConnectionPolicy,
+    GatewayConnectionRef,
+    GatewayConnectionToolConfig,
+    GatewayPermission,
+    GatewayPermissions,
     Status,
     ToolAuthScheme,
     ToolCall,
@@ -115,6 +120,7 @@ export {
     useToolConnectionsQuery,
     useToolExecution,
     useToolIntegrationConnections,
+    useToolIntegrationCatalog,
     useToolIntegrationDetail,
     useToolsConnections,
 } from "./hooks"

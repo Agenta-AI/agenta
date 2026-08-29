@@ -17,7 +17,8 @@
         "test:tsc": "pnpm run types:check && pnpm run lint",
         "test:unit": "vitest run",
         "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "generate:icons": "tsx scripts/generate-catalog.ts && prettier --write src/agent-icon/catalog.generated.ts"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -51,7 +52,8 @@
         "./theme-variables.css": "./src/styles/theme-variables.css",
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",
-        "./utils": "./src/utils/index.ts"
+        "./utils": "./src/utils/index.ts",
+        "./agent-icon": "./src/agent-icon/index.ts"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
@@ -142,6 +144,7 @@
     },
     "devDependencies": {
         "@floating-ui/react": "^0.27.13",
+        "@phosphor-icons/core": "2.1.1",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/react": "^16.3.2",
         "@types/js-yaml": "^4.0.9",
@@ -156,6 +159,7 @@
         "ajv": "^8.18.0",
         "jsdom": "^26.1.0",
         "lodash": "^4.17.23",
+        "tsx": "^4.22.4",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"
     }

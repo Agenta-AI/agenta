@@ -35,6 +35,13 @@ export interface UseConnectionDockArgs {
      * one key fire two decisions. The rule lives here so neither host has to re-derive it.
      */
     approvalsPending?: boolean
+    /**
+     * A question form is parked. Same reason as `approvalsPending`, one rung down: the question dock
+     * is a TYPING surface, so its digits and arrows would otherwise leak into a connect card that
+     * binds neither. Precedence is approval > elicitation > connect, and the composer dock renders
+     * them in that order so visual and keyboard order never disagree.
+     */
+    elicitationPending?: boolean
 }
 
 export interface ConnectionDockState {
@@ -61,6 +68,7 @@ export const useConnectionDock = ({
     messages,
     enabled = true,
     approvalsPending = false,
+    elicitationPending = false,
 }: UseConnectionDockArgs): ConnectionDockState => {
     const pending = useMemo(
         () => (enabled ? getPendingConnectInteractions(messages) : []),
@@ -125,6 +133,6 @@ export const useConnectionDock = ({
         position: shown.position,
         total: shown.total,
         bringForward,
-        shortcutsEnabled: !approvalsPending,
+        shortcutsEnabled: !approvalsPending && !elicitationPending,
     }
 }

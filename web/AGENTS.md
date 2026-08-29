@@ -10,6 +10,15 @@ the detail this file only summarizes.
 ## Before committing
 
 - Run `pnpm lint-fix` within the `web` folder.
+- A new user-facing feature adds or refreshes Storybook stories for its new components in
+  `web/storybook` (`stories/entity-ui/` for the data-connected `@agenta/entity-ui` surfaces).
+  Cover the states a reviewer cannot reach by clicking — empty, error, read-only, migration.
+  Nothing type-checks that package in CI, so run `pnpm --filter @agenta/storybook lint` and
+  build it once: a story whose component changed shape fails only at build time.
+- A change to any package `web/mobile` consumes (`chat`, `entities`, `entity-ui`,
+  `playground`, `playground-ui`, `shared`) gets a smoke check on `/m` before the PR is done.
+  Mobile is a separate host with its own providers and hydration, and it has broken silently
+  before — the desktop app looked fine while `/m` rendered nothing.
 - Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
   roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
   `pnpm generate:tailwind-tokens`, and commit the regenerated `theme-variables.css` +

@@ -113,7 +113,9 @@ export const ChatComposer = ({
                 placeholder={
                     placeholder ??
                     (waitingOnUser
-                        ? "The agent is waiting for your response — new messages will be queued"
+                        ? // The parked interaction is docked directly above, so point at it rather
+                          // than describing the wait in the abstract.
+                          "Answer above, or type to queue a message"
                         : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
                 }
                 initialMarkdown={initialMarkdown}

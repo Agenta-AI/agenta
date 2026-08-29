@@ -58,6 +58,7 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
+import { createStreamTrace } from "./stream-trace.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -352,15 +353,35 @@ export function isAgentaIngest(endpoint: string): boolean {
 
   const normalizedEndpoint = normalize(endpoint);
   if (!normalizedEndpoint) return false;
+  return configuredIngestBases().some(
+    (base) =>
+      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
+      normalizedEndpoint,
+  );
+}
+
+/** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
+ * what it compared against — the failure is always a configuration gap, never a code path. */
+export function configuredIngestBases(): string[] {
   return [
     process.env.AGENTA_API_INTERNAL_URL,
     process.env.AGENTA_API_URL,
     CLOUD_API_BASE,
-  ].some(
-    (base) =>
-      base &&
-      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
-        normalizedEndpoint,
+  ].filter((base): base is string => Boolean(base));
+}
+
+/**
+ * Has the operator told this runner its platform's PUBLIC api base?
+ *
+ * Only `AGENTA_API_URL` counts. `AGENTA_API_INTERNAL_URL` is the in-network hop and never appears
+ * in a dispatched run's trace endpoint, so it cannot settle whether a public-looking endpoint is
+ * this platform or someone else's collector. Cloud is self-describing: a runner reaching the cloud
+ * api needs no operator input, so the built-in cloud base counts as configured.
+ */
+export function publicApiBaseConfigured(): boolean {
+  return Boolean(
+    process.env.AGENTA_API_URL?.trim() ||
+    process.env.AGENTA_API_INTERNAL_URL?.trim()?.startsWith(CLOUD_API_BASE),
   );
 }
 
@@ -1468,6 +1489,7 @@ export function createSandboxAgentOtel(
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
+  const streamTrace = createStreamTrace({ harness: init.harness });
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -1558,12 +1580,14 @@ export function createSandboxAgentOtel(
     if (textBlockId === undefined) return;
     record({ type: "message_end", id: textBlockId });
     textBlockId = undefined;
+    streamTrace?.closeBlock("message");
   }
 
   function closeReasoning(): void {
     if (reasoningBlockId === undefined) return;
     record({ type: "thought_end", id: reasoningBlockId });
     reasoningBlockId = undefined;
+    streamTrace?.closeBlock("thought");
   }
 
   /** Open (if needed) the assistant text block and emit the pure delta up to `target`. */
@@ -1701,7 +1725,14 @@ export function createSandboxAgentOtel(
       if (!t) return;
       // Pi streams pure deltas; Claude streams deltas plus a cumulative snapshot.
       // Replace when a chunk is a superset of what we have, append otherwise.
-      if (t.startsWith(accumulated)) accumulated = t;
+      const messageSnapshot = t.startsWith(accumulated);
+      // Measure the NEW tail, not the chunk: a snapshot provider would otherwise report the
+      // whole accumulated answer as this delta's size.
+      streamTrace?.record(
+        "message",
+        messageSnapshot ? t.length - accumulated.length : t.length,
+      );
+      if (messageSnapshot) accumulated = t;
       else accumulated += t;
       // Live deltas run independent of span emission (text, not a span), so they flow even
       // when the harness self-instruments (emitSpans=false). `accumulated` is the cumulative
@@ -1714,7 +1745,12 @@ export function createSandboxAgentOtel(
     if (kind === "agent_thought_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
-      if (t.startsWith(reasoningAccumulated)) reasoningAccumulated = t;
+      const thoughtSnapshot = t.startsWith(reasoningAccumulated);
+      streamTrace?.record(
+        "thought",
+        thoughtSnapshot ? t.length - reasoningAccumulated.length : t.length,
+      );
+      if (thoughtSnapshot) reasoningAccumulated = t;
       else reasoningAccumulated += t;
       if (sink) streamReasoning(reasoningAccumulated);
       return;

@@ -9,8 +9,9 @@
  */
 import {useMemo} from "react"
 
-import {type DroppedFile} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, type DroppedFile} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
+import {drivePathFromToolPath} from "@agenta/entities/session"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -34,6 +35,37 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
+/**
+ * The presented drive path a quick-look request selects by. Openers pass whatever they hold: a drive
+ * path (a recents row), or a raw TOOL path — sandbox-absolute — from an in-thread file card or a
+ * chat file link. An absolute one must not reach the explorer, which would browse it as a folder
+ * INSIDE the mount: `<mount>/tmp/agenta/mounts/…`, always empty (#6270).
+ *
+ * An ABSOLUTE request names exactly one drive path, so it is derived rather than tail-matched. A
+ * tail match is too loose here: a row for a different file sharing the basename sits at the tail of
+ * the request too (`…/src/a.md` ends with `/a.md`), and the recency sort would decide which won.
+ * Only a RELATIVE request — already a drive path, or a tail a caller kept — still matches by tail.
+ *
+ * Shared with SessionFilesPane, the docked variant of this host — the two must resolve alike.
+ */
+export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
+    const resolved = drivePathFromToolPath(requested)
+    if (requested.startsWith("/")) {
+        if (!resolved) return requested
+        // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
+        // agent mount, which presents it at the root. Try both spellings, then fall back to the
+        // folded one — `resolveMount` unfolds it again, so it resolves either way.
+        const folded =
+            resolved.origin === "agent" ? `${AGENT_FILES_DIR}/${resolved.path}` : resolved.path
+        return (
+            recents.find((f) => f.path === folded)?.path ??
+            recents.find((f) => f.path === resolved.path)?.path ??
+            folded
+        )
+    }
+    return recents.find((f) => matchesTail(f.path, requested))?.path ?? resolved?.path ?? requested
+}
+
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtomFamily(sessionId))
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -49,11 +81,10 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
-    const initialPath = useMemo(() => {
-        if (!quickLook) return null
-        const hit = drive.recents.find((f) => matchesTail(f.path, quickLook.path))
-        return hit?.path ?? quickLook.path
-    }, [quickLook, drive.recents])
+    const initialPath = useMemo(
+        () => (quickLook ? resolveQuickLookPath(drive.recents, quickLook.path) : null),
+        [quickLook, drive.recents],
+    )
 
     const driveIds = useMemo(
         () =>
