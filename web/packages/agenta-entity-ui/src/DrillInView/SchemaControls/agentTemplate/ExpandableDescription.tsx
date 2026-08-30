@@ -1,4 +1,4 @@
-import {useLayoutEffect, useState} from "react"
+import {useId, useLayoutEffect, useState} from "react"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
 
@@ -33,6 +33,9 @@ export interface ExpandableDescriptionProps {
     expandedClassName?: string
     /** Told whether the description is open, for a parent that restyles its own row. */
     onExpandedChange?: (expanded: boolean) => void
+    /** Names what the toggle expands, e.g. the row's title. Without it a list of identical
+     *  "Show more" buttons is unusable with a screen reader. */
+    label?: string
 }
 
 export function ExpandableDescription({
@@ -41,7 +44,9 @@ export function ExpandableDescription({
     className = "text-xs text-[var(--ag-colorTextTertiary)]",
     expandedClassName = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]",
     onExpandedChange,
+    label,
 }: ExpandableDescriptionProps) {
+    const textId = useId()
     const [expanded, setExpandedState] = useState(false)
     const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
     const [overflows, setOverflows] = useState(false)
@@ -55,11 +60,19 @@ export function ExpandableDescription({
             return
         }
         if (!preview || expanded) return
-        setOverflows(
-            lines > 1
-                ? preview.scrollHeight > preview.clientHeight + 1
-                : preview.scrollWidth > preview.clientWidth,
-        )
+        const measure = () =>
+            setOverflows(
+                lines > 1
+                    ? preview.scrollHeight > preview.clientHeight + 1
+                    : preview.scrollWidth > preview.clientWidth,
+            )
+        measure()
+        // Re-measure on resize: the answer depends on the element's own box, so a drawer that
+        // opens at another width, or a panel the user drags, would otherwise keep the first one.
+        if (typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(measure)
+        observer.observe(preview)
+        return () => observer.disconnect()
     }, [preview, expanded, text, lines])
 
     const setExpanded = (next: boolean) => {
@@ -75,6 +88,7 @@ export function ExpandableDescription({
     return (
         <>
             <span
+                id={textId}
                 ref={setPreview}
                 className={`${className} ${expanded ? expandedClassName : clamp}`}
             >
@@ -83,6 +97,11 @@ export function ExpandableDescription({
             {truncatable ? (
                 <button
                     type="button"
+                    aria-expanded={expanded}
+                    aria-controls={textId}
+                    aria-label={
+                        label ? `${expanded ? "Show less" : "Show more"} about ${label}` : undefined
+                    }
                     onClick={(event) => {
                         // Rows whose whole surface is clickable must not also toggle on this.
                         event.stopPropagation()

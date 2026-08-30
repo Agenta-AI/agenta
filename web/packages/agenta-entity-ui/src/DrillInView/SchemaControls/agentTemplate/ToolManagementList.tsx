@@ -153,17 +153,19 @@ export interface ToolManagementListProps {
     onOpenIntegration?: (row: IntegrationRow) => void
     /** Drops every entry an integration owns, in one write. */
     onRemoveIntegration?: (row: IntegrationRow) => void
-    /** Add trigger shown in the empty state. Opens the add-integration drawer directly. */
-    emptyAdd: ReactNode
+    /** Add trigger shown in the empty state. Omitted when there is no drawer to open. */
+    emptyAdd?: ReactNode
     /** Per-tool draft/validation status (unsaved edits, missing fields). */
     statusFor?: ToolStatusFor
 }
 
-/** Shared empty-state line, so both bodies read the same. */
-function EmptyLine({label, add}: {label: string; add: ReactNode}) {
+/** Shared empty-state line, so both bodies read the same. The add half is optional: a host with
+ *  no drawer to open must not render a control that does nothing. */
+function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
     return (
         <span className="text-xs text-[var(--ag-zinc-5)]">
-            {label} — {add}
+            {label}
+            {add ? <> — {add}</> : null}
         </span>
     )
 }
@@ -262,8 +264,8 @@ export interface SubagentListProps {
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
     disabled?: boolean
-    /** Add trigger shown in the empty state. Opens the workflow picker directly. */
-    emptyAdd: ReactNode
+    /** Add trigger shown in the empty state. Omitted when there is no picker to open. */
+    emptyAdd?: ReactNode
     statusFor?: ToolStatusFor
 }
 
@@ -271,6 +273,25 @@ export interface SubagentListProps {
  * The Subagents section body: a flat row list, no sub-header. The section header owns the add
  * button, which opens the workflow picker directly.
  */
+/** Stable per-entry key: the saved reference's own identity, never its array position. */
+function subagentKey(item: unknown, index: number): string {
+    const t = (item ?? {}) as Record<string, unknown>
+    const slug = typeof t.slug === "string" ? t.slug : ""
+    const name = typeof t.name === "string" ? t.name : ""
+    const binding =
+        typeof t.environment === "string"
+            ? `env:${t.environment}`
+            : typeof t.variant === "string"
+              ? `var:${t.variant}`
+              : typeof t.version === "string"
+                ? `ver:${t.version}`
+                : ""
+    const identity = [slug, name, binding].filter(Boolean).join("|")
+    // A reference with nothing to identify it falls back to its position, which is still better
+    // than colliding with another blank row.
+    return identity || `subagent-${index}`
+}
+
 export function SubagentList({
     entries,
     openEdit,
@@ -289,7 +310,7 @@ export function SubagentList({
         <div className="flex flex-col gap-2">
             {entries.map(({item, index}) => (
                 <ItemRow
-                    key={`tool-${index}`}
+                    key={subagentKey(item, index)}
                     descriptor={describeTool(item)}
                     onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
                     onRemove={() => {

@@ -103,10 +103,18 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
+/**
+ * Section key -> the schema field its change marks come from. Integrations and Subagents both
+ * render out of `tools`, so a change to either field shows on both. Their VALIDATION tips are
+ * deliberately not shared: an integration that needs re-authentication is not a subagent problem.
+ */
+const CHANGE_FIELD_FOR_SECTION: Record<string, string> = {subagents: "tools"}
+
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
-    tools: "Unsaved tool changes.",
+    tools: "Unsaved integration changes.",
+    subagents: "Unsaved subagent changes.",
     mcp: "Unsaved MCP server changes.",
     skills: "Unsaved skill changes.",
     advanced: "Unsaved advanced-setting changes.",
@@ -147,7 +155,7 @@ const ModelHarnessSectionBody = ({
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
 // the agent populates them (see `useAutoExpandOnPopulate`).
-const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
+const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
@@ -352,7 +360,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            if (!agentChangedKeys?.has(sectionKey as PanelSectionKey)) return undefined
+            const field = CHANGE_FIELD_FOR_SECTION[sectionKey] ?? sectionKey
+            if (!agentChangedKeys?.has(field as PanelSectionKey)) return undefined
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
@@ -753,6 +762,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (mh.modelUnsupported) return "The selected model isn't available on this harness."
             return null
         }
+        if (key === "subagents") {
+            return subagentTools.some(({item}) =>
+                ITEM_KINDS.tool.draftInvalid(item as Record<string, unknown>),
+            )
+                ? "A subagent is missing its name."
+                : null
+        }
         if (key === "tools") {
             if (tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>)))
                 return "A tool is missing its name."
@@ -785,7 +801,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        if (draftSectionKeys.has(key as PanelSectionKey))
+        const draftField = CHANGE_FIELD_FOR_SECTION[key] ?? key
+        if (draftSectionKeys.has(draftField as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
@@ -885,38 +902,45 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         // Connected apps. Both this section and Subagents read the same `tools` field, so they
         // share its draft/validation indicator key.
-        hasTools && {
-            key: "tools",
-            icon: <PuzzlePiece size={16} />,
-            title: "Integrations",
-            summary: countSummary(integrationCount, "integration"),
-            indicator: sectionIndicator("tools"),
-            // One action, so the header plus opens the drawer directly instead of a menu.
-            extra:
-                !disabled && openIntegrationDrawer
-                    ? headerAddButton("Add integration", openIntegrationDrawer)
-                    : undefined,
-            defaultOpen: integrationCount > 0,
-            content: (
-                <ToolManagementList
-                    tools={tools}
-                    integrationRows={integrationRows}
-                    disabled={disabled}
-                    statusFor={toolStatusFor}
-                    onOpenIntegration={
-                        gatewayTools?.enabled ? openIntegrationPermissions : undefined
-                    }
-                    onRemoveIntegration={(row) => {
-                        removeIntegration(row)
-                        closeEditor()
-                    }}
-                    // The empty-state add opens the same drawer as the header +.
-                    emptyAdd={
-                        <AddTextLink label="add an integration" onClick={openIntegrationDrawer} />
-                    }
-                />
-            ),
-        },
+        hasTools &&
+            (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
+                key: "tools",
+                icon: <PuzzlePiece size={16} />,
+                title: "Integrations",
+                summary: countSummary(integrationCount, "integration"),
+                indicator: sectionIndicator("tools"),
+                // One action, so the header plus opens the drawer directly instead of a menu.
+                extra:
+                    !disabled && openIntegrationDrawer
+                        ? headerAddButton("Add integration", openIntegrationDrawer)
+                        : undefined,
+                defaultOpen: integrationCount > 0,
+                content: (
+                    <ToolManagementList
+                        tools={tools}
+                        integrationRows={integrationRows}
+                        disabled={disabled}
+                        statusFor={toolStatusFor}
+                        onOpenIntegration={
+                            gatewayTools?.enabled ? openIntegrationPermissions : undefined
+                        }
+                        onRemoveIntegration={(row) => {
+                            removeIntegration(row)
+                            closeEditor()
+                        }}
+                        // The empty-state add opens the same drawer as the header +. Omitted when
+                        // there is no drawer to open, so no dead control is rendered.
+                        emptyAdd={
+                            openIntegrationDrawer ? (
+                                <AddTextLink
+                                    label="add an integration"
+                                    onClick={openIntegrationDrawer}
+                                />
+                            ) : undefined
+                        }
+                    />
+                ),
+            },
         // Published workflows this agent can call. Saved as `{type: "reference"}` inside the same
         // `tools` array, so the section renders whenever the bridge is on OR the config has one.
         hasTools &&
@@ -925,7 +949,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 icon: <Robot size={16} />,
                 title: "Subagents",
                 summary: countSummary(subagentCount, "subagent"),
-                indicator: sectionIndicator("tools"),
+                indicator: sectionIndicator("subagents"),
                 extra:
                     !disabled && openSubagentSelector
                         ? headerAddButton("Add subagent", openSubagentSelector)
@@ -940,7 +964,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         statusFor={toolStatusFor}
                         emptyAdd={
-                            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
+                            openSubagentSelector ? (
+                                <AddTextLink
+                                    label="add a subagent"
+                                    onClick={openSubagentSelector}
+                                />
+                            ) : undefined
                         }
                     />
                 ),

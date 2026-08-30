@@ -24,7 +24,7 @@
  * Presentational on purpose: every agent arrives as a prop, so the layout can be storied and
  * iterated without the project's workflow queries.
  */
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {LogoMarks} from "@agenta/ui/components/presentational"
@@ -139,11 +139,21 @@ function SubagentRow({
             }
             action={
                 option.added ? (
-                    <Button variant="outline" size="sm" onClick={onRemove}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onRemove}
+                        aria-label={`Remove ${option.name} as a subagent`}
+                    >
                         Remove
                     </Button>
                 ) : (
-                    <Button variant="outline" size="sm" onClick={onAdd}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onAdd}
+                        aria-label={`Add ${option.name} as a subagent`}
+                    >
                         Add
                     </Button>
                 )
@@ -152,6 +162,7 @@ function SubagentRow({
             <ExpandableDescription
                 description={option.description}
                 lines={2}
+                label={option.name}
                 onExpandedChange={setExpanded}
             />
             <span className="mt-1.5 flex min-w-0 items-center gap-2">
@@ -163,6 +174,7 @@ function SubagentRow({
                     items={integrations}
                     size={14}
                     max={5}
+                    label={`Apps connected to ${option.name}`}
                     empty={
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             No connected apps
@@ -216,6 +228,13 @@ export function AddSubagentDrawer({
     onRemove,
 }: AddSubagentDrawerProps) {
     const [search, setSearch] = useState("")
+
+    // Reset on the `open` transition, not only in handleClose: `destroyOnClose` unmounts the
+    // drawer's body, not this component, so a close driven by the parent kept the last search
+    // and the next open showed a filtered list with no visible reason.
+    useEffect(() => {
+        if (!open) setSearch("")
+    }, [open])
 
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase()

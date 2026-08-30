@@ -28,12 +28,23 @@ type Story = StoryObj<typeof meta>
 
 const noop = () => undefined
 
-/** Pinned to a published version. */
-const versionRef = (name: string, slug: string, version: string, description?: string) => ({
+/**
+ * Pinned to one variant, optionally at a fixed version. `ref_by` is "variant" or "environment"
+ * on the wire, never "version" — the version is a field, not an axis. See the writer in
+ * `useAgentTools.handleAddWorkflowReference` and `ReferenceToolFormView`.
+ */
+const variantRef = (
+    name: string,
+    slug: string,
+    variant: string,
+    version: string,
+    description?: string,
+) => ({
     type: "reference",
     name,
     slug,
-    ref_by: "version",
+    ref_by: "variant",
+    variant,
     version,
     description,
 })
@@ -48,13 +59,19 @@ const environmentRef = (name: string, slug: string, environment: string) => ({
 })
 
 const ENTRIES = [
-    versionRef(
+    variantRef(
         "triage_ticket",
         "support-triage",
+        "01a04000-0000-7000-8000-000000000001",
         "3",
         "Reads a support ticket and returns its severity and owning team.",
     ),
-    versionRef("summarize_thread", "thread-summarizer", "12"),
+    variantRef(
+        "summarize_thread",
+        "thread-summarizer",
+        "01a04000-0000-7000-8000-000000000002",
+        "12",
+    ),
     environmentRef("draft_reply", "reply-drafter", "production"),
 ].map((item, index) => ({item, index}))
 
@@ -73,7 +90,7 @@ const Frame = (children: React.ReactNode) => (
     </div>
 )
 
-/** Both pin styles side by side, so a version row and an environment row can be read against each other. */
+/** Both axes side by side, so a variant row and an environment row can be read against each other. */
 export const RowStates: Story = {
     args: listArgs(ENTRIES),
     render: (args) => Frame(<SubagentList {...args} />),
