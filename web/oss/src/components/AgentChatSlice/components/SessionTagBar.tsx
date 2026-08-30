@@ -7,6 +7,7 @@ import {
     SessionTabDragItem,
     SessionTabStrip,
 } from "@agenta/sessions-ui"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLineRight, PencilSimple, X, XSquare} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -40,6 +41,14 @@ const STATUS_META: Record<
     alive: {dot: "bg-colorInfoBorder", pulse: false, attention: false, title: "Session is live"},
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
+
+/** A menu row that names its key on the right, the way a desktop menu does. */
+const withKey = (label: React.ReactNode, shortcutId: string) => (
+    <span className="flex items-center gap-6">
+        <span className="flex-1">{label}</span>
+        <ShortcutKeys id={shortcutId} />
+    </span>
+)
 
 /** A session's run-state dot. Subscribes to just that session's effective-status atom (local run
  * state, or backend liveness when idle here) so a streaming conversation repaints only its own dot,
@@ -319,11 +328,19 @@ const SessionTagBar = ({
             const shared = onMenuClick(target)
             return {
                 items: [
-                    ...menuItems(target),
+                    ...menuItems(target).map((entry) => {
+                        if ("key" in entry && entry.key === "rename") {
+                            return {...entry, label: withKey(entry.label, "session.rename")}
+                        }
+                        if ("key" in entry && entry.key === "archive") {
+                            return {...entry, label: withKey(entry.label, "session.archive")}
+                        }
+                        return entry
+                    }),
                     {type: "divider" as const},
                     {
                         key: "close",
-                        label: "Close",
+                        label: withKey("Close", "session.close"),
                         icon: <X size={14} />,
                         disabled: sessions.length <= 1,
                     },
@@ -365,7 +382,13 @@ const SessionTagBar = ({
                 onAdd={onAdd}
                 addDisabled={addDisabled}
                 addTooltip={
-                    addDisabled ? "Available after your agent's first response" : "New session"
+                    addDisabled ? (
+                        "Available after your agent's first response"
+                    ) : (
+                        <span className="flex items-center gap-1.5">
+                            New session <ShortcutKeys id="session.new" tone="inverse" />
+                        </span>
+                    )
                 }
                 extra={extra}
                 leadingExtra={leftExtra}

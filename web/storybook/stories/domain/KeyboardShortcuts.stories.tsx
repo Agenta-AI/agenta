@@ -119,11 +119,7 @@ export const ShortcutsSheet: Story = {
     ),
 }
 
-/**
- * The keys ride on affordances the reader already hovers. Only the two side panels are wired in
- * this change; the session tab menu, the search box and the stop button are listed as follow-up
- * in docs/design/playground-shortcut-discoverability/status.md.
- */
+/** The keys ride on affordances the reader already hovers, on both halves of every toggle. */
 export const PanelTooltips: Story = {
     render: () => (
         <div className="flex flex-col">
@@ -155,6 +151,47 @@ export const PanelTooltips: Story = {
                         </Button>
                     </SimpleTooltip>
                 </div>
+            </Frame>
+
+            <Frame
+                title="The session tab menu"
+                note="Right-click a session tab. A right-aligned key column, blank on the rows that have no key."
+            >
+                <div className="w-[280px] rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-md">
+                    {[
+                        {label: "Rename", id: "session.rename"},
+                        {label: "Pin", id: undefined},
+                        {label: "Archive", id: "session.archive"},
+                        {label: "Delete", id: undefined},
+                        {label: "Close", id: "session.close"},
+                        {label: "Close other tabs", id: undefined},
+                    ].map((row) => (
+                        <div
+                            key={row.label}
+                            className="flex items-center gap-6 rounded px-2.5 py-1.5 text-xs text-colorText hover:bg-colorFillTertiary"
+                        >
+                            <span className="flex-1">{row.label}</span>
+                            {row.id ? <ShortcutKeys id={row.id} /> : null}
+                        </div>
+                    ))}
+                </div>
+            </Frame>
+
+            <Frame
+                title="The new session button"
+                note="The + at the end of the tab strip names Alt+N, unless it is disabled before the agent's first answer."
+            >
+                <SimpleTooltip
+                    title={
+                        <span className="flex items-center gap-1.5">
+                            New session <ShortcutKeys id="session.new" tone="inverse" />
+                        </span>
+                    }
+                >
+                    <Button variant="ghost" size="icon-sm" className="h-7 w-7 p-0">
+                        +
+                    </Button>
+                </SimpleTooltip>
             </Frame>
         </div>
     ),
