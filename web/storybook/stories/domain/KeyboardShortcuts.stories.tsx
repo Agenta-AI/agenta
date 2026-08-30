@@ -81,6 +81,28 @@ export const ApprovalCardKeys: Story = {
 }
 
 /**
+ * Touch, which is what `/m` renders. The card is identical except that the keycaps are gone,
+ * because a phone has no keyboard to press. Not reachable by clicking on a desktop, so it is a
+ * story: a regression here would ship a keycap to every mobile user.
+ */
+export const ApprovalCardOnTouch: Story = {
+    render: () => (
+        <Frame
+            title="Approval card, touch"
+            note="The same card the mobile app renders. No keycaps, and the tap target extends invisibly instead."
+        >
+            <ApprovalCard
+                approvals={APPROVAL}
+                touch
+                onRespond={noop}
+                onApproveAll={noop}
+                onDenyAll={noop}
+            />
+        </Frame>
+    ),
+}
+
+/**
  * The sheet and its button ship together: a hotkey with no button teaches nobody.
  */
 export const ShortcutsSheet: Story = {
