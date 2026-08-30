@@ -38,6 +38,27 @@ The open product question, before any mobile wiring: which of these shortcuts be
 that is also used on a phone. Session switching and the panel toggles earn their place in a
 desktop browser pointed at `/m`; on a handset they are dead weight.
 
+## Open decision: can `Alt` plus a letter work at all?
+
+Codex found that the "safe letters" list in [decisions.md](decisions.md) only holds for English
+Firefox. Firefox builds its menu access keys from the localised menu names, so German reserves
+`Alt+A`, `Alt+C` and `Alt+X`, which collide with archive, configuration and next session. Other
+locales will differ again, and enumerating them all is not realistic.
+
+Two ways out, for a human to choose:
+
+1. **Keep `Alt` plus a letter.** Cheapest, and the collision only bites Firefox users in a
+   non-English interface, which is a small slice. The risk is a European user pressing `Alt+C` and
+   getting a browser menu instead of the configuration panel, with nothing to tell them why.
+2. **Move to `Alt+Shift` plus a letter.** No browser menu claims a three-key chord, which is why
+   Linear uses that shape. It is correct in every locale. The cost is ergonomics: a three-key chord
+   is worse for a shortcut you press many times a session, and every label grows.
+
+The related open item is that the hook matches physical key positions (`event.code`) while the
+sheet prints US letter legends. On AZERTY the key labelled `Z` reports `KeyW`, so the sheet says
+`Alt+Z` while the user's key cap says `W`. Fixing that properly needs
+`navigator.keyboard.getLayoutMap()` to derive the legend from the active layout.
+
 ## Follow-up, not in this PR
 
 - The session tab menu still has no key column. Rename, Archive and Close each have a key.
