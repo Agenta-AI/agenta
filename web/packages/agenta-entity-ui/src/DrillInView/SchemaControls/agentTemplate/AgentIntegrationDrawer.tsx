@@ -37,7 +37,9 @@ import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
+import {CatalogListRow} from "./CatalogListRow"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
+import {ExpandableDescription} from "./ExpandableDescription"
 import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
 
 type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
@@ -127,36 +129,28 @@ function ConnectedRow({
     const chooserButton = multiple && (!added || swappable)
 
     return (
-        <div
-            className={`border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 first:border-t-0 ${
-                choosing ? "bg-[var(--ag-colorFillQuaternary)]" : ""
-            }`}
-        >
-            <div className="flex items-center gap-2.5">
-                <ProviderLogo logo={integration?.logo ?? null} size={20} />
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[13px] font-medium">{name}</span>
-                    <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
-                        {subtitle}
-                    </span>
-                </div>
-                {added && !choosing ? (
-                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ag-colorSuccessText)]">
+        <CatalogListRow
+            highlighted={choosing}
+            leading={<ProviderLogo logo={integration?.logo ?? null} size={20} />}
+            title={name}
+            titleSuffix={
+                added && !choosing ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-[var(--ag-colorSuccessText)]">
                         <Check size={11} weight="bold" />
                         Added
                     </span>
-                ) : null}
-                {!added && !multiple && !isConnectionValid(single) ? (
-                    <span className="shrink-0 text-xs text-[var(--ag-colorWarningText)]">
+                ) : !added && !multiple && !isConnectionValid(single) ? (
+                    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorWarningText)]">
                         needs reconnect
                     </span>
-                ) : null}
-                {chooserButton ? (
+                ) : null
+            }
+            action={
+                chooserButton ? (
                     <Button variant="outline" size="sm" onClick={() => setChoosing((v) => !v)}>
                         {choosing ? "Cancel" : added ? "Change" : "Add"}
                     </Button>
-                ) : null}
-                {!chooserButton && !added ? (
+                ) : !added ? (
                     <Button
                         variant="outline"
                         size="sm"
@@ -165,48 +159,52 @@ function ConnectedRow({
                     >
                         Add
                     </Button>
-                ) : null}
-            </div>
-            {choosing ? (
-                <div className="ml-[30px] mt-2 flex flex-col gap-1">
-                    <RadioGroup value={selected} onValueChange={setSelected}>
-                        {group.connections.map((connection) => (
-                            <label
-                                key={connection.slug}
-                                className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-xs ${
-                                    selected === connection.slug
-                                        ? "border-[var(--ag-colorText)]"
-                                        : "border-[var(--ag-colorBorderSecondary)]"
-                                }`}
-                            >
-                                <RadioGroupItem value={connection.slug ?? ""} />
-                                <span className="flex-1 truncate">
-                                    {connectionLabel(connection)}
-                                </span>
-                                {isConnectionValid(connection) ? null : (
-                                    <span className="shrink-0 text-[var(--ag-colorWarningText)]">
-                                        needs reconnect
+                ) : undefined
+            }
+            expansion={
+                choosing ? (
+                    <div className="ml-[30px] mt-2 flex flex-col gap-1">
+                        <RadioGroup value={selected} onValueChange={setSelected}>
+                            {group.connections.map((connection) => (
+                                <label
+                                    key={connection.slug}
+                                    className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-xs ${
+                                        selected === connection.slug
+                                            ? "border-[var(--ag-colorText)]"
+                                            : "border-[var(--ag-colorBorderSecondary)]"
+                                    }`}
+                                >
+                                    <RadioGroupItem value={connection.slug ?? ""} />
+                                    <span className="flex-1 truncate">
+                                        {connectionLabel(connection)}
                                     </span>
-                                )}
-                            </label>
-                        ))}
-                    </RadioGroup>
-                    <div className="flex justify-end">
-                        <Button
-                            variant="default"
-                            size="sm"
-                            disabled={!selected || selected === currentSlug}
-                            onClick={() => {
-                                onAdd(selected)
-                                setChoosing(false)
-                            }}
-                        >
-                            {added ? `Use ${selectedName}` : `Add with ${selectedName}`}
-                        </Button>
+                                    {isConnectionValid(connection) ? null : (
+                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                            needs reconnect
+                                        </span>
+                                    )}
+                                </label>
+                            ))}
+                        </RadioGroup>
+                        <div className="flex justify-end">
+                            <Button
+                                variant="default"
+                                size="sm"
+                                disabled={!selected || selected === currentSlug}
+                                onClick={() => {
+                                    onAdd(selected)
+                                    setChoosing(false)
+                                }}
+                            >
+                                {added ? `Use ${selectedName}` : `Add with ${selectedName}`}
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            ) : null}
-        </div>
+                ) : null
+            }
+        >
+            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">{subtitle}</span>
+        </CatalogListRow>
     )
 }
 
@@ -219,18 +217,17 @@ function CatalogRow({
     onConnect: () => void
 }) {
     return (
-        <div className="flex items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 first:border-t-0">
-            <ProviderLogo logo={integration.logo ?? null} size={20} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium">{integration.name}</span>
-                <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
-                    {integration.description}
-                </span>
-            </div>
-            <Button variant="outline" size="sm" onClick={onConnect}>
-                Connect
-            </Button>
-        </div>
+        <CatalogListRow
+            leading={<ProviderLogo logo={integration.logo ?? null} size={20} />}
+            title={integration.name}
+            action={
+                <Button variant="outline" size="sm" onClick={onConnect}>
+                    Connect
+                </Button>
+            }
+        >
+            <ExpandableDescription description={integration.description ?? undefined} />
+        </CatalogListRow>
     )
 }
 

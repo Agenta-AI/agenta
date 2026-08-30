@@ -13,7 +13,7 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useLayoutEffect, useMemo, useState} from "react"
+import {memo, useMemo, useState} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -33,7 +33,6 @@ import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionSta
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
-    isDescriptionTruncatable,
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
@@ -58,6 +57,7 @@ import type {
 } from "../toolUtils"
 
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
+import {ExpandableDescription} from "./ExpandableDescription"
 import {humanizeActionKey} from "./itemDescriptors"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
@@ -110,20 +110,9 @@ const ToolRow = memo(function ToolRow({
     onChange: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
 }) {
+    // Only the row's own tint depends on this; the clamp, the measurement and the toggle all
+    // live in ExpandableDescription, shared with the other agent-config surfaces.
     const [expanded, setExpanded] = useState(false)
-    const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
-    const [overflows, setOverflows] = useState(false)
-    const description = tool.description?.trim()
-    // Measured only while collapsed: expanding changes the very box the measurement reads.
-    useLayoutEffect(() => {
-        if (!description) {
-            setOverflows(false)
-            return
-        }
-        if (!preview || expanded) return
-        setOverflows(preview.scrollWidth > preview.clientWidth)
-    }, [preview, expanded, description])
-    const truncatable = isDescriptionTruncatable(description, overflows)
 
     return (
         <div
@@ -148,27 +137,10 @@ const ToolRow = memo(function ToolRow({
                             </Badge>
                         ) : null}
                     </div>
-                    {description ? (
-                        <span
-                            ref={setPreview}
-                            className={`text-xs text-[var(--ag-colorTextTertiary)] ${
-                                expanded
-                                    ? "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
-                                    : "truncate"
-                            }`}
-                        >
-                            {description}
-                        </span>
-                    ) : null}
-                    {truncatable ? (
-                        <button
-                            type="button"
-                            onClick={() => setExpanded((value) => !value)}
-                            className="mt-1 w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
-                        >
-                            {expanded ? "Show less" : "Show more"}
-                        </button>
-                    ) : null}
+                    <ExpandableDescription
+                        description={tool.description}
+                        onExpandedChange={setExpanded}
+                    />
                 </div>
                 <PermissionPolicySelect
                     value={permission}

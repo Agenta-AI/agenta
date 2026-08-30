@@ -8,12 +8,17 @@ import {
 
 // AddSubagentDrawer — the "pick the agents this agent can call" surface. It replaced a two-panel
 // master/detail drawer that made the author choose one workflow, then pin a version or an
-// environment, then read its input schema before adding it. Three observations drove the rewrite:
+// environment, then read its input schema before adding it.
 //
-//   • Authors add helpers in batches, so the single-select master/detail shape was the wrong
-//     primitive. This one is a checkable list with select-all.
+// It is deliberately the SAME surface as the integration drawer, not a second design that happens
+// to sit next to it. Three pieces are shared: CatalogListRow draws the row, ExpandableDescription
+// clamps the description and offers Show more, and LogoMarks draws the run of connected-app logos
+// (the same component the template cards use). Editing any of the three changes both drawers.
+//
+//   • Adding is per row. The row's button adds, the same button removes, and the footer only
+//     closes. An author adds several by clicking several and sees each land immediately.
 //   • Of everything the old detail panel showed, only the description ever decided the choice.
-//     The card keeps the five fields that answer "what does it do and what can it reach": icon,
+//     The row keeps the five fields that answer "what does it do and what can it reach": icon,
 //     name, description, model, connected apps. Slug, version and schema are gone.
 //   • The words "workflow" and "reference" describe how the entry is saved, not what the author
 //     is doing. Nothing on this surface says either.
@@ -27,9 +32,9 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Add one or many agents as subagents. The whole card toggles, select-all " +
-                    "acts on what the search is showing, and agents already added are listed " +
-                    "for context but cannot be picked twice.",
+                    "Add one or many agents as subagents. Each row adds itself and removes " +
+                    "itself with the same button, Add all acts on what the search is " +
+                    "showing, and the footer only closes.",
             },
         },
     },
@@ -146,25 +151,25 @@ const Frame = (children: React.ReactNode) => (
  * with no connected apps. Every card state the list can produce, in one screen.
  */
 export const Default: Story = {
-    args: {open: true, onClose: noop, options: OPTIONS, onAdd: noop},
+    args: {open: true, onClose: noop, options: OPTIONS, onAdd: noop, onRemove: noop},
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
 /** A short list, which is what a young project actually looks like. */
 export const FewAgents: Story = {
-    args: {open: true, onClose: noop, options: OPTIONS.slice(0, 2), onAdd: noop},
+    args: {open: true, onClose: noop, options: OPTIONS.slice(0, 2), onAdd: noop, onRemove: noop},
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
 /** Nothing to add yet. The copy points at the one thing that fixes it. */
 export const NoAgents: Story = {
-    args: {open: true, onClose: noop, options: [], onAdd: noop},
+    args: {open: true, onClose: noop, options: [], onAdd: noop, onRemove: noop},
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
 /** First paint, before the project's agents resolve. */
 export const Loading: Story = {
-    args: {open: true, onClose: noop, options: [], loading: true, onAdd: noop},
+    args: {open: true, onClose: noop, options: [], loading: true, onAdd: noop, onRemove: noop},
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
@@ -177,6 +182,7 @@ export const LongContent: Story = {
         open: true,
         onClose: noop,
         onAdd: noop,
+        onRemove: noop,
         options: [
             {
                 id: "wf-long",
@@ -199,12 +205,13 @@ export const LongContent: Story = {
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
-/** Every agent is already added, so the list is context only and nothing can be picked. */
+/** Every agent is already added, so every row offers Remove and the header drops Add all. */
 export const AllAlreadyAdded: Story = {
     args: {
         open: true,
         onClose: noop,
         onAdd: noop,
+        onRemove: noop,
         options: OPTIONS.map((o) => ({...o, added: true})),
     },
     render: (args) => Frame(<AddSubagentDrawer {...args} />),

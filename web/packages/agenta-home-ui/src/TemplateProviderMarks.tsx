@@ -1,33 +1,18 @@
 import {PROVIDERS} from "@agenta/entities/workflow"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {LogoMarks} from "@agenta/ui/components/presentational"
 
 /**
  * Brand-logo marks for a template's integrations (Composio's logo CDN).
  *
- * A plain `<img>`, not `next/image`: the sources are remote, and every app that renders a template
- * card would otherwise need the CDN host in its own `images` config.
+ * Resolution only: the run of logos itself is {@link LogoMarks} in `@agenta/ui`, shared with the
+ * agent config drawers so a template card and a subagent row draw their integrations identically.
  */
-export const TemplateProviderMarks = ({providers}: {providers: string[]}) => {
-    if (!providers.length) return null
-    return (
-        <div className="flex items-center gap-1.5">
-            {providers.map((slug) => {
-                const provider = PROVIDERS[slug]
-                if (!provider) return null
-                return (
-                    <SimpleTooltip key={slug} title={provider.label}>
-                        <span className="inline-flex">
-                            <img
-                                src={provider.logo}
-                                alt={provider.label}
-                                width={16}
-                                height={16}
-                                className="shrink-0 rounded object-contain"
-                            />
-                        </span>
-                    </SimpleTooltip>
-                )
-            })}
-        </div>
-    )
-}
+export const TemplateProviderMarks = ({providers}: {providers: string[]}) => (
+    <LogoMarks
+        items={providers.flatMap((slug) => {
+            const provider = PROVIDERS[slug]
+            return provider ? [{key: slug, name: provider.label, logo: provider.logo}] : []
+        })}
+        size={16}
+    />
+)
