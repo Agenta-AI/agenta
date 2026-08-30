@@ -27,33 +27,46 @@ count.
 - **H2, delete interference**: deleting an older Secret for the same host while the new
   one propagates widens the window.
 
-## Probe results (2026-08-30, production org, target eu, our snapshot)
+## Probe results (2026-08-30, production org, target eu) — CORRECTED
 
-The probe ran from the production runner container with the runner's own key. The result
-reframes the problem — substitution is HOST-dependent, not merely slow:
+The first probe run concluded substitution was host-dependent ("a never-used host never
+substitutes"). That was a measurement artifact: Daytona's egress proxy also performs
+RESPONSE SCRUBBING — real values in responses are rewritten back to placeholders before
+they reach the sandbox — so an echo service shows `dtn_...` whether or not substitution
+happened. Proven by sending the literal real value in the header: the echo still read
+`dtn_secret_...`. The correct instrument is a provider whose error body echoes a MASKED
+key (api.openai.com: "Incorrect API key provided: sk-probe*****"), which scrubbing does
+not rewrite.
 
-| Secret's allowed host | Outcome |
-| --- | --- |
-| gateway.eu.cloud.agenta.ai (used constantly by this org) | substituted on the FIRST request: +1.8s and +1.9s after Secret creation (2 of 2) |
-| httpbin.org (never used by this org) | NEVER substituted: raw placeholder reached the server for 120s x3 (incl. ephemeral:false and the default image/target) and 300s x1 |
-| postman-echo.com (never used) | NEVER substituted in 120s |
+With that instrument (20 fresh-Secret first-sandbox samples, production create shape,
+target eu, 28 sandboxes total, all cleaned up):
 
-So a first-ever host may never get interception provisioned (at least within 5 minutes),
-while a known host maps a NEW secret's value almost instantly — and the production 3%
-(placeholder at t+10-24s on the known gateway host) is a separate, occasional lag on that
-same value-mapping path, half-correlated with a same-host delete seconds earlier. The
-delete-interference variant was deliberately NOT run against the gateway host from the
-production org: if host interception state is shared org-wide, a probe delete could
-disturb live users. That is now question 2 for Daytona.
+- **15 of 20 sandboxes substituted on their FIRST request**, +1.5s to +2.9s after Secret
+  creation — including brand-new hosts. Creation order and the delete-then-create eviction
+  ordering do not matter.
+- **5 of 20 never substituted at all** (raw placeholder for the full 90-180s watched, from
+  the first request onward). The distribution is bimodal: no sample landed between 3s and
+  180s. A twin sandbox created against the SAME Secret substituted at its first request
+  while the stuck one stayed raw; stop+start did not repair it. One stuck sandbox returned
+  an Envoy "upstream connect error or disconnect/reset before headers".
+
+**Mechanism read:** a per-sandbox registration failure at create time, with no
+reconciliation — not a propagation delay. Production's "10-24s after creation" was merely
+when the first call happened; "only first calls fail" is survivorship (the 401 kills the
+run and the sandbox is rebuilt). Today's stuck rate (~25%) is far above the ~3% in the
+production log window, so the rate varies or the eu fleet was degraded on 2026-08-30.
+
+Consequence for the runner: waiting does not help a stuck sandbox. The preflight must
+REBUILD instead of waiting (see the instruments below).
 
 ## The instruments
 
-- `services/runner/scripts/probe-secret-propagation.ts` measures both hypotheses with the
-  runner's own SDK calls (create Secret → create sandbox → curl httpbin.org/headers until
-  the echoed Authorization header shows the real value). `--delete-old` reproduces the
-  eviction ordering. Run it from an environment holding the runner's Daytona credentials;
-  each run costs about one sandbox-minute. Not yet run — the numbers above are from
-  production logs, not this probe.
+- `services/runner/scripts/probe-secret-propagation.ts` measures the stuck-sandbox rate
+  with the runner's own SDK calls, using the masked-echo instrument (api.openai.com's 401
+  body; an echo service cannot work — response scrubbing blinds it). `--delete-old` adds
+  the eviction ordering, which the 2026-08-30 runs showed is NOT a factor. Run it from an
+  environment holding the runner's Daytona credentials; each run costs about one
+  sandbox-minute.
 - The runner now logs `[daytona-secrets] allocated/deleted n=… hosts=[…] ms=…` (counts,
   hosts, and timing only — never ids, names, placeholders, or values), so future incidents
   carry their own create/delete timeline instead of needing it reconstructed from eviction
@@ -61,10 +74,11 @@ disturb live users. That is now question 2 for Daytona.
 - A placeholder-shaped 401 classifies as `credential_delivery_failed`
   (`services/runner/src/engines/sandbox_agent/errors.ts`), with retry-flavored user copy.
 
-## Open questions with Daytona (asked in the shared Slack channel, 2026-08-29)
+## Open questions with Daytona (updated 2026-08-30 after the reproduction)
 
-1. Is substitution guaranteed active for a sandbox created after its Secret? If not, what
-   is the bound?
+1. Why do some sandboxes (5 of 20 on 2026-08-30, target eu) never get substitution wiring
+   at create time, with no reconciliation, while a twin sandbox on the same Secret works
+   at its first request? One affected request returned an Envoy upstream-connect error.
 2. Does deleting a same-host Secret interfere with a newer one during propagation?
 3. Is there a read-your-writes signal — any API that confirms a Secret is active?
 4. The 15–18s update lag from 2026-08-09: same question.

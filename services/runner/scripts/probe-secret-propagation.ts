@@ -1,24 +1,20 @@
 /**
- * Measure Daytona Secret substitution propagation, from the runner's own SDK calls.
+ * Measure the Daytona Secret substitution STUCK-SANDBOX rate, with the runner's own SDK calls.
  *
- * THE QUESTION. The runner never puts a model key inside a sandbox: it creates a Daytona
- * Secret restricted to one host and the sandbox holds a `dtn_secret_<id>` placeholder that
- * Daytona substitutes into egress requests to that host. That substitution propagates
- * asynchronously with no confirmation signal. On EU cloud prod (2026-08-29) about 3% of a
- * fresh sandbox's FIRST outbound calls carried the raw placeholder (a 401 at the model
- * proxy), 10-24s after the Secret was created; roughly half the failures had a delete of the
- * previous same-host Secret seconds earlier. This probe measures both hypotheses:
+ * THE FAULT THIS MEASURES (established 2026-08-30, see
+ * docs/design/daytona-secret-propagation/README.md). Substitution is binary per sandbox: a
+ * healthy sandbox substitutes on its very FIRST outbound request (+1.5-2.9s after Secret
+ * creation), and a stuck sandbox NEVER substitutes — the raw `dtn_secret_<id>` placeholder
+ * reaches the provider for as long as you watch, a twin sandbox on the same Secret works, and
+ * stop+start does not repair it. Measured 5 stuck of 20 on 2026-08-30 (target eu).
  *
- *  - H1 (create lag): how long after `secret.create` + sandbox create until the first
- *    substituted request?
- *  - H2 (delete interference, `--delete-old`): does deleting an older Secret for the SAME
- *    host right before the create (the eviction ordering: destroy sandbox, delete its
- *    Secrets, allocate new ones) widen that window?
- *
- * METHOD. The Secret's allowed host is httpbin.org, and the sandbox curls
- * https://httpbin.org/headers with `Authorization: Bearer $PROBE_KEY` in a loop. The
- * response echoes the header Daytona actually sent: the real value means substitution is
- * live, the `dtn_` placeholder means it is not yet. First-substitution time is the sample.
+ * THE INSTRUMENT, AND WHY AN ECHO SERVICE CANNOT WORK. Daytona's egress proxy also scrubs
+ * responses: real values are rewritten back to placeholders before the response enters the
+ * sandbox, so httpbin-style echoes read `dtn_...` whether substitution happened or not (a
+ * literal real value typed into the header comes back as the placeholder). The working
+ * instrument is a provider whose error body echoes a MASKED key that scrubbing does not
+ * rewrite: api.openai.com answers a bad key with "Incorrect API key provided: sk-probe****".
+ * `sk-prob` in the body = substituted; `dtn_` in the body = the raw placeholder went out.
  *
  * RUN IT from an environment that already holds the runner's Daytona credentials (the dev
  * box, or the runner container), never with a personal key:
@@ -27,17 +23,18 @@
  *   AGENTA_RUNNER_DAYTONA_API_KEY=... pnpm exec tsx scripts/probe-secret-propagation.ts \
  *     --runs 10 [--delete-old]
  *
- * Each run creates one sandbox and one or two Secrets and deletes them afterwards; a run
- * costs about a sandbox-minute. The tool is side-effect-clean on success; on a crash, the
- * `probe-secret-propagation` name prefix makes leftovers findable in the Daytona dashboard.
+ * `--delete-old` reproduces the eviction ordering (delete the previous same-host Secret just
+ * before the create); the 2026-08-30 runs showed it does NOT change the stuck rate. Each run
+ * creates one sandbox and one or two Secrets and deletes them afterwards; leftovers carry the
+ * `probe-secret-propagation` name prefix.
  */
 import { randomBytes } from "node:crypto";
 
 import { Daytona } from "@daytonaio/sdk";
 
-const HOST = "httpbin.org";
-const POLL_MS = 1000;
-const MAX_WAIT_MS = 120_000;
+const HOST = "api.openai.com";
+const POLL_MS = 1500;
+const MAX_WAIT_MS = 90_000;
 
 const args = process.argv.slice(2);
 const deleteOld = args.includes("--delete-old");
@@ -63,18 +60,18 @@ function name(tag: string): string {
   return `probe-secret-propagation-${tag}-${randomBytes(6).toString("hex")}`;
 }
 
+/** One sample: milliseconds to first substituted request, or undefined = stuck. */
 async function oneRun(index: number): Promise<number | undefined> {
-  const realValue = `probe-real-${randomBytes(9).toString("hex")}`;
+  // The value must look like an OpenAI key so the 401 body echoes its masked form.
+  const realValue = `sk-probe${randomBytes(9).toString("hex")}`;
   let oldSecret: { id: string } | undefined;
   let secret: { id: string; name: string } | undefined;
   let sandbox: any;
   try {
     if (deleteOld) {
-      // The eviction ordering: an older same-host Secret exists, and its delete lands
-      // moments before the new create (destroy sandbox -> delete Secrets -> allocate).
       oldSecret = await client.secret.create({
         name: name("old"),
-        value: `probe-old-${randomBytes(9).toString("hex")}`,
+        value: `sk-probeold${randomBytes(9).toString("hex")}`,
         hosts: [HOST],
       });
       await client.secret.delete(oldSecret.id);
@@ -92,35 +89,30 @@ async function oneRun(index: number): Promise<number | undefined> {
       secrets: { PROBE_KEY: secret.name },
       ephemeral: true,
     });
-    const sandboxReadyAt = Date.now();
 
-    let substitutedAtMs: number | undefined;
     while (Date.now() - createdAt < MAX_WAIT_MS) {
       const result = await sandbox.process.executeCommand(
-        `curl -s -m 10 -H "Authorization: Bearer $PROBE_KEY" https://${HOST}/headers`,
+        `curl -s -m 10 -H "Authorization: Bearer $PROBE_KEY" https://${HOST}/v1/models`,
       );
       const body = String(result?.result ?? "");
-      const sawReal = body.includes(realValue);
-      const sawPlaceholder = body.includes("dtn_");
       const t = ((Date.now() - createdAt) / 1000).toFixed(1);
-      if (sawReal) {
-        substitutedAtMs = Date.now() - createdAt;
-        console.log(
-          `run=${index} t=+${t}s SUBSTITUTED (sandbox ready at +${((sandboxReadyAt - createdAt) / 1000).toFixed(1)}s)`,
-        );
-        break;
+      if (body.includes("sk-prob")) {
+        console.log(`run=${index} t=+${t}s SUBSTITUTED`);
+        return Date.now() - createdAt;
       }
       console.log(
-        `run=${index} t=+${t}s ${sawPlaceholder ? "raw placeholder" : "no auth echo (curl failed?)"}`,
+        `run=${index} t=+${t}s ${
+          body.includes("dtn_")
+            ? "RAW PLACEHOLDER reached the provider"
+            : `no key echo: ${body.slice(0, 60)}`
+        }`,
       );
       await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     }
-    if (substitutedAtMs === undefined) {
-      console.log(
-        `run=${index} NEVER substituted within ${MAX_WAIT_MS / 1000}s`,
-      );
-    }
-    return substitutedAtMs;
+    console.log(
+      `run=${index} STUCK: never substituted within ${MAX_WAIT_MS / 1000}s`,
+    );
+    return undefined;
   } finally {
     try {
       if (sandbox) await client.delete(sandbox);
@@ -141,17 +133,17 @@ async function oneRun(index: number): Promise<number | undefined> {
 }
 
 const samples: number[] = [];
+let stuck = 0;
 for (let i = 1; i <= runs; i++) {
   const ms = await oneRun(i);
-  if (ms !== undefined) samples.push(ms);
+  if (ms === undefined) stuck++;
+  else samples.push(ms);
 }
 samples.sort((a, b) => a - b);
 console.log(
   `\nmode=${deleteOld ? "delete-old-then-create" : "plain-create"} runs=${runs} ` +
-    `substituted=${samples.length} ` +
+    `substituted=${samples.length} stuck=${stuck}` +
     (samples.length
-      ? `min=${(samples[0] / 1000).toFixed(1)}s ` +
-        `median=${(samples[Math.floor(samples.length / 2)] / 1000).toFixed(1)}s ` +
-        `max=${(samples[samples.length - 1] / 1000).toFixed(1)}s`
+      ? ` firstOkSeconds=[${samples.map((v) => (v / 1000).toFixed(1)).join(",")}]`
       : ""),
 );
