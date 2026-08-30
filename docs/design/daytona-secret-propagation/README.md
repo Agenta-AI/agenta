@@ -27,6 +27,25 @@ count.
 - **H2, delete interference**: deleting an older Secret for the same host while the new
   one propagates widens the window.
 
+## Probe results (2026-08-30, production org, target eu, our snapshot)
+
+The probe ran from the production runner container with the runner's own key. The result
+reframes the problem — substitution is HOST-dependent, not merely slow:
+
+| Secret's allowed host | Outcome |
+| --- | --- |
+| gateway.eu.cloud.agenta.ai (used constantly by this org) | substituted on the FIRST request: +1.8s and +1.9s after Secret creation (2 of 2) |
+| httpbin.org (never used by this org) | NEVER substituted: raw placeholder reached the server for 120s x3 (incl. ephemeral:false and the default image/target) and 300s x1 |
+| postman-echo.com (never used) | NEVER substituted in 120s |
+
+So a first-ever host may never get interception provisioned (at least within 5 minutes),
+while a known host maps a NEW secret's value almost instantly — and the production 3%
+(placeholder at t+10-24s on the known gateway host) is a separate, occasional lag on that
+same value-mapping path, half-correlated with a same-host delete seconds earlier. The
+delete-interference variant was deliberately NOT run against the gateway host from the
+production org: if host interception state is shared org-wide, a probe delete could
+disturb live users. That is now question 2 for Daytona.
+
 ## The instruments
 
 - `services/runner/scripts/probe-secret-propagation.ts` measures both hypotheses with the
