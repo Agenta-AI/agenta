@@ -44,12 +44,12 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
                         alt={label}
                         width={size}
                         height={size}
-                        className="shrink-0 rounded object-contain"
+                        className="shrink-0 rounded-[3px] object-contain"
                     />
                 ) : (
                     // No mark to draw: a neutral tile keeps the run aligned and still names itself.
                     <span
-                        className="flex size-full items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[9px] font-medium uppercase text-[var(--ag-colorTextTertiary)]"
+                        className="flex size-full items-center justify-center rounded-[3px] bg-[var(--ag-colorFillQuaternary)] text-[9px] font-medium uppercase text-[var(--ag-colorTextTertiary)]"
                         aria-hidden
                     >
                         {label.slice(0, 1)}
