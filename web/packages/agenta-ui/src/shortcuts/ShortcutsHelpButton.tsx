@@ -4,10 +4,13 @@
  * A hotkey with no button teaches nobody, so the two ship together: this sits at the right edge of
  * the playground top bar, and pressing `?` anywhere outside a text field opens the same sheet.
  * Linear pairs `?` with a Help entry in its sidebar for the same reason.
+ *
+ * No `aria-keyshortcuts`: the attribute wants the physical keys and their modifiers, and `?` is
+ * Shift+/ on a US layout, Shift+ß on a German one and Shift+, on a French one. Naming a standalone
+ * `?` key would tell a screen reader something untrue on most keyboards. The tooltip still shows it.
  */
 import {useCallback, useState} from "react"
 
-import {shortcutAria} from "@agenta/shared/utils"
 import {Keyboard} from "@phosphor-icons/react"
 
 import {Button, SimpleTooltip} from "../components/ui"
@@ -44,7 +47,6 @@ export const ShortcutsHelpButton = ({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Keyboard shortcuts"
-                    aria-keyshortcuts={shortcutAria("help.sheet")}
                     onClick={() => setOpen(true)}
                     className={className}
                 >

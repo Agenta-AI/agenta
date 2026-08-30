@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {afterEach, describe, expect, it} from "vitest"
 
-import {isOverlayOpen} from "../../src/utils/overlay"
+import {isOnScreen, isOverlayOpen} from "../../src/utils/overlay"
 
 /** Mount the DOM a Radix layer produces: the role plus its open data-state. */
 const layer = (role: string, state = "open") => {
@@ -42,6 +42,28 @@ describe("isOverlayOpen", () => {
         expect(isOverlayOpen()).toBe(false)
     })
 
+    // antd sets no data-state and leaves its popups mounted after they close, so these are matched
+    // by class and filtered by visibility. A tooltip is excluded on purpose.
+    it.each([
+        "ant-modal-wrap",
+        "ant-drawer-open",
+        "ant-dropdown",
+        "ant-select-dropdown",
+        "ant-popover",
+    ])("sees an open .%s", (cls) => {
+        const el = document.createElement("div")
+        el.className = cls
+        document.body.append(el)
+        expect(isOverlayOpen()).toBe(true)
+    })
+
+    it("ignores an antd tooltip, which is passive", () => {
+        const el = document.createElement("div")
+        el.className = "ant-tooltip"
+        document.body.append(el)
+        expect(isOverlayOpen()).toBe(false)
+    })
+
     it("sees an antd modal, and ignores one that is display:none", () => {
         const wrap = document.createElement("div")
         wrap.className = "ant-modal-wrap"
@@ -50,5 +72,22 @@ describe("isOverlayOpen", () => {
 
         wrap.setAttribute("style", "display: none")
         expect(isOverlayOpen()).toBe(false)
+    })
+})
+
+describe("isOnScreen", () => {
+    it("is false for nothing", () => {
+        expect(isOnScreen(null)).toBe(false)
+    })
+
+    it("is true for a rendered element and false behind display:none", () => {
+        const el = document.createElement("div")
+        document.body.append(el)
+        expect(isOnScreen(el)).toBe(true)
+
+        const hidden = document.createElement("div")
+        hidden.style.display = "none"
+        document.body.append(hidden)
+        expect(isOnScreen(hidden)).toBe(false)
     })
 })

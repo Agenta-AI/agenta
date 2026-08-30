@@ -49,9 +49,9 @@ describe("printing a chord", () => {
     })
 
     it("joins with a plus off Apple hardware and with nothing on it", () => {
-        const session = getShortcut("session.new")!
-        expect(shortcutText(session, false)).toBe("Alt+N")
-        expect(shortcutText(session, true)).toBe("⌥N")
+        const session = getShortcut("session.rename")!
+        expect(shortcutText(session, false)).toBe("Alt+R")
+        expect(shortcutText(session, true)).toBe("⌥R")
     })
 
     it("prints the modifiers alone when the chord is a hold with no key", () => {
@@ -76,12 +76,22 @@ describe("aria-keyshortcuts", () => {
         expect(shortcutAria("session.step")).toBe("Alt+Z Alt+X")
     })
 
+    // undefined, not "": React omits the attribute entirely rather than rendering an empty one.
     it("says nothing for a range that names no single key", () => {
-        expect(shortcutAria("session.jump")).toBe("")
+        expect(shortcutAria("session.jump")).toBeUndefined()
+    })
+
+    it("says nothing for a modifier-only hold", () => {
+        expect(shortcutAria("voice.hold")).toBeUndefined()
+    })
+
+    // "+" is the attribute's own joiner and "?" is a character, not a key. Both would lie.
+    it.each(["session.new", "help.sheet"])("says nothing for %s, which it cannot express", (id) => {
+        expect(shortcutAria(id)).toBeUndefined()
     })
 
     it("says nothing for an id the registry does not hold", () => {
-        expect(shortcutAria("nope.missing")).toBe("")
+        expect(shortcutAria("nope.missing")).toBeUndefined()
     })
 
     // A value the browser cannot parse is worse than no attribute, so keep the shape strict.
@@ -89,7 +99,8 @@ describe("aria-keyshortcuts", () => {
         const allowedModifiers = new Set(["Meta", "Control", "Alt", "Shift"])
         for (const shortcut of PLAYGROUND_SHORTCUTS) {
             const value = shortcutAria(shortcut.id)
-            if (!value) continue
+            if (value === undefined) continue
+            expect(value).not.toBe("")
             for (const chord of value.split(" ")) {
                 const parts = chord.split("+")
                 const key = parts.pop()!

@@ -297,6 +297,65 @@ describe("keyboard shortcuts", () => {
         cleanup()
     })
 
+    // Every visited session stays mounted behind `display: none`. Two parallel runs both parking a
+    // gate meant one Cmd+Enter answered the hidden one too.
+    it("answers nothing while its own session is hidden", () => {
+        const visible: unknown[] = []
+        const hidden: unknown[] = []
+        const mountInto = (parent: HTMLElement, sink: unknown[]) => {
+            const holder = document.createElement("div")
+            parent.appendChild(holder)
+            const root = createRoot(holder)
+            act(() => {
+                root.render(
+                    <ApprovalCard
+                        approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                        onRespond={() => sink.push(1)}
+                        onApproveAll={() => undefined}
+                    />,
+                )
+            })
+            return () => act(() => root.unmount())
+        }
+        const shown = document.createElement("div")
+        const offscreen = document.createElement("div")
+        offscreen.style.display = "none"
+        document.body.append(shown, offscreen)
+
+        const cleanShown = mountInto(shown, visible)
+        const cleanHidden = mountInto(offscreen, hidden)
+
+        press({key: "Enter", metaKey: true})
+        expect(visible).toEqual([1])
+        expect(hidden).toEqual([])
+
+        cleanShown()
+        cleanHidden()
+        shown.remove()
+        offscreen.remove()
+    })
+
+    // antd sets no data-state and leaves its popups mounted, so the guard matches them by class.
+    it.each([".ant-dropdown", ".ant-select-dropdown", ".ant-popover", ".ant-modal-wrap"])(
+        "answers nothing while %s is open",
+        (cls) => {
+            const responses: unknown[] = []
+            const {cleanup} = mount({onRespond: () => responses.push(1)})
+            const popup = document.createElement("div")
+            popup.className = cls.slice(1)
+            document.body.appendChild(popup)
+
+            press({key: "Enter", metaKey: true})
+            press({key: "Escape"})
+            expect(responses).toEqual([])
+
+            popup.remove()
+            press({key: "Escape"})
+            expect(responses).toEqual([1])
+            cleanup()
+        },
+    )
+
     // Radix cancels Escape in the capture phase and still lets it propagate. Repro: park a gate,
     // open any menu, press Escape. The menu closed AND the gate was denied.
     it("answers nothing when a menu already cancelled the key", () => {

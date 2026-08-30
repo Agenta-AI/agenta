@@ -122,7 +122,7 @@ describe("useSessionShortcuts", () => {
     it("opens, closes, searches and toggles both side panels", () => {
         const {onNewSession, onCloseSession, onSearch, onToggleConfigPanel, onToggleFilesPane} =
             setup()
-        press("KeyN")
+        press("Equal")
         press("KeyW")
         press("KeyK")
         press("KeyC")

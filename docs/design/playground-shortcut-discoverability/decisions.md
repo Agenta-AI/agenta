@@ -22,6 +22,32 @@ A web page that binds one of these fights the browser for the keystroke. Even wh
 
 `Alt` plus a digit is claimed by nothing, on any of the three platforms. `Alt+1…9` is safe.
 
+## The letters macOS owns
+
+On a Mac, `Option` plus a letter usually types a character, which `preventDefault` suppresses. Five
+are different: `Option+E`, `Option+I`, `Option+U`, `Option+N` and `Option+` are DEAD KEYS that begin
+an accent. Binding one of them stops a user typing `é í ü ñ à` in the composer.
+
+This bit us. New session was moved to `Alt+N` on 2026-08-29, and `Option+N` is the tilde dead key,
+so every macOS user would have created a session instead of typing `ñ`. It now uses the `+` key
+(`event.code === "Equal"`), which matches the `+` button in the tab strip and is claimed by nothing.
+
+Never bind `Alt` plus E, I, U or N.
+
+## The letters are only proven safe in ENGLISH Firefox
+
+Firefox builds its menu access keys from the localised menu names, so the reserved set changes with
+the interface language. English reserves F, E, V, S, B, T and H. German reserves D, B, A, C, L, X
+and H, for Datei, Bearbeiten, Ansicht, Chronik, Lesezeichen, Extras and Hilfe.
+
+Three of our letters sit in the German set: `Alt+A` archives, `Alt+C` toggles the configuration and
+`Alt+X` steps to the next session. A German Firefox user may get a menu instead. Other locales will
+have their own sets, and we have not enumerated them.
+
+The unit test below proves only the English case. Do not read it as proof for any other language.
+Whether to keep `Alt` plus a letter at all, or move to a three-key chord such as `Alt+Shift+letter`
+the way Linear does, is an open decision recorded in [status.md](status.md).
+
 ## What changed on 2026-08-29, and why
 
 | Action              | Was     | Now     | Reason                                                                                                                              |

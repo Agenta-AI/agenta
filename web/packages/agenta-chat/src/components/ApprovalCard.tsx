@@ -10,8 +10,7 @@
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
-import {isOverlayOpen} from "@agenta/shared/utils"
-import {shortcutAria} from "@agenta/shared/utils"
+import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
@@ -81,6 +80,8 @@ export const ApprovalCard = ({
     // The field stays mounted inside the collapse, so focus it explicitly each time it opens; the
     // rAF waits for the expand to start so focus lands on a laid-out element.
     const steerInputRef = useRef<HTMLTextAreaElement>(null)
+    // Every visited session stays mounted behind `display: none`, so a hidden card must not answer.
+    const rootRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (!steerOpen) return
         const raf = requestAnimationFrame(() => steerInputRef.current?.focus())
@@ -161,6 +162,9 @@ export const ApprovalCard = ({
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
             // touches Cmd+Enter, which only the overlay check catches.
             if (event.defaultPrevented || isOverlayOpen()) return
+            // The listener is on `window`, and a parallel run parks a gate in a session you are
+            // not looking at. Without this, one Cmd+Enter answered every hidden card too.
+            if (rootRef.current && !isOnScreen(rootRef.current)) return
             if (steerOpen) return
             const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
@@ -183,7 +187,7 @@ export const ApprovalCard = ({
     })
 
     return (
-        <div className={`flex flex-col rounded-lg ${className}`}>
+        <div ref={rootRef} className={`flex flex-col rounded-lg ${className}`}>
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. */}
             <div className="flex items-center gap-1.5">
                 <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />

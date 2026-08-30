@@ -50,7 +50,7 @@ const steppedSession = <T extends {id: string}>(
  * so mounting it there is inert rather than harmful.
  *
  * The bindings: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
- * `Alt+X` step to the previous/next one (wrapping), `Alt+N` opens a new session, `Alt+W` closes the
+ * `Alt+X` step to the previous/next one (wrapping), `Alt++` opens a new session, `Alt+W` closes the
  * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+K` searches, `Alt+C` toggles the config
  * panel, `Alt+O` toggles the files pane. Stop and approve live with the conversation that owns the
  * run, not here.
@@ -109,7 +109,9 @@ export function useSessionShortcuts({
                 return
             }
 
-            if (e.code === "KeyN") {
+            // The `+` key, matching the button in the tab strip. Not a letter: macOS makes
+            // Option+N the tilde dead key, so binding N would eat `ñ` in the composer.
+            if (e.code === "Equal") {
                 claim()
                 onNewSession()
                 return

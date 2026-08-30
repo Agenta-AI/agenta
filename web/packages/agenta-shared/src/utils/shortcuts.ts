@@ -85,7 +85,7 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         group: "sessions",
         label: "New session",
         modifiers: ["alt"],
-        key: "N",
+        key: "+",
         when: "the agent has answered once",
     },
     {
@@ -298,6 +298,14 @@ const ARIA_KEY: Record<string, string> = {
     "↓": "ArrowDown",
 }
 
+/** Key faces that `aria-keyshortcuts` cannot express honestly.
+ *
+ * `+` is the attribute's own joiner, so "Alt++" is ambiguous. `?` is the character a layout
+ * produces, not a key: it is Shift+/ on a US keyboard, Shift+ß on a German one. The attribute wants
+ * physical keys and their modifiers, so for these we emit nothing and let the visible keycap and
+ * the shortcuts sheet carry the hint instead. */
+const ARIA_INEXPRESSIBLE = new Set(["+", "?"])
+
 /** Modifier to its ARIA name. `mod` has no single name, so it expands to both alternatives. */
 const ARIA_MODIFIER: Record<ShortcutModifier, string[]> = {
     mod: ["Meta", "Control"],
@@ -308,16 +316,17 @@ const ARIA_MODIFIER: Record<ShortcutModifier, string[]> = {
 
 /**
  * The value for `aria-keyshortcuts`, built from the same entry the keycaps are drawn from, so a
- * moved key updates the attribute too. Returns "" for a range like `1…9`, which names no single
- * key; callers omit the attribute rather than announce something false.
+ * moved key updates the attribute too. Returns undefined, not "", for a range like `1…9` or a
+ * modifier-only hold: React omits an undefined attribute, while "" would render an empty one that
+ * names no key at all.
  */
-export const shortcutAria = (id: string): string => {
+export const shortcutAria = (id: string): string | undefined => {
     const shortcut = BY_ID.get(id)
-    if (!shortcut) return ""
+    if (!shortcut) return undefined
     const chords = [shortcut, ...(shortcut.alt ? [shortcut.alt] : [])]
     const values: string[] = []
     for (const chord of chords) {
-        if (!chord.key || chord.key.includes("…")) continue
+        if (!chord.key || chord.key.includes("…") || ARIA_INEXPRESSIBLE.has(chord.key)) continue
         const key = ARIA_KEY[chord.key] ?? chord.key
         // Every combination of the alternatives: `mod` alone already yields Meta and Control.
         let combos: string[][] = [[]]
@@ -328,7 +337,7 @@ export const shortcutAria = (id: string): string => {
         }
         for (const combo of combos) values.push([...combo, key].join("+"))
     }
-    return values.join(" ")
+    return values.length ? values.join(" ") : undefined
 }
 
 /** A flat text label, for a tooltip title. */
