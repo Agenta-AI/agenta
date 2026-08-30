@@ -418,7 +418,7 @@ function IntegrationCatalogContent({
                             label="Connected in your workspace"
                             count={connectedGroups.length}
                         />
-                        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+                        <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
                             {connectedGroups.map((group) => (
                                 <ConnectedRow
                                     key={groupKey(group.provider, group.integrationKey)}
@@ -444,7 +444,7 @@ function IntegrationCatalogContent({
                             No apps here.
                         </span>
                     ) : (
-                        <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+                        <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
                             {catalogRows.map((integration) => (
                                 <CatalogRow
                                     key={integration.key}

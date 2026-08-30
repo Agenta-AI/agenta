@@ -31,7 +31,7 @@ import {LogoMarks} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {LLMIconMap} from "@agenta/ui/llm-icons"
 import {cn} from "@agenta/ui/styles"
-import {Button, EmptyState, SearchInput, Skeleton} from "@agenta/ui/ui"
+import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, Cube, Robot} from "@phosphor-icons/react"
 
 import {SubSectionHeader} from "../sectionGroups"
@@ -77,22 +77,31 @@ export interface AddSubagentDrawerProps {
     onRemove: (options: SubagentOption[]) => void
 }
 
-const ICON_BOX = "flex size-6 items-center justify-center rounded"
+const ICON_BOX = "flex size-7 items-center justify-center rounded-md"
 
-/** The model an agent runs on, with the provider's own mark for recognition. */
+/**
+ * The model an agent runs on, with the provider's own mark for recognition. The mark sits in a
+ * tile the same size as an integration logo, so the meta line reads as one run of marks.
+ *
+ * Tabular numerals: model names are mostly version digits, and proportional ones make a column of
+ * them look ragged.
+ */
 function ModelChip({model, provider}: {model: string; provider?: string}) {
     const ProviderIcon = provider ? LLMIconMap[provider] : undefined
     return (
-        <span className="flex min-w-0 items-center gap-1 text-xs text-[var(--ag-colorTextSecondary)]">
-            {ProviderIcon ? (
-                <ProviderIcon className="size-3 shrink-0" />
-            ) : (
-                <Cube size={12} className="shrink-0" />
-            )}
-            <span className="truncate">{model}</span>
+        <span className="flex min-w-0 items-center gap-[5px] text-xs text-[var(--ag-colorTextSecondary)]">
+            <span className="flex size-[13px] shrink-0 items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)]">
+                {ProviderIcon ? <ProviderIcon className="size-[9px]" /> : <Cube size={9} />}
+            </span>
+            <span className="truncate tabular-nums">{model}</span>
         </span>
     )
 }
+
+/** Separates the model from the connected apps. A gap alone let the two runs read as one list. */
+const MetaDot = () => (
+    <span className="size-[2px] shrink-0 rounded-full bg-[var(--ag-colorTextQuaternary)]" />
+)
 
 function SubagentRow({
     option,
@@ -145,37 +154,58 @@ function SubagentRow({
                 lines={2}
                 onExpandedChange={setExpanded}
             />
-            {option.model || integrations.length > 0 ? (
-                <span className="mt-1 flex min-w-0 items-center gap-3">
-                    {option.model ? (
-                        <ModelChip model={option.model} provider={option.provider} />
-                    ) : null}
-                    <LogoMarks
-                        items={integrations}
-                        size={14}
-                        max={5}
-                        empty={
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                No connected apps
-                            </span>
-                        }
-                    />
-                </span>
-            ) : null}
+            <span className="mt-1.5 flex min-w-0 items-center gap-2">
+                {option.model ? (
+                    <ModelChip model={option.model} provider={option.provider} />
+                ) : null}
+                {option.model ? <MetaDot /> : null}
+                <LogoMarks
+                    items={integrations}
+                    size={14}
+                    max={5}
+                    empty={
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            No connected apps
+                        </span>
+                    }
+                />
+            </span>
         </CatalogListRow>
     )
 }
 
-function RowSkeleton() {
+/**
+ * A loading row. Deliberately NOT built on CatalogListRow: that component wraps its title in a
+ * truncating span, which is right for text and collapses a block-level bar. The geometry is copied
+ * instead, so the skeleton keeps the row's anatomy (icon, two text lines, a meta line, an action)
+ * and the list does not jump when the agents land.
+ *
+ * SkeletonBlock, never Skeleton: `Skeleton` is the antd COMPOSITE and renders a title plus three
+ * paragraph rows. Sizing it with a className gives four overlapping bars in a box meant for one,
+ * which is the staircase its own doc comment warns about.
+ */
+function RowSkeleton({widths}: {widths: [string, string]}) {
     return (
-        <CatalogListRow
-            leading={<Skeleton className="size-6 rounded" />}
-            title={<Skeleton className="h-4 w-40" />}
-        >
-            <Skeleton className="h-3 w-full" />
-        </CatalogListRow>
+        <div className="flex items-start gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2.5 first:border-t-0">
+            <SkeletonBlock className="mt-px size-7 shrink-0 rounded-md" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div className="flex min-h-6 items-center">
+                    <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
+                </div>
+                <SkeletonBlock className={`h-3 ${widths[1]}`} />
+                <SkeletonBlock className="h-3 w-28" />
+            </div>
+            <SkeletonBlock className="h-6 w-14 shrink-0 rounded-md" />
+        </div>
     )
 }
+
+/** Uneven widths: three identical bars read as a loading graphic, not as rows about to arrive. */
+const SKELETON_WIDTHS: [string, string][] = [
+    ["w-36", "w-full"],
+    ["w-28", "w-4/5"],
+    ["w-44", "w-3/5"],
+]
 
 export function AddSubagentDrawer({
     open,
@@ -245,10 +275,10 @@ export function AddSubagentDrawer({
                 />
 
                 {loading ? (
-                    <div className="flex flex-col">
-                        <RowSkeleton />
-                        <RowSkeleton />
-                        <RowSkeleton />
+                    <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                        {SKELETON_WIDTHS.map((widths, index) => (
+                            <RowSkeleton key={index} widths={widths} />
+                        ))}
                     </div>
                 ) : visible.length === 0 ? (
                     <EmptyState
@@ -276,7 +306,7 @@ export function AddSubagentDrawer({
                                 ) : undefined
                             }
                         />
-                        <div className="flex flex-col">
+                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
                             {visible.map((option) => (
                                 <SubagentRow
                                     key={option.id}

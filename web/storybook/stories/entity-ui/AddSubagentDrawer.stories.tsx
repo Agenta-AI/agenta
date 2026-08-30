@@ -74,6 +74,13 @@ const LOGO = {
     notion: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%226%22%20fill%3D%22%230F0F0F%22%2F%3E%3Ctext%20x%3D%2212%22%20y%3D%2217%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22600%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3EN%3C%2Ftext%3E%3C%2Fsvg%3E",
 }
 
+/** Past two lines at the drawer's width, which is what makes the Show more toggle appear. */
+const LONG_DESCRIPTION =
+    "Reads the full ticket thread including every attachment and prior escalation, decides the " +
+    "severity against the current on-call policy, names the owning team, drafts the internal " +
+    "summary, and posts it to the right channel so the on-call engineer has context before they " +
+    "open the ticket."
+
 const OPTIONS: SubagentOption[] = [
     {
         id: "wf-1",
@@ -174,8 +181,9 @@ export const Loading: Story = {
 }
 
 /**
- * Long text on every field: a name that will not fit, a description past two lines, and four
- * connected apps. This is the card's worst case, and it is what the clamps are for.
+ * The clamp, both ways. Two rows carry the same long description, so a reviewer can expand one and
+ * read it against the collapsed one without hunting for a second story. Also the card's worst case:
+ * a name that will not fit, a model string past its column, and four connected apps.
  */
 export const LongContent: Story = {
     args: {
@@ -185,10 +193,9 @@ export const LongContent: Story = {
         onRemove: noop,
         options: [
             {
-                id: "wf-long",
+                id: "wf-long-a",
                 name: "Customer escalation triage and routing assistant for the support organization",
-                description:
-                    "Reads the full ticket thread including every attachment and prior escalation, decides the severity against the current on-call policy, names the owning team, drafts the internal summary, and posts it to the right channel so the on-call engineer has context before they open the ticket.",
+                description: LONG_DESCRIPTION,
                 icon: {...icon("headphones", "#CA8A04"), icon: "headphones"},
                 model: "claude-sonnet-4-5-20250929-preview",
                 provider: "Anthropic",
@@ -199,7 +206,18 @@ export const LongContent: Story = {
                     {key: "notion", name: "Notion", logo: null},
                 ],
             },
-            ...OPTIONS.slice(0, 2),
+            {
+                id: "wf-long-b",
+                name: "Support triage",
+                description: LONG_DESCRIPTION,
+                icon: {...icon("headphones", "#0E7490"), icon: "headphones"},
+                model: "claude-sonnet-4-5",
+                provider: "Anthropic",
+                integrations: [
+                    {key: "linear", name: "Linear", logo: LOGO.linear},
+                    {key: "slack", name: "Slack", logo: LOGO.slack},
+                ],
+            },
         ],
     },
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
