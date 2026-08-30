@@ -37,31 +37,39 @@ export const KeyboardShortcutsSheet = ({
                         Press ? at any time to open this list.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="max-h-[70vh] gap-x-8 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 sm:columns-2 lg:columns-3">
-                    {groups.map((group) => (
-                        <section key={group.id} className="mb-4 break-inside-avoid">
-                            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-colorTextTertiary">
-                                {group.title}
-                            </h4>
-                            {group.shortcuts.map((shortcut) => (
-                                <div
-                                    key={shortcut.id}
-                                    className="flex items-center gap-3 py-0.5 text-xs text-colorTextSecondary"
-                                >
-                                    <span className="flex-1">
-                                        {shortcut.label}
-                                        {shortcut.when ? (
-                                            <span className="text-colorTextTertiary">
-                                                {" "}
-                                                — {shortcut.when}
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                    <ShortcutKeys id={shortcut.id} showAlt />
-                                </div>
-                            ))}
-                        </section>
-                    ))}
+                {/* The height cap and the scrolling belong to the WRAPPER, never to the column box.
+                    A multi-column element with a fixed height overflows sideways into extra columns
+                    instead of growing downward, which pushed the last two groups off the right edge
+                    on a laptop-height window. With auto height it balances into exactly its columns. */}
+                <div className="max-h-[78vh] overflow-y-auto overflow-x-hidden px-5 pb-5 pt-4">
+                    <div className="gap-x-8 gap-y-5 sm:columns-2 lg:columns-3">
+                        {groups.map((group) => (
+                            <section key={group.id} className="mb-3.5 break-inside-avoid">
+                                {/* mt-0: the UA heading margin is kept at the top of column one and dropped at every column
+                                break, so without it the first group sits lower than the others. */}
+                                <h4 className="mb-1.5 mt-0 text-[10px] font-semibold uppercase tracking-wider text-colorTextTertiary">
+                                    {group.title}
+                                </h4>
+                                {group.shortcuts.map((shortcut) => (
+                                    <div
+                                        key={shortcut.id}
+                                        className="flex items-center gap-3 py-0.5 text-xs text-colorTextSecondary"
+                                    >
+                                        <span className="flex-1">
+                                            {shortcut.label}
+                                            {shortcut.when ? (
+                                                <span className="text-colorTextTertiary">
+                                                    {" "}
+                                                    — {shortcut.when}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <ShortcutKeys id={shortcut.id} showAlt />
+                                    </div>
+                                ))}
+                            </section>
+                        ))}
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

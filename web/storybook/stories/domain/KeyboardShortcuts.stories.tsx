@@ -166,12 +166,20 @@ export const PanelTooltips: Story = {
                         {label: "Close", id: "session.close"},
                         {label: "Close other tabs", id: undefined},
                     ].map((row) => (
+                        // Mirrors the real ContextMenuItem: a full-width flex row, so a
+                        // misalignment here is the same misalignment the app would show.
                         <div
                             key={row.label}
-                            className="flex items-center gap-6 rounded px-2.5 py-1.5 text-xs text-colorText hover:bg-colorFillTertiary"
+                            className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded px-3 py-1.5 text-xs text-colorText hover:bg-colorFillTertiary"
                         >
-                            <span className="flex-1">{row.label}</span>
-                            {row.id ? <ShortcutKeys id={row.id} /> : null}
+                            {row.id ? (
+                                <span className="flex min-w-0 flex-1 items-center gap-6">
+                                    <span className="min-w-0 flex-1">{row.label}</span>
+                                    <ShortcutKeys id={row.id} />
+                                </span>
+                            ) : (
+                                row.label
+                            )}
                         </div>
                     ))}
                 </div>

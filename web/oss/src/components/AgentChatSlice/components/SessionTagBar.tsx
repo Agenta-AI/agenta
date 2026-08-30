@@ -42,10 +42,11 @@ const STATUS_META: Record<
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
-/** A menu row that names its key on the right, the way a desktop menu does. */
+/** A menu row that names its key on the right, the way a desktop menu does. The wrapper has to
+ * grow inside the menu item's own flex row, or the keycap sits against the label instead. */
 const withKey = (label: React.ReactNode, shortcutId: string) => (
-    <span className="flex items-center gap-6">
-        <span className="flex-1">{label}</span>
+    <span className="flex min-w-0 flex-1 items-center gap-6">
+        <span className="min-w-0 flex-1">{label}</span>
         <ShortcutKeys id={shortcutId} />
     </span>
 )
