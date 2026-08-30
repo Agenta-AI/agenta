@@ -13,7 +13,7 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useEffect, useLayoutEffect, useMemo, useState} from "react"
+import {memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -526,12 +526,13 @@ export function IntegrationPermissionDrawer({
     onChangeToolPermission: _onChangeToolPermission,
     ...body
 }: IntegrationPermissionDrawerProps) {
-    // The controls edit a local policy until Done. Closing through the drawer affordance is a
-    // cancel action, so it must not write into the agent's draft configuration.
+    // Permission edits stay local until Done; closing the drawer cancels them.
     const [draftPermissions, setDraftPermissions] = useState(permissions)
+    const wasOpen = useRef(open)
 
     useEffect(() => {
-        if (open) setDraftPermissions(permissions)
+        if (open && !wasOpen.current) setDraftPermissions(permissions)
+        wasOpen.current = open
     }, [open, permissions])
 
     const saveAndClose = () => {

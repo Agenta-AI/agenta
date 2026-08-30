@@ -124,7 +124,7 @@ function ConnectedRow({
     const added = Boolean(row)
     const swappable = Boolean(row?.entry)
     const single = group.connections[0]
-    const reconnectable = Boolean(single?.id && !isConnectionValid(single))
+    const reconnectable = !multiple && Boolean(single?.id && !isConnectionValid(single))
 
     const subtitle = choosing
         ? "Choose connection"
@@ -168,17 +168,19 @@ function ConnectedRow({
                         {choosing ? "Cancel" : added ? "Change" : "Add"}
                     </Button>
                 ) : null}
-                {!chooserButton && !added ? (
+                {!chooserButton && (!added || reconnectable) ? (
                     <div className="flex shrink-0 items-center gap-1.5">
                         {reconnectable ? <ReconnectButton connection={single} /> : null}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onAdd(single.slug ?? "")}
-                            disabled={!single.slug}
-                        >
-                            Add
-                        </Button>
+                        {!added ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onAdd(single.slug ?? "")}
+                                disabled={!single.slug}
+                            >
+                                Add
+                            </Button>
+                        ) : null}
                         {reconnectable ? (
                             <Button
                                 variant="outline"
