@@ -5,8 +5,8 @@
 Several of these letters look arbitrary. They are not. Each one was moved off a key that a
 browser already claims, and moving it back re-breaks the shortcut on Windows or Linux.
 
-The guard is `web/oss/src/components/AgentChatSlice/hooks/useSessionShortcuts.test.ts`, in the
-test named "binds no letter a browser menu already claims". If you change a binding and that
+The guard is `web/packages/agenta-ui/tests/unit/useSessionShortcuts.render.test.ts`, in the test
+named "binds no letter a browser menu already claims". If you change a binding and that
 test fails, the test is right and the change is wrong.
 
 ## The letters a browser owns

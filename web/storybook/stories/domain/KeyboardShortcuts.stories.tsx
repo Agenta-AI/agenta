@@ -7,6 +7,7 @@
  */
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
+import {shortcutAria} from "@agenta/shared/utils"
 import {KeyboardShortcutsSheet, ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleLeft, CaretDoubleRight, GearSix, Robot} from "@phosphor-icons/react"
@@ -21,7 +22,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
+                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five.\n\n`/m` renders the same `ApprovalCard` with `touch` set, so its keycaps are suppressed; see the **On mobile** story. The shortcut layer itself is desktop-only today, but every piece of it now lives in a package `/m` already depends on: the registry and the overlay guard in `@agenta/shared/utils`, and `useSessionShortcuts`, `ShortcutKeys`, `KeyboardShortcutsSheet` and `ShortcutsHelpButton` in `@agenta/ui/shortcuts`. A mobile host wires the same callbacks; nothing needs reimplementing. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
             },
         },
     },
@@ -53,7 +54,7 @@ const Frame = ({
     note: string
     children: React.ReactNode
 }) => (
-    <section className="mb-8 flex max-w-[560px] flex-col gap-2">
+    <section className="mb-8 flex w-full max-w-[560px] flex-col gap-2">
         <h4 className="text-xs font-semibold text-colorText">{title}</h4>
         <p className="m-0 text-xs text-colorTextSecondary">{note}</p>
         <div className="mt-1">{children}</div>
@@ -80,21 +81,50 @@ export const ApprovalCardKeys: Story = {
     ),
 }
 
-/** Touch, which is what `/m` renders: the same card with no keycaps, since a phone has no keyboard. */
-export const ApprovalCardOnTouch: Story = {
+/** What `/m` renders at phone width: the same components, with every keycap gone. */
+export const OnMobile: Story = {
     render: () => (
-        <Frame
-            title="Approval card, touch"
-            note="The same card the mobile app renders. No keycaps, and the tap target extends invisibly instead."
-        >
-            <ApprovalCard
-                approvals={APPROVAL}
-                touch
-                onRespond={noop}
-                onApproveAll={noop}
-                onDenyAll={noop}
-            />
-        </Frame>
+        <div className="flex flex-col">
+            <Frame
+                title="Approval card, at phone width"
+                note="The same ApprovalCard the desktop renders, with touch set. The keycaps are gone because a phone has no keyboard, and the tap target extends invisibly instead. A keycap appearing here is a regression."
+            >
+                <div className="w-full max-w-[390px] rounded-xl border border-solid border-colorBorderSecondary p-3">
+                    <ApprovalCard
+                        approvals={APPROVAL}
+                        touch
+                        onRespond={noop}
+                        onApproveAll={noop}
+                        onDenyAll={noop}
+                    />
+                </div>
+            </Frame>
+
+            <Frame
+                title="Side by side"
+                note="Desktop on the left, touch on the right. The only difference is the keycaps."
+            >
+                <div className="flex flex-wrap items-start gap-4">
+                    <div className="w-full max-w-[340px]">
+                        <ApprovalCard
+                            approvals={APPROVAL}
+                            onRespond={noop}
+                            onApproveAll={noop}
+                            onDenyAll={noop}
+                        />
+                    </div>
+                    <div className="w-full max-w-[340px]">
+                        <ApprovalCard
+                            approvals={APPROVAL}
+                            touch
+                            onRespond={noop}
+                            onApproveAll={noop}
+                            onDenyAll={noop}
+                        />
+                    </div>
+                </div>
+            </Frame>
+        </div>
     ),
 }
 
@@ -108,7 +138,7 @@ export const ShortcutsSheet: Story = {
                 title="The button, at the right edge of the playground top bar"
                 note="The last control in the bar, after the settings gear. Hover it to see the key; click it to open the sheet."
             >
-                <div className="flex w-[520px] items-center justify-between gap-4 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-2">
+                <div className="flex w-full max-w-[520px] items-center justify-between gap-4 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-2">
                     <span className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-colorFillSecondary">
                             <Robot size={15} weight="fill" />
@@ -185,7 +215,7 @@ export const PanelTooltips: Story = {
                 title="The session tab menu"
                 note="Right-click a session tab. A right-aligned key column, blank on the rows that have no key."
             >
-                <div className="w-[280px] rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-md">
+                <div className="w-full max-w-[280px] rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-md">
                     {[
                         {label: "Rename", id: "session.rename"},
                         {label: "Pin", id: undefined},

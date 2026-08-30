@@ -1,3 +1,9 @@
+export {
+    useSessionShortcuts,
+    isAltChord,
+    SESSION_SHORTCUT_MAX,
+    type UseSessionShortcutsParams,
+} from "./useSessionShortcuts"
 export {ShortcutKeys, useIsMacPlatform, type ShortcutKeysProps} from "./ShortcutKeys"
 export {
     KeyboardShortcutsSheet,

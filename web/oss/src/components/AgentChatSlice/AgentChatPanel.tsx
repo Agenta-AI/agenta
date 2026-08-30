@@ -25,6 +25,7 @@ import {
     type PendingSessionOpen,
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -42,7 +43,6 @@ import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
-import {useSessionShortcuts} from "./hooks/useSessionShortcuts"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {
     FILES_PANE_MAX,

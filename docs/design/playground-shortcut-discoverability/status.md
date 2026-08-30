@@ -15,6 +15,29 @@
 - Keystrokes no longer leak through an open overlay. See the section in
   [research.md](research.md); it was reachable the moment the sheet shipped.
 
+## Where the code lives, and why `/m` can reuse it
+
+Every piece sits in a package `/m` already depends on, so a mobile host wires callbacks rather
+than reimplementing anything:
+
+| Piece                                                           | Home                   |
+| --------------------------------------------------------------- | ---------------------- |
+| The registry, the ARIA names, the overlay guard                 | `@agenta/shared/utils` |
+| `useSessionShortcuts`                                           | `@agenta/ui/shortcuts` |
+| `ShortcutKeys`, `KeyboardShortcutsSheet`, `ShortcutsHelpButton` | `@agenta/ui/shortcuts` |
+
+`useSessionShortcuts` started in the app layer and moved here. It takes every action as a
+callback and imports only React and `@agenta/shared/utils`, so nothing about it was
+desktop-specific. A phone never sends an Alt chord, so mounting it on a touch surface is inert.
+
+What `/m` renders from this change today is the approval card with `touch` set, whose keycaps are
+suppressed. The Storybook story **On mobile** pins that, because a keycap appearing there is a
+regression nobody would catch by clicking on a desktop.
+
+The open product question, before any mobile wiring: which of these shortcuts belong on a surface
+that is also used on a phone. Session switching and the panel toggles earn their place in a
+desktop browser pointed at `/m`; on a handset they are dead weight.
+
 ## Follow-up, not in this PR
 
 - The session tab menu still has no key column. Rename, Archive and Close each have a key.
