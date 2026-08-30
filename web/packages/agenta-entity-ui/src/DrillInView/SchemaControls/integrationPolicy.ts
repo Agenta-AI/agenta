@@ -5,11 +5,9 @@
  *
  * A preset is a DISPLAY of the saved shape, never a saved value. Writing one sets
  * `permissions.default` and clears `permissions.tools`; reading one maps the saved shape back.
- * Setting any per-tool value makes the shown preset Custom, because `tools` is no longer empty.
+ * Setting a per-tool value that differs from the default makes the shown preset Custom.
  *
- * The override count is the NUMBER OF SAVED ENTRIES in `tools`, including an entry whose value
- * happens to equal the current default. Counting only entries that differ from the preset would
- * disagree with the Custom label itself, and could show "Custom" with a count of zero.
+ * New per-tool writes remove values equal to the default; readers still count legacy saved entries.
  *
  * Pure translation only — no React, and nothing here resolves `inherit`. The runner is the only
  * place that computes an effective permission; a second copy of the compiler in TypeScript would
@@ -154,20 +152,16 @@ export function savedToolPermission(
     return permissions.tools[toolKey] ?? permissions.default
 }
 
-/**
- * Set one tool's value, keeping the default and every other tool. The entry is saved even when it
- * equals the current default: the author set it deliberately, it survives a later change of
- * default, and it is what keeps the override count and the Custom label saying the same thing.
- *
- * The one place that per-tool merge is written. Every writer goes through it, so the drawer, the
- * config write-through, and the tests cannot drift apart.
- */
+/** Set one tool value; values equal to the current default clear the redundant entry. */
 export function mergeToolPermission(
     permissions: GatewayConnectionPermissions,
     toolKey: string,
     permission: GatewayPermission,
 ): GatewayConnectionPermissions {
-    return {default: permissions.default, tools: {...permissions.tools, [toolKey]: permission}}
+    const tools = {...permissions.tools}
+    if (permission === permissions.default) delete tools[toolKey]
+    else tools[toolKey] = permission
+    return {default: permissions.default, tools}
 }
 
 /** One catalog tool, reduced to what the drawer needs. */

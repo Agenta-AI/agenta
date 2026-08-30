@@ -340,12 +340,7 @@ export function withConnectionPermissions(
     return wrap({...template, tools: setGatewayConnectionPermissions(tools, target, permissions)})
 }
 
-/**
- * Set one tool's permission on an integration's connection entry. The entry is saved even when its
- * value equals the current default: the author set it deliberately, and it survives a later change
- * of default. That redundancy is intended — it is also what keeps the override count and the Custom
- * label saying the same thing.
- */
+/** Set one integration tool permission, clearing a value equal to the current default. */
 export function withConnectionToolPermission(
     parameters: unknown,
     target: GatewayConnectionTarget,

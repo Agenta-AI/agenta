@@ -62,9 +62,8 @@ describe("reading a preset back", () => {
         expect(readIntegrationPreset(permissions).preset).toBe("custom")
     })
 
-    it("F7: the override count is the number of saved entries, redundant ones included", () => {
-        // GET_ISSUE repeats the default. It still counts: the author set it deliberately, and it
-        // survives a later change of default.
+    it("F7: legacy redundant entries remain visible and count as saved overrides", () => {
+        // Readers report legacy persisted entries; new per-tool writes normalize them.
         const permissions: GatewayConnectionPermissions = {
             default: "ask",
             tools: {GET_ISSUE: "ask", DELETE_REPOSITORY: "deny"},
@@ -73,7 +72,7 @@ describe("reading a preset back", () => {
         expect(integrationPermissionSummary(permissions).label).toBe("Custom · 2")
     })
 
-    it("F7: a single redundant entry never reads as Custom with a count of zero", () => {
+    it("F7: one legacy redundant entry still reads as Custom with a count of one", () => {
         const permissions: GatewayConnectionPermissions = {
             default: "ask",
             tools: {GET_ISSUE: "ask"},
@@ -121,6 +120,18 @@ describe("switching between a preset and Custom", () => {
         const twice = mergeToolPermission(once, "GET_ISSUE", "deny")
         expect(twice.tools).toEqual({GET_ISSUE: "deny"})
         expect(readIntegrationPreset(twice).overrideCount).toBe(1)
+    })
+
+    it("F8: setting a tool back to the default removes its override", () => {
+        const current: GatewayConnectionPermissions = {
+            default: "inherit",
+            tools: {DOWNLOAD_FILE: "ask", DELETE_FILE: "deny", UPLOAD_FILE: "deny"},
+        }
+        const next = mergeToolPermission(current, "UPLOAD_FILE", "inherit")
+
+        expect(next.tools).toEqual({DOWNLOAD_FILE: "ask", DELETE_FILE: "deny"})
+        expect(readIntegrationPreset(next)).toEqual({preset: "custom", overrideCount: 2})
+        expect(integrationPermissionSummary(next).label).toBe("Custom · 2")
     })
 
     it("F9: picking a preset while on Custom clears the overrides", () => {

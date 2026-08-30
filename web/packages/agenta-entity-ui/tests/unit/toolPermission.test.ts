@@ -353,12 +353,19 @@ describe("F15: the connection policy write-through", () => {
         })
     })
 
-    it("saves a per-tool value that equals the current default", () => {
-        // Redundancy is intended: the author set it deliberately and it survives a later change of
-        // default. It is also what keeps the override count and the Custom label agreeing.
-        const parameters = wrapConnection({default: "ask", tools: {}})
+    it("removes a per-tool value that equals the current default", () => {
+        const parameters = wrapConnection({
+            default: "ask",
+            tools: {GET_ISSUE: "allow", CREATE_ISSUE: "deny"},
+        })
         const next = withConnectionToolPermission(parameters, GITHUB, "GET_ISSUE", "ask")
-        expect(connectionEntry(next).policy.permissions.tools).toEqual({GET_ISSUE: "ask"})
+        expect(connectionEntry(next).policy.permissions.tools).toEqual({CREATE_ISSUE: "deny"})
+    })
+
+    it("keeps an explicit inherit value when the current default differs", () => {
+        const parameters = wrapConnection({default: "deny", tools: {}})
+        const next = withConnectionToolPermission(parameters, GITHUB, "GET_ISSUE", "inherit")
+        expect(connectionEntry(next).policy.permissions.tools).toEqual({GET_ISSUE: "inherit"})
     })
 
     it("writes a whole preset, clearing the per-tool map", () => {
