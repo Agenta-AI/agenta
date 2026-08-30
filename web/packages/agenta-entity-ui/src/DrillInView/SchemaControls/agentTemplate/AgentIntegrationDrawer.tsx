@@ -21,6 +21,7 @@ import {
     useToolCatalogCategories,
     useToolCatalogIntegrations,
     useToolConnectionsQuery,
+    useToolConnectionActions,
     useToolIntegrationDetail,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
@@ -28,12 +29,21 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {ScrollSentinel} from "@agenta/ui"
+import {modal} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, RadioGroup, RadioGroupItem, SearchInput, Spinner} from "@agenta/ui/ui"
+import {
+    Button,
+    LoadingButton,
+    RadioGroup,
+    RadioGroupItem,
+    SearchInput,
+    Spinner,
+} from "@agenta/ui/ui"
 import {Check, Plugs} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
+import {useReconnectToolConnection} from "../../../gatewayTool/hooks/useReconnectToolConnection"
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
@@ -96,6 +106,7 @@ function ConnectedRow({
     row: IntegrationRow | undefined
     onAdd: (slug: string) => void
 }) {
+    const {handleDelete} = useToolConnectionActions()
     const {integration} = useToolIntegrationDetail(group.integrationKey)
     const name = integration?.name || group.integrationKey
     const multiple = group.connections.length > 1
@@ -113,6 +124,7 @@ function ConnectedRow({
     const added = Boolean(row)
     const swappable = Boolean(row?.entry)
     const single = group.connections[0]
+    const reconnectable = Boolean(single?.id && !isConnectionValid(single))
 
     const subtitle = choosing
         ? "Choose connection"
@@ -157,14 +169,35 @@ function ConnectedRow({
                     </Button>
                 ) : null}
                 {!chooserButton && !added ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onAdd(single.slug ?? "")}
-                        disabled={!single.slug}
-                    >
-                        Add
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        {reconnectable ? <ReconnectButton connection={single} /> : null}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onAdd(single.slug ?? "")}
+                            disabled={!single.slug}
+                        >
+                            Add
+                        </Button>
+                        {reconnectable ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    modal.confirm({
+                                        title: "Remove connection",
+                                        content:
+                                            "Remove this incomplete connection? This action cannot be undone.",
+                                        okText: "Remove",
+                                        okButtonProps: {danger: true},
+                                        onOk: () => handleDelete(single.id ?? ""),
+                                    })
+                                }}
+                            >
+                                Remove
+                            </Button>
+                        ) : null}
+                    </div>
                 ) : null}
             </div>
             {choosing ? (
@@ -207,6 +240,20 @@ function ConnectedRow({
                 </div>
             ) : null}
         </div>
+    )
+}
+
+function ReconnectButton({connection}: {connection: ToolConnection}) {
+    const {reconnect, reconnectingId} = useReconnectToolConnection()
+    return (
+        <LoadingButton
+            variant="outline"
+            size="sm"
+            loading={reconnectingId === connection.id}
+            onClick={() => reconnect(connection.id ?? "")}
+        >
+            Reconnect
+        </LoadingButton>
     )
 }
 

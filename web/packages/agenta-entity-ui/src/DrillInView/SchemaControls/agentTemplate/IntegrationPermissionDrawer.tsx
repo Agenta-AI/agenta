@@ -13,7 +13,7 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useLayoutEffect, useMemo, useState} from "react"
+import {memo, useEffect, useLayoutEffect, useMemo, useState} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -34,6 +34,7 @@ import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
     isDescriptionTruncatable,
+    mergeToolPermission,
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
@@ -520,8 +521,24 @@ function DrawerTitle({
 export function IntegrationPermissionDrawer({
     open,
     onClose,
+    permissions,
+    onChangePermissions,
+    onChangeToolPermission: _onChangeToolPermission,
     ...body
 }: IntegrationPermissionDrawerProps) {
+    // The controls edit a local policy until Done. Closing through the drawer affordance is a
+    // cancel action, so it must not write into the agent's draft configuration.
+    const [draftPermissions, setDraftPermissions] = useState(permissions)
+
+    useEffect(() => {
+        if (open) setDraftPermissions(permissions)
+    }, [open, permissions])
+
+    const saveAndClose = () => {
+        if (draftPermissions) onChangePermissions(draftPermissions)
+        onClose()
+    }
+
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
@@ -536,14 +553,23 @@ export function IntegrationPermissionDrawer({
             }}
             footer={
                 <div className="flex items-center justify-end">
-                    <Button variant="default" onClick={onClose}>
+                    <Button variant="default" onClick={saveAndClose}>
                         Done
                     </Button>
                 </div>
             }
         >
-            {body.permissions ? (
-                <DrawerBody {...body} permissions={body.permissions} />
+            {draftPermissions ? (
+                <DrawerBody
+                    {...body}
+                    permissions={draftPermissions}
+                    onChangePermissions={setDraftPermissions}
+                    onChangeToolPermission={(toolKey, permission) =>
+                        setDraftPermissions((current) =>
+                            current ? mergeToolPermission(current, toolKey, permission) : current,
+                        )
+                    }
+                />
             ) : (
                 <UnmigratedNotice target={body.target} />
             )}
