@@ -149,6 +149,14 @@ describe("useSessionShortcuts", () => {
         }
     })
 
+    // The pane is per-session and the panel renders none without one, so the key must not flip a
+    // state nothing shows.
+    it("refuses to toggle the files pane with no active session", () => {
+        const {onToggleFilesPane} = setup({sessions: [], activeId: undefined})
+        press("KeyO")
+        expect(onToggleFilesPane).not.toHaveBeenCalled()
+    })
+
     it("refuses to close the last remaining session", () => {
         const {onCloseSession} = setup({sessions: [{id: "solo"}], activeId: "solo"})
         press("KeyW")

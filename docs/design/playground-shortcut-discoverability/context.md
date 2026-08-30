@@ -14,8 +14,12 @@ The agent playground binds forty-three keyboard shortcuts. They live in six sepa
 | `web/packages/agenta-chat/src/components/ElicitationDock.tsx`, `hooks/usePushToTalk.ts` | the agent's forms, and dictation  |
 
 Six of the forty-three named a key on screen: the composer's send and newline hints, three in the
-elicitation dock, and the voice button's hold label. The other thirty-four were invisible. A
+elicitation dock, and the voice button's hold label. The other thirty-seven were invisible, and a
 user could only find them by reading the source.
+
+This project adds two more, the files pane and the shortcuts sheet itself, so the registry lists
+forty-five. Every count in this workspace uses those two numbers: forty-three already shipped,
+forty-five in the registry.
 
 Eleven of them answer no control at all. `Alt+1…9` and the `Alt+Z` / `Alt+X` pair switch
 sessions, and there is no button anywhere to hang a tooltip on, so a tooltip pass alone could

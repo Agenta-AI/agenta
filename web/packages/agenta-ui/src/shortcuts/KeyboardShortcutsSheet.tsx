@@ -8,7 +8,7 @@
  */
 import {useEffect} from "react"
 
-import {shortcutGroups} from "@agenta/shared/utils"
+import {isOverlayOpen, shortcutGroups} from "@agenta/shared/utils"
 
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "../components/ui"
 import {cn} from "../components/ui/utils"
@@ -85,6 +85,8 @@ export const useShortcutsSheetHotkey = (onOpen: () => void, enabled = true) => {
     useEffect(() => {
         if (!enabled) return
         const listener = (event: KeyboardEvent) => {
+            // A dialog, menu or popover already owns the keyboard; do not stack a second one.
+            if (event.defaultPrevented || isOverlayOpen()) return
             if (
                 event.key !== "?" ||
                 event.metaKey ||

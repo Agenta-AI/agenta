@@ -275,9 +275,30 @@ describe("keyboard shortcuts", () => {
         cleanup()
     })
 
-    // A dropdown or popover is role="menu", not role="dialog", so the overlay check cannot see it.
-    // Radix cancels the key though, which is the only signal left. Repro: park a gate, open the
-    // top bar's settings menu, press Escape. The menu closed AND the gate was denied.
+    // Radix never cancels Cmd+Enter, so only the overlay check can see the menu. Repro: park a
+    // gate, open the top bar's settings menu, press Cmd+Enter. The gate was approved unseen.
+    it("answers nothing while a menu owns the screen", () => {
+        const responses: unknown[] = []
+        const {cleanup} = mount({onRespond: () => responses.push(1)})
+
+        const menu = document.createElement("div")
+        menu.setAttribute("role", "menu")
+        menu.setAttribute("data-state", "open")
+        document.body.appendChild(menu)
+
+        press({key: "Enter", metaKey: true})
+        press({key: "Escape"})
+        expect(responses).toEqual([])
+
+        menu.remove()
+        press({key: "Escape"})
+        expect(responses).toEqual([1])
+
+        cleanup()
+    })
+
+    // Radix cancels Escape in the capture phase and still lets it propagate. Repro: park a gate,
+    // open any menu, press Escape. The menu closed AND the gate was denied.
     it("answers nothing when a menu already cancelled the key", () => {
         const responses: unknown[] = []
         const {cleanup} = mount({onRespond: () => responses.push(1)})

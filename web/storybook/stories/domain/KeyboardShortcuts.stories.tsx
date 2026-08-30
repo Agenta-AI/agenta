@@ -21,7 +21,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Forty-three keyboard shortcuts ship in the agent playground. Six of them tell you they exist. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
+                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
             },
         },
     },
@@ -80,11 +80,7 @@ export const ApprovalCardKeys: Story = {
     ),
 }
 
-/**
- * Touch, which is what `/m` renders. The card is identical except that the keycaps are gone,
- * because a phone has no keyboard to press. Not reachable by clicking on a desktop, so it is a
- * story: a regression here would ship a keycap to every mobile user.
- */
+/** Touch, which is what `/m` renders: the same card with no keycaps, since a phone has no keyboard. */
 export const ApprovalCardOnTouch: Story = {
     render: () => (
         <Frame
@@ -157,7 +153,12 @@ export const PanelTooltips: Story = {
                             </span>
                         }
                     >
-                        <Button variant="ghost" size="icon-sm" className="h-7 w-7 p-0">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-keyshortcuts={shortcutAria("panel.config")}
+                            className="h-7 w-7 p-0"
+                        >
                             <CaretDoubleRight size={14} />
                         </Button>
                     </SimpleTooltip>
@@ -168,7 +169,12 @@ export const PanelTooltips: Story = {
                             </span>
                         }
                     >
-                        <Button variant="ghost" size="icon-sm" className="h-7 w-7 p-0">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-keyshortcuts={shortcutAria("panel.files")}
+                            className="h-7 w-7 p-0"
+                        >
                             <CaretDoubleLeft size={14} />
                         </Button>
                     </SimpleTooltip>

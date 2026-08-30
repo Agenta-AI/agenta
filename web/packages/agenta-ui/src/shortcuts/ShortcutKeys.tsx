@@ -85,7 +85,8 @@ export const ShortcutKeys = ({
         chord ?? (shortcut ? {modifiers: shortcut.modifiers, key: shortcut.key} : undefined)
     if (!primary) return null
 
-    const mirror = showAlt ? shortcut?.alt : undefined
+    // An explicit chord stands alone: borrowing a mirror from `id` would print a key it never named.
+    const mirror = showAlt && !chord ? shortcut?.alt : undefined
 
     return (
         <span

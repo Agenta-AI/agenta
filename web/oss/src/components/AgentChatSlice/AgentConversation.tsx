@@ -448,7 +448,9 @@ const AgentConversation = ({
     useEffect(() => {
         if (activeSessionId !== sessionId) return
         const onKey = (e: KeyboardEvent) => {
-            if (isOverlayOpen()) return
+            // Radix cancels Escape for a layer but still lets it reach us, and it never touches
+            // Alt+G, which only the overlay check catches.
+            if (e.defaultPrevented || isOverlayOpen()) return
             // An IME user presses Escape to cancel composition, not to stop the run.
             if (e.key === "Escape" && !e.isComposing && busyRef.current) {
                 e.preventDefault()

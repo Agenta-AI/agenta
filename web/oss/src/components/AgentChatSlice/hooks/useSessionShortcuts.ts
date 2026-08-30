@@ -119,7 +119,10 @@ export function useSessionShortcuts({
                 onToggleConfigPanel()
                 return
             }
+            // The files pane is per-session: with no active session the panel renders none, so
+            // toggling would flip a state nothing shows.
             if (e.code === "KeyO") {
+                if (!activeId) return
                 claim()
                 onToggleFilesPane()
                 return
