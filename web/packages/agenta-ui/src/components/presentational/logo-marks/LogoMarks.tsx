@@ -37,8 +37,9 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
             <span className="inline-flex shrink-0" style={{width: size, height: size}}>
                 {item.logo ? (
                     // Remote brand CDNs: next/image would make every consuming app declare each
-                    // host in its own images config. See the note on this module.
-                    // eslint-disable-next-line @next/next/no-img-element
+                    // host in its own images config. See the note on this module. No
+                    // eslint-disable here: @next/next is not in this package's resolved config,
+                    // and naming a rule that is not defined is itself an ESLint error.
                     <img
                         src={item.logo}
                         alt={label}
