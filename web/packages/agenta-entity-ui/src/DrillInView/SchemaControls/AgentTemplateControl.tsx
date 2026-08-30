@@ -43,8 +43,8 @@ import {
     GraduationCap,
     Plugs,
     PuzzlePiece,
+    Robot,
     SlidersHorizontal,
-    UsersThree,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -922,7 +922,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
-                icon: <UsersThree size={16} />,
+                icon: <Robot size={16} />,
                 title: "Subagents",
                 summary: countSummary(subagentCount, "subagent"),
                 indicator: sectionIndicator("tools"),

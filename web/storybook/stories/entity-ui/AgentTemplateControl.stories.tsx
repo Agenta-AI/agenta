@@ -15,8 +15,8 @@ import {
     Plugs,
     Plus,
     PuzzlePiece,
+    Robot,
     SlidersHorizontal,
-    UsersThree,
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Button as AntButton, Tooltip as AntTooltip, Typography as AntTypography} from "antd"
@@ -298,7 +298,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "subagents",
-        icon: <UsersThree size={16} />,
+        icon: <Robot size={16} />,
         title: "Subagents",
         summary: "1 subagent",
         extra: <SectionAddButton label="Add subagent" onClick={noop} />,
