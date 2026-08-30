@@ -176,9 +176,11 @@ export function normalizeDesiredState(
   // own facet: section 1.4 exempts permission TIGHTENING from apply-live entirely, and it must
   // take effect or fail closed before execution continues. `mcpServers` is here because the
   // server LIST is only read at session initialization and no live API exists on any harness.
+  // No `modelCapabilities`: it is per-turn data (the attachment chain reads the incoming
+  // request every turn) and it changes WITH the model, so hashing it here made a cross-modality
+  // model switch move `harnessSession` beside `model` and refuse the live route (audit finding 2).
   const harnessSession = canonical({
     harnessMode: request.harnessMode ?? null,
-    modelCapabilities: request.modelCapabilities ?? null,
     permissions: request.permissions ?? null,
     mcpServers:
       request.mcpServers?.map((server) => ({

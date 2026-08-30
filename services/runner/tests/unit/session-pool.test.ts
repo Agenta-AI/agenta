@@ -389,8 +389,11 @@ describe("configFingerprint", () => {
     );
   });
 
-  it("changes when resolved model capabilities change", () => {
-    assert.notEqual(
+  it("ignores resolved model capabilities (per-turn data that rides with the model)", () => {
+    // Reversed 2026-08-30 (cold/warm audit finding 2): the modalities are read per turn by the
+    // attachment chain and change WITH the model, so hashing them refused the live setModel
+    // route on every cross-modality switch and rebuilt the sandbox for nothing.
+    assert.equal(
       configFingerprint(base),
       configFingerprint({
         ...base,
