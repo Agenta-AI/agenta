@@ -390,4 +390,14 @@ export interface SessionEnvironment {
 
 export type AcquireEnvironmentResult =
   | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The preflight proved this sandbox never got its Secret substitution wiring (the fault
+       * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
+       * already destroyed; the acquire wrapper retries once with a fresh sandbox, because a new
+       * sandbox on the same Secret works.
+       */
+      stuckSubstitution?: boolean;
+    };

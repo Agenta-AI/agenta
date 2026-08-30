@@ -62,7 +62,11 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
-import { awaitCredentialSubstitution } from "./credential-preflight.ts";
+import {
+  awaitCredentialSubstitution,
+  STUCK_ACQUIRE_ATTEMPTS,
+  SubstitutionStuckError,
+} from "./credential-preflight.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   daytonaCredentialDeliveryPort,
@@ -295,6 +299,39 @@ export async function resolveKeepaliveMount(
  * skipped so the mount is signed once per run.
  */
 export async function acquireEnvironment(
+  request: AgentRunRequest,
+  deps: SandboxAgentDeps = {},
+  signal?: AbortSignal,
+  presignedMount?: MountCredentials | null,
+  emit?: EmitEvent,
+): Promise<AcquireEnvironmentResult> {
+  // A sandbox the preflight convicts as stuck (no Secret substitution wiring, a permanent
+  // per-sandbox fault) is already destroyed by the failure path; a FRESH sandbox on the same
+  // Secret works, so one retry converts a would-be failed first turn into a slower one.
+  for (let attempt = 1; ; attempt++) {
+    const result = await acquireEnvironmentOnce(
+      request,
+      deps,
+      signal,
+      presignedMount,
+      emit,
+    );
+    if (
+      result.ok ||
+      !result.stuckSubstitution ||
+      attempt >= STUCK_ACQUIRE_ATTEMPTS ||
+      signal?.aborted
+    ) {
+      return result;
+    }
+    process.stderr.write(
+      `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
+        `(attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
+    );
+  }
+}
+
+async function acquireEnvironmentOnce(
   request: AgentRunRequest,
   deps: SandboxAgentDeps = {},
   signal?: AbortSignal,
@@ -1138,8 +1175,11 @@ export async function acquireEnvironment(
 
     if (credentialPreflight) {
       const preflightAwaitStartedAt = Date.now();
-      await credentialPreflight;
+      const verdict = await credentialPreflight;
       timingLog("credential_preflight", preflightAwaitStartedAt);
+      // Throwing takes the shared teardown below (sandbox destroyed, Secrets deleted), and the
+      // catch marks the result so the acquire wrapper retries once with a fresh sandbox.
+      if (verdict === "stuck") throw new SubstitutionStuckError();
     }
 
     timingLog("acquire_total", acquireStartedAt);
@@ -1160,6 +1200,9 @@ export async function acquireEnvironment(
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
+    if (err instanceof SubstitutionStuckError) {
+      return { ok: false, error, stuckSubstitution: true };
+    }
     return { ok: false, error };
   }
 }

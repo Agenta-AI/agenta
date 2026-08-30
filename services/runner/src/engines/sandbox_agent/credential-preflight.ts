@@ -1,32 +1,39 @@
 /**
  * Credential-substitution preflight for fresh Daytona sandboxes.
  *
- * THE RACE THIS CLOSES. On a Daytona run the model key never enters the sandbox: it is a
- * Daytona Secret, and the sandbox holds a `dtn_secret_<id>` placeholder that Daytona
- * substitutes into egress requests to the key's exact host. That substitution propagates
- * asynchronously with NO confirmation signal, and on EU cloud production (2026-08-29) about
- * 3% of fresh sandboxes' first model calls carried the raw placeholder — a 401 at the model
- * proxy and a failed first turn (classified `credential_delivery_failed`). Every observed
- * failure was a FIRST call, 10-24s after Secret creation; substitution never broke
- * mid-session, so once one probe substitutes, the sandbox is good.
+ * THE FAULT THIS DETECTS (measured 2026-08-30, docs/design/daytona-secret-propagation/).
+ * On a Daytona run the model key never enters the sandbox: it is a Daytona Secret, and the
+ * sandbox holds a `dtn_secret_<id>` placeholder Daytona substitutes into egress requests to
+ * the key's exact host. That wiring is BINARY PER SANDBOX: a healthy sandbox substitutes on
+ * its very first request (~2s after Secret creation), and a stuck sandbox never does — the
+ * raw placeholder reaches the provider for as long as anyone watches, a twin sandbox on the
+ * SAME Secret works immediately, and stop+start does not repair it. Measured 5 stuck of 20
+ * fresh sandboxes (target eu); production showed ~3% over an earlier window, so the rate
+ * varies. Waiting therefore cannot help; only a fresh sandbox can.
  *
  * THE MECHANISM. Right after the sandbox is created, probe the credential's own endpoint
  * from INSIDE the sandbox: POST `${baseUrl}/chat/completions` with the key env var as the
- * bearer. When the response echoes `dtn_`, the placeholder went through raw (both LiteLLM —
- * "Virtual Key expected. Received=dtn_…" — and OpenAI-compatible providers echo the bad
- * key), so wait and probe again. Any other response means the header was substituted (a 400
- * for the junk body, a real 401 for a genuinely bad key) and the run may proceed. The
- * preflight runs CONCURRENTLY with the rest of acquire (mounts, workspace, session open,
- * ~10s), so the common case pays nothing; only a still-racing sandbox waits at the end.
+ * bearer. A response echoing `dtn_` means the placeholder went through raw (LiteLLM and
+ * OpenAI-compatible providers echo the bad key; Daytona's response scrubbing rewrites REAL
+ * values back to placeholders but leaves the raw-placeholder echo visible). Several
+ * consecutive raw echoes convict the sandbox as STUCK; any other response means the header
+ * was substituted (a 400 for the junk body, a real 401 for a genuinely bad key) and the run
+ * may proceed. The preflight runs CONCURRENTLY with the rest of acquire (mounts, workspace,
+ * session open, ~10s), so a healthy sandbox pays nothing.
+ *
+ * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries ONCE
+ * with a brand-new sandbox (`withStuckSubstitutionRetry`), because the twin experiment
+ * proved a new sandbox on the same Secret works. The user sees a slower first turn instead
+ * of a failed one.
  *
  * SCOPE. Only a freshly created Daytona sandbox whose MODEL credential rides a Daytona
  * Secret and whose connection declares an endpoint base URL (the custom OpenAI-compatible
  * shape — every observed incident). A plaintext-env run has no placeholder; a reconnected
  * sandbox already proved itself.
  *
- * FAIL OPEN, ALWAYS. A probe that errors, times out, or exhausts the budget logs and lets
- * the run proceed: the worst outcome is the pre-existing behavior, now at least classified
- * honestly by `classifyRunError`. This unit must never fail a turn that would have worked.
+ * AMBIGUITY FAILS OPEN. A probe that errors or returns nothing judgeable returns "ok" and
+ * the run proceeds: the worst outcome is the pre-existing behavior, classified honestly by
+ * `classifyRunError`. Only consecutive, unambiguous raw-placeholder echoes convict.
  */
 
 export interface PreflightSandbox {
@@ -36,6 +43,23 @@ export interface PreflightSandbox {
     timeoutMs?: number;
   }): Promise<{ exitCode?: number | null; stdout: string } | undefined>;
 }
+
+/** The preflight's answer: proceed, or this sandbox will never substitute. */
+export type CredentialPreflightVerdict = "ok" | "stuck";
+
+/** Thrown by the acquire path when the preflight convicts the sandbox. */
+export class SubstitutionStuckError extends Error {
+  constructor() {
+    super(
+      "This sandbox never received its credential-substitution wiring (raw placeholder " +
+        "echoed on every probe); a fresh sandbox is required.",
+    );
+    this.name = "SubstitutionStuckError";
+  }
+}
+
+/** Total acquire attempts when a sandbox is convicted stuck: the original plus one retry. */
+export const STUCK_ACQUIRE_ATTEMPTS = 2;
 
 export interface CredentialPreflightInput {
   sandbox: PreflightSandbox;
@@ -53,17 +77,20 @@ export interface CredentialPreflightInput {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_BUDGET_MS = 25_000;
+const DEFAULT_BUDGET_MS = 10_000;
 const DEFAULT_POLL_MS = 2_000;
 const CURL_TIMEOUT_S = 8;
+/** Raw echoes needed to convict. A healthy sandbox substitutes on probe 1, so 4 is generous. */
+const STUCK_CONVICTION_PROBES = 4;
 
 /**
- * Resolve when the sandbox's model credential substitutes on the wire, or when the budget is
- * spent (fail open). Never throws.
+ * Resolve "ok" when the sandbox's model credential substitutes on the wire (or nothing can be
+ * judged — fail open), and "stuck" after enough consecutive raw-placeholder echoes. Never
+ * throws.
  */
 export async function awaitCredentialSubstitution(
   input: CredentialPreflightInput,
-): Promise<void> {
+): Promise<CredentialPreflightVerdict> {
   const now = input.now ?? Date.now;
   const sleep =
     input.sleep ??
@@ -96,7 +123,7 @@ export async function awaitCredentialSubstitution(
           error instanceof Error ? error.message : error,
         ).slice(0, 120)}`,
       );
-      return;
+      return "ok";
     }
     const elapsedMs = now() - startedAt;
     if (!body || !body.includes("dtn_")) {
@@ -107,18 +134,18 @@ export async function awaitCredentialSubstitution(
             `(${(elapsedMs / 1000).toFixed(1)}s)`,
         );
       }
-      return;
+      return "ok";
     }
-    if (elapsedMs + pollMs > budgetMs) {
+    if (attempt >= STUCK_CONVICTION_PROBES || elapsedMs + pollMs > budgetMs) {
       input.log(
-        `[credential-preflight] placeholder still raw after ${attempt} probes ` +
-          `(${(elapsedMs / 1000).toFixed(1)}s); proceeding fail-open`,
+        `[credential-preflight] STUCK: raw placeholder on all ${attempt} probes ` +
+          `(${(elapsedMs / 1000).toFixed(1)}s); this sandbox will never substitute`,
       );
-      return;
+      return "stuck";
     }
     input.log(
       `[credential-preflight] raw placeholder echoed (probe ${attempt}, ` +
-        `+${(elapsedMs / 1000).toFixed(1)}s); waiting for Daytona substitution`,
+        `+${(elapsedMs / 1000).toFixed(1)}s)`,
     );
     await sleep(pollMs);
   }

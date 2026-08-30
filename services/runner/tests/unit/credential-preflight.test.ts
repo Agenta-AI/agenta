@@ -52,11 +52,11 @@ function harness(bodies: (string | Error)[], budgetMs = 25_000) {
 }
 
 describe("awaitCredentialSubstitution", () => {
-  it("returns immediately when the first probe substitutes", async () => {
+  it("returns ok immediately when the first probe substitutes", async () => {
     const { run, logs, commands } = harness([
       '{"error":{"message":"you must provide a model parameter"}}',
     ]);
-    await run;
+    assert.equal(await run, "ok");
     assert.equal(commands.length, 1);
     assert.deepEqual(logs, []);
     // The probe expands the env var in the sandbox shell; the raw value never appears here,
@@ -65,38 +65,46 @@ describe("awaitCredentialSubstitution", () => {
     assert.match(commands[0], /https:\/\/gateway\.example\/chat\/completions/);
   });
 
-  it("waits out a raw placeholder echo and confirms once substitution lands", async () => {
+  it("tolerates early raw echoes and returns ok once substitution shows", async () => {
     const { run, logs, commands } = harness([
       "LiteLLM Virtual Key expected. Received=dtn_****9maz",
       '{"error":{"message":"Received=dtn_****9maz"}}',
       '{"error":{"message":"you must provide a model parameter"}}',
     ]);
-    await run;
+    assert.equal(await run, "ok");
     assert.equal(commands.length, 3);
     assert.match(logs[0], /raw placeholder echoed \(probe 1/);
     assert.match(logs[2], /substitution confirmed after 3 probes/);
   });
 
-  it("gives up fail-open when the budget is spent", async () => {
-    const { run, logs, commands } = harness(
-      ["Received=dtn_****9maz"],
-      6_000, // budget covers probes at t=0, 2s, 4s; the next poll would pass it
+  it("convicts the sandbox as STUCK after consecutive raw echoes", async () => {
+    // The fault is binary and permanent per sandbox (2026-08-30 measurement), so the verdict
+    // is "stuck", never a fail-open wait: only a fresh sandbox can serve the run.
+    const { run, logs, commands } = harness(["Received=dtn_****9maz"]);
+    assert.equal(await run, "stuck");
+    assert.equal(commands.length, 4, "four consecutive raw echoes convict");
+    assert.match(
+      logs[logs.length - 1],
+      /STUCK: raw placeholder on all 4 probes/,
     );
-    await run;
-    assert.ok(commands.length >= 2);
-    assert.match(logs[logs.length - 1], /proceeding fail-open/);
   });
 
-  it("fails open when the exec channel itself errors", async () => {
+  it("convicts early when the budget runs out first", async () => {
+    const { run, logs } = harness(["Received=dtn_****9maz"], 3_000);
+    assert.equal(await run, "stuck");
+    assert.match(logs[logs.length - 1], /STUCK/);
+  });
+
+  it("fails open (ok) when the exec channel itself errors", async () => {
     const { run, logs, commands } = harness([new Error("daemon gone")]);
-    await run;
+    assert.equal(await run, "ok");
     assert.equal(commands.length, 1);
     assert.match(logs[0], /probe errored, proceeding: daemon gone/);
   });
 
   it("treats an empty body as substituted (nothing to judge by)", async () => {
     const { run, logs } = harness([""]);
-    await run;
+    assert.equal(await run, "ok");
     assert.deepEqual(logs, []);
   });
 });
