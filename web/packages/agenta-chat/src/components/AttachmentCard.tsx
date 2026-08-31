@@ -67,7 +67,8 @@ const CardAction = ({
             </button>
         )
     }
-    // Revealed on hover only where hovering exists — on a touch screen it must stay put.
+    // Revealed on hover of THIS card only: the turn row is itself a bare `group`, so an unnamed
+    // group-hover lit up every card in the message at once. Hidden only where hovering exists.
     if (action === "download" && onDownload) {
         return (
             <button
@@ -77,7 +78,7 @@ const CardAction = ({
                     e.stopPropagation()
                     onDownload()
                 }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100"
             >
                 <DownloadSimple size={12} />
             </button>
@@ -213,7 +214,7 @@ export const AttachmentCard = ({
 
     return (
         <div
-            className={`group relative box-border flex ${CARD_HEIGHT} items-center gap-2 overflow-hidden rounded-md border border-solid px-1.5 ${
+            className={`group/attachment relative box-border flex ${CARD_HEIGHT} items-center gap-2 overflow-hidden rounded-md border border-solid px-1.5 ${
                 failed
                     ? "border-colorErrorBorder bg-colorErrorBg"
                     : "border-colorBorderSecondary bg-colorFillQuaternary"
