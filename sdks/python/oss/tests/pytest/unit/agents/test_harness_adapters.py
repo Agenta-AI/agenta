@@ -27,10 +27,7 @@ from agenta.sdk.agents import (
     UnsupportedHarnessError,
     make_harness,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import (
-    GETTING_STARTED_WITH_AGENTA_SKILL,
-    gateway_guidance,
-)
+from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
 from agenta.sdk.agents.tools import (
     CompiledTool,
