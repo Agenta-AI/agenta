@@ -47,7 +47,7 @@ NON_CREDIT_ERRORS = [
     "Too many requests right now. Try again in a moment.",
     "rate_limit_error: please slow down",
     # The placeholder race. This is the defect C5 exists to catch; it must never become a SKIP.
-    "LiteLLM Virtual Key expected. Received=dtn_secret_abc123",
+    "LiteLLM Virtual Key expected. Received=dtn_secret_abc123",  # gitleaks:allow
     "A temporary issue kept this run's credentials from reaching the model. Send the message again.",
     # Ordinary failures.
     "agent run failed",
