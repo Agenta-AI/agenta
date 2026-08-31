@@ -32,8 +32,12 @@ function keyHintFor(
   harness: string,
   connection?: ConciseErrorOptions["connection"],
 ): string {
-  if (connection?.deployment === "custom" && connection.slug) {
-    return `the '${connection.slug}' connection's API key`;
+  if (connection?.deployment === "custom") {
+    // NEUTRAL on purpose: the runner cannot tell a user-created connection from a managed one
+    // (the seeded starter-credits connection is write-only and hidden from Settings), so naming
+    // the slug can both leak an internal identifier and instruct the user to edit a connection
+    // they cannot see. Review finding on #6362.
+    return "the model connection's API key";
   }
   const label = provider
     ? PROVIDER_KEY_LABELS[provider.toLowerCase()]

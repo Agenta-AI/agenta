@@ -118,15 +118,25 @@ describe("conciseError", () => {
     assert.equal(result.code, "credential_delivery_failed");
   });
 
-  it("names the connection, not the dialect family, for a custom-deployment auth failure", () => {
+  it("names the connection neutrally, not the dialect family, for a custom-deployment auth failure", () => {
     // A custom OpenAI-compatible connection resolves provider family "openai" for its DIALECT.
     // A Gemini run through such a connection must not read "add the project's OpenAI key".
-    assert.equal(
-      conciseError(new Error("Authentication required"), "pi_core", "openai", {
+    // And the hint must not name the SLUG: the runner cannot tell a user-created connection
+    // from a managed hidden one (starter-credits), so a slug can be an internal identifier
+    // pointing at a connection the user cannot edit (review finding on #6362).
+    const line = conciseError(
+      new Error("Authentication required"),
+      "pi_core",
+      "openai",
+      {
         connection: { slug: "starter-credits", deployment: "custom" },
-      }),
-      "pi_core: model authentication failed — add the 'starter-credits' connection's API key to the project vault, or log in (OAuth).",
+      },
     );
+    assert.equal(
+      line,
+      "pi_core: model authentication failed — add the model connection's API key to the project vault, or log in (OAuth).",
+    );
+    assert.doesNotMatch(line, /starter-credits/);
   });
 
   it("keeps the family hint when the deployment is not custom", () => {
