@@ -4,7 +4,16 @@
 // Copy comes from src/lib/siteSummary.ts, the same source as /llms.txt.
 import type { APIRoute } from "astro";
 import { markdownResponse, page } from "../lib/markdown";
-import { ABOUT, API, HOSTING, LINKS, TAGLINE } from "../lib/siteSummary";
+import {
+  ABOUT,
+  API,
+  HOSTING,
+  HOW_TO_CALL,
+  LINKS,
+  TAGLINE,
+  WHEN_NOT_TO_USE,
+  WHEN_TO_USE,
+} from "../lib/siteSummary";
 
 const body = `## What Agenta is
 
@@ -13,6 +22,18 @@ ${TAGLINE.replace(/\n/g, " ")}
 ## What you can do
 
 ${ABOUT.map((item) => `- ${item}`).join("\n")}
+
+## When to use Agenta
+
+${WHEN_TO_USE.map((item) => `- ${item}`).join("\n")}
+
+## When not to use Agenta
+
+${WHEN_NOT_TO_USE.map((item) => `- ${item}`).join("\n")}
+
+## How to call Agenta
+
+${HOW_TO_CALL.map((item) => `- ${item}`).join("\n")}
 
 ## Hosting
 

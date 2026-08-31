@@ -27,6 +27,7 @@ if (!existsSync(dist)) {
 // 1. Every route has the markdown twin the worker looks for ("<path>.md").
 for (const twin of [
   "index.md",
+  "api.md",
   "pricing.md",
   "contact.md",
   "imprint.md",
@@ -63,10 +64,34 @@ if (existsSync(resolve(dist, "index.md"))) {
   );
 }
 
-// 3. The 404 page is a real asset — the worker fetches it by path.
+// 3. The API entry point exists on our own origin, and llms.txt tells an agent
+//    when to reach for us. Both are audit requirements, not decoration.
+check(
+  existsSync(resolve(dist, "api/index.html")),
+  "missing dist/api/index.html (the same-origin API page).",
+);
+const llms = existsSync(resolve(dist, "llms.txt"))
+  ? readFileSync(resolve(dist, "llms.txt"), "utf8")
+  : "";
+check(
+  llms.includes("## When to use Agenta"),
+  "llms.txt has no when-to-use guidance.",
+);
+check(
+  llms.includes("Authorization: ApiKey"),
+  "llms.txt does not say how to authenticate a call.",
+);
+if (existsSync(resolve(dist, "index.html"))) {
+  check(
+    readFileSync(resolve(dist, "index.html"), "utf8").includes('href="/api"'),
+    "the homepage does not link to the API page.",
+  );
+}
+
+// 4. The 404 page is a real asset — the worker fetches it by path.
 check(existsSync(resolve(dist, "404.html")), "missing dist/404.html.");
 
-// 4. The published API specification.
+// 5. The published API specification.
 const specPath = resolve(dist, "openapi.json");
 check(existsSync(specPath), "missing dist/openapi.json.");
 if (existsSync(specPath)) {
@@ -86,7 +111,7 @@ if (existsSync(specPath)) {
   }
 }
 
-// 5. The twins must not be indexed as pages of their own.
+// 6. The twins must not be indexed as pages of their own.
 const sitemap = resolve(dist, "sitemap-0.xml");
 if (existsSync(sitemap)) {
   check(
@@ -102,5 +127,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[verify-build] ok — ${posts.length + authors.length + 6} markdown twins, 404 page, and the OpenAPI spec are all in dist/.`,
+  `[verify-build] ok — ${posts.length + authors.length + 7} markdown twins, 404 page, and the OpenAPI spec are all in dist/.`,
 );

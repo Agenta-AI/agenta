@@ -1,0 +1,127 @@
+---
+import Site from "../layouts/Site.astro";
+import { API_EXAMPLE, HOW_TO_CALL, WHEN_TO_USE } from "../lib/siteSummary";
+
+// Same-origin API entry point. The full reference lives on docs.agenta.ai and
+// the machine-readable surface is /openapi.json; this page is the signpost
+// between them, so an agent (or a developer) that lands on agenta.ai finds the
+// base URLs, the auth header, and one working request without leaving the site.
+//
+// Panels reuse the .ag-info-panel pattern from contact.astro and imprint.astro.
+// Facts here are mirrored from docs/docs/reference/api-guide/01-overview.mdx.
+// Do not restate the endpoint reference: link it.
+const panel =
+  "border:1px solid var(--ag-d-border-subtle);padding:40px 40px 36px;background:var(--ag-d-bg-2);";
+const heading =
+  "margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:var(--ag-d-text-hi);";
+const term = "color:var(--ag-d-text-faint);font:var(--text-label);";
+const body = "font:var(--text-body-md);color:var(--ag-d-text-mut);";
+const link = "color:var(--ag-d-text);text-decoration:underline;";
+
+const bases = [
+  ["Cloud (US)", "https://us.cloud.agenta.ai/api"],
+  ["Cloud (EU)", "https://eu.cloud.agenta.ai/api"],
+  ["Self-hosted", "$AGENTA_HOST/api"],
+];
+---
+
+<Site
+  title="API — Agenta"
+  description="The Agenta REST API: base URLs, authentication, an example request, and the OpenAPI specification. Build, run, evaluate, and trace agents programmatically."
+  showCta={false}
+>
+  <section
+    style="background:var(--ag-d-bg-1);border-bottom:1px solid var(--ag-d-border-subtle);"
+  >
+    <div style="max-width:860px;margin:0 auto;padding:96px 32px 80px;">
+      <span
+        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--ag-d-fill);box-shadow:0 0 0 1px var(--ag-d-border);font:var(--text-caption);letter-spacing:0.06em;color:var(--ag-d-text-mut);margin-bottom:24px;"
+        >API</span
+      >
+      <h1
+        class="ag-h1"
+        style="margin:0 0 16px;font:var(--text-display-lg);color:var(--ag-d-text-hi);text-wrap:pretty;"
+      >
+        Build with the Agenta API
+      </h1>
+      <p
+        style={`margin:0;${body}max-width:560px;text-wrap:pretty;`}
+      >
+        Everything the app does, the REST API does: create agents, commit
+        revisions, run evaluations, and read traces. The full specification is
+        published at <a href="/openapi.json" style={link}>/openapi.json</a>.
+      </p>
+    </div>
+  </section>
+
+  <section style="background:var(--ag-d-bg-0);padding:64px 32px 96px;">
+    <div
+      style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
+    >
+      <div class="ag-info-panel" style={panel}>
+        <h2 style={heading}>Base URL and authentication</h2>
+
+        <dl
+          class="ag-deflist"
+          style={`display:grid;grid-template-columns:160px 1fr;gap:12px 24px;${body}margin:0;`}
+        >
+          {
+            bases.map(([label, url]) => (
+              <>
+                <dt style={term}>{label}</dt>
+                <dd style="margin:0;overflow-wrap:anywhere;">
+                  <code>{url}</code>
+                </dd>
+              </>
+            ))
+          }
+          <dt style={term}>Authorization</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <code>Authorization: ApiKey $AGENTA_API_KEY</code>
+          </dd>
+        </dl>
+
+        <p style={`margin:24px 0 0;${body}`}>
+          An API key is scoped to a single project, so endpoints take no
+          <code> project_id</code>. Create one in your project settings on
+          <a href="https://cloud.agenta.ai/" style={link}> Agenta Cloud</a>.
+        </p>
+      </div>
+
+      <div class="ag-info-panel" style={panel}>
+        <h2 style={heading}>Example request</h2>
+        <pre
+          style={`margin:0;padding:20px;background:var(--ag-d-bg-3);border:1px solid var(--ag-d-border-subtle);overflow-x:auto;font:400 13px/1.7 'Geist Mono',monospace;color:var(--ag-d-text);`}><code>{API_EXAMPLE}</code></pre>
+      </div>
+
+      <div class="ag-info-panel" style={panel}>
+        <h2 style={heading}>What Agenta is for</h2>
+        <ul style={`margin:0;padding-left:20px;${body}display:flex;flex-direction:column;gap:8px;`}>
+          {WHEN_TO_USE.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+
+      <div class="ag-info-panel" style={panel}>
+        <h2 style={heading}>Reference</h2>
+        <ul style={`margin:0;padding-left:20px;${body}display:flex;flex-direction:column;gap:8px;`}>
+          <li>
+            <a href="/openapi.json" style={link}>OpenAPI 3.1 specification</a> —
+            every endpoint, machine-readable.
+          </li>
+          <li>
+            <a href="https://docs.agenta.ai" style={link} target="_blank" rel="noopener">
+              Documentation
+            </a> — guides, the endpoint reference, and SDK usage.
+          </li>
+          <li>
+            <a href="/llms.txt" style={link}>llms.txt</a> — a short map of this
+            site for agents, including when to reach for Agenta.
+          </li>
+        </ul>
+        <p style={`margin:24px 0 0;${body}`}>
+          {HOW_TO_CALL[3]}
+        </p>
+      </div>
+    </div>
+  </section>
+</Site>

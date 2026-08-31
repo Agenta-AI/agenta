@@ -34,6 +34,7 @@
     // keep blog/author IMAGES (one level deeper) on that path too.
     "run_worker_first": [
       "/",
+      "/api",
       "/pricing",
       "/contact",
       "/imprint",

@@ -9,9 +9,12 @@ import {
   ABOUT,
   API,
   HOSTING,
+  HOW_TO_CALL,
   LINKS,
   SITE_URL,
   TAGLINE,
+  WHEN_NOT_TO_USE,
+  WHEN_TO_USE,
 } from "../lib/siteSummary";
 
 const quoted = TAGLINE.split("\n")
@@ -25,6 +28,18 @@ ${quoted}
 ## About
 
 ${ABOUT.map((item) => `- ${item}`).join("\n")}
+
+## When to use Agenta
+
+${WHEN_TO_USE.map((item) => `- ${item}`).join("\n")}
+
+## When not to use Agenta
+
+${WHEN_NOT_TO_USE.map((item) => `- ${item}`).join("\n")}
+
+## How to call Agenta
+
+${HOW_TO_CALL.map((item) => `- ${item}`).join("\n")}
 
 ## Links
 

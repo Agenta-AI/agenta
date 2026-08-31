@@ -81,6 +81,15 @@ case "$BASE" in
       "$(curl -sI "$BASE/pricing" | grep -i '^x-robots-tag:')" ;;
 esac
 
+echo "- the API entry point and agent guidance"
+check "the /api page is served" 200 \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api")"
+contains "the homepage links to it" 'href="/api"' "$(curl -s "$BASE/")"
+contains "llms.txt says when to use Agenta" "## When to use Agenta" \
+  "$(curl -s "$BASE/llms.txt")"
+contains "llms.txt says how to call it" "Authorization: ApiKey" \
+  "$(curl -s "$BASE/llms.txt")"
+
 echo "- agent-facing errors and specs"
 contains "JSON 404 carries an error code" '"code": "not_found"' \
   "$(curl -s -H 'Accept: application/json' "$BASE/nope")"
