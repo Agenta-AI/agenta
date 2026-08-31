@@ -37,15 +37,26 @@ So the stored assertion is the ledger ROW -- it must exist, and it must name the
 ran on. An empty ledger is MISSING EVIDENCE and fails; it is never read as stability. The coded
 error surface is the `data-agent-error` frame, whose `code` field is the runner's stable class.
 
-PROXY LOG. When the deployment is local AND docker is reachable, the cell also counts
-`Received=dtn_` lines in the litellm-proxy container since the cell started, and reports the
-count. That count is diagnostic, never a verdict: a race that the runner classified correctly is
-a PASS even when the proxy logged the refusal. On a remote deployment the cell reports
-"proxy log not reachable" and does not fail for it.
+PROXY LOG, AND THE CONTAINER IT IS READ FROM. When the deployment is local and a credits proxy
+belongs to it, the cell counts `Received=dtn_` lines in that proxy since the cell started and
+reports the count. The count is diagnostic, never a verdict: a race the runner classified
+correctly is a PASS even when the proxy logged the refusal.
+
+The container is never guessed by name alone. An earlier version took the first `docker ps` name
+containing "litellm", which on a shared box matched `starter-litellm-proxy` -- a DIFFERENT
+project's container, while the target stack had no proxy at all. Reading a foreign container's log
+is worse than reading none: it invents evidence about a deployment that was never under test. So
+resolution is, in order: an explicit `--proxy-container`; otherwise a container whose compose
+project label equals the TARGET stack's project (from `--compose-project`, or derived by finding
+which container publishes the port in `AGENTA_BASE`). When nothing matches, the cell prints
+"no credits proxy in this deployment; count not applicable" and carries on.
 
   uv run matrix_c5_first_call_race.py
+  uv run matrix_c5_first_call_race.py --proxy-container agenta-ee-dev-rel1144-litellm-proxy-1
+  uv run matrix_c5_first_call_race.py --compose-project agenta-ee-dev-rel1144
 """
 
+import argparse
 import json
 import pathlib
 import re
@@ -53,6 +64,7 @@ import subprocess
 import sys
 import time
 import uuid
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
@@ -123,34 +135,101 @@ def _base_is_local() -> bool:
     return any(h in BASE for h in ("localhost", "127.0.0.1", "0.0.0.0"))
 
 
-def _find_proxy_container() -> str | None:
-    """The litellm-proxy container of the local stack, or None when docker cannot answer."""
+def _docker(args: list[str], timeout: float = 20.0) -> str | None:
+    """Run a docker command, or return None when docker cannot answer."""
     try:
         out = subprocess.run(
-            ["docker", "ps", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            timeout=20,
+            ["docker", *args], capture_output=True, text=True, timeout=timeout
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    if out.returncode != 0:
-        return None
-    names = [n.strip() for n in out.stdout.splitlines() if n.strip()]
-    return next((n for n in names if "litellm" in n.lower()), None)
+    return out.stdout if out.returncode == 0 else None
 
 
-def count_proxy_placeholder_refusals(since: str) -> tuple[int | None, str]:
-    """Count `Received=dtn_` lines in the proxy log since `since`.
+def _running(container: str) -> bool:
+    out = _docker(["ps", "--format", "{{.Names}}"])
+    return out is not None and container in [n.strip() for n in out.splitlines()]
 
-    Returns `(count, why)`. A `None` count means the log was not reachable, which is reported and
-    never failed on: a remote deployment has no docker socket to ask.
+
+def target_compose_project() -> str | None:
+    """The compose project of the stack `AGENTA_BASE` points at, found via its published port.
+
+    Derived rather than assumed: the container that publishes the port in `AGENTA_BASE` IS the
+    target deployment, so its `com.docker.compose.project` label is the only project whose
+    containers this cell may read.
     """
+    port = urlparse(BASE).port or (443 if BASE.startswith("https") else 80)
+    out = _docker(["ps", "--format", "{{.Names}}\t{{.Ports}}"])
+    if out is None:
+        return None
+    for line in out.splitlines():
+        name, _, ports = line.partition("\t")
+        if f":{port}->" not in ports:
+            continue
+        label = _docker(
+            [
+                "inspect",
+                "-f",
+                '{{index .Config.Labels "com.docker.compose.project"}}',
+                name.strip(),
+            ]
+        )
+        return label.strip() if label and label.strip() else None
+    return None
+
+
+def resolve_proxy_container(
+    explicit: str | None, compose_project: str | None
+) -> tuple[str | None, str]:
+    """The credits proxy belonging to the TARGET stack, or `(None, why)`.
+
+    Never falls back to a name match across the whole box. On a shared host that is how a foreign
+    project's proxy gets read, which invents evidence about a deployment that was never tested.
+    """
+    if explicit:
+        if not _running(explicit):
+            return None, f"proxy container {explicit!r} is not running"
+        return explicit, f"using --proxy-container {explicit}"
     if not _base_is_local():
         return None, f"proxy log not reachable (AGENTA_BASE={BASE} is not local)"
-    container = _find_proxy_container()
+
+    project = compose_project or target_compose_project()
+    if not project:
+        return None, (
+            "cannot determine the target stack's compose project, so no container may be read; "
+            "pass --compose-project or --proxy-container"
+        )
+    out = _docker(
+        [
+            "ps",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+            "--format",
+            "{{.Names}}",
+        ]
+    )
+    if out is None:
+        return None, "proxy log not reachable (docker is not answering)"
+    hits = [n.strip() for n in out.splitlines() if "litellm" in n.strip().lower()]
+    if not hits:
+        return None, (
+            f"no credits proxy in this deployment; count not applicable "
+            f"(compose project {project} has no litellm container)"
+        )
+    return hits[0], f"reading {hits[0]} (compose project {project})"
+
+
+def count_proxy_placeholder_refusals(
+    since: str, explicit: str | None = None, compose_project: str | None = None
+) -> tuple[int | None, str]:
+    """Count `Received=dtn_` lines in the target stack's proxy log since `since`.
+
+    Returns `(count, why)`. A `None` count means the count is not applicable or the log was not
+    reachable. Both are reported and neither is ever failed on.
+    """
+    container, why = resolve_proxy_container(explicit, compose_project)
     if container is None:
-        return None, "proxy log not reachable (no litellm container in `docker ps`)"
+        return None, why
     try:
         out = subprocess.run(
             ["docker", "logs", container, "--since", since],
@@ -162,9 +241,10 @@ def count_proxy_placeholder_refusals(since: str) -> tuple[int | None, str]:
         return None, f"proxy log not reachable (docker logs {container} failed: {e})"
     lines = (out.stdout + out.stderr).splitlines()
     hits = [ln for ln in lines if "Received=dtn_" in ln]
-    return len(
-        hits
-    ), f"{len(hits)} `Received=dtn_` line(s) in {container} since {since}"
+    return (
+        len(hits),
+        f"{len(hits)} `Received=dtn_` line(s) in {container} since {since}",
+    )
 
 
 def agent_error_frames(turn) -> list[dict]:
@@ -176,7 +256,9 @@ def agent_error_frames(turn) -> list[dict]:
     ]
 
 
-def c5_first_call_race() -> dict:
+def c5_first_call_race(
+    proxy_container: str | None = None, compose_project: str | None = None
+) -> dict:
     hexid = uuid.uuid4().hex[:8]
     # A brand new workflow is a pool key never seen before, so the sandbox is created cold and the
     # first model call is genuinely a first call. This is the whole premise of the cell.
@@ -203,7 +285,9 @@ def c5_first_call_race() -> dict:
             [str(c.get("errorText") or "") for c in coded] + list(turn.errors)
         )
         placeholder_seen = bool(PLACEHOLDER_SIGNATURE.search(error_text))
-        proxy_count, proxy_why = count_proxy_placeholder_refusals(started_at)
+        proxy_count, proxy_why = count_proxy_placeholder_refusals(
+            started_at, proxy_container, compose_project
+        )
 
         # The stored row, read back from the API. Empty is missing evidence, never stability.
         time.sleep(1.0)
@@ -312,7 +396,23 @@ def c5_first_call_race() -> dict:
 
 
 if __name__ == "__main__":
-    r = c5_first_call_race()
+    p = argparse.ArgumentParser(
+        description="Pin that a first-call placeholder 401 is never reported as the user's fault."
+    )
+    p.add_argument(
+        "--proxy-container",
+        default=None,
+        help="credits-proxy container to read the diagnostic count from. Default: a litellm "
+        "container in the TARGET stack's compose project, and none otherwise.",
+    )
+    p.add_argument(
+        "--compose-project",
+        default=None,
+        help="compose project of the target stack. Default: derived from whichever container "
+        "publishes the port in AGENTA_BASE.",
+    )
+    args = p.parse_args()
+    r = c5_first_call_race(args.proxy_container, args.compose_project)
     print("\n=== C5-FIRST-CALL-RACE RESULT ===")
     print(json.dumps(r, indent=2, default=str))
     sys.exit(0 if r["status"] in ("PASS", "SKIP") else 1)
