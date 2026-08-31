@@ -74,7 +74,12 @@ describe("useComposerAttachments", () => {
             result.current.addFiles([makeFile("extra.txt")])
         })
         expect(result.current.files).toHaveLength(DEFAULT_ATTACHMENT_LIMITS.maxCount)
-        expect(result.current.rejections.map((r) => r.name)).toEqual(["extra.txt"])
+        // Rejections accumulate: a later add must not erase a failure the user has not read yet.
+        expect(result.current.rejections.map((r) => r.name)).toEqual([
+            "f100.txt",
+            "f101.txt",
+            "extra.txt",
+        ])
     })
 
     // A paste and a drop can both fire before React re-renders. Reading the count from the
