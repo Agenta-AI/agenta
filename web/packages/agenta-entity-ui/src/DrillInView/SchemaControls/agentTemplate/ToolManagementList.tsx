@@ -20,7 +20,7 @@
  * Provider details (for app names and logos) only load when integrations exist — each row's detail
  * hook mounts only when that row exists. Dark-safe (`--ag-color*` tokens only).
  */
-import {type ReactNode, useMemo} from "react"
+import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 
@@ -30,7 +30,7 @@ import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
 import {
-    describeTool,
+    describeSubagent,
     isReferenceTool,
     toolReferenceSlug,
     type ItemDescriptor,
@@ -237,6 +237,9 @@ export interface SubagentListProps {
      *  workflow). They stay listed and removable, marked, so a reference saved before Subagents
      *  meant agents only cannot become invisible. Nothing new can be added for these. */
     nonAgentSlugs?: Set<string>
+    /** Each subagent's own icon chrome, keyed by the slug it is saved under. Resolved by the
+     *  caller, which is the only side that can reach the per-workflow icon record. */
+    chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
     openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
@@ -279,6 +282,7 @@ function subagentKey(item: unknown, index: number): string {
 export function SubagentList({
     entries,
     nonAgentSlugs,
+    chromeBySlug,
     openEdit,
     removeItem,
     closeEditor,
@@ -296,7 +300,11 @@ export function SubagentList({
             {entries.map(({item, index}) => (
                 <ItemRow
                     key={subagentKey(item, index)}
-                    descriptor={markNonAgent(describeTool(item), item, nonAgentSlugs)}
+                    descriptor={markNonAgent(
+                        describeSubagent(item, chromeBySlug?.get(toolReferenceSlug(item) ?? "")),
+                        item,
+                        nonAgentSlugs,
+                    )}
                     onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
                     onRemove={() => {
                         removeItem("tool", index)

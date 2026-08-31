@@ -119,6 +119,9 @@ export interface SubagentCatalogEntry {
     /** The variant to follow. Without it a `ref_by: "variant"` reference is ambiguous, so an
      *  entry with no variant cannot be added and the picker must say so rather than write one. */
     variantId?: string
+    /** The workflow this slug belongs to. A saved reference stores only a slug, and an agent's
+     *  chosen icon is keyed by workflow id, so a row needs this to draw it. */
+    workflowId?: string
     /** The model the agent runs on, for the row's meta line. */
     model?: string
     /** Provider display name, for the model's mark. */

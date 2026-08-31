@@ -23,11 +23,13 @@ import {useCallback, useMemo} from "react"
 
 import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
 import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {agentIconChrome} from "@agenta/ui/agent-icon"
 import type {
     WorkflowReferenceBridge,
     WorkflowReferencePayload,
     WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
+import {Robot} from "@phosphor-icons/react"
 import {atom, useAtomValue, type Atom} from "jotai"
 
 import {AddSubagentDrawer, type SubagentOption} from "./AddSubagentDrawer"
@@ -198,6 +200,35 @@ export function ConnectedSubagentList({
     )
     const {bySlug} = bridge.useSubagentCatalog(savedSlugs)
 
+    // Each saved subagent's own icon, drawn from the agent it points at. Resolved here because
+    // only this side can reach the per-workflow icon record; the list itself stays presentational.
+    const iconIdsKey = useMemo(
+        () =>
+            savedSlugs
+                .map((slug) => bySlug[slug]?.workflowId)
+                .filter((id): id is string => Boolean(id))
+                .join("\n"),
+        [savedSlugs, bySlug],
+    )
+    const iconById = useFamilyMap(iconIdsKey, iconFamily)
+    const chromeBySlug = useMemo(() => {
+        const map = new Map<
+            string,
+            {glyph: React.ReactNode; className: string; style?: React.CSSProperties}
+        >()
+        for (const slug of savedSlugs) {
+            const workflowId = bySlug[slug]?.workflowId
+            const chrome = agentIconChrome(workflowId ? (iconById.get(workflowId) ?? null) : null, {
+                size: 15,
+                fallbackGlyph: <Robot size={15} weight="fill" />,
+                fallbackClassName:
+                    "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+            })
+            map.set(slug, {glyph: chrome.glyph, className: chrome.className, style: chrome.style})
+        }
+        return map
+    }, [savedSlugs, bySlug, iconById])
+
     // Only marks what the catalog has actually resolved. An unresolved slug stays unmarked, so a
     // slow revision fetch never labels a perfectly good agent "not an agent".
     const nonAgentSlugs = useMemo(() => {
@@ -209,5 +240,5 @@ export function ConnectedSubagentList({
         return slugs
     }, [savedSlugs, bySlug])
 
-    return <SubagentList {...listProps} nonAgentSlugs={nonAgentSlugs} />
+    return <SubagentList {...listProps} nonAgentSlugs={nonAgentSlugs} chromeBySlug={chromeBySlug} />
 }

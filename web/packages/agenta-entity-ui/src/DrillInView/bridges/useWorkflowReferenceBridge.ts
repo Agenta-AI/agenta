@@ -123,12 +123,21 @@ interface ReferenceTypeInfo {
     /** The variant the latest revision belongs to. A `ref_by: "variant"` reference without this is
      *  ambiguous, so the subagent picker cannot bind one without it. */
     variantId: string | null
+    /** The workflow this revision belongs to. A saved reference stores only a slug, and the agent's
+     *  chosen icon is keyed by workflow id, so a row cannot draw its icon without this. */
+    workflowId: string | null
     /** What the subagent picker's rows show. Read from the SAME revision this query already
      *  fetches for the type, so displaying them costs no extra request. */
     model: string | null
     provider: string | null
     /** Integration keys this agent has connected, e.g. ["github", "slack"]. */
     integrations: string[]
+}
+
+/** The workflow a revision belongs to. */
+function workflowIdOf(revision: Workflow): string | null {
+    const id = (revision as unknown as Record<string, unknown>).workflow_id
+    return typeof id === "string" && id ? id : null
 }
 
 /** The variant a revision belongs to. The field has carried two names over time. */
@@ -189,6 +198,7 @@ function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
 const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
     type: undefined,
     variantId: null,
+    workflowId: null,
     model: null,
     provider: null,
     integrations: [],
@@ -219,6 +229,7 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 {
                                     type: classifyRevision(revision),
                                     variantId: variantIdOf(revision),
+                                    workflowId: workflowIdOf(revision),
                                     ...summarizeRevision(revision),
                                 },
                             ]
@@ -272,6 +283,7 @@ function useSubagentCatalog(slugs: string[]): {
             bySlug[slug] = {
                 type: info.type,
                 variantId: info.variantId ?? undefined,
+                workflowId: info.workflowId ?? undefined,
                 model: info.model ?? undefined,
                 provider: info.provider ?? undefined,
                 integrations: info.integrations,

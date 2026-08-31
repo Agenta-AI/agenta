@@ -3,7 +3,7 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
-import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
+import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
@@ -21,6 +21,11 @@ export interface ItemDescriptor {
     color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
+    /** Avatar chip classes, for an item that paints its own chip instead of the solid type square
+     *  (a subagent uses its agent's colour at a low alpha). Set together with `chipStyle`. */
+    chipClassName?: string
+    /** Custom properties the chip classes read (the light and dark tint and ink). */
+    chipStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
     tags: string[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
@@ -137,6 +142,43 @@ export function humanizeActionKey(key: string): string {
             return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
         })
         .join(" ")
+}
+
+/**
+ * A saved subagent row.
+ *
+ * NOT `describeTool`. That function classifies a raw tool entry, and for a reference it returns the
+ * internal vocabulary: a "workflow" tag, a solid teal square, a monospace name. None of that is
+ * true on this surface. A subagent is another agent, so the row shows the agent's own icon on a
+ * tint of its own colour, its name as prose, and no type tag at all. "workflow" is how the entry is
+ * stored, not what the reader is looking at.
+ *
+ * `chrome` comes from the agent's persisted icon, resolved by the caller (only it can reach the
+ * per-workflow icon record). Without one, the fallback is the same robot glyph the section uses.
+ */
+export function describeSubagent(
+    tool: unknown,
+    chrome?: {glyph: React.ReactNode; className: string; style?: React.CSSProperties},
+): ItemDescriptor {
+    const t = (tool ?? {}) as Record<string, unknown>
+    const slug = typeof t.slug === "string" ? t.slug : undefined
+    const name = typeof t.name === "string" && t.name ? t.name : slug
+    return {
+        name: name ?? "Subagent",
+        // Prose, never monospace: this is an agent's name, not an identifier.
+        monoName: false,
+        description: typeof t.description === "string" ? t.description : undefined,
+        mono: "",
+        color: "transparent",
+        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        chipClassName: chrome?.className,
+        chipStyle: chrome?.style,
+        // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
+        tags: [],
+        typeLabel: "subagent",
+        typeColor: "geekblue",
+        subtitle: slug ? `Subagent · ${slug}` : "Subagent",
+    }
 }
 
 /** Classify a tool into its row avatar / name / description / type tags. */
