@@ -251,6 +251,11 @@ describe("plan construction per facet", () => {
     assert.equal(harnessKind({ ...BASE, harness: "pi_core" } as never), "pi");
     assert.equal(harnessKind({ ...BASE, harness: "pi_agenta" } as never), "pi");
     assert.equal(harnessKind({ ...BASE, harness: undefined } as never), "pi");
+    // `/stream` decodes its body unchecked, so a non-string can reach here. It must not
+    // borrow Pi's live routes through the `|| "pi_core"` default.
+    for (const junk of [null, 0, false, 1, {}, []]) {
+      assert.equal(harnessKind({ ...BASE, harness: junk } as never), "unknown");
+    }
     assert.equal(
       capabilitiesFor({ ...BASE, harness: "pi_core" } as never).model,
       "apply-live",
