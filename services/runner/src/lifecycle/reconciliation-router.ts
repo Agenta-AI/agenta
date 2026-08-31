@@ -29,7 +29,9 @@ import {
   type ReconcilePlan,
 } from "./reconcile-plan.ts";
 
-export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
+import { harnessKindOf, type NormalizedHarnessKind } from "../harness-kind.ts";
+
+export type HarnessKind = NormalizedHarnessKind;
 
 /**
  * What each harness can do about a changed facet.
@@ -220,26 +222,13 @@ const V1_CAPABILITIES: Readonly<
 };
 
 export function harnessKind(request: AgentRunRequest): HarnessKind {
-  // Mirror `buildRunPlan`'s normalization exactly: the WIRE carries `pi_core` (an empty
-  // harness defaults to it; `pi_agenta` is a removed experiment's spelling, still read as
-  // Pi so an old stored request replays), never the bare "pi" this table is keyed by.
-  // Matching only the literals sent every playground Pi run into the fail-closed `unknown`
-  // row, whose every facet says rebuild — which disabled the live model-switch route and
-  // made the shadow log plan a rebuild for every Pi config change.
-  //
-  // Only an ABSENT or EMPTY harness takes that `pi_core` default. `/stream` decodes its body
-  // with an unchecked `JSON.parse(raw) as AgentRunRequest`, so a malformed payload can put
-  // `null`, `0`, or `false` in this field, and a bare `||` would hand each of them Pi's live
-  // routes. A non-string is not a harness spelling we recognize, so it falls to `unknown` and
-  // rebuilds. The real client always sends a string (`wire.py` writes `harness.value`), so
-  // this costs a wasted rebuild only on input that should not exist.
-  if (request.harness !== undefined && typeof request.harness !== "string")
-    return "unknown";
-  const harness = request.harness || "pi_core";
-  if (harness === "pi" || harness === "pi_core" || harness === "pi_agenta")
-    return "pi";
-  if (harness === "claude" || harness === "codex") return harness;
-  return "unknown";
+  // Delegates to THE one normalizer (audit finding 6). This function's first version matched
+  // the bare "pi" literal the wire never carries, sending every playground Pi run into the
+  // fail-closed all-rebuild row (#6364) — the shared normalizer plus its round-trip test is
+  // what makes that drift unrepresentable now. The non-string fail-closed guard (an unchecked
+  // `JSON.parse` can put `null`, `0`, or `false` here) lives inside the normalizer too, so
+  // every caller gets it.
+  return harnessKindOf(request.harness);
 }
 
 export function capabilitiesFor(

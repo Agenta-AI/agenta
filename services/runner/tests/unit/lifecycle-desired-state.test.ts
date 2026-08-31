@@ -180,6 +180,44 @@ describe("facet normalization: stability and coverage", () => {
     }
   });
 
+  it("the fingerprint and the facets agree about harness-mode changes (finding 3)", () => {
+    // The fingerprint normalized the Codex mode while the facet took it raw, so an
+    // explicitly-sent default moved `harnessSession` but not the fingerprint — and a session
+    // poisoned that way rebuilt on every later mixed plan. Both views now share one
+    // normalizer; this pins the agreement in BOTH directions.
+    const codex = { ...BASE, harness: "codex" } as AgentRunRequest;
+    const agree = (a: AgentRunRequest, b: AgentRunRequest, why: string) => {
+      const fpMoved = configFingerprint(a) !== configFingerprint(b);
+      const facetsMoved =
+        JSON.stringify(digestsOf(a)) !== JSON.stringify(digestsOf(b));
+      assert.equal(fpMoved, facetsMoved, why);
+      return fpMoved;
+    };
+    assert.equal(
+      agree(
+        codex,
+        { ...codex, harnessMode: "agent-full-access" },
+        "explicit default",
+      ),
+      false,
+      "an explicitly-sent default equals an absent field in both views",
+    );
+    assert.equal(
+      agree(codex, { ...codex, harnessMode: "read-only" }, "real mode change"),
+      true,
+      "a real Codex mode change moves both views",
+    );
+    assert.equal(
+      agree(
+        BASE,
+        { ...BASE, harnessMode: "read-only" } as AgentRunRequest,
+        "non-codex",
+      ),
+      false,
+      "a mode on a harness that ignores it moves neither view",
+    );
+  });
+
   it("NO INPUT DRIFT: a field that moves the fingerprint also moves a facet", () => {
     // The load-bearing invariant. The shadow comparison is only meaningful when the facets see
     // exactly what the fingerprint sees. A field in the fingerprint but in no facet would make

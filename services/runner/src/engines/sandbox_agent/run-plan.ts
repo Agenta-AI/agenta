@@ -12,6 +12,7 @@ import {
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
+import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
@@ -450,17 +451,17 @@ export function buildRunPlan(
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
   // `pi_agenta` (a removed experiment: Pi plus a forced Agenta overlay) is read as Pi so an
-  // old stored request or replay still runs; `pi_core` and that legacy spelling both
+  // old stored request or replay still runs; the mapping is `harnessKindOf`, THE shared
+  // normalizer — `pi_core` and that legacy spelling both
   // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
   // selected identity for logs, traces, and user-facing errors.
-  const acpAgent =
-    harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
+  const acpAgent = harnessKindOf(harness) === "pi" ? "pi" : harness;
 
   // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
   // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
   // rather than as a daemon "unknown agent" error mid-run.
   assert(
-    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    (harnessKindOf(harness) === "pi") === (acpAgent === "pi"),
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
