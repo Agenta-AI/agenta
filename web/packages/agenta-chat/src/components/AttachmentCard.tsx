@@ -195,20 +195,19 @@ export const AttachmentCard = ({
         </div>
     )
 
-    // A failed card does not stretch its label: the reason is short and the dismiss control
-    // belongs beside the text, not marooned at the far edge of a full-width row.
-    const label = (
+    // A failure stacks its two facts instead of running them together: at one column wide a
+    // single line truncated the reason away, which is the only part worth reading.
+    const label = failed ? (
         <span
-            className={`min-w-0 truncate text-left text-[13px] ${failed ? "text-colorError" : "flex-1 text-colorText"}`}
-            title={failed ? `${name} · ${errorReason}` : name}
+            className="flex min-w-0 flex-1 flex-col justify-center text-left leading-tight"
+            title={`${name} · ${errorReason}`}
         >
-            {failed ? (
-                <>
-                    {name} <span className="opacity-70">· {errorReason}</span>
-                </>
-            ) : (
-                name
-            )}
+            <span className="truncate text-[12px] text-colorError">{name}</span>
+            <span className="truncate text-[10px] text-colorError opacity-70">{errorReason}</span>
+        </span>
+    ) : (
+        <span className="min-w-0 flex-1 truncate text-left text-[13px] text-colorText" title={name}>
+            {name}
         </span>
     )
 

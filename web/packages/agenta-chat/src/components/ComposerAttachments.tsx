@@ -165,11 +165,7 @@ const ComposerAttachments = ({
                                 initial="initial"
                                 animate="animate"
                                 exit="exit"
-                                // A rejection takes the whole row: the reason is a sentence, and
-                                // at a third of the width it truncates to nothing useful. Forced,
-                                // because the grid's orphan rules are more specific than a plain
-                                // col-span and would shrink a rejection that landed last.
-                                className="!col-span-full min-w-0"
+                                className="min-w-0"
                             >
                                 <AttachmentCard
                                     name={r.name}
