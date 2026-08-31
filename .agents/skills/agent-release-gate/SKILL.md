@@ -446,7 +446,14 @@ These four checks make each layer's failure loud instead of silent. Run all four
   back. PASSes when the turn succeeds or when the failure carries the runner's
   `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
   while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
-  the incident itself. It also counts `Received=dtn_` lines in the credits proxy and reports the
+  the incident itself. The assertion is deliberately body-INDEPENDENT: only the litellm proxy
+  echoes a placeholder, so on a direct provider (where BYO-key cloud users live) an echo test is
+  blind, and F6 shipped a user-blaming 401 straight through the first version of this cell. A
+  credential refusal on this cell's necessarily-fresh sandbox must never advise adding a key, echo
+  or no echo; with PR #6408 the honest classification is `credential_delivery_failed`. Against a
+  deployment predating #6408 that assertion fails by construction — pass `--pre-6408` to report it
+  as a SKIP naming the known gap instead of an unexplained failure. It also counts `Received=dtn_`
+  lines in the credits proxy and reports the
   count as diagnostic, never as a verdict. The proxy is never guessed by name across the box: it
   must be named with `--proxy-container`, or belong to the target stack's compose project
   (`--compose-project`, else derived from whichever container publishes the port in

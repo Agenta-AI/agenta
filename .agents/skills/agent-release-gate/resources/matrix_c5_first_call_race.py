@@ -23,6 +23,7 @@ would not have helped, and the run was retryable).
   PASS  the turn succeeds, OR the run fails with code `credential_delivery_failed`.
   FAIL  the run advises adding a key (a `starter_credits_*` code, or "add ... key" wording) while
         the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`).
+  FAIL  the run advises adding a key over ANY credential refusal, echo or no echo. See below.
   FAIL  any other error, or a stored ledger row that never appeared.
   SKIP  the project vault has no usable Daytona connection, or the provider key is out of
         credit (printed with the exact reason).
@@ -37,6 +38,21 @@ placeholder refusal dressed in add-a-key copy stays a FAIL even when that copy n
 COLD START IS THE POINT. The cell mints a brand new workflow and variant per run, so the session
 pool key has never been seen and the sandbox is necessarily created cold. A warm reuse would make
 the cell green for the wrong reason -- a warm sandbox's Secret was substituted minutes ago.
+
+WHY THE ASSERTION IS BODY-INDEPENDENT. The first version of this cell only failed when the refusal
+body echoed the placeholder, which meant it could not see the majority path. Only the litellm
+credits proxy echoes ("Received=dtn_****"); `api.anthropic.com` answers an unsubstituted
+placeholder with "Invalid bearer token" and echoes nothing at all, and OpenAI's echo is masked
+past the literal `dtn_secret_`. So on a direct provider -- where BYO-key cloud users live -- the
+echo test is blind, and F6 shipped a user-blaming 401 straight through this cell.
+
+The stronger assertion needs no body evidence: this cell's sandbox is necessarily fresh, so its
+model key was delivered as a Daytona Secret seconds ago, and a credential refusal on such a run
+must NEVER advise adding a key. With PR #6408 the honest classification is
+`credential_delivery_failed` on the first occurrence in a session (the second falls through to
+add-a-key advice by design, which is why this cell uses a new session per run). Against a
+deployment that predates #6408 the assertion fails by construction; pass `--pre-6408` to report
+that as a SKIP naming the known gap rather than as an unexplained failure.
 
 STORED-ROW ASSERTION. The turns table has NO error column (verified against
 `api/oss/src/dbs/postgres/sessions/turns/dbas.py`: session_id, turn_id, stream_id, turn_index,
@@ -114,6 +130,23 @@ ADD_A_KEY_WORDING = re.compile(
     r"add (?:your own |the project's |a )?[\w .'-]*\bkey\b", re.I
 )
 
+#: A refusal of the credential itself, whatever the provider calls it. Mirrors `AUTH_REFUSAL` in
+#: the runner's errors.ts, plus Anthropic's own wording. This is what makes the assertion below
+#: body-INDEPENDENT: a direct provider names no placeholder, so the only thing to key on is that
+#: the run was refused for its credential at all.
+AUTH_CLASS = re.compile(
+    r"(?<!\d)401(?!\d)"
+    r"|unauthorized"
+    # `authentication_error` is Anthropic's own JSON error type, so the separator must admit an
+    # underscore as well as a space.
+    r"|authentication[ _](?:failed|required|error)"
+    # Anthropic names its header in the message ("invalid x-api-key"); OpenAI says "invalid api
+    # key". Both spellings, and a bare "invalid key", are the same refusal.
+    r"|invalid (?:x-)?(?:api[-_ ])?key"
+    r"|invalid bearer token",
+    re.I,
+)
+
 MISSING_CREDENTIAL_MARKERS = (
     "connection",
     "not found for provider",
@@ -121,6 +154,64 @@ MISSING_CREDENTIAL_MARKERS = (
     "multiple connections",
     "credential",
 )
+
+
+def key_blame_verdict(
+    codes: list, error_text: str, placeholder_seen: bool, pre_6408: bool = False
+) -> dict | None:
+    """The verdict when this run blamed the USER'S KEY, or None when it did not.
+
+    Two conditions, in order of evidence strength. Both are failures; they differ only in what
+    they can prove, and the message says which.
+
+    1. Add-a-key advice over a body that echoes the placeholder. The original signature: the
+       refusal itself proves the key never reached the provider.
+    2. Add-a-key advice over ANY credential refusal on this cell's necessarily-fresh Daytona
+       sandbox, echo or no echo. This is the assertion the first version could not make, and it
+       is the one that matters on a direct provider: `api.anthropic.com` answers an unsubstituted
+       placeholder with "Invalid bearer token" and echoes nothing, so condition 1 is blind
+       exactly where BYO-key cloud users live. See the F6 investigation and PR #6408.
+
+    A run on a pre-#6408 runner fails condition 2 by construction, because the honest
+    classification did not exist yet. `pre_6408` turns that one case into a SKIP naming the
+    reason, so an older deployment reports a known gap instead of an unexplained failure. It
+    never softens condition 1, which every shipped version has been expected to catch.
+    """
+    advises_key = any(c in ADD_A_KEY_CODES for c in codes) or bool(
+        ADD_A_KEY_WORDING.search(error_text)
+    )
+    if not advises_key:
+        return None
+    if placeholder_seen:
+        return {
+            "status": "FAIL",
+            "why": (
+                "a placeholder refusal was reported as the user's key problem: "
+                f"codes={codes}, error={error_text[:400]!r}"
+            ),
+        }
+    if not AUTH_CLASS.search(error_text):
+        return None
+    if pre_6408:
+        return {
+            "status": "SKIP",
+            "why": (
+                "this deployment predates PR #6408, so a credential refusal on a fresh Daytona "
+                "sandbox still carries add-a-key copy by construction. That is the known F6 gap, "
+                "not a new defect, and this cell cannot test the invariant here: "
+                f"codes={codes}, error={error_text[:300]!r}"
+            ),
+        }
+    return {
+        "status": "FAIL",
+        "why": (
+            "a credential refusal on a FRESH Daytona sandbox was reported as the user's key "
+            "problem. The body echoes no placeholder, but a direct provider never echoes one, so "
+            "that proves nothing: this run's key was delivered as a Daytona Secret moments "
+            "earlier and the honest classification is "
+            f"{CREDENTIAL_DELIVERY_FAILED}. codes={codes}, error={error_text[:400]!r}"
+        ),
+    }
 
 
 def daytona_agent_config() -> dict:
@@ -266,7 +357,9 @@ def agent_error_frames(turn) -> list[dict]:
 
 
 def c5_first_call_race(
-    proxy_container: str | None = None, compose_project: str | None = None
+    proxy_container: str | None = None,
+    compose_project: str | None = None,
+    pre_6408: bool = False,
 ) -> dict:
     hexid = uuid.uuid4().hex[:8]
     # A brand new workflow is a pool key never seen before, so the sandbox is created cold and the
@@ -316,19 +409,11 @@ def c5_first_call_race(
             "frames": turn.frames,
         }
 
-        # The incident, in one condition: add-a-key advice over a placeholder refusal.
-        advises_key = any(c in ADD_A_KEY_CODES for c in codes) or bool(
-            ADD_A_KEY_WORDING.search(error_text)
-        )
-        if advises_key and placeholder_seen:
-            return {
-                "status": "FAIL",
-                "why": (
-                    "a placeholder refusal was reported as the user's key problem: "
-                    f"codes={codes}, error={error_text[:400]!r}"
-                ),
-                **evidence,
-            }
+        # The incident: did this run blame the user's key? Checked before every other reading,
+        # because a run that blamed the key has already failed regardless of what else is true.
+        blame = key_blame_verdict(codes, error_text, placeholder_seen, pre_6408)
+        if blame:
+            return {**blame, **evidence}
 
         if CREDENTIAL_DELIVERY_FAILED in codes:
             if not ledger:
@@ -436,8 +521,15 @@ if __name__ == "__main__":
         help="compose project of the target stack. Default: derived from whichever container "
         "publishes the port in AGENTA_BASE.",
     )
+    p.add_argument(
+        "--pre-6408",
+        action="store_true",
+        help="the target deployment predates PR #6408. Turns the body-independent add-a-key "
+        "assertion into a SKIP naming the known F6 gap, instead of a failure the reader has to "
+        "diagnose. Never pass it against a runner that has the fix.",
+    )
     args = p.parse_args()
-    r = c5_first_call_race(args.proxy_container, args.compose_project)
+    r = c5_first_call_race(args.proxy_container, args.compose_project, args.pre_6408)
     print("\n=== C5-FIRST-CALL-RACE RESULT ===")
     print(json.dumps(r, indent=2, default=str))
     sys.exit(0 if r["status"] in ("PASS", "SKIP") else 1)
