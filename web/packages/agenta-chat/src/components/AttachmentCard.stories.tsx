@@ -124,8 +124,8 @@ const card = (name: string, mediaType: string, src?: string) => (
 )
 
 /**
- * The layout rule that matters: a card alone on the final row spans it, a partly-filled row of
- * two or more does not. Resize the viewport across `md` to see two columns become three.
+ * The layout rule that matters: a short final row grows to fill the width, whether one card is
+ * left over or two. Resize the viewport across `md` to see two columns become three.
  */
 export const GridOrphanRule: StoryObj = {
     render: () => (

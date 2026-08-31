@@ -1,20 +1,22 @@
 import type {ReactNode, Ref} from "react"
 
-/** Fixed counts, not auto-fill: the orphan rule below is nth-child arithmetic and needs a
- * column count CSS can name (container queries are out — oss is still on Tailwind v3). */
-const COLUMNS = "grid-cols-2 md:grid-cols-3"
-
-/** A card alone on the last row stretches across it; a row of two or more does not. At three
- * columns the odd-column rule has to be undone, or five cards would stretch the fifth. */
-const ORPHAN_SPANS = [
-    "[&>*:last-child:nth-child(odd)]:col-span-2",
-    "md:[&>*:last-child:nth-child(odd)]:col-span-1",
-    "md:[&>*:last-child:nth-child(3n+1)]:col-span-3",
+/**
+ * Wrapping flex rather than a grid: a short final row grows to fill the width, so two cards left
+ * over split the row between them instead of sitting in their columns beside a hole. A grid can
+ * only stretch a lone orphan, and only through nth-child arithmetic that has to know the column
+ * count.
+ *
+ * The basis is a whole column minus its share of the gap, so a full row still fits exactly two
+ * cards on a phone and three from `md` up.
+ */
+const COLUMNS = [
+    "[&>*]:min-w-0 [&>*]:grow [&>*]:basis-[calc(50%-0.1875rem)]",
+    "md:[&>*]:basis-[calc(33.333%-0.25rem)]",
 ].join(" ")
 
 export interface AttachmentCardGridProps {
     children: ReactNode
-    /** Caps the grid and scrolls past it, so a large batch cannot push the input off screen. */
+    /** Caps the list and scrolls past it, so a large batch cannot push the input off screen. */
     maxHeight?: number
     /** The scroll container, so a caller can bring a freshly added card into view. */
     ref?: Ref<HTMLDivElement>
@@ -22,7 +24,7 @@ export interface AttachmentCardGridProps {
 }
 
 /**
- * The layout shared by the composer tray and a message's attachments. Same cards, same grid —
+ * The layout shared by the composer tray and a message's attachments. Same cards, same rules —
  * only the available width differs, which is why a message shows two columns where the composer
  * shows three.
  */
@@ -34,7 +36,7 @@ export const AttachmentCardGrid = ({
 }: AttachmentCardGridProps) => (
     <div
         ref={ref}
-        className={`grid ${COLUMNS} gap-2 ${ORPHAN_SPANS} ${
+        className={`flex flex-wrap gap-1.5 ${COLUMNS} ${
             maxHeight ? "overflow-y-auto overscroll-y-contain" : ""
         } ${className ?? ""}`}
         style={maxHeight ? {maxHeight} : undefined}
