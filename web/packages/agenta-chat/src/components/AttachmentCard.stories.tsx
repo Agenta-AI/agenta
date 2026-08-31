@@ -77,6 +77,22 @@ export const Rejected: Story = {
     },
 }
 
+/** Video keeps the play affordance but opens in a viewer — an <audio> tag has no picture. */
+export const Video: Story = {
+    args: {
+        name: "voice-note.webm",
+        mediaType: "video/webm",
+        action: "remove",
+        onRemove: () => {},
+        onView: () => {},
+    },
+}
+
+/** The source is still resolving; a placeholder rather than a broken thumbnail. */
+export const Loading: Story = {
+    args: {name: "dune-crest.jpg", mediaType: "image/jpeg", loading: true, action: "none"},
+}
+
 /** Long names truncate rather than wrapping — every card stays one row tall. */
 export const LongName: Story = {
     args: {

@@ -28,6 +28,8 @@ export interface AttachmentCardProps {
     mediaType: string
     /** Thumbnail for images and the source for audio playback; absent while it resolves. */
     src?: string
+    /** The source is still resolving — show a placeholder rather than a broken thumbnail. */
+    loading?: boolean
     state?: AttachmentCardState
     /** 0-100, drawn as a bar along the bottom edge while `state` is "uploading". */
     progress?: number
@@ -134,6 +136,7 @@ export const AttachmentCard = ({
     name,
     mediaType,
     src,
+    loading = false,
     state = "idle",
     progress = 0,
     errorReason,
@@ -145,8 +148,14 @@ export const AttachmentCard = ({
     className,
 }: AttachmentCardProps) => {
     const [thumbFailed, setThumbFailed] = useState(false)
+    // A fresh source deserves a fresh attempt; without this the fallback sticks for the life of
+    // the card even after a good URL replaces the one that failed to decode.
+    useEffect(() => setThumbFailed(false), [src])
     const isImage = mediaType.startsWith("image/")
-    const isAudio = mediaType.startsWith("audio/") || mediaType.startsWith("video/")
+    const isAudio = mediaType.startsWith("audio/")
+    // Video gets the same play affordance but opens in the viewer — an <audio> element would
+    // give it sound and no picture.
+    const isVideo = mediaType.startsWith("video/")
     const failed = state === "error"
 
     // A failed card drops its view and playback affordances — only dismissal is left.
@@ -154,8 +163,16 @@ export const AttachmentCard = ({
         <div className={`flex ${TILE} items-center justify-center bg-colorErrorBg text-colorError`}>
             <WarningCircle size={18} weight="fill" />
         </div>
+    ) : loading ? (
+        <div className={`${TILE} animate-pulse bg-colorFillTertiary`} />
     ) : isAudio ? (
         <AudioTile src={src} name={name} />
+    ) : isVideo ? (
+        <div
+            className={`flex ${TILE} items-center justify-center bg-colorFillTertiary text-colorTextSecondary`}
+        >
+            <Play size={14} weight="fill" />
+        </div>
     ) : isImage && src && !thumbFailed ? (
         // A blob or cookie-authenticated URL — next/image can optimize neither.
         <img

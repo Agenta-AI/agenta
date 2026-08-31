@@ -313,8 +313,10 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
             name={name}
             mediaType={file.mediaType ?? ""}
             src={src ?? undefined}
+            loading={attachmentId ? source.isPending : false}
             action={src && !source.failed ? "download" : "none"}
             onDownload={() => void handleDownload()}
+            onView={src ? () => window.open(src, "_blank", "noopener,noreferrer") : undefined}
         />
     )
 }

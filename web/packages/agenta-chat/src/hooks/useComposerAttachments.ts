@@ -273,11 +273,10 @@ export const useComposerAttachments = ({
         return {onDragEnter, onDragOver, onDragLeave, onDrop}
     }
 
-    /** Dismiss one rejection card; name plus reason is what makes one unique within a batch. */
-    const dismissRejection = (rejection: AttachmentRejection) => {
-        setRejections((prev) =>
-            prev.filter((r) => !(r.name === rejection.name && r.reason === rejection.reason)),
-        )
+    /** Dismiss one rejection card by position — two files can reject with the same name AND
+     * reason, so the pair does not identify a card. */
+    const dismissRejection = (index: number) => {
+        setRejections((prev) => prev.filter((_, i) => i !== index))
     }
 
     /** Drop the attachments a send just carried, plus any rejection notice. */

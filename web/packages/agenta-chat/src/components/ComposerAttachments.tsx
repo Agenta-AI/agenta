@@ -33,7 +33,7 @@ interface ComposerAttachmentsProps {
     /** Add picked files through the caller's guardrails (`validateIncoming`). */
     onAdd: (incoming: File[]) => void
     onRemove: (uid: string) => void
-    onDismissRejection: (rejection: AttachmentRejection) => void
+    onDismissRejection: (index: number) => void
     /** Open a viewable attachment (image/document) in the Files drawer. */
     onView?: (uid: string) => void
     /** Retry a failed upload (wired to the upload flow). */
@@ -196,11 +196,12 @@ const ComposerAttachments = ({
                                 )
                             })}
 
-                            {/* Rejections never became files, so they carry no uid — name plus
-                            reason is what makes one unique within a batch. */}
-                            {rejections.map((r) => (
+                            {/* Rejections never became files, so they carry no uid, and two can
+                            agree on name AND reason — position is the only thing that separates
+                            them. */}
+                            {rejections.map((r, i) => (
                                 <motion.div
-                                    key={`rejection-${r.name}-${r.reason}`}
+                                    key={`rejection-${i}-${r.name}`}
                                     layout
                                     variants={ITEM_VARIANTS}
                                     initial="initial"
@@ -214,7 +215,7 @@ const ComposerAttachments = ({
                                         state="error"
                                         errorReason={r.reason}
                                         action="remove"
-                                        onRemove={() => onDismissRejection(r)}
+                                        onRemove={() => onDismissRejection(i)}
                                     />
                                 </motion.div>
                             ))}
