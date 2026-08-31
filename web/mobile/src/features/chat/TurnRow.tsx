@@ -224,6 +224,17 @@ const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: s
     )
 }
 
+/** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
+const downloadAttachment = (url: string, name: string) => {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = name
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+    link.remove()
+}
+
 /**
  * One transcript turn on the shared bubble chrome — the mobile face of the desktop
  * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
@@ -349,6 +360,13 @@ export const TurnRow = ({
                             name={file.filename || file.mediaType || "attachment"}
                             mediaType={file.mediaType ?? ""}
                             src={file.url}
+                            action={file.url ? "download" : "none"}
+                            onDownload={() =>
+                                downloadAttachment(
+                                    file.url,
+                                    file.filename || file.mediaType || "attachment",
+                                )
+                            }
                             onView={
                                 file.url
                                     ? () => window.open(file.url, "_blank", "noopener,noreferrer")
