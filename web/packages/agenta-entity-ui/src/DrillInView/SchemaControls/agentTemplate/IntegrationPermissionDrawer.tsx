@@ -110,8 +110,7 @@ const ToolRow = memo(function ToolRow({
     onChange: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
 }) {
-    // Only the row's own tint depends on this; the clamp, the measurement and the toggle all
-    // live in ExpandableDescription, shared with the other agent-config surfaces.
+    // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
 
     return (
@@ -139,6 +138,7 @@ const ToolRow = memo(function ToolRow({
                     </div>
                     <ExpandableDescription
                         description={tool.description}
+                        label={tool.name || humanizeActionKey(tool.key)}
                         onExpandedChange={setExpanded}
                     />
                 </div>

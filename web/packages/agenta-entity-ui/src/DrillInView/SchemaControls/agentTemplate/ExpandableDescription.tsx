@@ -1,22 +1,9 @@
+/** A description that clamps, offering Show more only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
 
-/**
- * A description that clamps, and offers Show more only when clamping actually hid something.
- *
- * Extracted from the integration permission drawer's tool rows, which is where the behaviour was
- * worked out, so every agent-config surface that shows a long description behaves the same:
- *
- *  • The toggle appears only when text is really hidden. A row measures itself while COLLAPSED,
- *    because expanding changes the very box the measurement reads.
- *  • A description with a newline is always expandable. No size measurement can see text a line
- *    break hid.
- *  • No description means no toggle. A row reused for a new item keeps the old measurement, and
- *    without this rule it grew a toggle over nothing.
- */
-/** Literal class names: Tailwind scans source text, so a `line-clamp-${n}` built at runtime is
- *  never generated. Add a row here to support another clamp. */
+/** Literal class names: Tailwind never generates a `line-clamp-${n}` built at runtime. */
 const CLAMP: Record<number, string> = {
     1: "truncate",
     2: "line-clamp-2",
@@ -31,8 +18,7 @@ export interface ExpandableDescriptionProps {
     lines?: number
     /** Told whether the description is open, for a parent that restyles its own row. */
     onExpandedChange?: (expanded: boolean) => void
-    /** Names what the toggle expands, e.g. the row's title. Without it a list of identical
-     *  "Show more" buttons is unusable with a screen reader. */
+    /** Names what the toggle expands, so a list of Show more buttons stays distinguishable. */
     label?: string
 }
 
@@ -48,8 +34,7 @@ export function ExpandableDescription({
     const [overflows, setOverflows] = useState(false)
     const text = description?.trim()
 
-    // Measured only while collapsed, and on the axis the clamp actually acts on: a one-line clamp
-    // hides text sideways, a multi-line clamp hides it downwards.
+    // Measured while collapsed, on the axis the clamp acts on: width for 1 line, height for 2+.
     useLayoutEffect(() => {
         if (!text) {
             setOverflows(false)
@@ -63,10 +48,8 @@ export function ExpandableDescription({
                     : preview.scrollWidth > preview.clientWidth,
             )
         measure()
-        // Re-measure on resize only for a multi-line clamp. The answer depends on the element's
-        // own box, so a drawer that opens at another width would otherwise keep the first answer.
-        // Single-line lists are the long ones (the permission drawer renders 50+ rows at once),
-        // and one observer per row there costs more than the case it would catch.
+        // Resize-watch only a multi-line clamp: single-line lists are the long ones, and one
+        // observer per row there costs more than the re-measure it would catch.
         if (lines < 2 || typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(measure)
         observer.observe(preview)

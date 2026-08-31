@@ -97,6 +97,7 @@ import {SectionDrawer} from "./SectionDrawer"
 import {
     findIntegrationRow,
     integrationRowConnection,
+    integrationRowIndices,
     parseGatewayEntry,
     type GatewayConnectionTarget,
     type GatewayEntry,
@@ -110,11 +111,7 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
-/**
- * The schema field a section's CHANGE marks come from. Integrations and Subagents both render out
- * of `tools`, so a change to that field shows on both. Their VALIDATION tips are deliberately not
- * shared: an integration that needs re-authentication is not a subagent problem.
- */
+/** The schema field a section's change marks come from. Integrations and Subagents share `tools`. */
 const changeFieldFor = (sectionKey: string): string =>
     sectionKey === "subagents" ? "tools" : sectionKey
 
@@ -463,18 +460,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [permissionTarget, integrationRows],
     )
 
-    // The referenced workflows the surface calls SUBAGENTS, with their index in the flat `tools`
-    // array preserved (edit and remove address it by index).
+    // The subagents, each keeping its index in `tools`: edit and remove address it by index.
     const subagentTools = useMemo(
         () => selectSubagentTools(tools, integrationRows),
         [tools, integrationRows],
     )
-    // Each list section counts only the kind it renders. Function tool definitions, provider
-    // built-ins, and legacy harness built-ins render nowhere, so no count includes them.
+    // Each section counts only the kind it renders; what renders nowhere is counted nowhere.
     const integrationCount = integrationRows.length
     const subagentCount = subagentTools.length
-    // What the picker marks as already added. Read from the saved tools, not from the picker's own
-    // state, so adding one closes the loop through the config the same way removing one does.
+    // What the picker marks as added, read from the saved tools rather than the picker's state.
     const savedSubagentSlugs = useMemo(
         () =>
             subagentTools
@@ -787,17 +781,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 : null
         }
         if (key === "tools") {
-            // Integration entries only: a nameless SUBAGENT is reported on its own header, and
-            // reporting it here too lit two sections for one problem.
-            const subagentIndices = new Set(subagentTools.map(({index}) => index))
+            // Integration entries only: anything else has its own header or renders nowhere.
+            const owned = new Set(integrationRows.flatMap(integrationRowIndices))
             if (
                 tools.some(
                     (t, i) =>
-                        !subagentIndices.has(i) &&
-                        ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
+                        owned.has(i) && ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
                 )
             )
-                return "A tool is missing its name."
+                return "An integration is missing its name."
             if (toolResolutionSummary.unresolved > 0)
                 return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
             return null
@@ -854,8 +846,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
-    // The Subagents add button. Opening the picker is the point the workflow list is actually
-    // needed, so activate the (lazy) bridge here instead of on every playground load.
+    // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
     const openSubagentSelector = workflowReference?.enabled
         ? () => {
               workflowReference.activate?.()
@@ -938,8 +929,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 </div>
             ),
         },
-        // Connected apps. Both this section and Subagents read the same `tools` field, so they
-        // share its draft/validation indicator key.
+        // Connected apps. Shares the `tools` indicator key with Subagents.
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
@@ -966,8 +956,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                             removeIntegration(row)
                             closeEditor()
                         }}
-                        // The empty-state add opens the same drawer as the header +. Omitted when
-                        // there is no drawer to open, so no dead control is rendered.
+                        // The empty-state add opens the header's drawer, and hides when there is none.
                         emptyAdd={
                             openIntegrationDrawer ? (
                                 <AddTextLink
@@ -979,8 +968,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     />
                 ),
             },
-        // Published workflows this agent can call. Saved as `{type: "reference"}` inside the same
-        // `tools` array, so the section renders whenever the bridge is on OR the config has one.
+        // The agents this agent can call, saved as `{type: "reference"}` in the same `tools` array.
         hasTools &&
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
@@ -993,12 +981,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         ? headerAddButton("Add subagent", openSubagentSelector)
                         : undefined,
                 defaultOpen: subagentCount > 0,
-                // The connected list resolves each saved reference's type, so one pointing at a
-                // prompt or an evaluator is marked rather than passed off as an agent. Without a
-                // bridge there is nothing to resolve it with, so the plain list renders instead.
-                // The connected list resolves each saved reference's type, so one pointing at a
-                // prompt or an evaluator is marked rather than passed off as an agent. Without a
-                // bridge there is nothing to resolve it with, so the plain list renders instead.
+                // Only the connected list can resolve a reference's type and mark a non-agent.
                 content: workflowReference?.enabled ? (
                     <ConnectedSubagentList bridge={workflowReference} {...subagentListProps} />
                 ) : (
@@ -1073,9 +1056,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
 
-    // A subagent's drawer header carries its own icon and its link to the agent it points at.
-    // Both need the resolved detail, which is cached per slug, so the header and the panel body
-    // read the same one rather than fetching twice.
+    // The drawer header needs the same cached detail the panel body reads.
     const editingSubagentSlug =
         shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
     const {detail: subagentDetail} = workflowReference?.useSubagentDetail?.(
@@ -1133,8 +1114,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
-                      // Skills state their identity inside their own form, so the drawer drops
-                      // its header chrome rather than saying it twice.
+                      // Skills state their identity in their own form; the drawer drops its chrome.
                       const bareChrome = shownEditing.kind === "skill"
                       const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
                       return (
@@ -1157,8 +1137,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               subtitle={
                                   bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
                               }
-                              // Skills carry their own footer; every other kind keeps the note,
-                              // including a subagent whose header chrome is dropped.
+                              // Skills carry their own footer; every other kind keeps the note.
                               footerNote={
                                   shownEditing.kind === "skill"
                                       ? undefined

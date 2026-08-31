@@ -1,25 +1,5 @@
-/**
- * ToolManagementList and SubagentList
- *
- * The two agent-config section bodies that read the flat `tools` array. ToolManagementList is the
- * INTEGRATIONS body: one row per connected app, whatever format its entries are saved in. Adding an
- * integration adds all of its tools, so the row summarizes the integration's permission policy and
- * opens the permission drawer; there is no per-row expansion and no per-row plus. SubagentList is
- * the SUBAGENTS body: the referenced workflows the agent can call, as a flat row list.
- *
- * Neither body draws a sub-header any more. Each is the whole content of its own accordion section,
- * and that section's header owns the title, the count, and the add button.
- *
- * Function tool definitions and provider built-ins are deliberately NOT rendered. Tool definitions
- * were removed as a feature. An older config may still carry either kind: those entries stay in the
- * saved config and still run, but this panel neither lists nor edits them.
- *
- * A row is built from BOTH saved formats. An integration still on the legacy per-action entries
- * carries an "old format" tag until its drawer is opened, which is what migrates it.
- *
- * Provider details (for app names and logos) only load when integrations exist — each row's detail
- * hook mounts only when that row exists. Dark-safe (`--ag-color*` tokens only).
- */
+/** The Integrations and Subagents section bodies, both read off the flat `tools` array. Function
+ *  tool definitions and provider built-ins are deliberately not rendered: they still run. */
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
@@ -150,8 +130,7 @@ function IntegrationListRow({
 
 export interface ToolManagementListProps {
     tools: unknown[]
-    /** The integration rows, derived from the same `tools` by the owning hook. Passed in rather
-     *  than rebuilt here, so the rows this list renders ARE the ones the drawers act on. */
+    /** The integration rows, passed in so the rows rendered ARE the ones the drawers act on. */
     integrationRows: IntegrationRow[]
     disabled?: boolean
     /** Opens one integration's permission drawer. Migrates its legacy entries first. */
@@ -164,8 +143,7 @@ export interface ToolManagementListProps {
     statusFor?: ToolStatusFor
 }
 
-/** Shared empty-state line, so both bodies read the same. The add half is optional: a host with
- *  no drawer to open must not render a control that does nothing. */
+/** Shared empty-state line. The add half is optional: a host with no drawer renders no control. */
 function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
     return (
         <span className="text-xs text-[var(--ag-zinc-5)]">
@@ -175,10 +153,7 @@ function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
     )
 }
 
-/**
- * The Integrations section body: one row per connected app, no sub-header. The section header owns
- * the add button, so this list renders rows only.
- */
+/** The Integrations section body: one row per connected app, no sub-header. */
 export function ToolManagementList({
     tools,
     integrationRows,
@@ -210,13 +185,8 @@ export function ToolManagementList({
     )
 }
 
-/**
- * The referenced workflows the agent can call, which the product calls SUBAGENTS. They live in the
- * same flat `tools` array as everything else and are saved as `{type: "reference"}`, so the wire
- * format keeps the old name; only the surface says "subagent".
- *
- * Each entry keeps its index in that array, because edit and remove address it by index.
- */
+/** The saved subagents. Stored as `{type: "reference"}` entries; each keeps its array index,
+ *  because edit and remove address it by index. */
 export function selectSubagentTools(
     tools: unknown[],
     integrationRows: IntegrationRow[],
@@ -233,12 +203,9 @@ export function selectSubagentTools(
 
 export interface SubagentListProps {
     entries: IndexedTool[]
-    /** Saved references whose workflow is NOT an agent (a prompt, an evaluator, a custom
-     *  workflow). They stay listed and removable, marked, so a reference saved before Subagents
-     *  meant agents only cannot become invisible. Nothing new can be added for these. */
+    /** Saved references whose workflow is not an agent. Listed and removable, never addable. */
     nonAgentSlugs?: Set<string>
-    /** Each subagent's own icon chrome, keyed by the slug it is saved under. Resolved by the
-     *  caller, which is the only side that can reach the per-workflow icon record. */
+    /** Each subagent's icon chrome by slug. Only the caller can reach the icon record. */
     chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
     openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
     removeItem: (kind: "tool", index: number) => void
@@ -249,15 +216,8 @@ export interface SubagentListProps {
     statusFor?: ToolStatusFor
 }
 
-/**
- * The Subagents section body: a flat row list, no sub-header. The section header owns the add
- * button, which opens the workflow picker directly.
- */
-/**
- * Tag a row whose workflow is not an agent. Subagents means agent workflows, but a reference saved
- * before that was true can point at a prompt or an evaluator. Marking it says why it looks out of
- * place, and keeps it removable, instead of hiding it.
- */
+/** The Subagents section body: a flat row list, no sub-header. */
+/** Tag a reference whose workflow is not an agent, so it stays visible and removable. */
 function markNonAgent(
     descriptor: ItemDescriptor,
     item: unknown,
@@ -274,8 +234,7 @@ function subagentKey(item: unknown, index: number): string {
     const t = (item ?? {}) as Record<string, unknown>
     const name = typeof t.name === "string" ? t.name : ""
     const identity = [toolReferenceSlug(item) ?? "", name].filter(Boolean).join("|")
-    // A reference with nothing to identify it falls back to its position, which is still better
-    // than colliding with another blank row.
+    // A reference with no identity falls back to its position, rather than colliding.
     return identity || `subagent-${index}`
 }
 

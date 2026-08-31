@@ -1,29 +1,8 @@
+import {AddSubagentDrawer, type SubagentOption} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the DrillInView barrel does not re-export the agent drawers.
-import {
-    AddSubagentDrawer,
-    type SubagentOption,
-} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/AddSubagentDrawer"
-
-// AddSubagentDrawer — the "pick the agents this agent can call" surface. It replaced a two-panel
-// master/detail drawer that made the author choose one workflow, then pin a version or an
-// environment, then read its input schema before adding it.
-//
-// It is deliberately the SAME surface as the integration drawer, not a second design that happens
-// to sit next to it. Three pieces are shared: CatalogListRow draws the row, ExpandableDescription
-// clamps the description and offers Show more, and LogoMarks draws the run of connected-app logos
-// (the same component the template cards use). Editing any of the three changes both drawers.
-//
-//   • Adding is per row. The row's button adds, the same button removes, and the footer only
-//     closes. An author adds several by clicking several and sees each land immediately.
-//   • Of everything the old detail panel showed, only the description ever decided the choice.
-//     The row keeps the five fields that answer "what does it do and what can it reach": icon,
-//     name, description, model, connected apps. Slug, version and schema are gone.
-//   • The words "workflow" and "reference" describe how the entry is saved, not what the author
-//     is doing. Nothing on this surface says either.
-//
-// Presentational: every agent arrives as a prop, so these stories are the design surface.
+// The "pick the agents this agent can call" surface, sharing CatalogListRow,
+// ExpandableDescription and LogoMarks with the integration drawer.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/AddSubagentDrawer",
     component: AddSubagentDrawer,
@@ -45,8 +24,7 @@ type Story = StoryObj<typeof meta>
 
 const noop = () => undefined
 
-// Real markup from the generated agent-icon catalog, so the stories draw the same glyphs
-// the picker does. Copied rather than imported: the catalog is a 1300-line generated module.
+// Copied from the generated agent-icon catalog, which is a 1300-line module.
 const GLYPH = {
     headphones:
         '<path d="M201.89,54.66A103.43,103.43,0,0,0,128.79,24H128A104,104,0,0,0,24,128v56a24,24,0,0,0,24,24H64a24,24,0,0,0,24-24V144a24,24,0,0,0-24-24H40.36A88,88,0,0,1,128,40h.67a87.71,87.71,0,0,1,87,80H192a24,24,0,0,0-24,24v40a24,24,0,0,0,24,24h16a24,24,0,0,0,24-24V128A103.41,103.41,0,0,0,201.89,54.66ZM64,136a8,8,0,0,1,8,8v40a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V136Zm152,48a8,8,0,0,1-8,8H192a8,8,0,0,1-8-8V144a8,8,0,0,1,8-8h24Z"/>',
@@ -64,9 +42,7 @@ const GLYPH = {
 /** Palette entries from AGENT_ICON_COLORS, so the tinted chips match the picker's own swatches. */
 const icon = (name: keyof typeof GLYPH, color: string) => ({name, color, path: GLYPH[name]})
 
-// Inline placeholder marks, never a remote CDN: a story that reaches the network is a story
-// that fails in CI and on a laptop with no egress. `logo: null` on an entry is the real
-// fallback path, where ProviderLogo draws its own plug glyph.
+// Inline marks, never a remote CDN: a story that reaches the network fails in CI.
 const LOGO = {
     github: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%226%22%20fill%3D%22%2324292F%22%2F%3E%3Ctext%20x%3D%2212%22%20y%3D%2217%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22600%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3EG%3C%2Ftext%3E%3C%2Fsvg%3E",
     slack: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%226%22%20fill%3D%22%234A154B%22%2F%3E%3Ctext%20x%3D%2212%22%20y%3D%2217%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22600%22%20fill%3D%22%23fff%22%20text-anchor%3D%22middle%22%3ES%3C%2Ftext%3E%3C%2Fsvg%3E",
@@ -145,18 +121,14 @@ const OPTIONS: SubagentOption[] = [
     },
 ]
 
-// The drawer positions itself, so a story only needs a surface behind it to read the elevation
-// against. `data-vrt-subject` is the harness's readiness marker.
+// The drawer positions itself; `data-vrt-subject` is the harness's readiness marker.
 const Frame = (children: React.ReactNode) => (
     <div data-vrt-subject className="h-screen w-full bg-[var(--ag-colorBgLayout)]">
         {children}
     </div>
 )
 
-/**
- * The default surface: six agents, one of them already added, one with no icon of its own, one
- * with no connected apps. Every card state the list can produce, in one screen.
- */
+/** Every row state the list can produce, in one screen. */
 export const Default: Story = {
     args: {open: true, onClose: noop, options: OPTIONS, onAdd: noop, onRemove: noop},
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
@@ -180,11 +152,7 @@ export const Loading: Story = {
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
-/**
- * The clamp, both ways. Two rows carry the same long description, so a reviewer can expand one and
- * read it against the collapsed one without hunting for a second story. Also the card's worst case:
- * a name that will not fit, a model string past its column, and four connected apps.
- */
+/** The clamp both ways, plus the row's worst case: long name, long model, four apps. */
 export const LongContent: Story = {
     args: {
         open: true,

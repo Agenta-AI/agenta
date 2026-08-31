@@ -226,7 +226,10 @@ function CatalogRow({
                 </Button>
             }
         >
-            <ExpandableDescription description={integration.description ?? undefined} />
+            <ExpandableDescription
+                description={integration.description ?? undefined}
+                label={integration.name}
+            />
         </CatalogListRow>
     )
 }

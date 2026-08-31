@@ -21,8 +21,7 @@ export interface ItemDescriptor {
     color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
-    /** Avatar chip classes, for an item that paints its own chip instead of the solid type square
-     *  (a subagent uses its agent's colour at a low alpha). Set together with `avatarStyle`. */
+    /** Avatar chip classes, for an item that paints its own chip. Set with `avatarStyle`. */
     avatarClassName?: string
     /** Custom properties the chip classes read (the light and dark tint and ink). */
     avatarStyle?: React.CSSProperties
@@ -144,18 +143,8 @@ export function humanizeActionKey(key: string): string {
         .join(" ")
 }
 
-/**
- * A saved subagent row.
- *
- * NOT `describeTool`. That function classifies a raw tool entry, and for a reference it returns the
- * internal vocabulary: a "workflow" tag, a solid teal square, a monospace name. None of that is
- * true on this surface. A subagent is another agent, so the row shows the agent's own icon on a
- * tint of its own colour, its name as prose, and no type tag at all. "workflow" is how the entry is
- * stored, not what the reader is looking at.
- *
- * `chrome` comes from the agent's persisted icon, resolved by the caller (only it can reach the
- * per-workflow icon record). Without one, the fallback is the same robot glyph the section uses.
- */
+/** A saved subagent row. Not `describeTool`: that returns the internal vocabulary (a "workflow"
+ *  tag, a teal square, a monospace name), none of which is true of another agent. */
 export function describeSubagent(
     tool: unknown,
     chrome?: {glyph: React.ReactNode; className: string; style?: React.CSSProperties},
@@ -171,7 +160,10 @@ export function describeSubagent(
         mono: "",
         color: "transparent",
         icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
-        avatarClassName: chrome?.className,
+        // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
+        avatarClassName:
+            chrome?.className ??
+            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],

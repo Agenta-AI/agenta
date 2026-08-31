@@ -123,11 +123,9 @@ function classifyRevision(revision: Workflow): WorkflowReferenceType | undefined
 
 interface ReferenceTypeInfo {
     type: WorkflowReferenceType | undefined
-    /** The workflow this revision belongs to. A saved reference stores only a slug, and the agent's
-     *  chosen icon is keyed by workflow id, so a row cannot draw its icon without this. */
+    /** The workflow this revision belongs to. A row's icon is keyed by workflow id. */
     workflowId: string | null
-    /** What the subagent picker's rows show. Read from the SAME revision this query already
-     *  fetches for the type, so displaying them costs no extra request. */
+    /** What the picker's rows show, read from the revision this query already fetched. */
     model: string | null
     provider: string | null
     /** Integration keys this agent has connected, e.g. ["github", "slack"]. */
@@ -140,14 +138,8 @@ function workflowIdOf(revision: Workflow): string | null {
     return typeof id === "string" && id ? id : null
 }
 
-/**
- * The model, provider and connected apps of one workflow's latest revision.
- *
- * Every field is optional on purpose: this runs over every workflow in the project, including
- * prompts and evaluators that have no agent shape at all. A missing field means "this workflow
- * does not have one", never "the request failed" — the query's own loading and error state says
- * that, and the picker must not print "No connected apps" while it is still loading.
- */
+/** The model, provider and connected apps of one workflow's latest revision. Every field is
+ *  optional: a missing one means the workflow has none, never that the request failed. */
 function summarizeRevision(revision: Workflow): {
     model: string | null
     provider: string | null
@@ -164,20 +156,13 @@ function summarizeRevision(revision: Workflow): {
     const model = llm ? modelIdFromConfig(llm.model ?? llm) : null
     const provider = llm ? connectionFromConfig(llm).provider : null
     const tools = Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
-    // The same parser the config panel uses, so the picker cannot disagree with the panel about
-    // which apps an agent has.
+    // The same parser the config panel uses, so picker and panel cannot disagree.
     const integrations = buildIntegrationRows(tools).map((row) => row.integration)
     return {model, provider, integrations}
 }
 
-/**
- * The agent template inside a revision. It is NOT on `data` directly: `resolveParameters` unwraps
- * the envelope, and an agent's config then sits either flat on the result or one level down under
- * its own key (`{agent: {...}}`). Reading `data.llm` found nothing, which is why every row first
- * showed no model and no connected apps.
- *
- * Same unwrapping as `buildConfigParts`, which is the surface that already renders these configs.
- */
+/** The agent template inside a revision. NOT on `data` directly: `resolveParameters` unwraps the
+ *  envelope and the config then sits flat or one level down under its own key. */
 function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
     const params = resolveParameters(revision.data as Parameters<typeof resolveParameters>[0])
     if (!isPlainRecord(params)) return null
@@ -196,9 +181,8 @@ const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
     integrations: [],
 }
 
-// Resolve type, binding and display summary for a set of workflow slugs. Keyed by the sorted slug
-// set so the batch is cached and only refetches when the set changes. ONE revision fetch per
-// workflow serves all of it; nothing here may add a per-row request.
+// Type, binding and display summary for a set of slugs. One revision fetch per workflow serves
+// all of it, keyed by the sorted set; nothing here may add a per-row request.
 const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
@@ -252,11 +236,8 @@ const workflowReferenceLoadingAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(workflowsListQueryStateAtom).isPending : false,
 )
 
-/**
- * One subagent's detail, keyed by its own slug so the drawer header and the panel body share one
- * cached result. Deliberately NOT folded into the picker's batch: a project with 200 agents would
- * otherwise carry megabytes of AGENTS.md it never shows.
- */
+/** One subagent's detail, keyed by slug. Kept out of the picker's batch: 200 agents would carry
+ *  megabytes of instruction text the picker never shows. */
 const subagentDetailQueryAtomFamily = atomFamily((slug: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
@@ -286,12 +267,7 @@ function countWords(text: string): number {
     return words ? words.length : 0
 }
 
-/**
- * One subagent's configuration, read off its latest revision.
- *
- * Only what the detail panel shows, and all of it read-only there: a subagent's model,
- * instructions, apps and skills are managed on the agent itself.
- */
+/** One subagent's configuration, read off its latest revision. */
 function subagentDetailOf(revision: Workflow): SubagentDetail {
     const cfg = agentConfigOf(revision)
     const summary = summarizeRevision(revision)
@@ -324,13 +300,7 @@ function subagentDetailOf(revision: Workflow): SubagentDetail {
     }
 }
 
-/**
- * Everything the Subagents picker needs for a batch of workflows.
- *
- * Reads one cached batch of latest revisions, so the type, the binding, the model and the
- * connected apps ride along on a revision fetch that already happened. Resolving them per row
- * would have fired one request per visible agent.
- */
+/** Everything the Subagents picker needs for a batch of workflows, off one cached revision fetch. */
 function useWorkflowReferenceCatalog(slugs: string[]): {
     bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
     loading: boolean

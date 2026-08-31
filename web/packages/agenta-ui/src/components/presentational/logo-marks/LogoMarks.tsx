@@ -1,16 +1,6 @@
 import {SimpleTooltip} from "../../ui"
 
-/**
- * A run of brand logos, side by side, each naming itself on hover.
- *
- * Logos next to each other rather than a logo-plus-name pair per item: the mark IS the name to
- * anyone who has seen the app before, and repeating "logo GitHub, logo Slack, logo Linear" spends a
- * whole line saying what four 16px squares already say. The tooltip carries the name for the reader
- * who does not recognise a mark.
- *
- * A plain `<img>`, not `next/image`: the sources are remote brand CDNs, and every app that renders
- * these would otherwise need each host in its own `images` config.
- */
+/** A run of brand logos, side by side, each naming itself on hover. */
 export interface LogoMark {
     /** Stable identity, and the fallback label when the item has no name. */
     key: string
@@ -44,10 +34,7 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
                 style={{width: size, height: size}}
             >
                 {item.logo ? (
-                    // Remote brand CDNs: next/image would make every consuming app declare each
-                    // host in its own images config. See the note on this module. Deliberately
-                    // no lint suppression here: @next/next is not in this package's resolved
-                    // config, and naming a rule that is not loaded is itself an ESLint error.
+                    // Plain img, not next/image: remote brand CDNs would need a host list per app.
                     <img
                         src={item.logo}
                         alt={label}

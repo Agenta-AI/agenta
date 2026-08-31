@@ -107,17 +107,12 @@ export interface WorkflowReferenceUI {
     typeLabel?: string
 }
 
-/**
- * One workflow, resolved far enough for the subagent picker to both DISPLAY it and BIND to it.
- *
- * Display and binding are deliberately the same object. They come from the same revision, and
- * splitting them let a row show one revision's model while the reference bound to another.
- */
+/** One workflow, resolved far enough for the picker to display it and bind to it. Both come from
+ *  the same revision: splitting them let a row show one revision while the reference bound another. */
 export interface WorkflowReferenceCatalogEntry {
     /** Agent, chat, completion, custom or evaluator. Only agents belong in the Subagents section. */
     type?: WorkflowReferenceType
-    /** The workflow this slug belongs to. A saved reference stores only a slug, and an agent's
-     *  chosen icon is keyed by workflow id, so a row needs this to draw it. */
+    /** The workflow this slug belongs to. A row's icon is keyed by workflow id. */
     workflowId?: string
     /** The model the agent runs on, for the row's meta line. */
     model?: string
@@ -127,12 +122,8 @@ export interface WorkflowReferenceCatalogEntry {
     integrations: string[]
 }
 
-/**
- * One subagent's configuration, read from the workflow it points at, for the detail panel.
- *
- * Everything here is READ-ONLY on that surface. A subagent's model, instructions, apps and skills
- * are managed on the agent itself; the parent agent only chooses to call it and describes when.
- */
+/** One subagent's configuration for the detail panel. Read-only there: it is managed on the
+ *  agent itself, and the calling agent only chooses to call it. */
 export interface SubagentDetail {
     /** The workflow, so the detail can link to the agent's own page. */
     workflowId?: string
@@ -244,45 +235,16 @@ export interface WorkflowReferenceBridge {
         environments: WorkflowEnvironmentUI[]
         isLoading: boolean
     }
-    /**
-     * Everything a workflow-reference surface needs, for a batch of SLUGS, in ONE pass.
-     *
-     * Named for references, not for subagents: it deliberately resolves non-agent workflows too,
-     * so the saved list can tell an author that a reference points at a prompt or an evaluator.
-     *
-     * Slugs, not workflows: the underlying batch is keyed by slug alone, and a caller that only
-     * has the handful it already saved must not have to hold the project-wide workflow list. That
-     * list is lazily activated, so passing it made the saved rows resolve nothing until the
-     * picker had been opened once.
-     *
-     * One cached latest-revision fetch serves the type, the binding, the model and the connected
-     * apps together. A picker that resolved these per row would fire a request per visible agent.
-     *
-     * `loading` matters to the caller: a row must not print "No connected apps" for an agent
-     * whose revision has not arrived.
-     *
-     * Required, not optional: it is a hook, and a hook that may be absent cannot be called without
-     * breaking the rules of hooks at the one call site that needs it. There is a single
-     * implementation of this bridge, so requiring it costs nothing.
-     */
-    /**
-     * One subagent's configuration for the detail panel, as a CACHED hook so the drawer header and
-     * the panel body share one result instead of fetching twice.
-     *
-     * One request for the one agent whose detail is open, rather than carrying instruction text
-     * for every agent in the batch: a project with 200 agents would otherwise hold megabytes of
-     * AGENTS.md it never shows.
-     */
-    useSubagentDetail?: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
-    /**
-     * A link to an agent's own page, supplied by the host because only it knows the routes. The
-     * detail hides its "Open agent" button when a host does not supply one.
-     */
-    agentHref?: (workflowId: string) => string | null
+    /** Everything a reference surface needs for a batch of SLUGS, in one cached pass. Slugs, not
+     *  workflows: the project-wide list is lazily activated and stays empty until the picker opens. */
     useWorkflowReferenceCatalog: (slugs: string[]) => {
         bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
         loading: boolean
     }
+    /** One subagent's configuration for the detail panel, cached so the header and the body share it. */
+    useSubagentDetail?: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
+    agentHref?: (workflowId: string) => string | null
 }
 
 /**

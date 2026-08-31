@@ -1,17 +1,6 @@
+/** One agent-picker row: a leading mark, a title with a meta line, and an action on the right. */
 import type {ReactNode} from "react"
 
-/**
- * One row in an agent-config picker: a leading mark, a title with an optional meta line under it,
- * and an action on the right.
- *
- * Extracted from the integration drawer, which is where the shape was settled, so the two agent
- * pickers cannot drift apart. Flat rows divided by a hairline, NOT cards with gaps between them:
- * a picker is a list to run an eye down, and a stack of bordered cards turns every row into an
- * object competing for attention.
- *
- * The action belongs to the row. Adding is a per-row decision the author makes and can undo with
- * the same control, so the drawer's own button never carries the add.
- */
 export interface CatalogListRowProps {
     /** Logo, icon chip, or anything else that identifies the item. */
     leading?: ReactNode

@@ -2,16 +2,8 @@ import {DrillInUIProvider, ReferenceToolFormView} from "@agenta/entity-ui/drill-
 import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// ReferenceToolFormView — the detail panel for one saved subagent.
-//
-// It used to be the edit counterpart of a workflow-reference tool: an exposed tool name, the
-// resolved input schema, and a "Reference by / Pinned / Deployed" axis picker. All of that is
-// gone. The reader is looking at ANOTHER AGENT, and the only thing the calling agent owns is the
-// description the model reads to decide when to call it. Everything else is managed on that agent
-// and shows here read-only.
-//
-// A subagent always runs the LATEST revision of the agent it points at. That is not offered as a
-// choice, so there is no version, revision or environment control on this surface at all.
+// The detail panel for one saved subagent: the calling agent owns only the description.
+// A subagent always runs the latest revision, so there is no version control here.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ReferenceToolFormView",
     component: ReferenceToolFormView,
@@ -67,10 +59,7 @@ const DETAIL: SubagentDetail = {
     instructions: {fileName: "AGENTS.md", text: AGENTS_MD, wordCount: 2140},
 }
 
-/**
- * A bridge that resolves one subagent. Only the two members this panel touches are real; the rest
- * of the contract is not exercised here, so the cast keeps the fixture to what the story is about.
- */
+/** A bridge that resolves one subagent. Only the two members this panel touches are real. */
 const bridgeWith = (detail: SubagentDetail | null) =>
     ({
         enabled: true,
@@ -108,10 +97,7 @@ export const NothingConfigured: Story = {
         ),
 }
 
-/**
- * No host bridge, so nothing resolves. The description still edits, because it lives on the
- * calling agent's own config rather than on the agent being pointed at.
- */
+/** No host bridge, so nothing resolves. The description still edits: it is local. */
 export const WithoutBridge: Story = {
     args: {value: TOOL, onChange: noop},
     render: (args) => Frame(bridgeWith(null), <ReferenceToolFormView {...args} value={TOOL} />),

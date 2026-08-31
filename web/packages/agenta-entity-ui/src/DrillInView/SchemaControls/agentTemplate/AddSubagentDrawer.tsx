@@ -1,29 +1,4 @@
-/**
- * AddSubagentDrawer
- *
- * Pick the agents this agent can call.
- *
- * Built on the same three pieces the integration drawer and the permission drawer use, so the two
- * agent pickers read as one surface: {@link CatalogListRow} for the row, {@link
- * ExpandableDescription} for a description that clamps and offers Show more, and `LogoMarks` for
- * the run of connected-app logos.
- *
- * Adding is per row. The row's own button adds, and the same button removes afterwards, so the
- * drawer's footer only closes. That is the integration drawer's model: an author adds several by
- * clicking several, sees each land immediately, and undoes one without leaving the drawer. Add all
- * sits on the section header, where a bulk action belongs.
- *
- * The card shows five things and nothing else: the agent's icon, its name, its description, the
- * model it runs on, and the apps it has connected. No slug, no version, no schema. An author
- * choosing a helper asks "what does this one do and what can it reach", and every field beyond
- * those five pushed that answer further down the row.
- *
- * The list is agents only, and nothing here says workflow or reference. A subagent IS saved as a
- * workflow reference, but neither word means anything to the person picking.
- *
- * Presentational on purpose: every agent arrives as a prop, so the layout can be storied and
- * iterated without the project's workflow queries.
- */
+/** Pick the agents this agent can call. Presentational: every agent arrives as a prop. */
 import {useEffect, useMemo, useState} from "react"
 
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
@@ -58,8 +33,7 @@ export interface SubagentOption {
     icon?: AgentIconSelection | null
     /** The model this agent runs on, e.g. "claude-sonnet-4-5". */
     model?: string
-    /** Provider display name, e.g. "Anthropic". Draws the provider's mark next to the model; a
-     *  name the icon map does not know falls back to a neutral glyph. */
+    /** Provider display name, e.g. "Anthropic". An unknown name draws a neutral glyph. */
     provider?: string
     integrations?: SubagentIntegration[]
     /** Already a subagent of the agent being edited. Its action removes instead of adding. */
@@ -72,21 +46,14 @@ export interface AddSubagentDrawerProps {
     /** Every agent in the project, minus the one being edited. */
     options: SubagentOption[]
     loading?: boolean
-    /** One write per author action: a row sends one agent, Add all sends the rest. May be async;
-     *  the drawer disables every add and remove until it settles. */
+    /** One write per author action. May be async; the drawer disables its actions until it settles. */
     onAdd: (options: SubagentOption[]) => void | Promise<void>
     onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
 
 const ICON_BOX = "flex size-7 items-center justify-center rounded-md"
 
-/**
- * The model an agent runs on, with the provider's own mark for recognition. The mark sits in a
- * tile the same size as an integration logo, so the meta line reads as one run of marks.
- *
- * Tabular numerals: model names are mostly version digits, and proportional ones make a column of
- * them look ragged.
- */
+/** The model an agent runs on, marked with its provider's logo. */
 function ModelChip({model, provider}: {model: string; provider?: string}) {
     const ProviderIcon = provider ? getProviderIcon(provider) : null
     return (
@@ -191,16 +158,8 @@ function SubagentRow({
     )
 }
 
-/**
- * A loading row. Deliberately NOT built on CatalogListRow: that component wraps its title in a
- * truncating span, which is right for text and collapses a block-level bar. The geometry is copied
- * instead, so the skeleton keeps the row's anatomy (icon, two text lines, a meta line, an action)
- * and the list does not jump when the agents land.
- *
- * SkeletonBlock, never Skeleton: `Skeleton` is the antd COMPOSITE and renders a title plus three
- * paragraph rows. Sizing it with a className gives four overlapping bars in a box meant for one,
- * which is the staircase its own doc comment warns about.
- */
+/** A loading row. SkeletonBlock, never Skeleton: the latter is the antd composite and draws four
+ *  overlapping bars in a box meant for one. CatalogListRow truncates its title, which collapses a bar. */
 function RowSkeleton({widths}: {widths: [string, string]}) {
     return (
         <div className="flex items-start gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2.5 first:border-t-0">
@@ -233,8 +192,7 @@ export function AddSubagentDrawer({
     onRemove,
 }: AddSubagentDrawerProps) {
     const [search, setSearch] = useState("")
-    // Every write reads the freshest config and appends to it, so two overlapping actions would
-    // both start from the same array and one would be lost. One in flight at a time.
+    // One write in flight at a time: two overlapping ones both start from the same array.
     const [busy, setBusy] = useState(false)
     const run = async (write: () => void | Promise<void>) => {
         if (busy) return
@@ -246,9 +204,7 @@ export function AddSubagentDrawer({
         }
     }
 
-    // Reset on the `open` transition, not only in handleClose: `destroyOnClose` unmounts the
-    // drawer's body, not this component, so a close driven by the parent kept the last search
-    // and the next open showed a filtered list with no visible reason.
+    // Reset on the `open` transition: `destroyOnClose` unmounts the body, not this component.
     useEffect(() => {
         if (!open) setSearch("")
     }, [open])
@@ -262,8 +218,7 @@ export function AddSubagentDrawer({
         )
     }, [options, search])
 
-    // Add all acts on what the search is showing. Acting on the hidden rest would let one click
-    // add agents the author cannot see.
+    // Add all acts on what the search shows, never on hidden rows.
     const addable = useMemo(() => visible.filter((o) => !o.added), [visible])
 
     const handleClose = () => {

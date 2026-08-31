@@ -1,10 +1,7 @@
+import {SubagentList} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the DrillInView barrel does not re-export the subagent list.
-import {SubagentList} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ToolManagementList"
-
-// A subagent is saved as a workflow reference (`{type: "reference"}`), so the wire format keeps the
-// old name and only the surface says "subagent". These entries are the shapes `describeTool` reads.
+// A subagent is saved as `{type: "reference"}`: the wire format keeps the old name.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/SubagentList",
     component: SubagentList,
@@ -28,11 +25,7 @@ type Story = StoryObj<typeof meta>
 
 const noop = () => undefined
 
-/**
- * Pinned to one variant, optionally at a fixed version. `ref_by` is "variant" or "environment"
- * on the wire, never "version" — the version is a field, not an axis. See the writer in
- * `useAgentTools.handleAddWorkflowReference` and `ReferenceToolFormView`.
- */
+/** Pinned to one variant. `ref_by` is "variant" or "environment", never "version". */
 const variantRef = (
     name: string,
     slug: string,
@@ -102,19 +95,13 @@ export const SingleRow: Story = {
     render: (args) => Frame(<SubagentList {...args} />),
 }
 
-/**
- * No subagents yet. The body is one line that carries the add link, because the section header's
- * plus is easy to miss on a section the reader has just opened for the first time.
- */
+/** No subagents yet. The body is one line carrying the add link. */
 export const Empty: Story = {
     args: listArgs([]),
     render: (args) => Frame(<SubagentList {...args} />),
 }
 
-/**
- * Read-only revision. Rows lose the chevron, the Remove button and the tab stop, and the empty
- * state disappears rather than offering an add the revision cannot do.
- */
+/** Read-only revision: no chevron, no Remove, no tab stop, and no empty-state add. */
 export const ReadOnly: Story = {
     args: {...listArgs(ENTRIES), disabled: true},
     render: (args) => Frame(<SubagentList {...args} />),

@@ -51,26 +51,17 @@ export interface ItemKindDef {
     FormView: ItemFormView
     /** Drawer header title for the current draft. */
     drawerTitle: (draft: Record<string, unknown>) => string
-    /** Wider drawer for kinds that need it (skills are two-pane). Per ITEM, because one kind can
-     *  hold both a two-pane editor and a plain panel. */
+    /** Wider drawer. Per ITEM: one kind holds both a two-pane editor and a plain panel. */
     drawerWidth?: (item: Record<string, unknown>) => number | undefined
-    /** Full-bleed body so the Form can lay out its own master/detail (the tool parameter editor).
-     *  Per ITEM for the same reason: a subagent's panel wants ordinary drawer padding. */
+    /** Full-bleed body, for a Form that lays out its own master/detail. Per ITEM, as above. */
     formFlush?: (item: Record<string, unknown>) => boolean
     /** Default Form/JSON view when opening an existing item. */
     editView: (item: unknown) => ConfigItemView
     /** Items with no structured form open JSON-only (no Form/JSON toggle). */
     jsonOnly: (item: Record<string, unknown>) => boolean
-    /**
-     * The item's own form already shows its icon, name and type, so the drawer drops its header
-     * chrome and footer note rather than saying the same thing twice. Skills have always done
-     * this; a subagent does it now.
-     */
+    /** The item's form already states its identity, so the drawer drops its header chrome. */
     statesOwnIdentity?: (item: Record<string, unknown>) => boolean
-    /**
-     * Hide the Form/JSON toggle and keep the form. For an item whose raw shape is an internal
-     * detail the reader has no reason to edit, offering the JSON view invites damage.
-     */
+    /** Hide the Form/JSON toggle for an item whose raw shape is an internal detail. */
     formOnly?: (item: Record<string, unknown>) => boolean
     /** Read-only items (e.g. static `__ag__*` skills) — viewable but not editable. */
     isReadOnly: (item: unknown) => boolean
@@ -89,13 +80,11 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         emptyLabel: "No tools yet",
         describe: describeTool,
         FormView: ToolFormView,
-        // The parameter editor is a two-panel master/detail: it needs the width and lays out its
-        // own padding. A subagent is a plain panel and gets neither, or it renders edge to edge.
+        // Only the two-pane parameter editor wants width and its own padding.
         drawerWidth: (draft) => (isReferenceTool(draft) ? undefined : 800),
         formFlush: (draft) => !isReferenceTool(draft),
         drawerTitle: (draft) => {
-            // A subagent's header is its identity: the agent's NAME, with "Subagent" as the
-            // subtitle underneath. describeTool would call it a workflow, which it is not.
+            // A subagent's header is the agent's NAME. describeTool would call it a workflow.
             if (isReferenceTool(draft)) return describeSubagent(draft).name
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
@@ -110,8 +99,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             return isFunctionTool(item) || isReferenceTool(item) || entry ? "form" : "json"
         },
         jsonOnly: (draft) => ITEM_KINDS.tool.editView(draft) === "json",
-        // A subagent's detail states its own identity and hides the raw entry: the reader is
-        // looking at another agent, not at a tool record.
+        // A subagent's detail states its own identity and hides the raw entry.
         statesOwnIdentity: (draft) => isReferenceTool(draft),
         formOnly: (draft) => isReferenceTool(draft),
         isReadOnly: () => false,

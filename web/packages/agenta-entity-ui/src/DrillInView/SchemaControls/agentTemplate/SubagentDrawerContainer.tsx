@@ -1,24 +1,4 @@
-/**
- * The two connected halves of the Subagents section.
- *
- * {@link AddSubagentDrawer} and {@link SubagentList} stay presentational so the layout can be
- * storied without the project's queries. These wrappers resolve what those surfaces show and turn
- * a click into a saved reference. Both live here because both are the callers of
- * `useWorkflowReferenceCatalog`, and nothing else is shared between them.
- *
- * Four rules shape the container:
- *
- *  • ONE request per batch, never one per row. The model, the connected apps, the type and the
- *    variant binding all come from `useWorkflowReferenceCatalog`, which reads the same cached
- *    latest-revision fetch the badges already performed.
- *  • Nothing is fetched while the drawer is CLOSED. The container is always mounted, so an
- *    ungated subscription meant a closed drawer opened one catalog request per connected app in
- *    the whole project.
- *  • Agents only. A saved reference can point at a chat, completion, custom or evaluator
- *    workflow. Those are not offered here, and ones already saved stay visible and marked.
- *  • Adds are sequential. `handleAddWorkflowReference` re-reads the freshest config after an
- *    await, so firing several in parallel lets the last write win and drops the rest.
- */
+/** The two connected halves of the Subagents section: the picker and the saved list. */
 import {useCallback, useMemo} from "react"
 
 import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
@@ -36,13 +16,8 @@ import {AddSubagentDrawer, type SubagentOption} from "./AddSubagentDrawer"
 import {toolReferenceSlug} from "./itemDescriptors"
 import {SubagentList, type SubagentListProps} from "./ToolManagementList"
 
-/**
- * Read one atom-family entry per key in a single subscription.
- *
- * A hook per row is not possible inside a list, and would subscribe each row separately anyway.
- * The keys arrive as a joined string so the memo has one stable dependency; passing an array
- * would rebuild the atom every render.
- */
+/** Read one atom-family entry per key in one subscription. Keys join into a string so the
+ *  memo has one stable dependency; an array would rebuild the atom every render. */
 export function useFamilyMap<T>(keysKey: string, family: (key: string) => Atom<T>): Map<string, T> {
     const derived = useMemo(() => {
         const keys = keysKey ? keysKey.split("\n") : []
@@ -76,23 +51,19 @@ export function SubagentDrawerContainer({
     onAdd,
     onRemoveSlug,
 }: SubagentDrawerContainerProps) {
-    // Gated on `open` throughout: the container is mounted for the panel's whole life, and the
-    // drawer destroys its body on close, so a closed drawer must hold no subscriptions at all.
+    // Gated on `open` throughout: the container outlives the drawer and must idle when closed.
     const projectSlugs = useMemo(
         () => (open ? bridge.workflows.map((w) => w.slug).filter(Boolean) : []),
         [open, bridge.workflows],
     )
     const {bySlug, loading: catalogLoading} = bridge.useWorkflowReferenceCatalog(projectSlugs)
 
-    // The agent being edited. Offering it to itself builds a reference loop the runner cannot run.
-    // Matched on the WORKFLOW id, because `WorkflowReferenceUI.id` is the workflow while the
-    // revision's own slug is a different identifier.
+    // The agent being edited, matched on its WORKFLOW id. Offering it to itself loops the runner.
     const selfWorkflowId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId ?? "")) as
         | string
         | undefined
 
-    // Only agents belong here. While the catalog loads every type is undefined, so an empty list
-    // in that window would read as "this project has no agents"; the drawer shows loading instead.
+    // Agents only. Every type is undefined while the catalog loads, so the drawer shows loading.
     const agents = useMemo(
         () =>
             open
@@ -104,8 +75,7 @@ export function SubagentDrawerContainer({
         [open, bridge.workflows, bySlug, selfWorkflowId],
     )
 
-    // Icons for the agents only. Keying on the whole project list also inserted a permanent
-    // family entry for every prompt and evaluator, none of which this list draws.
+    // Icons for the listed agents only: the whole project list leaves permanent family entries.
     const idsKey = useMemo(
         () =>
             agents
@@ -146,13 +116,10 @@ export function SubagentDrawerContainer({
         })
     }, [agents, bySlug, iconById, logoByKey, savedSlugs])
 
-    // Sequential on purpose: each add re-reads the freshest config after resolving an input
-    // schema, so a parallel batch would have every write start from the same stale array.
+    // Sequential on purpose: each add re-reads the freshest config after an await.
     const handleAdd = useCallback(
         async (selected: SubagentOption[]) => {
-            // Bound by slug on the variant axis, with no pinned version, which the server reads
-            // as the workflow's latest revision. That is the same revision the catalog fetched to
-            // build this row, so what the author saw is what the agent calls.
+            // No pinned version: the server reads a bare variant slug as the latest revision.
             for (const option of selected) {
                 await onAdd({slug: option.id, refBy: "variant"})
             }
@@ -179,13 +146,8 @@ export function SubagentDrawerContainer({
     )
 }
 
-/**
- * The Subagents section body, with each saved reference's type resolved.
- *
- * Resolves only the slugs this agent has actually saved. Reading the project-wide workflow list
- * here would have resolved nothing at all, because that list stays empty until the picker is
- * opened once.
- */
+/** The Subagents section body. Resolves only the saved slugs: the project-wide workflow list
+ *  stays empty until the picker is opened once. */
 export function ConnectedSubagentList({
     bridge,
     ...listProps
@@ -199,8 +161,7 @@ export function ConnectedSubagentList({
     )
     const {bySlug} = bridge.useWorkflowReferenceCatalog(savedSlugs)
 
-    // Each saved subagent's own icon, drawn from the agent it points at. Resolved here because
-    // only this side can reach the per-workflow icon record; the list itself stays presentational.
+    // Each saved subagent's icon, from the agent it points at. The list stays presentational.
     const iconIdsKey = useMemo(
         () =>
             savedSlugs
@@ -228,8 +189,7 @@ export function ConnectedSubagentList({
         return map
     }, [savedSlugs, bySlug, iconById])
 
-    // Only marks what the catalog has actually resolved. An unresolved slug stays unmarked, so a
-    // slow revision fetch never labels a perfectly good agent "not an agent".
+    // Marks only what the catalog resolved, so a slow fetch never mislabels a good agent.
     const nonAgentSlugs = useMemo(() => {
         const slugs = new Set<string>()
         for (const slug of savedSlugs) {

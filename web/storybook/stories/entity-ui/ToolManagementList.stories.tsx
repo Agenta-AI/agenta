@@ -1,7 +1,6 @@
+import {ToolManagementList} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// Imported from source: the DrillInView barrel does not re-export the integration list.
-import {ToolManagementList} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ToolManagementList"
 import {buildIntegrationRows} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils"
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 import {integrationQueries, GITHUB_WORK, SLACK_OPS} from "../../fixtures/gatewayIntegration"
@@ -117,10 +116,7 @@ export const ReadOnly: Story = {
     render: (args) => Frame(<ToolManagementList {...args} />),
 }
 
-/**
- * No integrations yet. The body is one line that carries the add link, because the section header's
- * plus is easy to miss on a section the reader has just opened for the first time.
- */
+/** No integrations yet. The body is one line carrying the add link. */
 export const Empty: Story = {
     args: listArgs([]),
     render: (args) => Frame(<ToolManagementList {...args} />),

@@ -69,10 +69,7 @@ export function useAgentTools({
             const latest = configRef.current
             const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
             if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
-            // Deliberately NO variant id. ReferenceToolConfig forbids unknown fields and has no
-            // such field: the axis is `ref_by:"variant"` with a slug, optionally pinned by
-            // `version`, and the server resolves `workflow.variant.{slug}[.{version}]`. A
-            // `variant_id` was persisted here before and reached nothing that reads it.
+            // No variant id: ReferenceToolConfig has no such field and forbids unknown ones.
             const referenceTool: Record<string, unknown> = {
                 type: "reference",
                 ref_by: payload.refBy,
@@ -92,8 +89,7 @@ export function useAgentTools({
         [workflowReference, onChange, configRef],
     )
 
-    // Removal by SLUG, not by name: a reference's display name is editable and need not match the
-    // workflow it points at, so removing by name can miss the entry or hit a different tool.
+    // Removal by SLUG: a reference's display name is editable and can match another tool.
     const handleRemoveReferenceBySlug = useCallback(
         (slug: string) => setTools(tools.filter((tool) => toolReferenceSlug(tool) !== slug)),
         [tools, setTools],

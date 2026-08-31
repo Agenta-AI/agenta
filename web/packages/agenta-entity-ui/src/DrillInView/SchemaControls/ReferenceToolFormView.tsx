@@ -1,20 +1,5 @@
-/**
- * ReferenceToolFormView — the body of one saved subagent's detail panel.
- *
- * A subagent is another agent this agent can call. Almost nothing about it is editable here: its
- * model, its instructions, its connected apps and its skills are managed on that agent. The one
- * thing the calling agent owns is the DESCRIPTION, because that is what the model reads to decide
- * when to call it. So the panel is one field over a read-only summary.
- *
- * A subagent always runs the LATEST revision of the agent it points at. That is deliberate and it
- * is not offered as a choice: a helper agent that silently goes stale is worse than one that
- * improves with its owner. There is no version, revision or environment control here at all, and
- * the exposed tool name, the input schema tree and the Form/JSON toggle are gone with it. None of
- * them told the reader when to call this agent.
- *
- * The IDENTITY (icon, name, "Subagent", "Open agent") lives in the drawer header, not here, so the
- * panel does not repeat what the band above it already says.
- */
+/** One saved subagent: the calling agent's own description, over a read-only summary of the agent
+ *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
 import {useMemo, useState} from "react"
 
 import type {SubagentDetail} from "@agenta/ui/drill-in"
@@ -50,11 +35,7 @@ const Empty = ({children}: {children: React.ReactNode}) => (
     <span className="text-[13px] text-[var(--ag-colorTextQuaternary)]">{children}</span>
 )
 
-/**
- * The agent's instruction file. Clamped behind a fade, because an AGENTS.md runs to thousands of
- * words and the reader is here to recognise the agent, not to read its whole brief. Expanding
- * scrolls inside a fixed well rather than pushing the rest of the panel off screen.
- */
+/** The agent's instruction file, clamped behind a fade and scrolled inside a fixed well. */
 function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>}) {
     const [open, setOpen] = useState(false)
     return (
@@ -102,9 +83,7 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
         loading: false,
     }
 
-    // The bridge knows WHICH apps an agent connects, not what they look like: a logo and a
-    // display name come from the catalog, which only a component can read. Resolved here, once
-    // for the whole row set, the same way the picker resolves them.
+    // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
     const appKeysKey = useMemo(
         () =>
             (detail?.integrations ?? [])

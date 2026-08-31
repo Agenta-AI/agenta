@@ -97,9 +97,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const toolsEnabled = isToolsEnabled()
     const baseWorkflowReference = useWorkflowReferenceBridge()
     const {baseAppURL} = useURL()
-    // Only the app knows its routes, so the "Open agent" link on a subagent's detail is supplied
-    // here rather than guessed inside the package. Without a base URL there is no link, and the
-    // detail hides the button.
+    // Only the app knows its routes, so the "Open agent" link is supplied here.
     const workflowReference = useMemo(
         () => ({
             ...baseWorkflowReference,

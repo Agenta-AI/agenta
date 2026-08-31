@@ -71,8 +71,7 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
-    // `chip` wins when the item brings its own paint (a subagent's chosen icon: its colour at a low
-    // alpha behind a glyph in that same colour). Everything else keeps the solid type square.
+    // `chip` wins when the item paints itself; everything else keeps the solid type square.
     const chipped = Boolean(descriptor.avatarClassName)
     return (
         <span
@@ -187,10 +186,8 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        // A 24px ghost target, not a bare glyph. A hover-only icon with no box is a
-                        // small thing to hit, and a destructive action deserves a clear hover
-                        // state rather than only a colour change.
-                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] group-hover:opacity-100"
+                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
+                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
