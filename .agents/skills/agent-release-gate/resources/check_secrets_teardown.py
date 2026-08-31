@@ -29,15 +29,35 @@ between the opening and closing inventories. A concurrent Daytona run against th
 organization will therefore show up as a leftover. The names are printed so an operator can tell
 the two apart, but the honest way to read a FAIL is: re-run it alone before believing it.
 
-  PASS  no Secret created during the journey is still listed after the eviction settles.
+  PASS  no Secret created during the journey is still present after the eviction settles.
   FAIL  at least one remains; its NAME is printed.
-  SKIP  no Daytona API key in the environment, the Secrets API did not answer, or the project
-        vault has no usable Daytona connection. Printed with the exact reason.
+  SKIP  no Daytona API key in the environment, the Secrets API did not answer, the inventory
+        could not be enumerated completely, or the project vault has no usable Daytona
+        connection. Printed with the exact reason.
 
-NEVER PRINTS A VALUE. The cell reports Secret NAMES and counts only. A name is a random handle
-(`agenta_<hex>_<ordinal>`, from `generatedName` in
+THE SECRETS API, AND WHY THE OBVIOUS SPELLING IS WRONG. Verified against
+`@daytona/api-client@0.198.0` inside the running runner, and live by status code:
+
+  /secret/paginated   the listing. Cursor-paginated, 100 per response.
+  /secret/{secretId}  one Secret; a 404 means it is gone. This is what the settle loop polls.
+  /secret             the unpaginated listing. DEPRECATED, and per the client's own docs it
+                      "fails for organizations with more than 1500 secrets" -- unusable here.
+  /secrets            does not exist. It 404s with "Cannot GET", while /secret and
+                      /secret/paginated return 403 for an under-scoped key. That difference is
+                      how the correct path was confirmed without list access.
+
+A `page` parameter is SILENTLY IGNORED by the listing: the same 100 ids come back for every
+"page". Only `cursor` advances. With ~3510 secrets in the organization, an unpaginated or
+page-based inventory makes the before/after difference noise in both directions -- it would
+invent leftovers and hide real ones at the same time. So the enumeration follows `nextCursor` to
+exhaustion, refuses to loop on a repeating cursor, and is bounded by both a page ceiling and a
+wall-clock budget. Hitting either bound is a SKIP: a partial inventory cannot produce a verdict.
+
+NEVER PRINTS A VALUE. The cell reports Secret NAMES, ids and counts only. A name is a random
+handle (`agenta_<hex>_<ordinal>`, from `generatedName` in
 `services/runner/src/engines/sandbox_agent/daytona-secrets.ts`); the value is the model key and
-never enters the output, the result JSON, or an exception message.
+never enters the output, the result JSON, or an exception message. The listing payload does not
+carry a value field at all, so a listing cannot leak one even by accident.
 
   uv run check_secrets_teardown.py
   uv run check_secrets_teardown.py --settle 90
@@ -68,6 +88,15 @@ BASELINE = "Be terse. Answer in one word."
 
 #: The shape `generatedName` mints: `agenta_` + 18 random bytes as hex + `_` + the plan ordinal.
 RUN_SECRET_NAME = re.compile(r"^agenta_[0-9a-f]{36}_\d+$")
+
+#: What the paginated listing returns per response. The server caps it at 100.
+PAGE_LIMIT = 100
+
+#: Bounds on a full enumeration, so a huge organization cannot make the cell hang. Both are
+#: deliberately generous: a ~3510-secret org needs ~36 pages. Hitting either bound is a SKIP,
+#: because a partial inventory produces a set difference that is noise, not evidence.
+MAX_PAGES = 200
+MAX_ENUMERATION_SECONDS = 120.0
 
 MISSING_CREDENTIAL_MARKERS = (
     "connection",
@@ -103,12 +132,12 @@ def daytona_api_url() -> str:
     ).rstrip("/")
 
 
-def list_secret_names() -> set[str]:
-    """Every Secret name in the Daytona organization. Names only; no value is ever read."""
-    url = f"{daytona_api_url()}/secrets"
+def _get(path: str, params: dict | None = None) -> httpx.Response:
+    url = f"{daytona_api_url()}{path}"
     try:
-        r = httpx.get(
+        return httpx.get(
             url,
+            params=params,
             headers={"Authorization": f"Bearer {daytona_key()}"},
             timeout=30.0,
         )
@@ -116,24 +145,101 @@ def list_secret_names() -> set[str]:
         raise SkipCheck(
             f"the Daytona Secrets API is not reachable at {url}: {e}"
         ) from e
+
+
+def list_secret_ids_by_name(fetch=None) -> dict[str, str]:
+    """Every Secret in the organization as `{name: id}`. Names and ids only; never a value.
+
+    Enumerates `GET /secret/paginated` by CURSOR to exhaustion. Three traps are load-bearing here,
+    all of them found live against a ~3510-secret organization:
+
+    1. `GET /secret` (the unpaginated route) is DEPRECATED and, per the api-client's own docs,
+       "fails for organizations with more than 1500 secrets". It cannot be used here at all.
+    2. The listing is cursor-paginated at 100 per response. A `page` parameter is SILENTLY
+       IGNORED: the same 100 ids come back for every "page", so anything built on `page` produces
+       a set difference that is pure noise in both directions. Only `cursor` advances.
+    3. `/secrets` (plural) does not exist and 404s. The real paths are `/secret`,
+       `/secret/paginated` and `/secret/{secretId}`.
+
+    `fetch` is a seam for tests: a callable taking `(cursor)` and returning the decoded page.
+    """
+    fetcher = fetch or _fetch_page
+    by_name: dict[str, str] = {}
+    cursor: str | None = None
+    seen_cursors: set[str] = set()
+    deadline = time.time() + MAX_ENUMERATION_SECONDS
+
+    for page in range(MAX_PAGES):
+        if time.time() > deadline:
+            raise SkipCheck(
+                f"enumerating Daytona Secrets exceeded {MAX_ENUMERATION_SECONDS}s after "
+                f"{page} page(s) and {len(by_name)} secret(s). An incomplete inventory cannot "
+                "produce a verdict, so this is a SKIP rather than a guess."
+            )
+        body = fetcher(cursor)
+        items = body.get("items")
+        if not isinstance(items, list):
+            raise SkipCheck(
+                f"unexpected Daytona Secrets payload shape: items is {type(items).__name__}"
+            )
+        for row in items:
+            if isinstance(row, dict) and row.get("name") and row.get("id"):
+                by_name[str(row["name"])] = str(row["id"])
+
+        cursor = body.get("nextCursor") or None
+        if cursor is None:
+            return by_name
+        # A cursor that repeats is not advancing. Left unchecked that is an infinite loop, and it
+        # is exactly the shape the ignored `page` parameter has.
+        if cursor in seen_cursors:
+            raise SkipCheck(
+                f"the Daytona Secrets cursor stopped advancing after {len(by_name)} secret(s); "
+                "the inventory is incomplete, so no verdict is possible"
+            )
+        seen_cursors.add(cursor)
+
+    raise SkipCheck(
+        f"enumerating Daytona Secrets hit the {MAX_PAGES}-page ceiling "
+        f"({len(by_name)} secret(s) seen) without reaching the end of the cursor. An incomplete "
+        "inventory cannot produce a verdict."
+    )
+
+
+def _fetch_page(cursor: str | None) -> dict:
+    params: dict[str, object] = {"limit": PAGE_LIMIT}
+    if cursor:
+        params["cursor"] = cursor
+    r = _get("/secret/paginated", params)
     if r.status_code != 200:
         raise SkipCheck(
-            f"the Daytona Secrets API answered HTTP {r.status_code} at {url}: {r.text[:200]}"
+            f"GET /secret/paginated answered HTTP {r.status_code}: {r.text[:200]}"
         )
     try:
         body = r.json()
     except ValueError as e:
+        raise SkipCheck("GET /secret/paginated returned a non-JSON body") from e
+    if not isinstance(body, dict):
         raise SkipCheck(
-            f"the Daytona Secrets API returned a non-JSON body at {url}"
-        ) from e
-    rows = body.get("items", body) if isinstance(body, dict) else body
-    if not isinstance(rows, list):
-        raise SkipCheck(
-            f"unexpected Daytona Secrets payload shape at {url}: {type(rows).__name__}"
+            f"unexpected Daytona Secrets payload shape: {type(body).__name__}"
         )
-    return {
-        str(row["name"]) for row in rows if isinstance(row, dict) and row.get("name")
-    }
+    return body
+
+
+def secret_exists(secret_id: str) -> bool:
+    """Is this Secret still present? `GET /secret/{secretId}`; a 404 means it is gone.
+
+    Polling by id keeps the settle loop O(secrets this run created) instead of re-enumerating a
+    ~3510-secret organization every few seconds.
+    """
+    r = _get(f"/secret/{secret_id}")
+    if r.status_code == 200:
+        return True
+    if r.status_code == 404:
+        return False
+    raise SkipCheck(
+        f"GET /secret/{{id}} answered HTTP {r.status_code}, so whether the Secret survived "
+        f"teardown is unknown: {r.text[:200]}"
+    )
 
 
 def daytona_agent_config(instructions: str) -> dict:
@@ -156,7 +262,7 @@ def daytona_agent_config(instructions: str) -> dict:
 def secrets_teardown(settle_seconds: int) -> dict:
     # Read the inventory BEFORE anything else: a missing key or an unreachable API is a SKIP, and
     # a SKIP must not leave a workflow behind.
-    before = list_secret_names()
+    before = set(list_secret_ids_by_name())
 
     hexid = uuid.uuid4().hex[:8]
     wf, var = create_workflow(hexid, "qa-secteardown")
@@ -185,8 +291,9 @@ def secrets_teardown(settle_seconds: int) -> dict:
                 "workflow_id": wf,
             }
 
-        during = list_secret_names()
-        created = sorted(n for n in (during - before) if RUN_SECRET_NAME.match(n))
+        during = list_secret_ids_by_name()
+        created = sorted(n for n in (set(during) - before) if RUN_SECRET_NAME.match(n))
+        created_ids = {n: during[n] for n in created}
         if not created:
             raise SkipCheck(
                 "the journey created no Secret with the runner's generated-name shape, so there "
@@ -206,12 +313,14 @@ def secrets_teardown(settle_seconds: int) -> dict:
         )
 
         # Deletion is asynchronous. Poll instead of sleeping once, so a fast teardown finishes
-        # fast and a slow one still gets its full budget.
+        # fast and a slow one still gets its full budget. Poll each created Secret BY ID rather
+        # than re-enumerating the organization: a full enumeration is ~36 requests here, and
+        # running that every few seconds would cost more than the whole rest of the cell.
         deadline = time.time() + settle_seconds
         leftover = sorted(created)
         while time.time() < deadline:
             time.sleep(5.0)
-            leftover = sorted(set(created) & list_secret_names())
+            leftover = sorted(n for n in created if secret_exists(created_ids[n]))
             if not leftover:
                 break
 
