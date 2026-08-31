@@ -160,9 +160,9 @@ export const AttachmentCard = ({
 
     // A failed card drops its view and playback affordances — only dismissal is left.
     const tile = failed ? (
-        <div className={`flex ${TILE} items-center justify-center bg-colorErrorBg text-colorError`}>
-            <WarningCircle size={18} weight="fill" />
-        </div>
+        // Bare icon, no tile box: its background is the card's own, so a 32px square would be
+        // invisible and would only push the reason away from the icon that introduces it.
+        <WarningCircle size={18} weight="fill" className="ml-1.5 shrink-0 text-colorError" />
     ) : loading ? (
         <div className={`${TILE} animate-pulse bg-colorFillTertiary`} />
     ) : isAudio ? (
