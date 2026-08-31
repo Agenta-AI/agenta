@@ -849,7 +849,7 @@ class TestMintPolicyResolution:
         assert policy is not None
         assert policy.grant_usd == 5.0
         assert policy.global_daily == 1000
-        assert policy.key_tpm_limit == 200_000
+        assert policy.key_tpm_limit == 1_000_000
         assert policy.block_digit_locals is False
         # The built-in domain list still applies through the union.
         assert policy.is_freemail("gmail.com") is True
