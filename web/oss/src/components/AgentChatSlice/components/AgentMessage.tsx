@@ -639,9 +639,20 @@ const AgentMessage = ({
             ))}
         </div>
     ) : null
-    // Attachments with no words: there is no bubble to paint, only the cards.
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
     const hasBubbleContent =
-        renderItems.some((item) => item.kind !== "files") || showError || isError
+        renderItems.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !((item.part as {text?: string}).text ?? "").trim()
+                ),
+        ) ||
+        showError ||
+        isError
 
     // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
     // never overlays the last content line and never reaches the next turn. The lane is always

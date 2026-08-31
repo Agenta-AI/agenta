@@ -292,6 +292,7 @@ export const TurnRow = ({
                 if (item.kind === "files") return null
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
+                        if (!(item.part.text ?? "").trim()) return null
                         // What the user typed renders literally — markdown in your own words
                         // is surprising (desktop parity).
                         if (turn.isUser) {
@@ -373,9 +374,18 @@ export const TurnRow = ({
             ))}
         </div>
     ) : null
-    // Attachments with no words: there is no bubble to paint, only the cards.
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
     const hasBubbleContent =
-        turn.items.some((item) => item.kind !== "files") || turn.status.showError
+        turn.items.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !(item.part.text ?? "").trim()
+                ),
+        ) || turn.status.showError
 
     // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
     const content = turn.isUser ? (
