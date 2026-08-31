@@ -87,3 +87,10 @@ def test_unresolved_snippet_token_raises_clear_error():
         )
     assert "unresolved" in str(exc.value).lower()
     assert exc.value.index == 0
+
+
+def test_literal_ag_embed_in_body_is_not_an_unresolved_embed():
+    skill = parse_skill_template(
+        _skill(body="Document the @ag.embed mapping in the config schema.")
+    )
+    assert skill.body == "Document the @ag.embed mapping in the config schema."
