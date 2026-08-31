@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
@@ -56,15 +56,6 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
             }),
         [onAfterCommit, onCommitted],
     )
-
-    // A commit can land while this playground is closed — the agent commits itself mid-session,
-    // or the same agent is driven from another surface. The invalidation that follows a commit
-    // only refetches ACTIVE observers, and this playground had none, so on return the revision
-    // queries were still inside their staleTime and answered with the superseded version (#6380).
-    // Revalidate once on mount: here the observers are active, so this actually refetches.
-    useEffect(() => {
-        invalidateAgentCommittedRevisionCache()
-    }, [])
 
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const handleSwitchVariant = useCallback(
