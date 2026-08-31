@@ -61,12 +61,14 @@ REBUILD instead of waiting (see the instruments below).
 
 ## The instruments
 
-- `services/runner/scripts/probe-secret-propagation.ts` measures the stuck-sandbox rate
-  with the runner's own SDK calls, using the masked-echo instrument (api.openai.com's 401
-  body; an echo service cannot work — response scrubbing blinds it). `--delete-old` adds
-  the eviction ordering, which the 2026-08-30 runs showed is NOT a factor. Run it from an
-  environment holding the runner's Daytona credentials; each run costs about one
-  sandbox-minute.
+- The stuck-sandbox rate was measured with a throwaway probe script, not tracked here: it
+  created sandboxes through the runner's own Daytona SDK calls and read the masked-echo
+  instrument (api.openai.com's 401 body, which names the credential it received). An echo
+  service cannot serve as the instrument — Daytona scrubs real credential values out of
+  responses, so an echo of a HEALTHY credential comes back looking like a placeholder. A
+  variant that deleted the previous Secret first tested the eviction ordering, which the
+  2026-08-30 runs showed is NOT a factor. Each run costs about one sandbox-minute and needs
+  an environment holding the runner's Daytona credentials.
 - The runner now logs `[daytona-secrets] allocated/deleted n=… hosts=[…] ms=…` (counts,
   hosts, and timing only — never ids, names, placeholders, or values), so future incidents
   carry their own create/delete timeline instead of needing it reconstructed from eviction
