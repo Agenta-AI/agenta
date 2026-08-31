@@ -367,11 +367,6 @@ export const TurnRow = ({
                                     file.filename || file.mediaType || "attachment",
                                 )
                             }
-                            onView={
-                                file.url
-                                    ? () => window.open(file.url, "_blank", "noopener,noreferrer")
-                                    : undefined
-                            }
                         />
                     ))}
                 </AttachmentCardGrid>
