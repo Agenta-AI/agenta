@@ -110,6 +110,11 @@ export function normalizeDesiredState(
     provider: request.sandbox ?? null,
     harness: request.harness ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
+    // The agent artifact id lives here because the mount it selects is created with the
+    // sandbox and has no live remount route: a changed (or newly present) id can only be
+    // served by a rebuild (audit finding 4). The rest of `runContext` stays out of every
+    // facet — it is per-turn metadata.
+    agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
   });
 
   // RUNTIME: what is baked into the agent daemon at start. Model connection, process
