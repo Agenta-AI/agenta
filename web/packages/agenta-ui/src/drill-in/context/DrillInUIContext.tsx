@@ -107,6 +107,26 @@ export interface WorkflowReferenceUI {
     typeLabel?: string
 }
 
+/**
+ * One workflow, resolved far enough for the subagent picker to both DISPLAY it and BIND to it.
+ *
+ * Display and binding are deliberately the same object. They come from the same revision, and
+ * splitting them let a row show one revision's model while the reference bound to another.
+ */
+export interface SubagentCatalogEntry {
+    /** Agent, chat, completion, custom or evaluator. Only agents belong in the Subagents section. */
+    type?: WorkflowReferenceType
+    /** The variant to follow. Without it a `ref_by: "variant"` reference is ambiguous, so an
+     *  entry with no variant cannot be added and the picker must say so rather than write one. */
+    variantId?: string
+    /** The model the agent runs on, for the row's meta line. */
+    model?: string
+    /** Provider display name, for the model's mark. */
+    provider?: string
+    /** Integration keys this agent has connected. */
+    integrations: string[]
+}
+
 /** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
 export interface WorkflowRevisionUI {
     /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
@@ -211,6 +231,24 @@ export interface WorkflowReferenceBridge {
         typeBySlug: Record<string, WorkflowReferenceType | undefined>
         /** Finer-grained badge text per slug (e.g. an evaluator's kind), overriding the type label. */
         labelBySlug?: Record<string, string | undefined>
+        loading: boolean
+    }
+    /**
+     * Everything the Subagents picker needs, for a batch of workflows, in ONE pass.
+     *
+     * Reads the same cached latest-revision fetch `useWorkflowTypes` performs, so adding the
+     * model and the connected apps to a row costs no extra request. A picker that resolved these
+     * per row would fire a request per visible agent.
+     *
+     * `loading` matters to the caller: a row must not print "No connected apps" for an agent
+     * whose revision has not arrived.
+     *
+     * Required, not optional: it is a hook, and a hook that may be absent cannot be called without
+     * breaking the rules of hooks at the one call site that needs it. There is a single
+     * implementation of this bridge, so requiring it costs nothing.
+     */
+    useSubagentCatalog: (workflows: WorkflowReferenceUI[]) => {
+        bySlug: Record<string, SubagentCatalogEntry | undefined>
         loading: boolean
     }
 }

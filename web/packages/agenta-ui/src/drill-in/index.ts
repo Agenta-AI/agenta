@@ -79,6 +79,7 @@ export type {
     DrillInUIProviderProps,
     GatewayToolsBridge,
     WorkflowReferenceBridge,
+    SubagentCatalogEntry,
     WorkflowReferenceUI,
     WorkflowReferenceType,
     WorkflowRevisionUI,

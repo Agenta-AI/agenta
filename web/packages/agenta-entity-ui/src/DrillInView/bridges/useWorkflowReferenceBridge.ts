@@ -34,6 +34,7 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {
+    SubagentCatalogEntry,
     WorkflowConfigPart,
     WorkflowConfigPayload,
     WorkflowEnvironmentUI,
@@ -45,6 +46,9 @@ import type {
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
+
+import {modelIdFromConfig} from "../SchemaControls/connectionUtils"
+import {buildIntegrationRows} from "../SchemaControls/toolUtils"
 
 // A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
 // variant-axis version picker). Keyed by workflow id; the project is singular in scope.
@@ -120,10 +124,84 @@ interface ReferenceTypeInfo {
     type: WorkflowReferenceType | undefined
     /** For evaluators: the evaluator template key (from the revision URI), for a finer badge label. */
     evaluatorKey: string | null
+    /** The variant the latest revision belongs to. A `ref_by: "variant"` reference without this is
+     *  ambiguous, so the subagent picker cannot bind one without it. */
+    variantId: string | null
+    /** What the subagent picker's rows show. Read from the SAME revision this query already
+     *  fetches for the type, so displaying them costs no extra request. */
+    model: string | null
+    provider: string | null
+    /** Integration keys this agent has connected, e.g. ["github", "slack"]. */
+    integrations: string[]
 }
 
-// Resolve type + evaluator-key for a set of workflow slugs. Keyed by the sorted slug set so the batch
-// is cached and only refetches when the set changes.
+/** The variant a revision belongs to. The field has carried two names over time. */
+function variantIdOf(revision: Workflow): string | null {
+    const r = revision as unknown as Record<string, unknown>
+    const id = r.workflow_variant_id ?? r.variant_id
+    return typeof id === "string" && id ? id : null
+}
+
+/**
+ * The model, provider and connected apps of one workflow's latest revision.
+ *
+ * Every field is optional on purpose: this runs over every workflow in the project, including
+ * prompts and evaluators that have no agent shape at all. A missing field means "this workflow
+ * does not have one", never "the request failed" — the query's own loading and error state says
+ * that, and the picker must not print "No connected apps" while it is still loading.
+ */
+function summarizeRevision(revision: Workflow): {
+    model: string | null
+    provider: string | null
+    integrations: string[]
+} {
+    const cfg = agentConfigOf(revision)
+    if (!cfg) return {model: null, provider: null, integrations: []}
+    // Agents nest the model under `llm`; prompt-shaped configs use `llm_config`.
+    const llm = isPlainRecord(cfg.llm)
+        ? cfg.llm
+        : isPlainRecord(cfg.llm_config)
+          ? cfg.llm_config
+          : null
+    const model = llm ? modelIdFromConfig(llm.model ?? llm) : null
+    const provider = llm && typeof llm.provider === "string" ? llm.provider : null
+    const tools = Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
+    // The same parser the config panel uses, so the picker cannot disagree with the panel about
+    // which apps an agent has.
+    const integrations = buildIntegrationRows(tools).map((row) => row.integration)
+    return {model, provider, integrations}
+}
+
+/**
+ * The agent template inside a revision. It is NOT on `data` directly: `resolveParameters` unwraps
+ * the envelope, and an agent's config then sits either flat on the result or one level down under
+ * its own key (`{agent: {...}}`). Reading `data.llm` found nothing, which is why every row first
+ * showed no model and no connected apps.
+ *
+ * Same unwrapping as `buildConfigParts`, which is the surface that already renders these configs.
+ */
+function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
+    const params = resolveParameters(revision.data as Parameters<typeof resolveParameters>[0])
+    if (!isPlainRecord(params)) return null
+    if (isPromptLike(params)) return params
+    for (const value of Object.values(params)) {
+        if (isPlainRecord(value) && isPromptLike(value)) return value
+    }
+    return null
+}
+
+const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
+    type: undefined,
+    evaluatorKey: null,
+    variantId: null,
+    model: null,
+    provider: null,
+    integrations: [],
+}
+
+// Resolve type, binding and display summary for a set of workflow slugs. Keyed by the sorted slug
+// set so the batch is cached and only refetches when the set changes. ONE revision fetch per
+// workflow serves all of it; nothing here may add a per-row request.
 const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
@@ -140,7 +218,7 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 projectId: projectId as string,
                                 workflowRef: {slug},
                             })
-                            if (!revision) return [slug, {type: undefined, evaluatorKey: null}]
+                            if (!revision) return [slug, EMPTY_REFERENCE_INFO]
                             return [
                                 slug,
                                 {
@@ -148,10 +226,12 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                     evaluatorKey: revision.flags?.is_evaluator
                                         ? parseWorkflowKeyFromUri(revision.data?.uri)
                                         : null,
+                                    variantId: variantIdOf(revision),
+                                    ...summarizeRevision(revision),
                                 },
                             ]
                         } catch {
-                            return [slug, {type: undefined, evaluatorKey: null}]
+                            return [slug, EMPTY_REFERENCE_INFO]
                         }
                     }),
                 )
@@ -224,6 +304,44 @@ function useWorkflowReferenceTypes(workflows: WorkflowReferenceUI[]): {
         }
         return {typeBySlug, labelBySlug, loading: Boolean(res.isLoading)}
     }, [res.data, res.isLoading, evaluatorNames])
+}
+
+/**
+ * Everything the Subagents picker needs for a batch of workflows.
+ *
+ * Deliberately reads the SAME atom family `useWorkflowReferenceTypes` reads, so the model and the
+ * connected apps ride along on a revision fetch that already happened. Resolving them per row
+ * would have fired one request per visible agent.
+ */
+function useSubagentCatalog(workflows: WorkflowReferenceUI[]): {
+    bySlug: Record<string, SubagentCatalogEntry | undefined>
+    loading: boolean
+} {
+    const slugsKey = useMemo(
+        () =>
+            workflows
+                .map((w) => w.slug)
+                .filter(Boolean)
+                .sort()
+                .join("\n"),
+        [workflows],
+    )
+    const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
+
+    return useMemo(() => {
+        const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
+        const bySlug: Record<string, SubagentCatalogEntry | undefined> = {}
+        for (const [slug, info] of Object.entries(data)) {
+            bySlug[slug] = {
+                type: info.type,
+                variantId: info.variantId ?? undefined,
+                model: info.model ?? undefined,
+                provider: info.provider ?? undefined,
+                integrations: info.integrations,
+            }
+        }
+        return {bySlug, loading: Boolean(res.isLoading)}
+    }, [res.data, res.isLoading])
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -591,6 +709,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             useWorkflowRevisions,
             useWorkflowEnvironments,
             useWorkflowTypes: useWorkflowReferenceTypes,
+            useSubagentCatalog,
         }),
         [activate, workflows, workflowsLoading, projectId, store],
     )

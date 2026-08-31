@@ -74,6 +74,10 @@ import {
 } from "./agentTemplate/sectionChanges"
 import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
 import {
+    ConnectedSubagentList,
+    SubagentDrawerContainer,
+} from "./agentTemplate/SubagentDrawerContainer"
+import {
     selectSubagentTools,
     SubagentList,
     ToolManagementList,
@@ -95,7 +99,6 @@ import {
     type IntegrationRow,
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
-import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
@@ -420,7 +423,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const {
         tools,
         handleAddWorkflowReference,
-        referenceableWorkflows,
+        handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
         setIntegrationPermissions,
@@ -465,6 +468,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // built-ins, and legacy harness built-ins render nowhere, so no count includes them.
     const integrationCount = integrationRows.length
     const subagentCount = subagentTools.length
+    // What the picker marks as already added. Read from the saved tools, not from the picker's own
+    // state, so adding one closes the loop through the config the same way removing one does.
+    const savedSubagentSlugs = useMemo(
+        () =>
+            subagentTools
+                .map(({item}) => {
+                    const t = (item ?? {}) as Record<string, unknown>
+                    return typeof t.slug === "string" ? t.slug : ""
+                })
+                .filter(Boolean),
+        [subagentTools],
+    )
 
     // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
@@ -955,8 +970,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         ? headerAddButton("Add subagent", openSubagentSelector)
                         : undefined,
                 defaultOpen: subagentCount > 0,
-                content: (
-                    <SubagentList
+                // The connected list resolves each saved reference's type, so one pointing at a
+                // prompt or an evaluator is marked rather than passed off as an agent. Without a
+                // bridge there is nothing to resolve it with, so the plain list renders instead.
+                content: workflowReference?.enabled ? (
+                    <ConnectedSubagentList
+                        bridge={workflowReference}
                         entries={subagentTools}
                         openEdit={openEdit}
                         removeItem={removeItem}
@@ -971,6 +990,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                 />
                             ) : undefined
                         }
+                    />
+                ) : (
+                    <SubagentList
+                        entries={subagentTools}
+                        openEdit={openEdit}
+                        removeItem={removeItem}
+                        closeEditor={closeEditor}
+                        disabled={disabled}
+                        statusFor={toolStatusFor}
                     />
                 ),
             },
@@ -1191,14 +1219,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             </SectionDrawer>
 
             {workflowReference?.enabled && (
-                <WorkflowReferenceSelector
+                <SubagentDrawerContainer
                     open={referenceSelectorOpen}
                     onClose={() => setReferenceSelectorOpen(false)}
-                    workflows={referenceableWorkflows}
                     bridge={workflowReference}
-                    onSelect={(payload) => {
-                        void handleAddWorkflowReference(payload)
-                        setReferenceSelectorOpen(false)
+                    revisionId={revisionId}
+                    savedSlugs={savedSubagentSlugs}
+                    onAdd={handleAddWorkflowReference}
+                    onRemoveSlug={(slug) => {
+                        handleRemoveReferenceBySlug(slug)
+                        closeEditor()
                     }}
                 />
             )}

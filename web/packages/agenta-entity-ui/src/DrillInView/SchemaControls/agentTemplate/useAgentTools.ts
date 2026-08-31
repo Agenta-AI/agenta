@@ -127,6 +127,13 @@ export function useAgentTools({
         [tools, setTools],
     )
 
+    // Removal by SLUG, not by name: a reference's display name is editable and need not match the
+    // workflow it points at, so removing by name can miss the entry or hit a different tool.
+    const handleRemoveReferenceBySlug = useCallback(
+        (slug: string) => setTools(tools.filter((tool) => toolReferenceSlug(tool) !== slug)),
+        [tools, setTools],
+    )
+
     const handleRemoveBuiltinTool = useCallback(
         (toolToRemove: ToolObj) => {
             let removed = false
@@ -207,22 +214,14 @@ export function useAgentTools({
         [tools, setTools],
     )
 
-    // Workflows not yet referenced as a tool — the pool the selector drawer offers.
-    const referenceableWorkflows = useMemo(() => {
-        const referenced = new Set(
-            tools.map((t) => toolReferenceSlug(t)).filter((s): s is string => Boolean(s)),
-        )
-        return (workflowReference?.workflows ?? []).filter((w) => !referenced.has(w.slug))
-    }, [tools, workflowReference])
-
     return {
         tools,
         handleAddTool,
         handleAddWorkflowReference,
         handleRemoveToolByName,
+        handleRemoveReferenceBySlug,
         handleRemoveBuiltinTool,
         selectedToolNames,
-        referenceableWorkflows,
         integrationRows,
         setIntegrationConnection,
         setIntegrationPermissions,

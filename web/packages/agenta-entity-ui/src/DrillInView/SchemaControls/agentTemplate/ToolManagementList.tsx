@@ -260,6 +260,10 @@ export function selectSubagentTools(
 
 export interface SubagentListProps {
     entries: IndexedTool[]
+    /** Saved references whose workflow is NOT an agent (a prompt, an evaluator, a custom
+     *  workflow). They stay listed and removable, marked, so a reference saved before Subagents
+     *  meant agents only cannot become invisible. Nothing new can be added for these. */
+    nonAgentSlugs?: Set<string>
     openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
@@ -273,6 +277,22 @@ export interface SubagentListProps {
  * The Subagents section body: a flat row list, no sub-header. The section header owns the add
  * button, which opens the workflow picker directly.
  */
+/**
+ * Tag a row whose workflow is not an agent. Subagents means agent workflows, but a reference saved
+ * before that was true can point at a prompt or an evaluator. Marking it says why it looks out of
+ * place, and keeps it removable, instead of hiding it.
+ */
+function markNonAgent(
+    descriptor: ReturnType<typeof describeTool>,
+    item: unknown,
+    nonAgentSlugs?: Set<string>,
+): ReturnType<typeof describeTool> {
+    if (!nonAgentSlugs?.size) return descriptor
+    const slug = (item as Record<string, unknown> | null)?.slug
+    if (typeof slug !== "string" || !nonAgentSlugs.has(slug)) return descriptor
+    return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
+}
+
 /** Stable per-entry key: the saved reference's own identity, never its array position. */
 function subagentKey(item: unknown, index: number): string {
     const t = (item ?? {}) as Record<string, unknown>
@@ -294,6 +314,7 @@ function subagentKey(item: unknown, index: number): string {
 
 export function SubagentList({
     entries,
+    nonAgentSlugs,
     openEdit,
     removeItem,
     closeEditor,
@@ -311,7 +332,7 @@ export function SubagentList({
             {entries.map(({item, index}) => (
                 <ItemRow
                     key={subagentKey(item, index)}
-                    descriptor={describeTool(item)}
+                    descriptor={markNonAgent(describeTool(item), item, nonAgentSlugs)}
                     onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
                     onRemove={() => {
                         removeItem("tool", index)
