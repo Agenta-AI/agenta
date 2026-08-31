@@ -2,14 +2,15 @@
  *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
 import {useMemo, useState} from "react"
 
-import type {SubagentDetail} from "@agenta/ui/drill-in"
+import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {AutosizeTextarea, Badge, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretUp, Cube, FileText, Info, Lock} from "@phosphor-icons/react"
 
-import {logoFamily, useFamilyMap} from "./agentTemplate/SubagentDrawerContainer"
+import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
+import {useIntegrationLogos} from "./hooks/useIntegrationLogos"
 import {ProviderLogo} from "./sectionGroups"
 
 export interface ReferenceToolFormViewProps {
@@ -74,25 +75,41 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
     )
 }
 
-export function ReferenceToolFormView({value, onChange, disabled}: ReferenceToolFormViewProps) {
-    const tool = value ?? {}
-    const slug = typeof tool.slug === "string" ? tool.slug : ""
+export function ReferenceToolFormView(props: ReferenceToolFormViewProps) {
     const {workflowReference} = useDrillInUI()
-    const {detail, loading} = workflowReference?.useSubagentDetail?.(slug) ?? {
-        detail: null,
-        loading: false,
-    }
+    // Split so the bridge's hook is never called through an optional member: each branch is its
+    // own component, so React remounts rather than shifting hook order.
+    return workflowReference ? (
+        <ConnectedReferenceToolFormView bridge={workflowReference} {...props} />
+    ) : (
+        <SubagentDetailPanel {...props} detail={null} loading={false} />
+    )
+}
+
+function ConnectedReferenceToolFormView({
+    bridge,
+    ...props
+}: ReferenceToolFormViewProps & {bridge: WorkflowReferenceBridge}) {
+    const slug = typeof props.value?.slug === "string" ? props.value.slug : ""
+    const {detail, loading} = bridge.useSubagentDetail(slug)
+    return <SubagentDetailPanel {...props} detail={detail} loading={loading} />
+}
+
+function SubagentDetailPanel({
+    value,
+    onChange,
+    disabled,
+    detail,
+    loading,
+}: ReferenceToolFormViewProps & {detail: SubagentDetail | null; loading: boolean}) {
+    const tool = value ?? {}
 
     // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
-    const appKeysKey = useMemo(
-        () =>
-            (detail?.integrations ?? [])
-                .map((a) => a.key)
-                .sort()
-                .join("\n"),
+    const appKeys = useMemo(
+        () => (detail?.integrations ?? []).map((a) => a.key),
         [detail?.integrations],
     )
-    const appByKey = useFamilyMap(appKeysKey, logoFamily)
+    const appByKey = useIntegrationLogos(appKeys)
 
     const description = typeof tool.description === "string" ? tool.description : ""
     const ProviderIcon = detail?.provider ? getProviderIcon(detail.provider) : null
@@ -104,7 +121,9 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
                 <AutosizeTextarea
                     value={description}
                     disabled={disabled}
-                    onChange={(e) => onChange({...tool, description: e.target.value})}
+                    onChange={(e) =>
+                        onChange(normalizeSubagentReference({...tool, description: e.target.value}))
+                    }
                     aria-label="Subagent description"
                 />
                 <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
@@ -163,7 +182,7 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
                                 {detail?.integrations.length ? (
                                     <div className="flex flex-col gap-2">
                                         {detail.integrations.map((app) => {
-                                            const catalog = appByKey.get(app.key)?.data?.integration
+                                            const catalog = appByKey.get(app.key)
                                             return (
                                                 <span
                                                     key={app.key}

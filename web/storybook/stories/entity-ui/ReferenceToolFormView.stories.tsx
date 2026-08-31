@@ -59,19 +59,21 @@ const DETAIL: SubagentDetail = {
     instructions: {fileName: "AGENTS.md", text: AGENTS_MD, wordCount: 2140},
 }
 
-/** A bridge that resolves one subagent. Only the two members this panel touches are real. */
+/** A bridge that resolves one subagent. Only the members this panel touches are real. */
 const bridgeWith = (detail: SubagentDetail | null) =>
     ({
         enabled: true,
         workflows: [],
         workflowsLoading: false,
-        resolveSubagentDetail: async () => detail,
+        useSubagentDetail: () => ({detail, loading: false}),
         agentHref: (id: string) => `/agents/${id}`,
     }) as unknown as WorkflowReferenceBridge
 
-const Frame = (bridge: WorkflowReferenceBridge, children: React.ReactNode) => (
+const Frame = (bridge: WorkflowReferenceBridge | undefined, children: React.ReactNode) => (
     <div data-vrt-subject className="w-[520px]">
-        <DrillInUIProvider components={{workflowReference: bridge}}>{children}</DrillInUIProvider>
+        <DrillInUIProvider components={bridge ? {workflowReference: bridge} : {}}>
+            {children}
+        </DrillInUIProvider>
     </div>
 )
 
@@ -97,10 +99,10 @@ export const NothingConfigured: Story = {
         ),
 }
 
-/** No host bridge, so nothing resolves. The description still edits: it is local. */
+/** No host bridge at all, so nothing resolves. The description still edits: it is local. */
 export const WithoutBridge: Story = {
     args: {value: TOOL, onChange: noop},
-    render: (args) => Frame(bridgeWith(null), <ReferenceToolFormView {...args} value={TOOL} />),
+    render: (args) => Frame(undefined, <ReferenceToolFormView {...args} value={TOOL} />),
 }
 
 /** Read-only revision: the description cannot be edited either. */

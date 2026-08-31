@@ -83,8 +83,6 @@ export type {
     SubagentDetail,
     WorkflowReferenceUI,
     WorkflowReferenceType,
-    WorkflowRevisionUI,
-    WorkflowEnvironmentUI,
     WorkflowReferencePayload,
     WorkflowConfigPart,
     WorkflowConfigPayload,

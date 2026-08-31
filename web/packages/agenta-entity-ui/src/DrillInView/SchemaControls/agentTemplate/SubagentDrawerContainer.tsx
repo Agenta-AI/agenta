@@ -1,7 +1,6 @@
 /** The two connected halves of the Subagents section: the picker and the saved list. */
 import {useCallback, useMemo} from "react"
 
-import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
 import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {agentIconChrome} from "@agenta/ui/agent-icon"
 import type {
@@ -10,25 +9,16 @@ import type {
     WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
 import {Robot} from "@phosphor-icons/react"
-import {atom, useAtomValue, type Atom} from "jotai"
+import {useAtomValue} from "jotai"
+
+import {useFamilyMap} from "../hooks/useFamilyMap"
+import {useIntegrationLogos} from "../hooks/useIntegrationLogos"
 
 import {AddSubagentDrawer, type SubagentOption} from "./AddSubagentDrawer"
 import {toolReferenceSlug} from "./itemDescriptors"
 import {SubagentList, type SubagentListProps} from "./ToolManagementList"
 
-/** Read one atom-family entry per key in one subscription. Keys join into a string so the
- *  memo has one stable dependency; an array would rebuild the atom every render. */
-export function useFamilyMap<T>(keysKey: string, family: (key: string) => Atom<T>): Map<string, T> {
-    const derived = useMemo(() => {
-        const keys = keysKey ? keysKey.split("\n") : []
-        return atom((get) => keys.map((key) => [key, get(family(key))] as const))
-    }, [keysKey, family])
-    const pairs = useAtomValue(derived)
-    return useMemo(() => new Map(pairs), [pairs])
-}
-
 const iconFamily = (id: string) => agentIconAtomFamily(id)
-export const logoFamily = (key: string) => toolIntegrationDetailQueryFamily(key)
 
 export interface SubagentDrawerContainerProps {
     open: boolean
@@ -56,7 +46,12 @@ export function SubagentDrawerContainer({
         () => (open ? bridge.workflows.map((w) => w.slug).filter(Boolean) : []),
         [open, bridge.workflows],
     )
-    const {bySlug, loading: catalogLoading} = bridge.useWorkflowReferenceCatalog(projectSlugs)
+    const {
+        bySlug,
+        failedSlugs,
+        loading: catalogLoading,
+        retry,
+    } = bridge.useWorkflowReferenceCatalog(projectSlugs)
 
     // The agent being edited, matched on its WORKFLOW id. Offering it to itself loops the runner.
     const selfWorkflowId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId ?? "")) as
@@ -87,14 +82,11 @@ export function SubagentDrawerContainer({
     const iconById = useFamilyMap(idsKey, iconFamily)
 
     // Logos for every app any listed agent connects, resolved once for the batch.
-    const logoKeysKey = useMemo(() => {
-        const keys = new Set<string>()
-        for (const wf of agents) {
-            for (const key of bySlug[wf.slug]?.integrations ?? []) keys.add(key)
-        }
-        return [...keys].sort().join("\n")
-    }, [agents, bySlug])
-    const logoByKey = useFamilyMap(logoKeysKey, logoFamily)
+    const logoKeys = useMemo(
+        () => agents.flatMap((wf) => bySlug[wf.slug]?.integrations ?? []),
+        [agents, bySlug],
+    )
+    const logoByKey = useIntegrationLogos(logoKeys)
 
     const options = useMemo<SubagentOption[]>(() => {
         const saved = new Set(savedSlugs)
@@ -107,10 +99,9 @@ export function SubagentDrawerContainer({
                 icon: iconById.get(wf.id) ?? null,
                 model: entry?.model,
                 provider: entry?.provider,
-                integrations: (entry?.integrations ?? []).map((key) => {
-                    const detail = logoByKey.get(key)?.data?.integration
-                    return {key, name: detail?.name ?? key, logo: detail?.logo ?? null}
-                }),
+                integrations: (entry?.integrations ?? []).map(
+                    (key) => logoByKey.get(key) ?? {key, name: key, logo: null},
+                ),
                 added: saved.has(wf.slug),
             }
         })
@@ -121,7 +112,7 @@ export function SubagentDrawerContainer({
         async (selected: SubagentOption[]) => {
             // No pinned version: the server reads a bare variant slug as the latest revision.
             for (const option of selected) {
-                await onAdd({slug: option.id, refBy: "variant"})
+                await onAdd({slug: option.id})
             }
         },
         [bySlug, onAdd],
@@ -140,6 +131,8 @@ export function SubagentDrawerContainer({
             onClose={onClose}
             options={options}
             loading={catalogLoading || bridge.workflowsLoading}
+            failedCount={failedSlugs.length}
+            onRetry={retry}
             onAdd={handleAdd}
             onRemove={handleRemove}
         />

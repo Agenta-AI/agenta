@@ -202,3 +202,17 @@ export const AllAlreadyAdded: Story = {
     },
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
+
+/** Two agents failed to load. The list says so and offers a retry, rather than hiding them. */
+export const SomeFailedToLoad: Story = {
+    args: {
+        open: true,
+        onClose: noop,
+        onAdd: noop,
+        onRemove: noop,
+        options: OPTIONS.slice(0, 3),
+        failedCount: 2,
+        onRetry: noop,
+    },
+    render: (args) => Frame(<AddSubagentDrawer {...args} />),
+}

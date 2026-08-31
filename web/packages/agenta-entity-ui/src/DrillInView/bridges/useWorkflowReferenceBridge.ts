@@ -12,12 +12,10 @@
  */
 import {useMemo} from "react"
 
-import {appEnvironmentsQueryAtomFamily} from "@agenta/entities/environment"
 import type {RunnablePort} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
     nonArchivedWorkflowsAtom,
-    queryWorkflowRevisionsByWorkflow,
     resolveInputSchema as resolveWorkflowInputSchema,
     resolveOutputSchema as resolveWorkflowOutputSchema,
     resolveParameters,
@@ -35,12 +33,9 @@ import type {
     SubagentDetail,
     WorkflowConfigPart,
     WorkflowConfigPayload,
-    WorkflowEnvironmentUI,
     WorkflowReferenceBridge,
     WorkflowReferenceCatalogEntry,
     WorkflowReferenceType,
-    WorkflowReferenceUI,
-    WorkflowRevisionUI,
 } from "@agenta/ui/drill-in"
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -50,53 +45,6 @@ import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
 import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
 import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
 import {buildIntegrationRows} from "../SchemaControls/toolUtils"
-
-// A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
-// variant-axis version picker). Keyed by workflow id; the project is singular in scope.
-const workflowRevisionsQueryAtomFamily = atomFamily((workflowId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(projectIdAtom)
-        return {
-            queryKey: ["agentWorkflowRevisions", workflowId, projectId],
-            queryFn: () => queryWorkflowRevisionsByWorkflow(workflowId, projectId as string),
-            enabled: Boolean(workflowId) && Boolean(projectId),
-            staleTime: 60_000,
-        }
-    }),
-)
-
-function useWorkflowRevisions(workflow: WorkflowReferenceUI | null): {
-    revisions: WorkflowRevisionUI[]
-    isLoading: boolean
-} {
-    const res = useAtomValue(workflowRevisionsQueryAtomFamily(workflow?.id ?? ""))
-    const revisions = useMemo<WorkflowRevisionUI[]>(() => {
-        const list = (res.data?.workflow_revisions ?? []) as Record<string, unknown>[]
-        return list
-            .map((r) => ({
-                version: r.version != null ? String(r.version) : "",
-                label: typeof r.message === "string" ? (r.message as string) : undefined,
-            }))
-            .filter((r) => Boolean(r.version) && Number(r.version) > 0)
-            .sort((a, b) => Number(b.version) - Number(a.version))
-    }, [res.data])
-    return {revisions, isLoading: Boolean(res.isLoading)}
-}
-
-function useWorkflowEnvironments(workflow: WorkflowReferenceUI | null): {
-    environments: WorkflowEnvironmentUI[]
-    isLoading: boolean
-} {
-    const res = useAtomValue(appEnvironmentsQueryAtomFamily(workflow?.id ?? ""))
-    const environments = useMemo<WorkflowEnvironmentUI[]>(
-        () =>
-            (res.data ?? [])
-                .filter((env) => Boolean(env.slug))
-                .map((env) => ({slug: env.slug, name: env.name || env.slug})),
-        [res.data],
-    )
-    return {environments, isLoading: Boolean(res.isLoading)}
-}
 
 // Map the molecule's canonical workflow type down to the four the reference picker badges.
 function toReferenceType(t: WorkflowType | null | undefined): WorkflowReferenceType | undefined {
@@ -130,6 +78,8 @@ interface ReferenceTypeInfo {
     provider: string | null
     /** Integration keys this agent has connected, e.g. ["github", "slack"]. */
     integrations: string[]
+    /** This slug's revision fetch failed. Without it the agent silently leaves the picker. */
+    failed?: boolean
 }
 
 /** The workflow a revision belongs to. */
@@ -209,7 +159,9 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 },
                             ]
                         } catch {
-                            return [slug, EMPTY_REFERENCE_INFO]
+                            // Recorded, never silently empty: an unmarked failure drops the agent
+                            // from the picker and caches that absence for five minutes.
+                            return [slug, {...EMPTY_REFERENCE_INFO, failed: true}]
                         }
                     }),
                 )
@@ -288,7 +240,6 @@ function subagentDetailOf(revision: Workflow): SubagentDetail {
             : null
     return {
         workflowId: workflowIdOf(revision) ?? undefined,
-        name: typeof revision.name === "string" ? revision.name : undefined,
         description: typeof revision.description === "string" ? revision.description : undefined,
         model: summary.model ?? undefined,
         provider: summary.provider ?? undefined,
@@ -303,16 +254,21 @@ function subagentDetailOf(revision: Workflow): SubagentDetail {
 /** Everything the Subagents picker needs for a batch of workflows, off one cached revision fetch. */
 function useWorkflowReferenceCatalog(slugs: string[]): {
     bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
+    failedSlugs: string[]
     loading: boolean
+    retry: () => void
 } {
     // Sorted and joined so the same set of slugs, in any order, hits one cached batch.
     const slugsKey = useMemo(() => [...slugs].filter(Boolean).sort().join("\n"), [slugs])
     const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
 
+    const refetch = res.refetch
     return useMemo(() => {
         const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
         const bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined> = {}
+        const failedSlugs: string[] = []
         for (const [slug, info] of Object.entries(data)) {
+            if (info.failed) failedSlugs.push(slug)
             bySlug[slug] = {
                 type: info.type,
                 workflowId: info.workflowId ?? undefined,
@@ -321,8 +277,13 @@ function useWorkflowReferenceCatalog(slugs: string[]): {
                 integrations: info.integrations,
             }
         }
-        return {bySlug, loading: Boolean(res.isLoading)}
-    }, [res.data, res.isLoading])
+        return {
+            bySlug,
+            failedSlugs,
+            loading: Boolean(res.isLoading),
+            retry: () => void refetch(),
+        }
+    }, [res.data, res.isLoading, refetch])
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -687,8 +648,6 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                 const parts = buildConfigParts(revision.data)
                 return parts.length ? {parts} : null
             },
-            useWorkflowRevisions,
-            useWorkflowEnvironments,
             useWorkflowReferenceCatalog,
             useSubagentDetail,
         }),

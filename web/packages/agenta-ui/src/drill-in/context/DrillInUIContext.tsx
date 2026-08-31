@@ -127,7 +127,6 @@ export interface WorkflowReferenceCatalogEntry {
 export interface SubagentDetail {
     /** The workflow, so the detail can link to the agent's own page. */
     workflowId?: string
-    name?: string
     /** The agent's own description, used as the seed for the calling agent's copy. */
     description?: string
     model?: string
@@ -141,35 +140,10 @@ export interface SubagentDetail {
     instructions?: {fileName: string; text: string; wordCount: number}
 }
 
-/** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
-export interface WorkflowRevisionUI {
-    /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
-    version: string
-    /** Optional label (commit message / name) shown next to the version. */
-    label?: string
-}
-
-/** A deployment environment a workflow can be referenced through (the environment axis). */
-export interface WorkflowEnvironmentUI {
-    slug: string
-    name?: string
-}
-
-/**
- * What the WorkflowReferenceSelector emits when the author confirms a reference. Mirrors the
- * backend `ReferenceToolConfig`: an axis, the workflow slug, then either a pinned version
- * (variant axis) or an environment (environment axis).
- */
+/** What the picker emits when the author adds a subagent. The reference always follows the
+ *  target's latest revision, so the payload carries no version and no environment. */
 export interface WorkflowReferencePayload {
     slug: string
-    refBy: "variant" | "environment"
-    /** Selected variant id; variant axis only. Kept so "follow a variant's latest" (no pinned
-     * version) still identifies which variant to follow — without it the reference is ambiguous. */
-    variant?: string
-    /** Pinned workflow revision version; variant axis only, omitted = follow the variant's latest. */
-    version?: string
-    /** Environment slug; environment axis only. */
-    environment?: string
     /** Tool description the model sees (defaults to the workflow's own description). */
     description?: string
 }
@@ -225,24 +199,18 @@ export interface WorkflowReferenceBridge {
     /** Resolve the workflow's type-specific configuration (code / prompt / agent) for the
      * Configuration section. Optional; when absent or resolving null, the section is hidden. */
     resolveConfigPayload?: (workflow: WorkflowReferenceUI) => Promise<WorkflowConfigPayload | null>
-    /** List a workflow's revisions for the variant-axis "pin a version" picker. */
-    useWorkflowRevisions: (workflow: WorkflowReferenceUI | null) => {
-        revisions: WorkflowRevisionUI[]
-        isLoading: boolean
-    }
-    /** List a workflow's deployment environments for the environment axis. */
-    useWorkflowEnvironments: (workflow: WorkflowReferenceUI | null) => {
-        environments: WorkflowEnvironmentUI[]
-        isLoading: boolean
-    }
     /** Everything a reference surface needs for a batch of SLUGS, in one cached pass. Slugs, not
      *  workflows: the project-wide list is lazily activated and stays empty until the picker opens. */
     useWorkflowReferenceCatalog: (slugs: string[]) => {
         bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
+        /** Slugs whose revision fetch failed, so a caller can say so instead of showing nothing. */
+        failedSlugs: string[]
         loading: boolean
+        retry: () => void
     }
-    /** One subagent's configuration for the detail panel, cached so the header and the body share it. */
-    useSubagentDetail?: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    /** One subagent's configuration for the detail panel, cached so the header and the body share it.
+     *  Required, not optional: a hook that may be absent cannot be called without breaking hook order. */
+    useSubagentDetail: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
     /** A link to an agent's own page. Only the host knows its routes; without it the button hides. */
     agentHref?: (workflowId: string) => string | null
 }

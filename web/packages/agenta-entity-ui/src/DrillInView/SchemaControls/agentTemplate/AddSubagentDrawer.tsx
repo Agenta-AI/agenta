@@ -7,7 +7,7 @@ import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
-import {Check, Cube, Robot} from "@phosphor-icons/react"
+import {Check, Cube, Robot, Warning} from "@phosphor-icons/react"
 
 import {SubSectionHeader} from "../sectionGroups"
 
@@ -46,6 +46,9 @@ export interface AddSubagentDrawerProps {
     /** Every agent in the project, minus the one being edited. */
     options: SubagentOption[]
     loading?: boolean
+    /** How many agents could not be loaded, so the list can say so instead of hiding them. */
+    failedCount?: number
+    onRetry?: () => void
     /** One write per author action. May be async; the drawer disables its actions until it settles. */
     onAdd: (options: SubagentOption[]) => void | Promise<void>
     onRemove: (options: SubagentOption[]) => void | Promise<void>
@@ -188,6 +191,8 @@ export function AddSubagentDrawer({
     onClose,
     options,
     loading,
+    failedCount = 0,
+    onRetry,
     onAdd,
     onRemove,
 }: AddSubagentDrawerProps) {
@@ -264,6 +269,21 @@ export function AddSubagentDrawer({
                     value={search}
                     onValueChange={setSearch}
                 />
+
+                {failedCount > 0 ? (
+                    <div className="flex items-center gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                        <Warning size={14} className="shrink-0" />
+                        <span className="min-w-0 flex-1">
+                            {failedCount} {failedCount === 1 ? "agent" : "agents"} could not be
+                            loaded, so {failedCount === 1 ? "it is" : "they are"} not listed.
+                        </span>
+                        {onRetry ? (
+                            <Button variant="outline" size="sm" onClick={onRetry}>
+                                Retry
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
 
                 {loading ? (
                     <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">

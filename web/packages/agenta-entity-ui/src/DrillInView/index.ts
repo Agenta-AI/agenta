@@ -118,8 +118,6 @@ export type {
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
-    WorkflowRevisionUI,
-    WorkflowEnvironmentUI,
     WorkflowReferencePayload,
     WorkflowConfigPart,
     WorkflowConfigPayload,

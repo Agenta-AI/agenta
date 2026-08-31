@@ -31,15 +31,12 @@ import {
     workflowBuildKitEnabledAtomFamily,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
-import {agentIconAtomFamily} from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {agentIconChrome} from "@agenta/ui/agent-icon"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
 import {
     Cpu,
     FileText,
@@ -81,6 +78,7 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
+import {SubagentHeaderIcon, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -1056,41 +1054,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
 
-    // The drawer header needs the same cached detail the panel body reads.
+    // Resolved in children, which mount only when the host supplies a bridge: a hook reached
+    // through an optional member cannot be called from here without breaking hook order.
     const editingSubagentSlug =
         shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
-    const {detail: subagentDetail} = workflowReference?.useSubagentDetail?.(
-        editingSubagentSlug,
-    ) ?? {
-        detail: null,
-    }
-    const subagentIconRecord = useAtomValue(agentIconAtomFamily(subagentDetail?.workflowId ?? ""))
-    const subagentChrome = agentIconChrome(subagentIconRecord, {
-        size: 16,
-        fallbackGlyph: <Robot size={16} weight="fill" />,
-        fallbackClassName: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
-    })
-    const subagentHeaderIcon = (
-        <span
-            className={cn(
-                "flex size-8 items-center justify-center rounded-md",
-                subagentChrome.className,
-            )}
-            style={subagentChrome.style}
-        >
-            {subagentChrome.glyph}
-        </span>
-    )
-    const subagentAgentHref = subagentDetail?.workflowId
-        ? (workflowReference?.agentHref?.(subagentDetail.workflowId) ?? null)
-        : null
-    const subagentHeaderAction = subagentAgentHref ? (
-        <Button variant="outline" size="sm" asChild>
-            {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}
-            <a href={subagentAgentHref} target="_blank" rel="noreferrer" className="no-underline">
-                Open agent
-            </a>
-        </Button>
+    const subagentHeaderIcon = workflowReference ? (
+        <SubagentHeaderIcon bridge={workflowReference} slug={editingSubagentSlug} />
+    ) : undefined
+    const subagentHeaderAction = workflowReference ? (
+        <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
     ) : undefined
     const lastInstructionRef = useRef(editingInstruction)
     if (editingInstruction) lastInstructionRef.current = editingInstruction

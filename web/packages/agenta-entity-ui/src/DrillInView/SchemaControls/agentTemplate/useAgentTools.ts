@@ -24,6 +24,7 @@ import {
 
 import {toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
+import {normalizeSubagentReference} from "./subagentReference"
 
 export function useAgentTools({
     config,
@@ -51,9 +52,7 @@ export function useAgentTools({
         [config, onChange],
     )
 
-    // Append a `type:"reference"` tool for a workflow chosen in the reference drawer (#4860),
-    // auto-deriving its model-facing input schema from the workflow's latest revision. The axis
-    // (variant/environment), pinned version, and environment come from the drawer's payload.
+    // Append a subagent, deriving its model-facing input schema from the target's latest revision.
     const handleAddWorkflowReference = useCallback(
         async (payload: WorkflowReferencePayload) => {
             const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
@@ -69,21 +68,12 @@ export function useAgentTools({
             const latest = configRef.current
             const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
             if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
-            // No variant id: ReferenceToolConfig has no such field and forbids unknown ones.
-            const referenceTool: Record<string, unknown> = {
-                type: "reference",
-                ref_by: payload.refBy,
+            const referenceTool = normalizeSubagentReference({
                 slug: payload.slug,
-                ...(payload.refBy === "variant" && payload.version
-                    ? {version: payload.version}
-                    : {}),
-                ...(payload.refBy === "environment" && payload.environment
-                    ? {environment: payload.environment}
-                    : {}),
                 name: wf?.name || payload.slug,
                 description: payload.description ?? wf?.description ?? wf?.name ?? "",
                 input_schema: inputSchema ?? {type: "object", properties: {}},
-            }
+            })
             onChange({...latest, tools: [...latestTools, referenceTool]})
         },
         [workflowReference, onChange, configRef],
