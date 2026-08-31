@@ -17,6 +17,13 @@ harness.
    checks (all four proven warm with the probe). Fixed by re-asking the ordered checks
    after each repair; four pinned tests.
 
+   Review found a second half of the same finding: re-asking returned the FIRST unresolved
+   reason, and that reason alone chose the teardown. `history` sorts ahead of the credential
+   checks, so a model switch carrying both an edited transcript and an undeliverable
+   rotation evicted as `history`, mapped to `continuity-invalid`, and PARKED a sandbox whose
+   daemon still held the old key. The eviction is now NAMED by the first reason and DISPOSED
+   by all of them, strictest wins; pinned with the three-way combination.
+
 2. **`modelCapabilities` defeats the live model route across modality changes.** It is
    per-turn data (read only by the attachment-delivery chain) but sits in the fingerprint
    and the `harnessSession` facet, and it CHANGES WITH THE MODEL (resolved input

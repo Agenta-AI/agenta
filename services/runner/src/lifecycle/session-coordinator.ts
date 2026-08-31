@@ -40,7 +40,10 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
-import type { TeardownReason } from "../engines/sandbox_agent/teardown.ts";
+import {
+  teardownDisposition,
+  type TeardownReason,
+} from "../engines/sandbox_agent/teardown.ts";
 import {
   mechanismForRotation,
   runCredentialDelivery,
@@ -595,6 +598,26 @@ export async function runWithKeepalive(
     return "runtime-incompatible";
   };
 
+  /**
+   * The teardown for a set of unresolved reasons: the strictest one wins.
+   *
+   * An eviction is named by its FIRST unresolved reason, but the sandbox's fate must answer
+   * ALL of them. `history` sorts before the credential checks, so a turn that changed the
+   * model, edited its transcript, AND carried a rotation the port could not deliver was
+   * evicted as `history`, mapped to `continuity-invalid`, and PARKED — leaving a sandbox whose
+   * daemon still held the old credential for the next turn to resume onto. Deleting when any
+   * reason says delete costs a rebuild; parking when one says delete is the stale-material bug
+   * `teardown.ts` exists to prevent.
+   */
+  const strictestTeardown = (mismatches: string[]): TeardownReason => {
+    const reasons = mismatches.map(mismatchTeardownReason);
+    return (
+      reasons.find((r) => teardownDisposition(r) === "delete") ??
+      reasons[0] ??
+      "compatibility-mismatch"
+    );
+  };
+
   const notifyParkedLive = async (env: SessionEnvironment): Promise<void> => {
     if (resolveKeepaliveProvider(request) !== "daytona") return;
     // Best-effort: the session is already parked, so an activity-refresh failure must not turn
@@ -917,12 +940,18 @@ export async function runWithKeepalive(
      * repaired and asks again, and the remaining checks keep their order and their comments.
      */
     const repaired = new Set<string>();
-    const firstMismatch = (): string | undefined => {
+    /**
+     * Every unresolved reason, in the order the checks are written. The FIRST one names the
+     * eviction, and the WHOLE list decides the teardown — see `strictestTeardown`.
+     */
+    const unresolvedMismatches = (): string[] => {
+      const reasons: string[] = [];
       if (!repaired.has("config") && cfgFp !== existing.configFingerprint)
-        return "config";
+        reasons.push("config");
       if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
-        return "history";
-      if (credMismatch && !repaired.has(credMismatch)) return credMismatch;
+        reasons.push("history");
+      if (credMismatch && !repaired.has(credMismatch))
+        reasons.push(credMismatch);
       if (
         // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
         // rebuild at the boundary rather than let the turn die under the mount.
@@ -931,10 +960,11 @@ export async function runWithKeepalive(
           requiredValidThroughMs,
         )
       )
-        return "credentials-expiring";
-      if (!tailIsFreshUserMessage(request)) return "tail";
-      return undefined;
+        reasons.push("credentials-expiring");
+      if (!tailIsFreshUserMessage(request)) reasons.push("tail");
+      return reasons;
     };
+    const firstMismatch = (): string | undefined => unresolvedMismatches()[0];
     let mismatch = firstMismatch();
 
     // STEP 6. A pure configuration mismatch gets one chance to be satisfied on the live
@@ -985,6 +1015,10 @@ export async function runWithKeepalive(
       mismatch = "mount-lost";
 
     if (mismatch) {
+      // The eviction is NAMED by the first unresolved reason and DISPOSED by all of them. The
+      // backstop only fires when the list is already empty, so `mount-lost` stands alone.
+      const allMismatches =
+        mismatch === "mount-lost" ? ["mount-lost"] : unresolvedMismatches();
       // A config mismatch names the changed FIELDS (names only — the digests never carry
       // values), so "what evicted this warm session" is answerable from the log line alone
       // instead of needing production database access to reconstruct.
@@ -998,15 +1032,22 @@ export async function runWithKeepalive(
       klog(
         `mismatch (${mismatch}) key=${key}` +
           (changedFields.length ? ` fields=[${changedFields.join(",")}]` : "") +
+          // Name the rest too: they do not name the eviction but they DO decide the teardown,
+          // so a parked-vs-deleted sandbox is explainable from this one line.
+          (allMismatches.length > 1
+            ? ` also=[${allMismatches.slice(1).join(",")}]`
+            : "") +
           `; evict + cold`,
       );
       // A transcript mismatch is a decision about the CONVERSATION, not the environment, so it
-      // is logged but never counted against the router. See `DecisionScope`.
+      // is logged but never counted against the router. See `DecisionScope`. A continuity reason
+      // riding WITH an environment reason is an environment decision: the router must see the
+      // rebuild it is accountable for.
       shadowRoute(
         existing,
         "rebuild",
         `mismatch:${mismatch}`,
-        mismatch === "history" || mismatch === "tail"
+        allMismatches.every((r) => r === "history" || r === "tail")
           ? "continuity"
           : "environment",
         undefined,
@@ -1032,8 +1073,9 @@ export async function runWithKeepalive(
         `mismatch:${mismatch}`,
         // A failed delivery brings its own teardown reason, so the disposition travels with the
         // failure instead of being re-derived from a label. They agree today; the point is that
-        // they cannot drift.
-        credentialTeardown ?? mismatchTeardownReason(mismatch),
+        // they cannot drift. Otherwise every unresolved reason gets a vote and the strictest
+        // wins, so a continuity reason that merely sorts first cannot park a stale sandbox.
+        credentialTeardown ?? strictestTeardown(allMismatches),
       );
       return coldAndPark();
     }

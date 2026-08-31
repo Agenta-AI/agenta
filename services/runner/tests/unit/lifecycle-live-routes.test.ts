@@ -773,6 +773,43 @@ describe("A REPAIR ANSWERS ONLY ITS OWN QUESTION (audit finding 1)", () => {
     );
   });
 
+  it("a model change plus an edited transcript plus an undeliverable rotation DELETES", async () => {
+    // The eviction is named by the FIRST unresolved reason and disposed by ALL of them.
+    // `history` sorts ahead of the credential checks, so this combination was evicted as
+    // `history`, mapped to `continuity-invalid`, and PARKED — handing the next turn a sandbox
+    // whose daemon still held the old key. The name may stay `history`; the disposition may not.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret(
+        "sk-b",
+        turn2({
+          model: "m2",
+          messages: [
+            { role: "user", content: "EDITED" },
+            { role: "assistant", content: "hi" },
+            { role: "user", content: "more" },
+          ],
+        }),
+      ),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 2, "the combination must evict");
+    assert.deepEqual(
+      calls.acquiredEnvs[0]?.destroyReasons,
+      ["runtime-incompatible"],
+      "a stale credential outranks a continuity-only park",
+    );
+  });
+
   it("a model change plus a STALE tail still rebuilds", async () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
