@@ -77,16 +77,15 @@ describe("awaitCredentialSubstitution", () => {
     assert.match(logs[2], /substitution confirmed after 3 probes/);
   });
 
-  it("convicts the sandbox as STUCK once Daytona's 30s bound is spent", async () => {
-    // Daytona's own guidance (2026-08-31): a sandbox still sending the placeholder after
-    // ~30s never recovers; recreate it. The verdict is "stuck", never a fail-open pass.
+  it("convicts the sandbox as STUCK once the 10s grace is spent", async () => {
+    // The grace is deliberately below Daytona's ~30s bound (see the module doc): every
+    // healthy sandbox we measured answered on its first probe, so waiting longer only
+    // holds a stuck user turn. The verdict is "stuck", never a fail-open pass.
     const { run, logs, commands } = harness(["Received=dtn_****9maz"]);
     assert.equal(await run, "stuck");
-    // Probes every 2s of fake clock against the 30s default: the conviction consumes the
-    // full grace rather than firing on a fixed probe count.
     assert.ok(
-      commands.length >= 12,
-      `expected >=12 probes, got ${commands.length}`,
+      commands.length >= 4,
+      `expected >=4 probes inside the 10s grace, got ${commands.length}`,
     );
     assert.match(logs[logs.length - 1], /STUCK: raw placeholder on all/);
   });

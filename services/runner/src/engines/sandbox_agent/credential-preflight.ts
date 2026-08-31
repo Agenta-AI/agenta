@@ -25,13 +25,15 @@
  * with a brand-new sandbox, because the twin experiment proved a new sandbox on the same
  * Secret works. The user sees a slower first turn instead of a failed one.
  *
- * THE 30-SECOND GRACE IS DAYTONA'S OWN NUMBER (2026-08-31, their support, confirming our
- * report): "If a retry on the same sandbox starts working within ~30s, you can keep it. If
- * the placeholder is still going out after that, recreate. Retrying or restarting the same
- * one will not help." So the preflight keeps probing to that bound before convicting — our
- * own 20 samples saw nothing land between 3s and 180s, but their bound is authoritative for
- * their system, and the grace runs concurrently with acquire setup so a healthy sandbox
- * still pays nothing.
+ * THE GRACE IS 10 SECONDS, A DELIBERATE CHOICE BELOW DAYTONA'S ~30s BOUND. Their support
+ * (2026-08-31, confirming our report) said a sandbox may still start working within ~30s
+ * and must be recreated after that; "retrying or restarting the same one will not help."
+ * Our own 20 samples saw nothing land between 3s and 180s, every healthy sandbox answered
+ * on its FIRST probe, and their wiring fix is in progress on their side — so we convict at
+ * 10s and rebuild rather than hold every stuck user turn another 20s for a recovery nobody
+ * has observed. Decided by the product owner 2026-08-31; revisit only if a late recovery
+ * ever shows up in the preflight logs (it would log "substitution confirmed after N
+ * probes" with N > 1).
  *
  * SCOPE. Only a freshly created Daytona sandbox whose MODEL credential rides a Daytona
  * Secret and whose connection declares an endpoint base URL (the custom OpenAI-compatible
@@ -84,9 +86,9 @@ export interface CredentialPreflightInput {
   sleep?: (ms: number) => Promise<void>;
 }
 
-/** Daytona's stated keep-or-recreate bound: wiring that has not landed by ~30s never lands. */
-const DEFAULT_BUDGET_MS = 30_000;
-const DEFAULT_POLL_MS = 2_500;
+/** See the module doc: 10s, deliberately below Daytona's ~30s keep-or-recreate bound. */
+const DEFAULT_BUDGET_MS = 10_000;
+const DEFAULT_POLL_MS = 2_000;
 const CURL_TIMEOUT_S = 8;
 
 /**
