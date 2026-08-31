@@ -178,6 +178,158 @@ describe("platform credential attribution", () => {
   });
 });
 
+/**
+ * F1: a self-hoster sets `AGENTA_API_URL` to a localhost URL, which is the natural value for a
+ * local docker-compose stack. The api rewrites that host to `host.docker.internal` before it
+ * dispatches the run, so the endpoint the runner is handed can never string-match the raw env
+ * value it holds, and the strict branch drops the credential on a correctly configured platform.
+ * Repro: probe session f9483f76 on the rel1144 stack, "trace endpoint host host.docker.internal:8480
+ * is not Agenta ingest ... dropping the run credential".
+ */
+describe("bridge-rewritten localhost ingest", () => {
+  const LOCAL_BASE = "http://localhost:8480/api";
+  const BRIDGE_ENDPOINT = "http://host.docker.internal:8480/api/otlp/v1/traces";
+
+  it("uses the credential when a localhost base is handed its bridge-rewritten endpoint", () => {
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(request(BRIDGE_ENDPOINT), log),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("uses the credential for the 0.0.0.0 form the api rewrites the same way", () => {
+    vi.stubEnv("AGENTA_API_URL", "http://0.0.0.0:8480/api");
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(request(BRIDGE_ENDPOINT), log),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("admits the bridge form of the internal hop too", () => {
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://localhost:8000");
+    vi.stubEnv("AGENTA_API_URL", PUBLIC_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://host.docker.internal:8000/otlp/v1/traces"),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("still admits the localhost endpoint itself, for a host-network deployment", () => {
+    // `parse_url` returns the url unchanged when the api runs with network mode "host", so the
+    // raw match this fix widens must keep working exactly as before.
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://localhost:8480/api/otlp/v1/traces"),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("does not admit host.docker.internal on another port", () => {
+    // The mirror carries the port across, so a different port is a different deployment.
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://host.docker.internal:9999/api/otlp/v1/traces"),
+        log,
+      ),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+  });
+
+  it("does not admit host.docker.internal on another path", () => {
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://host.docker.internal:8480/collector/v1/traces"),
+        log,
+      ),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+  });
+
+  it("keeps dropping an unrelated host when the base is a localhost url", () => {
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("https://collector.thirdparty.example/v1/traces"),
+        log,
+      ),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+    assert.match(lines[0]!, /collector\.thirdparty\.example/);
+  });
+
+  it("leaves a 127.0.0.1 base alone, because the api does not rewrite that host", () => {
+    // `parse_url` rewrites only `localhost` and `0.0.0.0`, so a 127.0.0.1 deployment matches
+    // itself and never sees the bridge form. Admitting it would widen the allowlist past the
+    // platform's own rewrite.
+    vi.stubEnv("AGENTA_API_URL", "http://127.0.0.1:8480/api");
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://127.0.0.1:8480/api/otlp/v1/traces"),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+
+    resetPlatformCredentialWarnings();
+    assert.equal(
+      platformCredentialForRequest(request(BRIDGE_ENDPOINT), log),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+  });
+
+  it("does not arm the strict branch when only a localhost internal hop is configured", () => {
+    // The unconfigured-base behaviour must stay exactly as it is: the runner keeps the credential
+    // and names the gap rather than failing closed on an undecidable attribution.
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://localhost:8000");
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(request(PUBLIC_ENDPOINT), log),
+      CREDENTIAL,
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /AGENTA_API_URL is not set/);
+  });
+});
+
 describe("publicApiBaseConfigured", () => {
   it("is false when only the internal hop is set", () => {
     vi.stubEnv("AGENTA_API_INTERNAL_URL", INTERNAL_BASE);

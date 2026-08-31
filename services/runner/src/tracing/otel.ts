@@ -360,14 +360,47 @@ export function isAgentaIngest(endpoint: string): boolean {
   );
 }
 
+/** Hosts the api rewrites to `host.docker.internal` before it dispatches a run. */
+const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
+
+/**
+ * The same base as the api would hand a dispatched run, or undefined when the api leaves it alone.
+ *
+ * A self-hoster's natural `AGENTA_API_URL` is a localhost URL, but a sandboxed run cannot reach
+ * the host that way from inside its own container, so the api rewrites `localhost` and `0.0.0.0`
+ * to `host.docker.internal` on the way out (`parse_url`, `api/oss/src/utils/helpers.py`). The
+ * runner reads only the raw env value, so the configured base and the endpoint it is handed can
+ * never string-match, and every run of such a deployment loses its platform credential.
+ *
+ * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the api
+ * rewrites. `127.0.0.1` is absent because the api does not rewrite it, so admitting it would
+ * widen the allowlist past the platform's own rewrite for no deployment that exists.
+ */
+function bridgeRewrittenBase(base: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return undefined;
+  }
+  if (!BRIDGE_REWRITTEN_HOSTS.has(url.hostname)) return undefined;
+  url.hostname = "host.docker.internal";
+  return url.toString().replace(/\/+$/, "");
+}
+
 /** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
  * what it compared against — the failure is always a configuration gap, never a code path. */
 export function configuredIngestBases(): string[] {
-  return [
+  const configured = [
     process.env.AGENTA_API_INTERNAL_URL,
     process.env.AGENTA_API_URL,
     CLOUD_API_BASE,
   ].filter((base): base is string => Boolean(base));
+
+  return configured.flatMap((base) => {
+    const bridged = bridgeRewrittenBase(base);
+    return bridged ? [base, bridged] : [base];
+  });
 }
 
 /**
