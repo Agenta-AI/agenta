@@ -74,17 +74,27 @@ REBUILD instead of waiting (see the instruments below).
 - A placeholder-shaped 401 classifies as `credential_delivery_failed`
   (`services/runner/src/engines/sandbox_agent/errors.ts`), with retry-flavored user copy.
 
-## Open questions with Daytona (updated 2026-08-30 after the reproduction)
+## Daytona's answer (2026-08-31, their support; a fix PR is in progress on their side)
 
-1. Why do some sandboxes (5 of 20 on 2026-08-30, target eu) never get substitution wiring
-   at create time, with no reconciliation, while a twin sandbox on the same Secret works
-   at its first request? One affected request returned an Envoy upstream-connect error.
-2. Does deleting a same-host Secret interfere with a newer one during propagation?
-3. Is there a read-your-writes signal — any API that confirms a Secret is active?
-4. The 15–18s update lag from 2026-08-09: same question.
+They confirmed the reproduction and gave operating guidance:
 
-## The follow-up that does not wait for Daytona
+- "Substitution is not guaranteed on the first call. Some sandboxes never get wired;
+  restart does not fix those. A new sandbox on the same Secret does."
+- "If the provider logs dtn_secret_…, throw that sandbox away and create a new one.
+  Retrying or restarting the same one will not help."
+- "If a retry on the same sandbox starts working within ~30s, you can keep it. If the
+  placeholder is still going out after that, recreate." (The ~30s keep-or-recreate bound
+  is now the preflight's conviction budget.)
+- "Keep one long-lived Secret; you don't need a new Secret per run." (A design
+  consideration for us: today the runner creates and deletes Secrets per environment
+  build. A long-lived Secret per project credential would cut that churn; rotation would
+  then ride `secret.update`, which carries the separately measured 15-18s value lag.
+  Queued, not urgent — the stuck fault is per-sandbox, not per-Secret.)
+- They marked the wiring failure as priority and will report when their fix lands.
 
-A bounded runner-side guard: when a turn fails with `credential_delivery_failed`, rebuild
-the environment and retry the turn once. Tracked in the session todo list beside this
+## The guard that does not wait for Daytona
+
+The preflight (#6370): probe the fresh sandbox concurrently with acquire; convict as
+stuck when the raw placeholder still echoes at Daytona's ~30s bound; destroy and rebuild
+once. Tracked in the session todo list beside this
 workspace.
