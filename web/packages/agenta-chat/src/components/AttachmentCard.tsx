@@ -13,10 +13,10 @@ import {
 import {typeBadgeFor} from "../assets/attachmentRules"
 
 /** One height for every card: uniformity is what lets the grid wrap without ragged rows. */
-const CARD_HEIGHT = "h-11"
+const CARD_HEIGHT = "h-9"
 
 /** Leading square — thumbnail, play control or type badge — always the same box. */
-const TILE = "h-8 w-8 shrink-0 rounded-md"
+const TILE = "h-6 w-6 shrink-0 rounded"
 
 export type AttachmentCardState = "idle" | "uploading" | "error"
 
@@ -61,9 +61,9 @@ const CardAction = ({
                     e.stopPropagation()
                     onRemove()
                 }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
+                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
             >
-                <X size={11} weight="bold" />
+                <X size={10} weight="bold" />
             </button>
         )
     }
@@ -77,9 +77,9 @@ const CardAction = ({
                     e.stopPropagation()
                     onDownload()
                 }}
-                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
             >
-                <DownloadSimple size={13} />
+                <DownloadSimple size={12} />
             </button>
         )
     }
@@ -121,7 +121,7 @@ const AudioTile = ({src, name}: {src?: string; name: string}) => {
                 }}
                 className={`flex ${TILE} items-center justify-center border-0 bg-colorFillTertiary p-0 text-colorTextSecondary transition-colors ${src ? "cursor-pointer hover:text-colorText" : "cursor-default opacity-50"}`}
             >
-                {playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
+                {playing ? <Pause size={11} weight="fill" /> : <Play size={11} weight="fill" />}
             </button>
             {src && <audio ref={ref} src={src} preload="none" className="hidden" />}
         </>
@@ -162,7 +162,7 @@ export const AttachmentCard = ({
     const tile = failed ? (
         // Bare icon, no tile box: its background is the card's own, so a 32px square would be
         // invisible and would only push the reason away from the icon that introduces it.
-        <WarningCircle size={18} weight="fill" className="ml-1.5 shrink-0 text-colorError" />
+        <WarningCircle size={16} weight="fill" className="ml-1 shrink-0 text-colorError" />
     ) : loading ? (
         <div className={`${TILE} animate-pulse bg-colorFillTertiary`} />
     ) : isAudio ? (
@@ -171,7 +171,7 @@ export const AttachmentCard = ({
         <div
             className={`flex ${TILE} items-center justify-center bg-colorFillTertiary text-colorTextSecondary`}
         >
-            <Play size={14} weight="fill" />
+            <Play size={11} weight="fill" />
         </div>
     ) : isImage && src && !thumbFailed ? (
         // A blob or cookie-authenticated URL — next/image can optimize neither.
@@ -185,11 +185,11 @@ export const AttachmentCard = ({
         <div
             className={`flex ${TILE} items-center justify-center bg-colorFillTertiary text-colorTextTertiary`}
         >
-            <ImageBroken size={16} />
+            <ImageBroken size={13} />
         </div>
     ) : (
         <div
-            className={`flex ${TILE} items-center justify-center bg-colorFillTertiary px-0.5 text-[10px] font-semibold uppercase leading-none text-colorTextSecondary`}
+            className={`flex ${TILE} items-center justify-center bg-colorFillTertiary px-0.5 text-[8px] font-semibold uppercase leading-none text-colorTextSecondary`}
         >
             {typeBadgeFor(mediaType, name)}
         </div>
@@ -199,7 +199,7 @@ export const AttachmentCard = ({
     // belongs beside the text, not marooned at the far edge of a full-width row.
     const label = (
         <span
-            className={`min-w-0 truncate text-left text-sm ${failed ? "text-colorError" : "flex-1 text-colorText"}`}
+            className={`min-w-0 truncate text-left text-[13px] ${failed ? "text-colorError" : "flex-1 text-colorText"}`}
             title={failed ? `${name} · ${errorReason}` : name}
         >
             {failed ? (
@@ -214,7 +214,7 @@ export const AttachmentCard = ({
 
     return (
         <div
-            className={`group relative box-border flex ${CARD_HEIGHT} items-center gap-2.5 overflow-hidden rounded-lg border border-solid px-2 ${
+            className={`group relative box-border flex ${CARD_HEIGHT} items-center gap-2 overflow-hidden rounded-md border border-solid px-1.5 ${
                 failed
                     ? "border-colorErrorBorder bg-colorErrorBg"
                     : "border-colorBorderSecondary bg-colorFillQuaternary"
@@ -242,9 +242,9 @@ export const AttachmentCard = ({
                         e.stopPropagation()
                         onRetry()
                     }}
-                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
+                    className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
                 >
-                    <ArrowClockwise size={12} weight="bold" />
+                    <ArrowClockwise size={11} weight="bold" />
                 </button>
             )}
             <CardAction action={action} name={name} onRemove={onRemove} onDownload={onDownload} />

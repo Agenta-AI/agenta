@@ -10,8 +10,8 @@ import type {StagedUpload as UploadFile} from "../model"
 import AttachmentCard from "./AttachmentCard"
 import AttachmentCardGrid from "./AttachmentCardGrid"
 
-/** Roughly three rows of cards; past that the tray scrolls rather than growing. */
-const TRAY_MAX_HEIGHT = 172
+/** Three rows of cards plus a sliver of the fourth, which is what says "keep scrolling". */
+const TRAY_MAX_HEIGHT = 140
 
 /** Cards scale in on add and out on remove; `layout` slides the survivors into place. */
 const ITEM_VARIANTS = {
