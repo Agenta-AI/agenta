@@ -146,7 +146,15 @@ export interface AgentConversation {
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
     removeQueued: (id: string) => void
-    clearQueue: () => void
+    /** Id of the held message the composer is editing, or null. */
+    editingId: string | null
+    /** Borrow the composer for `id`, stashing the draft it currently holds. */
+    beginEdit: (id: string, draft?: string) => void
+    /** Drop the edit and hand the stashed draft back. */
+    cancelEdit: () => string
+    /** Rewrite the edited message with the composer's content (or queue it anew if it drained).
+     *  Returns the draft the session displaced, for the host to put back. */
+    commitEdit: (item: {text: string; fileParts?: FileUIPart[]}) => string
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
@@ -456,7 +464,16 @@ export const useAgentConversation = ({
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval).
-    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {
+        queued,
+        submit,
+        removeQueued,
+        hitlPending,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+    } = useAgentChatQueue({
         status,
         messages,
         stopped,
@@ -761,7 +778,10 @@ export const useAgentConversation = ({
         queued,
         hitlPending,
         removeQueued,
-        clearQueue,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
         approvals,
         sendToolOutput,
         revalidate,
