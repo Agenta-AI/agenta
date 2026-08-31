@@ -20,6 +20,7 @@ from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.change_set import ChangeSetError
 from oss.src.core.workflows.service import (
+    InvalidAgentHarnessError,
     RevisionConflictError,
     WorkflowsService,
     SimpleWorkflowsService,
@@ -1645,6 +1646,10 @@ class WorkflowsRouter:
             )
         except RevisionConflictError as e:
             raise HTTPException(status_code=409, detail=e.to_detail()) from e
+        except InvalidAgentHarnessError as e:
+            # 422, the same status every other "your change is not committable" answer on this
+            # route uses: the request is well-formed, the configuration in it is not.
+            raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except NonEmbeddableWorkflowReferenceError as e:

@@ -55,7 +55,11 @@ class HarnessKind(str, Enum):
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
-        """Accept either an enum or a loose string (the playground sends a string)."""
+        """Accept either an enum or a loose string (the playground sends a string).
+
+        Raises :class:`InvalidHarnessKindError` for anything else, so a value the runtime
+        cannot read fails as a named 400 rather than the enum's bare ``ValueError``.
+        """
         if isinstance(value, cls):
             return value
         normalized = str(value).lower()
@@ -64,7 +68,39 @@ class HarnessKind(str, Enum):
         # to plain Pi instead of refusing to load the config.
         if normalized == "pi_agenta":
             normalized = "pi_core"
-        return cls(normalized)
+        try:
+            return cls(normalized)
+        except ValueError as exc:
+            raise InvalidHarnessKindError(value) from exc
+
+
+class InvalidHarnessKindError(ErrorStatus, ValueError):
+    """``harness.kind`` names a harness this runtime does not have.
+
+    Maps to HTTP 400 so the caller is told the field, the value it sent, and the values that
+    exist. Before this, a malformed kind reached ``make_harness`` as the enum's bare
+    ``ValueError`` and surfaced as an unhandled 500 whose body was the Python repr, and the
+    commit that stored it answered 200 (finding F4).
+
+    It is also a ``ValueError``, because the enum has always raised one here and callers
+    (and tests) guard ``coerce`` on that type. Inheriting both keeps those guards working
+    while the middleware renders the coded status.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-harness-kind"
+
+    def __init__(self, value: Any) -> None:
+        allowed = ", ".join(sorted(kind.value for kind in HarnessKind))
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"invalid harness.kind ({type(value).__name__}) {value!r}; "
+                f"expected one of {allowed}"
+            ),
+        )
+        self.value = value
 
 
 # ---------------------------------------------------------------------------
@@ -1371,7 +1407,26 @@ def _parse_run_selection(
     ``harness`` from ``harness.kind``, ``sandbox`` from ``sandbox.kind``, and the runner policy
     from ``runner.permissions.default``. The kinds and permission mode are lower-cased so
     playground-supplied values match the bare runtime selectors."""
-    harness = str(_section(params, "harness").get("kind") or defaults.harness).lower()
+    # An absent, null, or blank kind means "use the default", which is what every config that
+    # never set a harness relies on. Anything else must name a harness this runtime has, and a
+    # kind it cannot read is refused HERE, where the template is parsed, rather than travelling
+    # to `make_harness` and surfacing as an unhandled 500 (finding F4). The returned value keeps
+    # its stored spelling, so a legacy value still normalizes where it always did.
+    raw_harness = _section(params, "harness").get("kind")
+    if raw_harness is None or not str(raw_harness).strip():
+        harness = str(defaults.harness).lower()
+    else:
+        resolved = HarnessKind.coerce(raw_harness)
+        # A STRING keeps its stored spelling, so a legacy value still normalizes exactly where
+        # it always did (`make_harness` maps `pi_agenta` to Pi; collapsing it here would change
+        # the harness identity a stored revision carries). A MEMBER has no spelling to keep, so
+        # it becomes its wire value: `str()` on one gives "HarnessKind.CLAUDE", which lower-cased
+        # to "harnesskind.claude" and made the SDK's own enum unusable as input.
+        harness = (
+            str(raw_harness).lower()
+            if not isinstance(raw_harness, HarnessKind)
+            else resolved.value
+        )
     sandbox = str(_section(params, "sandbox").get("kind") or defaults.sandbox).lower()
     permissions = _section(params, "runner").get("permissions")
     raw_default = permissions.get("default") if isinstance(permissions, dict) else None
