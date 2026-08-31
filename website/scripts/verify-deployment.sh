@@ -31,6 +31,22 @@ contains() { # contains <description> <needle> <haystack>
   esac
 }
 
+# Static assets carry `stale-while-revalidate=3600`, so the edge can serve the
+# previous deploy's body to the first request after this one goes out (it
+# revalidates in the background). Cloudflare ignores the query string in an
+# asset cache key, so a cache-buster does not help: re-fetch instead. Only for
+# assertions on an asset's BODY — worker-served routes always run fresh.
+contains_fresh() { # contains_fresh <description> <needle> <url>
+  for _ in 1 2 3 4 5 6; do
+    body=$(curl -s "$3")
+    case "$body" in
+      *"$2"*) echo "  ok   $1" ; return ;;
+    esac
+    sleep 5
+  done
+  fail "$1 — '$2' not found in: $(printf '%s' "$body" | head -c 200)"
+}
+
 # Wait for the deployment to answer at all before asserting on it.
 for _ in 1 2 3 4 5; do
   [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")" = "200" ] && break
@@ -85,10 +101,10 @@ echo "- the API entry point and agent guidance"
 check "the /api page is served" 200 \
   "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api")"
 contains "the homepage links to it" 'href="/api"' "$(curl -s "$BASE/")"
-contains "llms.txt says when to use Agenta" "## When to use Agenta" \
-  "$(curl -s "$BASE/llms.txt")"
-contains "llms.txt says how to call it" "Authorization: ApiKey" \
-  "$(curl -s "$BASE/llms.txt")"
+contains_fresh "llms.txt says when to use Agenta" "## When to use Agenta" \
+  "$BASE/llms.txt"
+contains_fresh "llms.txt says how to call it" "Authorization: ApiKey" \
+  "$BASE/llms.txt"
 
 echo "- agent-facing errors and specs"
 contains "JSON 404 carries an error code" '"code": "not_found"' \
@@ -97,7 +113,7 @@ contains "markdown 404 points at the sitemap" "sitemap-index.xml" \
   "$(curl -s -H 'Accept: text/markdown' "$BASE/nope")"
 check "OpenAPI spec is published" 200 \
   "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/openapi.json")"
-contains "llms.txt advertises the spec" "openapi.json" "$(curl -s "$BASE/llms.txt")"
+contains_fresh "llms.txt advertises the spec" "openapi.json" "$BASE/llms.txt"
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures check(s) failed."
