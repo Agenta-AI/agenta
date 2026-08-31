@@ -82,6 +82,19 @@ describe("acceptedRepresentations", () => {
     ).toEqual(["json", "markdown"]);
   });
 
+  it("breaks a quality tie on where the client wrote the range", () => {
+    // text/* comes first and covers markdown, so markdown leads even though
+    // the later text/html range is the more specific one.
+    expect(acceptedRepresentations("text/*, text/html")).toEqual([
+      "markdown",
+      "html",
+    ]);
+    expect(acceptedRepresentations("text/markdown, text/html")).toEqual([
+      "markdown",
+      "html",
+    ]);
+  });
+
   it("lets a specific q=0 override a wildcard that accepted it", () => {
     // The exact range is more specific than text/*, so HTML is rejected even
     // though the wildcard would have taken it. RFC 9110 12.5.1.

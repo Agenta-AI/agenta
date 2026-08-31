@@ -4,7 +4,13 @@
 // runtime surface we touch is `env.ASSETS.fetch`, and that lives next door.
 
 /** One parsed entry of an Accept header. */
-export type AcceptEntry = { type: string; q: number; specificity: number };
+export type AcceptEntry = {
+  type: string;
+  q: number;
+  specificity: number;
+  /** Where the client wrote it, which survives the sort below. */
+  position: number;
+};
 
 /** A representation of a page this site can actually serve. */
 export type Representation = "html" | "markdown" | "json";
@@ -39,7 +45,7 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
   if (!header) return [];
 
   const entries: AcceptEntry[] = [];
-  for (const part of header.split(",")) {
+  for (const [position, part] of header.split(",").entries()) {
     const [rawType, ...params] = part.split(";");
     const type = rawType.trim().toLowerCase();
     if (!type) continue;
@@ -58,6 +64,7 @@ export function parseAccept(header: string | null | undefined): AcceptEntry[] {
       type,
       q,
       specificity: type === "*/*" ? 0 : type.endsWith("/*") ? 1 : 2,
+      position,
     });
   }
 
@@ -86,14 +93,14 @@ const MEDIA_TYPES: Record<Representation, string[]> = {
 function qualityFor(
   entries: AcceptEntry[],
   representation: Representation,
-): { q: number; index: number } {
+): { q: number; position: number } {
   let bestSpecificity = -1;
   let bestQ = 0;
-  let bestIndex = 0;
+  let bestPosition = 0;
 
   MEDIA_TYPES[representation].forEach((mediaType) => {
     const [type] = mediaType.split("/");
-    entries.forEach((entry, index) => {
+    entries.forEach((entry) => {
       const specificity =
         entry.type === mediaType
           ? 2
@@ -105,11 +112,14 @@ function qualityFor(
       if (specificity <= bestSpecificity) return;
       bestSpecificity = specificity;
       bestQ = entry.q;
-      bestIndex = index;
+      // The client's own ordering, not this entry's rank after sorting.
+      bestPosition = entry.position;
     });
   });
 
-  return bestSpecificity < 0 ? { q: 0, index: 0 } : { q: bestQ, index: bestIndex };
+  return bestSpecificity < 0
+    ? { q: 0, position: 0 }
+    : { q: bestQ, position: bestPosition };
 }
 
 /**
@@ -133,7 +143,7 @@ export function acceptedRepresentations(
   }))
     .filter((candidate) => candidate.q > 0)
     // Highest quality first; between equals, whichever the client named first.
-    .sort((a, b) => b.q - a.q || a.index - b.index)
+    .sort((a, b) => b.q - a.q || a.position - b.position)
     .map((candidate) => candidate.representation);
 }
 
