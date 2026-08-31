@@ -83,18 +83,18 @@ They confirmed the reproduction and gave operating guidance:
 - "If the provider logs dtn_secret_…, throw that sandbox away and create a new one.
   Retrying or restarting the same one will not help."
 - "If a retry on the same sandbox starts working within ~30s, you can keep it. If the
-  placeholder is still going out after that, recreate." (The ~30s keep-or-recreate bound
-  is now the preflight's conviction budget.)
-- "Keep one long-lived Secret; you don't need a new Secret per run." (A design
-  consideration for us: today the runner creates and deletes Secrets per environment
-  build. A long-lived Secret per project credential would cut that churn; rotation would
-  then ride `secret.update`, which carries the separately measured 15-18s value lag.
-  Queued, not urgent — the stuck fault is per-sandbox, not per-Secret.)
+  placeholder is still going out after that, recreate." (We deliberately convict at 10s,
+  below their bound: every healthy sandbox we measured answered on its first probe, their
+  fix is imminent, and waiting 30s only holds a stuck user turn. Product-owner decision,
+  2026-08-31.)
+- "Keep one long-lived Secret; you don't need a new Secret per run." (DECLINED for
+  compliance, and told to them: we hold users' secrets for the sandboxes and must delete
+  them as soon as the sandbox is thrown away. A TTL-based garbage collector would be a big
+  lifecycle change, and their fix is imminent, so we keep per-run Secrets.)
 - They marked the wiring failure as priority and will report when their fix lands.
 
 ## The guard that does not wait for Daytona
 
 The preflight (#6370): probe the fresh sandbox concurrently with acquire; convict as
-stuck when the raw placeholder still echoes at Daytona's ~30s bound; destroy and rebuild
-once. Tracked in the session todo list beside this
+stuck when the raw placeholder still echoes at the 10s grace; destroy and rebuild once. Tracked in the session todo list beside this
 workspace.
