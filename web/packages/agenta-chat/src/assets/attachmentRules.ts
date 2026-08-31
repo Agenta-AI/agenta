@@ -148,6 +148,30 @@ export const validateIncoming = (
     return {accepted, rejections}
 }
 
+/** Extensions worth spelling out on a card tile; anything else falls back to the real extension. */
+const BADGE_BY_TYPE: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/json": "json",
+    "text/csv": "csv",
+    "text/markdown": "md",
+    "text/plain": "txt",
+}
+
+/**
+ * Short lowercase label for a document tile ("csv", "pdf"). Prefers the media type, because a
+ * download can arrive with a generic name, and falls back to the filename's extension so an
+ * `application/octet-stream` still reads as something. Capped at four characters — the tile is a
+ * 32px square, and a longer string renders as a smear.
+ */
+export const typeBadgeFor = (mediaType: string, name?: string): string => {
+    const known = BADGE_BY_TYPE[mediaType]
+    if (known) return known
+    const ext = name?.includes(".") ? name.split(".").pop()?.toLowerCase() : undefined
+    if (ext && ext.length <= 4 && /^[a-z0-9]+$/.test(ext)) return ext
+    const subtype = mediaType.split("/")[1]
+    return subtype && subtype.length <= 4 ? subtype : "file"
+}
+
 /** A file kind an attachment viewer can preview; audio plays inline in the tray instead. */
 export const isViewable = (mediaType: string): boolean =>
     mediaType.startsWith("image/") ||

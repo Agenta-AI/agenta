@@ -88,7 +88,6 @@ export const ChatComposer = ({
         uploadsEnabled,
         files,
         rejections,
-        setRejections,
         attachmentsOpen,
         setAttachmentsOpen,
         limits,
@@ -97,6 +96,7 @@ export const ChatComposer = ({
         uploadBlockReason,
         addFiles,
         removeFile,
+        dismissRejection,
         uploads,
     } = attachments
 
@@ -162,7 +162,7 @@ export const ChatComposer = ({
                             limits={limits}
                             onAdd={addFiles}
                             onRemove={removeFile}
-                            onDismissRejections={() => setRejections([])}
+                            onDismissRejection={dismissRejection}
                             onView={uploadsEnabled ? onViewAttachment : undefined}
                             onRetry={uploads.retry}
                             canRetry={uploads.canRetry}

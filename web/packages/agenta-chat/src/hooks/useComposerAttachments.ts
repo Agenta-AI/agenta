@@ -273,6 +273,13 @@ export const useComposerAttachments = ({
         return {onDragEnter, onDragOver, onDragLeave, onDrop}
     }
 
+    /** Dismiss one rejection card; name plus reason is what makes one unique within a batch. */
+    const dismissRejection = (rejection: AttachmentRejection) => {
+        setRejections((prev) =>
+            prev.filter((r) => !(r.name === rejection.name && r.reason === rejection.reason)),
+        )
+    }
+
     /** Drop the attachments a send just carried, plus any rejection notice. */
     const clearAttachments = (consumedUids: string[]) => {
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
@@ -310,6 +317,7 @@ export const useComposerAttachments = ({
         isDragging,
         addFiles,
         removeFile,
+        dismissRejection,
         uploadExtraFiles,
         uploads,
         clearAttachments,
