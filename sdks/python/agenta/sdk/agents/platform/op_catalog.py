@@ -1472,7 +1472,7 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["name"],
 }
 
-_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Call it once you understand your own purpose, which is usually right after your first task. Call it again if your purpose changes.
+_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Call it only once, after you understand your own purpose. Once this tool succeeds, never call it again, including in later sessions.
 
 `name` is what you are for, as a short label a person can scan in a list. A few words.
 

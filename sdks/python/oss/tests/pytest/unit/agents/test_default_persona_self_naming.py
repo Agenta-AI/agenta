@@ -42,7 +42,8 @@ def test_default_persona_carries_the_self_naming_guidance():
     assert "same turn" in text
     # The guards against churn ride along with the guidance itself.
     assert "only when the topic genuinely shifts" in text
-    assert "only when your identity or purpose" in text
+    assert "After `rename_agent` succeeds, never call it again" in text
+    assert "only when your identity or purpose" not in text
 
 
 @pytest.mark.skipif(

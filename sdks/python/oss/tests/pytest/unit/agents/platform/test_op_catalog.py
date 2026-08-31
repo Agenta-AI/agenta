@@ -338,6 +338,13 @@ def test_rename_agent_rejects_whitespace_only_name():
         jsonschema.validate({"name": "   "}, schema)
 
 
+def test_rename_agent_description_stops_after_first_successful_rename():
+    description = get_platform_op("rename_agent").description
+    assert "Call it only once" in description
+    assert "never call it again" in description
+    assert "Call it again" not in description
+
+
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(
     connection,
 ):
