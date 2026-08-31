@@ -160,6 +160,17 @@ describe("facet normalization: stability and coverage", () => {
       // The resolved model's input modalities ride the request per turn and change with the
       // model; hashing them refused the live route on any cross-modality model switch.
       { modelCapabilities: { inputModalities: ["text"] } as never },
+      // The rest of runContext is per-turn metadata: a committed revision or a trace id must
+      // never evict. Only `workflow.artifact.id` is identity (it selects the agent mount).
+      {
+        runContext: {
+          workflow: {
+            revision: { id: "rev-2", version: "7" },
+            variant: { id: "var-2" },
+          },
+          trace: { trace_id: "abc" },
+        } as never,
+      },
     ]) {
       assert.deepEqual(
         movedBy(overrides),
@@ -176,6 +187,10 @@ describe("facet normalization: stability and coverage", () => {
     const probes: Array<[string, Partial<AgentRunRequest>]> = [
       ["sandbox", { sandbox: "daytona" }],
       ["harness", { harness: "pi" }],
+      [
+        "runContext.workflow.artifact.id",
+        { runContext: { workflow: { artifact: { id: "art-2" } } } } as never,
+      ],
       ["model", { model: "m2" }],
       ["agentsMd", { agentsMd: "x" }],
       ["systemPrompt", { systemPrompt: "x" }],

@@ -212,6 +212,10 @@ function canonicalJson(value: unknown): string {
  * They stay in `runContext` for tool binding and observability; they simply no longer decide
  * whether an environment may be reused.
  *
+ * One `runContext` field is deliberately IN the hash although the object as a whole is
+ * excluded: `workflow.artifact.id`, because the agent mount it selects is baked at acquire
+ * (audit finding 4; see the field comment in `configShape`).
+ *
  * `modelCapabilities` left the hash the same way (2026-08-30, cold/warm audit finding 2). It is
  * the resolved model's input modalities, read ONLY by the per-turn attachment-delivery chain —
  * nothing bakes it into the environment. And because it changes WITH the model, hashing it made
@@ -256,6 +260,13 @@ function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
+    // The ONE `runContext` field that is environment identity (audit finding 4). The agent
+    // artifact id signs the agent mount, mounts an artifact-keyed store prefix, sets the
+    // mount env var, and selects the durable-storage guidance — all baked at acquire. Without
+    // it a warm sandbox kept serving a session whose storage folder had changed, with the
+    // wrong (or no) agent mount attached. The REST of `runContext` stays out: revision ids,
+    // variant identity, and trace identity are per-turn metadata (the step-1 rule).
+    agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
     model: request.model ?? null,
     // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
     // and ignore the field for other harnesses so only effective mode changes evict warm sessions.

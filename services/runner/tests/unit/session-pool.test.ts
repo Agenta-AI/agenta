@@ -278,6 +278,41 @@ describe("configFingerprint", () => {
     }
   });
 
+  it("evicts when the agent artifact changes, and ignores the rest of runContext", () => {
+    // Audit finding 4: the artifact id selects the agent mount, which is baked at acquire —
+    // a warm sandbox must never serve a session whose storage folder changed. Every other
+    // runContext field is per-turn metadata and must never evict (the step-1 rule).
+    const withContext = (runContext: unknown): AgentRunRequest =>
+      ({ ...base, runContext }) as AgentRunRequest;
+    const artifactA = withContext({ workflow: { artifact: { id: "art-a" } } });
+    assert.notEqual(
+      configFingerprint(artifactA),
+      configFingerprint(
+        withContext({ workflow: { artifact: { id: "art-b" } } }),
+      ),
+      "a changed artifact id must evict",
+    );
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint(artifactA),
+      "absent-to-present must evict too (the mount appears)",
+    );
+    assert.equal(
+      configFingerprint(artifactA),
+      configFingerprint(
+        withContext({
+          workflow: {
+            artifact: { id: "art-a" },
+            revision: { id: "rev-9" },
+            variant: { id: "var-9" },
+          },
+          trace: { trace_id: "xyz" },
+        }),
+      ),
+      "revision/variant/trace identity stays per-turn metadata",
+    );
+  });
+
   it("excludes the derived gateway guidance, so an integration add never evicts", () => {
     // The guidance text carries the integration NAMES as examples and refreshes at
     // environment build. Hashing it would cold every warm session on each integration add —
