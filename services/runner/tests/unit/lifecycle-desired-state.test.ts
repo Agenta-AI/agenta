@@ -110,13 +110,9 @@ describe("facet ownership: one field moves exactly one facet", () => {
       overrides: { customTools: [{ name: "t" }] as never },
       facet: "toolCatalog",
     },
-    {
-      what: "the tool callback endpoint",
-      overrides: {
-        toolCallback: { endpoint: "https://gateway/tools/call" } as never,
-      },
-      facet: "toolCatalog",
-    },
+    // The tool callback endpoint left this table with audit finding 5: it is read from the
+    // incoming request every turn, so it moves NO facet. The per-turn-volatile suite below
+    // pins that instead.
   ];
 
   for (const { what, overrides, facet } of cases) {
@@ -171,13 +167,35 @@ describe("facet normalization: stability and coverage", () => {
           trace: { trace_id: "abc" },
         } as never,
       },
+      // The per-deployment gateway URL is read from the incoming request every turn
+      // (finding 5); a moved deployment must not evict every warm session.
+      { toolCallback: { endpoint: "https://gateway-2/tools/call" } as never },
     ]) {
-      assert.deepEqual(
-        movedBy(overrides),
-        [],
-        JSON.stringify(overrides).slice(0, 40),
+      const label = JSON.stringify(overrides).slice(0, 40);
+      assert.deepEqual(movedBy(overrides), [], label);
+      // BOTH identity views must ignore a volatile: a field that sneaks back into the
+      // fingerprint alone would cold-evict every warm session while this facet probe
+      // stayed green (Codex review of the finding-5 change).
+      assert.equal(
+        configFingerprint({ ...BASE, ...overrides } as AgentRunRequest),
+        configFingerprint(BASE),
+        `fingerprint moved: ${label}`,
       );
     }
+  });
+
+  it("omitted MCP credentials equal an empty credential array, in BOTH views", () => {
+    // The facet digest normalized an omitted array to [] while the fingerprint kept the
+    // omission, so two identical requests disagreed in one view only: a cold evict with an
+    // empty live plan and a DISAGREE log (Codex review of the finding-3 change).
+    const server = { name: "s", connection: { url: "https://mcp.test" } };
+    const omitted = { ...BASE, mcpServers: [server] } as never as AgentRunRequest;
+    const empty = {
+      ...BASE,
+      mcpServers: [{ ...server, connection: { ...server.connection, credentials: [] } }],
+    } as never as AgentRunRequest;
+    assert.equal(configFingerprint(omitted), configFingerprint(empty));
+    assert.deepEqual(digestsOf(omitted), digestsOf(empty));
   });
 
   it("the fingerprint and the facets agree about harness-mode changes (finding 3)", () => {
@@ -245,10 +263,6 @@ describe("facet normalization: stability and coverage", () => {
       ["permissions", { permissions: { default: "deny" } as never }],
       ["sandboxPermission", { sandboxPermission: "none" as never }],
       ["mcpServers", { mcpServers: [{ name: "x", connection: {} }] as never }],
-      [
-        "toolCallback.endpoint",
-        { toolCallback: { endpoint: "https://gateway/tools/call" } as never },
-      ],
     ];
 
     for (const [name, overrides] of probes) {

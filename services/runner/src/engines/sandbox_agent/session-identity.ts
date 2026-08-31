@@ -272,6 +272,9 @@ function configShape(request: AgentRunRequest) {
     // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
     // facet digest uses the same call, so the two views can never disagree about a mode change.
     harnessMode: normalizedHarnessMode(request.harness, request.harnessMode),
+    // Hashed on EVERY harness, deliberately (audit finding 8 proposed scoping this to Pi and
+    // was declined): design Decision 7 pins that a custom provider identity change cold-starts
+    // rather than reusing a mismatched live session, and the pinned test covers non-Pi too.
     connection: request.connection ?? null,
     modelConnection: request.modelConnection
       ? {
@@ -300,13 +303,19 @@ function configShape(request: AgentRunRequest) {
         ...server,
         connection: {
           ...server.connection,
+          // `?? []` matches the facet digest's normalization (`credentialShapes`): an omitted
+          // array and an empty one are the same configuration, and the two identity views
+          // must agree on that or a no-op request cold-evicts with a DISAGREE log.
           credentials: server.connection?.credentials?.map((credential) => ({
             binding: credential.binding,
             usage: credential.usage,
-          })),
+          })) ?? [],
         },
       })) ?? null,
-    toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
+    // No `toolCallback.endpoint` (audit finding 5): every turn reads the INCOMING request's
+    // callback (`run-turn.ts` builds each dispatch from it), nothing bakes the endpoint into
+    // the environment, and hashing it evicted a warm session when the per-deployment gateway
+    // URL moved. The endpoint's per-turn AUTHORIZATION was already excluded.
     // No `gatewayGuidance` and no `gatewayPolicy`: both are DERIVED from the agent's gateway
     // connections at resolve time. The guidance is spliced into the prompt at environment build
     // (`buildRunPlan`) and its wording treats the integration names as examples, so a warm

@@ -32,32 +32,34 @@ harness.
    modalities. Fix: move it to the per-turn-volatile list (the `workflowRevision` /
    `isDraft` precedent), pinned in `lifecycle-desired-state.test.ts`.
 
-3. **`harnessMode` is normalized in the fingerprint but raw in the facet.** The two views
+3. **FIXED (#6399, with 6). `harnessMode` is normalized in the fingerprint but raw in the facet.** The two views
    can disagree (measured: fingerprint equal while `harnessSession` moves), which poisons
    later plans into rebuilding. Reachable today only through a direct runner caller.
    Fix: normalize in one place; add the reverse-direction "no input drift" assertion (a
    change that moves a facet must move the fingerprint).
 
-4. **The agent-mount artifact id is in no fingerprint and no facet (under-eviction).**
+4. **FIXED (#6398). The agent-mount artifact id is in no fingerprint and no facet (under-eviction).**
    `runContext.workflow.artifact.id` signs the agent mount, sets its env var, and appends
    its guidance — all baked at acquire — yet a changed or newly present id reuses the warm
    sandbox (measured). Fix: add the id alone to the `sandbox` facet + fingerprint, with an
    eviction test.
 
-5. **`toolCallback.endpoint` is fingerprinted but consumed per-turn (over-eviction).** Low
+5. **FIXED (#6400). `toolCallback.endpoint` is fingerprinted but consumed per-turn (over-eviction).** Low
    reachability (stable per-deployment URL); same fix class as 2.
 
-6. **`configFingerprint` matches `codex` on a bare wire literal inline.** Correct today,
+6. **FIXED (#6399). `configFingerprint` matches `codex` on a bare wire literal inline.** Correct today,
    but the exact shape of the #6364 bug (a literal plus a silent fall-through). Fix:
    one exported harness normalizer used by `configFingerprint`, `run-plan.ts`, and
    `reconciliation-router.ts`, with a round-trip test over the SDK enum.
 
-7. **`applyReconcilePlan` treats every `apply-live` action as a model change** (ignores
+7. **FIXED (#6400). `applyReconcilePlan` treats every `apply-live` action as a model change** (ignores
    `action.facet`). Unreachable today; becomes real the moment the credential plan routes
    through the applier. Fix: switch on the facet, refuse the rest, one test.
 
-8. **`connection` `{mode, slug}` evicts on every harness but only Pi consumes it.** Very
-   low reachability; listed for completeness.
+8. **DECLINED. `connection` `{mode, slug}` evicts on every harness but only Pi consumes it.** Very
+   low reachability; listed for completeness. Declined on review: design Decision 7 pins that a
+   custom provider identity change cold-starts on EVERY harness, and its test covers non-Pi.
+   The decline is recorded beside the field in `session-identity.ts` (#6400).
 
 Verified clean: the harness wire spellings after #6364 (both normalizers agree, with a
 plan-build assertion), and the shadow-router's decision scoping.
@@ -69,5 +71,4 @@ plan-build assertion), and the shadow-router's decision scoping.
   Slack webhook on any `DISAGREE` or `harness=unknown` runner log line.
 - Unit: the repair-scoping pinned tests in `lifecycle-live-routes.test.ts` (#6372).
 
-Findings 2-8 are queued work; each names its cheapest check above so the fix and the pin
-land together.
+Every finding is now fixed or declined; each fix landed with its pin (see the PR on each row).

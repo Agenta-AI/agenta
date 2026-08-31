@@ -419,6 +419,15 @@ export function buildRunPlan(
   const runnerConfig = loadRunnerConfig();
   const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
   const enabled = enabledProviders ?? runnerConfig.providers.enabled;
+  // Fail CLOSED on a non-string harness, matching `harnessKindOf`: `/stream` decodes with an
+  // unchecked `JSON.parse`, so a malformed payload can put `null`, `0`, or `false` here, and a
+  // bare `||` would quietly run it as Pi while the lifecycle router classifies it `unknown`.
+  if (request.harness !== undefined && typeof request.harness !== "string") {
+    return {
+      ok: false,
+      error: `Unrecognized harness ${JSON.stringify(request.harness)}: not a string.`,
+    };
+  }
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || defaultProvider || "local";
 

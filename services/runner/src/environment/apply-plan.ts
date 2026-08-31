@@ -181,6 +181,17 @@ export async function applyReconcilePlan(
       }
 
       case "apply-live": {
+        if (action.facet !== "model") {
+          // `apply-live` names an OPERATION, not a target: the plan says which facet asked for
+          // it, and the model is the only one this applier knows how to install live. A future
+          // plan that routes another facet here (the credential plan is the expected first) must
+          // fail into a rebuild, not have its change silently installed as a model (audit
+          // finding 7).
+          log(
+            `live-route: no live applier for facet '${action.facet}'; rebuilding`,
+          );
+          return false;
+        }
         // The only live session-level operation: `setModel` on the running session. Strict, so a
         // model the harness will not accept throws here and the whole plan fails rather than
         // silently leaving the session on its previous model while we report the new one.
