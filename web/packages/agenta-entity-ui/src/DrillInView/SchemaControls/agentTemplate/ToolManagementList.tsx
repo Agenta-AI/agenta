@@ -29,7 +29,12 @@ import {integrationPermissionSummary} from "../integrationPolicy"
 import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
-import {describeTool} from "./itemDescriptors"
+import {
+    describeTool,
+    isReferenceTool,
+    toolReferenceSlug,
+    type ItemDescriptor,
+} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"
@@ -171,42 +176,6 @@ function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
 }
 
 /**
- * The integration rows. Isolated in its own component so the (paginated) catalog detail queries
- * only run when integrations actually exist.
- */
-function IntegrationSection({
-    rows,
-    tools,
-    disabled,
-    onOpenIntegration,
-    onRemoveIntegration,
-    statusFor,
-}: {
-    rows: IntegrationRow[]
-    tools: unknown[]
-    disabled?: boolean
-    onOpenIntegration?: (row: IntegrationRow) => void
-    onRemoveIntegration?: (row: IntegrationRow) => void
-    statusFor?: ToolStatusFor
-}) {
-    return (
-        <div className="flex flex-col gap-2">
-            {rows.map((row) => (
-                <IntegrationListRow
-                    key={`${row.provider}:${row.integration}`}
-                    row={row}
-                    tools={tools}
-                    onOpen={() => onOpenIntegration?.(row)}
-                    onRemove={() => onRemoveIntegration?.(row)}
-                    disabled={disabled || !onOpenIntegration}
-                    statusFor={statusFor}
-                />
-            ))}
-        </div>
-    )
-}
-
-/**
  * The Integrations section body: one row per connected app, no sub-header. The section header owns
  * the add button, so this list renders rows only.
  */
@@ -225,14 +194,19 @@ export function ToolManagementList({
     }
 
     return (
-        <IntegrationSection
-            rows={integrationRows}
-            tools={tools}
-            disabled={disabled}
-            onOpenIntegration={onOpenIntegration}
-            onRemoveIntegration={onRemoveIntegration}
-            statusFor={statusFor}
-        />
+        <div className="flex flex-col gap-2">
+            {integrationRows.map((row) => (
+                <IntegrationListRow
+                    key={`${row.provider}:${row.integration}`}
+                    row={row}
+                    tools={tools}
+                    onOpen={() => onOpenIntegration?.(row)}
+                    onRemove={() => onRemoveIntegration?.(row)}
+                    disabled={disabled || !onOpenIntegration}
+                    statusFor={statusFor}
+                />
+            ))}
+        </div>
     )
 }
 
@@ -252,8 +226,7 @@ export function selectSubagentTools(
     tools.forEach((item, index) => {
         // Legacy harness built-ins are inert: they render nowhere.
         if (isHarnessBuiltinTool(item) || claimed.has(index)) return
-        const t = (item ?? {}) as Record<string, unknown>
-        if (t.type === "reference") entries.push({item, index})
+        if (isReferenceTool(item)) entries.push({item, index})
     })
     return entries
 }
@@ -283,30 +256,21 @@ export interface SubagentListProps {
  * place, and keeps it removable, instead of hiding it.
  */
 function markNonAgent(
-    descriptor: ReturnType<typeof describeTool>,
+    descriptor: ItemDescriptor,
     item: unknown,
     nonAgentSlugs?: Set<string>,
-): ReturnType<typeof describeTool> {
+): ItemDescriptor {
     if (!nonAgentSlugs?.size) return descriptor
-    const slug = (item as Record<string, unknown> | null)?.slug
-    if (typeof slug !== "string" || !nonAgentSlugs.has(slug)) return descriptor
+    const slug = toolReferenceSlug(item)
+    if (!slug || !nonAgentSlugs.has(slug)) return descriptor
     return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
 }
 
 /** Stable per-entry key: the saved reference's own identity, never its array position. */
 function subagentKey(item: unknown, index: number): string {
     const t = (item ?? {}) as Record<string, unknown>
-    const slug = typeof t.slug === "string" ? t.slug : ""
     const name = typeof t.name === "string" ? t.name : ""
-    const binding =
-        typeof t.environment === "string"
-            ? `env:${t.environment}`
-            : typeof t.variant === "string"
-              ? `var:${t.variant}`
-              : typeof t.version === "string"
-                ? `ver:${t.version}`
-                : ""
-    const identity = [slug, name, binding].filter(Boolean).join("|")
+    const identity = [toolReferenceSlug(item) ?? "", name].filter(Boolean).join("|")
     // A reference with nothing to identify it falls back to its position, which is still better
     // than colliding with another blank row.
     return identity || `subagent-${index}`

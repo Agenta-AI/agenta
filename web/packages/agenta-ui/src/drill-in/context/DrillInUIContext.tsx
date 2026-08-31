@@ -222,23 +222,15 @@ export interface WorkflowReferenceBridge {
         isLoading: boolean
     }
     /**
-     * Resolve the reference type (agent/chat/completion/custom) for a batch of workflows.
-     * List items carry only role flags — the capability flags that determine type live on the
-     * revision URI — so type can't be derived synchronously from a list item. This reads each
-     * workflow's latest-revision URI (cached) and returns a slug→type map + a loading flag.
-     */
-    useWorkflowTypes: (workflows: WorkflowReferenceUI[]) => {
-        typeBySlug: Record<string, WorkflowReferenceType | undefined>
-        /** Finer-grained badge text per slug (e.g. an evaluator's kind), overriding the type label. */
-        labelBySlug?: Record<string, string | undefined>
-        loading: boolean
-    }
-    /**
-     * Everything the Subagents picker needs, for a batch of workflows, in ONE pass.
+     * Everything the Subagents surfaces need, for a batch of workflow SLUGS, in ONE pass.
      *
-     * Reads the same cached latest-revision fetch `useWorkflowTypes` performs, so adding the
-     * model and the connected apps to a row costs no extra request. A picker that resolved these
-     * per row would fire a request per visible agent.
+     * Slugs, not workflows: the underlying batch is keyed by slug alone, and a caller that only
+     * has the handful it already saved must not have to hold the project-wide workflow list. That
+     * list is lazily activated, so passing it made the saved rows resolve nothing until the
+     * picker had been opened once.
+     *
+     * One cached latest-revision fetch serves the type, the binding, the model and the connected
+     * apps together. A picker that resolved these per row would fire a request per visible agent.
      *
      * `loading` matters to the caller: a row must not print "No connected apps" for an agent
      * whose revision has not arrived.
@@ -247,7 +239,7 @@ export interface WorkflowReferenceBridge {
      * breaking the rules of hooks at the one call site that needs it. There is a single
      * implementation of this bridge, so requiring it costs nothing.
      */
-    useSubagentCatalog: (workflows: WorkflowReferenceUI[]) => {
+    useSubagentCatalog: (slugs: string[]) => {
         bySlug: Record<string, SubagentCatalogEntry | undefined>
         loading: boolean
     }

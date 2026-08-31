@@ -16,9 +16,7 @@ import {appEnvironmentsQueryAtomFamily} from "@agenta/entities/environment"
 import type {RunnablePort} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
-    evaluatorTemplatesMapAtom,
     nonArchivedWorkflowsAtom,
-    parseWorkflowKeyFromUri,
     queryWorkflowRevisionsByWorkflow,
     resolveInputSchema as resolveWorkflowInputSchema,
     resolveOutputSchema as resolveWorkflowOutputSchema,
@@ -47,7 +45,7 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {modelIdFromConfig} from "../SchemaControls/connectionUtils"
+import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
 import {buildIntegrationRows} from "../SchemaControls/toolUtils"
 
 // A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
@@ -122,8 +120,6 @@ function classifyRevision(revision: Workflow): WorkflowReferenceType | undefined
 
 interface ReferenceTypeInfo {
     type: WorkflowReferenceType | undefined
-    /** For evaluators: the evaluator template key (from the revision URI), for a finer badge label. */
-    evaluatorKey: string | null
     /** The variant the latest revision belongs to. A `ref_by: "variant"` reference without this is
      *  ambiguous, so the subagent picker cannot bind one without it. */
     variantId: string | null
@@ -164,7 +160,7 @@ function summarizeRevision(revision: Workflow): {
           ? cfg.llm_config
           : null
     const model = llm ? modelIdFromConfig(llm.model ?? llm) : null
-    const provider = llm && typeof llm.provider === "string" ? llm.provider : null
+    const provider = llm ? connectionFromConfig(llm.model ?? llm).provider : null
     const tools = Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
     // The same parser the config panel uses, so the picker cannot disagree with the panel about
     // which apps an agent has.
@@ -192,7 +188,6 @@ function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
 
 const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
     type: undefined,
-    evaluatorKey: null,
     variantId: null,
     model: null,
     provider: null,
@@ -223,9 +218,6 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 slug,
                                 {
                                     type: classifyRevision(revision),
-                                    evaluatorKey: revision.flags?.is_evaluator
-                                        ? parseWorkflowKeyFromUri(revision.data?.uri)
-                                        : null,
                                     variantId: variantIdOf(revision),
                                     ...summarizeRevision(revision),
                                 },
@@ -241,16 +233,6 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
     }),
 )
 
-// Humanize an evaluator key as a fallback when the template catalog lacks a display name.
-// e.g. "auto_exact_match" → "Exact Match".
-function humanizeEvaluatorKey(key: string): string {
-    return key
-        .replace(/^(auto|human)_/, "")
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-        .trim()
-}
-
 // Lazy activation for the workflow-reference bridge. Referencing a workflow as an agent tool is
 // the only consumer of the project-wide workflow list + evaluator catalog inside the always-mounted
 // playground drill-in provider, and it's needed only once the user opens the reference picker or an
@@ -261,71 +243,26 @@ const activateWorkflowReferenceAtom = atom(null, (get, set) => {
     if (!get(workflowReferenceActivatedAtom)) set(workflowReferenceActivatedAtom, true)
 })
 const EMPTY_WORKFLOW_REFS: Workflow[] = []
-const EMPTY_EVALUATOR_NAMES = new Map<string, string>()
 const workflowReferenceWorkflowsAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(nonArchivedWorkflowsAtom) : EMPTY_WORKFLOW_REFS,
 )
 const workflowReferenceLoadingAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(workflowsListQueryStateAtom).isPending : false,
 )
-const workflowReferenceEvaluatorNamesAtom = atom((get) =>
-    get(workflowReferenceActivatedAtom) ? get(evaluatorTemplatesMapAtom) : EMPTY_EVALUATOR_NAMES,
-)
-
-function useWorkflowReferenceTypes(workflows: WorkflowReferenceUI[]): {
-    typeBySlug: Record<string, WorkflowReferenceType | undefined>
-    labelBySlug?: Record<string, string | undefined>
-    loading: boolean
-} {
-    const slugsKey = useMemo(
-        () =>
-            workflows
-                .map((w) => w.slug)
-                .filter(Boolean)
-                .sort()
-                .join("\n"),
-        [workflows],
-    )
-    const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
-    // Evaluator template catalog (key → display name), for the evaluator sub-type badge.
-    // Gated behind the bridge activation so it doesn't fire the catalog on a plain playground load.
-    const evaluatorNames = useAtomValue(workflowReferenceEvaluatorNamesAtom)
-
-    return useMemo(() => {
-        const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
-        const typeBySlug: Record<string, WorkflowReferenceType | undefined> = {}
-        const labelBySlug: Record<string, string | undefined> = {}
-        for (const [slug, info] of Object.entries(data)) {
-            typeBySlug[slug] = info.type
-            if (info.evaluatorKey) {
-                labelBySlug[slug] =
-                    evaluatorNames.get(info.evaluatorKey) ?? humanizeEvaluatorKey(info.evaluatorKey)
-            }
-        }
-        return {typeBySlug, labelBySlug, loading: Boolean(res.isLoading)}
-    }, [res.data, res.isLoading, evaluatorNames])
-}
 
 /**
  * Everything the Subagents picker needs for a batch of workflows.
  *
- * Deliberately reads the SAME atom family `useWorkflowReferenceTypes` reads, so the model and the
+ * Reads one cached batch of latest revisions, so the type, the binding, the model and the
  * connected apps ride along on a revision fetch that already happened. Resolving them per row
  * would have fired one request per visible agent.
  */
-function useSubagentCatalog(workflows: WorkflowReferenceUI[]): {
+function useSubagentCatalog(slugs: string[]): {
     bySlug: Record<string, SubagentCatalogEntry | undefined>
     loading: boolean
 } {
-    const slugsKey = useMemo(
-        () =>
-            workflows
-                .map((w) => w.slug)
-                .filter(Boolean)
-                .sort()
-                .join("\n"),
-        [workflows],
-    )
+    // Sorted and joined so the same set of slugs, in any order, hits one cached batch.
+    const slugsKey = useMemo(() => [...slugs].filter(Boolean).sort().join("\n"), [slugs])
     const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
 
     return useMemo(() => {
@@ -641,7 +578,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             enabled: true,
             activate,
             // All project workflows are referenceable (apps + evaluators + …), not just apps. Type
-            // (incl. `evaluator`) is resolved per-slug via useWorkflowTypes.
+            // (incl. `evaluator`) is resolved per-slug via useSubagentCatalog.
             workflows: workflows
                 .filter((w) => typeof w.slug === "string")
                 .map((w) => ({
@@ -649,7 +586,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     slug: w.slug as string,
                     name: w.name ?? undefined,
                     description: w.description ?? undefined,
-                    // type is resolved asynchronously via useWorkflowTypes (needs the revision URI).
+                    // type is resolved asynchronously via useSubagentCatalog (needs the revision URI).
                 })),
             workflowsLoading,
             resolveInputSchema: async (workflow) => {
@@ -708,7 +645,6 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             },
             useWorkflowRevisions,
             useWorkflowEnvironments,
-            useWorkflowTypes: useWorkflowReferenceTypes,
             useSubagentCatalog,
         }),
         [activate, workflows, workflowsLoading, projectId, store],

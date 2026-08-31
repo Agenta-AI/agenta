@@ -20,17 +20,15 @@ import {isDescriptionTruncatable} from "../integrationPolicy"
 const CLAMP: Record<number, string> = {
     1: "truncate",
     2: "line-clamp-2",
-    3: "line-clamp-3",
 }
+
+const TEXT_CLASS = "text-xs text-[var(--ag-colorTextTertiary)]"
+const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
 
 export interface ExpandableDescriptionProps {
     description?: string
     /** Lines to clamp to while collapsed. 1 truncates on width; 2 or more clamp on height. */
     lines?: number
-    /** Applied to the text in both states. */
-    className?: string
-    /** Added to the text once expanded, for surfaces that also tint the open state. */
-    expandedClassName?: string
     /** Told whether the description is open, for a parent that restyles its own row. */
     onExpandedChange?: (expanded: boolean) => void
     /** Names what the toggle expands, e.g. the row's title. Without it a list of identical
@@ -41,8 +39,6 @@ export interface ExpandableDescriptionProps {
 export function ExpandableDescription({
     description,
     lines = 1,
-    className = "text-xs text-[var(--ag-colorTextTertiary)]",
-    expandedClassName = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]",
     onExpandedChange,
     label,
 }: ExpandableDescriptionProps) {
@@ -67,9 +63,11 @@ export function ExpandableDescription({
                     : preview.scrollWidth > preview.clientWidth,
             )
         measure()
-        // Re-measure on resize: the answer depends on the element's own box, so a drawer that
-        // opens at another width, or a panel the user drags, would otherwise keep the first one.
-        if (typeof ResizeObserver === "undefined") return
+        // Re-measure on resize only for a multi-line clamp. The answer depends on the element's
+        // own box, so a drawer that opens at another width would otherwise keep the first answer.
+        // Single-line lists are the long ones (the permission drawer renders 50+ rows at once),
+        // and one observer per row there costs more than the case it would catch.
+        if (lines < 2 || typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(measure)
         observer.observe(preview)
         return () => observer.disconnect()
@@ -90,7 +88,7 @@ export function ExpandableDescription({
             <span
                 id={textId}
                 ref={setPreview}
-                className={`${className} ${expanded ? expandedClassName : clamp}`}
+                className={`${TEXT_CLASS} ${expanded ? EXPANDED_CLASS : clamp}`}
             >
                 {text}
             </span>

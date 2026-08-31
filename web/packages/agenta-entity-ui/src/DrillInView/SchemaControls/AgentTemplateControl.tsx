@@ -63,6 +63,7 @@ import {
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
+import {toolReferenceSlug} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
@@ -107,11 +108,12 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     skill: "This skill is missing its name.",
 }
 /**
- * Section key -> the schema field its change marks come from. Integrations and Subagents both
- * render out of `tools`, so a change to either field shows on both. Their VALIDATION tips are
- * deliberately not shared: an integration that needs re-authentication is not a subagent problem.
+ * The schema field a section's CHANGE marks come from. Integrations and Subagents both render out
+ * of `tools`, so a change to that field shows on both. Their VALIDATION tips are deliberately not
+ * shared: an integration that needs re-authentication is not a subagent problem.
  */
-const CHANGE_FIELD_FOR_SECTION: Record<string, string> = {subagents: "tools"}
+const changeFieldFor = (sectionKey: string): string =>
+    sectionKey === "subagents" ? "tools" : sectionKey
 
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
@@ -363,8 +365,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            const field = CHANGE_FIELD_FOR_SECTION[sectionKey] ?? sectionKey
-            if (!agentChangedKeys?.has(field as PanelSectionKey)) return undefined
+            if (!agentChangedKeys?.has(changeFieldFor(sectionKey) as PanelSectionKey))
+                return undefined
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
@@ -473,11 +475,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const savedSubagentSlugs = useMemo(
         () =>
             subagentTools
-                .map(({item}) => {
-                    const t = (item ?? {}) as Record<string, unknown>
-                    return typeof t.slug === "string" ? t.slug : ""
-                })
-                .filter(Boolean),
+                .map(({item}) => toolReferenceSlug(item))
+                .filter((s): s is string => Boolean(s)),
         [subagentTools],
     )
 
@@ -785,7 +784,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 : null
         }
         if (key === "tools") {
-            if (tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>)))
+            // Integration entries only: a nameless SUBAGENT is reported on its own header, and
+            // reporting it here too lit two sections for one problem.
+            const subagentIndices = new Set(subagentTools.map(({index}) => index))
+            if (
+                tools.some(
+                    (t, i) =>
+                        !subagentIndices.has(i) &&
+                        ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
+                )
+            )
                 return "A tool is missing its name."
             if (toolResolutionSummary.unresolved > 0)
                 return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
@@ -816,8 +824,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        const draftField = CHANGE_FIELD_FOR_SECTION[key] ?? key
-        if (draftSectionKeys.has(draftField as PanelSectionKey))
+        if (draftSectionKeys.has(changeFieldFor(key) as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
@@ -861,6 +868,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const headerAddButton = (label: string, onClick: () => void) => (
         <SectionAddButton label={label} onClick={onClick} />
     )
+
+    // Shared by both subagent-list branches, which differ only by wrapper.
+    const subagentListProps = {
+        entries: subagentTools,
+        openEdit,
+        removeItem,
+        closeEditor,
+        disabled,
+        statusFor: toolStatusFor,
+        emptyAdd: openSubagentSelector ? (
+            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
+        ) : undefined,
+    }
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
     // is clean, which is what keeps it a plain drawer-opening row.
@@ -973,33 +993,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 // The connected list resolves each saved reference's type, so one pointing at a
                 // prompt or an evaluator is marked rather than passed off as an agent. Without a
                 // bridge there is nothing to resolve it with, so the plain list renders instead.
+                // The connected list resolves each saved reference's type, so one pointing at a
+                // prompt or an evaluator is marked rather than passed off as an agent. Without a
+                // bridge there is nothing to resolve it with, so the plain list renders instead.
                 content: workflowReference?.enabled ? (
-                    <ConnectedSubagentList
-                        bridge={workflowReference}
-                        entries={subagentTools}
-                        openEdit={openEdit}
-                        removeItem={removeItem}
-                        closeEditor={closeEditor}
-                        disabled={disabled}
-                        statusFor={toolStatusFor}
-                        emptyAdd={
-                            openSubagentSelector ? (
-                                <AddTextLink
-                                    label="add a subagent"
-                                    onClick={openSubagentSelector}
-                                />
-                            ) : undefined
-                        }
-                    />
+                    <ConnectedSubagentList bridge={workflowReference} {...subagentListProps} />
                 ) : (
-                    <SubagentList
-                        entries={subagentTools}
-                        openEdit={openEdit}
-                        removeItem={removeItem}
-                        closeEditor={closeEditor}
-                        disabled={disabled}
-                        statusFor={toolStatusFor}
-                    />
+                    <SubagentList {...subagentListProps} />
                 ),
             },
         hasMcp && {

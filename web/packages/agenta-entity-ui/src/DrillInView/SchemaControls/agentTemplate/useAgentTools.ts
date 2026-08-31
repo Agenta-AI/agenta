@@ -9,7 +9,6 @@ import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui
 
 import {migrateIntegration} from "../gatewayMigration"
 import {DEFAULT_INTEGRATION_PERMISSIONS, mergeToolPermission} from "../integrationPolicy"
-import type {ToolSelectionMeta} from "../ToolSelectorPopover"
 import {
     buildIntegrationRows,
     findGatewayConnectionIndex,
@@ -21,10 +20,9 @@ import {
     type GatewayConnectionTarget,
     type GatewayPermission,
     type IntegrationRow,
-    type ToolObj,
 } from "../toolUtils"
 
-import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./itemDescriptors"
+import {toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
 
 export function useAgentTools({
@@ -51,35 +49,6 @@ export function useAgentTools({
     const setTools = useCallback(
         (next: unknown[]) => onChange({...config, tools: next}),
         [config, onChange],
-    )
-
-    const handleAddTool = useCallback(
-        (tool: ToolObj, meta?: ToolSelectionMeta) => {
-            // `needsConfig` is a transient routing flag — never persist it in the tool metadata.
-            const {needsConfig, ...toolMeta} = meta ?? ({} as ToolSelectionMeta)
-            const hasMeta = Object.keys(toolMeta).length > 0
-            const next =
-                hasMeta && tool && typeof tool === "object" && !Array.isArray(tool)
-                    ? {
-                          ...(tool as Record<string, unknown>),
-                          agenta_metadata: {
-                              ...(((tool as Record<string, unknown>).agenta_metadata as
-                                  | Record<string, unknown>
-                                  | undefined) ?? {}),
-                              ...toolMeta,
-                          },
-                      }
-                    : tool
-            // Open the config editor (append only on Save) for a custom tool, or a gateway action
-            // whose input schema couldn't be resolved — so a half-filled/schema-less tool never
-            // lands silently. Complete gateway tools add straight away (gateway is multi-select).
-            if (toolMeta.source === "custom" || needsConfig) {
-                openCreate("tool", next as Record<string, unknown>, "form")
-                return
-            }
-            setTools([...tools, next])
-        },
-        [tools, setTools, openCreate],
     )
 
     // Append a `type:"reference"` tool for a workflow chosen in the reference drawer (#4860),
@@ -122,35 +91,11 @@ export function useAgentTools({
         [workflowReference, onChange, configRef],
     )
 
-    const handleRemoveToolByName = useCallback(
-        (name: string) => setTools(tools.filter((tool) => toolName(tool) !== name)),
-        [tools, setTools],
-    )
-
     // Removal by SLUG, not by name: a reference's display name is editable and need not match the
     // workflow it points at, so removing by name can miss the entry or hit a different tool.
     const handleRemoveReferenceBySlug = useCallback(
         (slug: string) => setTools(tools.filter((tool) => toolReferenceSlug(tool) !== slug)),
         [tools, setTools],
-    )
-
-    const handleRemoveBuiltinTool = useCallback(
-        (toolToRemove: ToolObj) => {
-            let removed = false
-            const updated = tools.filter((tool) => {
-                if (removed) return true
-                if (!isBuiltinPayloadMatch(tool, toolToRemove)) return true
-                removed = true
-                return false
-            })
-            if (removed) setTools(updated)
-        },
-        [tools, setTools],
-    )
-
-    const selectedToolNames = useMemo(
-        () => new Set(tools.map(toolName).filter((n): n is string => Boolean(n))),
-        [tools],
     )
 
     // ── Integrations: one `gateway_connection` entry per provider and integration ────────────
@@ -216,12 +161,8 @@ export function useAgentTools({
 
     return {
         tools,
-        handleAddTool,
         handleAddWorkflowReference,
-        handleRemoveToolByName,
         handleRemoveReferenceBySlug,
-        handleRemoveBuiltinTool,
-        selectedToolNames,
         integrationRows,
         setIntegrationConnection,
         setIntegrationPermissions,

@@ -29,7 +29,7 @@ import {useEffect, useMemo, useState} from "react"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {LogoMarks} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {LLMIconMap} from "@agenta/ui/llm-icons"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, Cube, Robot} from "@phosphor-icons/react"
@@ -87,7 +87,7 @@ const ICON_BOX = "flex size-7 items-center justify-center rounded-md"
  * them look ragged.
  */
 function ModelChip({model, provider}: {model: string; provider?: string}) {
-    const ProviderIcon = provider ? LLMIconMap[provider] : undefined
+    const ProviderIcon = provider ? getProviderIcon(provider) : null
     return (
         <span className="flex min-w-0 items-center gap-[5px] text-xs text-[var(--ag-colorTextSecondary)]">
             <span className="flex size-[13px] shrink-0 items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)]">

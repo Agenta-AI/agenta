@@ -28,7 +28,6 @@ export interface LogoMarksProps {
     max?: number
     /** Rendered in place of an empty run. Omit to render nothing at all. */
     empty?: React.ReactNode
-    className?: string
 }
 
 /** An item with no logo still has to occupy its slot, or the run reflows as logos load. */
@@ -70,7 +69,7 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
     )
 }
 
-export const LogoMarks = ({items, size = 16, max, empty, label, className}: LogoMarksProps) => {
+export const LogoMarks = ({items, size = 16, max, empty, label}: LogoMarksProps) => {
     if (items.length === 0) return <>{empty ?? null}</>
 
     const shown = max ? items.slice(0, max) : items
@@ -78,11 +77,7 @@ export const LogoMarks = ({items, size = 16, max, empty, label, className}: Logo
     const overflowNames = overflow.map((i) => i.name || i.key).join(", ")
 
     return (
-        <div
-            role="list"
-            aria-label={label}
-            className={`flex items-center gap-1.5 ${className ?? ""}`}
-        >
+        <div role="list" aria-label={label} className="flex items-center gap-1.5">
             {shown.map((item) => (
                 <Mark key={item.key} item={item} size={size} />
             ))}
