@@ -623,6 +623,58 @@ def run_until_settled(
 
 
 # ---------------------------------------------------------------------------
+# An exhausted provider key is an ENVIRONMENT condition, not a defect. A cell that renders it as
+# FAIL spends a reviewer's attention on a topped-up balance, and worse, it teaches the reader that
+# this cell's FAIL is sometimes noise -- which is how a real regression gets waved through later.
+# Cells already SKIP on a missing or ambiguous vault credential; a key with no credit left belongs
+# in the same class, and reads the same way to a human: nothing about the product was tested.
+#
+# Recognition is deliberately narrow. It matches the runner's own classified copy, never a bare
+# 401 or a rate limit. Source of truth for every string below:
+# `services/runner/src/engines/sandbox_agent/errors.ts`.
+
+#: The runner's coded classes for a credits refusal at the proxy's admission check.
+STARTER_CREDIT_CODES = (
+    "starter_credits_exhausted",
+    "starter_credits_program_paused",
+    "starter_credits_unavailable",
+)
+
+#: Billing-stop prose. The first group is the runner's own user-facing credits copy; the second is
+#: the upstream provider's billing refusal, which the runner classifies as `runner_error`, so the
+#: code alone cannot catch it. Throttling ("rate limit", "too many requests") is deliberately
+#: ABSENT: a throttled run was not out of credit and must stay a FAIL.
+_OUT_OF_CREDIT_RE = re.compile(
+    r"free agenta credits are (?:used up|paused)"
+    r"|agenta credits are temporarily unavailable"
+    r"|the model provider account has insufficient credit"
+    r"|insufficient credit"
+    r"|no credits remaining"
+    r"|credit balance is too low"
+    r"|exceeded your current quota"
+    r"|insufficient_quota"
+    r"|budget_exceeded"
+    r"|budget has been exceeded",
+    re.I,
+)
+
+
+def out_of_credit(error_text: str = "", codes: "list | tuple" = ()) -> str | None:
+    """The SKIP reason when a run failed ONLY because the provider key has no credit left.
+
+    Returns the explanation to report, or None when the failure is anything else -- in which case
+    the caller must keep its FAIL. Pass the run's stored/classified error text and any coded
+    `data-agent-error` classes it carried.
+    """
+    for code in codes or ():
+        if code in STARTER_CREDIT_CODES:
+            return f"environment: provider key out of credit ({code})"
+    if error_text and _OUT_OF_CREDIT_RE.search(error_text):
+        return "environment: provider key out of credit"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # The generic invariant: no tool_result with empty output and isError:false may exist for a call
 # whose runner log says "[commit-auth] refused" (the silent-blank-success class). Added after the
 # Codex approve-then-fail P0 triage found that W7 covered only Claude, so this reusable check is
