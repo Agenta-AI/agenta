@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {parseAgentRunError} from "../../../src/model/error"
+import {
+    isTransportFailure,
+    parseAgentRunError,
+    TRANSPORT_ERROR_MESSAGE,
+} from "../../../src/model/error"
 
 describe("parseAgentRunError", () => {
     it("pulls message + code out of a status envelope carried on an Error", () => {
@@ -28,5 +32,40 @@ describe("parseAgentRunError", () => {
 
     it("uses the real fallback copy for an empty string", () => {
         expect(parseAgentRunError("")).toEqual({message: "The agent run failed."})
+    })
+
+    it("translates the browser's dropped-request text instead of showing it", () => {
+        // What the user actually saw under "The agent run failed": the raw TypeError.
+        expect(parseAgentRunError(new TypeError("Failed to fetch"))).toEqual({
+            message: TRANSPORT_ERROR_MESSAGE,
+            transport: true,
+        })
+    })
+
+    it("recognises the other engines' wording for the same failure", () => {
+        for (const raw of [
+            "NetworkError when attempting to fetch resource.",
+            "Load failed",
+            "The network connection was lost.",
+            "TypeError: Failed to fetch",
+            "fetch failed",
+        ]) {
+            expect(parseAgentRunError(raw)).toMatchObject({transport: true})
+        }
+    })
+
+    it("keeps a server verdict that happens to use those words, with its code", () => {
+        // The envelope wins: a reason the server sent is a reason, and its code is worth more
+        // than the translation.
+        const raw = JSON.stringify({status: {code: 502, message: "Upstream fetch failed"}})
+        expect(parseAgentRunError(raw)).toEqual({message: "Upstream fetch failed", code: 502})
+    })
+
+    it("does not mark ordinary run failures as transport", () => {
+        expect(parseAgentRunError("Agent run failed: no usable credential")).toEqual({
+            message: "Agent run failed: no usable credential",
+        })
+        expect(isTransportFailure("")).toBe(false)
+        expect(isTransportFailure("The agent run failed.")).toBe(false)
     })
 })

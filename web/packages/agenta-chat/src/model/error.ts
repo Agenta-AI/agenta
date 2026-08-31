@@ -1,18 +1,47 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/AgentConversation.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the
-// re-plumb PR deletes it. Keep byte-parity if either side changes.
 export interface ParsedRunError {
     message: string
     code?: number
+    /**
+     * The request never reached Agenta — offline, DNS, refused, dropped mid-flight, or the tab out
+     * of connections. There is no server verdict behind this one, so it is worth retrying as-is,
+     * and it must not be reported as anything the agent or its config did.
+     */
+    transport?: boolean
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/AgentConversation.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the
-// re-plumb PR deletes it. Keep byte-parity if either side changes.
+/**
+ * How each engine words "the fetch never completed". Matched case-insensitively as substrings
+ * because some arrive wrapped ("TypeError: Failed to fetch").
+ */
+const TRANSPORT_FAILURES = [
+    "failed to fetch", // Chrome, Edge
+    "networkerror when attempting to fetch resource", // Firefox
+    "load failed", // Safari
+    "the network connection was lost", // Safari, mid-flight drop
+    "network request failed", // React Native / polyfills
+    "fetch failed", // undici, when this runs server-side
+    "err_network",
+    "err_internet_disconnected",
+    "err_connection_refused",
+]
+
+/** One sentence with something to do in it, in place of a browser's internal wording. */
+export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your connection and retry."
+
+/** Is this raw message an engine's transport failure rather than a reason from the server? */
+export const isTransportFailure = (raw: string): boolean => {
+    const text = raw.trim().toLowerCase()
+    return text.length > 0 && TRANSPORT_FAILURES.some((phrase) => text.includes(phrase))
+}
+
 /**
  * Best-effort human reason from a useChat stream error. The server may hand us a clean string
  * ("Agent run failed: …") or a JSON envelope (`{status:{code,message,…}}` / `{message}`) — pull
  * the message out of either and drop the stacktrace / docs-url noise so it reads cleanly inline.
+ *
+ * A message the server never sent is translated rather than shown. A dropped request surfaces as
+ * the engine's own `TypeError` text, and "Failed to fetch" rendered under "The agent run failed"
+ * told the user nothing they could act on and read as a fault in the agent.
  */
 export const parseAgentRunError = (err: unknown): ParsedRunError => {
     const raw =
@@ -36,6 +65,9 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
     } catch {
         // raw isn't JSON — it's already the human message.
     }
+    // After the envelope: a server that reports those words means them, and its code is worth more
+    // than this translation. A bare engine string has no envelope to lose.
+    if (isTransportFailure(fallback)) return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
     return {message: fallback}
 }
 

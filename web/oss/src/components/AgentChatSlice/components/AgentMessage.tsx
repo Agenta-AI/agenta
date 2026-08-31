@@ -158,11 +158,19 @@ export const RunErrorBody = ({
     text,
     stateKey,
     code,
+    onRetry,
 }: {
     text: string
     stateKey: string
     /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
     code?: string
+    /**
+     * Re-run the failed turn. It lives here rather than in the turn's hover toolbar because that
+     * toolbar hides rewind on the LAST turn (rewinding it just re-runs what is already current) —
+     * and a failed run is always the last turn, so the one turn that most needs re-running was the
+     * one turn with no way to do it.
+     */
+    onRetry?: () => void
 }) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
@@ -200,16 +208,24 @@ export const RunErrorBody = ({
                         {expanded ? "Show less" : "Show more"}
                     </button>
                 )}
-                {offerOwnKey && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1"
-                        onClick={() => requestProviderDrawer(true)}
-                    >
-                        {/* TODO(copy: owner) */}
-                        Add your key
-                    </Button>
+                {(offerOwnKey || onRetry) && (
+                    <div className="mt-1 flex items-center gap-2">
+                        {offerOwnKey && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => requestProviderDrawer(true)}
+                            >
+                                {/* TODO(copy: owner) */}
+                                Add your key
+                            </Button>
+                        )}
+                        {onRetry && (
+                            <Button size="sm" variant="outline" onClick={onRetry}>
+                                Retry
+                            </Button>
+                        )}
+                    </div>
                 )}
             </div>
         </div>
@@ -598,6 +614,9 @@ const AgentMessage = ({
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
+            // Same rewind path the toolbar uses, so a tool that already ran still warns first.
+            // Unlike the toolbar's, this one stays on the last turn: that is the failed one.
+            onRetry={isUser ? undefined : () => onRewind(message)}
         />
     )
 
