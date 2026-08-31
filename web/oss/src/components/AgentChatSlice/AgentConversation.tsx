@@ -8,7 +8,7 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
-import {ConnectionFocusProvider} from "@agenta/chat/components"
+import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
     useComposerAttachments,
@@ -41,7 +41,6 @@ import {isOverlayOpen} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
-import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -742,36 +741,15 @@ const AgentConversation = ({
                             that read as the transcript being cut short. Docked chrome below carries
                             its own `mb-2`, so nothing here depended on the gap for separation. */}
                             <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                                {/* At the limit the overlay says so rather than inviting a drop it is
-                            about to reject wholesale. */}
-                                {isDragging && (
-                                    <div
-                                        className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                                            atMax
-                                                ? "border-colorError bg-[var(--ant-color-error-bg)]"
-                                                : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-                                        }`}
-                                    >
-                                        <UploadSimple
-                                            size={26}
-                                            className={
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }
-                                        />
-                                        <span
-                                            className={`text-sm font-medium ${
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }`}
-                                        >
-                                            {atMax ? "Attachment limit reached" : "Drop files here"}
-                                        </span>
-                                        <span className="text-xs text-colorTextSecondary">
-                                            {atMax
-                                                ? `Remove one to add another (${limits.maxCount} max)`
-                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
-                                        </span>
-                                    </div>
-                                )}
+                                <AttachmentDropOverlay
+                                    active={isDragging}
+                                    atMax={atMax}
+                                    hint={
+                                        atMax
+                                            ? `Remove one to add another (${limits.maxCount} max)`
+                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`
+                                    }
+                                />
                                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                                 <AgentTranscript

@@ -8,7 +8,10 @@ export {
     type AttachmentCardAction,
 } from "./AttachmentCard"
 export {default as AttachmentCardGrid, type AttachmentCardGridProps} from "./AttachmentCardGrid"
-export {default as AudioPlayer} from "./AudioPlayer"
+export {
+    default as AttachmentDropOverlay,
+    type AttachmentDropOverlayProps,
+} from "./AttachmentDropOverlay"
 export {default as RevealCollapse} from "./RevealCollapse"
 export {
     CollapsibleMessageBody,

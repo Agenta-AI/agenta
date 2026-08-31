@@ -6,14 +6,15 @@ import {
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {attachmentIdForPart, filePartName} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
 import {
-    AudioPlayer,
+    AttachmentCard,
+    AttachmentCardGrid,
     CollapsibleMessageBody,
     StartupActivity,
     TurnFooter,
@@ -37,7 +38,6 @@ import {buildRenderMap} from "@agenta/playground"
 import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
@@ -273,7 +273,6 @@ const triggerDownload = (href: string, name: string) => {
 
 const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: string}) => {
     const attachmentId = attachmentIdForPart(file)
-    const kind = fileKind(file.mediaType)
     const source = useAttachmentMediaSrc(attachmentId ? sessionId : null, attachmentId)
     const src = attachmentId ? source.src : file.url
     const name = filePartName(file)
@@ -289,9 +288,13 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }, [fallbackDownloadPending, name, source.failed, source.src])
 
-    const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-        if (!attachmentId || !src || src.startsWith("blob:")) return
-        event.preventDefault()
+    const handleDownload = async () => {
+        if (!src) return
+        // Already a local blob (the axios fallback resolved it) — save it straight off.
+        if (src.startsWith("blob:") || !attachmentId) {
+            triggerDownload(src, name)
+            return
+        }
         try {
             const response = await fetch(src, {credentials: "include"})
             if (!response.ok) throw new Error("Direct attachment download failed")
@@ -305,44 +308,13 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }
 
-    if (kind === "audio") {
-        return (
-            <AudioPlayer
-                src={src ?? ""}
-                name={name}
-                onError={attachmentId ? source.onError : undefined}
-                className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
-            />
-        )
-    }
-
     return (
-        <ChatAttachmentCard
+        <AttachmentCard
             name={name}
-            kind={kind}
+            mediaType={file.mediaType ?? ""}
             src={src ?? undefined}
-            loading={attachmentId ? source.isPending : false}
-            className="max-w-full"
-            onImageError={kind === "image" && attachmentId ? source.onError : undefined}
-            onVideoError={kind === "video" && attachmentId ? source.onError : undefined}
-            description={
-                kind === "file" ? (
-                    src ? (
-                        <a
-                            href={src}
-                            download={name}
-                            onClick={handleDownload}
-                            className="truncate text-xs text-colorPrimary"
-                        >
-                            {file.mediaType}
-                        </a>
-                    ) : (
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            {source.failed ? "Download unavailable" : file.mediaType}
-                        </span>
-                    )
-                ) : undefined
-            }
+            action={src && !source.failed ? "download" : "none"}
+            onDownload={() => void handleDownload()}
         />
     )
 }
@@ -476,6 +448,7 @@ const AgentMessage = ({
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
+        | {kind: "files"; parts: FileUIPart[]; index: number}
     // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
     // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
     // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
@@ -505,6 +478,14 @@ const AgentMessage = ({
             const last = renderItems[renderItems.length - 1]
             if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
             else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
+            return
+        }
+        // Consecutive attachments share one grid, so a message's files lay out as a block
+        // instead of one full-width card per part.
+        if (part.type === "file") {
+            const last = renderItems[renderItems.length - 1]
+            if (last && last.kind === "files") last.parts.push(part as FileUIPart)
+            else renderItems.push({kind: "files", parts: [part as FileUIPart], index: i})
             return
         }
         renderItems.push({kind: "part", part, index: i})
@@ -546,20 +527,25 @@ const AgentMessage = ({
                 />
             )
         }
-        // Multi-modality: render attachments (sent by the user or returned by the
-        // agent) as X `FileCard`s — images preview inline, other kinds show a typed
-        // file chip with a download link.
-        if (part.type === "file") {
-            return (
-                <AttachmentFilePart key={partKey} file={part as FileUIPart} sessionId={sessionId} />
-            )
-        }
         return null
     }
 
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
+                if (item.kind === "files") {
+                    return (
+                        <AttachmentCardGrid key={`${message.id}-files-${item.index}`}>
+                            {item.parts.map((file, n) => (
+                                <AttachmentFilePart
+                                    key={`${message.id}-file-${item.index}-${n}`}
+                                    file={file}
+                                    sessionId={sessionId}
+                                />
+                            ))}
+                        </AttachmentCardGrid>
+                    )
+                }
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity

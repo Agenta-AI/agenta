@@ -2,7 +2,13 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {CollapsibleMessageBody, StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {
+    AttachmentCard,
+    AttachmentCardGrid,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
 import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
@@ -34,7 +40,6 @@ import {
 } from "lucide-react"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
@@ -273,6 +278,20 @@ export const TurnRow = ({
     const body = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {turn.items.map((item, position) => {
+                if (item.kind === "files") {
+                    return (
+                        <AttachmentCardGrid key={item.index}>
+                            {item.parts.map((file, n) => (
+                                <AttachmentCard
+                                    key={`${item.index}-${n}`}
+                                    name={file.filename || file.mediaType || "attachment"}
+                                    mediaType={file.mediaType ?? ""}
+                                    src={file.url}
+                                />
+                            ))}
+                        </AttachmentCardGrid>
+                    )
+                }
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
                         // What the user typed renders literally — markdown in your own words
@@ -295,9 +314,6 @@ export const TurnRow = ({
                                 urgent={position !== turn.items.length - 1}
                             />
                         )
-                    }
-                    if (item.part.type === "file") {
-                        return <AttachmentPart key={item.index} part={item.part} />
                     }
                     if (item.part.type === "reasoning") {
                         return (

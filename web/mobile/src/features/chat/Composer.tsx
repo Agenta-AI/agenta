@@ -1,6 +1,8 @@
 import {useRef, type MutableRefObject} from "react"
 
+import {describeAccepted} from "@agenta/chat/assets"
 import {
+    AttachmentDropOverlay,
     ChatComposer,
     MicPermissionNotice,
     RecordingBar,
@@ -128,7 +130,16 @@ export const Composer = ({
                     message={micError}
                     onDismiss={dismissMicError}
                 />
-                <div className="relative">
+                <div className="relative" {...attachments.bindDropTarget(attachmentsBlocked)}>
+                    <AttachmentDropOverlay
+                        active={attachments.isDragging}
+                        atMax={attachments.atMax}
+                        hint={
+                            attachments.atMax
+                                ? `Remove one to add another (${attachments.limits.maxCount} max)`
+                                : describeAccepted(attachments.limits)
+                        }
+                    />
                     <ChatComposer
                         inputRef={richInputRef}
                         onSubmit={submit}

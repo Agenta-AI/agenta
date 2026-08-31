@@ -8,7 +8,7 @@
  */
 import {useEffect, useRef, type ReactNode} from "react"
 
-import {ArrowDown, FileText, FilmStrip, Image as ImageIcon} from "@phosphor-icons/react"
+import {ArrowDown} from "@phosphor-icons/react"
 
 // The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
 // has to actually REPLACE the variant's padding/radius. With plain concatenation both land on the
@@ -182,99 +182,6 @@ export const ChatActionIconButton = ({
                 <TooltipContent className="max-w-64 text-xs">{label}</TooltipContent>
             </Tooltip>
         </TooltipProvider>
-    )
-}
-
-const CARD_WIDTH = "w-[268px] max-w-full"
-
-const KIND_ICONS = {
-    image: ImageIcon,
-    video: FilmStrip,
-    file: FileText,
-} as const
-
-export interface ChatAttachmentCardProps {
-    name: string
-    kind: "image" | "video" | "file"
-    src?: string
-    /** The media source is still being fetched — show the placeholder box instead of a broken img. */
-    loading?: boolean
-    /** Second line of the file chip (media type, a download link, an unavailable note). */
-    description?: ReactNode
-    className?: string
-    onImageError?: () => void
-    onVideoError?: () => void
-}
-
-/**
- * A message attachment (the antd-x `FileCard` roles): images and video preview inline at the
- * 268px card width; anything else is a typed chip with the name and a caller-owned description
- * line. Audio never routes here — the chat keeps its own player.
- */
-export const ChatAttachmentCard = ({
-    name,
-    kind,
-    src,
-    loading = false,
-    description,
-    className,
-    onImageError,
-    onVideoError,
-}: ChatAttachmentCardProps) => {
-    if (kind === "image" || kind === "video") {
-        // Both media kinds share the placeholder: a src-less <video> renders an empty player,
-        // which reads as broken exactly the way a src-less <img> does.
-        if (loading || !src) {
-            return (
-                <div
-                    className={cn(
-                        CARD_WIDTH,
-                        "h-[140px] animate-pulse rounded-md bg-colorFillTertiary",
-                        className,
-                    )}
-                    aria-label={`Loading ${name}`}
-                />
-            )
-        }
-        return kind === "image" ? (
-            <img
-                src={src}
-                alt={name}
-                onError={onImageError}
-                className={cn(
-                    CARD_WIDTH,
-                    "h-auto rounded-md border border-solid border-colorBorderSecondary",
-                    className,
-                )}
-            />
-        ) : (
-            <video
-                src={src}
-                controls
-                onError={onVideoError}
-                className={cn(CARD_WIDTH, "rounded-md", className)}
-            />
-        )
-    }
-
-    const Icon = KIND_ICONS[kind]
-    return (
-        <div
-            className={cn(
-                CARD_WIDTH,
-                "box-border flex h-10 items-center gap-2 rounded-md border border-solid",
-                "border-colorBorderSecondary bg-colorBgContainer px-2",
-                className,
-            )}
-        >
-            <Icon size={20} className="shrink-0 text-colorTextSecondary" />
-            <div className="flex min-w-0 flex-col">
-                <span className="truncate text-xs font-medium text-colorText" title={name}>
-                    {name}
-                </span>
-                {description}
-            </div>
-        </div>
     )
 }
 
