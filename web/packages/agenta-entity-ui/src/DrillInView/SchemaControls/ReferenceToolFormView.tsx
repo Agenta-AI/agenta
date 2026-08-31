@@ -80,10 +80,10 @@ function ReferenceBindingEditor({
     const [environment, setEnvironment] = useState<string | undefined>(
         typeof tool.environment === "string" ? tool.environment : undefined,
     )
-    // Selected variant id — kept even when following its latest (no pinned version).
-    const [variant, setVariant] = useState<string | undefined>(
-        typeof tool.variant_id === "string" ? tool.variant_id : undefined,
-    )
+    // Selected variant id. UI state only: it drives which variant the picker shows as chosen, and
+    // is deliberately NOT persisted. ReferenceToolConfig forbids unknown fields and has no
+    // variant_id, so an entry carrying one fails validation and nothing reads it either.
+    const [variant, setVariant] = useState<string | undefined>(undefined)
 
     const {environments, isLoading} = bridge.useWorkflowEnvironments(workflow)
 
@@ -95,10 +95,10 @@ function ReferenceBindingEditor({
         varId?: string,
     ) => {
         const next = {...tool}
+        // Dropped on every write, including from entries saved before it was known to be invalid.
+        delete next.variant_id
         if (mode === "revision") {
             next.ref_by = "variant"
-            if (varId) next.variant_id = varId
-            else delete next.variant_id
             if (ver) next.version = ver
             else delete next.version
             delete next.environment
@@ -107,7 +107,6 @@ function ReferenceBindingEditor({
             if (env) next.environment = env
             else delete next.environment
             delete next.version
-            delete next.variant_id
         }
         onChange(next)
     }
