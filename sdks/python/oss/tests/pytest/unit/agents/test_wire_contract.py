@@ -10,7 +10,7 @@ purpose. Regenerate the golden deliberately, and update ``protocol.ts`` and ``KN
 to match.
 
 There is no engine selector on the wire: the runner drives one engine (the sandbox-agent ACP
-path) and ``harness`` (``pi_core`` / ``pi_agenta`` / ``claude``) picks the agent.
+path) and ``harness`` (``pi_core`` / ``claude`` / ``codex``) picks the agent.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
-    AgentaAgentTemplate,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -334,23 +333,6 @@ def _gateway_connection_payload():
     )
 
 
-def _agenta_payload():
-    config = AgentaAgentTemplate(
-        agents_md="Agenta preamble + project rules.",
-        model="gpt-5.5",
-        custom_tools=[dict(_CUSTOM_TOOL)],
-        tool_callback=_CALLBACK,
-        append_system="You are an Agenta agent.",
-        skills=[dict(_SKILL)],
-    )
-    return request_to_wire(
-        harness=HarnessKind.AGENTA,
-        sandbox="local",
-        config=config,
-        messages=[Message(role="user", content="hi")],
-    )
-
-
 def _attachment_payload():
     config = PiAgentTemplate(
         agents_md="Use the attached file.",
@@ -431,18 +413,6 @@ def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
         assert "gatewayPolicy" not in payload
         assert "gatewayPolicy" not in golden(name)
         assert payload == golden(name)
-
-
-def test_request_to_wire_agenta_carries_skills_and_pi_shape():
-    payload = _agenta_payload()
-    assert set(payload) <= KNOWN_REQUEST_KEYS
-    # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
-    assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
-    assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
-    assert payload["skills"][0]["name"] == "release-notes"
-    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
 
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():

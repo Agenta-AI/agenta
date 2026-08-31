@@ -220,8 +220,9 @@ const V1_CAPABILITIES: Readonly<
 };
 
 export function harnessKind(request: AgentRunRequest): HarnessKind {
-  // Mirror `buildRunPlan`'s normalization exactly: the WIRE carries `pi_core` / `pi_agenta`
-  // (an empty harness defaults to `pi_core`), never the bare "pi" this table is keyed by.
+  // Mirror `buildRunPlan`'s normalization exactly: the WIRE carries `pi_core` (an empty
+  // harness defaults to it; `pi_agenta` is a removed experiment's spelling, still read as
+  // Pi so an old stored request replays), never the bare "pi" this table is keyed by.
   // Matching only the literals sent every playground Pi run into the fail-closed `unknown`
   // row, whose every facet says rebuild — which disabled the live model-switch route and
   // made the shadow log plan a rebuild for every Pi config change.
