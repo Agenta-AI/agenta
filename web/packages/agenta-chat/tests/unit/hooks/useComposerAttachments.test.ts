@@ -57,8 +57,6 @@ describe("useComposerAttachments", () => {
         })
         expect(result.current.files.map((f) => f.name)).toEqual(["ok.txt"])
         expect(result.current.rejections.map((r) => r.name)).toEqual(["huge.txt"])
-        // A rejection opens the tray so the message is visible.
-        expect(result.current.attachmentsOpen).toBe(true)
     })
 
     it("caps the staged set at the count limit and flags atMax", () => {
@@ -170,6 +168,6 @@ describe("useComposerAttachments", () => {
             result.current.clearAttachments(result.current.files.map((f) => f.uid))
         })
         expect(result.current.files).toHaveLength(0)
-        expect(result.current.attachmentsOpen).toBe(false)
+        expect(result.current.rejections).toHaveLength(0)
     })
 })

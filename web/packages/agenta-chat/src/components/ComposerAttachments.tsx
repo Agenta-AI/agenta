@@ -1,14 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
-import {UploadSimple} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {
-    acceptAttrFor,
-    type AttachmentLimits,
-    type AttachmentRejection,
-    describeAccepted,
-} from "../assets"
+import {type AttachmentRejection} from "../assets"
 import {isViewable} from "../assets/attachmentRules"
 import {SESSION_SPRING} from "../assets/motion"
 import type {StagedUpload as UploadFile} from "../model"
@@ -29,9 +23,6 @@ const ITEM_VARIANTS = {
 interface ComposerAttachmentsProps {
     files: UploadFile[]
     rejections: AttachmentRejection[]
-    limits: AttachmentLimits
-    /** Add picked files through the caller's guardrails (`validateIncoming`). */
-    onAdd: (incoming: File[]) => void
     onRemove: (uid: string) => void
     onDismissRejection: (index: number) => void
     /** Open a viewable attachment (image/document) in the Files drawer. */
@@ -43,23 +34,19 @@ interface ComposerAttachmentsProps {
 }
 
 /**
- * The composer's attachment panel: a borderless click/drop dropzone when empty, otherwise a grid
- * of equal-height cards — staged files and the batch's rejections side by side, since a rejection
- * is a thing you dismiss exactly like a file. Drag-and-drop onto the whole panel is owned by the
- * parent; this renders the click path and the list.
+ * The composer's staged attachments: a grid of equal-height cards holding the files and the
+ * batch's rejections side by side, since a rejection is a thing you dismiss exactly like a file.
+ * Picking and dropping are owned by the parent — this only draws what is staged.
  */
 const ComposerAttachments = ({
     files,
     rejections,
-    limits,
-    onAdd,
     onRemove,
     onDismissRejection,
     onView,
     onRetry,
     canRetry,
 }: ComposerAttachmentsProps) => {
-    const inputRef = useRef<HTMLInputElement>(null)
     const [previews, setPreviews] = useState<Record<string, string>>({})
 
     // Object URLs for image thumbnails and audio playback, minted ONCE per uid and released only
@@ -113,95 +100,25 @@ const ComposerAttachments = ({
         previousCount.current = files.length
     }, [files.length])
 
-    const pick = () => inputRef.current?.click()
-    const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const list = e.target.files
-        if (list && list.length) onAdd(Array.from(list))
-        e.target.value = "" // let the same file be re-picked after a remove
-    }
-
-    const isEmpty = files.length === 0 && rejections.length === 0
+    // Nothing staged means nothing to draw — the paperclip opens the picker directly, so there is
+    // no empty state to invite a drop.
+    if (files.length === 0 && rejections.length === 0) return null
 
     return (
         <MotionConfig transition={SESSION_SPRING}>
             <div className="flex flex-col gap-2 p-2">
-                <input
-                    ref={inputRef}
-                    type="file"
-                    multiple
-                    accept={acceptAttrFor(limits)}
-                    onChange={onInput}
-                    className="hidden"
-                />
-
-                {isEmpty ? (
-                    <button
-                        type="button"
-                        onClick={pick}
-                        className="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border-0 bg-transparent px-3 py-3 text-center transition-colors hover:bg-colorFillQuaternary"
-                    >
-                        <UploadSimple size={18} className="text-colorTextTertiary" />
-                        <span className="text-xs font-medium text-colorText">Attach files</span>
-                        <span className="text-xs text-colorTextSecondary">
-                            {describeAccepted(limits)} · up to {limits.maxCount} files
-                        </span>
-                    </button>
-                ) : (
-                    <AttachmentCardGrid ref={scrollRef} maxHeight={TRAY_MAX_HEIGHT}>
-                        {/* popLayout: a removed card leaves the flow at once, so the rest close the
+                <AttachmentCardGrid ref={scrollRef} maxHeight={TRAY_MAX_HEIGHT}>
+                    {/* popLayout: a removed card leaves the flow at once, so the rest close the
                         gap while it animates out rather than after. */}
-                        <AnimatePresence initial={false} mode="popLayout">
-                            {files.map((f) => {
-                                const file = f.originFileObj as File | undefined
-                                const type = file?.type || ""
-                                const viewable = !!onView && isViewable(type)
-                                const failed = f.status === "error"
-                                return (
-                                    <motion.div
-                                        key={f.uid}
-                                        layout
-                                        variants={ITEM_VARIANTS}
-                                        initial="initial"
-                                        animate="animate"
-                                        exit="exit"
-                                        className="min-w-0"
-                                    >
-                                        <AttachmentCard
-                                            name={f.name}
-                                            mediaType={type}
-                                            src={previews[f.uid]}
-                                            state={
-                                                failed
-                                                    ? "error"
-                                                    : f.status === "uploading"
-                                                      ? "uploading"
-                                                      : "idle"
-                                            }
-                                            progress={f.percent ?? 0}
-                                            errorReason={
-                                                typeof f.error === "string"
-                                                    ? f.error
-                                                    : "upload failed"
-                                            }
-                                            action="remove"
-                                            onRemove={() => onRemove(f.uid)}
-                                            onRetry={
-                                                failed && onRetry && (canRetry?.(f.uid) ?? true)
-                                                    ? () => onRetry(f.uid)
-                                                    : undefined
-                                            }
-                                            onView={viewable ? () => onView(f.uid) : undefined}
-                                        />
-                                    </motion.div>
-                                )
-                            })}
-
-                            {/* Rejections never became files, so they carry no uid, and two can
-                            agree on name AND reason — position is the only thing that separates
-                            them. */}
-                            {rejections.map((r, i) => (
+                    <AnimatePresence initial={false} mode="popLayout">
+                        {files.map((f) => {
+                            const file = f.originFileObj as File | undefined
+                            const type = file?.type || ""
+                            const viewable = !!onView && isViewable(type)
+                            const failed = f.status === "error"
+                            return (
                                 <motion.div
-                                    key={`rejection-${i}-${r.name}`}
+                                    key={f.uid}
                                     layout
                                     variants={ITEM_VARIANTS}
                                     initial="initial"
@@ -210,18 +127,58 @@ const ComposerAttachments = ({
                                     className="min-w-0"
                                 >
                                     <AttachmentCard
-                                        name={r.name}
-                                        mediaType=""
-                                        state="error"
-                                        errorReason={r.reason}
+                                        name={f.name}
+                                        mediaType={type}
+                                        src={previews[f.uid]}
+                                        state={
+                                            failed
+                                                ? "error"
+                                                : f.status === "uploading"
+                                                  ? "uploading"
+                                                  : "idle"
+                                        }
+                                        progress={f.percent ?? 0}
+                                        errorReason={
+                                            typeof f.error === "string" ? f.error : "upload failed"
+                                        }
                                         action="remove"
-                                        onRemove={() => onDismissRejection(i)}
+                                        onRemove={() => onRemove(f.uid)}
+                                        onRetry={
+                                            failed && onRetry && (canRetry?.(f.uid) ?? true)
+                                                ? () => onRetry(f.uid)
+                                                : undefined
+                                        }
+                                        onView={viewable ? () => onView(f.uid) : undefined}
                                     />
                                 </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </AttachmentCardGrid>
-                )}
+                            )
+                        })}
+
+                        {/* Rejections never became files, so they carry no uid, and two can
+                            agree on name AND reason — position is the only thing that separates
+                            them. */}
+                        {rejections.map((r, i) => (
+                            <motion.div
+                                key={`rejection-${i}-${r.name}`}
+                                layout
+                                variants={ITEM_VARIANTS}
+                                initial="initial"
+                                animate="animate"
+                                exit="exit"
+                                className="min-w-0"
+                            >
+                                <AttachmentCard
+                                    name={r.name}
+                                    mediaType=""
+                                    state="error"
+                                    errorReason={r.reason}
+                                    action="remove"
+                                    onRemove={() => onDismissRejection(i)}
+                                />
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </AttachmentCardGrid>
             </div>
         </MotionConfig>
     )

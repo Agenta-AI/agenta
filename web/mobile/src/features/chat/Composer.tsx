@@ -97,7 +97,6 @@ export const Composer = ({
             // through the composer's own inline channel.
             richInputRef.current?.setMarkdown(text)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
-            attachments.setAttachmentsOpen(true)
         }
     }
 

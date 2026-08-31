@@ -7,13 +7,14 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
+import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 
 import ComposerAttachments from "./ComposerAttachments"
@@ -88,8 +89,6 @@ export const ChatComposer = ({
         uploadsEnabled,
         files,
         rejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         limits,
         atMax,
         attachmentsSettled,
@@ -100,8 +99,22 @@ export const ChatComposer = ({
         uploads,
     } = attachments
 
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
     return (
         <Suspense fallback={fallback ?? null}>
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={acceptAttrFor(limits)}
+                onChange={(e) => {
+                    const list = e.target.files
+                    if (list && list.length) addFiles(Array.from(list))
+                    e.target.value = "" // let the same file be re-picked after a remove
+                }}
+                className="hidden"
+            />
             <RichChatInput
                 ref={inputRef}
                 autoFocus={autoFocus}
@@ -146,7 +159,7 @@ export const ChatComposer = ({
                                 variant="ghost"
                                 size="icon"
                                 disabled={!uploadsEnabled || composerDisabled}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                onClick={() => fileInputRef.current?.click()}
                                 aria-label="Attach files"
                             >
                                 <Paperclip size={16} />
@@ -155,12 +168,10 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                    <HeightCollapse open={files.length > 0 || rejections.length > 0}>
                         <ComposerAttachments
                             files={files}
                             rejections={rejections}
-                            limits={limits}
-                            onAdd={addFiles}
                             onRemove={removeFile}
                             onDismissRejection={dismissRejection}
                             onView={uploadsEnabled ? onViewAttachment : undefined}

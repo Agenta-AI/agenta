@@ -78,7 +78,6 @@ export const useComposerAttachments = ({
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
-    const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     useEffect(() => {
         // Park whatever is on screen under the session it actually belongs to…
         const owner = filesOwnerRef.current
@@ -151,9 +150,6 @@ export const useComposerAttachments = ({
             if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
         }
         setRejections(allRejections)
-        // Open for rejections too. Otherwise dropping something unsupported writes a message into
-        // a closed panel and reads as nothing having happened at all.
-        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
     }
 
     // Removing a chip also aborts its in-flight request.
@@ -206,7 +202,6 @@ export const useComposerAttachments = ({
                   },
         )
         setFiles((prev) => [...prev, ...settledEntries])
-        setAttachmentsOpen(true)
         return null
     }
 
@@ -284,7 +279,6 @@ export const useComposerAttachments = ({
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
         setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
         setRejections([])
-        setAttachmentsOpen(false)
     }
 
     /**
@@ -305,8 +299,6 @@ export const useComposerAttachments = ({
         files,
         rejections,
         setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         viewingUid,
         setViewingUid,
         limits,

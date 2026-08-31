@@ -543,7 +543,6 @@ const AgentConversation = ({
                                 reason: "couldn't be read — remove it and attach it again",
                             })),
                         )
-                        attachments.setAttachmentsOpen(true)
                         return
                     }
                     fileParts = parts
