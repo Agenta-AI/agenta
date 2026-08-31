@@ -59,6 +59,20 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("refuses a non-string harness instead of running it as Pi", () => {
+    // `/stream` decodes with an unchecked JSON.parse, so `null`/`0`/`false` can land here. The
+    // lifecycle router classifies those `unknown` (fail closed); the plan must not quietly
+    // default them to Pi and diverge (Codex review of the harness-normalizer change).
+    for (const junk of [null, 0, false, {}]) {
+      const result = buildRunPlan({
+        harness: junk,
+        messages: [{ role: "user", content: "hi" }],
+      } as never);
+      assert.equal(result.ok, false, JSON.stringify(junk));
+      if (!result.ok) assert.match(result.error, /harness/i);
+    }
+  });
+
   it("accepts an attachment-only current user turn", () => {
     const result = buildRunPlan(
       {

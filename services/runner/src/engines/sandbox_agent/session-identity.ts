@@ -303,10 +303,13 @@ function configShape(request: AgentRunRequest) {
         ...server,
         connection: {
           ...server.connection,
+          // `?? []` matches the facet digest's normalization (`credentialShapes`): an omitted
+          // array and an empty one are the same configuration, and the two identity views
+          // must agree on that or a no-op request cold-evicts with a DISAGREE log.
           credentials: server.connection?.credentials?.map((credential) => ({
             binding: credential.binding,
             usage: credential.usage,
-          })),
+          })) ?? [],
         },
       })) ?? null,
     // No `toolCallback.endpoint` (audit finding 5): every turn reads the INCOMING request's
