@@ -212,6 +212,14 @@ def l1():
         pi_base_params = json.loads(json.dumps(base_params))
         pi_base_params["agent"]["harness"] = {"kind": PI_CORE_HARNESS_KIND}
         pi_base_params["agent"]["llm"]["model"] = PI_CORE_HAIKU_MODEL
+        # Vault-backed auth, not the inherited self_managed default: a self_managed Pi run
+        # needs a PI_CODING_AGENT_DIR mount, which a gate deployment does not have, and turn 1
+        # would then fail before this case tests any lifecycle routing. Matches the Pi
+        # fixtures in matrix_l5_live_route_observed.py and bench_lib.py.
+        pi_base_params["agent"]["llm"]["connection"] = {
+            "mode": "agenta",
+            "slug": None,
+        }
 
         results = []
         blocking_failures = []
