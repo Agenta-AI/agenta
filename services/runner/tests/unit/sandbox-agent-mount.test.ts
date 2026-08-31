@@ -170,7 +170,10 @@ describe("harnessSessionMounts (S4)", () => {
   });
 
   it("an unknown/unlisted harness mounts nothing (callers fall back to cwd only)", () => {
-    assert.deepEqual(harnessSessionMounts("unknown-harness", "/home/agent"), []);
+    assert.deepEqual(
+      harnessSessionMounts("unknown-harness", "/home/agent"),
+      [],
+    );
   });
 });
 
@@ -184,26 +187,32 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
     ];
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
 
-    await mountHarnessSessionDirs(sandbox, "sess-1", dirs, "https://tunnel.example", {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey abc",
-      log: SILENT,
-      signSessionMountCredentials: async (_sessionId, _deps, name) => {
-        signedNames.push(name ?? "cwd");
-        if (name === "pi-sessions") return null; // simulate one failed sign
-        return {
-          region: "us-east-1",
-          bucket: "agenta-store",
-          prefix: `mounts/proj-1/${name}`,
-          accessKey: "AK",
-          secretKey: "SK",
-        };
+    await mountHarnessSessionDirs(
+      sandbox,
+      "sess-1",
+      dirs,
+      "https://tunnel.example",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async (_sessionId, _deps, name) => {
+          signedNames.push(name ?? "cwd");
+          if (name === "pi-sessions") return null; // simulate one failed sign
+          return {
+            region: "us-east-1",
+            bucket: "agenta-store",
+            prefix: `mounts/proj-1/${name}`,
+            accessKey: "AK",
+            secretKey: "SK",
+          };
+        },
+        mountStorageRemote: async (_sandbox, path) => {
+          mountedPaths.push(path);
+          return true;
+        },
       },
-      mountStorageRemote: async (_sandbox, path) => {
-        mountedPaths.push(path);
-        return true;
-      },
-    });
+    );
 
     assert.deepEqual(signedNames, ["claude-projects", "pi-sessions"]);
     // Only the successfully-signed dir got mounted; the failed one was skipped, not fatal.
@@ -213,15 +222,21 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
   it("is a no-op for an empty dir list", async () => {
     let called = false;
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
-    await mountHarnessSessionDirs(sandbox, "sess-1", [], "https://tunnel.example", {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey abc",
-      log: SILENT,
-      signSessionMountCredentials: async () => {
-        called = true;
-        return null;
+    await mountHarnessSessionDirs(
+      sandbox,
+      "sess-1",
+      [],
+      "https://tunnel.example",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async () => {
+          called = true;
+          return null;
+        },
       },
-    });
+    );
     assert.equal(called, false);
   });
 });
@@ -354,7 +369,9 @@ describe("mountStorage", () => {
         runGeesefs: async () => ({
           stop: async () => {
             calls.push("stop-unconfirmed");
-            throw new Error("geesefs process did not exit after SIGTERM and SIGKILL");
+            throw new Error(
+              "geesefs process did not exit after SIGTERM and SIGKILL",
+            );
           },
         }),
         unmountDeps: {
@@ -371,27 +388,30 @@ describe("mountStorage", () => {
   });
 
   for (const detachState of ["mounted", "inconclusive"] as const) {
-    it("fails clearly when the failed mount remains " + detachState, async () => {
-      let probes = 0;
-      await assert.rejects(
-        mountStorage("/work/cwd", CREDS, {
-          checkMounted: async () => false,
-          runGeesefs: async () => {
-            throw new Error("fuse: device not found");
-          },
-          unmountDeps: {
-            runUnmount: async () => {},
-            checkMountpoint: async () => {
-              probes += 1;
-              return probes === 1 ? "gone" : detachState;
+    it(
+      "fails clearly when the failed mount remains " + detachState,
+      async () => {
+        let probes = 0;
+        await assert.rejects(
+          mountStorage("/work/cwd", CREDS, {
+            checkMounted: async () => false,
+            runGeesefs: async () => {
+              throw new Error("fuse: device not found");
             },
-          },
-          log: SILENT,
-        }),
-        /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
-      );
-      assert.equal(probes, 2);
-    });
+            unmountDeps: {
+              runUnmount: async () => {},
+              checkMountpoint: async () => {
+                probes += 1;
+                return probes === 1 ? "gone" : detachState;
+              },
+            },
+            log: SILENT,
+          }),
+          /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
+        );
+        assert.equal(probes, 2);
+      },
+    );
   }
 });
 
@@ -468,7 +488,7 @@ describe("unmountStorage confirmation", () => {
 describe("discoverTunnelEndpoint (remote)", () => {
   it("prefers the https public_url from the ngrok agent API", async () => {
     const url = await discoverTunnelEndpoint({
-      ngrokApi: "http://ngrok:4040",
+      ngrokApi: "http://ngrok-mounts:4040",
       fetchImpl: (async () =>
         okResponse({
           tunnels: [
@@ -488,6 +508,113 @@ describe("discoverTunnelEndpoint (remote)", () => {
       log: SILENT,
     });
     assert.equal(url, null);
+  });
+
+  it("picks the tunnel forwarding to the store, not the first one listed", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
+  it("returns null when the store endpoint itself cannot be parsed", async () => {
+    // Falling through to "first https tunnel wins" here would hand back the ingress
+    // tunnel, which is the failure this matching exists to prevent.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "   ",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
+  it("prefers the https listing when the store's upstream is listed twice", async () => {
+    // One `ngrok http` can appear as both an http and an https entry over the same
+    // upstream. geesefs would then reach the store unencrypted over the internet.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "http",
+              public_url: "http://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "http://seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
+  });
+
+  it("returns null rather than another tunnel's URL when none forwards to the store", async () => {
+    // The development compose files point the agent at the platform ingress, so a
+    // live tunnel is no longer evidence that the store is reachable. Handing back
+    // the ingress URL would mount an HTTP API as an object store.
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://ingress.example",
+              config: { addr: "http://traefik:80" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, null);
+  });
+
+  it("matches the upstream on host and port however the agent spells it", async () => {
+    const url = await discoverTunnelEndpoint({
+      storeEndpoint: "http://seaweedfs:8333",
+      fetchImpl: (async () =>
+        okResponse({
+          tunnels: [
+            {
+              proto: "https",
+              public_url: "https://store.example",
+              config: { addr: "seaweedfs:8333" },
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(url, "https://store.example");
   });
 
   it("returns null when the agent API is unreachable", async () => {
@@ -519,10 +646,17 @@ describe("mountStorageRemote", () => {
     });
 
     assert.equal(ok, true);
-    const unmountIndex = commands.findIndex((command) => command.includes("fusermount -u"));
-    const mountIndex = commands.findIndex((command) => command.includes("geesefs --log-file"));
+    const unmountIndex = commands.findIndex((command) =>
+      command.includes("fusermount -u"),
+    );
+    const mountIndex = commands.findIndex((command) =>
+      command.includes("geesefs --log-file"),
+    );
     assert.ok(unmountIndex >= 0);
-    assert.ok(mountIndex > unmountIndex, "unmount attempt precedes the geesefs mount");
+    assert.ok(
+      mountIndex > unmountIndex,
+      "unmount attempt precedes the geesefs mount",
+    );
   });
 
   it("execs geesefs IN the sandbox with the tunnel endpoint and creds in env", async () => {
@@ -597,7 +731,10 @@ describe("mountStorageRemote", () => {
 
     // A foreground geesefs (-f) never returns, so `runProcess` blocks until its timeout kills
     // the mount it just made; the trailing `&` backgrounds it instead.
-    assert.ok(!/\s-f(\s|$)/.test(shellCmd), "remote geesefs must not run foreground");
+    assert.ok(
+      !/\s-f(\s|$)/.test(shellCmd),
+      "remote geesefs must not run foreground",
+    );
     assert.ok(shellCmd.trimEnd().endsWith("&"), "geesefs must be backgrounded");
   });
 

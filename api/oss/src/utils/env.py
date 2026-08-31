@@ -575,14 +575,10 @@ class SessionsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _services_internal_key_from_environment() -> str | None:
-    """Read the dedicated runtime proof without accepting public placeholders."""
-    runtime_key = (os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
-
-    if not runtime_key or runtime_key == "replace-me":
-        return None
-
-    return runtime_key
+def _services_internal_key_from_environment() -> str:
+    return (
+        os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "replace-me"
+    ).strip() or "replace-me"
 
 
 class AgentaConfig(BaseModel):
@@ -597,13 +593,7 @@ class AgentaConfig(BaseModel):
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
-    # Shared secret that proves a caller IS the platform runtime (the workflow service),
-    # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
-    # caller holding it can be issued a credential that reads write-only secret values.
-    # This is deliberately separate from the administrator key: deployments must opt in
-    # by configuring the same dedicated value on the API and platform services. NEVER
-    # sent to the runner or into a sandbox.
-    services_internal_key: str | None = _services_internal_key_from_environment()
+    services_internal_key: str = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
@@ -735,6 +725,51 @@ class ComposioConfig(BaseModel):
     def enabled(self) -> bool:
         """Composio enabled if API key is present"""
         return bool(self.api_key)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# Gateway mocks
+# ---------------------------------------------------------------------------
+
+
+class MockGatewaysConfig(BaseModel):
+    """Development-only gateway mock configuration.
+
+    The URLs have safe defaults so the compose services can share one image, but generated
+    gateway entries are opt-in.  A production process must therefore not accidentally expose
+    an endpoint merely because a Docker DNS name happens to resolve.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_GATEWAYS_MOCKS_ENABLED", default=False)
+
+    llm_url: str = os.getenv(
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
+    )
+    mcp_url: str = os.getenv(
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+    upstream_token: str = os.getenv(
+        "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# MCP adapter
+# ---------------------------------------------------------------------------
+
+
+class MCPGatewayConfig(BaseModel):
+    """`HttpMCPAdapter`'s outbound-guard escape hatch. Mirrors the runner's
+    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
+    listed here skips the SSRF guard (`core/webhooks/utils.py`) entirely, so a
+    self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1773,6 +1808,8 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()

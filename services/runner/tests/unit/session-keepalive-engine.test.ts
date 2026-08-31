@@ -453,6 +453,32 @@ describe("conversation turn indexes", () => {
 });
 
 describe("session-lifetime listener demux (currentTurn swap)", () => {
+  it("does not expose Codex synthetic MCP startup diagnostics as tool calls", async () => {
+    const { calls, deps, captured } = fakeHarness();
+    const codexRequest: AgentRunRequest = { ...request, harness: "codex" };
+    const acquired = await acquireEnvironment(codexRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    await runTurn(acquired.env, codexRequest);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "mcp_startup.mock-mcp",
+        kind: "other",
+        title: "mcp__mock-mcp__startup",
+        status: "failed",
+      }),
+    );
+
+    assert.deepEqual(calls.runs[0].handled, []);
+    assert.deepEqual(acquired.env.lastTurnToolCallIds, []);
+    assert.ok(
+      calls.logs.some((line) => line.includes("synthetic MCP startup diagnostic")),
+    );
+    await acquired.env.destroy();
+  });
+
   it("each turn's sink sees only its own events; between-turns events are dropped by decision", async () => {
     const { calls, deps, captured } = fakeHarness();
     const acquired = await acquireEnvironment(request, deps);

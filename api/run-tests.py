@@ -176,6 +176,12 @@ def _write_empty_results(results_dir: str) -> None:
     show_default=True,
     help="Only show tests slower than this many seconds in the timing summary.",
 )
+@click.option(
+    "--fast", "run_fast", is_flag=True, help="Run tests not marked slow (default)."
+)
+@click.option("--slow", "run_slow", is_flag=True, help="Run only tests marked slow.")
+@click.option("--all", "run_all", is_flag=True, help="Run both fast and slow tests.")
+@click.option("--full", "run_full", is_flag=True, help="Alias for --all.")
 @click.argument(
     "pytest_args",
     nargs=-1,
@@ -198,6 +204,10 @@ def run_tests(
     time_profile: bool = False,
     time_profile_limit: int = 25,
     time_profile_min: float = 0.0,
+    run_fast: bool = False,
+    run_slow: bool = False,
+    run_all: bool = False,
+    run_full: bool = False,
     pytest_args: Optional[tuple] = None,
 ):
     """
@@ -205,6 +215,10 @@ def run_tests(
 
     Additional args after '--' are passed directly to pytest.
     """
+    selections = sum((run_fast, run_slow, run_all or run_full))
+    if selections > 1:
+        raise click.UsageError("Use only one of --fast, --slow, or --all.")
+    test_selection = "slow" if run_slow else "all" if run_all or run_full else "fast"
     marker_args = []
 
     if env_file:
@@ -255,9 +269,13 @@ def run_tests(
             marker_args.append(f"{name.lower()}_{value}")
 
     # If pytest_args contains test paths, use them instead of test_dirs
-    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    forwarded_args = list(pytest_args or ())
+    has_test_target = any(
+        not arg.startswith("-") and (arg.endswith(".py") or "/" in arg or "::" in arg)
+        for arg in forwarded_args
+    )
     test_dirs = _resolve_test_dirs(license, layer)
-    if not extra_paths and not test_dirs:
+    if not has_test_target and not test_dirs:
         layer_label = f" {layer}" if layer else ""
         click.echo(
             f"No{layer_label} tests found for AGENTA_LICENSE={license}; skipping."
@@ -265,10 +283,14 @@ def run_tests(
         _write_empty_results(results_dir)
         return
 
-    cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
+    cmd = ["pytest"] + (
+        forwarded_args if has_test_target else test_dirs + forwarded_args
+    )
 
-    if marker_args:
-        marker_expr = " and ".join(marker_args)
+    marker_exprs = {"fast": ["not slow"], "slow": ["slow"], "all": []}[test_selection]
+    marker_exprs.extend(marker_args)
+    if marker_exprs:
+        marker_expr = " and ".join(f"({expr})" for expr in marker_exprs)
         cmd += ["-m", marker_expr]
 
     os.makedirs(results_dir, exist_ok=True)
@@ -286,13 +308,13 @@ def run_tests(
         # saturated workers a fast test reports the time it spent queued. Serialize to measure.
         cmd.append("-n0")
 
-    if pytest_args:
-        flags_only = [a for a in pytest_args if a.startswith("-")]
-        cmd += flags_only
-
     click.echo(f"Executing: {' '.join(cmd)}")
 
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd)
+    if result.returncode == 5 and test_selection == "slow":
+        click.echo("No slow tests selected.")
+        return
+    result.check_returncode()
 
 
 if __name__ == "__main__":

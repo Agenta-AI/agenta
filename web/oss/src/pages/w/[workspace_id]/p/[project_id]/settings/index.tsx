@@ -69,6 +69,11 @@ const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/
     ssr: false,
 })
 
+const MCPEndpoints = dynamic(
+    () => import("@/oss/components/pages/settings/MCPEndpoints/MCPEndpoints"),
+    {ssr: false},
+)
+
 const Preferences = dynamic(
     () => import("@/oss/components/pages/settings/Preferences/Preferences"),
     {ssr: false},
@@ -156,6 +161,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {
                     content: <Webhooks />,
                     title: getSettingsTabLabel("webhooks", settingsAccess),
+                }
+            case "mcpEndpoints":
+                return {
+                    content: <MCPEndpoints />,
+                    title: getSettingsTabLabel("mcpEndpoints", settingsAccess),
                 }
             case "auditLog":
                 return {

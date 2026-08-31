@@ -1,4 +1,5 @@
 from typing import List, Optional
+from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
 import asyncio
@@ -49,6 +50,30 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
+# Gateway credentials use this header. Gateway data-plane Authorization belongs upstream.
+_CREDENTIALS_HEADER = "X-AG-Credentials"
+
+# `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
+# is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
+# under one mount prefix.
+_GATEWAY_DATA_PLANE = re_compile(
+    r"^(?:/api)?/gateways/(?:llms|mcps)/(?:builtin|standard|custom)(?:/|$)"
+)
+
+
+def _credentials_header(request: Request) -> Optional[str]:
+    ours = request.headers.get(_CREDENTIALS_HEADER) or request.headers.get(
+        _CREDENTIALS_HEADER.lower()
+    )
+    if ours or _GATEWAY_DATA_PLANE.match(request.url.path):
+        return ours
+    return (
+        request.headers.get("Authorization")
+        or request.headers.get("authorization")
+        or None
+    )
+
+
 _PUBLIC_ENDPOINTS = (
     # AGENTA
     "/health",
@@ -76,6 +101,9 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # MCP OAuth client identity document, fetched without an Agenta auth token.
+    "/gateways/mcps/oauth/client-metadata.json",
+    "/api/gateways/mcps/oauth/client-metadata.json",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
@@ -317,11 +345,7 @@ async def _check_authentication_token(request: Request):
             return
 
         if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            auth_header = _credentials_header(request)
 
             if not auth_header:
                 raise UnauthorizedException()
@@ -336,11 +360,7 @@ async def _check_authentication_token(request: Request):
                 access_token=access_token,
             )
 
-        auth_header = (
-            request.headers.get("Authorization")
-            or request.headers.get("authorization")
-            or None
-        )
+        auth_header = _credentials_header(request)
         supertokens_access_token = request.cookies.get("sAccessToken")
 
         query_project_id = request.query_params.get("project_id")
@@ -964,10 +984,16 @@ async def verify_secret_token(
         request.state.organization_id = auth_context.get("organization_id")
         request.state.organization_name = auth_context.get("organization_name")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
+        # A workflow invocation receives a nonce before it is forwarded to the
+        # agent service.  A derived gateway credential is restricted to that
+        # nonce and to the callback tools resolved for the invocation.  Keep
+        # these claims separate from the ordinary tenant scope: they are not
+        # general-purpose authorization attributes.
+        request.state.gateway_run_id = auth_context.get("gateway_run_id")
+        request.state.gateway_tools = auth_context.get("gateway_tools")
 
     except ExpiredSignatureError as exc:
-        # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
-        # caller that never re-acquired, which is a live client bug, hence warning over debug.
+        # The signature is valid but the token has expired, so log at warning level.
         log.warn(
             "[auth] secret token unauthorized",
             path=request.url.path,
@@ -1041,6 +1067,8 @@ async def sign_secret_token(
     workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    gateway_run_id: Optional[str] = None,
+    gateway_tools: Optional[list[dict]] = None,
     grants: Optional[List[str]] = None,
 ):
     validated_grants = _validate_secret_token_grants(grants)
@@ -1059,6 +1087,8 @@ async def sign_secret_token(
             "workspace_id": workspace_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            "gateway_run_id": gateway_run_id,
+            "gateway_tools": gateway_tools,
             "iat": _issued_at,
             "exp": _exp,
         }

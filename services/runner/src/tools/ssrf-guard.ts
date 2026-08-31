@@ -1,16 +1,23 @@
 /**
  * Shared SSRF guard: resolve a URL's host and reject it if any resolved address falls in a
- * blocked range. Mirrors the Python webhook validator (`api/oss/src/core/webhooks/utils.py`)
- * range-for-range so the two runtimes agree on what "internal" means — parity is the point
- * (this guard once drifted from the webhook one — keep them in sync).
+ * blocked range. The range tables (`ssrf-guard-ranges.generated.json`) are generated from
+ * Python's `ipaddress` module (`sdks/python/oss/tests/pytest/utils/ssrf_guard_vectors.py`),
+ * not hand-transcribed — a Python test regenerates and diffs them against the committed file,
+ * and `tests/unit/ssrf-guard-vectors.test.ts` asserts this guard's verdict against a shared
+ * fixture of boundary addresses labeled from the same source, so the two runtimes can't drift
+ * apart silently.
  *
  * Blocked = private/loopback/link-local/reserved/unspecified (IANA ipv4-special-registry,
- * i.e. Python's `ip.is_private`) OR multicast (224.0.0.0/4). IPv6 is checked against the
- * matching IANA ipv6-special-registry blocks, with IPv4-mapped/compatible addresses unwrapped
- * to their embedded IPv4 and checked against the IPv4 table.
+ * i.e. Python's `ip.is_private`) OR multicast. IPv6 is checked against the matching IANA
+ * ipv6-special-registry blocks, with IPv4-mapped/compatible addresses unwrapped to their
+ * embedded IPv4 and checked against the IPv4 table first — mirroring `ipaddress.IPv6Address`,
+ * which special-cases `ipv4_mapped` before falling back to IPv6 network membership.
  */
 import { isIPv4, isIPv6 } from "node:net";
 import { lookup as dnsLookup } from "node:dns/promises";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const _TRUTHY = new Set([
   "true",
@@ -43,6 +50,11 @@ export function insecureEgressAllowed(): boolean {
   return _TRUTHY.has(raw.toLowerCase());
 }
 
+const here = dirname(fileURLToPath(import.meta.url));
+const RANGES: { ipv4: string[]; ipv6: string[] } = JSON.parse(
+  readFileSync(join(here, "ssrf-guard-ranges.generated.json"), "utf-8"),
+);
+
 /** [start, end] inclusive, both as 32-bit unsigned ints. */
 type IPv4Range = [number, number];
 
@@ -53,7 +65,9 @@ function ipv4ToInt(ip: string): number {
   );
 }
 
-function cidr4(base: string, prefix: number): IPv4Range {
+function cidr4(cidr: string): IPv4Range {
+  const [base, prefixStr] = cidr.split("/");
+  const prefix = Number(prefixStr);
   const start = ipv4ToInt(base);
   const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
   const network = (start & mask) >>> 0;
@@ -63,36 +77,32 @@ function cidr4(base: string, prefix: number): IPv4Range {
   return [network, broadcast];
 }
 
-/** IANA ipv4-special-registry "private" set — mirrors Python's `ipaddress._private_networks`. */
-const IPV4_PRIVATE_RANGES: IPv4Range[] = [
-  cidr4("0.0.0.0", 8),
-  cidr4("10.0.0.0", 8),
-  cidr4("127.0.0.0", 8),
-  cidr4("169.254.0.0", 16),
-  cidr4("172.16.0.0", 12),
-  cidr4("192.0.0.0", 29),
-  cidr4("192.0.0.170", 31),
-  cidr4("192.0.2.0", 24),
-  cidr4("192.168.0.0", 16),
-  cidr4("198.18.0.0", 15),
-  cidr4("198.51.100.0", 24),
-  cidr4("203.0.113.0", 24),
-  cidr4("240.0.0.0", 4),
-  cidr4("255.255.255.255", 32),
-];
-/** Multicast — not part of `is_private` in Python, checked as its own predicate. */
-const IPV4_MULTICAST: IPv4Range = cidr4("224.0.0.0", 4);
+const IPV4_RANGES: IPv4Range[] = RANGES.ipv4.map(cidr4);
 
 function isBlockedIPv4(ip: string): boolean {
   const n = ipv4ToInt(ip);
-  return (
-    IPV4_PRIVATE_RANGES.some(([lo, hi]) => n >= lo && n <= hi) ||
-    (n >= IPV4_MULTICAST[0] && n <= IPV4_MULTICAST[1])
-  );
+  return IPV4_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
+}
+
+/** Rewrite a trailing embedded IPv4 dotted-quad (e.g. `::ffff:93.184.216.34`) to its two hex
+ *  hextets, so `expandIPv6` sees pure hex groups regardless of whether the caller already
+ *  ran the literal through `new URL()` (which normalizes this for us). */
+function normalizeEmbeddedIPv4(ip: string): string {
+  const lastColon = ip.lastIndexOf(":");
+  if (lastColon === -1) return ip;
+  const tail = ip.slice(lastColon + 1);
+  if (!tail.includes(".")) return ip;
+  const parts = tail.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255))
+    return ip;
+  const hi = ((parts[0] << 8) | parts[1]).toString(16);
+  const lo = ((parts[2] << 8) | parts[3]).toString(16);
+  return `${ip.slice(0, lastColon + 1)}${hi}:${lo}`;
 }
 
 /** Expand an IPv6 literal (already bracket-stripped) to 8 hextets, resolving `::`. */
-function expandIPv6(ip: string): number[] {
+function expandIPv6(rawIp: string): number[] {
+  const ip = normalizeEmbeddedIPv4(rawIp);
   const [head, tail] = ip.split("::");
   const headParts = head ? head.split(":").filter(Boolean) : [];
   const tailParts = tail ? tail.split(":").filter(Boolean) : [];
@@ -101,6 +111,29 @@ function expandIPv6(ip: string): number[] {
   const all = [...headParts, ...zeros, ...tailParts];
   return all.map((h) => parseInt(h, 16) || 0);
 }
+
+function hextetsToBigInt(hextets: number[]): bigint {
+  let value = 0n;
+  for (const h of hextets) value = (value << 16n) | BigInt(h);
+  return value;
+}
+
+/** [start, end] inclusive, both as 128-bit unsigned bigints. */
+type IPv6Range = [bigint, bigint];
+
+const IPV6_MAX = (1n << 128n) - 1n;
+
+function cidr6(cidr: string): IPv6Range {
+  const [base, prefixStr] = cidr.split("/");
+  const prefix = Number(prefixStr);
+  const start = hextetsToBigInt(expandIPv6(base));
+  const mask = prefix === 0 ? 0n : (IPV6_MAX << BigInt(128 - prefix)) & IPV6_MAX;
+  const network = start & mask;
+  const broadcast = network | (~mask & IPV6_MAX);
+  return [network, broadcast];
+}
+
+const IPV6_RANGES: IPv6Range[] = RANGES.ipv6.map(cidr6);
 
 /** Extract the embedded IPv4 from an IPv4-mapped (`::ffff:a.b.c.d`) or IPv4-compatible
  *  (`::a.b.c.d`) address, or `undefined` if this is not such an address. */
@@ -123,26 +156,8 @@ function isBlockedIPv6(ip: string): boolean {
   const mapped = embeddedIPv4(hextets);
   if (mapped) return isBlockedIPv4(mapped);
 
-  const isZero = (n: number) => n === 0;
-  if (hextets.every(isZero)) return true; // ::  (unspecified)
-  if (hextets.slice(0, 7).every(isZero) && hextets[7] === 1) return true; // ::1 (loopback)
-  if ((hextets[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 (link-local)
-  if ((hextets[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 (unique-local/private)
-  if ((hextets[0] & 0xff00) === 0xff00) return true; // ff00::/8 (multicast)
-  if (
-    hextets[0] === 0x0100 &&
-    hextets[1] === 0 &&
-    hextets[2] === 0 &&
-    hextets[3] === 0
-  )
-    return true; // 100::/64 (discard-only)
-  if (hextets[0] === 0x2001) {
-    if (hextets[1] === 0 && (hextets[2] & 0xfe00) === 0) return true; // 2001::/23
-    if (hextets[1] === 2 && hextets[2] === 0) return true; // 2001:2::/48
-    if (hextets[1] === 0xdb8) return true; // 2001:db8::/32
-    if ((hextets[1] & 0xfff0) === 0x10 && hextets[1] >> 4 === 1) return true; // 2001:10::/28
-  }
-  return false;
+  const n = hextetsToBigInt(hextets);
+  return IPV6_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
 }
 
 /** True if `host` (a literal IPv4/IPv6 address) falls in a blocked range. */

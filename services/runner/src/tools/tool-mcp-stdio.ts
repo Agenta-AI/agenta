@@ -57,7 +57,7 @@ import { PUBLIC_SPECS_FILE_ENV, RELAY_DIR_ENV } from "./tool-mcp-env.ts";
 
 export { PUBLIC_SPECS_FILE_ENV, RELAY_DIR_ENV };
 
-const DEFAULT_PROTOCOL = "2025-06-18";
+const MCP_PROTOCOL_VERSION = "2026-07-28";
 
 function log(message: string): void {
   // stderr only: stdout is the JSON-RPC channel.
@@ -152,7 +152,7 @@ export function loadShimConfig(
  * a writer retry publishes a new request because the relay does not deduplicate retries.
  *
  * Handle one MCP JSON-RPC message. Returns the response object, or `undefined` for a
- * notification (no `id`). Mirrors `tools/tool-mcp-http.ts` `handle` (initialize / tools-list /
+ * notification (no `id`). Mirrors `tools/tool-mcp-http.ts` `handle` (discovery / tools-list /
  * tools-call shapes), but `tools/call` writes a relay request file (`relayToolCall`) rather
  * than dispatching in-process — the runner executes.
  */
@@ -171,17 +171,22 @@ export async function handleToolMcpMessage(
     };
   }
 
-  // Notifications (no id, e.g. notifications/initialized) need no response.
   if (id === undefined || id === null) return undefined;
 
-  if (method === "initialize") {
+  if (method === "server/discover") {
     return {
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: params?.protocolVersion ?? DEFAULT_PROTOCOL,
+        resultType: "complete",
+        supportedVersions: [MCP_PROTOCOL_VERSION],
         capabilities: { tools: {} },
-        serverInfo: { name: "agenta-tools", version: "0.1.0" },
+        _meta: {
+          "io.modelcontextprotocol/serverInfo": {
+            name: "agenta-tools",
+            version: "0.1.0",
+          },
+        },
       },
     };
   }

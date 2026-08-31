@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
+    getSettingsTabLabel,
     resolveSettingsTab,
     SETTINGS_SCOPES,
     SETTINGS_TABS,
@@ -107,6 +108,7 @@ describe("settings sidebar scopes", () => {
             "tools",
             "triggers",
             "webhooks",
+            "mcpEndpoints",
         ])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",
@@ -117,5 +119,10 @@ describe("settings sidebar scopes", () => {
             "billing",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
+    })
+
+    it("exposes separate LLM and MCP pages", () => {
+        expect(getSettingsTabLabel("llms", baseAccess)).toBe("LLMs")
+        expect(getSettingsTabLabel("mcpEndpoints", baseAccess)).toBe("MCPs")
     })
 })

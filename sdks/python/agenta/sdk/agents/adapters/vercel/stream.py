@@ -749,8 +749,7 @@ def _interaction_parts(
                 # The tool call was already surfaced (often by the tracing tool_call event, whose
                 # name is the ACP title/kind, and often with empty input on a cold-replay resume).
                 # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
-                # args, instead of persisting the drift-prone name + `{}` input (HITL
-                # approve-empty-input / name-drift bug).
+                # args, instead of persisting a stale name with empty input.
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -961,10 +960,12 @@ def _error_parts(
     if not isinstance(resolved_code, str) or not resolved_code:
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
-    yield {
-        "type": "data-agent-error",
-        "data": {"code": resolved_code, "errorText": resolved_text},
-    }
+    data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
+    # Include recovered gateway error details only when available.
+    error_detail = getattr(error, "error_detail", None)
+    if error_detail:
+        data["errorDetail"] = error_detail
+    yield {"type": "data-agent-error", "data": data}
     yield {"type": "error", "errorText": resolved_text}
 
 

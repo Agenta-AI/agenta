@@ -17,6 +17,7 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {
     PROVIDER_KINDS,
     SecretKind,
+    McpStandardProviderKind,
     StandardProviderKind,
     type CreateSecretDto,
     type CustomProviderDto,
@@ -24,18 +25,16 @@ import {
     type NamedSecretRow,
     type SecretResponseDto,
     type StandardProviderDto,
+    type McpStandardProviderDto,
 } from "./types"
 
 // ---------------------------------------------------------------------------
-// Provider ↔ env-var mapping (single source of truth)
+// Provider-key ↔ env-var mapping
 //
-// Standard provider secrets surface in the app under their env-var name
-// (e.g. `OPENAI_API_KEY`). Keeping the kind → env mapping in one place
-// avoids drift between `transformSecret` (kind → env) and `getEnvNameMap`
-// (env → kind), and lets us surface unmapped providers explicitly.
+// LLM and MCP standard-provider keys use separate catalogues.
 // ---------------------------------------------------------------------------
 
-const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string>> = {
+const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string>> = {
     [StandardProviderKind.Openai]: "OPENAI_API_KEY",
     [StandardProviderKind.Cohere]: "COHERE_API_KEY",
     [StandardProviderKind.Anyscale]: "ANYSCALE_API_KEY",
@@ -51,36 +50,23 @@ const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
 }
 
+const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string> = {
+    [McpStandardProviderKind.Mock]: "MOCK_API_KEY",
+    [McpStandardProviderKind.Composio]: "COMPOSIO_API_KEY",
+}
+
 // Legacy aliases that map to the same canonical env var as their primary
 // counterpart. Used only in the reverse direction (env → kind).
-const STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
+const LLM_STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
     MISTRALAI_API_KEY: StandardProviderKind.Mistral,
 }
 
-/**
- * Whether the vault holds a key for this row — the ONE presence check.
- *
- * A readable row proves it by carrying the value. A write-only row never returns one, so it says
- * so with `hasKey` instead; reading `!!row.key` on it would report every connection as keyless.
- */
+/** Whether a connection has a configured key, including write-only records. */
 export const hasStoredKey = (provider: LlmProvider | null | undefined): boolean =>
     provider?.hasKey ?? !!provider?.key
 
 /**
- * Transform raw `/secrets/` response items into the `LlmProvider` shape
- * used throughout the app. Standard provider secrets and custom provider
- * secrets have different wire shapes; both collapse into the common
- * `LlmProvider` representation here.
- *
- * Standard secrets whose `kind` isn't in `STANDARD_PROVIDER_ENV_BY_KIND`
- * are dropped (with a warning) — the app uses the env-var name as the
- * provider identity, so an unmapped kind would surface as a nameless row.
- */
-/**
- * The fields every row carries about its own value, whichever kind it is.
- *
- * The public API reports value presence and an optional safe preview through `value_status`.
- * The UI maps those general facts into its provider-specific connection model here.
+ * Convert vault records to the connection rows used by settings surfaces.
  */
 const storageFacts = (secret: SecretResponseDto) => ({
     writeOnly: secret.write_only ?? undefined,
@@ -92,12 +78,14 @@ const storageFacts = (secret: SecretResponseDto) => ({
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
-            const data = secret.data as StandardProviderDto
+            const data = secret.data as StandardProviderDto | McpStandardProviderDto
 
             const provider = data.kind
-            const envName = STANDARD_PROVIDER_ENV_BY_KIND[provider as StandardProviderKind]
+            const envName =
+                LLM_STANDARD_PROVIDER_ENV_BY_KIND[provider as StandardProviderKind] ??
+                MCP_STANDARD_PROVIDER_ENV_BY_KIND[provider as McpStandardProviderKind]
             if (!envName) {
-                console.warn(`[vault] Unmapped standard provider kind "${provider}" — skipping.`)
+                console.warn(`[vault] Unmapped provider key kind "${provider}" — skipping.`)
                 return acc
             }
 
@@ -114,8 +102,8 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 type: secret.kind,
                 // Absent stays absent: no saved list means "use the defaults", which an empty
                 // array would misreport as "this connection offers no models".
-                models: data.models?.map((model) => model.slug),
-                harnesses: data.harnesses ?? undefined,
+                models: "models" in data ? data.models?.map((model) => model.slug) : undefined,
+                harnesses: "harnesses" in data ? (data.harnesses ?? undefined) : undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomProvider) {
@@ -267,19 +255,19 @@ export const transformCustomSecretPayloadData = (values: NamedSecretRow): Create
 /**
  * Map the env-var name (e.g. `OPENAI_API_KEY`) used by `LlmProvider.name`
  * back to the canonical `StandardProviderKind` value used when creating
- * a standard provider secret. Derived from `STANDARD_PROVIDER_ENV_BY_KIND`
+ * an LLM standard provider secret. Derived from `LLM_STANDARD_PROVIDER_ENV_BY_KIND`
  * so the two directions can't drift.
  *
  * Returns `undefined` for unknown env-var names; the caller is expected
  * to throw a domain error in that case.
  */
 export const getEnvNameMap = (): Record<string, StandardProviderKind> => {
-    const reverse = Object.entries(STANDARD_PROVIDER_ENV_BY_KIND).reduce(
+    const reverse = Object.entries(LLM_STANDARD_PROVIDER_ENV_BY_KIND).reduce(
         (acc, [kind, env]) => {
             if (env) acc[env] = kind as StandardProviderKind
             return acc
         },
         {} as Record<string, StandardProviderKind>,
     )
-    return {...reverse, ...STANDARD_PROVIDER_ENV_ALIASES}
+    return {...reverse, ...LLM_STANDARD_PROVIDER_ENV_ALIASES}
 }

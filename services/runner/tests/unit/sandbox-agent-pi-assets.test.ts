@@ -21,6 +21,7 @@ import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../src/extensions/pi-mcp.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
@@ -49,6 +50,7 @@ const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
   providerFamily: "openai",
   api: "openai-completions",
   baseUrl: "https://example.test/v1",
+  apiKey: "$OPENAI_API_KEY",
   apiKeyEnv: "OPENAI_API_KEY",
   models: [{ id: "qwen2.5-coder:7b" }],
 };
@@ -101,6 +103,49 @@ afterEach(() => {
 });
 
 describe("buildPiExtensionEnv", () => {
+  it("renders only the gateway route and short-lived gateway credential for Pi MCP", () => {
+    const env = buildPiExtensionEnv(
+      {
+        mcpServers: [
+          {
+            name: "mock",
+            connection: {
+              type: "http",
+              url: "https://api.example.test/gateways/mcps/custom/mock",
+              headers: { "X-Agenta-Mock-Profile": "mcp-custom-mock" },
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
+      } as AgentRunRequest,
+      false,
+    );
+    const rendered = env[PI_GATEWAY_MCP_SERVERS_ENV] ?? "";
+    assert.deepEqual(JSON.parse(rendered), {
+      version: 1,
+      servers: [
+        {
+          name: "mock",
+          url: "https://api.example.test/gateways/mcps/custom/mock",
+          headers: {
+            "X-Agenta-Mock-Profile": "mcp-custom-mock",
+            "X-AG-Credentials": "short-lived-gateway-token",
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    });
+    assert.equal(rendered.includes("upstream-secret"), false);
+    assert.equal(rendered.includes("mock-mcp-gateway"), false);
+  });
+
   it("carries only public provider endpoint config for Pi", () => {
     const request = {
       modelConnection: {
@@ -133,6 +178,57 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(JSON.stringify(env).includes("PUBLIC_HINT"), false);
   });
 
+  it("a direct-deployment gateway connection carries the base URL and X-AG-Credentials (WP13 reopen)", () => {
+    // The majority case (a plain provider_key vault connection, deployment "direct") is NOT a
+    // named custom-agenta connection, so isPiModelConfigApplicable is false and this extension
+    // override is the only place the gateway route can reach Pi. Before this fix the override
+    // carried baseUrl alone -- no header, so the gateway would refuse the call for missing
+    // credentials with nothing telling the caller why.
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic" },
+        credentialMode: "none",
+        credentials: [],
+        gatewayCredentials: {
+          header: "X-AG-Credentials",
+          value: "ApiKey mock-gateway-credentials",
+        },
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+  });
+
+  it("a non-gateway direct-deployment connection carries no headers or placeholder key (unchanged)", () => {
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "claude-sonnet-4-5",
+        endpoint: { baseUrl: "https://proxy.example.test/anthropic" },
+        credentialMode: "env",
+        credentials: [],
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+  });
+
   it("rejects malformed provider endpoint overrides", () => {
     const request = (provider: string, baseUrl: string) =>
       ({
@@ -154,8 +250,11 @@ describe("buildPiExtensionEnv", () => {
     );
     assert.throws(
       () =>
-        buildPiExtensionEnv(request("anthropic", "http://proxy.example.test")),
-      /must be an HTTPS URL/,
+        buildPiExtensionEnv(
+          request("anthropic", "http://proxy.example.test"),
+          false,
+        ),
+      /must be HTTPS, or an HTTP Agenta gateway route/,
     );
     assert.throws(
       () =>
@@ -233,7 +332,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    // The specs ride a file; env carries only its path (see the E2BIG regression below).
+    // The environment carries only the tool-spec file path.
     assert.equal(env[PUBLIC_SPECS_FILE_ENV], `${relayDir}.tool-specs.json`);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     const specs = JSON.parse(
@@ -381,10 +480,7 @@ describe("buildPiExtensionEnv", () => {
 });
 
 /**
- * Regression: "Agent run failed: spawn E2BIG". Every hydrated tool spec used to be packed into
- * ONE env var, and Linux refuses `execve` when any single env string exceeds MAX_ARG_STRLEN
- * (131,072 bytes) — a session with 44 Composio tools (~250 KB of specs) failed before the harness
- * process existed. The specs now ride a file whose path is all env carries.
+ * Tool specs are stored in a file so the environment remains bounded.
  */
 const MAX_ARG_STRLEN = 131_072;
 
@@ -977,7 +1073,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     const sessionsDir = join(mount, "sessions");
     writeFileSync(authFile, '{"token":"live"}', "utf-8");
     mkdirSync(sessionsDir);
-    // Preserve the incomplete-mount shape from the regression: Pi can write a rollout under
+    // Pi can write a rollout under
     // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
     chmodSync(sessionsDir, 0o755);
     chmodSync(authFile, 0o444);

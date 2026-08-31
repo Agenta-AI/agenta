@@ -26,7 +26,6 @@ export interface UsageKeyType {
 export interface DataUsageType {
     traces_ingested?: UsageKeyType
     traces_retrieved?: UsageKeyType
-    credits_consumed?: UsageKeyType
     users?: UsageKeyType
     [key: string]: UsageKeyType | undefined
 }

@@ -24,6 +24,7 @@ from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
+    AgentRunFailed,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -884,8 +885,7 @@ def test_request_to_wire_codex_matches_golden(golden):
 
 
 def test_request_to_wire_codex_renders_config_toml_from_authored_options():
-    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
-    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # This test drives the pass-through directly to pin the rendering.
     # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
     # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
     # around the authored scalars (D-002 final ruling).
@@ -969,6 +969,43 @@ def test_request_to_wire_codex_subscription_renders_no_provider_block():
         messages=[Message(role="user", content="hi")],
     )
     assert "harnessFiles" not in payload
+
+
+def test_request_to_wire_codex_gateway_route_renders_base_url_and_headers():
+    # A gateway-routed resolved connection threads endpoint.base_url and the gateway
+    # credential's HEADER NAME (never its value) onto config.toml.
+    from agenta.sdk.agents.connections.models import GatewayCredentials
+
+    config = CodexAgentTemplate(
+        model="openai/gpt-5.5",
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            deployment="custom",
+            credential_mode="none",
+            endpoint=Endpoint(
+                base_url="https://gw.example.com/gateways/llms/standard/openai"
+            ),
+            gateway_credentials=GatewayCredentials(
+                header="X-AG-Credentials", value="ApiKey mock-gateway-credentials"
+            ),
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    content = payload["harnessFiles"][0]["content"]
+    assert (
+        'base_url = "https://gw.example.com/gateways/llms/standard/openai"' in content
+    )
+    assert (
+        'env_http_headers = { "X-AG-Credentials" = "AGENTA_GATEWAY_CREDENTIALS_VALUE" }'
+        in content
+    )
+    assert "ApiKey mock-gateway-credentials" not in content
 
 
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
@@ -1229,6 +1266,54 @@ def test_result_from_wire_parses_ok(golden):
 def test_result_from_wire_raises_on_failure(golden):
     with pytest.raises(RuntimeError, match="model exploded"):
         result_from_wire(golden("run_result.error.json"))
+
+
+def test_result_from_wire_carries_gateway_error_detail(golden):
+    # A gateway refusal survives on AgentRunFailed as structured data, not only as a string.
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error_detail.json"))
+    exc = excinfo.value
+    assert exc.error_detail is not None
+    assert exc.error_detail["code"] == "model_not_allowed"
+    assert exc.error_detail["retryable"] is False
+    assert exc.error_detail["next_step"] == "choose a model the connection allows"
+    # failure_code takes the specific cause, not the generic default.
+    assert exc.failure_code == "model_not_allowed"
+
+
+def test_result_from_wire_error_detail_absent_for_a_plain_failure(golden):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error.json"))
+    exc = excinfo.value
+    assert exc.error_detail is None
+    assert exc.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_result_from_wire_ignores_malformed_gateway_error_detail(error_detail):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(
+            {
+                "ok": False,
+                "error": "gateway failed",
+                "errorDetail": error_detail,
+            }
+        )
+
+    assert excinfo.value.error_detail is None
+    assert excinfo.value.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_agent_run_failed_ignores_malformed_error_detail(error_detail):
+    error = AgentRunFailed("runner failed", error_detail=error_detail)  # type: ignore[arg-type]
+
+    assert error.error_detail is None
+    assert error.failure_code == "agent_run_failed"
 
 
 def test_sanitize_runner_error_passes_clean_message_through():

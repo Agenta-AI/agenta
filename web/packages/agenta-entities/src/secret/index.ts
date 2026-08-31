@@ -80,6 +80,7 @@ export {
     soleAgentHarnessProviderFamily,
     CustomProviderKind,
     CustomSecretFormat,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,

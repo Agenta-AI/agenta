@@ -3,7 +3,7 @@ name = "agenta"
 version = "0.114.3"
 description = "Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your team."
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 license = "MIT"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -24,17 +24,17 @@ dependencies = [
     "structlog>=26,<27",
     "opentelemetry-api>=1,<2",
     "opentelemetry-sdk>=1,<2",
-    "opentelemetry-instrumentation>=0.64b0,<0.65",
+    "opentelemetry-instrumentation>=0.65b0,<1",
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
-    "fastapi>=0.139,<0.140",
+    "fastapi>=0.141,<1",
     "pyyaml>=6,<7",
-    "litellm>=1,<2",
-    "openai>=2,<3",
+    "litellm>=1.98,<2",
+    "openai>=2.20,<3",
     "jinja2>=3,<4",
     "mystace>=1,<2",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.197,<0.198",
+    "daytona>=0.207,<1",
     "RestrictedPython>=8,<9",
 ]
 

@@ -13,7 +13,7 @@ import {
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
+import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
 import {
   INTERNAL_TOOL_MCP_SERVER_NAME,
   RESERVED_MCP_SERVER_NAME_MESSAGE,
@@ -310,6 +310,51 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** Mirrors the provider-credential transport rule in the Python SDK: HTTPS anywhere, or
+ * plain HTTP to loopback, which has no remote to leak a provider credential to. */
+function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
+  try {
+    const endpoint = new URL(baseUrl ?? "");
+    if (!endpoint.hostname) return false;
+    if (endpoint.protocol === "https:") return true;
+    return (
+      endpoint.protocol === "http:" &&
+      LOOPBACK_HOSTNAMES.has(endpoint.hostname.replace(/^\[|\]$/g, ""))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The env var a gateway credential's raw value lands in, for a harness config file (Pi
+ * `models.json`, Codex `config.toml`) to reference by `$VAR` indirection rather than writing
+ * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
+export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
+
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHttpHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
+
+/** The gateway credentials as the header they belong in. The header counterpart of
+ * `materializeModelEnvironment`; validated there, materialized here. */
+export function materializeGatewayHeaders(
+  request: AgentRunRequest,
+): Record<string, string> {
+  const credentials = request.modelConnection?.gatewayCredentials;
+  if (
+    !credentials?.header?.trim() ||
+    !credentials.value ||
+    !isSafeHttpHeader(credentials.header, credentials.value)
+  ) {
+    return {};
+  }
+  return { [credentials.header]: credentials.value };
+}
+
 export function materializeModelEnvironment(
   request: AgentRunRequest,
 ):
@@ -373,19 +418,15 @@ export function materializeModelEnvironment(
         error: "modelConnection credential usage is invalid",
       };
     }
-    if (credential.usage === "opaque_http") {
-      try {
-        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
-        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
-          throw new Error("invalid endpoint");
-        }
-      } catch {
-        return {
-          ok: false,
-          error:
-            "opaque_http model credentials require an effective HTTPS endpoint",
-        };
-      }
+    if (
+      credential.usage === "opaque_http" &&
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)
+    ) {
+      return {
+        ok: false,
+        error:
+          "opaque_http model credentials require an effective HTTPS endpoint",
+      };
     }
     if (Object.hasOwn(environment, name)) {
       return {
@@ -394,6 +435,29 @@ export function materializeModelEnvironment(
       };
     }
     environment[name] = credential.value;
+  }
+
+  const gatewayCredentials = connection.gatewayCredentials;
+  if (gatewayCredentials !== undefined) {
+    if (
+      !gatewayCredentials.header?.trim() ||
+      !gatewayCredentials.value ||
+      !isSafeHttpHeader(gatewayCredentials.header, gatewayCredentials.value)
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require a valid header name and newline-free value",
+      };
+    }
+    // Gateway credentials replace provider credentials for a gateway-routed connection.
+    if (credentials.length > 0) {
+      return {
+        ok: false,
+        error:
+          "modelConnection cannot combine gateway credentials with provider credentials",
+      };
+    }
   }
 
   return {
@@ -467,12 +531,7 @@ export function buildRunPlan(
   const attachmentError = attachmentCountError(turn.attachments.length);
   if (attachmentError) return { ok: false, error: attachmentError };
   const prompt = turn.text;
-  // An out-of-band approval reply legitimately carries no user text: the human answered a parked
-  // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
-  // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
-  // plan is built — so rejecting here would kill the run before the conversation could be
-  // supplied. A historical user prompt also keeps structured continuation tails valid; only a
-  // request with no current attachment, no approval reply, and no user text anywhere is rejected.
+  // Approval replies may omit text; prior turns provide the required context.
   if (
     !turn.text &&
     turn.attachments.length === 0 &&
@@ -580,22 +639,23 @@ export function buildRunPlan(
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
-  // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
-  // snippets. The dispatch sites still throw per-call as a backstop, but a per-call throw
-  // becomes a tool RESULT the model launders into an `ok:true` reply ("Code tools are not
-  // supported by the sidecar."), so a removed capability reads as a SUCCESS at the response
-  // envelope (F-016). Fail loud up-front instead: refuse any run that carries a `code` tool,
-  // the way stdio MCP is gated. Keep the wire shape; the delivery is not supported.
+  // Code tools are unsupported and reject the run before execution.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
-  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
-  // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
-  // on Pi up front with a Pi-specific message.
-  if (isPi && (request.mcpServers?.length ?? 0) > 0) {
-    return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
+  // Pi's native extension can register HTTP MCP tools, but only for the already-resolved
+  // Agenta gateway route shape.  Validate before allocating any run state so a forged direct
+  // upstream URL cannot become a Pi extension input.
+  if (isPi) {
+    try {
+      piGatewayMcpServersFromWire(request.mcpServers);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // The internal gateway-tool channel's name is reserved on every transport: the Python

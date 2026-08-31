@@ -9,8 +9,9 @@ from oss.src.core.secrets.managed import (
 
 from oss.src.core.secrets.enums import (
     SecretKind,
-    StandardProviderKind,
-    CustomProviderKind,
+    LLMStandardProviderKind,
+    MCPStandardProviderKind,
+    LLMCustomProviderKind,
     CustomSecretFormat,
 )
 from oss.src.core.shared.dtos import (
@@ -53,12 +54,17 @@ class CustomModelSettingsDTO(BaseModel):
 
 
 class StandardProviderDTO(BaseModel):
-    kind: StandardProviderKind
+    kind: LLMStandardProviderKind
     provider: StandardProviderSettingsDTO
     # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
     models: Optional[List[CustomModelSettingsDTO]] = None
     # A missing list means "any harness Agenta supports"; a saved list narrows that set.
     harnesses: Optional[List[str]] = None
+
+
+class MCPStandardProviderDTO(BaseModel):
+    kind: MCPStandardProviderKind
+    provider: StandardProviderSettingsDTO
 
 
 class CustomProviderSettingsDTO(BaseModel):
@@ -69,7 +75,7 @@ class CustomProviderSettingsDTO(BaseModel):
 
 
 class CustomProviderDTO(BaseModel):
-    kind: CustomProviderKind
+    kind: LLMCustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
     harnesses: Optional[List[str]] = None
@@ -109,20 +115,50 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class OAuthProviderSettingsDTO(BaseModel):
+    client_id: str
+    client_secret: Optional[str] = None
+    issuer_url: str
+    scopes: List[str]
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OAuthProviderDTO(BaseModel):
+    provider: OAuthProviderSettingsDTO
+
+
+class OAuthGrantSettingsDTO(BaseModel):
+    server: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    expires_at: Optional[int] = None
+    scopes: List[str]
+
+
+class OAuthGrantDTO(BaseModel):
+    grant: OAuthGrantSettingsDTO
+
+
 SecretDataDTO = Union[
     StandardProviderDTO,
+    MCPStandardProviderDTO,
     CustomProviderDTO,
     SSOProviderDTO,
     WebhookProviderDTO,
     CustomSecretDTO,
+    OAuthProviderDTO,
+    OAuthGrantDTO,
 ]
 
 
 def _validate_secret_data_based_on_kind(
-    values: Dict[str, Any],
+    values: Dict[str, Any] | BaseModel,
     *,
     value_required: bool,
 ) -> Dict[str, Any]:
+    if isinstance(values, BaseModel):
+        values = values.model_dump(mode="python")
+
     kind = values.get("kind")
     if isinstance(kind, SecretKind):
         kind = kind.value
@@ -131,8 +167,13 @@ def _validate_secret_data_based_on_kind(
         data = data.model_dump()
         values["data"] = data
 
-    standard_provider_kinds = {provider.value for provider in StandardProviderKind}
-    custom_provider_kinds = {provider.value for provider in CustomProviderKind}
+    llm_standard_provider_kinds = {
+        provider.value for provider in LLMStandardProviderKind
+    }
+    mcp_standard_provider_kinds = {
+        provider.value for provider in MCPStandardProviderKind
+    }
+    custom_provider_kinds = {provider.value for provider in LLMCustomProviderKind}
 
     if kind == SecretKind.PROVIDER_KEY.value:
         if not isinstance(data, dict):
@@ -147,15 +188,17 @@ def _validate_secret_data_based_on_kind(
                 "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
             )
         # Accept the legacy provider slug on input, but persist the canonical value.
-        if data.get("kind") == StandardProviderKind.MISTRALAI.value:
-            data["kind"] = StandardProviderKind.MISTRAL.value
-        if data.get("kind") not in standard_provider_kinds:
+        if data.get("kind") == LLMStandardProviderKind.MISTRALAI.value:
+            data["kind"] = LLMStandardProviderKind.MISTRAL.value
+        provider_kind = data.get("kind")
+        if provider_kind in llm_standard_provider_kinds:
+            values["data"] = StandardProviderDTO.model_validate(data)
+        elif provider_kind in mcp_standard_provider_kinds:
+            values["data"] = MCPStandardProviderDTO.model_validate(data)
+        else:
             raise ValueError(
-                "The provided kind in data is not a valid StandardProviderKind enum"
+                "The provided kind in data is not a valid LLM or MCP provider key enum"
             )
-        # Both provider shapes now accept {kind, provider, models}, so the union can no
-        # longer tell them apart from the payload alone; the secret kind decides.
-        values["data"] = StandardProviderDTO.model_validate(data)
 
     elif kind == SecretKind.CUSTOM_PROVIDER.value:
         if not isinstance(data, dict):
@@ -244,6 +287,34 @@ def _validate_secret_data_based_on_kind(
                     )
         else:
             raise ValueError("A custom_secret format must be 'text' or 'json'")
+    elif kind == SecretKind.OAUTH_PROVIDER.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for OAuthProviderDTO"
+            )
+        provider = data.get("provider")
+        required_fields = {"client_id", "issuer_url", "scopes"}
+        if not isinstance(provider, dict) or not required_fields.issubset(provider):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
+            )
+        values["data"] = OAuthProviderDTO.model_validate(data)
+    elif kind == SecretKind.OAUTH_GRANT.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for OAuthGrantDTO"
+            )
+        grant = data.get("grant")
+        required_fields = {"server", "scopes"}
+        if (
+            not isinstance(grant, dict)
+            or not required_fields.issubset(grant)
+            or (value_required and grant.get("access_token") in (None, ""))
+        ):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
+            )
+        values["data"] = OAuthGrantDTO.model_validate(data)
     else:
         raise ValueError("The provided kind is not a valid SecretKind enum")
 

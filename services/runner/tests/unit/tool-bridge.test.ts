@@ -256,7 +256,7 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       }
     });
 
-    it("answers initialize / tools/list (public spec only, client filtered)", async () => {
+    it("answers discovery / tools/list (public spec only, client filtered)", async () => {
       const specs: ResolvedToolSpec[] = [
         {
           name: "search",
@@ -273,14 +273,14 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       const { servers } = await build(specs, relayDir);
       const url = servers[0].url;
 
-      const init = await rpc(url, {
+      const discovery = await rpc(url, {
         jsonrpc: "2.0",
         id: 1,
-        method: "initialize",
-        params: { protocolVersion: "2025-06-18" },
+        method: "server/discover",
       });
-      assert.equal(init.result.serverInfo.name, "agenta-tools");
-      assert.ok(init.result.capabilities.tools, "advertises tools capability");
+      assert.equal(discovery.result.resultType, "complete");
+      assert.deepEqual(discovery.result.supportedVersions, ["2026-07-28"]);
+      assert.ok(discovery.result.capabilities.tools, "advertises tools capability");
 
       const list = await rpc(url, {
         jsonrpc: "2.0",
@@ -596,13 +596,13 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       ];
       const { servers } = await build(specs, relayDir);
       const out = await rpc(servers[0].url, [
-        { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+        { jsonrpc: "2.0", id: 1, method: "server/discover" },
         { jsonrpc: "2.0", id: 2, method: "tools/list" },
       ]);
 
       assert.ok(Array.isArray(out));
       assert.equal(out.length, 2);
-      assert.equal(out[0].result.serverInfo.name, "agenta-tools");
+      assert.equal(out[0].result.resultType, "complete");
       assert.equal(out[1].result.tools[0].name, "search");
     });
 
@@ -659,16 +659,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       );
     });
 
-    it("accepts a notification with no response (202)", async () => {
+    it("does not answer a request without an id", async () => {
       const specs: ResolvedToolSpec[] = [
         { name: "search", kind: "callback", callRef: "composio.search" },
       ];
       const { servers } = await build(specs, relayDir);
       const out = await rpc(servers[0].url, {
         jsonrpc: "2.0",
-        method: "notifications/initialized",
+        method: "tools/list",
       });
-      assert.equal(out, undefined, "notification -> 202, no body");
+      assert.equal(out, undefined, "request without id -> 202, no body");
     });
   });
 

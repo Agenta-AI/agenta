@@ -121,25 +121,27 @@ def resolve_allow_insecure(monkeypatch):
 
 
 @pytest.mark.allow_insecure_env
-def test_allow_insecure_defaults_false(resolve_allow_insecure):
-    assert resolve_allow_insecure() is False
+def test_allow_insecure_defaults_true(resolve_allow_insecure):
+    """CU14: unset resolves permissive here, as it already did in the API and the runner."""
+    assert resolve_allow_insecure() is True
 
 
 @pytest.mark.allow_insecure_env
 def test_allow_insecure_canonical_env_var(resolve_allow_insecure):
-    assert resolve_allow_insecure({"AGENTA_INSECURE_EGRESS_ALLOWED": "true"}) is True
+    # `false` is the discriminating value: `true` matches the default and proves nothing.
+    assert resolve_allow_insecure({"AGENTA_INSECURE_EGRESS_ALLOWED": "false"}) is False
 
 
 @pytest.mark.allow_insecure_env
 def test_allow_insecure_legacy_alias_still_honored(resolve_allow_insecure):
     assert (
-        resolve_allow_insecure({"AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE": "true"})
-        is True
+        resolve_allow_insecure({"AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE": "false"})
+        is False
     )
 
 
 @pytest.mark.allow_insecure_env
 def test_allow_insecure_ignores_ambient_env(resolve_allow_insecure, monkeypatch):
     # The ambient shell may export it (a loaded dev env file); resolution must still start clean.
-    monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "true")
-    assert resolve_allow_insecure() is False
+    monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "false")
+    assert resolve_allow_insecure() is True

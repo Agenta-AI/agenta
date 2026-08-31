@@ -37,8 +37,17 @@ export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
 
-export type StandardProviderDto = AgentaApi.StandardProviderDto
-export type CustomProviderDto = AgentaApi.CustomProviderDto
+/**
+ * Connection policy fields not yet represented by the generated client.
+ */
+export type StandardProviderDto = AgentaApi.StandardProviderDto & {
+    models?: CustomModelSettingsDto[] | null
+    harnesses?: string[] | null
+}
+export type McpStandardProviderDto = AgentaApi.McpStandardProviderDto
+export type CustomProviderDto = AgentaApi.CustomProviderDto & {
+    harnesses?: string[] | null
+}
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
@@ -75,6 +84,9 @@ export type SecretKind = AgentaApi.SecretKind
 
 export const StandardProviderKind = AgentaApi.StandardProviderKind
 export type StandardProviderKind = AgentaApi.StandardProviderKind
+
+export const McpStandardProviderKind = AgentaApi.McpStandardProviderKind
+export type McpStandardProviderKind = AgentaApi.McpStandardProviderKind
 
 export const CustomProviderKind = AgentaApi.CustomProviderKind
 export type CustomProviderKind = AgentaApi.CustomProviderKind
@@ -123,9 +135,7 @@ export const PROVIDER_KINDS: Record<string, string> = {
 /**
  * Standard provider kinds shown in the OSS provider picker.
  *
- * Fern includes both `"mistral"` and `"mistralai"` in `StandardProviderKind`
- * for backwards compatibility, but the OSS UI only shows the canonical
- * `"mistral"` entry — filter the alias out here.
+ * The OSS LLM picker excludes the legacy `"mistralai"` alias.
  */
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]

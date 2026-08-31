@@ -115,6 +115,8 @@ export * from "./CredentialStatus.js";
 export * from "./CustomModelSettingsDto.js";
 export * from "./CustomProviderDto.js";
 export * from "./CustomProviderKind.js";
+export * from "./McpStandardProviderDto.js";
+export * from "./McpStandardProviderKind.js";
 export * from "./CustomProviderSettingsDto.js";
 export * from "./CustomSecretDto.js";
 export * from "./CustomSecretFormat.js";

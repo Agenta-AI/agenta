@@ -2,7 +2,7 @@
 name = "rag-qa-chatbot"
 version = "0.1.0"
 description = "RAG chatbot for documentation Q&A"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     # Ingestion
     "qdrant-client>=1.7.0",

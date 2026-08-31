@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index ead9809cabc9f3b203f1769db3cabb8327dd758a..190765436ffe806c74ca99e63afde6c2c460e47e 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -133,6 +133,10 @@ var PiRpcProcess = class _PiRpcProcess {
+   static async spawn(params) {
+     const cmd = getPiCommand(params.piCommand);
+     const args = ["--mode", "rpc", "--no-themes"];
++    const skillDir = process.env.PI_CODING_AGENT_SKILL_DIR;
++    if (typeof skillDir === "string" && skillDir.trim()) {
++      args.push("--no-skills", "--skill", skillDir);
++    }
+     if (params.sessionPath) args.push("--session", params.sessionPath);
+     const child = spawn(cmd, args, {
+       cwd: params.cwd,
+@@ -1395,6 +1399,10 @@ function readSessionDirFromSettings(agentDir) {
+   }
+ }
+ function getPiSessionsDir() {
++  const envSessionDir = process.env.PI_CODING_AGENT_SESSION_DIR;
++  if (typeof envSessionDir === "string" && envSessionDir.trim()) {
++    return resolve2(envSessionDir);
++  }
+   const agentDir = getPiAgentDir();
+   return readSessionDirFromSettings(agentDir) ?? join3(agentDir, "sessions");
+ }

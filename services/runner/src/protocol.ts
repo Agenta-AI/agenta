@@ -46,7 +46,7 @@ export interface AttachmentRef {
   attachmentId: string;
   /**
    * Delivery never trusts wire display fields and re-reads them from the attachment API. Transcript
-   * replay may render the record-sourced fields the runner previously persisted for a warm turn.
+   * replay may render record-sourced fields for a warm turn.
    */
   filename?: string;
   mediaType?: string;
@@ -539,6 +539,20 @@ export interface ModelCredential {
 }
 
 /**
+ * OUR credentials for the gateway, bound to the header that carries them.
+ *
+ * Deliberately NOT a `ModelCredential` with a widened binding. A `ModelCredential` is a
+ * provider's secret and authenticates the gateway to that provider; this authenticates the
+ * caller as us, into the gateway. A header-bound value also has no environment variable to
+ * materialize into, so folding it into the credential union would produce a value that
+ * validates, crosses the wire, and then vanishes at `materializeModelEnvironment`.
+ */
+export interface GatewayCredentials {
+  header: string;
+  value: string;
+}
+
+/**
  * Everything the runner needs to reach the model, grouped under the consumer that owns it.
  *
  * The organization mirrors `ResolvedConnection` in the Python SDK
@@ -585,6 +599,9 @@ export interface ModelConnection {
   credentialMode: "env" | "runtime_provided" | "none";
   environment?: Record<string, string>;
   credentials: ModelCredential[];
+  /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
+   * provider's secret. Omitted when the model is not reached through a gateway. */
+  gatewayCredentials?: GatewayCredentials;
 }
 
 /**
@@ -767,6 +784,22 @@ export interface AgentRunRequest {
   streamId?: string;
 }
 
+/**
+ * The platform's agent-actionable error envelope (api/AGENTS.md "Domain-level exceptions"),
+ * carried onto the wire when a run's failure IS one — today, a gateway data-plane refusal
+ * (`model_not_allowed` / `endpoint_inactive` / `ceiling_exceeded` and siblings) relayed back
+ * through a harness's own error text. `code` is the stable lower-snake-case cause; `retryable`
+ * is about replaying the SAME request, never true for a policy/config refusal; `details` carries
+ * every error-specific field (never new top-level fields, matching the platform convention).
+ */
+export interface AgentErrorDetail {
+  code: string;
+  message: string;
+  retryable: boolean;
+  next_step?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface AgentRunResult {
   ok: boolean;
   /** Final assistant text (what the playground renders). */
@@ -785,7 +818,15 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
+   * also present, so a caller reading only this field never regresses. */
   error?: string;
+  /**
+   * The same failure, structured, when the runner could recover a gateway refusal's cause from
+   * the harness's own error text (best-effort: absent when it could not — see
+   * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
+   */
+  errorDetail?: AgentErrorDetail;
 }
 
 /**

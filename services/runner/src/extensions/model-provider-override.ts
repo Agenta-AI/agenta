@@ -1,12 +1,35 @@
 export const PI_MODEL_PROVIDER_OVERRIDE_ENV =
   "AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE";
 
+/** Never a secret; some harnesses require a non-empty key-shaped value to select a gateway model. */
+export const GATEWAY_PLACEHOLDER_API_KEY = "agenta-gateway";
+
 export interface PiModelProviderOverride {
   provider: string;
   baseUrl: string;
+  /**
+   * Gateway credentials keyed by header name, present only for gateway-routed connections.
+   * The extension receives raw values through its runner-set environment, never a file.
+   */
+  headers?: Record<string, string>;
+  /**
+   * A non-secret placeholder, present only alongside `headers`. A gateway route's credentialMode
+   * is "none" — no provider key exists anywhere in this run's environment, and Pi's own built-in
+   * credential state for the overridden provider must not be assumed present either (a gateway
+   * run's Pi agent dir carries no seeded auth.json) — so without SOME `apiKey` Pi may treat the
+   * model as unavailable for selection (bundled Pi `docs/models.md`, Value Resolution: "if no
+   * auth is configured, the models load but stay unavailable"). The real auth rides `headers`;
+   * this literal is never a value anything downstream reads.
+   */
+  apiKey?: string;
 }
 
 const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
 
 /** Validate the public routing config shared by the runner and the in-Pi extension. */
 export function validatePiModelProviderOverride(
@@ -32,8 +55,19 @@ export function validatePiModelProviderOverride(
   } catch {
     throw new Error("model provider override baseUrl must be a valid URL");
   }
+  const rawHeaders = (value as { headers?: unknown }).headers;
+  const hasGatewayCredential =
+    !!rawHeaders &&
+    typeof rawHeaders === "object" &&
+    !Array.isArray(rawHeaders) &&
+    Object.entries(rawHeaders as Record<string, unknown>).some(
+      ([name, headerValue]) =>
+        name.toLowerCase() === "x-ag-credentials" &&
+        typeof headerValue === "string" &&
+        headerValue.length > 0,
+    );
   if (
-    url.protocol !== "https:" ||
+    (url.protocol !== "https:" && !(url.protocol === "http:" && hasGatewayCredential)) ||
     !url.hostname ||
     url.username ||
     url.password ||
@@ -41,11 +75,54 @@ export function validatePiModelProviderOverride(
     url.hash
   ) {
     throw new Error(
-      "model provider override baseUrl must be an HTTPS URL without credentials, query, or fragment",
+      "model provider override baseUrl must be HTTPS, or an HTTP Agenta gateway route, without credentials, query, or fragment",
     );
   }
 
-  return { provider, baseUrl };
+  let headers: Record<string, string> | undefined;
+  if (rawHeaders !== undefined) {
+    if (
+      !rawHeaders ||
+      typeof rawHeaders !== "object" ||
+      Array.isArray(rawHeaders)
+    ) {
+      throw new Error("model provider override headers must be an object");
+    }
+    headers = {};
+    for (const [name, headerValue] of Object.entries(
+      rawHeaders as Record<string, unknown>,
+    )) {
+      if (
+        !name.trim() ||
+        typeof headerValue !== "string" ||
+        !headerValue ||
+        !isSafeHeader(name, headerValue)
+      ) {
+        throw new Error(
+          "model provider override headers require valid names and newline-free values",
+        );
+      }
+      headers[name] = headerValue;
+    }
+  }
+
+  const rawApiKey = (value as { apiKey?: unknown }).apiKey;
+  let apiKey: string | undefined;
+  if (rawApiKey !== undefined) {
+    if (typeof rawApiKey !== "string" || !rawApiKey) {
+      throw new Error(
+        "model provider override apiKey must be a non-empty string",
+      );
+    }
+    apiKey = rawApiKey;
+  }
+
+  return {
+    provider,
+    baseUrl,
+    ...(headers ? { headers } : {}),
+    ...(apiKey ? { apiKey } : {}),
+  };
 }
 
 export function encodePiModelProviderOverride(value: unknown): string {
