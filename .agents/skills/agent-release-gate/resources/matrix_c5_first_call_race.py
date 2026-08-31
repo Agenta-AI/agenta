@@ -24,7 +24,15 @@ would not have helped, and the run was retryable).
   FAIL  the run advises adding a key (a `starter_credits_*` code, or "add ... key" wording) while
         the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`).
   FAIL  any other error, or a stored ledger row that never appeared.
-  SKIP  the project vault has no usable Daytona connection (printed with the exact reason).
+  SKIP  the project vault has no usable Daytona connection, or the provider key is out of
+        credit (printed with the exact reason).
+
+AN EXHAUSTED KEY IS NOT A DEFECT. A run that dies on a spent provider key never reached the race,
+so it says nothing about the product. It SKIPs with "environment: provider key out of credit"
+rather than failing. Recognition is narrow (`out_of_credit` in `qa_matrix_lib`): it matches the
+runner's own credits copy and the provider's billing refusal, never a bare 401 and never a rate
+limit. This check runs AFTER the incident condition, which is strictly more specific -- a
+placeholder refusal dressed in add-a-key copy stays a FAIL even when that copy names credits.
 
 COLD START IS THE POINT. The cell mints a brand new workflow and variant per run, so the session
 pool key has never been seen and the sandbox is necessarily created cold. A warm reuse would make
@@ -72,6 +80,7 @@ from qa_matrix_lib import (  # noqa: E402
     archive,
     create_workflow,
     invoke,
+    out_of_credit,
     refs,
     seed_and_baseline,
     turn_ledger,
@@ -341,6 +350,22 @@ def c5_first_call_race(
             }
 
         if turn.errors or codes:
+            # An exhausted key is an environment condition. It is checked AFTER the incident
+            # condition above, which is strictly more specific: a placeholder refusal dressed in
+            # add-a-key copy is a real defect even when the copy names credits. It is checked
+            # BEFORE the vault-credential markers below, which match a bare substring
+            # ("credential", "connection") and would otherwise claim a credits failure with a
+            # less accurate reason.
+            spent = out_of_credit(error_text, codes)
+            if spent:
+                return {
+                    "status": "SKIP",
+                    "why": (
+                        f"{spent}, so the first-call race was never reached: "
+                        f"{error_text[:300]}"
+                    ),
+                    **evidence,
+                }
             low = error_text.lower()
             if any(m in low for m in MISSING_CREDENTIAL_MARKERS):
                 return {

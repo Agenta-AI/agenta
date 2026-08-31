@@ -32,8 +32,14 @@ the two apart, but the honest way to read a FAIL is: re-run it alone before beli
   PASS  no Secret created during the journey is still present after the eviction settles.
   FAIL  at least one remains; its NAME is printed.
   SKIP  no Daytona API key in the environment, the Secrets API did not answer, the inventory
-        could not be enumerated completely, or the project vault has no usable Daytona
-        connection. Printed with the exact reason.
+        could not be enumerated completely, the project vault has no usable Daytona connection,
+        or the provider key is out of credit. Printed with the exact reason.
+
+AN EXHAUSTED KEY IS NOT A DEFECT. A journey that dies on a spent provider key never creates a
+Secret, so there is nothing to assert teardown on. It SKIPs with "environment: provider key out
+of credit" rather than failing, because a FAIL here would point at the teardown path when nothing
+about it was exercised. Recognition is narrow (`out_of_credit` in `qa_matrix_lib`): the runner's
+own credits copy and the provider's billing refusal, never a bare 401 and never a rate limit.
 
 THE SECRETS API, AND WHY THE OBVIOUS SPELLING IS WRONG. Verified against
 `@daytona/api-client@0.198.0` inside the running runner, and live by status code:
@@ -79,6 +85,7 @@ from qa_matrix_lib import (  # noqa: E402
     archive,
     create_workflow,
     invoke,
+    out_of_credit,
     refs,
     seed_and_baseline,
     user_msg,
@@ -279,8 +286,16 @@ def secrets_teardown(settle_seconds: int) -> dict:
             references,
         )
         if t1.errors:
-            joined = " ".join(t1.errors).lower()
-            if any(m in joined for m in MISSING_CREDENTIAL_MARKERS):
+            joined = " ".join(t1.errors)
+            # An exhausted key means the journey never got far enough to create a Secret, so
+            # there is nothing to assert teardown on. That is an environment condition, not a
+            # teardown defect, and rendering it as FAIL would point at the wrong thing entirely.
+            # Checked before the vault-credential markers, which match a bare substring and would
+            # otherwise claim this failure with a less accurate reason.
+            spent = out_of_credit(joined)
+            if spent:
+                raise SkipCheck(f"{spent}: {t1.errors[0][:200]}")
+            if any(m in joined.lower() for m in MISSING_CREDENTIAL_MARKERS):
                 raise SkipCheck(
                     f"missing or ambiguous Daytona vault credential: {t1.errors[0][:200]}"
                 )

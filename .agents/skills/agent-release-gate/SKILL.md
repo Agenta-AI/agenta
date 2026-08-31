@@ -452,7 +452,10 @@ These four checks make each layer's failure loud instead of silent. Run all four
   (`--compose-project`, else derived from whichever container publishes the port in
   `AGENTA_BASE`). With no match it prints "no credits proxy in this deployment; count not
   applicable" and carries on. Reading a foreign project's proxy invents evidence about a
-  deployment that was never under test, which is worse than reading none.
+  deployment that was never under test, which is worse than reading none. A run that dies on an
+  exhausted provider key SKIPs with "environment: provider key out of credit" rather than
+  failing — but only when the stored error carries a credit or billing signature, and never
+  when a placeholder refusal is present, because that combination is the incident itself.
 - `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
   the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
   when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
@@ -478,6 +481,18 @@ These four checks make each layer's failure loud instead of silent. Run all four
   `page` parameter is silently ignored, so anything less than real cursor pagination is noise
   against an organization this size. The settle loop polls `GET /secret/{secretId}` per created
   Secret rather than re-enumerating. `test_check_secrets_teardown_pagination.py` pins the walk.
+  A journey that dies on an exhausted provider key never creates a Secret, so it SKIPs with
+  "environment: provider key out of credit" instead of failing the teardown path it never
+  exercised.
+- `qa_matrix_lib.out_of_credit(error_text, codes)` — **[shared classification; no cell of its
+  own]** the SKIP reason when a run failed ONLY because the provider key has no credit left, and
+  `None` for everything else. An exhausted key is an environment condition: a cell that renders
+  it as FAIL spends a reviewer's attention on a topped-up balance, and teaches the reader that
+  this cell's FAIL is sometimes noise, which is how a real regression gets waved through later.
+  Recognition is narrow in both directions — the `starter_credits_*` codes plus the runner's own
+  credits copy and the provider's billing refusal, and deliberately NOT a bare 401, a rate limit,
+  or the placeholder refusal. Wired into `matrix_c5_first_call_race.py` and
+  `check_secrets_teardown.py`; `test_out_of_credit_skip.py` pins the boundary from both sides.
 
 ## Contributing
 
