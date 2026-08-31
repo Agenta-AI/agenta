@@ -691,6 +691,149 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
   });
 });
 
+describe("A REPAIR ANSWERS ONLY ITS OWN QUESTION (audit finding 1)", () => {
+  // The live route used to set `mismatch = undefined` wholesale, so a model switch riding with
+  // an edited transcript, a rotated credential, or a stale tail cleared THOSE checks too and
+  // continued warm on an environment that failed them. Each case here pairs the live-applicable
+  // model change with one other mismatch and asserts the rebuild still happens. The wasted
+  // in-place apply before the rebuild is acceptable; the reuse was not.
+
+  it("a model change plus an EDITED transcript still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({
+        model: "m2",
+        messages: [
+          { role: "user", content: "EDITED" },
+          { role: "assistant", content: "hi" },
+          { role: "user", content: "more" },
+        ],
+      }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the edited history must evict, model route or not",
+    );
+  });
+
+  it("a model change plus a ROTATED credential with no delivery port still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2({ model: "m2" })),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "an undeliverable rotation must evict; the old key must never serve the turn",
+    );
+  });
+
+  it("a model change plus a DELIVERABLE rotation chains both repairs and stays warm", async () => {
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2({ model: "m2" })),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      1,
+      "both doors repaired their own reason: warm",
+    );
+    assert.equal(deliveries.length, 1, "the rotation was actually delivered");
+    assert.equal(
+      calls.applied.length,
+      1,
+      "the model change was actually applied",
+    );
+  });
+
+  it("a model change plus an edited transcript plus an undeliverable rotation DELETES", async () => {
+    // The eviction is named by the FIRST unresolved reason and disposed by ALL of them.
+    // `history` sorts ahead of the credential checks, so this combination was evicted as
+    // `history`, mapped to `continuity-invalid`, and PARKED — handing the next turn a sandbox
+    // whose daemon still held the old key. The name may stay `history`; the disposition may not.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret(
+        "sk-b",
+        turn2({
+          model: "m2",
+          messages: [
+            { role: "user", content: "EDITED" },
+            { role: "assistant", content: "hi" },
+            { role: "user", content: "more" },
+          ],
+        }),
+      ),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 2, "the combination must evict");
+    assert.deepEqual(
+      calls.acquiredEnvs[0]?.destroyReasons,
+      ["runtime-incompatible"],
+      "a stale credential outranks a continuity-only park",
+    );
+  });
+
+  it("a model change plus a STALE tail still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({
+        model: "m2",
+        messages: [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "hi" },
+        ],
+      }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "a tail that is not a fresh user turn must evict",
+    );
+  });
+});
+
 describe("the disagreement counters stay quiet", () => {
   it("an instructions change agrees on a REBUILD, so the withdrawal is silent too", async () => {
     // Why the fix moved the capability table and not only the live set. Dropping
