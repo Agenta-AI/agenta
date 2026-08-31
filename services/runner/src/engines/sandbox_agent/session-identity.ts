@@ -12,7 +12,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
-import { resolveCodexMode } from "./codex-mode.ts";
+import { normalizedHarnessMode } from "../../harness-kind.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -268,12 +268,10 @@ function configShape(request: AgentRunRequest) {
     // variant identity, and trace identity are per-turn metadata (the step-1 rule).
     agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
     model: request.model ?? null,
-    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
-    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
-    harnessMode:
-      request.harness === "codex"
-        ? resolveCodexMode(request.harnessMode)
-        : null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). The SHARED normalizer
+    // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
+    // facet digest uses the same call, so the two views can never disagree about a mode change.
+    harnessMode: normalizedHarnessMode(request.harness, request.harnessMode),
     connection: request.connection ?? null,
     modelConnection: request.modelConnection
       ? {

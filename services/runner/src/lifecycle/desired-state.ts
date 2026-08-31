@@ -26,6 +26,7 @@
 import { createHash } from "node:crypto";
 
 import type { AgentRunRequest } from "../protocol.ts";
+import { normalizedHarnessMode } from "../harness-kind.ts";
 
 /**
  * The facets, in the order the reconciliation plan must apply them.
@@ -185,7 +186,10 @@ export function normalizeDesiredState(
   // request every turn) and it changes WITH the model, so hashing it here made a cross-modality
   // model switch move `harnessSession` beside `model` and refuse the live route (audit finding 2).
   const harnessSession = canonical({
-    harnessMode: request.harnessMode ?? null,
+    // The SHARED normalizer, not the raw field (audit finding 3): the fingerprint normalizes
+    // the Codex mode, and a facet that took it raw could move while the fingerprint stayed
+    // still — poisoning every later plan for that session into a rebuild.
+    harnessMode: normalizedHarnessMode(request.harness, request.harnessMode),
     permissions: request.permissions ?? null,
     mcpServers:
       request.mcpServers?.map((server) => ({
