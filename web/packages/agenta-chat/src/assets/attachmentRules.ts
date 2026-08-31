@@ -98,7 +98,7 @@ export const formatBytes = (n: number): string => {
 export interface AttachmentRejection {
     /** The file's name, for the inline message. */
     name: string
-    /** Why it was rejected (verb phrase): "is too large (8.2 MB) · max 10 MB for images". */
+    /** Why it was rejected (verb phrase): "is too large, max 10.0 MB supported". */
     reason: string
 }
 
@@ -133,7 +133,7 @@ export const validateIncoming = (
         if (file.size > maxBytes) {
             rejections.push({
                 name: file.name,
-                reason: `is too large (${formatBytes(file.size)}) · max ${formatBytes(maxBytes)} for ${KIND_NOUN[kind]}`,
+                reason: `is too large, max ${formatBytes(maxBytes)} supported`,
             })
             continue
         }

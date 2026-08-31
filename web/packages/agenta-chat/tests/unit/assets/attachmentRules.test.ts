@@ -78,7 +78,7 @@ describe("validateIncoming", () => {
         const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([
-            {name: "big.png", reason: "is too large (200 B) · max 100 B for images"},
+            {name: "big.png", reason: "is too large, max 100 B supported"},
         ])
     })
 
