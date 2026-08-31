@@ -39,6 +39,8 @@ export interface ChatBubbleProps {
     /** Typing indicator — replaces the content with the three-dot loader. */
     loading?: boolean
     content?: ReactNode
+    /** Sits above the content, outside its fill — attachments hang here rather than inside the bubble. */
+    header?: ReactNode
     className?: string
     classNames?: {content?: string; body?: string}
 }
@@ -54,6 +56,7 @@ export const ChatBubble = ({
     avatar,
     loading = false,
     content,
+    header,
     className,
     classNames,
 }: ChatBubbleProps) => (
@@ -68,7 +71,18 @@ export const ChatBubble = ({
         {/* 32px slot, not shrink-to-fit: antd-x reserves a 32px avatar column around its 24px
             avatar, so shrink-wrapping moved every message body 8px inboard of the desktop app. */}
         {avatar ? <div className="w-8 shrink-0">{avatar}</div> : null}
-        <div className={cn("flex min-w-0 max-w-full flex-col", classNames?.body)}>
+        {/* A header widens this column, and a flex child stretches to it — so with one present the
+            bubble is pinned to its own side and left to hug its text. Without one the column is
+            already the content's width, and stretching content to max-content would shrink the
+            blocks inside an assistant turn. */}
+        <div
+            className={cn(
+                "flex min-w-0 max-w-full flex-col gap-2",
+                header && (placement === "end" ? "items-end" : "items-start"),
+                classNames?.body,
+            )}
+        >
+            {!loading && header ? <div className="w-full">{header}</div> : null}
             {loading ? (
                 <ChatTypingDots />
             ) : (

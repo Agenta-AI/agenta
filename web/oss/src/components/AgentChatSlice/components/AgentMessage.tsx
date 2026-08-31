@@ -535,19 +535,7 @@ const AgentMessage = ({
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
-                if (item.kind === "files") {
-                    return (
-                        <AttachmentCardGrid key={`${message.id}-files-${item.index}`}>
-                            {item.parts.map((file, n) => (
-                                <AttachmentFilePart
-                                    key={`${message.id}-file-${item.index}-${n}`}
-                                    file={file}
-                                    sessionId={sessionId}
-                                />
-                            ))}
-                        </AttachmentCardGrid>
-                    )
-                }
+                if (item.kind === "files") return null
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity
@@ -634,6 +622,28 @@ const AgentMessage = ({
             contentBody
         )
 
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = renderItems.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={`${message.id}-files-${item.index}`}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentFilePart
+                            key={`${message.id}-file-${item.index}-${n}`}
+                            file={file}
+                            sessionId={sessionId}
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards.
+    const hasBubbleContent =
+        renderItems.some((item) => item.kind !== "files") || showError || isError
+
     // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
     // never overlays the last content line and never reaches the next turn. The lane is always
     // present (stable height), so revealing it only fades opacity — no layout shift either way (the
@@ -654,7 +664,7 @@ const AgentMessage = ({
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
-                variant={isUser ? "filled" : "borderless"}
+                variant={isUser && hasBubbleContent ? "filled" : "borderless"}
                 avatar={<MessageAvatar isUser={isUser} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
@@ -667,7 +677,8 @@ const AgentMessage = ({
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                content={hasBubbleContent ? body : null}
+                header={attachments}
             />
             <div
                 className={`${turnToolbarClass} ${isUser ? "right-11" : "left-11"} ${toolbarReveal}`}
