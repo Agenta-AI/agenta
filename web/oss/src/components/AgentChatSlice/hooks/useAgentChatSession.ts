@@ -6,7 +6,7 @@ import {
     startupLabelFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {applyApprovalResponse, ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
 import {
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
@@ -156,7 +156,7 @@ export const useAgentChatSession = ({
         stop,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
+        addToolApprovalResponse: _addToolApprovalResponse,
         addToolOutput,
         error,
     } = useChat({
@@ -267,9 +267,17 @@ export const useAgentChatSession = ({
                         toolCallId: approvalId,
                         resolution: approvalResolution(approvalId, approved),
                     }),
-                release: () => addToolApprovalResponse({id: approvalId, approved}),
+                // Scope fix (#6312): the SDK rewrites only the last message; update the owning one.
+                release: () =>
+                    setMessages(
+                        (prev) =>
+                            applyApprovalResponse(prev as never, {
+                                id: approvalId,
+                                approved,
+                            }) as typeof prev,
+                    ),
             }),
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+        [recordInteractionAnswer, sessionId, setMessages],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -346,6 +354,25 @@ export const useAgentChatSession = ({
         if (!error) return
         const parsed = parseAgentRunError(error)
         setMessages((prev) => {
+            const pendingIdx = prev.findLastIndex(
+                (m) =>
+                    m.role === "assistant" &&
+                    (m.parts ?? []).some(
+                        (p) => (p as {state?: string}).state === "approval-requested",
+                    ),
+            )
+            if (pendingIdx !== -1) {
+                const target = prev[pendingIdx]
+                const existing = (target.metadata as {runError?: {message?: string}} | undefined)
+                    ?.runError
+                if (existing?.message === parsed.message) return prev
+                const next = [...prev]
+                next[pendingIdx] = {
+                    ...target,
+                    metadata: {...(target.metadata as object | undefined), runError: parsed},
+                }
+                return next
+            }
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
             const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
                 ?.runError
@@ -527,7 +554,7 @@ export const useAgentChatSession = ({
         sendMessage,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
+        addToolApprovalResponse: _addToolApprovalResponse,
         messagesRef,
         busyRef,
         isHydrating,

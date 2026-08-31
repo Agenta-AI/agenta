@@ -64,3 +64,25 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     }
     return out
 }
+
+export const applyApprovalResponse = (
+    messages: UIMessage[],
+    {id, approved}: {id: string; approved: boolean},
+): UIMessage[] =>
+    messages.map((message) => {
+        if (message.role !== "assistant") return message
+        const parts = message.parts ?? []
+        if (!parts.some((part) => (part as {approval?: ApprovalRef}).approval?.id === id)) {
+            return message
+        }
+        return {
+            ...message,
+            parts: parts.map((part) => {
+                const p = part as ToolUIPart & {approval?: ApprovalRef}
+                if (p.state === "approval-requested" && p.approval?.id === id) {
+                    return {...p, state: "approval-responded", approval: {id, approved}} as ToolUIPart
+                }
+                return part
+            }),
+        }
+    })

@@ -46,6 +46,7 @@ import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
+import {applyApprovalResponse} from "../model/approvals"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
@@ -242,7 +243,7 @@ export const useAgentConversation = ({
         stop,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
+        addToolApprovalResponse: _addToolApprovalResponse,
         addToolOutput,
         error,
     } = useChat({
@@ -475,6 +476,8 @@ export const useAgentConversation = ({
             // does the part flip that lets the SDK dispatch its resume. Flipped first, that
             // resume's stale sweep cancelled the row being answered. No resume from here either —
             // the park stream finishes cleanly, so the SDK is the only sender.
+            // Scope fix (#6312): the SDK rewrites only the last message; an approval parked several
+            // turns up needs a cross-message update so the dock and the responder agree.
             void recordAnswerThenRelease({
                 record: () =>
                     recordInteractionAnswer({
@@ -482,10 +485,13 @@ export const useAgentConversation = ({
                         toolCallId: args.id,
                         resolution: approvalResolution(args.id, args.approved),
                     }),
-                release: () => addToolApprovalResponse(args),
+                release: () =>
+                    setMessages(
+                        (prev) => applyApprovalResponse(prev as never, args) as typeof prev,
+                    ),
             })
         },
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+        [recordInteractionAnswer, sessionId, setMessages],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -570,6 +576,25 @@ export const useAgentConversation = ({
         if (!error) return
         const parsed = parseAgentRunError(error)
         setMessages((prev) => {
+            const pendingIdx = prev.findLastIndex(
+                (m) =>
+                    m.role === "assistant" &&
+                    (m.parts ?? []).some(
+                        (p) => (p as {state?: string}).state === "approval-requested",
+                    ),
+            )
+            if (pendingIdx !== -1) {
+                const target = prev[pendingIdx]
+                const existing = (target.metadata as {runError?: {message?: string}} | undefined)
+                    ?.runError
+                if (existing?.message === parsed.message) return prev
+                const next = [...prev]
+                next[pendingIdx] = {
+                    ...target,
+                    metadata: {...(target.metadata as object | undefined), runError: parsed},
+                }
+                return next
+            }
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
             const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
                 ?.runError
