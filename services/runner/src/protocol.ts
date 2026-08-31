@@ -703,6 +703,21 @@ export interface AgentRunRequest {
    */
   gatewayPolicy?: GatewayPolicy;
   /**
+   * The derived gateway-tools instruction section (how to use `search_tools` / `run_tool`,
+   * with the configured integration names as EXAMPLES), plus which prompt surface carries it.
+   *
+   * Its own field, deliberately OUTSIDE `configFingerprint` and the desired-state facets: the
+   * text is derived from the agent's connections at resolve time, and the runner splices it
+   * into `carrier` when it BUILDS an environment (`buildRunPlan`). So adding or removing an
+   * integration never evicts a warm session for a one-word prompt change; the names refresh
+   * on the next session build, and the wording says the list may be stale. When it was
+   * composed into the prompt strings upstream, every integration add went cold.
+   */
+  gatewayGuidance?: {
+    text: string;
+    carrier: "appendSystemPrompt" | "agentsMd";
+  };
+  /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under
    * `strict` (it cannot be a hard guarantee there). `filesystem` is declared-only.

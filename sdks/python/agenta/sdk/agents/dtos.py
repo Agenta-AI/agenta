@@ -697,6 +697,26 @@ class AgentTemplate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class GatewayGuidance(BaseModel):
+    """The derived gateway-tools instruction section, carried as its own wire field.
+
+    It used to be composed INTO the prompt strings (``append_system`` for Pi, ``agents_md``
+    for the file-based harnesses). That put the integration NAMES inside the session
+    fingerprint, so adding a second integration evicted a warm session for a one-word prompt
+    change. As a separate field the runner splices it into ``carrier`` when it BUILDS an
+    environment, and deliberately excludes it from the fingerprint: the text refreshes
+    whenever a session is built or reopened, and never evicts one on its own. The wording
+    presents the names as examples ("for instance"), so a list that goes stale mid-session
+    stays honest.
+    """
+
+    text: str
+    carrier: Literal["appendSystemPrompt", "agentsMd"]
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {"text": self.text, "carrier": self.carrier}
+
+
 class HarnessAgentTemplate(BaseModel):
     """Base for a harness-specific config. A Harness produces one of these from the neutral
     config; a backend plumbs it as-is, with no business logic about how the harness works.
@@ -730,6 +750,9 @@ class HarnessAgentTemplate(BaseModel):
     # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
     # wire.
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
+    # The derived gateway-tools guidance, set by the adapter when the agent has at least one
+    # gateway connection. Rides the wire as ``gatewayGuidance``; see :class:`GatewayGuidance`.
+    gateway_guidance: Optional[GatewayGuidance] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -772,6 +795,14 @@ class HarnessAgentTemplate(BaseModel):
         """The system-prompt fields this harness contributes to the ``/run`` payload. Empty
         by default; a harness that exposes prompt overrides (Pi) emits them here."""
         return {}
+
+    def wire_gateway_guidance(self) -> Dict[str, Any]:
+        """The ``gatewayGuidance`` field for the ``/run`` payload. Omitted when the agent has
+        no gateway connection so a connection-free payload is unchanged (the golden wire
+        contract)."""
+        if not self.gateway_guidance:
+            return {}
+        return {"gatewayGuidance": self.gateway_guidance.to_wire()}
 
     def wire_mcp(self) -> Dict[str, Any]:
         """The ``mcpServers`` field for the ``/run`` payload. Omitted when none are declared so

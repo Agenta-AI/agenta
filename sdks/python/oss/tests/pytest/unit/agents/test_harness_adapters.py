@@ -324,9 +324,9 @@ _GATEWAY_POLICY = ResolvedGatewayPolicy(
 _AUTHOR_APPEND = "Be terse."
 _AUTHOR_INSTRUCTIONS = "My project rules."
 _HARNESS_CASES = [
-    (PiHarness, HarnessKind.PI, "append_system", _AUTHOR_APPEND),
-    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", _AUTHOR_INSTRUCTIONS),
-    (CodexHarness, HarnessKind.CODEX, "agents_md", _AUTHOR_INSTRUCTIONS),
+    (PiHarness, HarnessKind.PI, "append_system", "appendSystemPrompt", _AUTHOR_APPEND),
+    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
+    (CodexHarness, HarnessKind.CODEX, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
 ]
 
 
@@ -338,7 +338,9 @@ def test_every_registered_harness_declares_a_guidance_carrier():
     """
     from agenta.sdk.agents.adapters.harnesses import _HARNESSES
 
-    assert {kind for _cls, kind, _carrier, _author in _HARNESS_CASES} == set(_HARNESSES)
+    assert {kind for _cls, kind, _field, _carrier, _author in _HARNESS_CASES} == set(
+        _HARNESSES
+    )
 
 
 def _guidance_agent() -> AgentTemplate:
@@ -349,33 +351,43 @@ def _guidance_agent() -> AgentTemplate:
     )
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_gateway_guidance_reaches_every_harness(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """Every harness gets the same two derived tools, so every one gets the instructions.
 
-    A section added to the Agenta preamble alone would leave Pi, Claude, and Codex holding
-    `search_tools` and `run_tool` with nothing telling them how to use them.
+    The guidance now rides its own `gatewayGuidance` wire field (spliced by the runner at
+    environment build, so integration adds stop evicting warm sessions); the adapter's job
+    is to emit the field with the right carrier and keep the prompt strings purely authored.
     """
     harness = harness_cls(make_env(supported=[kind]))
     config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
 
     result = harness._to_harness_config(config)
 
-    text = getattr(result, carrier)
-    assert "search_tools" in text
-    assert "run_tool" in text
-    # The configured integration names, and only those.
-    assert "github, slack" in text
-    # The author's own text on that layer still comes last: the guidance is the platform half.
-    assert text.endswith(author_text)
-    assert text.index("search_tools") < text.index(author_text)
+    guidance = result.gateway_guidance
+    assert guidance is not None
+    assert guidance.carrier == carrier
+    assert "search_tools" in guidance.text
+    assert "run_tool" in guidance.text
+    # The configured integration names read as EXAMPLES, so a stale list stays honest.
+    assert "github, slack" in guidance.text
+    assert "Others may exist" in guidance.text
+    # The prompt strings stay purely authored: the runner does the splice, not the adapter.
+    assert getattr(result, prompt_field) == author_text
+    assert result.wire_gateway_guidance() == {
+        "gatewayGuidance": {"text": guidance.text, "carrier": carrier}
+    }
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_no_gateway_guidance_without_a_connection(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """G6's prompt half: an agent with no connection entry gets no gateway section."""
     harness = harness_cls(make_env(supported=[kind]))
@@ -383,24 +395,25 @@ def test_no_gateway_guidance_without_a_connection(
 
     result = harness._to_harness_config(config)
 
-    text = getattr(result, carrier) or ""
+    assert result.gateway_guidance is None
+    assert result.wire_gateway_guidance() == {}
+    text = getattr(result, prompt_field) or ""
     assert "search_tools" not in text
-    assert "run_tool" not in text
 
 
-def test_pi_agents_md_stays_purely_authored(make_env):
-    """Pi's carrier is ``append_system``; AGENTS.md keeps only what the author wrote.
-
-    AGENTS.md is the project-conventions layer and a bare Pi run has no platform half of it,
-    so injecting there would put platform text in a file the author owns outright.
-    """
+def test_pi_prompt_strings_stay_purely_authored(make_env):
+    """Pi's guidance carrier is ``appendSystemPrompt``, but the SDK no longer splices it:
+    both prompt strings leave the adapter exactly as the author wrote them, and the field
+    carries the platform half for the runner to splice at build time."""
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
 
     result = harness._to_harness_config(config)
 
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
-    assert "search_tools" in result.append_system
+    assert result.append_system == _AUTHOR_APPEND
+    assert result.gateway_guidance is not None
+    assert result.gateway_guidance.carrier == "appendSystemPrompt"
 
 
 def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
@@ -411,7 +424,8 @@ def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert "search_tools" in result.append_system
+    assert result.gateway_guidance is not None
+    assert "search_tools" in result.gateway_guidance.text
     assert agent.instructions == _AUTHOR_INSTRUCTIONS
     assert agent.harness_extras == {"append_system": _AUTHOR_APPEND}
 
@@ -425,8 +439,9 @@ def test_gateway_guidance_carries_all_six_prompt_items():
     """
     section = gateway_guidance(["github", "slack"])
 
-    # 1. The configured integration names.
-    assert "Configured integrations: github, slack." in section
+    # 1. The configured integration names, framed as examples so a stale list stays honest.
+    assert "some of the integrations you have: github, slack" in section
+    assert "Others may exist" in section
     # 2. Search once per task, with a concrete description, and no equivalent repeats.
     assert "Search once per task, with a concrete description" in section
     assert "Never repeat an\n  equivalent query" in section
@@ -456,9 +471,11 @@ def test_gateway_guidance_is_absent_for_an_empty_policy():
     assert gateway_guidance([]) is None
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_gateway_policy_stays_out_of_every_harness_config(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """Runner policy stays neutral while harnesses receive only names for guidance."""
     harness = harness_cls(make_env(supported=[kind]))

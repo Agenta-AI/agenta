@@ -259,6 +259,11 @@ export function configFingerprint(request: AgentRunRequest): string {
         },
       })) ?? null,
     toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
+    // No `gatewayGuidance` and no `gatewayPolicy`: both are DERIVED from the agent's gateway
+    // connections at resolve time. The guidance is spliced into the prompt at environment build
+    // (`buildRunPlan`) and its wording treats the integration names as examples, so a warm
+    // session serving a slightly stale list is honest — and hashing it would evict a warm
+    // session every time an integration is added, the exact cost this exclusion removes.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,

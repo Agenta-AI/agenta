@@ -344,6 +344,13 @@ class WireGatewayIntegration(_WireModel):
     tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
 
 
+class WireGatewayGuidance(_WireModel):
+    """The derived gateway-tools instruction section (``gatewayGuidance`` on the request)."""
+
+    text: str
+    carrier: Literal["appendSystemPrompt", "agentsMd"]
+
+
 class WireGatewayPolicy(_WireModel):
     """The private compiled gateway policy (``gatewayPolicy`` on the request).
 
@@ -554,6 +561,12 @@ class WireRunRequest(_WireModel):
     # derived tools read the same table. Omitted when the agent configures no connection.
     gateway_policy: Optional[WireGatewayPolicy] = Field(
         default=None, alias="gatewayPolicy"
+    )
+    # The derived gateway-tools guidance and its prompt carrier. Its own field so the runner
+    # splices it at environment build and the session fingerprint can exclude it (an integration
+    # add must not evict a warm session). Omitted when the agent configures no connection.
+    gateway_guidance: Optional[WireGatewayGuidance] = Field(
+        default=None, alias="gatewayGuidance"
     )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(

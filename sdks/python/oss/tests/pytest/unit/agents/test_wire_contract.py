@@ -45,6 +45,7 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
+from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance_field
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -92,6 +93,7 @@ KNOWN_REQUEST_KEYS = {
     "toolCallback",
     "permissions",
     "gatewayPolicy",
+    "gatewayGuidance",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -321,6 +323,11 @@ def _gateway_connection_payload():
         # Straight from the producer, so the golden records what a real resolve emits.
         custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
+        # Straight from the same producer path the adapters use, so the golden pins the
+        # separate-field form (the guidance is spliced runner-side at environment build).
+        gateway_guidance=gateway_guidance_field(
+            list(gateway_policy.integrations), "appendSystemPrompt"
+        ),
     )
     return request_to_wire(
         harness=HarnessKind.PI,

@@ -20,7 +20,12 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from ..flags import ordered_operations_enabled
+from typing import TYPE_CHECKING
+
 from ..skills import SkillFile, SkillTemplate
+
+if TYPE_CHECKING:  # circular at runtime: dtos imports skills, adapters import dtos
+    from ..dtos import GatewayGuidance
 from .agent_templates import build_agent_template_skill_files
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
@@ -1162,8 +1167,9 @@ def gateway_guidance(integration_names: Sequence[str]) -> Optional[str]:
     return f"""\
 ## Connected integrations
 
-You can reach these integrations with two tools: `search_tools` and `run_tool`.
-Configured integrations: {integrations}.
+You can reach your integrations with two tools: `search_tools` and `run_tool`.
+For instance, some of the integrations you have: {integrations}. Others may exist, and this
+list can go stale — `search_tools` is the source of truth for what is connected right now.
 
 - Search once per task, with a concrete description of what you want to do. Never repeat an
   equivalent query — a second search that means the same thing returns the same results.
@@ -1181,17 +1187,24 @@ Configured integrations: {integrations}.
   arguments — report it instead of looping."""
 
 
-def compose_gateway_guidance(
-    user: Optional[str],
-    integration_names: Sequence[str] = (),
-) -> Optional[str]:
-    """One prompt layer with the gateway guidance placed before the author's own text.
+def gateway_guidance_field(
+    integration_names: Sequence[str],
+    carrier: str,
+) -> Optional["GatewayGuidance"]:
+    """The ``gatewayGuidance`` wire field, or ``None`` when the agent has no connection.
 
-    Every harness carries the guidance, not only the Agenta one: each gets the same two
-    derived tools, so a section added to one prompt surface would leave the others holding
-    two tools and no instructions for using them. Which layer carries it is the adapter's
-    choice, so ``user`` is whatever text that adapter puts the guidance in front of: the
-    instructions file for the file-based harnesses, and ``append_system`` for Pi, whose
-    AGENTS.md is purely authored.
+    Every harness carries the guidance, not only one: each gets the same two derived tools,
+    so guidance on one prompt surface alone would leave the others holding two tools and no
+    instructions for using them. ``carrier`` stays the adapter's choice (the instructions
+    file for the file-based harnesses, ``append_system`` for Pi, whose AGENTS.md is purely
+    authored) — but the SPLICING now happens in the runner, at environment build time, so the
+    integration names stay out of the session fingerprint and adding an integration no longer
+    evicts a warm session. The names read as examples, so a list that goes stale mid-session
+    stays honest until the next cold or reopened session refreshes it.
     """
-    return _join(gateway_guidance(integration_names), user)
+    text = gateway_guidance(integration_names)
+    if not text:
+        return None
+    from ..dtos import GatewayGuidance
+
+    return GatewayGuidance(text=text, carrier=carrier)

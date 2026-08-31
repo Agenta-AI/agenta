@@ -257,6 +257,29 @@ describe("configFingerprint", () => {
     messages: [{ role: "user", content: "hi" }],
   };
 
+  it("excludes the derived gateway guidance, so an integration add never evicts", () => {
+    // The guidance text carries the integration NAMES as examples and refreshes at
+    // environment build. Hashing it would cold every warm session on each integration add —
+    // the exact cost the separate field removes.
+    const a = configFingerprint(base);
+    const b = configFingerprint({
+      ...base,
+      gatewayGuidance: {
+        text: "For instance, some of the integrations you have: github, slack.",
+        carrier: "agentsMd",
+      },
+    } as unknown as AgentRunRequest);
+    const c = configFingerprint({
+      ...base,
+      gatewayGuidance: {
+        text: "For instance, some of the integrations you have: github.",
+        carrier: "agentsMd",
+      },
+    } as unknown as AgentRunRequest);
+    assert.equal(a, b);
+    assert.equal(b, c);
+  });
+
   it("ignores per-turn volatiles and credential values", () => {
     const a = configFingerprint({
       ...base,

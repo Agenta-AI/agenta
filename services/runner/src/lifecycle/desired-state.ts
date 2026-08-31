@@ -81,9 +81,14 @@ function canonical(value: unknown): string {
 
 /** Strip credential VALUES, keeping only the shape. Mirrors `configFingerprint`. */
 function credentialShapes(
-  credentials: ReadonlyArray<{ binding?: unknown; usage?: unknown }> | undefined,
+  credentials:
+    | ReadonlyArray<{ binding?: unknown; usage?: unknown }>
+    | undefined,
 ): unknown {
-  return (credentials ?? []).map((c) => ({ binding: c.binding, usage: c.usage }));
+  return (credentials ?? []).map((c) => ({
+    binding: c.binding,
+    usage: c.usage,
+  }));
 }
 
 /**
@@ -133,7 +138,9 @@ export function normalizeDesiredState(
     skills: request.skills ?? null,
   });
 
-  // PROMPTS: the system and append prompts.
+  // PROMPTS: the system and append prompts. `gatewayGuidance` is deliberately absent here and
+  // from every other facet (mirroring `configFingerprint`): it is derived config the runner
+  // splices at build time, refreshed by whatever rebuild happens anyway, never a reason for one.
   //
   // SEPARATE FROM `workspaceFiles`, and not live. For Pi these land as files under the agent
   // directory, and the adapter matrix records active-session observation as NOT GUARANTEED: a
