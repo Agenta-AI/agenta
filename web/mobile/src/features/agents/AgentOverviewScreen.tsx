@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {
     AgentActionsMenu,
@@ -9,12 +10,13 @@ import {
 } from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {FOCUS_RING} from "@/lib/interactive"
 
+import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -25,9 +27,8 @@ import {AgentIconSheet} from "./AgentIconSheet"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
- * sessions and automation runs from the same shared card hooks, and the shared read-only
- * configuration card in place of the desktop's rail. Read-only host: configuration is edited
- * in the desktop playground, so the card gets no `onEdit`.
+ * sessions and automation runs from the same shared card hooks, and the shared configuration
+ * card in place of the desktop's rail.
  */
 export const AgentOverviewScreen = ({
     workspaceId,
@@ -40,6 +41,16 @@ export const AgentOverviewScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
+    const startBlank = useStartBlankSession(base)
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // Edit opens this agent's playground with the configuration showing. `/m` has no `/playground`
+    // route — a session IS the playground here — so it opens a BLANK one: the id is client-side
+    // and nothing reaches the backend until a message lands, so reading the config costs no
+    // session. The reveal is shared with the desktop's Edit so both mean the same thing (#6381).
+    const openConfig = () => {
+        revealConfigPane()
+        startBlank(agentId)
+    }
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
@@ -120,8 +131,8 @@ export const AgentOverviewScreen = ({
                     }
                 >
                     {/* THE shared overview body — the same cards, order and chrome the desktop
-                        page renders. Read-only host: configuration is edited in the desktop
-                        playground, so no `onEditConfig`. */}
+                        page renders, Edit included: a session IS this app's playground, so the
+                        configuration is editable here too. */}
                     {/* `flex flex-col` is load-bearing: the body's columns size off `flex-1` +
                         `h-full`, so a plain block here leaves them with no definite height and
                         the left column scrolls inside a stunted box. */}
@@ -145,6 +156,7 @@ export const AgentOverviewScreen = ({
                             agentNames={agentNames}
                             usage={<UsageCard appId={agentId} />}
                             sessionsHref={`${base}/sessions`}
+                            onEditConfig={openConfig}
                             onOpenRow={sessionMenu.open}
                             menuFor={sessionMenu.menuFor}
                             onMenuSelect={sessionMenu.onMenuSelect}

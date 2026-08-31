@@ -10,6 +10,7 @@ export {
     configPanelCollapsedPhonePreferenceAtom,
     configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
+    revealConfigPaneAtom,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
 } from "./panelLayout"

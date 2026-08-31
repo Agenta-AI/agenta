@@ -128,3 +128,16 @@ export const configPanelCollapsedAtom = atom(
         )
     },
 )
+
+/**
+ * "Show me the configuration" — the single write an Edit action makes.
+ *
+ * TWO independent things hide the pane: the Build/Chat maximize flag and the collapse preference,
+ * both persisted. An action that promises configuration has to clear both, or it lands the user on
+ * a playground with nothing to edit and no explanation (#6381). Shared so every host's Edit means
+ * the same thing, and so a third flag can only ever be added in one place.
+ */
+export const revealConfigPaneAtom = atom(null, (_get, set) => {
+    set(chatPanelMaximizedAtom, false)
+    set(configPanelCollapsedAtom, false)
+})

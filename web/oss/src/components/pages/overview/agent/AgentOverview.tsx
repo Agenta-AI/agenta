@@ -1,6 +1,6 @@
 import {useCallback, useEffect} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
@@ -62,17 +62,12 @@ const AgentOverview = ({appId, agentName}: Props) => {
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    // Edit asks for the configuration, so it clears BOTH things that hide it (#6381). The
-    // playground collapses the config pane on either the « control's stored preference or the
-    // maximize flag, and both persist — so someone who had ever collapsed it landed on the
-    // playground with no configuration in sight and nothing saying why.
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // Edit asks for the configuration, so it clears what hides it before navigating (#6381).
     const openConfig = useCallback(() => {
-        setChatMaximized(false)
-        setConfigCollapsed(false)
+        revealConfigPane()
         goToPlayground(undefined, {appId})
-    }, [goToPlayground, appId, setChatMaximized, setConfigCollapsed])
+    }, [goToPlayground, appId, revealConfigPane])
 
     const attachments = useSeedAttachments()
 
