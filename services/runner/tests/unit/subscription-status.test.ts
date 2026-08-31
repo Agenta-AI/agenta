@@ -289,6 +289,98 @@ describe("harnessSubscriptionStatus", () => {
     );
   });
 
+  it("reports ready from an OAuth token alone, with no login file mounted", async () => {
+    // The deployment CAN run: `CLAUDE_CODE_OAUTH_TOKEN` is in the harness's inherited env group,
+    // so the run authenticates with it. Probing only the file called this `login_missing`, and the
+    // UI turned that into "no runnable model" and disabled the composer.
+    assert.deepEqual(
+      await harnessSubscriptionStatus("claude", {
+        CLAUDE_CODE_OAUTH_TOKEN: "fake-oauth-token",
+      }),
+      { state: "ready", provider: "anthropic" },
+    );
+  });
+
+  it("accepts either Anthropic auth-token variable the harness reads", async () => {
+    for (const name of ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_OAUTH_TOKEN"]) {
+      assert.equal(
+        (await harnessSubscriptionStatus("claude", { [name]: "fake-token" }))
+          .state,
+        "ready",
+        `${name} should authenticate the harness`,
+      );
+    }
+  });
+
+  it("prefers the token over every file verdict on the same mount", async () => {
+    // A missing, empty or unparseable file is not a missing login when a token authenticates.
+    const cases: [string, NodeJS.ProcessEnv][] = [
+      ["absent", mount("CLAUDE_CONFIG_DIR")],
+      ["empty", mount("CLAUDE_CONFIG_DIR", ".credentials.json", "")],
+      ["not JSON", mount("CLAUDE_CONFIG_DIR", ".credentials.json", "nope")],
+    ];
+    for (const [label, env] of cases) {
+      assert.equal(
+        (
+          await harnessSubscriptionStatus("claude", {
+            ...env,
+            CLAUDE_CODE_OAUTH_TOKEN: "fake-oauth-token",
+          })
+        ).state,
+        "ready",
+        `a ${label} login file must not override a usable token`,
+      );
+    }
+  });
+
+  it("ignores a blank token, so an unset fallback still reports the file's verdict", async () => {
+    // The EE compose override defaults the variable to "", which must not read as a credential.
+    assert.equal(
+      (
+        await harnessSubscriptionStatus("claude", {
+          ...mount("CLAUDE_CONFIG_DIR"),
+          CLAUDE_CODE_OAUTH_TOKEN: "   ",
+        })
+      ).state,
+      "login_missing",
+    );
+  });
+
+  it("never counts an API key as a subscription", async () => {
+    // `ANTHROPIC_API_KEY` is the `agenta` connection mode: a vault key someone pasted, not a plan.
+    assert.equal(
+      (
+        await harnessSubscriptionStatus("claude", {
+          ...mount("CLAUDE_CONFIG_DIR"),
+          ANTHROPIC_API_KEY: "sk-fake",
+        })
+      ).state,
+      "login_missing",
+    );
+  });
+
+  it("gives no harness but Claude a token route", async () => {
+    // Codex and Pi authenticate from their own login files; neither has a token fallback.
+    assert.equal(
+      (
+        await harnessSubscriptionStatus("codex", {
+          ...mount("CODEX_HOME"),
+          CLAUDE_CODE_OAUTH_TOKEN: "fake-oauth-token",
+        })
+      ).state,
+      "login_missing",
+    );
+    assert.equal(
+      (
+        await harnessSubscriptionStatus("pi_core", {
+          ...mount("PI_CODING_AGENT_DIR"),
+          CLAUDE_CODE_OAUTH_TOKEN: "fake-oauth-token",
+        })
+      ).state,
+      "login_missing",
+    );
+  });
+
   it("reports unsupported for a harness this runner cannot check", async () => {
     assert.deepEqual(await harnessSubscriptionStatus("cursor", {}), {
       state: "unsupported",

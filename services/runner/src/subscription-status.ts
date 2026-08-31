@@ -75,6 +75,16 @@ interface LoginProbe {
   dirEnv: string;
   /** The login artifact inside that directory. */
   file: string;
+  /**
+   * Env vars that are a COMPLETE credential on their own, so the harness authenticates with no
+   * login file at all. Any one of them set means `ready`: the run inherits it (the harness's
+   * group in `PROVIDER_ENV_VAR_GROUPS`) and uses it exactly as it would the file.
+   *
+   * Subscription tokens only. An `*_API_KEY` belongs to the `agenta` connection mode and is a
+   * vault key the user pastes, not a plan they pay for — reporting one here would put a
+   * "subscription login found" against a key, which is the same lie `isOAuthLogin` avoids.
+   */
+  tokenEnv?: readonly string[];
   /** Omitted when the harness is not tied to one provider. */
   provider?: string;
   /**
@@ -137,6 +147,13 @@ const PROBES: Record<SubscriptionHarness, LoginProbe> = {
   claude: {
     dirEnv: "CLAUDE_CONFIG_DIR",
     file: ".credentials.json",
+    // The documented fallback when no login is mounted (the EE compose override names it for an
+    // expired session, regenerated with `claude setup-token`).
+    tokenEnv: [
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "ANTHROPIC_AUTH_TOKEN",
+      "ANTHROPIC_OAUTH_TOKEN",
+    ],
     provider: "anthropic",
   },
   // `pi_core` and `pi_agenta` both drive the ACP agent "pi" (see run-plan.ts), so they read the
@@ -170,10 +187,24 @@ interface ProbeResult {
  * The reads are async so a hung or slow mount (a stalled network filesystem) blocks only this
  * request, never the runner's event loop and the runs sharing it.
  */
+/** A token that authenticates on its own, so no login file has to exist. */
+function hasTokenCredential(
+  probe: LoginProbe,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  return (probe.tokenEnv ?? []).some((name) => (env[name] ?? "").trim() !== "");
+}
+
 async function probeState(
   probe: LoginProbe,
   env: NodeJS.ProcessEnv,
 ): Promise<ProbeResult> {
+  // Checked before the mount, and it wins over every file verdict: the run inherits this token and
+  // the harness authenticates with it whatever the mount holds, so a missing, empty or unreadable
+  // file is not a missing login. Probing only the file reported `login_missing` for a deployment
+  // that could run, and the UI turned that into "you have no runnable model" and blocked every
+  // agent behind "add your model provider key".
+  if (hasTokenCredential(probe, env)) return { state: "ready" };
   const dir = env[probe.dirEnv]?.trim();
   if (!dir) return { state: "not_configured" };
   // stat follows symlinks, so a Codex login reached through the runner-owned home's symlink
