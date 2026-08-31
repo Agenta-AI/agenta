@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from inspect import Parameter, signature
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
@@ -209,6 +210,25 @@ def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
     return None
 
 
+def _workflow_artifact_id(run_context: Optional[RunContext]) -> Optional[str]:
+    workflow = run_context.workflow if run_context is not None else None
+    artifact = workflow.artifact if workflow is not None else None
+    return (
+        str(artifact.id) if artifact is not None and artifact.id is not None else None
+    )
+
+
+def _accepts_keyword(callback: Callable[..., Any], keyword: str) -> bool:
+    """Keep existing custom compositions compatible as resolver context grows."""
+    try:
+        parameters = signature(callback).parameters
+    except (TypeError, ValueError):
+        return True
+    return keyword in parameters or any(
+        parameter.kind is Parameter.VAR_KEYWORD for parameter in parameters.values()
+    )
+
+
 def make_agent_handler(composition: Optional[AgentComposition] = None):
     """Build the `agent_v0`-shaped handler bound to `composition` (defaults if omitted)."""
 
@@ -239,12 +259,29 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         )
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
+
+        # Run context is needed both by tool resolution and by dispatch. In particular,
+        # rename_agent resolves against the running artifact's persisted one-time state.
+        rc = comp.run_context()
+        run_kind = (request.meta or {}).get("run_kind")
+        if isinstance(run_kind, str) and run_kind:
+            base = rc or RunContext()
+            rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
+
         # The agent-wide mode reaches the gateway permission compiler only here: an
         # ``inherit`` in a saved connection policy resolves against it, so a resolve that
         # does not carry it would compile a different policy than the run enforces.
+        tool_resolution_kwargs: Dict[str, Any] = {
+            "permission_default": agent_template.permission_default,
+        }
+        workflow_id = _workflow_artifact_id(rc)
+        if workflow_id is not None and _accepts_keyword(
+            comp.resolve_tools, "workflow_id"
+        ):
+            tool_resolution_kwargs["workflow_id"] = workflow_id
         resolved_tools = await comp.resolve_tools(
             agent_template.tools,
-            permission_default=agent_template.permission_default,
+            **tool_resolution_kwargs,
         )
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
 
@@ -285,15 +322,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 ),
             ]
         )
-
-        # run_kind rides the wire on `request.meta`: a wire-supplied run_kind must not
-        # be silently dropped, so it layers onto whatever run_context composition supplies.
-        # Copy before setting so a shared/cached RunContext can't leak run_kind across requests.
-        rc = comp.run_context()
-        run_kind = (request.meta or {}).get("run_kind")
-        if isinstance(run_kind, str) and run_kind:
-            base = rc or RunContext()
-            rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
 
         session_config = SessionConfig(
             agent=agent_template,

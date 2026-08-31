@@ -17,10 +17,13 @@ from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
 from oss.src.core.tools.platform_handlers import (
+    RENAME_AGENT_CALL_REF,
     TEST_RUN_RECURSION_HEADER,
     TEST_RUN_RECURSION_VALUE,
     PlatformToolHandlerRefused,
+    handle_rename_agent,
     handle_test_run,
+    required_elevated_permission,
 )
 from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceRequestData
 from oss.src.core.workflows.service import WorkflowsService
@@ -93,6 +96,23 @@ class FakeWorkflowsService:
             {"project_id": project_id, "user_id": user_id, "request": request}
         )
         return "Secret signed", self.service_url
+
+
+class FakeRenameWorkflowsService:
+    def __init__(self, status="renamed"):
+        self.status = status
+        self.calls = []
+
+    async def rename_workflow_once(self, **kwargs):
+        self.calls.append(kwargs)
+        workflow = None
+        if self.status != "not_found":
+            workflow = SimpleNamespace(
+                id=kwargs["workflow_id"],
+                name=kwargs["name"],
+                description=kwargs["description"],
+            )
+        return SimpleNamespace(status=self.status, workflow=workflow)
 
 
 class FakeTracingService:
@@ -839,3 +859,132 @@ async def test_test_run_previews_a_delta_in_the_agents_context(monkeypatch):
     )
 
     assert workflows.agent_context_calls == [True]
+
+
+def test_rename_agent_requires_edit_workflows_permission():
+    assert (
+        required_elevated_permission(
+            call_ref=RENAME_AGENT_CALL_REF,
+            arguments={},
+        )
+        == Permission.EDIT_WORKFLOWS
+    )
+
+
+async def test_rename_agent_persists_the_bound_workflow_once():
+    workflow_id = uuid4()
+    workflows = FakeRenameWorkflowsService()
+
+    result = await handle_rename_agent(
+        arguments={
+            "workflow_id": str(workflow_id),
+            "name": "Support Triage",
+            "description": "Triages incoming support requests.",
+        },
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+    )
+
+    assert result.ok is True
+    assert result.content["status"] == "renamed"
+    assert result.content["workflow"]["name"] == "Support Triage"
+    assert workflows.calls[0]["workflow_id"] == workflow_id
+
+
+async def test_rename_agent_rejects_invalid_input_before_writing():
+    workflows = FakeRenameWorkflowsService()
+
+    result = await handle_rename_agent(
+        arguments={"workflow_id": str(uuid4()), "name": "   "},
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+    )
+
+    assert result.ok is False
+    assert result.content.code == "invalid_arguments"
+    assert workflows.calls == []
+
+
+async def test_registered_rename_agent_dispatches_through_tools_call(monkeypatch):
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+    workflow_id = uuid4()
+    workflows = FakeRenameWorkflowsService()
+    router = ToolsRouter(
+        tools_service=SimpleNamespace(),
+        workflows_service=workflows,
+        tracing_service=FakeTracingService(),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        headers={},
+    )
+    body = ToolCall(
+        data=ToolCallData(
+            id="rename_call",
+            function=ToolCallFunction(
+                name=RENAME_AGENT_CALL_REF,
+                arguments=json.dumps(
+                    {"workflow_id": str(workflow_id), "name": "Support Triage"}
+                ),
+            ),
+        )
+    )
+
+    response = await router.call_tool(request, body=body)
+
+    content = json.loads(response.call.data.content)
+    assert response.call.status.code == "STATUS_CODE_OK"
+    assert content["status"] == "renamed"
+    assert workflows.calls[0]["workflow_id"] == workflow_id
+
+
+async def test_rename_agent_rejects_a_second_successful_rename():
+    workflows = FakeRenameWorkflowsService(status="already_renamed")
+
+    result = await handle_rename_agent(
+        arguments={"workflow_id": str(uuid4()), "name": "Another Name"},
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+    )
+
+    assert result.ok is False
+    assert result.content.code == "agent_already_renamed"
+    assert result.content.retryable is False
+    assert "without renaming" in result.content.next_step
+
+
+async def test_rename_agent_reports_a_missing_workflow():
+    workflows = FakeRenameWorkflowsService(status="not_found")
+
+    result = await handle_rename_agent(
+        arguments={"workflow_id": str(uuid4()), "name": "Support Triage"},
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+    )
+
+    assert result.ok is False
+    assert result.content.code == "workflow_not_found"
+    assert result.content.retryable is False
+
+
+async def test_rename_agent_allows_retry_when_the_write_did_not_complete():
+    workflows = FakeRenameWorkflowsService(status="failed")
+
+    result = await handle_rename_agent(
+        arguments={"workflow_id": str(uuid4()), "name": "Support Triage"},
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=workflows,
+    )
+
+    assert result.ok is False
+    assert result.content.code == "rename_failed"
+    assert result.content.retryable is True
+    assert "Retry rename_agent" in result.content.next_step

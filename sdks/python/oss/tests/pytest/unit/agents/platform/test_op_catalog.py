@@ -21,6 +21,8 @@ import jsonschema
 import pytest
 from pydantic import ValidationError
 
+import agenta.sdk.agents.platform.platform_tools as platform_tools_module
+
 from agenta.sdk.agents import PlatformToolConfig
 from agenta.sdk.agents.platform import (
     PLATFORM_OPS,
@@ -35,6 +37,7 @@ from agenta.sdk.agents.tools import (
     ToolCall,
     UnknownPlatformOpError,
 )
+from agenta.sdk.models.workflows import AGENT_SELF_NAMED_META_KEY
 
 
 def _ordered_operations_enabled() -> bool:
@@ -299,43 +302,109 @@ def test_rename_session_rejects_whitespace_only_name():
         jsonschema.validate({"name": "   "}, schema)
 
 
-async def test_rename_agent_emits_a_bound_direct_call(connection):
+async def test_rename_agent_emits_a_bound_handler_call(connection, fake_http):
+    fake_http(
+        platform_tools_module,
+        payload={"workflow": {"name": "Untitled agent", "meta": {}}},
+    )
     resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="rename_agent")]
+        [PlatformToolConfig(op="rename_agent")],
+        workflow_id="21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d",
     )
     spec = resolution.tool_specs[0]
 
     assert isinstance(spec, CallbackToolSpec)
     assert spec.kind == "callback"
     assert spec.name == "rename_agent"
-    assert spec.call_ref is None
-    assert isinstance(spec.call, ToolCall)
-    assert spec.call.method == "PUT"
-    assert spec.call.path == "/api/workflows/{workflow_id}"
-    assert spec.call.context == {
+    assert spec.call is None
+    assert spec.call_ref == "tools.agenta.rename_agent"
+    assert spec.context_bindings == {
         "workflow_id": "$ctx.workflow.artifact.id",
-        "workflow.id": "$ctx.workflow.artifact.id",
     }
-    assert spec.call.args_into == "workflow"
     assert spec.read_only is False
 
     schema = get_platform_op("rename_agent").resolved_input_schema()
     assert set(schema["properties"]) == {"name", "description"}
     assert "workflow_id" not in schema["properties"]
-    assert "workflow" not in schema["properties"]
     assert schema["required"] == ["name"]
     assert spec.input_schema == schema
 
     wire = spec.to_wire()
-    assert wire["call"]["path"] == spec.call.path
-    assert wire["call"]["context"] == spec.call.context
-    assert wire["call"]["args_into"] == "workflow"
+    assert wire["callRef"] == "tools.agenta.rename_agent"
+    assert wire["contextBindings"] == spec.context_bindings
+    assert "call" not in wire
+
+
+async def test_rename_agent_is_omitted_without_a_running_workflow(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_agent")]
+    )
+
+    assert resolution.tool_specs == []
+
+
+async def test_rename_agent_description_includes_current_persisted_name(
+    connection, fake_http
+):
+    capture = fake_http(
+        platform_tools_module,
+        payload={"workflow": {"name": "Build a support bot", "meta": {}}},
+    )
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_agent")],
+        workflow_id="21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d",
+    )
+
+    assert len(resolution.tool_specs) == 1
+    assert (
+        'Current persisted agent name: "Build a support bot".'
+        in resolution.tool_specs[0].description
+    )
+    assert capture == {
+        "method": "GET",
+        "url": ("https://api.x/api/workflows/21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d"),
+        "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Access tok",
+        },
+    }
+
+
+async def test_rename_agent_is_removed_after_first_success(connection, fake_http):
+    fake_http(
+        platform_tools_module,
+        payload={
+            "workflow": {
+                "name": "Support Triage",
+                "meta": {AGENT_SELF_NAMED_META_KEY: True},
+            }
+        },
+    )
+
+    resolution = await _resolver(connection).resolve(
+        [
+            PlatformToolConfig(op="rename_agent"),
+            PlatformToolConfig(op="rename_session"),
+        ],
+        workflow_id="21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d",
+    )
+
+    assert [spec.name for spec in resolution.tool_specs] == ["rename_session"]
 
 
 def test_rename_agent_rejects_whitespace_only_name():
     schema = get_platform_op("rename_agent").resolved_input_schema()
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({"name": "   "}, schema)
+
+
+def test_rename_agent_description_stops_after_first_successful_rename():
+    description = get_platform_op("rename_agent").description
+    assert "available only until the first successful rename" in description
+    assert "current persisted name" in description
+    assert "removes this tool from later runs" in description
+    assert "purpose changes" not in description
 
 
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(
@@ -401,6 +470,26 @@ async def test_platform_handlers_flag_off_skips_handler_ops_and_keeps_endpoint_o
     assert [spec.name for spec in resolution.tool_specs] == ["discover_tools"]
     assert resolution.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert "skipping platform handler-mode op 'test_run'" in caplog.text
+    assert "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS" in caplog.text
+
+
+async def test_handlers_flag_off_skips_rename_without_reading_state(
+    connection, monkeypatch, caplog, fake_http
+):
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
+    caplog.set_level(logging.WARNING)
+    capture = fake_http(
+        platform_tools_module,
+        payload={"workflow": {"name": "Untitled agent", "meta": {}}},
+    )
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_agent")],
+        workflow_id="21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d",
+    )
+
+    assert resolution.tool_specs == []
+    assert capture == {}
     assert "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS" in caplog.text
 
 

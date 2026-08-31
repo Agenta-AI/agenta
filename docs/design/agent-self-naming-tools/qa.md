@@ -4,6 +4,22 @@ Three layers, each answering a different question. Unit and API tests answer "do
 in isolation". The benchmark answers "do small models actually call these tools correctly, one
 shot". Live QA answers "does a person see the rename".
 
+## #6283 follow-up: one-time agent rename
+
+The follow-up adds three invariants beyond the original plan:
+
+- Resolution fetches the running workflow's persisted state. Before success, `rename_agent` exposes
+  only model-authored `name` and `description`, while the workflow id remains context-bound and the
+  current persisted name appears in the description. After success, the tool is absent. A failed
+  state read also omits it rather than granting another rename.
+- The handler validates input and calls an atomic DAO operation. Unit tests pin the row lock and
+  marker update; a real-Postgres two-writer test proves exactly one concurrent call wins.
+- A normal metadata edit cannot clear `_agenta_agent_self_named`. Handler tests cover successful,
+  repeated, invalid, and missing-workflow outcomes, and service tests cover marker preservation.
+
+Live QA must use two separate sessions: complete the first rename, start the second session, and
+confirm `rename_agent` is absent from that run's tool list while the stored name remains unchanged.
+
 ## Unit and API tests
 
 Land each with the step it covers, listed in [plan.md](plan.md).

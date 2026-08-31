@@ -61,6 +61,7 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}test_run",
         f"{PLATFORM_OP_NAMESPACE}read_config",
         f"{PLATFORM_OP_NAMESPACE}commit_revision",
+        f"{PLATFORM_OP_NAMESPACE}rename_agent",
     }
 )
 
@@ -1472,18 +1473,19 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["name"],
 }
 
-_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Call it once you understand your own purpose, which is usually right after your first task. Call it again if your purpose changes.
+_RENAME_AGENT_DESCRIPTION = """Name and describe yourself once, so a person browsing the list of agents can tell what you are for. This tool is available only until the first successful rename. When the tool description includes your current persisted name, call it only if that name is still a raw creation request or a placeholder such as \"Untitled agent\". If the current name already describes your purpose, do not call this tool.
 
 `name` is what you are for, as a short label a person can scan in a list. A few words.
 
 `description` is what you do and where you currently stand, one to one and a half sentences, short enough to read inside a table cell.
 
-This renames the agent you are running as and no other one. It changes only your name and your description, never your configuration."""
+This renames the agent you are running as and no other one. A failed call may be corrected and retried; after success the platform remembers the rename and removes this tool from later runs."""
 
 _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
+        "workflow_id": {"type": "string", "format": "uuid"},
         "name": {
             "type": "string",
             "minLength": 1,
@@ -1495,7 +1497,7 @@ _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
             "maxLength": 300,
         },
     },
-    "required": ["name"],
+    "required": ["workflow_id", "name"],
 }
 
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
@@ -1578,14 +1580,9 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         PlatformOp(
             op="rename_agent",
             description=_RENAME_AGENT_DESCRIPTION,
-            method="PUT",
-            path="/api/workflows/{workflow_id}",
+            handler=f"{PLATFORM_OP_NAMESPACE}rename_agent",
             input_schema=_RENAME_AGENT_INPUT_SCHEMA,
-            args_into="workflow",
-            context_bindings={
-                "workflow_id": "$ctx.workflow.artifact.id",
-                "workflow.id": "$ctx.workflow.artifact.id",
-            },
+            context_bindings={"workflow_id": "$ctx.workflow.artifact.id"},
             read_only=False,
         ),
         PlatformOp(

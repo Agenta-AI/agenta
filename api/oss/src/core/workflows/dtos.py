@@ -222,6 +222,11 @@ class WorkflowEdit(ArtifactEdit):
     flags: Optional[WorkflowFlags] = None
 
 
+class WorkflowRenameResult(BaseModel):
+    status: Literal["renamed", "already_renamed", "not_found", "failed"]
+    workflow: Optional[Workflow] = None
+
+
 class WorkflowQuery(ArtifactQuery):
     flags: Optional[WorkflowArtifactQueryFlags] = None
 

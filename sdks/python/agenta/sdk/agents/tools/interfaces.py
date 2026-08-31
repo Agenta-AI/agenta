@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Protocol, Sequence
+from typing import Mapping, Optional, Protocol, Sequence
 
 from .models import (
     GatewayConnectionResolution,
@@ -58,9 +58,13 @@ class PlatformToolResolver(Protocol):
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        workflow_id: Optional[str] = None,
     ) -> GatewayToolResolution:
         """Resolve ``type:"platform"`` declarations into callback specifications.
 
-        Returns the same shape as the gateway/workflow resolvers (callback specs + the single shared
-        :class:`ToolCallback`). Each spec carries a direct ``call`` descriptor pointing at the
-        existing Agenta endpoint, so the runner calls it directly with no ``/tools/call`` hop."""
+        Returns the same shape as the gateway/workflow resolvers (callback specs + the
+        shared :class:`ToolCallback`). Specs may call a direct endpoint or a registered
+        ``/tools/call`` handler. ``workflow_id`` binds workflow-scoped operations to the
+        running artifact rather than model-authored input.
+        """

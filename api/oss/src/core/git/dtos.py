@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Dict, Literal, Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -31,6 +31,11 @@ class ArtifactCreate(Slug, Header, Metadata, FolderScope):
 
 class ArtifactEdit(Identifier, Header, Metadata, FolderScope):
     pass
+
+
+class ArtifactEditOnceResult(BaseModel):
+    status: Literal["updated", "already_marked", "not_found"]
+    artifact: Optional[Artifact] = None
 
 
 class ArtifactQuery(Header, Metadata, FolderScope):

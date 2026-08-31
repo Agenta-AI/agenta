@@ -91,6 +91,11 @@ is populated by the same code path.
 
 ## The endpoint that renames an agent
 
+> **Historical design note.** #6283 later required durable one-time semantics that a normal PUT
+> could not provide. `rename_agent` now uses a registered platform handler and an atomic,
+> marker-guarded workflow DAO operation. The alternatives below record why endpoint mode was chosen
+> before that requirement existed.
+
 `PUT /api/workflows/{workflow_id}` (`api/oss/src/apis/fastapi/workflows/router.py:755`, registered
 at line 233, permission `EDIT_WORKFLOWS`). Body is
 `WorkflowEditRequest{workflow: WorkflowEdit}`, where `WorkflowEdit` extends `ArtifactEdit`

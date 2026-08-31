@@ -361,13 +361,21 @@ class ToolsResolution(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Platform tool handlers (reserved ``tools.agenta.*`` ops) — test_run contract
+# Platform tool handlers (reserved ``tools.agenta.*`` ops)
 # ---------------------------------------------------------------------------
 #
 # The request/response contract for the server-side ``test_run`` handler (see
 # ``core/tools/platform_handlers.py`` for the orchestration and the registry).
 # Every model forbids extra fields: the arguments come straight from a model
 # tool call and must not smuggle unknown keys.
+
+
+class RenameAgentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_id: UUID
+    name: str = Field(min_length=1, max_length=120, pattern=r"\S")
+    description: Optional[str] = Field(default=None, max_length=300)
 
 
 class TestRunTarget(BaseModel):

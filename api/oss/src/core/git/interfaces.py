@@ -8,6 +8,7 @@ from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
+    ArtifactEditOnceResult,
     ArtifactQuery,
     RevisionsLog,
     ArtifactFork,
@@ -74,6 +75,18 @@ class GitDAOInterface(ABC):
         #
         artifact_edit: ArtifactEdit,
     ) -> Optional[Artifact]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def edit_artifact_once(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_edit: ArtifactEdit,
+        marker_key: str,
+    ) -> ArtifactEditOnceResult:
         raise NotImplementedError
 
     @abstractmethod

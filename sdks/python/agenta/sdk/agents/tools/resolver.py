@@ -177,6 +177,7 @@ class ToolResolver:
         self,
         tool_configs: Sequence[ToolConfig],
         *,
+        workflow_id: Optional[str] = None,
         # The agent-wide mode the gateway permission compiler applies to an ``inherit``
         # value. A per-RUN value, so it is an argument here rather than constructor state:
         # one resolver reused across agents must not pin the first agent's mode. Every
@@ -285,7 +286,8 @@ class ToolResolver:
             if self._platform_resolver is None:
                 raise UnsupportedToolProviderError("platform")
             platform_resolution = await self._platform_resolver.resolve(
-                platform_configs
+                platform_configs,
+                workflow_id=workflow_id,
             )
             tool_specs = [*platform_resolution.tool_specs, *tool_specs]
             tool_callback = platform_resolution.tool_callback or tool_callback

@@ -16,8 +16,11 @@ same way.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Optional, Sequence
+
+import httpx
 
 from agenta.sdk.agents.tools import (
     CallbackToolSpec,
@@ -26,6 +29,7 @@ from agenta.sdk.agents.tools import (
     PlatformToolConfig,
     ToolCallback,
 )
+from agenta.sdk.models.workflows import AGENT_SELF_NAMED_META_KEY
 from agenta.sdk.utils.logging import get_module_logger
 
 from .connection import PlatformConnection
@@ -56,9 +60,59 @@ class AgentaPlatformToolResolver:
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
 
+    async def _rename_agent_state(
+        self,
+        *,
+        api_base: str,
+        authorization: Optional[str],
+        workflow_id: str,
+    ) -> Optional[tuple[bool, Optional[str]]]:
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.get(
+                    f"{api_base}/workflows/{workflow_id}",
+                    headers=self._connection.headers(authorization=authorization),
+                )
+        except httpx.HTTPError:
+            log.warning(
+                "agent: could not read rename_agent state for workflow %s",
+                workflow_id,
+                exc_info=True,
+            )
+            return None
+
+        if response.status_code >= 400:
+            log.warning(
+                "agent: could not read rename_agent state for workflow %s: HTTP %s",
+                workflow_id,
+                response.status_code,
+            )
+            return None
+        try:
+            payload = response.json()
+        except ValueError:
+            log.warning(
+                "agent: could not read rename_agent state for workflow %s: invalid JSON",
+                workflow_id,
+            )
+            return None
+        workflow = payload.get("workflow") if isinstance(payload, dict) else None
+        if not isinstance(workflow, dict):
+            log.warning(
+                "agent: could not read rename_agent state for workflow %s: workflow missing",
+                workflow_id,
+            )
+            return None
+        meta = workflow.get("meta")
+        renamed = isinstance(meta, dict) and meta.get(AGENT_SELF_NAMED_META_KEY) is True
+        name = workflow.get("name")
+        return renamed, name if isinstance(name, str) else None
+
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        workflow_id: Optional[str] = None,
     ) -> GatewayToolResolution:
         api_base = self._connection.base_url()
         if not api_base:
@@ -72,12 +126,25 @@ class AgentaPlatformToolResolver:
         # Resolve the credential once and reuse it for the ToolCallback so the resolved endpoint
         # and its auth cannot diverge (mirrors the gateway/workflow resolvers).
         authorization = self._connection.authorization()
+        handlers_enabled = _platform_handlers_enabled()
+
+        rename_agent_state: Optional[tuple[bool, Optional[str]]] = None
+        if (
+            handlers_enabled
+            and workflow_id
+            and any(tool.op == "rename_agent" for tool in tools)
+        ):
+            rename_agent_state = await self._rename_agent_state(
+                api_base=api_base,
+                authorization=authorization,
+                workflow_id=workflow_id,
+            )
 
         seen: set[str] = set()
         tool_specs: list[CallbackToolSpec] = []
         for tool_config in tools:
             op = get_platform_op(tool_config.op)
-            if op.handler is not None and not _platform_handlers_enabled():
+            if op.handler is not None and not handlers_enabled:
                 if op.op in _HANDLER_REQUIRED_OPS:
                     # Loud, not silent. Dropping this tool would leave the model with no
                     # way to read or change its own configuration and no error to report,
@@ -100,6 +167,26 @@ class AgentaPlatformToolResolver:
                 )
                 continue
 
+            description = op.description
+            if op.op == "rename_agent":
+                if not workflow_id:
+                    log.warning(
+                        "agent: skipping rename_agent because the running workflow id "
+                        "is unavailable"
+                    )
+                    continue
+                if rename_agent_state is None:
+                    log.warning(
+                        "agent: skipping rename_agent because workflow state is unavailable"
+                    )
+                    continue
+                renamed, current_name = rename_agent_state
+                if renamed:
+                    continue
+                description = (
+                    f"{description}\n\nCurrent persisted agent name: "
+                    f"{json.dumps(current_name or 'Untitled agent')}."
+                )
             if op.op in seen:
                 error = GatewayToolResolutionError(
                     f"Duplicate platform tool: {op.op}",
@@ -123,7 +210,7 @@ class AgentaPlatformToolResolver:
             tool_specs.append(
                 CallbackToolSpec(
                     name=op.op,
-                    description=op.description,
+                    description=description,
                     input_schema=op.resolved_input_schema(),
                     timeout_ms=op.timeout_ms,
                     render=tool_config.render,

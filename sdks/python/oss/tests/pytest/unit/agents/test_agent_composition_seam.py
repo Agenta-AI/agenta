@@ -185,6 +185,75 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
     assert ctx.to_wire() == {"trace": {"trace_id": "trace-1"}}
 
 
+async def test_workflow_identity_reaches_platform_tool_resolution():
+    from agenta.sdk.agents.dtos import (
+        RunContext,
+        RunContextReference,
+        RunContextWorkflow,
+    )
+
+    seen_workflow_ids = []
+    workflow_id = "21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d"
+
+    async def _resolve_tools(_tools, **kwargs):
+        seen_workflow_ids.append(kwargs.get("workflow_id"))
+        return ResolvedToolSet()
+
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+        resolve_tools=_resolve_tools,
+        run_context=lambda: RunContext(
+            workflow=RunContextWorkflow(
+                artifact=RunContextReference(id=workflow_id),
+            )
+        ),
+    )
+
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen_workflow_ids == [workflow_id]
+
+
+async def test_workflow_context_does_not_break_a_legacy_custom_tool_resolver():
+    from agenta.sdk.agents.dtos import (
+        RunContext,
+        RunContextReference,
+        RunContextWorkflow,
+    )
+
+    calls = []
+
+    async def _legacy_resolve_tools(_tools, *, permission_default):
+        calls.append(permission_default)
+        return ResolvedToolSet()
+
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+        resolve_tools=_legacy_resolve_tools,
+        run_context=lambda: RunContext(
+            workflow=RunContextWorkflow(
+                artifact=RunContextReference(id="21f1e7dc-85f8-4a55-8ae7-1bf5dcd7350d"),
+            )
+        ),
+    )
+
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert len(calls) == 1
+
+
 async def test_handler_carries_the_effective_config_onto_the_session():
     """The config the handler RAN with reaches the session, verbatim.
 

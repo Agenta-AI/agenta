@@ -40,9 +40,11 @@ def test_default_persona_carries_the_self_naming_guidance():
     # composer session, 2026-08-10 — raw-request agent name survived a perfect
     # rename_session turn).
     assert "same turn" in text
-    # The guards against churn ride along with the guidance itself.
+    # The guards against churn use the persisted state exposed by the tool resolver.
     assert "only when the topic genuinely shifts" in text
-    assert "only when your identity or purpose" in text
+    assert "read your current persisted name" in text
+    assert "tool is removed from later runs after its first success" in text
+    assert "only when your identity or purpose" not in text
 
 
 @pytest.mark.skipif(

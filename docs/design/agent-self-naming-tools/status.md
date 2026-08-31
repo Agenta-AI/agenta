@@ -1,7 +1,17 @@
 # Status
 
-**Phase:** implemented on `feat/agent-self-naming-tools`; live QA (V4) and a benchmark run remain.
-**Last updated:** 2026-08-10.
+**Phase:** implemented on `feat/agent-self-naming-tools`; #6283 adds durable one-time enforcement.
+**Last updated:** 2026-08-31.
+
+## #6283 follow-up
+
+The original direct PUT could rename the artifact but had no durable notion of "already renamed",
+so every new session exposed the tool again. The follow-up stores `_agenta_agent_self_named=true`
+in workflow JSONB metadata in the same row-locked transaction as the first rename. `rename_agent`
+now uses a registered platform handler, its workflow id is context-bound, resolution omits it after
+success or when state cannot be read, and regular metadata edits cannot erase the marker. The
+original endpoint-mode sections in these documents remain as historical design context and are
+marked superseded where applicable.
 
 ## Progress
 
@@ -101,3 +111,4 @@ the reason the note is finally acted on without measurement.
 | 2026-08-10 | `GET /watch` takes the standard `project_id` query parameter and requires `VIEW_SESSIONS` and `VIEW_WORKFLOWS` together. There is no generic project-view permission, and one stream carries both entity families. | Plan review |
 | 2026-08-10 | The `session-changed` handler invalidates the `["session-list", projectId]` prefix and lets the mounted `useReconcileServerSessions` hooks reconcile. `reconcileServerSessionsAtomFamily` needs a scope key and the full server array, neither of which a frame carries. | Plan review |
 | 2026-08-10 | The benchmark needs no tool-mounting plumbing (`run_benchmark.py:158` already appends a scenario's `tools`), but it does need `max_rename_calls` counted and enforced in `within_budget`, since a declared-only budget changes nothing. | Plan review |
+| 2026-08-31 | #6283 supersedes direct PUT for `rename_agent`: a registered handler and row-locked JSONB marker enforce at most one successful self-rename across sessions and concurrent calls. | Follow-up |

@@ -59,6 +59,9 @@ from agenta.sdk.models.git import (
 )
 
 
+AGENT_SELF_NAMED_META_KEY = "_agenta_agent_self_named"
+
+
 class JsonSchemas(BaseModel):
     parameters: Optional[Schema] = None
     inputs: Optional[Schema] = None

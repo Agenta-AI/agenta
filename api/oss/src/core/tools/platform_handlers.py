@@ -34,6 +34,7 @@ from agenta.sdk.models.workflows import WorkflowServiceStatus
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.tools.dtos import (
+    RenameAgentRequest,
     TestRunExpectations,
     TestRunRequest,
     TestRunResolved,
@@ -74,6 +75,8 @@ READ_CONFIG_DEFAULT_TIMEOUT_MS = 15_000
 COMMIT_REVISION_DEFAULT_TIMEOUT_MS = 30_000
 READ_CONFIG_CALL_REF = "tools.agenta.read_config"
 COMMIT_REVISION_CALL_REF = "tools.agenta.commit_revision"
+RENAME_AGENT_CALL_REF = "tools.agenta.rename_agent"
+RENAME_AGENT_DEFAULT_TIMEOUT_MS = 15_000
 TEST_RUN_DEFAULT_TIMEOUT_MS = 120_000
 TEST_RUN_SERVER_TIMEOUT_CEILING_MS = 120_000
 TEST_RUN_RECURSION_HEADER = "x-agenta-run-kind"
@@ -685,6 +688,89 @@ def _bound_variant_id(arguments: Dict[str, Any], *, key: str) -> UUID:
         ) from e
 
 
+async def handle_rename_agent(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = RENAME_AGENT_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("rename_agent is unavailable.")
+
+    try:
+        parsed = _parse_arguments(arguments)
+        request = RenameAgentRequest.model_validate(parsed)
+    except _ArgumentsRefused as e:
+        return PlatformHandlerResult.failure(e.error)
+    except ValidationError as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="invalid_arguments",
+                message=f"Invalid rename_agent arguments: {e}",
+                retryable=False,
+                next_step="Correct the name or description and send the rename again.",
+            )
+        )
+
+    outcome = await workflows_service.rename_workflow_once(
+        project_id=project_id,
+        user_id=user_id,
+        workflow_id=request.workflow_id,
+        name=request.name,
+        description=request.description,
+    )
+    if outcome.status == "not_found":
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="workflow_not_found",
+                message="The agent workflow no longer exists or is archived.",
+                retryable=False,
+            )
+        )
+    if outcome.status == "already_renamed":
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="agent_already_renamed",
+                message="This agent has already completed its one self-rename.",
+                retryable=False,
+                next_step="Continue the task without renaming the agent again.",
+            )
+        )
+    if outcome.status == "failed":
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="rename_failed",
+                message="The agent could not be renamed because the write did not complete.",
+                retryable=True,
+                next_step="Retry rename_agent with the same intended name.",
+            )
+        )
+
+    workflow = outcome.workflow
+    if workflow is None:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="rename_failed",
+                message="The rename completed without returning the updated agent.",
+                retryable=False,
+            )
+        )
+    return PlatformHandlerResult(
+        content={
+            "status": "renamed",
+            "workflow": {
+                "id": str(workflow.id),
+                "name": workflow.name,
+                "description": workflow.description,
+            },
+        }
+    )
+
+
 async def handle_read_config(
     *,
     arguments: Any,
@@ -968,6 +1054,12 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         call_ref=COMMIT_REVISION_CALL_REF,
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_commit_revision,
+        elevated_permission=Permission.EDIT_WORKFLOWS,
+    ),
+    RENAME_AGENT_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=RENAME_AGENT_CALL_REF,
+        timeout_ms=RENAME_AGENT_DEFAULT_TIMEOUT_MS,
+        handler=handle_rename_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
     ),
 }

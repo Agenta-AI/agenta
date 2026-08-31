@@ -22,8 +22,9 @@ author opting in.
 
 - `rename_session` lets the agent name and describe the session it is running in, once it
   understands what the session is about, and update both later when the session moves on.
-- `rename_agent` lets the agent name and describe itself, typically right after its first task,
-  once it understands its own purpose.
+- `rename_agent` lets the agent name and describe itself once, typically right after its first
+  task, when it understands its own purpose. After the first successful call, persisted workflow
+  state prevents later sessions from renaming it again.
 
 Plus the piece that makes either one visible: a project-scoped watch relay, so a rename written by
 a server-side actor reaches an open browser tab without a reload.
@@ -45,16 +46,17 @@ These are settled. Do not re-open them during implementation.
 4. **The name and the description have distinct jobs.** The name is the general subject: what the
    session is about, or what the agent is for, short enough to scan in a long list. The description
    is the current state: a recap of one to one and a half sentences that fits a table cell.
-5. **Tool descriptions carry the whole instruction.** The model learns when to call, what each
-   field means, and that it may call again later, from the catalog description alone. There is no
-   prompt-side companion instruction.
+5. **The catalog description and default persona carry the instruction.** The description includes
+   the current persisted name and field semantics. The persona tells the model to rename only a raw
+   request or placeholder. Server-side state remains authoritative even if the model ignores both.
 
 ## Done means
 
 - An agent in a fresh playground session calls `rename_session` after understanding the task, and
   the `session_streams` row holds the new name and description.
 - A fresh agent calls `rename_agent` after its first task, and the workflow artifact row holds the
-  new name and description, with its flags intact.
+  new name, description, and one-time marker, with its flags intact. A later session does not receive
+  the tool, and a concurrent or direct second call is rejected by the server.
 - Both renames appear in an open sessions list and an open agents list without a reload, in a tab
   that did not make the change.
 - Both tools appear in the one-shot benchmark and hold the 95% target on the small-model cells.

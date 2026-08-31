@@ -112,8 +112,18 @@ conclude the namespace is closed.
 
 ## `rename_agent`
 
-Endpoint mode against the artifact edit route. Requires `PUT` on the direct-call allowlist and the
-`flags` fix, both in [plan.md](plan.md).
+> **Superseded by the #6283 follow-up.** The original endpoint-mode design below explains the
+> first implementation, but it could not enforce one rename across sessions. The current op uses
+> the registered `tools.agenta.rename_agent` handler. The SDK binds the running workflow id as
+> hidden context, reads the persisted workflow before each run, includes its current name in the
+> tool description, and omits the tool after success. The handler calls
+> `WorkflowsService.rename_workflow_once`, whose DAO takes `SELECT ... FOR UPDATE`, writes the name
+> and `_agenta_agent_self_named=true` in one transaction, and rejects concurrent or later calls.
+> Normal workflow metadata edits preserve this server-owned marker. No migration is needed because
+> workflow `meta` is JSONB.
+>
+> Endpoint mode against the artifact edit route was the original design. It required `PUT` on the
+> direct-call allowlist and the `flags` fix, both in [plan.md](plan.md).
 
 ```python
 PlatformOp(

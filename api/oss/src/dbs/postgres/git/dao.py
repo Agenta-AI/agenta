@@ -24,6 +24,7 @@ from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
+    ArtifactEditOnceResult,
     ArtifactQuery,
     ArtifactFork,
     RevisionsLog,
@@ -254,6 +255,71 @@ class GitDAO(GitDAOInterface):
             )
 
             return artifact
+
+    async def edit_artifact_once(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_edit: ArtifactEdit,
+        marker_key: str,
+    ) -> ArtifactEditOnceResult:
+        """Apply an artifact edit and marker atomically unless the marker already exists."""
+        async with self.engine.session() as session:
+            stmt = (
+                select(self.ArtifactDBE)
+                .filter(
+                    self.ArtifactDBE.project_id == project_id,  # type: ignore
+                    self.ArtifactDBE.id == artifact_edit.id,  # type: ignore
+                    self.ArtifactDBE.deleted_at.is_(None),  # type: ignore
+                )
+                .limit(1)
+                .with_for_update()
+            )
+            result = await session.execute(stmt)
+            artifact_dbe = result.scalars().first()
+            if not artifact_dbe:
+                return ArtifactEditOnceResult(status="not_found")
+
+            meta = dict(artifact_dbe.meta or {})  # type: ignore
+            if meta.get(marker_key) is True:
+                return ArtifactEditOnceResult(
+                    status="already_marked",
+                    artifact=map_dbe_to_dto(
+                        DTO=Artifact,
+                        dbe=artifact_dbe,  # type: ignore
+                    ),
+                )
+
+            now = datetime.now(timezone.utc)
+            artifact_dbe.updated_at = now  # type: ignore
+            artifact_dbe.updated_by_id = user_id  # type: ignore
+
+            _set = artifact_edit.model_fields_set
+            if "flags" in _set:
+                artifact_dbe.flags = artifact_edit.flags  # type: ignore
+            if "tags" in _set:
+                artifact_dbe.tags = artifact_edit.tags  # type: ignore
+            if "name" in _set:
+                artifact_dbe.name = artifact_edit.name  # type: ignore
+            if "description" in _set:
+                artifact_dbe.description = artifact_edit.description  # type: ignore
+            if "folder_id" in _set:
+                artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
+            meta[marker_key] = True
+            artifact_dbe.meta = meta  # type: ignore
+
+            await session.commit()
+            await session.refresh(artifact_dbe)
+
+            return ArtifactEditOnceResult(
+                status="updated",
+                artifact=map_dbe_to_dto(
+                    DTO=Artifact,
+                    dbe=artifact_dbe,  # type: ignore
+                ),
+            )
 
     @suppress_exceptions()
     async def archive_artifact(

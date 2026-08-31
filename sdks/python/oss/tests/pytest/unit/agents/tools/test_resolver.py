@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
 import pytest
 
@@ -92,6 +92,8 @@ class FakePlatformResolver:
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        workflow_id: Optional[str] = None,
     ) -> GatewayToolResolution:
         return GatewayToolResolution(
             tool_specs=[

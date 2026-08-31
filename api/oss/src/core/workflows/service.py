@@ -23,6 +23,7 @@ from agenta.sdk.engines.running.utils import (
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.models.workflows import AGENT_SELF_NAMED_META_KEY
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -59,6 +60,7 @@ from oss.src.core.workflows.dtos import (
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
+    WorkflowRenameResult,
     WorkflowQuery,
     WorkflowVariantFork,
     WorkflowRevisionsLog,
@@ -1062,6 +1064,14 @@ class WorkflowsService:
             artifact_edit_kwargs["flags"] = (
                 self._dump_stored_flags(artifact_flags) or None
             )
+        if (
+            "meta" in workflow_edit.model_fields_set
+            and current_artifact.meta
+            and current_artifact.meta.get(AGENT_SELF_NAMED_META_KEY) is True
+        ):
+            edit_meta = dict(workflow_edit.meta or {})
+            edit_meta[AGENT_SELF_NAMED_META_KEY] = True
+            artifact_edit_kwargs["meta"] = edit_meta
 
         artifact_edit = ArtifactEdit(**artifact_edit_kwargs)
 
@@ -1097,6 +1107,66 @@ class WorkflowsService:
                 )
 
         return workflow
+
+    async def rename_workflow_once(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_id: UUID,
+        name: str,
+        description: Optional[str] = None,
+    ) -> WorkflowRenameResult:
+        edit_data: Dict[str, Any] = {"id": workflow_id, "name": name}
+        if description is not None:
+            edit_data["description"] = description
+
+        try:
+            result = await self.workflows_dao.edit_artifact_once(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_edit=ArtifactEdit(**edit_data),
+                marker_key=AGENT_SELF_NAMED_META_KEY,
+            )
+        except Exception:
+            log.error(
+                "workflow self-rename failed",
+                project_id=str(project_id),
+                workflow_id=str(workflow_id),
+                exc_info=True,
+            )
+            return WorkflowRenameResult(status="failed")
+
+        if result.status == "not_found":
+            return WorkflowRenameResult(status="not_found")
+        artifact = result.artifact
+        if artifact is None:
+            return WorkflowRenameResult(status="failed")
+
+        workflow = Workflow(**artifact.model_dump(mode="json"))
+        if result.status == "already_marked":
+            return WorkflowRenameResult(status="already_renamed", workflow=workflow)
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=workflow,
+        )
+
+        if self._watch is not None:
+            try:
+                await self._watch.changed(
+                    project_id=str(project_id),
+                    entity="workflow",
+                    id=str(workflow_id),
+                )
+            except Exception:
+                log.warning(
+                    "[WATCH] workflow change publish failed",
+                    project_id=str(project_id),
+                    workflow_id=str(workflow_id),
+                )
+
+        return WorkflowRenameResult(status="renamed", workflow=workflow)
 
     async def query_workflows(
         self,

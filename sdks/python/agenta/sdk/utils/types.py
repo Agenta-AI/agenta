@@ -1078,9 +1078,9 @@ _DEFAULT_AGENT_MODEL = "gpt-5.6-luna"
 # `self_naming`, scenario name-05 pins this persona verbatim). The tool descriptions
 # alone lose to "answer the question", so the standing instruction rides here.
 # `rename_agent` is PAIRED to the `rename_session` bullet rather than left as an
-# independent judgment call: as a standalone "when your purpose changes" trigger the
-# model reliably forgot it on the composer path (live session 2026-08-10 — a fresh
-# agent kept its raw-request name through a perfect rename_session turn; benchmark
+# independent judgment call. As a standalone trigger, the model reliably forgot it on
+# the composer path (live session 2026-08-10; a fresh agent kept its raw-request name
+# through a perfect rename_session turn; benchmark
 # name-06 measures the pairing).
 _DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
@@ -1089,12 +1089,12 @@ _DEFAULT_AGENTS_MD = (
     "- Once the first exchange makes clear what the session is about, call the\n"
     "  `rename_session` tool: `name` is the session's subject in a few words, findable\n"
     "  in a list; `description` is a one-sentence recap of where things stand. Rename\n"
-    "  again only when the topic genuinely shifts. If this is also your first task\n"
-    "  since you were created — your agent name is still a raw request or a\n"
-    '  placeholder like "Untitled agent" — also call the `rename_agent` tool in the\n'
-    "  same turn, with a name that says what you are for.\n"
-    "- After that, call `rename_agent` again only when your identity or purpose\n"
-    "  changes — for example, the user repurposes you."
+    "  again only when the topic genuinely shifts. If `rename_agent` is available,\n"
+    "  read your current persisted name from its description. When that name is still\n"
+    '  a raw creation request or a placeholder like "Untitled agent", also call\n'
+    "  `rename_agent` in the same turn, with a name that says what you are for.\n"
+    "- Never call `rename_agent` when the current persisted name already describes\n"
+    "  your purpose. The tool is removed from later runs after its first success."
 )
 
 # The single source of the run-selection defaults. The SDK builtin interface
