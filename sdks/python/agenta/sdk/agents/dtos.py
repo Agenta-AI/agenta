@@ -1416,8 +1416,17 @@ def _parse_run_selection(
     if raw_harness is None or not str(raw_harness).strip():
         harness = str(defaults.harness).lower()
     else:
-        HarnessKind.coerce(raw_harness)
-        harness = str(raw_harness).lower()
+        resolved = HarnessKind.coerce(raw_harness)
+        # A STRING keeps its stored spelling, so a legacy value still normalizes exactly where
+        # it always did (`make_harness` maps `pi_agenta` to Pi; collapsing it here would change
+        # the harness identity a stored revision carries). A MEMBER has no spelling to keep, so
+        # it becomes its wire value: `str()` on one gives "HarnessKind.CLAUDE", which lower-cased
+        # to "harnesskind.claude" and made the SDK's own enum unusable as input.
+        harness = (
+            str(raw_harness).lower()
+            if not isinstance(raw_harness, HarnessKind)
+            else resolved.value
+        )
     sandbox = str(_section(params, "sandbox").get("kind") or defaults.sandbox).lower()
     permissions = _section(params, "runner").get("permissions")
     raw_default = permissions.get("default") if isinstance(permissions, dict) else None

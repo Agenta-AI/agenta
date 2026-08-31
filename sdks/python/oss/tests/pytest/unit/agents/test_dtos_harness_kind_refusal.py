@@ -101,6 +101,19 @@ class TestTemplateParsing:
         # Its stored spelling survives the parse exactly as before; `make_harness` maps it.
         assert AgentTemplate.from_params(_params("pi_agenta")).harness == "pi_agenta"
 
+    @pytest.mark.parametrize("member", list(HarnessKind))
+    def test_the_sdks_own_enum_is_usable_as_input(self, member):
+        # `HarnessKind` is a `str` Enum, so `str(member)` is "HarnessKind.CLAUDE", not "claude".
+        # Stringifying the caller's value lower-cased that to "harnesskind.claude", which then
+        # failed at `make_harness` — the SDK's own enum was not accepted by the SDK's parser.
+        assert AgentTemplate.from_params(_params(member)).harness == member.value
+
+    def test_a_member_survives_the_round_trip_back_to_a_harness(self):
+        # The parse and the lookup have to agree: whatever `from_params` produces must be a
+        # value `coerce` reads back, which is the hop that used to break.
+        parsed = AgentTemplate.from_params(_params(HarnessKind.CLAUDE)).harness
+        assert HarnessKind.coerce(parsed) is HarnessKind.CLAUDE
+
 
 class TestInvokeRemap:
     async def test_it_answers_400_with_the_field_and_the_allowed_values(self):

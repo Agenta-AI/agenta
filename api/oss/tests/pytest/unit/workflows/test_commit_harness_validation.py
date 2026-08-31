@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from starlette.responses import JSONResponse
 
 from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.workflows.service import (
@@ -45,6 +46,41 @@ class TestValuesItRefuses:
         assert detail["details"]["field"] == "parameters.agent.harness.kind"
         assert detail["details"]["value"] == "not_a_real_harness"
         assert set(detail["details"]["allowed"]) == {"pi_core", "claude", "codex"}
+
+
+class TestTheEchoedValueSurvivesTheResponse:
+    """The refusal must not become the 500 it exists to replace.
+
+    Python's json parser accepts the non-standard `NaN` and `Infinity` literals in a request
+    body, so a caller really can send one as a harness kind. Starlette serializes a response
+    with `allow_nan=False`, so echoing that float verbatim raised inside the response itself.
+    """
+
+    @pytest.mark.parametrize(
+        "kind,echoed",
+        [
+            (float("nan"), "nan"),
+            (float("inf"), "inf"),
+            (float("-inf"), "-inf"),
+        ],
+    )
+    def test_a_non_finite_float_is_echoed_as_text(self, kind, echoed):
+        with pytest.raises(InvalidAgentHarnessError) as caught:
+            _reject_unreadable_harness_kind(_data(kind))
+
+        detail = caught.value.to_detail()
+        assert detail["details"]["value"] == echoed
+        # The whole envelope has to survive the response, not just this field.
+        JSONResponse(detail)
+
+    @pytest.mark.parametrize("kind", [12345, "not_a_real_harness", 0])
+    def test_an_ordinary_value_is_still_echoed_as_itself(self, kind):
+        with pytest.raises(InvalidAgentHarnessError) as caught:
+            _reject_unreadable_harness_kind(_data(kind))
+
+        detail = caught.value.to_detail()
+        assert detail["details"]["value"] == kind
+        JSONResponse(detail)
 
 
 class TestCommitsItMustNotTouch:

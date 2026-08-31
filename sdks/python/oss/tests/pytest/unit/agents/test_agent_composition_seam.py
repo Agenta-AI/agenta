@@ -421,6 +421,33 @@ async def test_a_config_persisted_with_an_unreadable_harness_is_refused_with_a_s
     assert backend.created_configs == []
 
 
+async def test_a_run_configured_with_the_harness_enum_itself_actually_runs():
+    """The SDK's own `HarnessKind` member must be usable as input, end to end.
+
+    `HarnessKind` is a `str` Enum, so `str(member)` is "HarnessKind.CLAUDE". Stringifying the
+    caller's value lower-cased that to "harnesskind.claude", which `make_harness` then refused —
+    valid input, rejected by the parser that was supposed to accept it.
+    """
+    backend = _FakeBackend(output="hi")
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(HarnessKind.CLAUDE),
+    )
+
+    # It reached the backend, which is what a mangled value never did.
+    assert len(backend.created_configs) == 1
+    assert backend.created_effective_parameters[0]["agent"]["harness"]["kind"] == (
+        HarnessKind.CLAUDE
+    )
+
+
 async def test_composition_override_replaces_default_gating():
     """A composition MAY still fully replace resolve_session_connection (bare passthrough),
     proving the seam stays injectable rather than hardcoding the gate."""

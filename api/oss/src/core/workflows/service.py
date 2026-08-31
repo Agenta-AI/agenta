@@ -1,4 +1,5 @@
 import json
+from math import isfinite
 from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -210,6 +211,21 @@ class RevisionConflictError(Exception):
         }
 
 
+def _json_safe_echo(value: Any) -> Any:
+    """A value echoed back to the caller must survive JSON serialization.
+
+    Python's json parser accepts the non-standard `NaN` and `Infinity` literals in a request
+    body, so a caller really can send one as a harness kind. Starlette serializes a response
+    with `allow_nan=False`, so echoing that float verbatim would raise inside the response and
+    turn this refusal into exactly the 500 it exists to replace.
+    """
+    if isinstance(value, float) and not isfinite(value):
+        return repr(value)
+    if isinstance(value, (str, int, float)):
+        return value
+    return str(value)
+
+
 class InvalidAgentHarnessError(Exception):
     """The commit carries an agent configuration whose harness the runtime cannot read.
 
@@ -243,11 +259,7 @@ class InvalidAgentHarnessError(Exception):
             ),
             "details": {
                 "field": "parameters.agent.harness.kind",
-                "value": (
-                    self.value
-                    if isinstance(self.value, (str, int, float))
-                    else str(self.value)
-                ),
+                "value": _json_safe_echo(self.value),
                 "allowed": sorted(kind.value for kind in HarnessKind),
             },
         }
