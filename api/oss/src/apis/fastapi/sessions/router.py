@@ -1075,47 +1075,76 @@ class InteractionsRouter:
         # Enqueue onto the interactions worker when wired; otherwise fall back to the
         # dispatcher directly (same answer composition, fired in-process), or as a last
         # resort an inline blocking invoke (keeps minimal/test compositions usable).
-        if self.respond_task is not None:
-            await self.respond_task.kiq(
-                project_id=str(project_id),
-                user_id=str(user_id),
-                interaction_id=str(interaction_id),
-                answer=answer,
-            )
-        elif self.interactions_dispatcher is not None:
-            await self.interactions_dispatcher.respond(
-                project_id=UUID(str(project_id)),
-                user_id=UUID(str(user_id)),
-                interaction_id=interaction_id,
-                answer=answer,
-            )
-        else:
-            references = (
-                {
-                    k: v.model_dump(mode="json")
-                    for k, v in interaction.data.references.items()
-                }
-                if interaction.data and interaction.data.references
-                else None
-            )
-            selector = (
-                interaction.data.selector.model_dump(mode="json")
-                if interaction.data and interaction.data.selector
-                else None
-            )
+        try:
+            if self.respond_task is not None:
+                await self.respond_task.kiq(
+                    project_id=str(project_id),
+                    user_id=str(user_id),
+                    interaction_id=str(interaction_id),
+                    answer=answer,
+                )
+            elif self.interactions_dispatcher is not None:
+                await self.interactions_dispatcher.respond(
+                    project_id=UUID(str(project_id)),
+                    user_id=UUID(str(user_id)),
+                    interaction_id=interaction_id,
+                    answer=answer,
+                )
+            else:
+                references = (
+                    {
+                        k: v.model_dump(mode="json")
+                        for k, v in interaction.data.references.items()
+                    }
+                    if interaction.data and interaction.data.references
+                    else None
+                )
+                selector = (
+                    interaction.data.selector.model_dump(mode="json")
+                    if interaction.data and interaction.data.selector
+                    else None
+                )
 
-            invoke_request = WorkflowServiceRequest(
-                references=references,
-                selector=selector,
-                data=WorkflowServiceRequestData(inputs=answer),
-                session_id=interaction.session_id,
-            )
+                invoke_request = WorkflowServiceRequest(
+                    references=references,
+                    selector=selector,
+                    data=WorkflowServiceRequestData(inputs=answer),
+                    session_id=interaction.session_id,
+                )
 
-            await self.workflows_service.invoke_workflow(
-                project_id=project_id,
-                user_id=user_id,
-                request=invoke_request,
-            )
+                await self.workflows_service.invoke_workflow(
+                    project_id=project_id,
+                    user_id=user_id,
+                    request=invoke_request,
+                )
+        except Exception as exc:  # noqa: BLE001  — revert answered gate so retry stays possible
+            err = str(exc)[:500] or exc.__class__.__name__
+            try:
+                await self.interactions_service.transition_interaction(
+                    transition=SessionInteractionTransition(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                        token=interaction.token,
+                        status=SessionInteractionStatus.pending,
+                        resolution={"error": err},
+                    ),
+                )
+                log.warning(
+                    "respond_interaction resume failed, reverted %s to pending: %s",
+                    interaction_id,
+                    err,
+                )
+            except Exception:  # noqa: BLE001
+                log.exception(
+                    "respond_interaction revert failed for %s", interaction_id
+                )
+            # Surface as 502 so the caller knows the run never started and can retry.
+            if isinstance(exc, HTTPException):
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Resume failed to start: {err}",
+            ) from exc
 
         return SessionInteractionResponse(count=1, interaction=interaction)
 

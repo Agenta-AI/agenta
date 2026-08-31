@@ -90,7 +90,11 @@ class SessionInteractionsService:
         await self._publish_interaction(
             project_id=transition.project_id,
             session_id=transition.session_id,
-            status=WATCH_INTERACTION_RESOLVED,
+            status=(
+                WATCH_INTERACTION_PENDING
+                if transition.status.value == "pending"
+                else WATCH_INTERACTION_RESOLVED
+            ),
         )
         return result
 
