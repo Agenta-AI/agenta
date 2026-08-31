@@ -32,7 +32,7 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {
-    SubagentCatalogEntry,
+    WorkflowReferenceCatalogEntry,
     WorkflowConfigPart,
     WorkflowConfigPayload,
     WorkflowEnvironmentUI,
@@ -120,9 +120,6 @@ function classifyRevision(revision: Workflow): WorkflowReferenceType | undefined
 
 interface ReferenceTypeInfo {
     type: WorkflowReferenceType | undefined
-    /** The variant the latest revision belongs to. A `ref_by: "variant"` reference without this is
-     *  ambiguous, so the subagent picker cannot bind one without it. */
-    variantId: string | null
     /** The workflow this revision belongs to. A saved reference stores only a slug, and the agent's
      *  chosen icon is keyed by workflow id, so a row cannot draw its icon without this. */
     workflowId: string | null
@@ -137,13 +134,6 @@ interface ReferenceTypeInfo {
 /** The workflow a revision belongs to. */
 function workflowIdOf(revision: Workflow): string | null {
     const id = (revision as unknown as Record<string, unknown>).workflow_id
-    return typeof id === "string" && id ? id : null
-}
-
-/** The variant a revision belongs to. The field has carried two names over time. */
-function variantIdOf(revision: Workflow): string | null {
-    const r = revision as unknown as Record<string, unknown>
-    const id = r.workflow_variant_id ?? r.variant_id
     return typeof id === "string" && id ? id : null
 }
 
@@ -169,7 +159,7 @@ function summarizeRevision(revision: Workflow): {
           ? cfg.llm_config
           : null
     const model = llm ? modelIdFromConfig(llm.model ?? llm) : null
-    const provider = llm ? connectionFromConfig(llm.model ?? llm).provider : null
+    const provider = llm ? connectionFromConfig(llm).provider : null
     const tools = Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
     // The same parser the config panel uses, so the picker cannot disagree with the panel about
     // which apps an agent has.
@@ -197,7 +187,6 @@ function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
 
 const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
     type: undefined,
-    variantId: null,
     workflowId: null,
     model: null,
     provider: null,
@@ -228,7 +217,6 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 slug,
                                 {
                                     type: classifyRevision(revision),
-                                    variantId: variantIdOf(revision),
                                     workflowId: workflowIdOf(revision),
                                     ...summarizeRevision(revision),
                                 },
@@ -268,8 +256,8 @@ const workflowReferenceLoadingAtom = atom((get) =>
  * connected apps ride along on a revision fetch that already happened. Resolving them per row
  * would have fired one request per visible agent.
  */
-function useSubagentCatalog(slugs: string[]): {
-    bySlug: Record<string, SubagentCatalogEntry | undefined>
+function useWorkflowReferenceCatalog(slugs: string[]): {
+    bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
     loading: boolean
 } {
     // Sorted and joined so the same set of slugs, in any order, hits one cached batch.
@@ -278,11 +266,10 @@ function useSubagentCatalog(slugs: string[]): {
 
     return useMemo(() => {
         const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
-        const bySlug: Record<string, SubagentCatalogEntry | undefined> = {}
+        const bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined> = {}
         for (const [slug, info] of Object.entries(data)) {
             bySlug[slug] = {
                 type: info.type,
-                variantId: info.variantId ?? undefined,
                 workflowId: info.workflowId ?? undefined,
                 model: info.model ?? undefined,
                 provider: info.provider ?? undefined,
@@ -590,7 +577,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             enabled: true,
             activate,
             // All project workflows are referenceable (apps + evaluators + …), not just apps. Type
-            // (incl. `evaluator`) is resolved per-slug via useSubagentCatalog.
+            // (incl. `evaluator`) is resolved per-slug via useWorkflowReferenceCatalog.
             workflows: workflows
                 .filter((w) => typeof w.slug === "string")
                 .map((w) => ({
@@ -598,7 +585,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     slug: w.slug as string,
                     name: w.name ?? undefined,
                     description: w.description ?? undefined,
-                    // type is resolved asynchronously via useSubagentCatalog (needs the revision URI).
+                    // type is resolved asynchronously via useWorkflowReferenceCatalog (needs the revision URI).
                 })),
             workflowsLoading,
             resolveInputSchema: async (workflow) => {
@@ -657,7 +644,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             },
             useWorkflowRevisions,
             useWorkflowEnvironments,
-            useSubagentCatalog,
+            useWorkflowReferenceCatalog,
         }),
         [activate, workflows, workflowsLoading, projectId, store],
     )

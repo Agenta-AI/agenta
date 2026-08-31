@@ -73,14 +73,14 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     // `chip` wins when the item brings its own paint (a subagent's chosen icon: its colour at a low
     // alpha behind a glyph in that same colour). Everything else keeps the solid type square.
-    const chipped = Boolean(descriptor.chipClassName)
+    const chipped = Boolean(descriptor.avatarClassName)
     return (
         <span
             className={cn(
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
-                chipped ? descriptor.chipClassName : "text-white",
+                chipped ? descriptor.avatarClassName : "text-white",
             )}
-            style={chipped ? descriptor.chipStyle : {background: descriptor.color}}
+            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
         </span>

@@ -219,7 +219,7 @@ export {
     type DrillInUIComponents,
     type GatewayToolsBridge,
     type WorkflowReferenceBridge,
-    type SubagentCatalogEntry,
+    type WorkflowReferenceCatalogEntry,
     type WorkflowReferenceUI,
     type WorkflowReferenceType,
     type WorkflowRevisionUI,

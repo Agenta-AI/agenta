@@ -72,9 +72,10 @@ export interface AddSubagentDrawerProps {
     /** Every agent in the project, minus the one being edited. */
     options: SubagentOption[]
     loading?: boolean
-    /** One write per author action: a row sends one agent, Add all sends the rest. */
-    onAdd: (options: SubagentOption[]) => void
-    onRemove: (options: SubagentOption[]) => void
+    /** One write per author action: a row sends one agent, Add all sends the rest. May be async;
+     *  the drawer disables every add and remove until it settles. */
+    onAdd: (options: SubagentOption[]) => void | Promise<void>
+    onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
 
 const ICON_BOX = "flex size-7 items-center justify-center rounded-md"
@@ -105,10 +106,12 @@ const MetaDot = () => (
 
 function SubagentRow({
     option,
+    busy,
     onAdd,
     onRemove,
 }: {
     option: SubagentOption
+    busy?: boolean
     onAdd: () => void
     onRemove: () => void
 }) {
@@ -142,6 +145,7 @@ function SubagentRow({
                     <Button
                         variant="outline"
                         size="sm"
+                        disabled={busy}
                         onClick={onRemove}
                         aria-label={`Remove ${option.name} as a subagent`}
                     >
@@ -151,6 +155,7 @@ function SubagentRow({
                     <Button
                         variant="outline"
                         size="sm"
+                        disabled={busy}
                         onClick={onAdd}
                         aria-label={`Add ${option.name} as a subagent`}
                     >
@@ -228,6 +233,18 @@ export function AddSubagentDrawer({
     onRemove,
 }: AddSubagentDrawerProps) {
     const [search, setSearch] = useState("")
+    // Every write reads the freshest config and appends to it, so two overlapping actions would
+    // both start from the same array and one would be lost. One in flight at a time.
+    const [busy, setBusy] = useState(false)
+    const run = async (write: () => void | Promise<void>) => {
+        if (busy) return
+        setBusy(true)
+        try {
+            await write()
+        } finally {
+            setBusy(false)
+        }
+    }
 
     // Reset on the `open` transition, not only in handleClose: `destroyOnClose` unmounts the
     // drawer's body, not this component, so a close driven by the parent kept the last search
@@ -318,7 +335,8 @@ export function AddSubagentDrawer({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => onAdd(addable)}
+                                        disabled={busy}
+                                        onClick={() => void run(() => onAdd(addable))}
                                     >
                                         Add all
                                     </Button>
@@ -330,8 +348,9 @@ export function AddSubagentDrawer({
                                 <SubagentRow
                                     key={option.id}
                                     option={option}
-                                    onAdd={() => onAdd([option])}
-                                    onRemove={() => onRemove([option])}
+                                    busy={busy}
+                                    onAdd={() => void run(() => onAdd([option]))}
+                                    onRemove={() => void run(() => onRemove([option]))}
                                 />
                             ))}
                         </div>

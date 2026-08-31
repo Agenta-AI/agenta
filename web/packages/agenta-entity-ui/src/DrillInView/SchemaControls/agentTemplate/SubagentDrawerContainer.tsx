@@ -4,12 +4,12 @@
  * {@link AddSubagentDrawer} and {@link SubagentList} stay presentational so the layout can be
  * storied without the project's queries. These wrappers resolve what those surfaces show and turn
  * a click into a saved reference. Both live here because both are the callers of
- * `useSubagentCatalog`, and nothing else is shared between them.
+ * `useWorkflowReferenceCatalog`, and nothing else is shared between them.
  *
  * Four rules shape the container:
  *
  *  • ONE request per batch, never one per row. The model, the connected apps, the type and the
- *    variant binding all come from `useSubagentCatalog`, which reads the same cached
+ *    variant binding all come from `useWorkflowReferenceCatalog`, which reads the same cached
  *    latest-revision fetch the badges already performed.
  *  • Nothing is fetched while the drawer is CLOSED. The container is always mounted, so an
  *    ungated subscription meant a closed drawer opened one catalog request per connected app in
@@ -82,7 +82,7 @@ export function SubagentDrawerContainer({
         () => (open ? bridge.workflows.map((w) => w.slug).filter(Boolean) : []),
         [open, bridge.workflows],
     )
-    const {bySlug, loading: catalogLoading} = bridge.useSubagentCatalog(projectSlugs)
+    const {bySlug, loading: catalogLoading} = bridge.useWorkflowReferenceCatalog(projectSlugs)
 
     // The agent being edited. Offering it to itself builds a reference loop the runner cannot run.
     // Matched on the WORKFLOW id, because `WorkflowReferenceUI.id` is the workflow while the
@@ -150,12 +150,11 @@ export function SubagentDrawerContainer({
     // schema, so a parallel batch would have every write start from the same stale array.
     const handleAdd = useCallback(
         async (selected: SubagentOption[]) => {
+            // Bound by slug on the variant axis, with no pinned version, which the server reads
+            // as the workflow's latest revision. That is the same revision the catalog fetched to
+            // build this row, so what the author saw is what the agent calls.
             for (const option of selected) {
-                const entry = bySlug[option.id]
-                // No variant means nothing unambiguous to bind to, so skip rather than write a
-                // reference the runner cannot resolve.
-                if (!entry?.variantId) continue
-                await onAdd({slug: option.id, refBy: "variant", variant: entry.variantId})
+                await onAdd({slug: option.id, refBy: "variant"})
             }
         },
         [bySlug, onAdd],
@@ -198,7 +197,7 @@ export function ConnectedSubagentList({
                 .filter((s): s is string => Boolean(s)),
         [listProps.entries],
     )
-    const {bySlug} = bridge.useSubagentCatalog(savedSlugs)
+    const {bySlug} = bridge.useWorkflowReferenceCatalog(savedSlugs)
 
     // Each saved subagent's own icon, drawn from the agent it points at. Resolved here because
     // only this side can reach the per-workflow icon record; the list itself stays presentational.

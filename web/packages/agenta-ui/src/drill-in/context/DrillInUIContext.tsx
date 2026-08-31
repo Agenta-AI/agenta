@@ -113,12 +113,9 @@ export interface WorkflowReferenceUI {
  * Display and binding are deliberately the same object. They come from the same revision, and
  * splitting them let a row show one revision's model while the reference bound to another.
  */
-export interface SubagentCatalogEntry {
+export interface WorkflowReferenceCatalogEntry {
     /** Agent, chat, completion, custom or evaluator. Only agents belong in the Subagents section. */
     type?: WorkflowReferenceType
-    /** The variant to follow. Without it a `ref_by: "variant"` reference is ambiguous, so an
-     *  entry with no variant cannot be added and the picker must say so rather than write one. */
-    variantId?: string
     /** The workflow this slug belongs to. A saved reference stores only a slug, and an agent's
      *  chosen icon is keyed by workflow id, so a row needs this to draw it. */
     workflowId?: string
@@ -225,7 +222,10 @@ export interface WorkflowReferenceBridge {
         isLoading: boolean
     }
     /**
-     * Everything the Subagents surfaces need, for a batch of workflow SLUGS, in ONE pass.
+     * Everything a workflow-reference surface needs, for a batch of SLUGS, in ONE pass.
+     *
+     * Named for references, not for subagents: it deliberately resolves non-agent workflows too,
+     * so the saved list can tell an author that a reference points at a prompt or an evaluator.
      *
      * Slugs, not workflows: the underlying batch is keyed by slug alone, and a caller that only
      * has the handful it already saved must not have to hold the project-wide workflow list. That
@@ -242,8 +242,8 @@ export interface WorkflowReferenceBridge {
      * breaking the rules of hooks at the one call site that needs it. There is a single
      * implementation of this bridge, so requiring it costs nothing.
      */
-    useSubagentCatalog: (slugs: string[]) => {
-        bySlug: Record<string, SubagentCatalogEntry | undefined>
+    useWorkflowReferenceCatalog: (slugs: string[]) => {
+        bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
         loading: boolean
     }
 }

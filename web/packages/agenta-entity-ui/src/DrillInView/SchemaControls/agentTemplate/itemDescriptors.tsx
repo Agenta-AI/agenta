@@ -22,10 +22,10 @@ export interface ItemDescriptor {
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
     /** Avatar chip classes, for an item that paints its own chip instead of the solid type square
-     *  (a subagent uses its agent's colour at a low alpha). Set together with `chipStyle`. */
-    chipClassName?: string
+     *  (a subagent uses its agent's colour at a low alpha). Set together with `avatarStyle`. */
+    avatarClassName?: string
     /** Custom properties the chip classes read (the light and dark tint and ink). */
-    chipStyle?: React.CSSProperties
+    avatarStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
     tags: string[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
@@ -171,8 +171,8 @@ export function describeSubagent(
         mono: "",
         color: "transparent",
         icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
-        chipClassName: chrome?.className,
-        chipStyle: chrome?.style,
+        avatarClassName: chrome?.className,
+        avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],
         typeLabel: "subagent",

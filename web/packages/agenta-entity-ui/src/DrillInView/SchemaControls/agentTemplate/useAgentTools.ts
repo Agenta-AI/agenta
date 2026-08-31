@@ -69,13 +69,14 @@ export function useAgentTools({
             const latest = configRef.current
             const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
             if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
+            // Deliberately NO variant id. ReferenceToolConfig forbids unknown fields and has no
+            // such field: the axis is `ref_by:"variant"` with a slug, optionally pinned by
+            // `version`, and the server resolves `workflow.variant.{slug}[.{version}]`. A
+            // `variant_id` was persisted here before and reached nothing that reads it.
             const referenceTool: Record<string, unknown> = {
                 type: "reference",
                 ref_by: payload.refBy,
                 slug: payload.slug,
-                ...(payload.refBy === "variant" && payload.variant
-                    ? {variant_id: payload.variant}
-                    : {}),
                 ...(payload.refBy === "variant" && payload.version
                     ? {version: payload.version}
                     : {}),
