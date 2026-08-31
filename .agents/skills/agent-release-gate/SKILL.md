@@ -446,8 +446,13 @@ These four checks make each layer's failure loud instead of silent. Run all four
   back. PASSes when the turn succeeds or when the failure carries the runner's
   `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
   while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
-  the incident itself. On a local deployment it also counts `Received=dtn_` lines in the
-  litellm-proxy container and reports the count as diagnostic, never as a verdict.
+  the incident itself. It also counts `Received=dtn_` lines in the credits proxy and reports the
+  count as diagnostic, never as a verdict. The proxy is never guessed by name across the box: it
+  must be named with `--proxy-container`, or belong to the target stack's compose project
+  (`--compose-project`, else derived from whichever container publishes the port in
+  `AGENTA_BASE`). With no match it prints "no credits proxy in this deployment; count not
+  applicable" and carries on. Reading a foreign project's proxy invents evidence about a
+  deployment that was never under test, which is worse than reading none.
 - `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
   the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
   when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
@@ -468,7 +473,11 @@ These four checks make each layer's failure loud instead of silent. Run all four
   the run created is gone within a bounded settle window. Needs a Daytona API key in the
   environment (`DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`) and SKIPs with the exact
   reason without one. Run it alone: a concurrent Daytona run against the same organization looks
-  the same as a leftover.
+  the same as a leftover. The listing walks `GET /secret/paginated` by cursor to exhaustion —
+  `/secrets` does not exist, plain `/secret` is deprecated and fails above 1500 secrets, and a
+  `page` parameter is silently ignored, so anything less than real cursor pagination is noise
+  against an organization this size. The settle loop polls `GET /secret/{secretId}` per created
+  Secret rather than re-enumerating. `test_check_secrets_teardown_pagination.py` pins the walk.
 
 ## Contributing
 

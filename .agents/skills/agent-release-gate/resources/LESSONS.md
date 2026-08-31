@@ -276,6 +276,27 @@ in full in the skill's resource inventory.
 4. `check_secrets_teardown.py` — a Daytona Secret must not outlive its run. Names only, never
    values.
 
+## Two traps the incident checks hit on their first live run — 2026-08-31
+
+**The Daytona Secrets API is singular, paginated, and lies about `page`.** `/secrets` does not
+exist; it 404s with "Cannot GET". The real paths are `/secret`, `/secret/paginated` and
+`/secret/{secretId}` (verified against `@daytona/api-client@0.198.0` inside the runner). Plain
+`/secret` is deprecated and, per the client's own docs, "fails for organizations with more than
+1500 secrets" — and the org holds ~3510, so it is unusable. The paginated listing returns 100 per
+response and a `page` parameter is SILENTLY IGNORED: the same 100 ids come back every time, which
+makes a page-based walk loop forever on identical data while looking like progress. Follow
+`nextCursor` to exhaustion, refuse a cursor that repeats, and bound the walk. A useful side
+effect: because `/secret` and `/secret/paginated` return 403 for an under-scoped key while
+`/secrets` returns 404, you can confirm the right path without any list access at all.
+
+**Never pick a container by name match on a shared box.** `matrix_c5` originally took the first
+`docker ps` name containing "litellm" and found `starter-litellm-proxy` — a different project's
+container — while the stack under test had no proxy at all. A foreign container's log is worse
+than no log: it invents evidence about a deployment that was never under test. Resolve a
+container by its `com.docker.compose.project` label against the target stack's project (derive
+the project from whichever container publishes the port in `AGENTA_BASE`), or take it explicitly.
+When nothing matches, say so and continue.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.
