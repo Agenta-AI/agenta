@@ -13,13 +13,25 @@
  *
  * THE MECHANISM. Right after the sandbox is created, probe the credential's own endpoint
  * from INSIDE the sandbox: POST `${baseUrl}/chat/completions` with the key env var as the
- * bearer. A response echoing `dtn_` means the placeholder went through raw (LiteLLM and
- * OpenAI-compatible providers echo the bad key; Daytona's response scrubbing rewrites REAL
- * values back to placeholders but leaves the raw-placeholder echo visible). Several
- * consecutive raw echoes convict the sandbox as STUCK; any other response means the header
- * was substituted (a 400 for the junk body, a real 401 for a genuinely bad key) and the run
- * may proceed. The preflight runs CONCURRENTLY with the rest of acquire (mounts, workspace,
- * session open, ~10s), so a healthy sandbox pays nothing.
+ * bearer. Several consecutive raw-placeholder echoes convict the sandbox as STUCK; any other
+ * response means the header was substituted (a 400 for the junk body, a real 401 for a
+ * genuinely bad key) and the run may proceed. The preflight runs CONCURRENTLY with the rest
+ * of acquire (mounts, workspace, session open, ~10s), so a healthy sandbox pays nothing.
+ *
+ * ONLY A MASKED ECHO CONVICTS, AND THAT DISTINCTION IS THE WHOLE INSTRUMENT. A bare `dtn_`
+ * in the body proves nothing: Daytona's egress proxy also SCRUBS responses, rewriting real
+ * credential values back into `dtn_secret_<id>` before they reach the sandbox. So an endpoint
+ * that echoes the Authorization header verbatim returns the full placeholder shape on a
+ * perfectly HEALTHY sandbox, and convicting on that would destroy both acquire attempts and
+ * fail a first turn whose real model call would have worked. What scrubbing cannot forge is a
+ * MASKED placeholder: a provider masks the key it received (LiteLLM's
+ * "Virtual Key expected. Received=dtn_****", OpenAI's "Incorrect API key provided:
+ * dtn_secr*****"), and a masked string no longer contains the real value for the scrubber to
+ * match — so a masked `dtn_` can only mean the raw placeholder really went out. This is the
+ * same correction that invalidated the first probe run; see the "CORRECTED" section of
+ * `docs/design/daytona-secret-propagation/README.md`. Every incident observed in production
+ * and in the 20-sandbox probe carried a masked echo, so the narrower signature costs no
+ * detection.
  *
  * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries ONCE
  * with a brand-new sandbox, because the twin experiment proved a new sandbox on the same
@@ -40,9 +52,10 @@
  * shape — every observed incident). A plaintext-env run has no placeholder; a reconnected
  * sandbox already proved itself.
  *
- * AMBIGUITY FAILS OPEN. A probe that errors or returns nothing judgeable returns "ok" and
- * the run proceeds: the worst outcome is the pre-existing behavior, classified honestly by
- * `classifyRunError`. Only consecutive, unambiguous raw-placeholder echoes convict.
+ * AMBIGUITY FAILS OPEN. A probe that errors, returns nothing judgeable, or returns an
+ * UNMASKED placeholder-shaped echo returns "ok" and the run proceeds: the worst outcome is
+ * the pre-existing behavior, classified honestly by `classifyRunError`. Only consecutive,
+ * unambiguous masked raw-placeholder echoes convict.
  */
 
 export interface PreflightSandbox {
@@ -92,6 +105,24 @@ const DEFAULT_POLL_MS = 2_000;
 const CURL_TIMEOUT_S = 8;
 
 /**
+ * The only echo that proves the raw placeholder went out: one the provider MASKED.
+ *
+ * See the module doc. Daytona's response scrubbing rewrites a real credential back into
+ * `dtn_secret_<id>`, so an unmasked placeholder shape is equally consistent with a HEALTHY
+ * sandbox whose endpoint echoed the working key. Masking defeats the scrubber, because the
+ * masked string no longer contains the real value to match.
+ *
+ * First alternative: a `dtn_` token carrying a mask character, which covers both proven
+ * shapes (LiteLLM's `Received=dtn_****`, OpenAI's `dtn_secr*****`). Second: LiteLLM naming a
+ * `dtn_` key as what it received, which is proof on its own and survives a change of mask
+ * character; it mirrors `PLACEHOLDER_CREDENTIAL` in `errors.ts`. `*` is the only mask
+ * character trusted here — a truncation with `...` or `…` could equally be a cut-off scrubbed
+ * value, and ambiguity fails open.
+ */
+const MASKED_PLACEHOLDER_ECHO =
+  /dtn_[A-Za-z0-9_-]*\*|virtual key expected.*received=\s*dtn_/i;
+
+/**
  * Resolve "ok" when the sandbox's model credential substitutes on the wire (or nothing can be
  * judged — fail open), and "stuck" after enough consecutive raw-placeholder echoes. Never
  * throws.
@@ -134,9 +165,18 @@ export async function awaitCredentialSubstitution(
       return "ok";
     }
     const elapsedMs = now() - startedAt;
-    if (!body || !body.includes("dtn_")) {
-      // Substituted (or the endpoint gave no echo to judge by — fail open either way).
-      if (attempt > 1) {
+    if (!body || !MASKED_PLACEHOLDER_ECHO.test(body)) {
+      // Substituted, or the endpoint gave nothing this preflight can judge by — fail open
+      // either way. An unmasked placeholder shape lands here on purpose: scrubbing produces
+      // it from a healthy key too, so it is not evidence. Log it, because a stuck sandbox
+      // behind an echoing endpoint now passes the preflight and surfaces as the 401 instead.
+      if (body?.includes("dtn_")) {
+        input.log(
+          `[credential-preflight] unmasked placeholder-shaped echo (probe ${attempt}, ` +
+            `+${(elapsedMs / 1000).toFixed(1)}s): scrubbing produces this from a REAL key ` +
+            `too, so it convicts nothing; proceeding`,
+        );
+      } else if (attempt > 1) {
         input.log(
           `[credential-preflight] substitution confirmed after ${attempt} probes ` +
             `(${(elapsedMs / 1000).toFixed(1)}s)`,

@@ -108,4 +108,33 @@ describe("awaitCredentialSubstitution", () => {
     assert.equal(await run, "ok");
     assert.deepEqual(logs, []);
   });
+
+  it("fails open when a HEALTHY echoed key was scrubbed into a full placeholder", async () => {
+    // Daytona's egress proxy rewrites real credential values in responses back into
+    // `dtn_secret_<id>`. An endpoint that echoes the Authorization header therefore returns
+    // this body on a perfectly healthy sandbox. Convicting on it destroyed both acquire
+    // attempts and failed a first turn whose real model call would have worked.
+    // The id is spelled in the message rather than as a `key` field so the secret scanner
+    // does not read this placeholder — the very thing that exists so no real key is here —
+    // as a leaked credential.
+    const { run, logs, commands } = harness([
+      '{"error":{"message":"unauthorized bearer dtn_secret_01j9maz7q0"}}',
+    ]);
+    assert.equal(await run, "ok");
+    assert.equal(commands.length, 1, "an unmasked echo must not be re-probed");
+    assert.match(logs[0], /unmasked placeholder-shaped echo/);
+  });
+
+  it("convicts on a masked echo, whatever the provider's mask shape", async () => {
+    // Masking is what scrubbing cannot forge: the masked string no longer holds the real
+    // value for the scrubber to match, so `dtn_` beside a mask means the raw placeholder
+    // really went out. Both proven provider shapes must convict.
+    for (const masked of [
+      "LiteLLM Virtual Key expected. Received=dtn_****9maz",
+      '{"error":{"message":"Incorrect API key provided: dtn_secr*****9maz"}}',
+    ]) {
+      const { run } = harness([masked], 3_000);
+      assert.equal(await run, "stuck", masked);
+    }
+  });
 });
