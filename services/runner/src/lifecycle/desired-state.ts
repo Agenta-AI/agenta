@@ -203,9 +203,10 @@ export function normalizeDesiredState(
 
   // TOOL CATALOG: what the model can see and call. It is its own facet because it is the one
   // the adapters could eventually apply live. v1 routes it to a session reopen on every harness.
+  // No `toolCallback.endpoint` (audit finding 5): it is read from the incoming request every
+  // turn, so it is per-turn routing, not environment identity.
   const toolCatalog = canonical({
     customTools: request.customTools ?? null,
-    toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
   });
 
   return {

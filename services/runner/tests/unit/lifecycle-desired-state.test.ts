@@ -110,13 +110,9 @@ describe("facet ownership: one field moves exactly one facet", () => {
       overrides: { customTools: [{ name: "t" }] as never },
       facet: "toolCatalog",
     },
-    {
-      what: "the tool callback endpoint",
-      overrides: {
-        toolCallback: { endpoint: "https://gateway/tools/call" } as never,
-      },
-      facet: "toolCatalog",
-    },
+    // The tool callback endpoint left this table with audit finding 5: it is read from the
+    // incoming request every turn, so it moves NO facet. The per-turn-volatile suite below
+    // pins that instead.
   ];
 
   for (const { what, overrides, facet } of cases) {
@@ -171,6 +167,9 @@ describe("facet normalization: stability and coverage", () => {
           trace: { trace_id: "abc" },
         } as never,
       },
+      // The per-deployment gateway URL is read from the incoming request every turn
+      // (finding 5); a moved deployment must not evict every warm session.
+      { toolCallback: { endpoint: "https://gateway-2/tools/call" } as never },
     ]) {
       assert.deepEqual(
         movedBy(overrides),
@@ -245,10 +244,6 @@ describe("facet normalization: stability and coverage", () => {
       ["permissions", { permissions: { default: "deny" } as never }],
       ["sandboxPermission", { sandboxPermission: "none" as never }],
       ["mcpServers", { mcpServers: [{ name: "x", connection: {} }] as never }],
-      [
-        "toolCallback.endpoint",
-        { toolCallback: { endpoint: "https://gateway/tools/call" } as never },
-      ],
     ];
 
     for (const [name, overrides] of probes) {
