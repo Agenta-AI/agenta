@@ -17,6 +17,7 @@ import {parseGatewayEntry} from "../toolUtils"
 import {
     describeMcp,
     describeSkill,
+    describeSubagent,
     describeTool,
     isEmbedRefSkill,
     isFunctionTool,
@@ -50,14 +51,27 @@ export interface ItemKindDef {
     FormView: ItemFormView
     /** Drawer header title for the current draft. */
     drawerTitle: (draft: Record<string, unknown>) => string
-    /** Wider drawer for kinds that need it (skills are two-pane). */
-    drawerWidth?: number
-    /** Full-bleed body so the Form can lay out its own master/detail (the tool parameter editor). */
-    formFlush?: boolean
+    /** Wider drawer for kinds that need it (skills are two-pane). Per ITEM, because one kind can
+     *  hold both a two-pane editor and a plain panel. */
+    drawerWidth?: (item: Record<string, unknown>) => number | undefined
+    /** Full-bleed body so the Form can lay out its own master/detail (the tool parameter editor).
+     *  Per ITEM for the same reason: a subagent's panel wants ordinary drawer padding. */
+    formFlush?: (item: Record<string, unknown>) => boolean
     /** Default Form/JSON view when opening an existing item. */
     editView: (item: unknown) => ConfigItemView
     /** Items with no structured form open JSON-only (no Form/JSON toggle). */
     jsonOnly: (item: Record<string, unknown>) => boolean
+    /**
+     * The item's own form already shows its icon, name and type, so the drawer drops its header
+     * chrome and footer note rather than saying the same thing twice. Skills have always done
+     * this; a subagent does it now.
+     */
+    statesOwnIdentity?: (item: Record<string, unknown>) => boolean
+    /**
+     * Hide the Form/JSON toggle and keep the form. For an item whose raw shape is an internal
+     * detail the reader has no reason to edit, offering the JSON view invites damage.
+     */
+    formOnly?: (item: Record<string, unknown>) => boolean
     /** Read-only items (e.g. static `__ag__*` skills) — viewable but not editable. */
     isReadOnly: (item: unknown) => boolean
     /** Seed for a fresh "create" draft. */
@@ -75,10 +89,14 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         emptyLabel: "No tools yet",
         describe: describeTool,
         FormView: ToolFormView,
-        // Two-panel parameter master/detail — needs width + a full-bleed body.
-        drawerWidth: 800,
-        formFlush: true,
+        // The parameter editor is a two-panel master/detail: it needs the width and lays out its
+        // own padding. A subagent is a plain panel and gets neither, or it renders edge to edge.
+        drawerWidth: (draft) => (isReferenceTool(draft) ? undefined : 800),
+        formFlush: (draft) => !isReferenceTool(draft),
         drawerTitle: (draft) => {
+            // A subagent's header is its identity: the agent's NAME, with "Subagent" as the
+            // subtitle underneath. describeTool would call it a workflow, which it is not.
+            if (isReferenceTool(draft)) return describeSubagent(draft).name
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
         },
@@ -92,6 +110,10 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             return isFunctionTool(item) || isReferenceTool(item) || entry ? "form" : "json"
         },
         jsonOnly: (draft) => ITEM_KINDS.tool.editView(draft) === "json",
+        // A subagent's detail states its own identity and hides the raw entry: the reader is
+        // looking at another agent, not at a tool record.
+        statesOwnIdentity: (draft) => isReferenceTool(draft),
+        formOnly: (draft) => isReferenceTool(draft),
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),
@@ -156,7 +178,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         describe: describeSkill,
         FormView: SkillFormView,
         // Wider than the default 600 — the skill drawer is two-pane (Files + editor).
-        drawerWidth: 760,
+        drawerWidth: () => 760,
         drawerTitle: (draft) =>
             isEmbedRefSkill(draft)
                 ? "Skill reference"

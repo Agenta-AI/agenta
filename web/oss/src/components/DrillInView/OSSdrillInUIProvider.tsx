@@ -46,6 +46,7 @@ import {getDefaultStore, useSetAtom} from "jotai"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import useURL from "@/oss/hooks/useURL"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
@@ -94,7 +95,19 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
-    const workflowReference = useWorkflowReferenceBridge()
+    const baseWorkflowReference = useWorkflowReferenceBridge()
+    const {baseAppURL} = useURL()
+    // Only the app knows its routes, so the "Open agent" link on a subagent's detail is supplied
+    // here rather than guessed inside the package. Without a base URL there is no link, and the
+    // detail hides the button.
+    const workflowReference = useMemo(
+        () => ({
+            ...baseWorkflowReference,
+            agentHref: (workflowId: string) =>
+                baseAppURL ? `${baseAppURL}/${workflowId}/playground` : null,
+        }),
+        [baseWorkflowReference, baseAppURL],
+    )
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
     const deployment = useMemo(() => ({isCloud: isDemo()}), [])
 

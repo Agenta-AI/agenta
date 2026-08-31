@@ -220,6 +220,7 @@ export {
     type GatewayToolsBridge,
     type WorkflowReferenceBridge,
     type WorkflowReferenceCatalogEntry,
+    type SubagentDetail,
     type WorkflowReferenceUI,
     type WorkflowReferenceType,
     type WorkflowRevisionUI,

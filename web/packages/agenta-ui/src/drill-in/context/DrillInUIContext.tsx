@@ -127,6 +127,29 @@ export interface WorkflowReferenceCatalogEntry {
     integrations: string[]
 }
 
+/**
+ * One subagent's configuration, read from the workflow it points at, for the detail panel.
+ *
+ * Everything here is READ-ONLY on that surface. A subagent's model, instructions, apps and skills
+ * are managed on the agent itself; the parent agent only chooses to call it and describes when.
+ */
+export interface SubagentDetail {
+    /** The workflow, so the detail can link to the agent's own page. */
+    workflowId?: string
+    name?: string
+    /** The agent's own description, used as the seed for the calling agent's copy. */
+    description?: string
+    model?: string
+    /** Provider display key for the model's mark. */
+    provider?: string
+    /** One row per connected app, with the permission the agent granted it. */
+    integrations: {key: string; name?: string; logo?: string | null; permission?: string}[]
+    /** Skill names, shown as pills. */
+    skills: string[]
+    /** The agent's instruction file, when it has one. */
+    instructions?: {fileName: string; text: string; wordCount: number}
+}
+
 /** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
 export interface WorkflowRevisionUI {
     /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
@@ -242,6 +265,20 @@ export interface WorkflowReferenceBridge {
      * breaking the rules of hooks at the one call site that needs it. There is a single
      * implementation of this bridge, so requiring it costs nothing.
      */
+    /**
+     * One subagent's configuration for the detail panel, as a CACHED hook so the drawer header and
+     * the panel body share one result instead of fetching twice.
+     *
+     * One request for the one agent whose detail is open, rather than carrying instruction text
+     * for every agent in the batch: a project with 200 agents would otherwise hold megabytes of
+     * AGENTS.md it never shows.
+     */
+    useSubagentDetail?: (slug: string) => {detail: SubagentDetail | null; loading: boolean}
+    /**
+     * A link to an agent's own page, supplied by the host because only it knows the routes. The
+     * detail hides its "Open agent" button when a host does not supply one.
+     */
+    agentHref?: (workflowId: string) => string | null
     useWorkflowReferenceCatalog: (slugs: string[]) => {
         bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
         loading: boolean

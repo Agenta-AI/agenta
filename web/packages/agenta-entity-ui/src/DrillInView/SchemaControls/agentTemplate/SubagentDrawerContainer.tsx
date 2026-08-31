@@ -43,7 +43,7 @@ import {SubagentList, type SubagentListProps} from "./ToolManagementList"
  * The keys arrive as a joined string so the memo has one stable dependency; passing an array
  * would rebuild the atom every render.
  */
-function useFamilyMap<T>(keysKey: string, family: (key: string) => Atom<T>): Map<string, T> {
+export function useFamilyMap<T>(keysKey: string, family: (key: string) => Atom<T>): Map<string, T> {
     const derived = useMemo(() => {
         const keys = keysKey ? keysKey.split("\n") : []
         return atom((get) => keys.map((key) => [key, get(family(key))] as const))
@@ -53,7 +53,7 @@ function useFamilyMap<T>(keysKey: string, family: (key: string) => Atom<T>): Map
 }
 
 const iconFamily = (id: string) => agentIconAtomFamily(id)
-const logoFamily = (key: string) => toolIntegrationDetailQueryFamily(key)
+export const logoFamily = (key: string) => toolIntegrationDetailQueryFamily(key)
 
 export interface SubagentDrawerContainerProps {
     open: boolean

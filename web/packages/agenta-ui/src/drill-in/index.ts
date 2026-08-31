@@ -80,6 +80,7 @@ export type {
     GatewayToolsBridge,
     WorkflowReferenceBridge,
     WorkflowReferenceCatalogEntry,
+    SubagentDetail,
     WorkflowReferenceUI,
     WorkflowReferenceType,
     WorkflowRevisionUI,

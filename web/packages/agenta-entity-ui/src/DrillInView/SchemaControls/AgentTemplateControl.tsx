@@ -31,12 +31,15 @@ import {
     workflowBuildKitEnabledAtomFamily,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
+import {agentIconAtomFamily} from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {agentIconChrome} from "@agenta/ui/agent-icon"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
+import {Button} from "@agenta/ui/ui"
 import {
     Cpu,
     FileText,
@@ -1069,6 +1072,45 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const lastEditingRef = useRef(editing)
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
+
+    // A subagent's drawer header carries its own icon and its link to the agent it points at.
+    // Both need the resolved detail, which is cached per slug, so the header and the panel body
+    // read the same one rather than fetching twice.
+    const editingSubagentSlug =
+        shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
+    const {detail: subagentDetail} = workflowReference?.useSubagentDetail?.(
+        editingSubagentSlug,
+    ) ?? {
+        detail: null,
+    }
+    const subagentIconRecord = useAtomValue(agentIconAtomFamily(subagentDetail?.workflowId ?? ""))
+    const subagentChrome = agentIconChrome(subagentIconRecord, {
+        size: 16,
+        fallbackGlyph: <Robot size={16} weight="fill" />,
+        fallbackClassName: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+    })
+    const subagentHeaderIcon = (
+        <span
+            className={cn(
+                "flex size-8 items-center justify-center rounded-md",
+                subagentChrome.className,
+            )}
+            style={subagentChrome.style}
+        >
+            {subagentChrome.glyph}
+        </span>
+    )
+    const subagentAgentHref = subagentDetail?.workflowId
+        ? (workflowReference?.agentHref?.(subagentDetail.workflowId) ?? null)
+        : null
+    const subagentHeaderAction = subagentAgentHref ? (
+        <Button variant="outline" size="sm" asChild>
+            {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}
+            <a href={subagentAgentHref} target="_blank" rel="noreferrer" className="no-underline">
+                Open agent
+            </a>
+        </Button>
+    ) : undefined
     const lastInstructionRef = useRef(editingInstruction)
     if (editingInstruction) lastInstructionRef.current = editingInstruction
     const shownInstruction = editingInstruction ?? lastInstructionRef.current
@@ -1091,28 +1133,39 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
-                      // Skills state their identity in the form, so the drawer drops the icon,
-                      // badge, subtitle and footer note (rows still show them).
+                      // Skills state their identity inside their own form, so the drawer drops
+                      // its header chrome rather than saying it twice.
                       const bareChrome = shownEditing.kind === "skill"
+                      const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={bareChrome ? undefined : def.icon}
+                              icon={
+                                  bareChrome
+                                      ? undefined
+                                      : isSubagent
+                                        ? subagentHeaderIcon
+                                        : def.icon
+                              }
                               title={def.drawerTitle(draft)}
                               badge={
-                                  bareChrome
+                                  bareChrome || isSubagent
                                       ? undefined
                                       : {text: desc.typeLabel, color: desc.typeColor}
                               }
-                              subtitle={bareChrome ? undefined : desc.subtitle}
+                              subtitle={
+                                  bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
+                              }
+                              // Skills carry their own footer; every other kind keeps the note,
+                              // including a subagent whose header chrome is dropped.
                               footerNote={
-                                  bareChrome
+                                  shownEditing.kind === "skill"
                                       ? undefined
                                       : "Changes apply to this agent configuration"
                               }
-                              width={def.drawerWidth}
-                              contentFlush={def.formFlush}
+                              width={def.drawerWidth?.(draft)}
+                              contentFlush={Boolean(def.formFlush?.(draft))}
                               view={drawerView}
                               onViewChange={setDrawerView}
                               onCancel={closeEditor}
@@ -1123,6 +1176,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                   (drawerView === "json" && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
+                              formOnly={Boolean(def.formOnly?.(draft))}
+                              headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
                                   <Form

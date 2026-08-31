@@ -32,11 +32,12 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {
-    WorkflowReferenceCatalogEntry,
+    SubagentDetail,
     WorkflowConfigPart,
     WorkflowConfigPayload,
     WorkflowEnvironmentUI,
     WorkflowReferenceBridge,
+    WorkflowReferenceCatalogEntry,
     WorkflowReferenceType,
     WorkflowReferenceUI,
     WorkflowRevisionUI,
@@ -45,7 +46,9 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
 import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
+import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
 import {buildIntegrationRows} from "../SchemaControls/toolUtils"
 
 // A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
@@ -248,6 +251,78 @@ const workflowReferenceWorkflowsAtom = atom((get) =>
 const workflowReferenceLoadingAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(workflowsListQueryStateAtom).isPending : false,
 )
+
+/**
+ * One subagent's detail, keyed by its own slug so the drawer header and the panel body share one
+ * cached result. Deliberately NOT folded into the picker's batch: a project with 200 agents would
+ * otherwise carry megabytes of AGENTS.md it never shows.
+ */
+const subagentDetailQueryAtomFamily = atomFamily((slug: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["agentSubagentDetail", projectId, slug],
+            enabled: Boolean(projectId) && Boolean(slug),
+            staleTime: 60_000,
+            queryFn: async () => {
+                const revision = await retrieveWorkflowRevision({
+                    projectId: projectId as string,
+                    workflowRef: {slug},
+                })
+                return revision ? subagentDetailOf(revision) : null
+            },
+        }
+    }),
+)
+
+function useSubagentDetail(slug: string): {detail: SubagentDetail | null; loading: boolean} {
+    const res = useAtomValue(subagentDetailQueryAtomFamily(slug))
+    return {detail: (res.data as SubagentDetail | null) ?? null, loading: Boolean(res.isLoading)}
+}
+
+/** Words in a body of prose, for the instruction file's "Markdown, N words" line. */
+function countWords(text: string): number {
+    const words = text.trim().match(/\S+/g)
+    return words ? words.length : 0
+}
+
+/**
+ * One subagent's configuration, read off its latest revision.
+ *
+ * Only what the detail panel shows, and all of it read-only there: a subagent's model,
+ * instructions, apps and skills are managed on the agent itself.
+ */
+function subagentDetailOf(revision: Workflow): SubagentDetail {
+    const cfg = agentConfigOf(revision)
+    const summary = summarizeRevision(revision)
+    const tools = cfg && Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
+    const integrations = buildIntegrationRows(tools).map((row) => ({
+        key: row.integration,
+        // The permission the agent granted this app, in the same words its own row uses.
+        permission: row.entry
+            ? integrationPermissionSummary(row.entry.permissions).label
+            : undefined,
+    }))
+    const skills = (cfg && Array.isArray(cfg.skills) ? (cfg.skills as unknown[]) : [])
+        .map((skill) => describeSkill(skill).name)
+        .filter(Boolean)
+    const agentsMd =
+        cfg && isPlainRecord(cfg.instructions) && typeof cfg.instructions.agents_md === "string"
+            ? cfg.instructions.agents_md
+            : null
+    return {
+        workflowId: workflowIdOf(revision) ?? undefined,
+        name: typeof revision.name === "string" ? revision.name : undefined,
+        description: typeof revision.description === "string" ? revision.description : undefined,
+        model: summary.model ?? undefined,
+        provider: summary.provider ?? undefined,
+        integrations,
+        skills,
+        instructions: agentsMd
+            ? {fileName: "AGENTS.md", text: agentsMd, wordCount: countWords(agentsMd)}
+            : undefined,
+    }
+}
 
 /**
  * Everything the Subagents picker needs for a batch of workflows.
@@ -645,6 +720,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             useWorkflowRevisions,
             useWorkflowEnvironments,
             useWorkflowReferenceCatalog,
+            useSubagentDetail,
         }),
         [activate, workflows, workflowsLoading, projectId, store],
     )
