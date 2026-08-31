@@ -40,7 +40,6 @@ const SessionDrawer = () => {
             open={open}
             onClose={closeDrawer}
             width={drawerWidth}
-            closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
             styles={{body: {padding: 0}}}
             destroyOnHidden

@@ -368,6 +368,10 @@ export {
     isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./agentApprovalResume"
+// The durable half of an approval decision: the row resolution, and what retires the gate marker.
+export {approvalResolution, isResumeSend, type ChatStatusLike} from "./approvalAnswer"
+// Answer a parked interaction durably BEFORE releasing whatever can start the next turn.
+export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./answerOrdering"
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
@@ -380,3 +384,11 @@ export {
     triggerUserMessageId,
     type TurnRequestCapture,
 } from "./turnCapture"
+// Agent playground auto-commit: flushes the config draft to a revision on its own (#6126).
+export {
+    agentAutoCommitStatusAtomFamily,
+    agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
+    flushAgentAutoCommitAtom,
+    registerAgentAutoCommitHandler,
+} from "./agentAutoCommit"

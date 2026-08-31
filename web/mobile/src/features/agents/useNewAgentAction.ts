@@ -12,6 +12,8 @@ import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {newId} from "@/lib/ids"
+
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
@@ -73,7 +75,7 @@ export const useNewAgentAction = (base: string) => {
             const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
-            const sessionId = seeded ? (params?.sessionId ?? crypto.randomUUID()) : null
+            const sessionId = seeded ? (params?.sessionId ?? newId()) : null
             if (sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
                 // the instruction, and let the chat screen's engine send it once.

@@ -19,6 +19,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
     invalidateSessionListQueries,
     invalidateSessionLivenessQueries,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -27,7 +28,10 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
     buildAgentRequest,
+    isResumeSend,
+    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -226,7 +230,10 @@ export const useAgentConversation = ({
     )
 
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
+    // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
     const {
         messages,
@@ -247,14 +254,15 @@ export const useAgentConversation = ({
         experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) => {
-            const shouldDispatch = agentShouldResumeAfterApproval({
+        // Side-effect-free on purpose: the SDK reads `predicate(...) && !isError`, so a `true` here
+        // is a proposal it can still refuse. Consuming anything from inside would spend the gate on
+        // a request that never left. The marker is consumed where a send is a fact — see the effect
+        // on `status` below.
+        sendAutomaticallyWhen: ({messages}) =>
+            agentShouldResumeAfterApproval({
                 messages,
                 liveInteraction: liveGateInteractionRef.current,
-            })
-            if (shouldDispatch) liveGateInteractionRef.current = null
-            return shouldDispatch
-        },
+            }),
         // The turn's trace may not be ingested yet when a row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files: mark the session's drive data stale so every mount surface refetches.
@@ -279,9 +287,12 @@ export const useAgentConversation = ({
             invalidateSessionLivenessQueries()
         },
         onError: (err) => {
-            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
-            // set freezes records adoption for this mount and can resume a stale gate much later.
-            liveGateInteractionRef.current = null
+            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
+            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
+            // stream ends — often by erroring, right here. `null` made that last evaluation return
+            // false and stranded the answer; `undefined` lets the tail heuristics decide.
+            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
+            liveGateInteractionRef.current = undefined
             // The error is stamped in-chat (effect below); swallow it here so an aborted/errored
             // stream doesn't bubble unhandled to a dev overlay (F-033).
             console.warn("[useAgentConversation] useChat error (rendered in-chat):", err)
@@ -460,10 +471,31 @@ export const useAgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            addToolApprovalResponse(args)
+            // Ordered, not raced: the DECISION lands on the interaction row first, and only then
+            // does the part flip that lets the SDK dispatch its resume. Flipped first, that
+            // resume's stale sweep cancelled the row being answered. No resume from here either —
+            // the park stream finishes cleanly, so the SDK is the only sender.
+            void recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: args.id,
+                        resolution: approvalResolution(args.id, args.approved),
+                    }),
+                release: () => addToolApprovalResponse(args),
+            })
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
     )
+
+    // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
+    // send is a fact, and never in the predicate, whose `true` the SDK can still refuse.
+    const previousStatusRef = useRef(status)
+    useEffect(() => {
+        const from = previousStatusRef.current
+        previousStatusRef.current = status
+        if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
+    }, [status])
 
     // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
     // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather
@@ -483,22 +515,40 @@ export const useAgentConversation = ({
     const sendToolOutput = useCallback(
         ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered like the approval half: the resume starts a turn whose sweep cancels every
+            // `pending` row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                release: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Publish this session's run state (single source of truth for session-list status dots).

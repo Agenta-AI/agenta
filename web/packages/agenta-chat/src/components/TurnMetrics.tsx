@@ -1,5 +1,5 @@
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
+import {ExecutionMetricsDisplay, MetaSeparator} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -22,21 +22,45 @@ import type {MessageUsageMetrics} from "../assets"
 export const TurnMetrics = ({
     traceId,
     usage,
+    separator = false,
 }: {
     traceId?: string | null
     usage?: MessageUsageMetrics
+    /**
+     * Draw a leading `·` when these figures render. It carries `first:hidden`, so it disappears
+     * when nothing precedes it in the row (a turn whose timestamp resolved to nothing).
+     */
+    separator?: boolean
 }) => {
     const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
+    const lead = separator ? <MetaSeparator className="first:hidden" /> : null
+
     if (!traceId) {
-        return usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null
+        return usage ? (
+            <>
+                {lead}
+                <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+            </>
+        ) : null
     }
     if (summary.isPending) {
         return (
-            <div className="flex items-center gap-1">
-                <SkeletonBlock active className="h-[22px] w-14 rounded-control-sm" />
-                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
-            </div>
+            <>
+                {lead}
+                <SkeletonBlock active className="h-4 w-10 rounded-control-sm" />
+                {usage ? (
+                    <>
+                        <MetaSeparator />
+                        <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+                    </>
+                ) : null}
+            </>
         )
     }
-    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
+    return (
+        <>
+            {lead}
+            <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} variant="plain" />
+        </>
+    )
 }

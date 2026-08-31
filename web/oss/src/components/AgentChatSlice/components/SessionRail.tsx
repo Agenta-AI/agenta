@@ -1,4 +1,4 @@
-import {memo, useCallback, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {useSessionPins} from "@agenta/sessions/state"
@@ -20,6 +20,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "../assets/sessionMotion"
+import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useChatScopeKey} from "../state/scope"
 import {
     type AgentChatSession,
@@ -30,12 +31,14 @@ import {
     deleteSessionAtomFamily,
     firstUserText,
     isSessionHusk,
+    sessionHasMessages,
     openSessionAtomFamily,
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
     sessionHistoryAtomFamily,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
+import {renameSessionRequestAtom, sessionSearchRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
@@ -88,6 +91,7 @@ const SessionRailRow = memo(function SessionRailRow({
     archived = false,
 }: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
+    useInlineRenameRequest(session.id, labelRef, "rail")
     // Hide the action cluster while the inline rename input owns the row, so it gets full width.
     const [renaming, setRenaming] = useState(false)
     // The rename/delete cluster is hover-only. Mount it on hover/focus instead of rendering it
@@ -308,6 +312,20 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     // so pinning here reorders those surfaces too (and vice versa).
     const {isPinned, toggle: togglePin} = useSessionPins()
     const [query, setQuery] = useState("")
+    // Alt+F focuses the box. Scope-matched: the drawer's rail must not answer the playground's.
+    const searchRef = useRef<HTMLInputElement>(null)
+    const searchRequest = useAtomValue(sessionSearchRequestAtom)
+    useEffect(() => {
+        if (searchRequest?.scope !== scope) return
+        searchRef.current?.focus()
+        searchRef.current?.select()
+    }, [searchRequest, scope])
+    // A filtered-out active session has no row, so its rename consumer never mounts. Clear the
+    // filter when Alt+R names a session this rail is meant to answer.
+    const renameRequest = useAtomValue(renameSessionRequestAtom)
+    useEffect(() => {
+        if (renameRequest?.scope === scope) setQuery("")
+    }, [renameRequest, scope])
     const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
     // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
@@ -322,7 +340,11 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     // in-progress session still shows, but abandoned empties don't clutter the list (the mount-time
     // prune then drops them from storage). Matches the discard-on-close rule.
     const rows = history
-        .filter((session) => openIds.has(session.id) || !isSessionHusk(session, allMessages))
+        .filter(
+            (session) =>
+                openIds.has(session.id) ||
+                !isSessionHusk(session, sessionHasMessages(allMessages, session.id)),
+        )
         .map((session) => ({
             session,
             label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
@@ -377,6 +399,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                 <div className="shrink-0 px-2 pt-2">
                     <SearchInput
                         allowClear
+                        ref={searchRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search sessions"

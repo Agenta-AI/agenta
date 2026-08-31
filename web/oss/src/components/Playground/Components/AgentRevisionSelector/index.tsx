@@ -1,14 +1,17 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
+import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+
+import {useCommitHostAdapter} from "../Modals/CommitVariantChangesModal/assets/useCommitHostAdapter"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {ssr: false})
 
@@ -38,6 +41,20 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 parentLabel: "Application",
             }),
         [],
+    )
+
+    // An auto-commit is still a commit, so it owes this app the same out-of-band work a manual
+    // one did: the registry and evaluator tables live outside the entities layer and go stale
+    // otherwise. The agent header no longer carries the adapter (it has no Commit button to hang
+    // it on), so the reaction hangs off the engine instead.
+    const {onAfterCommit, onCommitted} = useCommitHostAdapter()
+    useEffect(
+        () =>
+            registerAgentAutoCommitHandler("agent-revision-selector", () => {
+                onAfterCommit()
+                onCommitted()
+            }),
+        [onAfterCommit, onCommitted],
     )
 
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)

@@ -54,6 +54,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
+import {AgentIconTrigger} from "@/oss/components/AgentIconChip"
 import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -661,6 +662,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
             <AgentPageHeader
                 className={className}
                 leading={leading}
+                icon={
+                    isAgentWorkflow ? <AgentIconTrigger workflowId={renameWorkflowId} /> : undefined
+                }
                 title={isAgentWorkflow ? undefined : "Playground"}
                 name={
                     isAgentWorkflow ? (

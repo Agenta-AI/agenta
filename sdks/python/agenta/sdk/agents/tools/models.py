@@ -25,6 +25,11 @@ def _empty_object_schema() -> Dict[str, Any]:
 Permission = Literal["allow", "ask", "deny"]
 PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
 
+# The four values a gateway connection policy saves. ``inherit`` is explicit here: an absent
+# tool key uses the connection default, while ``inherit`` skips that default and defers to
+# the agent-wide mode. The compiler applies it, so ``inherit`` never reaches the runner.
+GatewayPermission = Literal["inherit", "allow", "ask", "deny"]
+
 # The deleted pre-redesign vocabulary, still present in old dev-DB drafts. These literals
 # are the only place the SDK may spell them.
 _LEGACY_PERMISSION_KEYS = frozenset(
@@ -62,7 +67,7 @@ def effective_permission(
 
 
 class ToolConfigBase(BaseModel):
-    """Fields shared by every persisted tool declaration."""
+    """Fields shared by every persisted declaration of a single tool."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -99,6 +104,129 @@ class GatewayToolConfig(ToolConfigBase):
         return (
             f"tools.{self.provider}.{self.integration}.{self.action}.{self.connection}"
         )
+
+
+class GatewayConnectionRef(BaseModel):
+    """The shared project connection a gateway entry points at.
+
+    A resource reference, never a credential: the project owns the connection and several
+    agents can reuse it, each with its own policy.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Only `composio` is supported, per contracts section 1, so an unsupported provider is
+    # refused when the revision is parsed rather than at run start.
+    provider: Literal["composio"] = "composio"
+    integration: str = Field(min_length=1)
+    slug: str = Field(min_length=1)
+
+
+class GatewayPermissions(BaseModel):
+    """What the agent may do through one connection, per tool key."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    default: GatewayPermission
+    tools: Dict[Annotated[str, Field(min_length=1)], GatewayPermission] = Field(
+        default_factory=dict
+    )
+
+
+class GatewayConnectionPolicy(BaseModel):
+    """The ``policy`` node of the saved entry. It mirrors the saved nesting and holds one
+    field on purpose, so a later policy of a different kind has a place to go."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    permissions: GatewayPermissions
+
+
+class GatewayConnectionToolConfig(BaseModel):
+    """One whole integration, with a policy the SDK compiles into per-tool decisions.
+
+    Replaces the one-entry-per-tool :class:`GatewayToolConfig`, which stays readable while
+    saved revisions migrate. The entry carries no credentials, provider account IDs, tool
+    schemas, or read-only hints: those are resolved data, not authored configuration.
+
+    It does not extend :class:`ToolConfigBase`. That base carries a per-tool ``render`` and
+    ``permission``, and an entry that covers a whole integration has no single tool to apply
+    either to. Every permission here lives in ``policy``, so a top-level one is refused
+    instead of accepted and then ignored, which would let an author believe a `deny` applies
+    when nothing reads it. The deleted legacy permission spellings are refused here for the
+    same reason, rather than dropped in silence as they are on the other arms.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["gateway_connection"] = "gateway_connection"
+    connection: GatewayConnectionRef
+    policy: GatewayConnectionPolicy
+
+
+class CompiledTool(BaseModel):
+    """One tool key after the compiler has applied the policy and the agent-wide mode.
+
+    Lives here rather than beside the compiler because two readers share it: the compiler
+    produces it, and :class:`ResolvedGatewayIntegration` carries it to the runner.
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    permission: Permission
+    # Tri-state, and unknown must survive to the runner: the catalog hint is absent for some
+    # provider tools, and absent is not the same as a write for a reader.
+    read_only: Optional[bool] = Field(
+        default=None,
+        validation_alias=AliasChoices("read_only", "readOnly"),
+        serialization_alias="readOnly",
+    )
+
+
+class ResolvedGatewayIntegration(BaseModel):
+    """One configured integration, compiled. Private to the runner; never model-facing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider: str = Field(min_length=1)
+    connection: str = Field(min_length=1)
+    toolkit_version: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("toolkit_version", "toolkitVersion"),
+        serialization_alias="toolkitVersion",
+    )
+    tools: Dict[str, CompiledTool] = Field(default_factory=dict)
+
+    @field_validator("toolkit_version")
+    @classmethod
+    def _require_concrete_toolkit_version(cls, value: str) -> str:
+        version = value.strip()
+        # ``min_length`` accepts a whitespace-only string, so blank is rejected here.
+        if not version or version.lower() == "latest":
+            raise ValueError("resolved gateway toolkit version must be concrete")
+        return version
+
+
+class ResolvedGatewayPolicy(BaseModel):
+    """The compiled per-tool decisions for every configured integration.
+
+    Rides the run request as the single top-level ``gatewayPolicy`` field. It never reaches
+    the harness or the sandbox: the runner reads it to gate ``gateway.run`` and to filter
+    ``gateway.search`` results.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    integrations: Dict[str, ResolvedGatewayIntegration] = Field(default_factory=dict)
+
+    def to_wire(self) -> Dict[str, Any]:
+        """Serialize to the camelCase wire shape.
+
+        No ``exclude_none`` here, unlike :meth:`ToolSpecBase.to_wire`: ``readOnly`` must be
+        PRESENT and null when the catalog hint is unknown, because a dropped key and a null
+        value would mean different things to the runner.
+        """
+        return self.model_dump(mode="json", by_alias=True)
 
 
 class CodeToolConfig(ToolConfigBase):
@@ -231,6 +359,7 @@ ToolConfig = Annotated[
     Union[
         BuiltinToolConfig,
         GatewayToolConfig,
+        GatewayConnectionToolConfig,
         CodeToolConfig,
         ClientToolConfig,
         ReferenceToolConfig,
@@ -450,6 +579,9 @@ class ResolvedToolSet(BaseModel):
     # gateway tool dropped because its action 404s. Each names the affected tool. Surfaced so
     # a degraded resolution is never silent; empty on a fully clean resolve.
     warnings: List[str] = Field(default_factory=list)
+    # The compiled per-tool decisions for the agent's ``gateway_connection`` entries. ``None``
+    # when the agent has none, which keeps that run's wire payload byte-identical.
+    gateway_policy: Optional[ResolvedGatewayPolicy] = None
 
     @field_validator("tool_specs", mode="before")
     @classmethod
@@ -469,3 +601,26 @@ class GatewayToolResolution(BaseModel):
 
     tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
     tool_callback: ToolCallback
+
+
+class GatewayConnectionResolution(BaseModel):
+    """Result returned by an injected gateway adapter for ``gateway_connection`` entries.
+
+    Deliberately NOT a subclass of :class:`GatewayToolResolution`. The two are never used
+    interchangeably — the resolver reads each arm in its own branch, and the protocol
+    declares a separate method per arm — and the meaning of ``tool_specs`` differs: there it
+    is one specification per configured entry, here it is the fixed derived pair.
+
+    ``gateway_policy`` is required rather than defaulted, so "no policy" has exactly one
+    spelling: a ``None`` on :class:`ResolvedToolSet`. An empty policy that reached the wire
+    would emit ``{"integrations": {}}`` and break the byte-identical payload rule for a run
+    with no connection.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
+    tool_callback: ToolCallback
+    gateway_policy: ResolvedGatewayPolicy
+    # Configured keys the catalog no longer carries, ready for the resolver's warning list.
+    warnings: List[str] = Field(default_factory=list)

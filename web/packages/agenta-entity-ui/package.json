@@ -23,6 +23,7 @@
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./modals": "./src/modals/index.ts",
         "./onboarding": "./src/onboarding/index.ts",
+        "./secret": "./src/secret/index.ts",
         "./secretProvider": "./src/secretProvider/index.ts",
         "./selection": "./src/selection/index.ts",
         "./template-format": "./src/template-format/index.ts",

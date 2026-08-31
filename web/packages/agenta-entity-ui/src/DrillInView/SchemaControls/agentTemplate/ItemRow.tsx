@@ -88,6 +88,9 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
  * `locked` renders a read-only variant (muted fill, a "Locked" tag, no chevron/remove and no
  * interaction) — used for platform-owned items that can be shown but not edited, e.g. the
  * playground build kit. Passing no `onEdit` also makes the row non-interactive.
+ *
+ * `extra` slots a control (e.g. a per-item switch) ahead of the tags; `inactive` dims the identity
+ * half so a switched-off row reads as off without going fully `locked`.
  */
 export function ItemRow({
     descriptor,
@@ -95,6 +98,8 @@ export function ItemRow({
     onRemove,
     disabled,
     locked,
+    inactive,
+    extra,
     status,
 }: {
     descriptor: ItemDescriptor
@@ -102,12 +107,17 @@ export function ItemRow({
     onRemove?: () => void
     disabled?: boolean
     locked?: boolean
+    inactive?: boolean
+    extra?: ReactNode
     status?: ItemRowStatus
 }) {
-    const interactive = Boolean(onEdit) && !locked
+    // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
+    const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // The whole row opens it; the chevron and tags used to be a dead target.
+            onClick={interactive ? onEdit : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
@@ -118,12 +128,11 @@ export function ItemRow({
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
-                (axe nested-interactive) — same split as SubscriptionChildRow. The outer flex
-                still supplies the gap between the two groups, so geometry is unchanged. */}
+                (axe nested-interactive) — same split as SubscriptionChildRow. It carries the
+                keyboard affordance only; the click is handled once, on the row. */}
             <div
                 role={interactive ? "button" : undefined}
                 tabIndex={interactive ? 0 : undefined}
-                onClick={interactive ? onEdit : undefined}
                 onKeyDown={
                     interactive
                         ? (e) => {
@@ -134,7 +143,10 @@ export function ItemRow({
                           }
                         : undefined
                 }
-                className="flex min-w-0 flex-1 items-center gap-2.5"
+                className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    inactive && "opacity-50",
+                )}
             >
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
@@ -160,6 +172,7 @@ export function ItemRow({
                     </Tag>
                 ))}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
+                {extra}
                 {onRemove && !disabled && !locked ? (
                     <button
                         type="button"

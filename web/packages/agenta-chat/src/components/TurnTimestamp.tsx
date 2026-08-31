@@ -1,8 +1,7 @@
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {nowTickAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {Clock} from "@phosphor-icons/react"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {messageCreatedAtAtomFamily} from "../state"
@@ -14,7 +13,7 @@ const parseTraceTime = (value: unknown): number | undefined => {
 }
 
 /**
- * When a turn happened — "just now", "5m ago", "13h ago", with the exact date on hover.
+ * When a turn happened — "just now", "5m ago", "13h ago".
  *
  * The time comes from the run's TRACE, not from when the browser first saw the message: a reload
  * re-creates every restored turn at once, so the client-side first-seen stamp would back-date the
@@ -52,11 +51,6 @@ export const TurnTimestamp = ({
         ) : null
     }
     return (
-        <SimpleTooltip title={new Date(at).toLocaleString()}>
-            <span className="text-colorTextTertiary flex items-center gap-1 whitespace-nowrap px-1 text-xs">
-                <Clock size={12} />
-                {timeAgo(at)}
-            </span>
-        </SimpleTooltip>
+        <span className="whitespace-nowrap text-[12px] text-colorTextTertiary">{timeAgo(at)}</span>
     )
 }

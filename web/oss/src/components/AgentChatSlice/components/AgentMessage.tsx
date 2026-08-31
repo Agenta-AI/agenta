@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
 import {
     getMessageRunError,
@@ -12,48 +12,47 @@ import {
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
-import {AudioPlayer, StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {
+    AudioPlayer,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
+    messageBodyKey,
     reasoningKey,
     setExpandedAtom,
     useStartupPhase,
 } from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
+import {useDriveArtifactId} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatActionIconButton,
     ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowUUpLeft,
-    Brain,
-    CaretRight,
-    Check,
-    Copy,
-    Robot,
-    TreeStructure,
-    User,
-    XCircle,
-} from "@phosphor-icons/react"
+import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import Markdown from "../assets/markdown"
 
+import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
 interface AgentMessageProps {
@@ -87,10 +86,13 @@ const ReasoningPart = ({
     text,
     streaming,
     stateKey,
+    urgent,
 }: {
     text: string
     streaming: boolean
     stateKey: string
+    /** Something already renders below this block, so it must not keep typing. */
+    urgent?: boolean
 }) => {
     // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
     // manual toggle sticks. State is keyed + persisted (expandState) so it survives a Virtuoso unmount
@@ -125,7 +127,12 @@ const ReasoningPart = ({
             >
                 <div className="min-h-0 overflow-hidden">
                     <div className="mt-1 ml-5 text-colorTextTertiary">
-                        <Markdown content={text} className="!text-xs" streaming={streaming} />
+                        <StreamingMarkdown
+                            content={text}
+                            className="!text-xs"
+                            streaming={streaming}
+                            urgent={urgent}
+                        />
                     </div>
                 </div>
             </div>
@@ -209,9 +216,15 @@ export const RunErrorBody = ({
     )
 }
 
-const avatarFor = (isUser: boolean) => (
-    <ChatBubbleAvatar icon={isUser ? <User size={16} /> : <Robot size={16} />} />
-)
+/** The bubble's avatar — the agent's own mark, or the Robot every turn had before. */
+const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
+    const artifactId = useDriveArtifactId()
+    // A draft agent has no persisted id to key an icon by.
+    const workflowId = artifactId && !isLocalDraftId(artifactId) ? artifactId : null
+
+    if (isUser) return <ChatBubbleAvatar icon={<User size={16} />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Robot size={16} />} />
+}
 
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
  * turn, not once per message in the transcript. */
@@ -221,11 +234,11 @@ const PendingTurn = ({sessionId}: {sessionId: string}) => {
         <ChatBubble
             placement="start"
             variant="borderless"
-            avatar={avatarFor(false)}
+            avatar={<MessageAvatar />}
             content={<StartupActivity label={startupPhase} />}
         />
     ) : (
-        <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
+        <ChatBubble placement="start" variant="borderless" avatar={<MessageAvatar />} loading />
     )
 }
 
@@ -336,8 +349,6 @@ const AgentMessage = ({
     // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
     // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
     const detailed = !useAtomValue(chatPanelMaximizedAtom)
-    const [copied, setCopied] = useState(false)
-    const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
@@ -397,17 +408,6 @@ const AgentMessage = ({
     // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
     // failure) so the button isn't a no-op when the agent only returned an error.
     const copyText = [fullText, errorText].filter(Boolean).join("\n\n")
-    const handleCopy = async () => {
-        if (!copyText) return
-        try {
-            await navigator.clipboard.writeText(copyText)
-            setCopied(true)
-            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
-            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-        } catch {
-            setCopied(false)
-        }
-    }
 
     // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
@@ -504,10 +504,12 @@ const AgentMessage = ({
                 -1,
             )
             return (
-                <Markdown
+                <StreamingMarkdown
                     key={partKey}
                     content={text}
                     streaming={isStreaming && i === lastTextIndex}
+                    // Something already renders below this part, so it must not keep typing.
+                    urgent={i !== message.parts.length - 1}
                 />
             )
         }
@@ -520,6 +522,7 @@ const AgentMessage = ({
                     stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
+                    urgent={i !== message.parts.length - 1}
                 />
             )
         }
@@ -598,76 +601,40 @@ const AgentMessage = ({
         />
     )
 
+    // A long pasted message clamps behind "Show more" so it can't bury the reply it belongs to.
+    // User turns only: an agent answer is the thing you came to read.
+    const contentBody = isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(message.id)}>
+            {defaultBody}
+        </CollapsibleMessageBody>
+    ) : (
+        defaultBody
+    )
+
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
         showError && !isError ? (
             <div className="flex min-w-0 max-w-full flex-col gap-2">
-                {defaultBody}
+                {contentBody}
                 {errorBody}
             </div>
         ) : isError ? (
             errorBody
         ) : (
-            defaultBody
+            contentBody
         )
 
-    // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
-    // `pb-10` on the row), so it never overlays the last content line and never reaches the next
-    // turn. The lane is always present (stable height), so revealing it only fades opacity — no
-    // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
-    // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
-    // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
-    // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
-    // safe). The item `label` renders as the hover tooltip.
+    // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
+    // never overlays the last content line and never reaches the next turn. The lane is always
+    // present (stable height), so revealing it only fades opacity — no layout shift either way (the
+    // scroll engineering is sensitive to hover-driven reflow). `pointer-events-none` while hidden
+    // keeps the invisible buttons unclickable. The buttons carry no `disabled`, so the busy guard
+    // lives in the handlers: `onRewind` → `handleRewind` early-returns while a stream is in flight.
     const toolbarReveal = turnToolbarRevealClass
-    // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
-    const rewindButton = isLastMessage ? null : (
-        <ChatActionIconButton
-            label={
-                isUser
-                    ? "Rewind here — edit and re-run the conversation from this message"
-                    : "Rewind here — re-run this turn"
-            }
-            icon={<ArrowUUpLeft size={14} />}
-            onClick={() => onRewind(message)}
-        />
-    )
-
-    const timestamp = (
-        <TurnTimestamp messageId={message.id} traceId={traceId} turnTraceId={turnTraceId} />
-    )
-
-    const toolbar = isUser ? (
-        <>
-            {timestamp}
-            {rewindButton}
-        </>
-    ) : (
-        <>
-            {timestamp}
-            {/* Show run metrics (tokens/cost, + latency when traced). Usage is stamped on the
-                settled message itself, so surface it even on the no-trace playground path instead
-                of leaving the turn with no data. */}
-            <TurnMetrics traceId={traceId} usage={usage} />
-            <ChatActionIconButton
-                label={copied ? "Copied" : "Copy"}
-                icon={copied ? <Check size={14} /> : <Copy size={14} />}
-                onClick={handleCopy}
-            />
-            {rewindButton}
-            {traceId ? (
-                <ChatActionIconButton
-                    label="View trace"
-                    icon={<TreeStructure size={14} />}
-                    onClick={() => openTraceDrawer({traceId})}
-                />
-            ) : null}
-        </>
-    )
 
     // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
-    // to the reserved lane (`pb-7`) at the row's bottom. The row is a flex that justifies the
+    // to the reserved lane (`pb-8`) at the row's bottom. The row is a flex that justifies the
     // (width-capped) bubble to its side, so the opposite side keeps whitespace — agent bubbles hug
     // the left, user bubbles the right, neither spans the full column.
     // `ag-turn` is the hook the transcript's bottom fade watches (see BOTTOM_FADE_OVERLAY_STYLE):
@@ -679,7 +646,7 @@ const AgentMessage = ({
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
                 variant={isUser ? "filled" : "borderless"}
-                avatar={avatarFor(isUser)}
+                avatar={<MessageAvatar isUser={isUser} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
                     // Error styling is a self-contained callout in RunErrorBody now, not painted on
@@ -687,16 +654,27 @@ const AgentMessage = ({
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
+                        ? `${userBubbleContentClass} border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]`
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}
             />
             <div
-                className={`${turnToolbarClass} ${isUser ? "right-2" : "left-10"} ${toolbarReveal}`}
+                className={`${turnToolbarClass} ${isUser ? "right-11" : "left-11"} ${toolbarReveal}`}
             >
-                {toolbar}
+                <TurnFooter
+                    messageId={message.id}
+                    traceId={traceId}
+                    turnTraceId={turnTraceId}
+                    isUser={isUser}
+                    isStreaming={isStreaming}
+                    usage={usage}
+                    copyText={copyText}
+                    // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.
+                    onRewind={isLastMessage ? undefined : () => onRewind(message)}
+                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
+                />
             </div>
         </div>
     )

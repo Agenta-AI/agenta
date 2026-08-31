@@ -9,6 +9,7 @@ import {Switch as AntSwitch, Tag as AntTag, Tooltip as AntTooltip, Typography} f
 // Imported from source: agentTemplate internals are not re-exported from the DrillInView barrel.
 import {
     BuildKitSection,
+    type BuildKitPlatformTool,
     PermissionOverrideHint,
     formatPermissionValue,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/BuildKitSection"
@@ -41,30 +42,28 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-const PLATFORM_TOOLS: ItemDescriptor[] = [
-    {
-        name: "agenta.write_file",
-        description: "Platform-owned playground tool",
-        mono: "",
-        color: "#0d9488",
-        icon: <Wrench size={15} weight="fill" />,
-        tags: ["platform"],
-        typeLabel: "platform",
-        typeColor: "cyan",
-        subtitle: "Platform tool",
-    },
-    {
-        name: "agenta.run_code",
-        description: "Platform-owned playground tool",
-        mono: "",
-        color: "#0d9488",
-        icon: <Wrench size={15} weight="fill" />,
-        tags: ["platform"],
-        typeLabel: "platform",
-        typeColor: "cyan",
-        subtitle: "Platform tool",
-    },
-]
+const platformDescriptor = (name: string): ItemDescriptor => ({
+    name,
+    description: "Platform-owned playground tool",
+    mono: "",
+    color: "#0d9488",
+    icon: <Wrench size={15} weight="fill" />,
+    tags: ["platform"],
+    typeLabel: "platform",
+    typeColor: "cyan",
+    subtitle: "Platform tool",
+})
+
+const PLATFORM_OPS = ["discover_tools", "commit_revision", "query_spans", "test_run"]
+
+const platformTools = (disabledOps: string[] = []): BuildKitPlatformTool[] =>
+    PLATFORM_OPS.map((op) => ({
+        op,
+        enabled: !disabledOps.includes(op),
+        descriptor: platformDescriptor(op),
+    }))
+
+const PLATFORM_TOOLS = platformTools()
 
 const EMBEDDED_TOOLS: ItemDescriptor[] = [
     {
@@ -133,8 +132,8 @@ const AntdBuildKitSection = ({
             </div>
         ) : null}
         <RailField label="Platform tools">
-            {PLATFORM_TOOLS.map((descriptor, index) => (
-                <ItemRow key={`platform-${index}`} descriptor={descriptor} locked />
+            {PLATFORM_TOOLS.map((tool, index) => (
+                <ItemRow key={`platform-${index}`} descriptor={tool.descriptor} locked />
             ))}
         </RailField>
         <RailField label="Embedded tools">
@@ -177,6 +176,8 @@ const AntdPermissionOverrideHint = () => (
 
 const BASE = {
     platformTools: PLATFORM_TOOLS,
+    onToggleTool: () => undefined,
+    onSetAllTools: () => undefined,
     embeddedTools: EMBEDDED_TOOLS,
     embeddedSkills: EMBEDDED_SKILLS,
     permissions: PERMISSIONS,
@@ -184,8 +185,17 @@ const BASE = {
     defaultOpen: true,
 }
 
-const Live = ({initial = true, disabled}: {initial?: boolean; disabled?: boolean}) => {
+const Live = ({
+    initial = true,
+    disabled,
+    initialDisabledOps = [],
+}: {
+    initial?: boolean
+    disabled?: boolean
+    initialDisabledOps?: string[]
+}) => {
     const [enabled, setEnabled] = useState(initial)
+    const [disabledOps, setDisabledOps] = useState(initialDisabledOps)
     return (
         <div className="max-w-[560px]">
             <BuildKitSection
@@ -193,6 +203,13 @@ const Live = ({initial = true, disabled}: {initial?: boolean; disabled?: boolean
                 enabled={enabled}
                 onEnabledChange={setEnabled}
                 disabled={disabled}
+                platformTools={platformTools(disabledOps)}
+                onToggleTool={(op, next) =>
+                    setDisabledOps((prev) =>
+                        next ? prev.filter((entry) => entry !== op) : [...prev, op],
+                    )
+                }
+                onSetAllTools={(next) => setDisabledOps(next ? [] : PLATFORM_OPS)}
             />
         </div>
     )
@@ -216,12 +233,25 @@ export const Disabled: Story = {
     render: () => <Live disabled />,
 }
 
+/** Some platform tools switched off individually (#6026) — the rail counts and dims accordingly. */
+export const SomeToolsOff: Story = {
+    args: {
+        ...BASE,
+        enabled: true,
+        onEnabledChange: () => undefined,
+        platformTools: platformTools(["commit_revision", "test_run"]),
+    },
+    render: () => <Live initialDisabledOps={["commit_revision", "test_run"]} />,
+}
+
 /** A thin overlay: permissions only, no tools or skills. */
 export const PermissionsOnly: Story = {
     args: {
         enabled: true,
         onEnabledChange: () => undefined,
         platformTools: [],
+        onToggleTool: () => undefined,
+        onSetAllTools: () => undefined,
         embeddedTools: [],
         embeddedSkills: [],
         permissions: PERMISSIONS,
@@ -234,6 +264,8 @@ export const PermissionsOnly: Story = {
                 defaultOpen
                 onEnabledChange={() => undefined}
                 platformTools={[]}
+                onToggleTool={() => undefined}
+                onSetAllTools={() => undefined}
                 embeddedTools={[]}
                 embeddedSkills={[]}
                 permissions={PERMISSIONS}

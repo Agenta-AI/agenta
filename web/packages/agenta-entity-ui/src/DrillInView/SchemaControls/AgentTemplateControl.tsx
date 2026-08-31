@@ -25,7 +25,12 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
+import {
+    agentCreationPrefsAtom,
+    workflowBuildKitDisabledOpsAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type BuildKitUiState,
+} from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
@@ -40,6 +45,7 @@ import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
+import {readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
@@ -49,6 +55,7 @@ import {
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
@@ -69,9 +76,13 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {
+    findIntegrationRow,
     isHarnessBuiltinTool,
-    parseGatewayTool,
-    type ParsedGatewayTool,
+    integrationRowConnection,
+    parseGatewayEntry,
+    type GatewayConnectionTarget,
+    type GatewayEntry,
+    type IntegrationRow,
     type ToolObj,
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
@@ -148,15 +159,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
     const [integrationDrawerOpen, setIntegrationDrawerOpen] = useState(false)
-    // Preselected app for the integration drawer: set when a provider group's "Add {app} tool" opens
-    // it (jump to that app's actions), cleared for the header + (open on the app grid).
-    const [integrationDefaultKey, setIntegrationDefaultKey] = useState<string | undefined>(
-        undefined,
-    )
-    const openIntegration = useCallback((integrationKey?: string) => {
-        setIntegrationDefaultKey(integrationKey)
-        setIntegrationDrawerOpen(true)
-    }, [])
+    const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
+    // The integration whose permission drawer is open, addressed by provider and integration.
+    const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     const {
         editing,
@@ -172,26 +177,36 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         commitDraft,
         removeItem,
         draftInvalid,
+        draftUnchanged,
     } = useConfigItemDrawer({config, onChange})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
     const [instructionDraft, setInstructionDraft] = useState("")
+    // The content we opened with — Save is gated on a real diff against it, like the section drawers.
+    const [instructionOriginal, setInstructionOriginal] = useState("")
     const openInstruction = useCallback((filename: string, content: string) => {
         setInstructionDraft(content)
+        setInstructionOriginal(content)
         setEditingInstruction({filename})
     }, [])
+    const instructionDirty = instructionDraft !== instructionOriginal
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
     // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
-    // we opened with). The build-kit enable toggle lives OUTSIDE the config (a persisted atom), so it
-    // is buffered alongside the config draft and committed to the atom on Save.
+    // we opened with). The build-kit state lives OUTSIDE the config (playground-only atoms), so it is
+    // buffered alongside the config draft and committed to the atoms on Save.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
-    const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
-    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
-        null,
-    )
+    const [draftBuildKit, setDraftBuildKit] = useState<BuildKitUiState | null>(null)
+    const sectionBaseline = useRef<{
+        config: Record<string, unknown>
+        buildKit: BuildKitUiState
+    } | null>(null)
+    // The revision the open drawer was snapshotted against. State, not a ref: the drawer BODY reads
+    // it during render, and both its overlay and Save must stay on it even if the active revision
+    // changes underneath. Null whenever no section drawer is open.
+    const [sectionRevision, setSectionRevision] = useState<string | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
     const applyDraftConfig = useCallback(
@@ -205,7 +220,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             openSection !== null &&
             sectionBaseline.current !== null &&
             (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-                draftBuildKit !== sectionBaseline.current.buildKit),
+                !deepEqual(draftBuildKit, sectionBaseline.current.buildKit)),
         [openSection, draftConfig, draftBuildKit],
     )
     const openSectionDrawer = useCallback(
@@ -215,12 +230,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // Another section is open with unsaved edits: drop the request rather than clobber it.
             if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
-            const snapshotBuildKit = store.get(
-                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
-            )
+            const snapshotRevision = revisionIdRef.current ?? ""
+            const snapshotBuildKit: BuildKitUiState = {
+                enabled: store.get(workflowBuildKitEnabledAtomFamily(snapshotRevision)),
+                disabledOps: store.get(workflowBuildKitDisabledOpsAtomFamily(snapshotRevision)),
+            }
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
-            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+            setSectionRevision(snapshotRevision)
+            sectionBaseline.current = {
+                config: snapshotConfig,
+                buildKit: snapshotBuildKit,
+            }
             setOpenSection(key)
         },
         [value, store, openSection, isCurrentSectionDirty],
@@ -229,6 +250,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         setOpenSection(null)
         setDraftConfig(null)
         setDraftBuildKit(null)
+        setSectionRevision(null)
         sectionBaseline.current = null
     }, [])
 
@@ -270,10 +292,20 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         }
         if (draftBuildKit !== null) {
-            store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
+            const revision = sectionRevision ?? revisionIdRef.current ?? ""
+            store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
+            store.set(workflowBuildKitDisabledOpsAtomFamily(revision), draftBuildKit.disabledOps)
         }
         closeSectionDraft()
-    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
+    }, [
+        draftConfig,
+        draftBuildKit,
+        openSection,
+        sectionRevision,
+        onChange,
+        store,
+        closeSectionDraft,
+    ])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
@@ -374,10 +406,40 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         handleRemoveToolByName,
         handleRemoveBuiltinTool,
         selectedToolNames,
-        selectedGatewayIds,
-        removeGatewayToolByIdentity,
         referenceableWorkflows,
+        integrationRows,
+        setIntegrationConnection,
+        setIntegrationPermissions,
+        setIntegrationToolPermission,
+        removeIntegration,
+        migrateIntegrationEntries,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
+
+    /**
+     * Open one integration's permission drawer. Migration runs HERE, on the click, and never on a
+     * page load: viewing an untouched agent must not rewrite it. An integration whose legacy
+     * entries name two or more connections is left alone and the drawer says why.
+     */
+    const openIntegrationPermissions = useCallback(
+        (row: IntegrationRow) => {
+            // Target first: the migration write below re-renders the tree and swallowed the open.
+            setPermissionTarget({provider: row.provider, integration: row.integration})
+            migrateIntegrationEntries({provider: row.provider, integration: row.integration})
+        },
+        [migrateIntegrationEntries],
+    )
+
+    // The agent-wide `runner.permissions.default`. The "Ask for write and delete" preset saves
+    // `inherit`, which means "reads run, writes ask" only while this is its default, so the drawer
+    // says so when an author has changed it.
+    const agentPermissionPolicy = readRunnerPermission(config)
+
+    // Read back from the live config, so the drawer shows the migrated entry the click just wrote.
+    const permissionRow = useMemo(
+        () =>
+            permissionTarget ? findIntegrationRow(integrationRows, permissionTarget) : undefined,
+        [permissionTarget, integrationRows],
+    )
 
     // Legacy harness built-in entries render nowhere (ToolManagementList drops them), so the
     // header count and the section's open state must ignore them too.
@@ -562,8 +624,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
                 const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
-                    return {tone: "new", label: "New", tooltip: "Added since the last commit."}
-                return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+                    return {tone: "new", label: "New", tooltip: "Added since the last version."}
+                return {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
             },
         [committed, baseMaps],
     )
@@ -573,20 +635,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // shows the raw-JSON warning) so the row is marked BEFORE the drawer is opened. The probe
     // reuses the drawer's query family (low-priority fetch, 5-min cache), and the connection
     // registry is already loaded by the provider — no extra render-critical requests.
+    // Both kinds of gateway entry name a connection, so both get the connection checks below. Only
+    // an action entry names an action, which is what the availability probe needs.
     const gatewayToolViews = useMemo(() => {
-        const views = new Map<number, ParsedGatewayTool>()
+        const views = new Map<number, GatewayEntry>()
         tools.forEach((item, index) => {
-            const gw = parseGatewayTool(item)
-            if (gw) views.set(index, gw)
+            const entry = parseGatewayEntry(item)
+            if (entry) views.set(index, entry)
         })
         return views
     }, [tools])
     const actionProbePairs = useMemo(
         () =>
             gatewayTools?.enabled
-                ? [...gatewayToolViews.values()]
-                      .filter((v) => v.encoding === "canonical")
-                      .map((v) => ({integrationKey: v.integration, actionKey: v.action}))
+                ? [...gatewayToolViews.values()].flatMap((v) =>
+                      v.kind === "action" && v.action.encoding === "canonical"
+                          ? [{integrationKey: v.action.integration, actionKey: v.action.action}]
+                          : [],
+                  )
                 : [],
         [gatewayToolViews, gatewayTools?.enabled],
     )
@@ -605,12 +671,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }, [gatewayTools])
     const toolResolutionStatus = useCallback(
         (index: number): ItemRowStatus | undefined => {
-            const gw = gatewayToolViews.get(index)
-            if (!gw) return undefined
+            const entry = gatewayToolViews.get(index)
+            if (!entry) return undefined
             if (
-                gw.encoding === "canonical" &&
-                actionAvailability[toolActionAvailabilityKey(gw.integration, gw.action)] ===
-                    "missing"
+                entry.kind === "action" &&
+                entry.action.encoding === "canonical" &&
+                actionAvailability[
+                    toolActionAvailabilityKey(entry.action.integration, entry.action.action)
+                ] === "missing"
             ) {
                 return {
                     tone: "invalid",
@@ -621,19 +689,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
             // Null while connections are still loading: never flash "Unresolved" on a slow load.
             if (!connectionLookup) return undefined
-            const connection = connectionLookup.get(gw.connection)
+            const slug =
+                entry.kind === "connection" ? entry.connection.connection : entry.action.connection
+            const connection = connectionLookup.get(slug)
             if (!connection) {
                 return {
                     tone: "invalid",
                     label: "Unresolved",
-                    tooltip: `The "${gw.connection}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
+                    tooltip: `The "${slug}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
                 }
             }
             if (connection.flags?.is_valid === false) {
                 return {
                     tone: "incomplete",
                     label: "Reconnect",
-                    tooltip: `The ${connection.name || gw.connection} connection needs to be re-authenticated.`,
+                    tooltip: `The ${connection.name || slug} connection needs to be re-authenticated.`,
                 }
             }
             return undefined
@@ -707,7 +777,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
-                tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
+                tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
             }
         return undefined
     }
@@ -728,7 +798,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ) : null
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
-        ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+        ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
@@ -829,13 +899,20 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             content: (
                 <ToolManagementList
                     tools={tools}
-                    entityId={revisionId}
+                    integrationRows={integrationRows}
                     openEdit={openEdit}
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
                     statusFor={toolStatusFor}
-                    onOpenIntegration={gatewayTools?.enabled ? openIntegration : undefined}
+                    onAddIntegration={gatewayTools?.enabled ? openIntegration : undefined}
+                    onOpenIntegration={
+                        gatewayTools?.enabled ? openIntegrationPermissions : undefined
+                    }
+                    onRemoveIntegration={(row) => {
+                        removeIntegration(row)
+                        closeEditor()
+                    }}
                     // The empty-state add is the same popover as the header +.
                     emptyAdd={
                         <AgentToolSelectorPopover
@@ -935,22 +1012,37 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
+                      // Skills state their identity in the form, so the drawer drops the icon,
+                      // badge, subtitle and footer note (rows still show them).
+                      const bareChrome = shownEditing.kind === "skill"
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={def.icon}
+                              icon={bareChrome ? undefined : def.icon}
                               title={def.drawerTitle(draft)}
-                              badge={{text: desc.typeLabel, color: desc.typeColor}}
-                              subtitle={desc.subtitle}
-                              footerNote="Changes apply to this agent configuration"
+                              badge={
+                                  bareChrome
+                                      ? undefined
+                                      : {text: desc.typeLabel, color: desc.typeColor}
+                              }
+                              subtitle={bareChrome ? undefined : desc.subtitle}
+                              footerNote={
+                                  bareChrome
+                                      ? undefined
+                                      : "Changes apply to this agent configuration"
+                              }
                               width={def.drawerWidth}
                               contentFlush={def.formFlush}
                               view={drawerView}
                               onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
-                              saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
+                              saveDisabled={
+                                  draftInvalid ||
+                                  draftUnchanged ||
+                                  (drawerView === "json" && jsonInvalid)
+                              }
                               jsonOnly={def.jsonOnly(draft)}
                               disabled={readOnly}
                               form={
@@ -990,6 +1082,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         setEditingInstruction(null)
                     }}
                     disabled={disabled}
+                    dirty={instructionDirty}
                 />
             )}
 
@@ -1016,8 +1109,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
+                        revisionId={sectionRevision ?? revisionId}
+                        buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1040,8 +1133,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
+                        revisionId={sectionRevision ?? revisionId}
+                        buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1062,14 +1155,29 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             {gatewayTools?.enabled && (
                 <AgentIntegrationDrawer
                     open={integrationDrawerOpen}
-                    onClose={() => {
-                        setIntegrationDrawerOpen(false)
-                        setIntegrationDefaultKey(undefined)
-                    }}
-                    onAddTool={handleAddTool}
-                    onRemoveToolByIdentity={removeGatewayToolByIdentity}
-                    selectedGatewayIds={selectedGatewayIds}
-                    defaultIntegrationKey={integrationDefaultKey}
+                    onClose={() => setIntegrationDrawerOpen(false)}
+                    integrationRows={integrationRows}
+                    onAddIntegration={setIntegrationConnection}
+                />
+            )}
+
+            {gatewayTools?.enabled && permissionTarget && (
+                <IntegrationPermissionDrawer
+                    open
+                    onClose={() => setPermissionTarget(null)}
+                    target={permissionTarget}
+                    connectionSlug={
+                        permissionRow ? (integrationRowConnection(permissionRow) ?? "") : ""
+                    }
+                    permissions={permissionRow?.entry?.permissions ?? null}
+                    onChangePermissions={(next) =>
+                        setIntegrationPermissions(permissionTarget, next)
+                    }
+                    onChangeToolPermission={(toolKey, permission) =>
+                        setIntegrationToolPermission(permissionTarget, toolKey, permission)
+                    }
+                    agentPolicy={agentPermissionPolicy}
+                    disabled={disabled}
                 />
             )}
         </div>

@@ -8,7 +8,6 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import type {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -206,8 +205,7 @@ export async function transitionInteraction({
             session_id: sessionId,
             token,
             status,
-            // The generated type predates the widened resolution payload.
-            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+            resolution,
         },
         projectScopedRequest(projectId, appId, abortSignal),
     )
@@ -316,6 +314,8 @@ export interface QuerySessionsPageParams {
     turnReferences?: {id?: string; slug?: string; version?: string}[]
     includeEnded?: boolean
     includeArchived?: boolean
+    /** Only archived sessions. Wins over `includeArchived` server-side. */
+    archivedOnly?: boolean
     includeTotal?: boolean
     expand?: SessionExpansion[]
     windowing?: SessionWindowingParams
@@ -330,6 +330,8 @@ export interface QuerySessionsParams {
     references?: {id?: string; slug?: string; version?: string}[]
     includeEnded?: boolean
     includeArchived?: boolean
+    /** Only archived sessions. Wins over `includeArchived` server-side. */
+    archivedOnly?: boolean
     search?: string
     flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
     sessionIds?: string[]
@@ -393,6 +395,7 @@ export async function querySessionsPage({
     turnReferences,
     includeEnded,
     includeArchived,
+    archivedOnly,
     includeTotal,
     expand,
     windowing,
@@ -415,6 +418,7 @@ export async function querySessionsPage({
                 turn_references: turnReferences,
                 include_ended: includeEnded,
                 include_archived: includeArchived,
+                archived_only: archivedOnly,
                 include_total: includeTotal,
                 expand,
                 windowing,
@@ -433,6 +437,7 @@ export async function querySessions({
     references,
     includeEnded = true,
     includeArchived = true,
+    archivedOnly,
     search,
     flags,
     sessionIds,
@@ -465,6 +470,7 @@ export async function querySessions({
         turnReferences: references,
         includeEnded,
         includeArchived,
+        archivedOnly,
         windowing:
             limit !== undefined ||
             next !== undefined ||

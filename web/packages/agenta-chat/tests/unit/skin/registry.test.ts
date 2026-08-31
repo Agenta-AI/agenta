@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     hasClientToolWidget,
     registerChatSkin,
-    resolveApprovalBody,
+    resolveApprovalDescriber,
     resolveClientToolWidget,
     resolveToolDisplay,
 } from "../../../src/skin/registry"
@@ -85,26 +85,23 @@ describe("clientTools registry", () => {
 })
 
 describe("approvals registry", () => {
-    it("round-trips a registration and resolves it by tool name", () => {
-        const Body = () => null
-        registerChatSkin({approvals: {ap_commit: {Body, headline: null, approveLabel: "Approve"}}})
-        const entry = resolveApprovalBody("ap_commit")
-        expect(entry?.Body).toBe(Body)
-        expect(entry?.headline).toBeNull()
-        expect(entry?.approveLabel).toBe("Approve")
+    it("round-trips a describer and resolves it by tool name", () => {
+        const describe_ = () => ({sentence: "Save it.", items: []})
+        registerChatSkin({approvals: {ap_commit: describe_}})
+        expect(resolveApprovalDescriber("ap_commit")).toBe(describe_)
     })
 
-    it("resolves undefined for an unregistered tool name (generic card)", () => {
-        expect(resolveApprovalBody("ap_never_registered")).toBeUndefined()
+    it("resolves undefined for an unregistered tool name (the generic describer runs)", () => {
+        expect(resolveApprovalDescriber("ap_never_registered")).toBeUndefined()
     })
 
     it("a later registration wins over an earlier one for the same tool name", () => {
-        const First = () => null
-        const Second = () => null
-        registerChatSkin({approvals: {ap_wins: {Body: First}}})
-        expect(resolveApprovalBody("ap_wins")?.Body).toBe(First)
-        registerChatSkin({approvals: {ap_wins: {Body: Second}}})
-        expect(resolveApprovalBody("ap_wins")?.Body).toBe(Second)
+        const first = () => ({sentence: "first", items: []})
+        const second = () => ({sentence: "second", items: []})
+        registerChatSkin({approvals: {ap_wins: first}})
+        expect(resolveApprovalDescriber("ap_wins")).toBe(first)
+        registerChatSkin({approvals: {ap_wins: second}})
+        expect(resolveApprovalDescriber("ap_wins")).toBe(second)
     })
 })
 

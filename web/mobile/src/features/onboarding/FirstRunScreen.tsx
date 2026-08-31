@@ -6,6 +6,7 @@ import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {useRouter} from "next/router"
 
 import {CONNECT_STEP_MODE} from "@/lib/connectStep"
+import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {SessionWorkspace} from "../chat/SessionWorkspace"
@@ -45,7 +46,7 @@ export const FirstRunScreen = ({
     // One session id for the whole pre-commit surface: the composer stages attachments against it
     // and the workspace keys its panes off it, so they must agree before the agent exists.
     const [sessionId] = useState(() => {
-        const id = crypto.randomUUID()
+        const id = newId()
         markSessionFresh(id)
         return id
     })

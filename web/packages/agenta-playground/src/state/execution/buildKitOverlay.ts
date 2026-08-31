@@ -128,6 +128,22 @@ export function applyBuildKitOverlay(
     return result
 }
 
+// A switched-off op is simply absent from the run copy — the wire tool config forbids extra fields.
+const withoutDisabledOps = (
+    overlay: AgentTemplate,
+    disabledOps: readonly string[],
+): AgentTemplate => {
+    if (disabledOps.length === 0 || !Array.isArray(overlay.tools)) return overlay
+    const disabled = new Set(disabledOps)
+    return {
+        ...overlay,
+        tools: (overlay.tools as unknown[]).filter(
+            (entry) =>
+                !(isRecord(entry) && entry.type === "platform" && disabled.has(entry.op as string)),
+        ),
+    }
+}
+
 /**
  * Apply the overlay to the run parameters. Handles both shapes `buildAgentRequest` produces: a
  * `{agent: <template>}` wrapper and a bare template (no `agent` key). Skipping the bare shape would
@@ -137,13 +153,15 @@ export const withBuildKitOverlay = (
     parameters: Record<string, unknown>,
     overlay: AgentTemplate | null,
     enabled: boolean,
+    disabledOps: readonly string[] = [],
 ): Record<string, unknown> => {
     if (!enabled || !overlay) return parameters
+    const effective = withoutDisabledOps(overlay, disabledOps)
     if (isRecord(parameters.agent)) {
         return {
             ...parameters,
-            agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, overlay),
+            agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, effective),
         }
     }
-    return applyBuildKitOverlay(parameters as AgentTemplate, overlay) as Record<string, unknown>
+    return applyBuildKitOverlay(parameters as AgentTemplate, effective) as Record<string, unknown>
 }

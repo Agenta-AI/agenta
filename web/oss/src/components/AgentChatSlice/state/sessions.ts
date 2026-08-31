@@ -108,12 +108,62 @@ const tabLocalStorage = <T>() => {
     return storage
 }
 
-/** Full per-scope session history (open AND closed). */
-const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
+/**
+ * Storage keys written before the store was partitioned by project. They carried session history
+ * and message bodies keyed by AGENT ID alone — no project, workspace or user — so they survived a
+ * sign-out and were readable by whoever signed in next on that browser. Dropped rather than
+ * migrated: attributing them to whichever project happens to be active would carry the leak
+ * forward one more time, and the reconciler already re-adopts anything the server knows (the
+ * "post-localStorage-wipe" path below).
+ */
+const LEGACY_UNSCOPED_KEYS = [
     "agenta:agent-chat:sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
+    "agenta:agent-chat:deleted-sessions",
+    "agenta:agent-chat:open-sessions",
+    "agenta:agent-chat:active-session",
+]
+
+if (typeof window !== "undefined") {
+    try {
+        for (const key of LEGACY_UNSCOPED_KEYS) window.localStorage.removeItem(key)
+    } catch {
+        // Storage disabled (private mode, blocked cookies) — nothing persisted there to drop.
+    }
+}
+
+/**
+ * A per-scope record, partitioned by PROJECT underneath.
+ *
+ * Consumers still see `Record<scopeKey, T>` and are unchanged; only the persisted shape gains the
+ * project dimension. Project alone is enough to isolate an account: switching workspace mints a
+ * new project id, so there is nothing a workspace key would separate that this does not.
+ *
+ * With no project resolved yet the read is empty and the write is dropped. Persisting under a
+ * blank key would build a bucket that every project sees — the leak this exists to close.
+ */
+const projectScopedRecordAtom = <T>(storageKey: string) => {
+    const byProject = atomWithStorage<Record<string, Record<string, T>>>(
+        storageKey,
+        {},
+        tabLocalStorage(),
+        STORAGE_OPTS,
+    )
+    return atom(
+        (get) => {
+            const projectId = get(projectIdAtom)
+            return projectId ? (get(byProject)[projectId] ?? {}) : {}
+        },
+        (get, set, next: Record<string, T>) => {
+            const projectId = get(projectIdAtom)
+            if (!projectId) return
+            set(byProject, {...get(byProject), [projectId]: next})
+        },
+    )
+}
+
+/** Full per-scope session history (open AND closed). */
+const sessionsByAppAtom = projectScopedRecordAtom<AgentChatSession[]>(
+    "agenta:agent-chat:sessions:v2",
 )
 
 /**
@@ -137,41 +187,29 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
  * scopes either, so a tombstone has nothing to guard there; it is simply never pruned. Bounded by
  * how many sessions a user deletes in that scope, so it is left as-is rather than special-cased.
  */
-const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
-    "agenta:agent-chat:deleted-sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
+const deletedIdsByAppAtom = projectScopedRecordAtom<string[]>(
+    "agenta:agent-chat:deleted-sessions:v2",
 )
 
 /**
- * Which sessions are open as tabs, per scope, in tab order.
+ * Which sessions are open as tabs, per scope, in tab order. This list is the ONLY thing that opens
+ * a tab: history is not an open set (#6295).
  *
- * Migration: before this atom is ever written for a scope, the open set defaults to the whole
- * history — every pre-upgrade session was an open tab (see `currentOpenIds`). Once any tab op
- * writes an explicit list, that list is authoritative.
+ * This used to fall back to "the whole history is open" for a scope it had never been written for,
+ * to carry pre-`:v2` sessions across the rekey. Those keys are hard-deleted at module load
+ * (`LEGACY_UNSCOPED_KEYS`), so the fallback had nothing left to migrate — what it did instead was
+ * hand the strip every session the reconciler adopts, and that includes every automation and cron
+ * run for the agent (`projectSessionsQuery`: no origin filter, ended and archived included). Tabs
+ * opened themselves at one per background run, forever, because reconcile never writes this list
+ * and so never leaves the fallback.
  */
-const openIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
-    "agenta:agent-chat:open-sessions",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
-)
+const openIdsByAppAtom = projectScopedRecordAtom<string[]>("agenta:agent-chat:open-sessions:v2")
 
-const activeByAppAtom = atomWithStorage<Record<string, string>>(
-    "agenta:agent-chat:active-session",
-    {},
-    tabLocalStorage(),
-    STORAGE_OPTS,
-)
+const activeByAppAtom = projectScopedRecordAtom<string>("agenta:agent-chat:active-session:v2")
 
-/** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
- * for the writers below — never mutates. */
-const currentOpenIds = (get: Getter, key: string): string[] => {
-    const explicit = get(openIdsByAppAtom)[key]
-    if (explicit) return explicit
-    return (get(sessionsByAppAtom)[key] ?? []).map((s) => s.id)
-}
+/** Open tab ids for a scope — no tabs until something opens one. Pure read helper for the writers
+ * below; never mutates. */
+const currentOpenIds = (get: Getter, key: string): string[] => get(openIdsByAppAtom)[key] ?? []
 
 /**
  * A "husk": a session the user never initiated — no user title AND no messages. It has no backend
@@ -179,10 +217,12 @@ const currentOpenIds = (get: Getter, key: string): string[] => {
  * dropped rather than left in history. Reload-proof (reads persisted title + messages), so it also
  * catches never-run sessions whose in-memory "fresh" marker was lost to a reload.
  */
-export const isSessionHusk = (
-    session: AgentChatSession,
-    messages: Record<string, UIMessage[]>,
-): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
+export const isSessionHusk = (session: AgentChatSession, hasMessages: boolean): boolean =>
+    !session.serverKnown && !session.title?.trim() && !hasMessages
+
+/** Does this session hold any message? The one thing `isSessionHusk` needs off the record. */
+export const sessionHasMessages = (messages: Record<string, UIMessage[]>, id: string): boolean =>
+    Boolean(messages[id]?.length)
 
 /** Ordering key: most-recent message first, falling back to creation time, then 0 (pre-upgrade
  * sessions with neither sort last, preserving their order). */
@@ -274,9 +314,56 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
 
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
-        if (session && isSessionHusk(session, get(sessionMessagesAtom))) {
+        if (session && isSessionHusk(session, sessionHasMessages(get(sessionMessagesAtom), id))) {
             set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
             clearSessionEphemera(id)
+        }
+    }),
+)
+
+/**
+ * Close several tabs in one write — the strip's "Close others" and "Close tabs to the right".
+ *
+ * Same rules as closing one, so a never-run husk among them is discarded rather than left in
+ * history. Callers pass explicit ids because what counts as "to the right" is the RENDERED order
+ * (pinned tabs lead), which only the strip knows.
+ */
+export const closeSessionsAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, ids: string[]) => {
+        const closing = new Set(ids)
+        if (closing.size === 0) return
+        const open = currentOpenIds(get, key)
+        const nextOpen = open.filter((id) => !closing.has(id))
+        if (nextOpen.length === open.length) return
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+
+        const active = get(activeByAppAtom)
+        const activeId = active[key]
+        if (activeId && closing.has(activeId)) {
+            // Nearest survivor: the tab that slides into this slot, else the closest one before it.
+            const index = open.indexOf(activeId)
+            const after = open.slice(index).find((id) => !closing.has(id))
+            const before = open
+                .slice(0, index)
+                .reverse()
+                .find((id) => !closing.has(id))
+            set(activeByAppAtom, {...active, [key]: after ?? before ?? ""})
+        }
+
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        const messages = get(sessionMessagesAtom)
+        const husks = new Set(
+            list
+                .filter(
+                    (s) =>
+                        closing.has(s.id) && isSessionHusk(s, sessionHasMessages(messages, s.id)),
+                )
+                .map((s) => s.id),
+        )
+        if (husks.size > 0) {
+            set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !husks.has(s.id))})
+            for (const id of husks) clearSessionEphemera(id)
         }
     }),
 )
@@ -313,7 +400,11 @@ export const pruneSessionHusksAtomFamily = atomFamily((key: string) =>
         const open = new Set(currentOpenIds(get, key))
         const messages = get(sessionMessagesAtom)
         const staleIds = new Set(
-            list.filter((s) => !open.has(s.id) && isSessionHusk(s, messages)).map((s) => s.id),
+            list
+                .filter(
+                    (s) => !open.has(s.id) && isSessionHusk(s, sessionHasMessages(messages, s.id)),
+                )
+                .map((s) => s.id),
         )
         if (staleIds.size === 0) return
         set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !staleIds.has(s.id))})
@@ -608,7 +699,6 @@ export const adoptScopeSessionsAtom = atom(
         nextSessions[to] = [...moved, ...(sessions[to] ?? []).filter((s) => !movedIds.has(s.id))]
         set(sessionsByAppAtom, nextSessions)
 
-        // Resolve the source's open set through the pre-upgrade fallback (everything open).
         const movedOpen = currentOpenIds(get, from)
         const open = get(openIdsByAppAtom)
         const nextOpen = {...open}
@@ -765,6 +855,14 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/**
+ * Per-session "does it hold a message", as a focused selector. A BOOLEAN for the same reason as
+ * the selector above: the rail reads it per row, and the whole record changes on every token.
+ */
+export const sessionHasMessagesAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionMessagesAtom, (all) => sessionHasMessages(all, id)),
 )
 
 /** Active tab title without subscribing to streamed assistant content. */

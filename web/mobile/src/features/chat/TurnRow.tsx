@@ -2,34 +2,32 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {StartupActivity, TurnMetrics, TurnTimestamp} from "@agenta/chat/components"
+import {CollapsibleMessageBody, StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
-import {useStartupPhase} from "@agenta/chat/state"
+import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatActionIconButton,
     ChatBubble,
     ChatBubbleAvatar,
     ChatTypingDots,
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
 import {
     Ban,
     Bot,
     Brain,
-    Check,
     CheckCircle2,
     ChevronRight,
     CircleDashed,
-    Copy,
-    Network,
-    Undo2,
     User,
     Wrench,
     XCircle,
@@ -41,8 +39,26 @@ import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
+/** Split out so a COLLAPSED fold does not run a frame loop revealing text nobody can see. */
+const ReasoningBody = ({text, urgent}: {text: string; urgent?: boolean}) => {
+    const {text: revealed} = useTypewriter(text, {urgent})
+    return (
+        <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
+            {revealed}
+        </div>
+    )
+}
+
 /** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
-const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) => {
+const ReasoningFold = ({
+    text,
+    streaming,
+    urgent,
+}: {
+    text: string
+    streaming: boolean
+    urgent?: boolean
+}) => {
     const [manual, setManual] = useState<boolean | null>(null)
     const open = manual ?? streaming
     return (
@@ -59,11 +75,7 @@ const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) =>
                 <Brain className="size-3" />
                 <span>{streaming ? "Thinking…" : "Thought"}</span>
             </button>
-            {open ? (
-                <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {text}
-                </div>
-            ) : null}
+            {open ? <ReasoningBody text={text} urgent={urgent} /> : null}
         </div>
     )
 }
@@ -179,14 +191,25 @@ const RunErrorCallout = ({text}: {text: string}) => {
  * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
  * progress rather than a stall, and /m dropped that narration entirely.
  */
-const PendingTurn = ({sessionId}: {sessionId: string}) => {
+const TurnAvatar = ({
+    isUser = false,
+    workflowId,
+}: {
+    isUser?: boolean
+    workflowId?: string | null
+}) => {
+    if (isUser) return <ChatBubbleAvatar icon={<User className="size-4" />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Bot className="size-4" />} />
+}
+
+const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: string | null}) => {
     const startupPhase = useStartupPhase(sessionId)
     return (
         <div className={`${turnRowClass} justify-start`}>
             <ChatBubble
                 placement="start"
                 variant="borderless"
-                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
+                avatar={<TurnAvatar workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 content={
                     startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
@@ -207,6 +230,7 @@ export const TurnRow = ({
     onClientToolOutput,
     onRewind,
     sessionId,
+    workflowId,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -217,9 +241,10 @@ export const TurnRow = ({
     onRewind?: (turn: TurnViewModel) => void
     /** Scopes the startup narration to this conversation. */
     sessionId: string
+    /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
+    workflowId?: string | null
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [copied, setCopied] = useState(false)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
     const renderMap = useMemo(
@@ -233,26 +258,16 @@ export const TurnRow = ({
     const usage = getMessageUsage(turn.message)
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
-    const handleCopy = async () => {
-        const text = (turn.message.parts ?? [])
-            .filter((part) => part.type === "text")
-            .map((part) => (part as {text?: string}).text ?? "")
-            .join("\n")
-            .trim()
-        if (!text) return
-        try {
-            await navigator.clipboard.writeText(text)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-        } catch {
-            // Clipboard denied (insecure origin, or the user said no) — nothing to recover.
-        }
-    }
+    const copyText = (turn.message.parts ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => (part as {text?: string}).text ?? "")
+        .join("\n")
+        .trim()
 
     // Only the turn being generated shows the loading state, and only until it has content —
     // the same gate the desktop uses.
     if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
-        return <PendingTurn sessionId={sessionId} />
+        return <PendingTurn sessionId={sessionId} workflowId={workflowId} />
     }
 
     const body = (
@@ -277,6 +292,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 streaming={isLiveTextItem(turn, position)}
                                 text={item.part.text}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
@@ -289,6 +305,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 text={item.part.text}
                                 streaming={isLiveTextItem(turn, position)}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
@@ -316,64 +333,51 @@ export const TurnRow = ({
         </div>
     )
 
+    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    const content = turn.isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
+            {body}
+        </CollapsibleMessageBody>
+    ) : (
+        body
+    )
+
     return (
         <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser ? "filled" : "borderless"}
-                avatar={
-                    <ChatBubbleAvatar
-                        icon={
-                            turn.isUser ? <User className="size-4" /> : <Bot className="size-4" />
-                        }
-                    />
-                }
+                avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                    content: turn.isUser
+                        ? `${userBubbleContentClass} text-xs`
+                        : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                content={content}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same
                 lane the desktop transcript reserves, so a settled turn reads quietly until you
                 reach for it. */}
             <div
                 className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
-                    turn.isUser ? "right-2" : "left-10"
+                    turn.isUser ? "right-11" : "left-11"
                 }`}
             >
-                <TurnTimestamp
+                <TurnFooter
                     messageId={turn.message.id}
                     traceId={traceId}
                     turnTraceId={turn.turnTraceId}
+                    isUser={turn.isUser}
+                    isStreaming={turn.isStreamingTurn}
+                    usage={usage}
+                    copyText={copyText}
+                    // Rewinding the LAST turn just re-runs the turn that is already current, so the
+                    // desktop hides it there and so do we.
+                    onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
+                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
                 />
-                <TurnMetrics traceId={traceId} usage={usage} />
-                <ChatActionIconButton
-                    label={copied ? "Copied" : "Copy"}
-                    icon={copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                    onClick={handleCopy}
-                />
-                {/* Rewinding the LAST turn just re-runs the turn that is already current, so the
-                    desktop hides it there and so do we. */}
-                {onRewind && !turn.isLast ? (
-                    <ChatActionIconButton
-                        label={
-                            turn.isUser
-                                ? "Rewind here — edit and re-run the conversation from this message"
-                                : "Rewind here — re-run this turn"
-                        }
-                        icon={<Undo2 className="size-3.5" />}
-                        onClick={() => onRewind(turn)}
-                    />
-                ) : null}
-                {traceId ? (
-                    <ChatActionIconButton
-                        label="View trace"
-                        icon={<Network className="size-3.5" />}
-                        onClick={() => openTraceDrawer({traceId})}
-                    />
-                ) : null}
             </div>
         </div>
     )

@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import hmac
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 from uuid import UUID
 
@@ -1423,7 +1423,8 @@ class TriggersService:
 
     @staticmethod
     def _validate_schedule(expr: str) -> None:
-        """Reject anything that is not a valid 5-field cron expression (UTC)."""
+        """Reject anything that is not a valid 5-field cron expression (UTC), or
+        that fires more often than ``env.triggers.schedule_min_interval_minutes``."""
         if not isinstance(expr, str) or len(expr.split()) != 5:
             raise TriggerScheduleInvalid(
                 schedule=expr if isinstance(expr, str) else None,
@@ -1434,6 +1435,73 @@ class TriggersService:
                 schedule=expr,
                 reason="cron expression is not parseable",
             )
+
+        floor = env.triggers.schedule_min_interval_minutes
+        gap = TriggersService._smallest_gap_minutes(expr, stop_below=floor)
+        if gap is not None and gap < floor:
+            raise TriggerScheduleInvalid(
+                f"Schedule may run at most once every {floor} minutes, "
+                f"but this one runs every {TriggersService._humanize_gap(gap)}.",
+                schedule=expr,
+                reason=f"fires every {TriggersService._humanize_gap(gap)}, "
+                f"below the {floor}-minute minimum",
+            )
+
+    # A cron's tightest gap always appears within two days of its FIRST fire: a
+    # sub-daily gap needs a multi-valued minute or hour field, and those repeat on
+    # every day the day-fields admit. Anchoring on the first fire rather than on the
+    # scan's base keeps that true for day-restricted expressions such as
+    # "0,1 0 31 1 *", whose only fires sit a month out.
+    _SCHEDULE_SCAN_WINDOW_MINUTES = 2 * 24 * 60
+    # Backstop against a pathological expression. Two days of every-minute fires is
+    # 2880 samples, and the loop exits early the moment it finds a violating gap.
+    _SCHEDULE_SCAN_MAX_SAMPLES = 5000
+
+    @staticmethod
+    def _smallest_gap_minutes(expr: str, *, stop_below: int) -> Optional[float]:
+        """Smallest gap in minutes between two consecutive fires of ``expr``.
+
+        Returns ``None`` when the expression fires at most once inside the scan
+        window, which means it is sparser than the window and clears any floor.
+        Stops as soon as a gap below ``stop_below`` is found, so a runaway
+        expression costs two samples rather than the full window.
+        """
+        try:
+            iterator = croniter(expr, datetime(2024, 1, 1, tzinfo=timezone.utc))
+            previous = iterator.get_next(datetime)
+        except Exception:  # pylint: disable=broad-exception-caught
+            # croniter validated the expression above; a date it cannot resolve
+            # (e.g. "0 0 30 2 *") never fires, so there is no cadence to police.
+            return None
+
+        horizon = previous + timedelta(
+            minutes=TriggersService._SCHEDULE_SCAN_WINDOW_MINUTES
+        )
+        smallest: Optional[float] = None
+
+        for _ in range(TriggersService._SCHEDULE_SCAN_MAX_SAMPLES):
+            try:
+                current = iterator.get_next(datetime)
+            except Exception:  # pylint: disable=broad-exception-caught
+                break
+            if current > horizon:
+                break
+            gap = (current - previous).total_seconds() / 60
+            smallest = gap if smallest is None else min(smallest, gap)
+            if smallest < stop_below:
+                break
+            previous = current
+
+        return smallest
+
+    @staticmethod
+    def _humanize_gap(minutes: float) -> str:
+        """Render a gap for an error message: "1 minute", "5 minutes", "2 hours"."""
+        if minutes >= 60 and minutes % 60 == 0:
+            hours = int(minutes // 60)
+            return f"{hours} hour" if hours == 1 else f"{hours} hours"
+        rounded = int(minutes) if float(minutes).is_integer() else round(minutes, 1)
+        return f"{rounded} minute" if rounded == 1 else f"{rounded} minutes"
 
     @staticmethod
     def _align_to_minute_utc(dt: Optional[datetime]) -> Optional[datetime]:
