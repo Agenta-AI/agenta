@@ -149,7 +149,9 @@ export const useComposerAttachments = ({
             setFiles((prev) => [...prev, ...staged])
             if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
         }
-        setRejections(allRejections)
+        // Append: a rejection stays until it is dismissed or the message is sent. Replacing the
+        // list made an earlier failure vanish the moment another file was attached.
+        if (allRejections.length) setRejections((prev) => [...prev, ...allRejections])
     }
 
     // Removing a chip also aborts its in-flight request.

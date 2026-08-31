@@ -195,9 +195,11 @@ export const AttachmentCard = ({
         </div>
     )
 
+    // A failed card does not stretch its label: the reason is short and the dismiss control
+    // belongs beside the text, not marooned at the far edge of a full-width row.
     const label = (
         <span
-            className={`min-w-0 flex-1 truncate text-left text-sm ${failed ? "text-colorError" : "text-colorText"}`}
+            className={`min-w-0 truncate text-left text-sm ${failed ? "text-colorError" : "flex-1 text-colorText"}`}
             title={failed ? `${name} · ${errorReason}` : name}
         >
             {failed ? (
