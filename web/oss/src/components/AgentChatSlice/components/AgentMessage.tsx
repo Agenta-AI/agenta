@@ -222,13 +222,11 @@ export const RunErrorBody = ({
                         className="mt-1"
                         onClick={() => requestProviderDrawer(true)}
                     >
-                        {/* TODO(copy: owner) */}
                         Add your key
                     </Button>
                 )}
                 {offerRetry && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
-                        {/* TODO(copy: owner) */}
                         Try again
                     </Button>
                 )}
