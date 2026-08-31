@@ -22,9 +22,16 @@
  * session open, ~10s), so a healthy sandbox pays nothing.
  *
  * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries ONCE
- * with a brand-new sandbox (`withStuckSubstitutionRetry`), because the twin experiment
- * proved a new sandbox on the same Secret works. The user sees a slower first turn instead
- * of a failed one.
+ * with a brand-new sandbox, because the twin experiment proved a new sandbox on the same
+ * Secret works. The user sees a slower first turn instead of a failed one.
+ *
+ * THE 30-SECOND GRACE IS DAYTONA'S OWN NUMBER (2026-08-31, their support, confirming our
+ * report): "If a retry on the same sandbox starts working within ~30s, you can keep it. If
+ * the placeholder is still going out after that, recreate. Retrying or restarting the same
+ * one will not help." So the preflight keeps probing to that bound before convicting — our
+ * own 20 samples saw nothing land between 3s and 180s, but their bound is authoritative for
+ * their system, and the grace runs concurrently with acquire setup so a healthy sandbox
+ * still pays nothing.
  *
  * SCOPE. Only a freshly created Daytona sandbox whose MODEL credential rides a Daytona
  * Secret and whose connection declares an endpoint base URL (the custom OpenAI-compatible
@@ -77,11 +84,10 @@ export interface CredentialPreflightInput {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_BUDGET_MS = 10_000;
-const DEFAULT_POLL_MS = 2_000;
+/** Daytona's stated keep-or-recreate bound: wiring that has not landed by ~30s never lands. */
+const DEFAULT_BUDGET_MS = 30_000;
+const DEFAULT_POLL_MS = 2_500;
 const CURL_TIMEOUT_S = 8;
-/** Raw echoes needed to convict. A healthy sandbox substitutes on probe 1, so 4 is generous. */
-const STUCK_CONVICTION_PROBES = 4;
 
 /**
  * Resolve "ok" when the sandbox's model credential substitutes on the wire (or nothing can be
@@ -136,7 +142,7 @@ export async function awaitCredentialSubstitution(
       }
       return "ok";
     }
-    if (attempt >= STUCK_CONVICTION_PROBES || elapsedMs + pollMs > budgetMs) {
+    if (elapsedMs + pollMs > budgetMs) {
       input.log(
         `[credential-preflight] STUCK: raw placeholder on all ${attempt} probes ` +
           `(${(elapsedMs / 1000).toFixed(1)}s); this sandbox will never substitute`,

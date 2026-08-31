@@ -77,19 +77,21 @@ describe("awaitCredentialSubstitution", () => {
     assert.match(logs[2], /substitution confirmed after 3 probes/);
   });
 
-  it("convicts the sandbox as STUCK after consecutive raw echoes", async () => {
-    // The fault is binary and permanent per sandbox (2026-08-30 measurement), so the verdict
-    // is "stuck", never a fail-open wait: only a fresh sandbox can serve the run.
+  it("convicts the sandbox as STUCK once Daytona's 30s bound is spent", async () => {
+    // Daytona's own guidance (2026-08-31): a sandbox still sending the placeholder after
+    // ~30s never recovers; recreate it. The verdict is "stuck", never a fail-open pass.
     const { run, logs, commands } = harness(["Received=dtn_****9maz"]);
     assert.equal(await run, "stuck");
-    assert.equal(commands.length, 4, "four consecutive raw echoes convict");
-    assert.match(
-      logs[logs.length - 1],
-      /STUCK: raw placeholder on all 4 probes/,
+    // Probes every 2s of fake clock against the 30s default: the conviction consumes the
+    // full grace rather than firing on a fixed probe count.
+    assert.ok(
+      commands.length >= 12,
+      `expected >=12 probes, got ${commands.length}`,
     );
+    assert.match(logs[logs.length - 1], /STUCK: raw placeholder on all/);
   });
 
-  it("convicts early when the budget runs out first", async () => {
+  it("convicts sooner when the caller passes a smaller budget", async () => {
     const { run, logs } = harness(["Received=dtn_****9maz"], 3_000);
     assert.equal(await run, "stuck");
     assert.match(logs[logs.length - 1], /STUCK/);
