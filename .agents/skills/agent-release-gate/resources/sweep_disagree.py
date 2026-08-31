@@ -24,9 +24,23 @@ the bare token `DISAGREE` when they do not. This sweep counts the DISAGREE token
 A DISAGREE line never fails a turn by design: the shadow must never break a run. That is exactly
 why it needs a sweep. One hit is a real finding.
 
+TRIAGED EXCEPTIONS. Three line shapes are known SHADOW-COMPARATOR modeling gaps, not evictions:
+the coordinator's behavior is correct and pinned by the runner's own tests, and only the shadow's
+model of it disagrees (triage 2026-08-31, `f7-disagree-triage.md`; the comparator fixes are a
+post-release follow-up). Without these exceptions the sweep fails on the runner's own expected
+behavior on every window with real config traffic, and a check that cries wolf on healthy runs
+stops being read.
+
+The exceptions are never silent. Every excluded line is printed with the shape that explains it
+and the triage marker, the excluded count is reported separately from the verdict, and a DISAGREE
+line matching NO triaged shape still fails. Each shape is anchored on both halves of the line
+(decision and plan), so it cannot swallow a real disagreement that merely shares a reason. Delete
+a shape when its comparator fix lands; `--no-exceptions` fails on every DISAGREE line and is how
+you prove a shape can go.
+
 EXIT CODES
-  0  PASS  -- no DISAGREE line in the window.
-  1  FAIL  -- at least one hit; the offending lines are printed.
+  0  PASS  -- no unexplained DISAGREE line in the window.
+  1  FAIL  -- at least one line matched no triaged shape; the offending lines are printed.
   2  SKIP  -- the runner log is not reachable (a remote deployment, or no docker). A SKIP prints
               its reason and counts as a failure to explain, never as a green result.
 
@@ -48,6 +62,73 @@ EXIT_SKIP = 2
 #: off unrelated `[reconcile]` lines, and the padded ` DISAGREE ` token cannot match the word
 #: DISAGREEMENTS that appears in the router's own source comments.
 DISAGREE_LINE = re.compile(r"\[reconcile\] shadow .*\sDISAGREE\s")
+
+#: Printed beside every excluded line. An exception a reader cannot trace is indistinguishable
+#: from a bug being hidden, so the provenance travels with the line, every time.
+TRIAGE_MARKER = "known comparator gap, triaged 2026-08-31, see f7-disagree-triage.md"
+
+#: Shapes the 2026-08-31 triage proved are SHADOW-COMPARATOR modeling gaps, not evictions.
+#:
+#: In each one the coordinator's behavior is correct and pinned by the runner's own tests; only
+#: the shadow's model of it disagrees. The comparator fixes are a post-release follow-up, so
+#: without these exceptions the sweep fails on the runner's own expected behavior on every window
+#: carrying real config traffic — and a check that cries wolf on healthy runs stops being read.
+#:
+#: Each entry is deliberately anchored on BOTH halves of the line, decision and plan. A shape that
+#: matched on the decision alone would swallow real disagreements that happen to share a reason.
+#: Delete an entry the moment its comparator fix lands; `--no-exceptions` is how you prove it has.
+KNOWN_COMPARATOR_GAPS: tuple[tuple[str, str, "re.Pattern[str]"], ...] = (
+    (
+        "reopen-session-vs-config-rebuild",
+        "the plan names a reopen, but a reopen reinstalls the OLD config, so the coordinator's "
+        "rebuild is the only sound route (the 7x cluster)",
+        re.compile(
+            r"decision=rebuild\(mismatch:config\).*plan=reuse\(reopen-session\)"
+        ),
+    ),
+    (
+        "approval-mismatch-under-environment-scope",
+        "the request carried no answer for the parked gate. That is a protocol fact, not an "
+        "environment fact, and the shadow call site labels it `environment`",
+        re.compile(
+            r"decision=rebuild\(approval-mismatch:unknown\).*plan=reuse\(no-op\)"
+        ),
+    ),
+    (
+        "approval-resume-deferral",
+        "the approval branch never compares the fingerprint, by design; the re-park keeps the "
+        "old applied fingerprint, so the next idle turn rebuilds",
+        re.compile(r"decision=reuse\(approval-resume\).*plan=rebuild\("),
+    ),
+)
+
+
+def classify_disagree(line: str) -> tuple[str, str] | None:
+    """The triaged shape this DISAGREE line matches, as `(name, why)`, or None when it is new."""
+    for name, why, pattern in KNOWN_COMPARATOR_GAPS:
+        if pattern.search(line):
+            return name, why
+    return None
+
+
+def partition_known_gaps(
+    lines: list[str], use_exceptions: bool = True
+) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Split DISAGREE lines into `(excluded, unexplained)`.
+
+    `excluded` carries `(shape name, why, line)` so the caller can print each one with its
+    provenance. `unexplained` is what fails the sweep: a DISAGREE line matching no triaged shape
+    is exactly the drift this check exists to catch.
+    """
+    excluded: list[tuple[str, str, str]] = []
+    unexplained: list[str] = []
+    for line in lines:
+        shape = classify_disagree(line) if use_exceptions else None
+        if shape is None:
+            unexplained.append(line)
+        else:
+            excluded.append((shape[0], shape[1], line))
+    return excluded, unexplained
 
 
 def base_is_local() -> bool:
@@ -113,6 +194,12 @@ def main() -> int:
         default=None,
         help="runner container name. Default: autodetect the local stack's runner via `docker ps`.",
     )
+    p.add_argument(
+        "--no-exceptions",
+        action="store_true",
+        help="fail on EVERY DISAGREE line, including the triaged comparator gaps. Run this once "
+        "the comparator fixes land: a clean result is the proof that an exception can be deleted.",
+    )
     args = p.parse_args()
 
     if not base_is_local():
@@ -139,19 +226,36 @@ def main() -> int:
         return EXIT_SKIP
 
     hits = [ln for ln in lines if DISAGREE_LINE.search(ln)]
-    if hits:
+    excluded, unexplained = partition_known_gaps(hits, not args.no_exceptions)
+
+    # Print every exclusion, always, with the shape that explains it. The count alone would let a
+    # growing cluster hide behind a number nobody reads.
+    if excluded:
         print(
-            f"FAIL: {len(hits)} reconciliation DISAGREE line(s) in {container} since "
-            f"{args.since}. The coordinator and the router disagree on session identity, which "
-            "is the over-eviction signature."
+            f"{len(excluded)} DISAGREE line(s) excluded as {TRIAGE_MARKER}:",
         )
-        for ln in hits:
-            print(f"  {ln.strip()}")
+        for name, why, line in excluded:
+            print(f"  [{name}] {line.strip()}")
+            print(f"      why: {why}")
+
+    if unexplained:
+        print(
+            f"FAIL: {len(unexplained)} unexplained reconciliation DISAGREE line(s) in "
+            f"{container} since {args.since}. The coordinator and the router disagree on session "
+            "identity in a shape no triage covers, which is the over-eviction signature."
+        )
+        for line in unexplained:
+            print(f"  {line.strip()}")
+        print(
+            f"({len(excluded)} further line(s) excluded as known comparator gaps.)"
+            if excluded
+            else "(no line matched a known comparator gap.)"
+        )
         return EXIT_FAIL
 
     print(
-        f"PASS: no reconciliation DISAGREE line in {container} since {args.since} "
-        f"({len(lines)} log lines scanned)."
+        f"PASS: no unexplained reconciliation DISAGREE line in {container} since {args.since} "
+        f"({len(lines)} log lines scanned, {len(excluded)} known comparator gap(s) excluded)."
     )
     return EXIT_PASS
 

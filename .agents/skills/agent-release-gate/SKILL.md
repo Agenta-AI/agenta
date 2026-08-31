@@ -470,7 +470,14 @@ These four checks make each layer's failure loud instead of silent. Run all four
   succeeds, it just paid for a rebuild it did not need — so a log sweep is the only way to catch
   it. `--since <iso-timestamp>` is required; `--container` defaults to autodetecting the local
   stack's runner. Exits 0 PASS, 1 FAIL (printing the offending lines), 2 SKIP when the log is not
-  reachable.
+  reachable. Three line shapes are excluded as known SHADOW-COMPARATOR gaps (triage 2026-08-31,
+  `f7-disagree-triage.md`): the coordinator is correct and pinned, only the shadow's model of it
+  disagrees, and the comparator fixes are a post-release follow-up — without the exceptions the
+  sweep fails on the runner's own expected behavior on every loaded window. They are never
+  silent: each excluded line is printed with its shape and the triage marker, the excluded count
+  is reported separately, each shape is anchored on both halves of the line so it cannot swallow
+  a real disagreement, and any line matching no shape still FAILS. Delete a shape when its fix
+  lands; `--no-exceptions` fails on every DISAGREE line and is how you prove one can go.
 - `resources/matrix_h1_bad_harness.py` — **[mechanical]** a malformed harness must fail closed.
   Drives three unreadable `harness` blocks (a wrong-type value, an unknown string, a null kind) at
   both the commit API and the live invoke, and records WHICH boundary refused (`commit_api`,
