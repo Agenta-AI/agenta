@@ -360,14 +360,78 @@ export function isAgentaIngest(endpoint: string): boolean {
   );
 }
 
+/** Hosts the platform rewrites to `host.docker.internal` before it dispatches a run. */
+const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
+
+/**
+ * The same base the platform would hand a dispatched run, or undefined when it rewrites nothing.
+ *
+ * A self-hoster's natural `AGENTA_API_URL` is a localhost URL, but a sandboxed run cannot reach
+ * the host that way from inside its own container, so the trace endpoint is rewritten to
+ * `host.docker.internal` on the way out. The runner reads only the raw env value, so the
+ * configured base and the endpoint it is handed can never string-match, and every run of such a
+ * deployment loses its platform credential.
+ *
+ * The authority for that rewrite is `parse_url` in `sdks/python/agenta/sdk/utils/helpers.py`, NOT
+ * the api's same-named twin in `api/oss/src/utils/helpers.py`. The endpoint on the wire is
+ * `ag.tracing.otlp_url`, which the agent service derives through the SDK's copy; the api's copy
+ * shapes the service URL a run is POSTed to. The two differ, and the differences are what the
+ * limits below are about.
+ *
+ * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the
+ * rewrite touches. Three things it deliberately does NOT do:
+ *
+ *   - `127.0.0.1` earns no alias. Neither copy of `parse_url` rewrites it, so that deployment
+ *     already matches its own raw base and the bridge form is a pair the platform cannot produce.
+ *   - A scheme-less base earns no alias, because it cannot help. The SDK's `parse_url` does no
+ *     scheme defaulting (unlike the api's), so a scheme-less `AGENTA_API_URL` yields an equally
+ *     scheme-less ENDPOINT, which `new URL` reads as an opaque `localhost:`-scheme path. Both
+ *     sides are then unparseable and no aliasing here can make them agree. Such a deployment is
+ *     broken further upstream — the OTLP exporter target itself is malformed — and the fix is
+ *     scheme defaulting in the SDK's `parse_url`, not a wider allowlist.
+ *   - The alias is not gated on the docker network mode, even though the rewrite is: the SDK's
+ *     `parse_url` rewrites only when `DOCKER_NETWORK_MODE` is exactly `bridge`, so in `host` mode
+ *     (and when the var is unset) the platform dispatches the unrewritten localhost endpoint,
+ *     which the raw base already matches, and this alias is merely unused. Gating it is not
+ *     possible and would not be safe: the runner's environment carries no `DOCKER_NETWORK_MODE`
+ *     (it takes no `env_file` by design, and the var is absent from its `environment:` block in
+ *     every compose file), so the runner cannot tell "unset" from "bridge, but invisible to me" —
+ *     and those two need OPPOSITE answers. A mode-gated alias would read "unset" and emit
+ *     nothing on exactly the bridge deployments this exists to fix.
+ *
+ * What that last point leaves is a residual width: in host mode the allowlist also admits
+ * `host.docker.internal` on the configured port, an endpoint the platform will not dispatch
+ * there. It is not an attack surface. The endpoint is always platform-dispatched — the runner
+ * reads it from the run request the agent service builds — and reaching the runner directly needs
+ * `AGENTA_RUNNER_TOKEN` inside the compose network, where a forged request carries its own
+ * credential anyway. The only real exposure is a third-party collector on the docker host at the
+ * exact port of the configured Agenta api, which in practice is that api.
+ */
+function bridgeRewrittenBase(base: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return undefined;
+  }
+  if (!BRIDGE_REWRITTEN_HOSTS.has(url.hostname)) return undefined;
+  url.hostname = "host.docker.internal";
+  return url.toString().replace(/\/+$/, "");
+}
+
 /** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
  * what it compared against — the failure is always a configuration gap, never a code path. */
 export function configuredIngestBases(): string[] {
-  return [
+  const configured = [
     process.env.AGENTA_API_INTERNAL_URL,
     process.env.AGENTA_API_URL,
     CLOUD_API_BASE,
   ].filter((base): base is string => Boolean(base));
+
+  return configured.flatMap((base) => {
+    const bridged = bridgeRewrittenBase(base);
+    return bridged ? [base, bridged] : [base];
+  });
 }
 
 /**
