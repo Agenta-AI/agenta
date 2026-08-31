@@ -228,6 +228,22 @@ around — `CODEX_SQLITE_HOME` is split onto container-local disk) and hard link
   the API reads S3 directly, so a hit is store-side proof, and the same listing shows any 0-byte
   objects — the fingerprint of this whole bug class.
 
+## Two Daytona-era traps for the lifecycle (L*) cases — 2026-08-31
+
+**Fixture connections must be vault-backed.** A fixture built by copying the Claude defaults and
+changing only the harness keeps `llm.connection = {"mode":"self_managed","slug":null}`. A
+self_managed Pi run needs the `PI_CODING_AGENT_DIR` mount, which a gate deployment does not have,
+so turn 1 errors and the case fails before it tests anything. Set
+`llm.connection = {"mode":"agenta","slug":null}` on every non-default-harness fixture (caught on
+#6371; the Pi fixtures in `matrix_l5_live_route_observed.py` and `bench_lib.py` already do this).
+
+**A stuck-substitution rebuild is not an eviction.** Since the credential preflight (#6370), a
+fresh Daytona sandbox whose Secret wiring failed (a vendor-side per-sandbox fault, a few percent
+of creates) is convicted at ~10s and rebuilt ONCE. A warm-reuse case that counts sandbox ids can
+therefore see two ids without any lifecycle regression. Before ruling a warm case failed, grep
+the runner log for `[credential-preflight] STUCK`: if it fired inside the run, re-run the case
+instead of reporting the eviction.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.
