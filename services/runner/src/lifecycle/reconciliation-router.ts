@@ -220,9 +220,24 @@ const V1_CAPABILITIES: Readonly<
 };
 
 export function harnessKind(request: AgentRunRequest): HarnessKind {
-  const harness = request.harness;
-  if (harness === "pi" || harness === "claude" || harness === "codex")
-    return harness;
+  // Mirror `buildRunPlan`'s normalization exactly: the WIRE carries `pi_core` / `pi_agenta`
+  // (an empty harness defaults to `pi_core`), never the bare "pi" this table is keyed by.
+  // Matching only the literals sent every playground Pi run into the fail-closed `unknown`
+  // row, whose every facet says rebuild — which disabled the live model-switch route and
+  // made the shadow log plan a rebuild for every Pi config change.
+  //
+  // Only an ABSENT or EMPTY harness takes that `pi_core` default. `/stream` decodes its body
+  // with an unchecked `JSON.parse(raw) as AgentRunRequest`, so a malformed payload can put
+  // `null`, `0`, or `false` in this field, and a bare `||` would hand each of them Pi's live
+  // routes. A non-string is not a harness spelling we recognize, so it falls to `unknown` and
+  // rebuilds. The real client always sends a string (`wire.py` writes `harness.value`), so
+  // this costs a wasted rebuild only on input that should not exist.
+  if (request.harness !== undefined && typeof request.harness !== "string")
+    return "unknown";
+  const harness = request.harness || "pi_core";
+  if (harness === "pi" || harness === "pi_core" || harness === "pi_agenta")
+    return "pi";
+  if (harness === "claude" || harness === "codex") return harness;
   return "unknown";
 }
 
