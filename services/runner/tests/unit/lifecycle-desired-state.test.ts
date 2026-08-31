@@ -45,8 +45,16 @@ describe("facet ownership: one field moves exactly one facet", () => {
     overrides: Partial<AgentRunRequest>;
     facet: Facet;
   }> = [
-    { what: "the sandbox provider", overrides: { sandbox: "daytona" }, facet: "sandbox" },
-    { what: "the harness kind", overrides: { harness: "pi" }, facet: "sandbox" },
+    {
+      what: "the sandbox provider",
+      overrides: { sandbox: "daytona" },
+      facet: "sandbox",
+    },
+    {
+      what: "the harness kind",
+      overrides: { harness: "pi" },
+      facet: "sandbox",
+    },
     {
       what: "the sandbox permission",
       overrides: { sandboxPermission: "none" as never },
@@ -69,7 +77,11 @@ describe("facet ownership: one field moves exactly one facet", () => {
       overrides: { agentsMd: "new instructions" },
       facet: "workspaceFiles",
     },
-    { what: "the system prompt", overrides: { systemPrompt: "sp" }, facet: "prompts" },
+    {
+      what: "the system prompt",
+      overrides: { systemPrompt: "sp" },
+      facet: "prompts",
+    },
     {
       what: "the skills",
       overrides: {
@@ -145,8 +157,15 @@ describe("facet normalization: stability and coverage", () => {
       { messages: [{ role: "user" as const, content: "different" }] },
       { turnId: "another-turn" },
       { context: { propagation: { traceparent: "00-abc-def-01" } } as never },
+      // The resolved model's input modalities ride the request per turn and change with the
+      // model; hashing them refused the live route on any cross-modality model switch.
+      { modelCapabilities: { inputModalities: ["text"] } as never },
     ]) {
-      assert.deepEqual(movedBy(overrides), [], JSON.stringify(overrides).slice(0, 40));
+      assert.deepEqual(
+        movedBy(overrides),
+        [],
+        JSON.stringify(overrides).slice(0, 40),
+      );
     }
   });
 
@@ -161,13 +180,18 @@ describe("facet normalization: stability and coverage", () => {
       ["agentsMd", { agentsMd: "x" }],
       ["systemPrompt", { systemPrompt: "x" }],
       ["appendSystemPrompt", { appendSystemPrompt: "x" }],
-      ["skills", { skills: [{ name: "s", description: "d", body: "b" }] as never }],
+      [
+        "skills",
+        { skills: [{ name: "s", description: "d", body: "b" }] as never },
+      ],
       ["customTools", { customTools: [{ name: "t" }] as never }],
-      ["harnessFiles", { harnessFiles: [{ path: "a", content: "b" }] as never }],
+      [
+        "harnessFiles",
+        { harnessFiles: [{ path: "a", content: "b" }] as never },
+      ],
       ["permissions", { permissions: { default: "deny" } as never }],
       ["sandboxPermission", { sandboxPermission: "none" as never }],
       ["mcpServers", { mcpServers: [{ name: "x", connection: {} }] as never }],
-      ["modelCapabilities", { modelCapabilities: { vision: true } as never }],
       [
         "toolCallback.endpoint",
         { toolCallback: { endpoint: "https://gateway/tools/call" } as never },
@@ -175,7 +199,9 @@ describe("facet normalization: stability and coverage", () => {
     ];
 
     for (const [name, overrides] of probes) {
-      const changed = configFingerprint({ ...BASE, ...overrides }) !== configFingerprint(BASE);
+      const changed =
+        configFingerprint({ ...BASE, ...overrides }) !==
+        configFingerprint(BASE);
       assert.ok(changed, `precondition: ${name} must move the fingerprint`);
       assert.notDeepEqual(
         movedBy(overrides),
@@ -205,7 +231,10 @@ describe("facet normalization: stability and coverage", () => {
       } as never,
     });
     assert.deepEqual(
-      changedFacets(digestsOf(withSecret("sk-a")), digestsOf(withSecret("sk-b"))),
+      changedFacets(
+        digestsOf(withSecret("sk-a")),
+        digestsOf(withSecret("sk-b")),
+      ),
       [],
       "only the credential SHAPE is hashed, never its value",
     );
@@ -235,9 +264,8 @@ describe("facet normalization: stability and coverage", () => {
     // Same reasoning on the session side. Section 1.4 exempts permission TIGHTENING from
     // apply-live entirely, so a permissions change must not ride the `setModel` route.
     assert.deepEqual(movedBy({ model: "m2" }), ["model"]);
-    assert.deepEqual(
-      movedBy({ permissions: { default: "deny" } as never }),
-      ["harnessSession"],
-    );
+    assert.deepEqual(movedBy({ permissions: { default: "deny" } as never }), [
+      "harnessSession",
+    ]);
   });
 });

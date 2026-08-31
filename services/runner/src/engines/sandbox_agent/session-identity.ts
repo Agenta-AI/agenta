@@ -211,6 +211,13 @@ function canonicalJson(value: unknown): string {
  * sandbox that was still perfectly usable, which is the exact cost this project exists to remove.
  * They stay in `runContext` for tool binding and observability; they simply no longer decide
  * whether an environment may be reused.
+ *
+ * `modelCapabilities` left the hash the same way (2026-08-30, cold/warm audit finding 2). It is
+ * the resolved model's input modalities, read ONLY by the per-turn attachment-delivery chain —
+ * nothing bakes it into the environment. And because it changes WITH the model, hashing it made
+ * the plan for a vision-to-text model switch move a second facet, so the live `setModel` route
+ * was refused and the switch rebuilt the sandbox. The model id itself stays in the hash; its
+ * per-turn side facts do not.
  */
 export function configFingerprint(request: AgentRunRequest): string {
   return sha256(canonicalJson(configShape(request)));
@@ -272,7 +279,6 @@ function configShape(request: AgentRunRequest) {
           ),
         }
       : null,
-    modelCapabilities: request.modelCapabilities ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
