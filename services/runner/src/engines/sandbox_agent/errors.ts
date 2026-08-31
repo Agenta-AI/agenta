@@ -126,18 +126,32 @@ const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
  * ("LiteLLM Virtual Key expected. Received=dtn_****…"); the second matches any provider that
  * echoes the placeholder itself.
  *
- * The third alternative matches a provider that echoes the placeholder MASKED. OpenAI answers a
- * direct call with "Incorrect API key provided: dtn_secr***************cdef" — the mask truncates
- * before the literal `dtn_secret_`, so the second alternative cannot see it and every direct
- * OpenAI placeholder 401 used to be blamed on the user's key. It mirrors `MASKED_PLACEHOLDER_ECHO`
- * in `credential-preflight.ts`, and `*` is the only mask character trusted here for the same
- * reason: a `...`/`…` truncation could equally be a cut-off scrubbed value.
- *
- * All three stay anchored on the literal `dtn_` namespace, which is Daytona's placeholder prefix
- * and cannot appear in an `sk-` provider key. A user's own key can never match.
+ * Both alternatives are SELF-EVIDENCING: each names the placeholder in a shape only the delivery
+ * layer produces, so neither needs corroboration. They stay anchored on the literal `dtn_`
+ * namespace, Daytona's placeholder prefix, which cannot appear in an `sk-` provider key.
  */
 const PLACEHOLDER_CREDENTIAL =
-  /virtual key expected.*received=dtn_|dtn_secret_|dtn_[A-Za-z0-9_-]*\*/i;
+  /virtual key expected.*received=dtn_|dtn_secret_/i;
+
+/**
+ * A provider echoing the placeholder MASKED, which the signature above cannot see.
+ *
+ * OpenAI answers a direct call with "Incorrect API key provided: dtn_secr***************cdef" —
+ * the mask truncates before the literal `dtn_secret_`, so without this every direct OpenAI
+ * placeholder 401 was blamed on the user's key. It mirrors `MASKED_PLACEHOLDER_ECHO` in
+ * `credential-preflight.ts`, and `*` is the only mask character trusted here for the same reason
+ * there: a `...`/`…` truncation could equally be a cut-off scrubbed value.
+ *
+ * WHY IT IS SHAPED THIS TIGHTLY, AND WHY IT NEEDS CORROBORATION. Unlike the two above, this
+ * pattern is a guess about formatting rather than a quoted protocol string, so it is the one that
+ * can be spoofed by ordinary text. The stem is `{4,}` and the mask `{3,}` so a literal glob like
+ * `dtn_*` — a perfectly normal thing to find in a path, a filter, or a log line — cannot match;
+ * a real mask is many characters wide. And the caller requires AUTH_REFUSAL alongside it, so a
+ * hypothetical customer key spelled `dtn_customer_***` inside an unrelated error is not read as a
+ * delivery fault. Corroboration costs nothing here: an unsubstituted placeholder is only ever
+ * observed as a credential refusal.
+ */
+const MASKED_PLACEHOLDER_ECHO = /dtn_[A-Za-z0-9_-]{4,}\*{3,}/i;
 
 /**
  * A refusal of the credential itself, whatever the provider calls it.
@@ -157,6 +171,12 @@ const AUTH_REFUSAL =
  * ~2s, and the preflight convicts a stuck sandbox at 10s. The first model call lands after
  * acquire, so the window has to outlast acquire itself; 60s covers that with margin while
  * staying far short of a warm sandbox's later turns, where a 401 really is about the key.
+ *
+ * ACCEPTED LIMITATION: an unusually slow acquire pushes a GENUINE race past 60s and it gets the
+ * add-a-key advice instead. That is the right way round to be wrong. Substitution propagates in
+ * 10-24s, so a refusal arriving a full minute after delivery is far more likely a real bad key —
+ * exactly the reader the fallback advice serves. The cost when it does misfire is one turn shown
+ * the pre-fix copy, on a run whose retry lands on a fresh sandbox anyway.
  */
 const CREDENTIAL_PROPAGATION_WINDOW_MS = 60_000;
 
@@ -290,8 +310,13 @@ export function classifyRunError(
     return { message: RATE_LIMITED_MESSAGE, code: "rate_limited" };
   }
   // Before the generic auth branch: a placeholder-shaped refusal IS a 401, but its cause is
-  // credential delivery, not the user's key, and the add-a-key advice would be false.
-  if (PLACEHOLDER_CREDENTIAL.test(raw)) {
+  // credential delivery, not the user's key, and the add-a-key advice would be false. The two
+  // self-evidencing signatures stand alone; the masked echo is a formatting guess, so it must be
+  // corroborated by the refusal actually being about the credential.
+  if (
+    PLACEHOLDER_CREDENTIAL.test(raw) ||
+    (MASKED_PLACEHOLDER_ECHO.test(raw) && AUTH_REFUSAL.test(raw))
+  ) {
     return {
       message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
       code: "credential_delivery_failed",

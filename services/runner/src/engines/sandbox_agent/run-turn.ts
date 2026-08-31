@@ -1342,6 +1342,11 @@ export async function runTurn(
             slug: request.connection?.slug,
             deployment: request.modelConnection?.deployment,
           },
+          // The recovery path needs the same signal as the catch below. Pi records the
+          // provider's refusal in its transcript and ends the turn cleanly, so a credential
+          // race that arrives THIS way is the identical failure wearing a different shape —
+          // and without the predicate it would still be reported as the user's key problem.
+          daytonaCredentialFresh: reportCredentialRace,
         },
       );
       swallowedError = classified.message;

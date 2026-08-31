@@ -29,6 +29,11 @@ import {
   withinCredentialPropagationWindow,
 } from "../../src/engines/sandbox_agent/errors.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
+import {
+  enableDaytonaProvider,
+  piTranscriptWithError,
+  runSilentTurn,
+} from "../utils/silent-turn.ts";
 
 /** Captured live: api.anthropic.com refusing a `dtn_` bearer. Note it echoes NOTHING. */
 const ANTHROPIC_DIRECT_401 =
@@ -145,13 +150,13 @@ describe("PLACEHOLDER_CREDENTIAL: the widened masked-echo signature", () => {
     assert.equal(byBodyAlone(OPENAI_DIRECT_401), "credential_delivery_failed");
   });
 
-  it("matches a short mask and a long mask alike", () => {
+  it("matches a real mask of any width", () => {
     assert.equal(
-      byBodyAlone("401 Incorrect API key provided: dtn_*"),
+      byBodyAlone("401 Incorrect API key provided: dtn_secret_ab*****"),
       "credential_delivery_failed",
     );
     assert.equal(
-      byBodyAlone("401 Incorrect API key provided: dtn_secret_ab*****"),
+      byBodyAlone("401 Incorrect API key provided: dtn_abcd***"),
       "credential_delivery_failed",
     );
   });
@@ -167,6 +172,47 @@ describe("PLACEHOLDER_CREDENTIAL: the widened masked-echo signature", () => {
     ]) {
       assert.equal(byBodyAlone(raw), "runner_error", raw);
     }
+  });
+
+  it("never matches a literal glob, which is ordinary text", () => {
+    // `dtn_*` is a perfectly normal thing to find in a path, a filter or a log line, and the
+    // first version of this signature allowed a zero-length stem, so it matched. A real mask is
+    // many characters wide behind a real stem.
+    for (const raw of [
+      "401 Unauthorized while listing dtn_* secrets",
+      "401 Unauthorized: no match for pattern dtn_*",
+      "401 Unauthorized: dtn_**",
+      "401 Unauthorized: dtn_ab***",
+    ]) {
+      assert.equal(byBodyAlone(raw), "runner_error", raw);
+    }
+  });
+
+  it("needs auth context, so a masked token in an unrelated error is not a delivery fault", () => {
+    // A hypothetical customer key spelled `dtn_customer_***`. Inside a credential refusal it
+    // reads as delivery; inside anything else it must not, because the masked-echo pattern is a
+    // guess about formatting rather than a quoted protocol string.
+    assert.equal(
+      byBodyAlone("ETIMEDOUT while syncing dtn_customer_*** to the store"),
+      "runner_error",
+    );
+    assert.equal(
+      byBodyAlone("failed to parse config value dtn_customer_***"),
+      "runner_error",
+    );
+    assert.equal(
+      byBodyAlone("401 Unauthorized: dtn_customer_***"),
+      "credential_delivery_failed",
+    );
+  });
+
+  it("keeps the two self-evidencing signatures free of the auth requirement", () => {
+    // Those name the placeholder in a shape only the delivery layer produces, so they carry
+    // their own proof and must not be weakened by the corroboration rule above.
+    assert.equal(
+      byBodyAlone("tool run failed: dtn_secret_abc123 was rejected downstream"),
+      "credential_delivery_failed",
+    );
   });
 });
 
@@ -242,5 +288,84 @@ describe("the once-per-session bound (the inverse failure mode)", () => {
     store.clear("session-a");
     assert.equal(store.credentialRaceReportCount("session-a"), 0);
     assert.equal(classify("session-a").code, "credential_delivery_failed");
+  });
+});
+
+describe("the swallowed-Pi-error recovery path (Codex P1)", () => {
+  // Pi does not throw a provider refusal: it records it in its transcript and ends the turn
+  // cleanly, so the recovery path re-classifies it. That call site originally omitted the
+  // freshness predicate, which meant a credential race arriving THIS way was still reported as
+  // the user's key problem — the whole fix, bypassed by the harness that fails most quietly.
+  beforeEach(enableDaytonaProvider);
+
+  const REMOTE_CWD = "/home/sandbox";
+
+  /**
+   * A model connection whose key rides a Daytona Secret — an `opaque_http` credential plus the
+   * exact-host endpoint the Secret is scoped to. Without BOTH the plan builds no model-secret
+   * candidate, nothing arms `modelSecretDeliveredAt`, and the test would pass against the very
+   * bug it exists to catch by never reaching the branch.
+   */
+  const DAYTONA_MODEL_CONNECTION = {
+    provider: "anthropic",
+    deployment: "direct",
+    credentialMode: "env" as const,
+    endpoint: { baseUrl: "https://api.anthropic.com" },
+    credentials: [
+      {
+        binding: { kind: "environment" as const, name: "ANTHROPIC_API_KEY" },
+        value: "sk-ant-fixture-value",
+        usage: "opaque_http" as const,
+      },
+    ],
+  };
+
+  it("classifies a fresh-secret 401 recovered from the transcript as delivery", async () => {
+    const { result, events } = await runSilentTurn(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        modelConnection: DAYTONA_MODEL_CONNECTION,
+      },
+      {
+        cwd: REMOTE_CWD,
+        sandboxTranscript: piTranscriptWithError(
+          REMOTE_CWD,
+          "API Error: 401 Invalid bearer token",
+        ),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, DELIVERY_MESSAGE);
+    // The playground renders the stream, not the envelope, so the honest copy has to be in both.
+    const errorEvent = events.find((event) => event.type === "error");
+    assert.ok(errorEvent, "no error event in the stream");
+    assert.equal(errorEvent.message, DELIVERY_MESSAGE);
+  });
+
+  it("still blames nothing on the user when the transcript refusal is unrelated", async () => {
+    // The guard in the other direction: the predicate must not turn every recovered failure into
+    // a delivery fault.
+    const { result } = await runSilentTurn(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        modelConnection: DAYTONA_MODEL_CONNECTION,
+      },
+      {
+        cwd: REMOTE_CWD,
+        sandboxTranscript: piTranscriptWithError(
+          REMOTE_CWD,
+          "Rate limit reached for gpt-5 in organization org-abc on tokens per min.",
+        ),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.error,
+      "Too many requests right now. Try again in a moment.",
+    );
   });
 });

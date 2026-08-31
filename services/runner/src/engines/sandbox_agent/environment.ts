@@ -1205,6 +1205,13 @@ async function acquireEnvironmentOnce(
     });
     return { ok: true, env: environment };
   } catch (err) {
+    // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
+    // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
+    // to the turn. The one credential-shaped failure this path can raise is the preflight's
+    // `SubstitutionStuckError`, which already has its own honest answer below (rebuild once).
+    // Wiring the predicate here would also need the once-per-session counter, which lives in the
+    // turn path — without it a genuinely bad key could loop. If a model-touching step is ever
+    // added to acquire, this site needs BOTH the predicate and that counter.
     const error = conciseError(
       err,
       plan.harness,
