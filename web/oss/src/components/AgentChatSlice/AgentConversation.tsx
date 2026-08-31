@@ -702,6 +702,8 @@ const AgentConversation = ({
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
             {/* Wraps transcript AND dock: a parked "Connect to X below" row links to X's card. */}
             <ConnectionFocusProvider connects={connects}>
+                {/* The whole conversation ACCEPTS a drop; only the composer shows it (below).
+                Aiming at a 100px dock to attach a file is a needless demand. */}
                 <div
                     className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
                     {...dropTarget}
@@ -740,15 +742,6 @@ const AgentConversation = ({
                             that read as the transcript being cut short. Docked chrome below carries
                             its own `mb-2`, so nothing here depended on the gap for separation. */}
                             <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                                <AttachmentDropOverlay
-                                    active={isDragging}
-                                    atMax={atMax}
-                                    hint={
-                                        atMax
-                                            ? `Remove one to add another (${limits.maxCount} max)`
-                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`
-                                    }
-                                />
                                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                                 <AgentTranscript
@@ -783,34 +776,48 @@ const AgentConversation = ({
                                     }
                                 />
 
-                                <AgentComposerDock
-                                    entityId={entityId}
-                                    messages={messages}
-                                    busy={busy}
-                                    runningElsewhere={runningElsewhere}
-                                    hitlPending={hitlPending}
-                                    queue={{queued, removeQueued, clearQueue}}
-                                    modelKey={{...modelKey, entityId}}
-                                    modelBlocked={modelBlocked}
-                                    contextMaxTokens={contextMaxTokens}
-                                    showContextBudget={showContextBudget}
-                                    showTemplateStrip={showTemplateStrip}
-                                    pendingApprovals={pendingApprovals}
-                                    onApprovalResponse={handleApprovalResponse}
-                                    connects={connects}
-                                    elicits={elicits}
-                                    onClientToolOutput={handleClientToolOutput}
-                                    onSubmit={handleSubmit}
-                                    onStop={handleStop}
-                                    richInputRef={richInputRef}
-                                    composer={composer}
-                                    attachments={attachments}
-                                    onboardingChat={onboardingChat}
-                                    voice={voice}
-                                    audioPerceivable={audioPerceivable}
-                                    composerDisabled={composerDisabled}
-                                    attachmentsBlocked={attachmentsBlocked}
-                                />
+                                {/* The highlight is the composer alone: lighting the whole
+                                transcript to accept a file the composer will hold read as the
+                                page itself being the target. */}
+                                <div className="relative">
+                                    <AttachmentDropOverlay
+                                        active={isDragging}
+                                        atMax={atMax}
+                                        hint={
+                                            atMax
+                                                ? `Remove one to add another (${limits.maxCount} max)`
+                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`
+                                        }
+                                    />
+                                    <AgentComposerDock
+                                        entityId={entityId}
+                                        messages={messages}
+                                        busy={busy}
+                                        runningElsewhere={runningElsewhere}
+                                        hitlPending={hitlPending}
+                                        queue={{queued, removeQueued, clearQueue}}
+                                        modelKey={{...modelKey, entityId}}
+                                        modelBlocked={modelBlocked}
+                                        contextMaxTokens={contextMaxTokens}
+                                        showContextBudget={showContextBudget}
+                                        showTemplateStrip={showTemplateStrip}
+                                        pendingApprovals={pendingApprovals}
+                                        onApprovalResponse={handleApprovalResponse}
+                                        connects={connects}
+                                        elicits={elicits}
+                                        onClientToolOutput={handleClientToolOutput}
+                                        onSubmit={handleSubmit}
+                                        onStop={handleStop}
+                                        richInputRef={richInputRef}
+                                        composer={composer}
+                                        attachments={attachments}
+                                        onboardingChat={onboardingChat}
+                                        voice={voice}
+                                        audioPerceivable={audioPerceivable}
+                                        composerDisabled={composerDisabled}
+                                        attachmentsBlocked={attachmentsBlocked}
+                                    />
+                                </div>
                             </div>
                             {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
                             pinned on top. Always mounted so hide/show SLIDES (width transition) —
