@@ -45,8 +45,8 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import useURL from "@/oss/hooks/useURL"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
