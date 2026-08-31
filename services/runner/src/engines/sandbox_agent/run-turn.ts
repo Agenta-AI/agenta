@@ -62,7 +62,11 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { classifyRunError } from "./errors.ts";
+import {
+  classifyRunError,
+  CREDENTIAL_RACE_REPORTS_PER_SESSION,
+  withinCredentialPropagationWindow,
+} from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -144,6 +148,47 @@ export async function runTurn(
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
   const CANCELLED = Symbol("cancelled");
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
+  /**
+   * Should a credential refusal this turn be reported as a delivery race rather than a bad key?
+   *
+   * Two conditions, and it MUTATES the session's report counter, so it is called only from the
+   * classifier's credential-refusal branch — never speculatively. The window says the race is
+   * physically possible (a Daytona Secret delivered to this sandbox moments ago); the counter
+   * says the explanation has not been spent on this conversation already.
+   *
+   * A run with no session id cannot be counted, so it always gets the honest copy. There is no
+   * conversation to loop within, and the alternative — blaming a key that may be perfectly good —
+   * is the failure this whole branch exists to remove.
+   */
+  const reportCredentialRace = (): boolean => {
+    if (!withinCredentialPropagationWindow(env.modelSecretDeliveredAt)) {
+      return false;
+    }
+    if (!sessionId) {
+      logger(
+        "[credential-race] credential_delivery_failed (no session id, uncounted): a Daytona " +
+          "Secret for this run was delivered inside the propagation window",
+      );
+      return true;
+    }
+    const occurrence = continuityStore.noteCredentialRaceReport(sessionId);
+    if (occurrence > CREDENTIAL_RACE_REPORTS_PER_SESSION) {
+      logger(
+        `[credential-race] NOT credential_delivery_failed (occurrence ${occurrence} > ` +
+          `${CREDENTIAL_RACE_REPORTS_PER_SESSION} for this session): a second fresh sandbox ` +
+          "refused the same way, so the key is the better explanation; falling through to the " +
+          "model-authentication advice",
+      );
+      return false;
+    }
+    logger(
+      `[credential-race] credential_delivery_failed (occurrence ${occurrence}/` +
+        `${CREDENTIAL_RACE_REPORTS_PER_SESSION} for this session): the model credential was ` +
+        "delivered as a Daytona Secret inside the propagation window, so this refusal is " +
+        "delivery, not the user's key",
+    );
+    return true;
+  };
   const turnStartedAt = new Date().toISOString();
   // `turn_index` is a true conversation-turn counter, not an acquire counter: it advances once per completed turn across every environment serving the session.
   // The shared store advances only on `record()` (paused turns record nothing), so park-and-resume consumes one index; compute it at turn start because a warm environment serves many turns.
@@ -1297,6 +1342,11 @@ export async function runTurn(
             slug: request.connection?.slug,
             deployment: request.modelConnection?.deployment,
           },
+          // The recovery path needs the same signal as the catch below. Pi records the
+          // provider's refusal in its transcript and ends the turn cleanly, so a credential
+          // race that arrives THIS way is the identical failure wearing a different shape —
+          // and without the predicate it would still be reported as the user's key problem.
+          daytonaCredentialFresh: reportCredentialRace,
         },
       );
       swallowedError = classified.message;
@@ -1385,6 +1435,7 @@ export async function runTurn(
           slug: request.connection?.slug,
           deployment: request.modelConnection?.deployment,
         },
+        daytonaCredentialFresh: reportCredentialRace,
       },
     );
     const error = classified.message;

@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   awaitCredentialSubstitution,
+  deliversModelSecretOnCreate,
   type PreflightSandbox,
 } from "../../src/engines/sandbox_agent/credential-preflight.ts";
 
@@ -136,5 +137,41 @@ describe("awaitCredentialSubstitution", () => {
       const { run } = harness([masked], 3_000);
       assert.equal(await run, "stuck", masked);
     }
+  });
+});
+
+describe("deliversModelSecretOnCreate: what arms the race guards", () => {
+  // The preflight gates on this AND a declared endpoint; the 401 classifier arms its
+  // credential-race reading on this alone. `acquireEnvironment` cannot be driven without a live
+  // provider, so this predicate is where that condition is actually pinned.
+  const base = {
+    isDaytona: true,
+    sandboxMode: "create",
+    hasModelSecretCandidate: true,
+  };
+
+  it("is true for a fresh Daytona sandbox whose model key rides a Secret", () => {
+    assert.equal(deliversModelSecretOnCreate(base), true);
+  });
+
+  it("is false on a reconnect: that sandbox already proved itself", () => {
+    assert.equal(
+      deliversModelSecretOnCreate({ ...base, sandboxMode: "reconnect" }),
+      false,
+    );
+  });
+
+  it("is false on a local run: there is no Daytona Secret", () => {
+    assert.equal(
+      deliversModelSecretOnCreate({ ...base, isDaytona: false }),
+      false,
+    );
+  });
+
+  it("is false for a plaintext-env run: there is no placeholder to substitute", () => {
+    assert.equal(
+      deliversModelSecretOnCreate({ ...base, hasModelSecretCandidate: false }),
+      false,
+    );
   });
 });

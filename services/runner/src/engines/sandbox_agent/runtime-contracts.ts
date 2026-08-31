@@ -313,6 +313,16 @@ export interface SessionEnvironment {
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
+  /**
+   * When this sandbox's MODEL credential was delivered as a Daytona Secret (epoch millis), set
+   * only on a fresh create. Undefined for a plaintext-env run, a reconnect, and every local run.
+   *
+   * Read by the 401 classifier: Daytona applies a new Secret's substitution rule asynchronously,
+   * so a refusal shortly after delivery is the propagation race rather than a bad key. The
+   * timestamp is what keeps that reading honest — a warm sandbox's turn an hour later gets the
+   * ordinary auth advice, because by then the placeholder explanation is no longer available.
+   */
+  modelSecretDeliveredAt?: number;
   /** The conversation turn index this acquire's continuity record was read/written at. */
   continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
