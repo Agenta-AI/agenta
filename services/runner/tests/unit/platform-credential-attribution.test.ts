@@ -315,6 +315,43 @@ describe("bridge-rewritten localhost ingest", () => {
     assert.match(lines[0]!, /dropping the run credential/);
   });
 
+  it("still admits the localhost endpoint host mode dispatches, with no alias involved", () => {
+    // The SDK's `parse_url` rewrites only when DOCKER_NETWORK_MODE is exactly "bridge". In
+    // `host` mode, and when the var is unset, the platform dispatches the localhost endpoint
+    // unchanged, so the raw base is what has to match and the alias is simply unused. The
+    // runner cannot see the mode (no env_file by design, and the var is not in its compose
+    // `environment:` block), and it cannot tell "unset" from "bridge but invisible", so the
+    // alias is emitted unconditionally rather than gated. See `bridgeRewrittenBase`.
+    vi.stubEnv("AGENTA_API_URL", LOCAL_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://localhost:8480/api/otlp/v1/traces"),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("derives no alias from a scheme-less base, which no aliasing could rescue", () => {
+    // The SDK's `parse_url` does no scheme defaulting, so a scheme-less `AGENTA_API_URL`
+    // produces an equally scheme-less ENDPOINT: `new URL` reads "localhost:" as the scheme and
+    // both sides normalize to nonsense. Admitting the bridge form here would fix nothing and
+    // would mirror the api's copy of `parse_url`, which is not what shapes this value. Such a
+    // deployment is broken upstream, at the exporter target itself.
+    vi.stubEnv("AGENTA_API_URL", "localhost:8480/api");
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(request(BRIDGE_ENDPOINT), log),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+  });
+
   it("does not arm the strict branch when only a localhost internal hop is configured", () => {
     // The unconfigured-base behaviour must stay exactly as it is: the runner keeps the credential
     // and names the gap rather than failing closed on an undecidable attribution.
