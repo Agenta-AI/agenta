@@ -70,13 +70,11 @@ export interface ClassifiedRunError {
 }
 
 /*
- * TODO(copy: owner) — the product-copy strings below are PLACEHOLDERS. They are the first product
- * copy the runner puts in front of an end user (every other line here is an operator hint), so the
- * final wording is the product owner's to write. Keep them short, plain, and free of provider/proxy
- * mechanics: the user cannot act on which service refused, only on what to do next.
- *
- * They are deliberately NOT prefixed with the harness name the way the operator hints are — the
- * reader of these is the person chatting, to whom "claude:" is noise.
+ * Product copy, settled 2026-08-31 for v0.114.4. These strings are the first product copy the
+ * runner shows to an end user; every other line here is an operator hint. Keep them short and
+ * plain, with no provider or proxy mechanics: the user cannot act on which service refused,
+ * only on what to do next. They carry no harness-name prefix, unlike the operator hints,
+ * because the reader is the person in the chat.
  */
 const STARTER_CREDITS_EXHAUSTED_MESSAGE =
   "Your free Agenta credits are used up. Add your own provider key to keep going.";
