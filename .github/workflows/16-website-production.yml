@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      # The site publishes /openapi.json from this spec (website/scripts/copy-openapi.mjs),
+      # so a regenerated spec has to redeploy the site.
+      - 'docs/docs/reference/openapi.json'
       - '.github/workflows/16-website-production.yml'
   workflow_dispatch:
 
@@ -16,6 +19,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # wrangler itself is a pinned devDependency in website/package.json (the worker
+  # bundler must match everywhere); this stays as documentation of that pin.
   WRANGLER_VERSION: "4.113.0"
   R2_FONTS_BUCKET: agenta-brand-fonts
 
@@ -43,6 +48,11 @@ jobs:
       - name: Install dependencies
         run: cd website && pnpm install --frozen-lockfile
 
+      # Gate production on the worker's unit tests: a negotiation regression
+      # would be invisible in the build output.
+      - name: Run unit tests
+        run: cd website && pnpm test
+
       - name: Build site
         env:
           R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
@@ -62,7 +72,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd website
-          pnpm dlx "wrangler@${WRANGLER_VERSION}" deploy \
+          # wrangler is a pinned devDependency (see website/package.json), so the
+          # worker bundles with the same version everywhere.
+          pnpm exec wrangler deploy \
             --config wrangler.production.jsonc 2>&1 | tee /tmp/wrangler.log
           url=$(grep -oiE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | head -1)
           if [ -z "$url" ]; then
@@ -71,12 +83,9 @@ jobs:
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      # Asserts the site serves AND that the edge worker's agent-readiness
+      # behavior survived: content negotiation, Vary, 406, the JSON/markdown
+      # 404s, /openapi.json — plus the static behavior it must not break
+      # (the _redirects 308s and trailing-slash normalization).
       - name: Verify production serves the site
-        run: |
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/")
-            [ "$code" = "200" ] && exit 0
-            sleep 5
-          done
-          echo "::error::Production URL did not return 200 (last code: $code)"
-          exit 1
+        run: cd website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"

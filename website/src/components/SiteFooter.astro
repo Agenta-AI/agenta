@@ -44,6 +44,9 @@ const columns: { heading: string; links: Link[] }[] = [
     // docs site, so they open in a new tab (external) like the live agenta.ai.
     links: [
       { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+      // Same-origin so the API surface is reachable (and discoverable) from
+      // every page without leaving agenta.ai.
+      { label: "API", href: "/api" },
       { label: "Changelog", href: "https://agenta.ai/docs/changelog/main", external: true },
       { label: "Roadmap", href: "https://agenta.ai/docs/roadmap", external: true },
       { label: "Blog", href: "/blog" },
