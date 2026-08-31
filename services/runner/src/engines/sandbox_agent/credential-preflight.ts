@@ -58,6 +58,32 @@
  * unambiguous masked raw-placeholder echoes convict.
  */
 
+/**
+ * Does this acquire deliver the run's MODEL credential as a Daytona Secret?
+ *
+ * The condition the preflight gates on, minus the endpoint — and the condition that arms the
+ * classifier's credential-race reading. Those two must not drift: the preflight can only SEE the
+ * race where the provider echoes what it received, but the race EXISTS wherever a model key rides
+ * a Secret on a fresh sandbox. Naming it once keeps that difference deliberate instead of
+ * accidental.
+ *
+ * A reconnect is excluded because the sandbox already proved itself, a local run because there is
+ * no Secret, and a plaintext-env run because there is no placeholder to substitute.
+ *
+ * Pure and unit-testable; `acquireEnvironment` itself cannot be driven without a live provider.
+ */
+export function deliversModelSecretOnCreate(input: {
+  isDaytona: boolean;
+  sandboxMode: string;
+  hasModelSecretCandidate: boolean;
+}): boolean {
+  return (
+    input.isDaytona &&
+    input.sandboxMode === "create" &&
+    input.hasModelSecretCandidate
+  );
+}
+
 export interface PreflightSandbox {
   runProcess(request: {
     command: string;

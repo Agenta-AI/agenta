@@ -125,9 +125,68 @@ const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
  * transient class. The first alternative matches LiteLLM's refusal of a non-`sk-` bearer
  * ("LiteLLM Virtual Key expected. Received=dtn_****…"); the second matches any provider that
  * echoes the placeholder itself.
+ *
+ * The third alternative matches a provider that echoes the placeholder MASKED. OpenAI answers a
+ * direct call with "Incorrect API key provided: dtn_secr***************cdef" — the mask truncates
+ * before the literal `dtn_secret_`, so the second alternative cannot see it and every direct
+ * OpenAI placeholder 401 used to be blamed on the user's key. It mirrors `MASKED_PLACEHOLDER_ECHO`
+ * in `credential-preflight.ts`, and `*` is the only mask character trusted here for the same
+ * reason: a `...`/`…` truncation could equally be a cut-off scrubbed value.
+ *
+ * All three stay anchored on the literal `dtn_` namespace, which is Daytona's placeholder prefix
+ * and cannot appear in an `sk-` provider key. A user's own key can never match.
  */
 const PLACEHOLDER_CREDENTIAL =
-  /virtual key expected.*received=dtn_|dtn_secret_/i;
+  /virtual key expected.*received=dtn_|dtn_secret_|dtn_[A-Za-z0-9_-]*\*/i;
+
+/**
+ * A refusal of the credential itself, whatever the provider calls it.
+ *
+ * `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status code
+ * embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to contain
+ * "401" as a substring (a real, timestamp-dependent flake this caused).
+ */
+const AUTH_REFUSAL =
+  /authentication required|invalid api key|unauthorized|(?<!\d)401(?!\d)/i;
+
+/**
+ * How long after a Daytona Secret is delivered a credential refusal is still better explained by
+ * propagation than by the key.
+ *
+ * Daytona's support puts the outer bound at ~30s, our own samples saw healthy substitution in
+ * ~2s, and the preflight convicts a stuck sandbox at 10s. The first model call lands after
+ * acquire, so the window has to outlast acquire itself; 60s covers that with margin while
+ * staying far short of a warm sandbox's later turns, where a 401 really is about the key.
+ */
+const CREDENTIAL_PROPAGATION_WINDOW_MS = 60_000;
+
+/**
+ * How many times one conversation may be told its credentials did not reach the model.
+ *
+ * A credential race and a genuinely wrong key look identical on a direct provider: both are a 401
+ * with no placeholder echo. The retry copy is the right answer for the race — the failed turn
+ * DELETES the sandbox, so the retry lands on a fresh one and the per-sandbox fault is gone — but
+ * it is a trap for a bad key, which would be told to retry forever. One report per session bounds
+ * that: the second identical failure, on a second fresh sandbox, is far better explained by the
+ * key, so it falls through to the ordinary add-a-key advice. A bad key costs exactly one wasted
+ * retry; a real race still recovers silently.
+ */
+export const CREDENTIAL_RACE_REPORTS_PER_SESSION = 1;
+
+/**
+ * Whether a credential refusal falls inside the propagation window of a Daytona-delivered key.
+ *
+ * Exported for the call sites that build the predicate, and so a test can pin the window.
+ */
+export function withinCredentialPropagationWindow(
+  deliveredAt: number | undefined,
+  now: number = Date.now(),
+): boolean {
+  return (
+    deliveredAt !== undefined &&
+    now - deliveredAt < CREDENTIAL_PROPAGATION_WINDOW_MS
+  );
+}
 
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
@@ -157,6 +216,18 @@ export interface ConciseErrorOptions {
    * user never configured; with it, the hint names the connection the key lives on.
    */
   connection?: { slug?: string; deployment?: string };
+  /**
+   * Whether this run's MODEL credential rode a Daytona Secret delivered recently enough that
+   * substitution may not have propagated. Lazy, like `authFault`: only the refusal path asks.
+   *
+   * This is the ONLY signal available on a direct provider. The body-echo signature above sees
+   * the race only when the provider names the placeholder it received, which the credits proxy
+   * does ("Received=dtn_****") and a direct endpoint does not — api.anthropic.com answers a
+   * bad bearer with "Invalid bearer token" and no echo at all, and a masked OpenAI echo
+   * ("dtn_secr*****") no longer contains the literal `dtn_secret_` the signature looks for.
+   * Without this option every direct-path placeholder 401 is blamed on the user's key.
+   */
+  daytonaCredentialFresh?: () => boolean;
 }
 
 /**
@@ -226,13 +297,17 @@ export function classifyRunError(
       code: "credential_delivery_failed",
     };
   }
-  // `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status
-  // code embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to
-  // contain "401" as a substring (a real, timestamp-dependent flake this caused).
-  if (
-    /authentication required|invalid api key|unauthorized/i.test(raw) ||
-    /(?<!\d)401(?!\d)/.test(raw)
-  ) {
+  // Still before the generic auth branch, and the direct-provider half of the case above: the
+  // refusal carries no placeholder because the provider does not echo what it received, so the
+  // only evidence is that this run's key WAS a Daytona Secret delivered moments ago. Same class,
+  // same honest copy — the alternative is telling a user with a valid key to add one.
+  if (AUTH_REFUSAL.test(raw) && options.daytonaCredentialFresh?.()) {
+    return {
+      message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+      code: "credential_delivery_failed",
+    };
+  }
+  if (AUTH_REFUSAL.test(raw)) {
     return {
       message:
         options.authFault?.() ??

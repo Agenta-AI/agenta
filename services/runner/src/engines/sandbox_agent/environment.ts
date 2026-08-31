@@ -64,6 +64,7 @@ import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
+  deliversModelSecretOnCreate,
   STUCK_ACQUIRE_ATTEMPTS,
   SubstitutionStuckError,
 } from "./credential-preflight.ts";
@@ -631,6 +632,19 @@ async function acquireEnvironmentOnce(
         (candidate) => candidate.consumer.kind === "model",
       );
     const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
+    // Record the delivery moment for the 401 classifier. Same condition as the preflight below,
+    // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
+    // but the preflight can only SEE it where the provider echoes what it received. A direct
+    // Anthropic endpoint echoes nothing, so on that path the classifier is the only guard.
+    if (
+      deliversModelSecretOnCreate({
+        isDaytona: plan.isDaytona,
+        sandboxMode: acquiredSandbox.mode,
+        hasModelSecretCandidate: Boolean(modelSecretCandidate),
+      })
+    ) {
+      environment.modelSecretDeliveredAt = Date.now();
+    }
     const credentialPreflight =
       plan.isDaytona &&
       acquiredSandbox.mode === "create" &&
