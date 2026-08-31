@@ -102,9 +102,22 @@ if (existsSync(specPath)) {
       Object.keys(spec.paths ?? {}).length > 100,
       "dist/openapi.json looks truncated.",
     );
+    // The exact contract from scripts/copy-openapi.mjs: a stale or unfiltered
+    // spec must not be publishable just because its URLs happen to be absolute.
     check(
-      spec.servers?.every((server) => server.url.startsWith("https://")),
-      "dist/openapi.json still has a relative server URL.",
+      JSON.stringify(spec.servers?.map((server) => server.url)) ===
+        JSON.stringify([
+          "https://us.cloud.agenta.ai/api",
+          "https://eu.cloud.agenta.ai/api",
+        ]),
+      `dist/openapi.json servers are not the published cloud hosts: ${JSON.stringify(spec.servers)}`,
+    );
+    const admin = Object.keys(spec.paths ?? {}).filter((path) =>
+      path.startsWith("/admin/"),
+    );
+    check(
+      admin.length === 0,
+      `dist/openapi.json still exposes ${admin.length} admin path(s), e.g. ${admin[0]}`,
     );
   } catch (error) {
     failures.push(`dist/openapi.json does not parse: ${error.message}`);

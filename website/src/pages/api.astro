@@ -1,6 +1,6 @@
 ---
 import Site from "../layouts/Site.astro";
-import { API_EXAMPLE, HOW_TO_CALL, WHEN_TO_USE } from "../lib/siteSummary";
+import { API_EXAMPLE, WHEN_TO_USE } from "../lib/siteSummary";
 
 // Same-origin API entry point. The full reference lives on docs.agenta.ai and
 // the machine-readable surface is /openapi.json; this page is the signpost
@@ -119,7 +119,7 @@ const bases = [
           </li>
         </ul>
         <p style={`margin:24px 0 0;${body}`}>
-          {HOW_TO_CALL[3]}
+          Python SDK: <code>pip install agenta</code>.
         </p>
       </div>
     </div>
