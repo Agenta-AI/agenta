@@ -21,8 +21,24 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
  * resolved connection). When it is absent, fall back to the harness default
  * — Claude is always Anthropic; every other harness defaults to OpenAI, matching the old
  * behavior for that path only.
+ *
+ * A CUSTOM deployment overrides the family label entirely: its provider family is "openai"
+ * because the endpoint speaks the OpenAI dialect, not because the key is an OpenAI key — a
+ * Gemini run through an OpenAI-compatible proxy must not read "add the project's OpenAI key".
+ * The hint names the connection instead, which is where that key actually lives.
  */
-function keyHintFor(provider: string | undefined, harness: string): string {
+function keyHintFor(
+  provider: string | undefined,
+  harness: string,
+  connection?: ConciseErrorOptions["connection"],
+): string {
+  if (connection?.deployment === "custom") {
+    // NEUTRAL on purpose: the runner cannot tell a user-created connection from a managed one
+    // (the seeded starter-credits connection is write-only and hidden from Settings), so naming
+    // the slug can both leak an internal identifier and instruct the user to edit a connection
+    // they cannot see. Review finding on #6362.
+    return "the model connection's API key";
+  }
   const label = provider
     ? PROVIDER_KEY_LABELS[provider.toLowerCase()]
     : undefined;
@@ -44,6 +60,7 @@ export type RunErrorCode =
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
+  | "credential_delivery_failed"
   | "rate_limited";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
@@ -53,9 +70,9 @@ export interface ClassifiedRunError {
 }
 
 /*
- * TODO(copy: owner) — the five strings below are PLACEHOLDERS. They are the first product copy the
- * runner puts in front of an end user (every other line here is an operator hint), so the final
- * wording is the product owner's to write. Keep them short, plain, and free of provider/proxy
+ * TODO(copy: owner) — the product-copy strings below are PLACEHOLDERS. They are the first product
+ * copy the runner puts in front of an end user (every other line here is an operator hint), so the
+ * final wording is the product owner's to write. Keep them short, plain, and free of provider/proxy
  * mechanics: the user cannot act on which service refused, only on what to do next.
  *
  * They are deliberately NOT prefixed with the harness name the way the operator hints are — the
@@ -71,6 +88,8 @@ const PROVIDER_RATE_LIMITED_MESSAGE =
   "Too many requests to the model provider right now. Try again in a moment.";
 const STARTER_CREDITS_UNAVAILABLE_MESSAGE =
   "Agenta credits are temporarily unavailable. Try again in a moment.";
+const CREDENTIAL_DELIVERY_FAILED_MESSAGE =
+  "A temporary issue kept this run's credentials from reaching the model. Send the message again.";
 
 /*
  * Recognition is matched on the BODY, never on the HTTP status alone: 429 covers admission-time
@@ -96,6 +115,22 @@ const PROXY_RATE_LIMIT =
 /** The upstream provider's own quota refusal (Vertex/Google shape), distinct from a billing stop. */
 const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
 
+/**
+ * The provider received the sandbox's opaque credential PLACEHOLDER instead of the real key.
+ *
+ * On a Daytona run the real model key never enters the sandbox: it is stored as a Daytona Secret
+ * and the sandbox holds a `dtn_secret_<id>` placeholder that Daytona substitutes into egress
+ * requests to the key's exact host. That substitution propagates asynchronously with no
+ * confirmation signal, and when a sandbox's FIRST outbound call beats it (observed live at 10-24s
+ * after Secret creation), the raw placeholder reaches the provider and is refused with a 401.
+ * The user's key is fine, so the add-a-key advice would be wrong three ways; this is its own
+ * transient class. The first alternative matches LiteLLM's refusal of a non-`sk-` bearer
+ * ("LiteLLM Virtual Key expected. Received=dtn_****…"); the second matches any provider that
+ * echoes the placeholder itself.
+ */
+const PLACEHOLDER_CREDENTIAL =
+  /virtual key expected.*received=dtn_|dtn_secret_/i;
+
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
 const CONNECTION_FAILURE =
@@ -117,6 +152,13 @@ export interface ConciseErrorOptions {
    * Lazy so the check (a stat) only runs on the error path it explains.
    */
   authFault?: () => string | undefined;
+  /**
+   * The run's named connection (wire `connection.slug`) and resolved deployment
+   * (`modelConnection.deployment`), when the caller knows them. A custom deployment carries the
+   * provider family "openai" for its DIALECT, so without this the auth hint names a key the
+   * user never configured; with it, the hint names the connection the key lives on.
+   */
+  connection?: { slug?: string; deployment?: string };
 }
 
 /**
@@ -135,7 +177,7 @@ export function classifyRunError(
 ): ClassifiedRunError {
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
-  const keyHint = keyHintFor(provider, harness);
+  const keyHint = keyHintFor(provider, harness, options.connection);
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
@@ -177,6 +219,14 @@ export function classifyRunError(
   }
   if (PROXY_RATE_LIMIT.test(raw)) {
     return { message: RATE_LIMITED_MESSAGE, code: "rate_limited" };
+  }
+  // Before the generic auth branch: a placeholder-shaped refusal IS a 401, but its cause is
+  // credential delivery, not the user's key, and the add-a-key advice would be false.
+  if (PLACEHOLDER_CREDENTIAL.test(raw)) {
+    return {
+      message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+      code: "credential_delivery_failed",
+    };
   }
   // `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status
   // code embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to

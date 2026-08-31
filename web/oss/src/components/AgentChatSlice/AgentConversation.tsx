@@ -623,8 +623,29 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
-            setStopped(false)
-            regenerate({messageId}).catch(ignoreStreamRejection)
+            const msgs = messagesRef.current
+            const idx = msgs.findIndex((m) => m.id === messageId)
+            // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
+            // turn, including any tool that already ran — a retryable model error can land
+            // AFTER a completed write, and the retry would run the write again.
+            const sideEffects = idx >= 0 ? sideEffectingToolsInRange(msgs.slice(idx)) : []
+            const run = () => {
+                setStopped(false)
+                regenerate({messageId}).catch(ignoreStreamRejection)
+            }
+            if (sideEffects.length > 0) {
+                modal.confirm({
+                    title: "Retry past a tool that already ran?",
+                    content: `${sideEffects.join(", ")} already executed. Retrying re-runs this turn but will NOT undo it.`,
+                    okText: "Retry anyway",
+                    okButtonProps: {danger: true},
+                    cancelText: "Cancel",
+                    centered: true,
+                    onOk: run,
+                })
+            } else {
+                run()
+            }
         },
         [regenerate, setStopped],
     )
