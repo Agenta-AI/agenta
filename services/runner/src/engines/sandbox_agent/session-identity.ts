@@ -213,6 +213,39 @@ function canonicalJson(value: unknown): string {
  * whether an environment may be reused.
  */
 export function configFingerprint(request: AgentRunRequest): string {
+  return sha256(canonicalJson(configShape(request)));
+}
+
+/**
+ * Per-field digests of the SAME shape `configFingerprint` hashes, so a config mismatch can name
+ * WHICH fields differ (names only, never values — each digest is a hash). Today a
+ * `mismatch (config)` eviction says a rebuild happened but not why, and answering "what changed"
+ * takes production access; with the applied side storing these, the eviction log names the
+ * fields. Sharing `configShape` keeps the two views incapable of drifting.
+ */
+export function configFieldDigests(
+  request: AgentRunRequest,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(configShape(request)).map(([field, value]) => [
+      field,
+      sha256(canonicalJson(value)),
+    ]),
+  );
+}
+
+/** The fields whose digests differ, in shape order. Empty when `applied` is absent (unknowable). */
+export function changedConfigFields(
+  desired: Record<string, string>,
+  applied: Record<string, string> | undefined,
+): string[] {
+  if (!applied) return [];
+  return Object.keys(desired).filter(
+    (field) => desired[field] !== applied[field],
+  );
+}
+
+function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
@@ -269,7 +302,7 @@ export function configFingerprint(request: AgentRunRequest): string {
     harnessFiles: request.harnessFiles ?? null,
     // No `workflowRevision` and no `isDraft`. See the doc comment above.
   };
-  return sha256(canonicalJson(shape));
+  return shape;
 }
 
 function collectToolCallIds(
