@@ -23,6 +23,7 @@ from agenta.sdk.engines.running.utils import (
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -207,6 +208,77 @@ class RevisionConflictError(Exception):
             ),
             "details": details,
         }
+
+
+class InvalidAgentHarnessError(Exception):
+    """The commit carries an agent configuration whose harness the runtime cannot read.
+
+    A config with an unreadable ``harness.kind`` can never run, so storing it only moves the
+    failure somewhere less useful: the commit answered 200 and the invoke died on the enum's
+    bare ``ValueError`` as an unhandled 500 (finding F4). The write boundary is the outermost
+    place the caller can still be told which field is wrong, so it is refused here.
+    """
+
+    code = "invalid_harness_kind"
+
+    def __init__(self, *, value: Any, message: str) -> None:
+        super().__init__(message)
+        self.value = value
+        self.message = message
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        NOT retryable: the same bytes carry the same unreadable value forever. The caller has
+        a way forward, which is the `next_step`, so the allowed values travel in `details`
+        rather than only inside the message.
+        """
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                "Set agent.harness.kind to one of the allowed harnesses and send the "
+                "commit again."
+            ),
+            "details": {
+                "field": "parameters.agent.harness.kind",
+                "value": (
+                    self.value
+                    if isinstance(self.value, (str, int, float))
+                    else str(self.value)
+                ),
+                "allowed": sorted(kind.value for kind in HarnessKind),
+            },
+        }
+
+
+def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
+    """Refuse a commit whose agent template names a harness that does not exist.
+
+    Deliberately narrow. It reads ONE field, and only when the commit actually carries it, so
+    a workflow that is not an agent (and an agent commit that leaves the harness alone) takes
+    exactly the path it took before. An absent or null kind means "use the default" and is
+    left to the runtime, which is the behaviour every existing config relies on.
+    """
+    if not isinstance(data, dict):
+        return
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict):
+        return
+    agent = parameters.get("agent")
+    if not isinstance(agent, dict):
+        return
+    harness = agent.get("harness")
+    if not isinstance(harness, dict):
+        return
+    kind = harness.get("kind")
+    if kind is None or not str(kind).strip():
+        return
+    try:
+        HarnessKind.coerce(kind)
+    except InvalidHarnessKindError as e:
+        raise InvalidAgentHarnessError(value=kind, message=e.message) from e
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -2170,6 +2242,11 @@ class WorkflowsService:
         candidate = self._build_revision_commit(
             workflow_revision_commit=workflow_revision_commit,
         )
+
+        # Checked on the CANDIDATE, so both commit forms are covered by one call: the delta arm
+        # has already merged its operations onto the head by here, and a full-data commit is
+        # the data as sent. An unrunnable agent config must not become a revision.
+        _reject_unreadable_harness_kind(candidate.data)
 
         # The no-change answer belongs to the ordered-operations surface. With the flag off
         # the commit path stays exactly today's: a legacy delta or a full-data commit that

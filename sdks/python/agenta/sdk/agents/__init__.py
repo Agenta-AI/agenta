@@ -66,6 +66,7 @@ from .dtos import (
     HarnessCapabilities,
     HarnessIdentity,
     HarnessKind,
+    InvalidHarnessKindError,
     InvalidPermissionDefaultError,
     Message,
     NetworkEgress,
@@ -273,6 +274,7 @@ __all__ = [
     "LocalSandboxNotAllowedError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
+    "InvalidHarnessKindError",
     "InvalidPermissionDefaultError",
     "AgentTemplateShapeError",
     # Adapters

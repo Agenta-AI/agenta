@@ -17,7 +17,11 @@ from fastapi import HTTPException
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
-from oss.src.core.workflows.service import CommitOutcome, RevisionConflictError
+from oss.src.core.workflows.service import (
+    CommitOutcome,
+    InvalidAgentHarnessError,
+    RevisionConflictError,
+)
 from oss.src.core.workflows.types import StaticWorkflowSlug
 
 
@@ -242,6 +246,33 @@ class TestDomainRefusals:
         assert caught.value.detail["details"]["current_revision_id"] == current
         assert caught.value.detail["retryable"] is False
         assert caught.value.detail["next_step"]
+
+    async def test_an_unreadable_harness_answers_422_and_names_the_field(
+        self, router, allow_access
+    ):
+        # F4: this used to answer 200 and persist a config that could never run. The failure
+        # then surfaced on invoke as an unhandled 500 whose body was a Python repr, far from
+        # the request that caused it.
+        router.workflows_service.commit_workflow_revision_checked.side_effect = (
+            InvalidAgentHarnessError(
+                value="not_a_real_harness",
+                message="invalid harness.kind (str) 'not_a_real_harness'",
+            )
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            await _commit(router)
+
+        assert caught.value.status_code == 422
+        assert caught.value.detail["code"] == "invalid_harness_kind"
+        # Not retryable: the same bytes carry the same unreadable value forever. The way
+        # forward is the next_step, and the values that exist travel in `details`.
+        assert caught.value.detail["retryable"] is False
+        assert caught.value.detail["next_step"]
+        assert (
+            caught.value.detail["details"]["field"] == "parameters.agent.harness.kind"
+        )
+        assert "pi_core" in caught.value.detail["details"]["allowed"]
 
     async def test_a_change_set_refusal_answers_422(self, router, allow_access):
         router.workflows_service.commit_workflow_revision_checked.side_effect = (
