@@ -65,6 +65,7 @@ const CardAction = ({
             </button>
         )
     }
+    // Revealed on hover only where hovering exists — on a touch screen it must stay put.
     if (action === "download" && onDownload) {
         return (
             <button
@@ -74,7 +75,7 @@ const CardAction = ({
                     e.stopPropagation()
                     onDownload()
                 }}
-                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary opacity-0 transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 group-hover:opacity-100"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
             >
                 <DownloadSimple size={13} />
             </button>
