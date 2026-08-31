@@ -2,7 +2,7 @@ import {useEffect, useState, type ReactNode} from "react"
 
 import {
     chatPanelMaximizedAtom,
-    configPanelCollapsedPreferenceAtom,
+    configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
     resolveConfigPanelCollapsed,
 } from "@agenta/chat/state"
@@ -108,7 +108,7 @@ export const SessionWorkspace = ({
     // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
     // for a device, and this surface gets to answer too. A stored preference still beats both.
     const configCollapsed = resolveConfigPanelCollapsed(
-        useAtomValue(configPanelCollapsedPreferenceAtom),
+        useAtomValue(configPanelCollapsedViewportPreferenceAtom),
         useAtomValue(phoneViewportAtom),
         collapseConfigByDefault,
     )

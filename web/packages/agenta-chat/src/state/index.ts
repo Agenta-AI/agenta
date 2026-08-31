@@ -7,6 +7,8 @@ export {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
     configPanelCollapsedPreferenceAtom,
+    configPanelCollapsedPhonePreferenceAtom,
+    configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
