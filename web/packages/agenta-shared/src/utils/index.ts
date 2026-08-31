@@ -14,6 +14,20 @@ export {
 
 // Platform detection (modifier-key naming)
 export {isMacPlatform, modifierKeyLabel, altKeyPrefix, pushToTalkLabel} from "./platform"
+// Overlay ownership detection
+export {isOnScreen, isOverlayOpen} from "./overlay"
+
+// The playground's keyboard shortcut registry
+export {
+    PLAYGROUND_SHORTCUTS,
+    SHORTCUT_GROUP_TITLES,
+    getShortcut,
+    shortcutAria,
+    shortcutGroups,
+    shortcutFaces,
+    shortcutText,
+} from "./shortcuts"
+export type {Shortcut, ShortcutGroupId, ShortcutModifier} from "./shortcuts"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
