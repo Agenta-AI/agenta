@@ -18,6 +18,7 @@ import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerRejections from "./ComposerRejections"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -115,6 +116,14 @@ export const ChatComposer = ({
                 }}
                 className="hidden"
             />
+            {/* Docked ABOVE the composer, not inside the tray: a rejection has no thumbnail, no
+            upload and nothing to send, so sizing it like an attachment card only cost the reason
+            its room. */}
+            <div className={className}>
+                <HeightCollapse open={rejections.length > 0}>
+                    <ComposerRejections rejections={rejections} onDismiss={dismissRejection} />
+                </HeightCollapse>
+            </div>
             <RichChatInput
                 ref={inputRef}
                 autoFocus={autoFocus}
@@ -168,12 +177,10 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={files.length > 0 || rejections.length > 0}>
+                    <HeightCollapse open={files.length > 0}>
                         <ComposerAttachments
                             files={files}
-                            rejections={rejections}
                             onRemove={removeFile}
-                            onDismissRejection={dismissRejection}
                             onView={uploadsEnabled ? onViewAttachment : undefined}
                             onRetry={uploads.retry}
                             canRetry={uploads.canRetry}

@@ -1,6 +1,7 @@
 export {ApprovalCard, type ApprovalCardProps} from "./ApprovalCard"
 export {ChatComposer, type ChatComposerProps} from "./ChatComposer"
 export {default as ComposerAttachments} from "./ComposerAttachments"
+export {default as ComposerRejections, type ComposerRejectionsProps} from "./ComposerRejections"
 export {
     default as AttachmentCard,
     type AttachmentCardProps,

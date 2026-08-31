@@ -2,7 +2,6 @@ import {useEffect, useRef, useState} from "react"
 
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {type AttachmentRejection} from "../assets"
 import {isViewable} from "../assets/attachmentRules"
 import {SESSION_SPRING} from "../assets/motion"
 import type {StagedUpload as UploadFile} from "../model"
@@ -22,9 +21,7 @@ const ITEM_VARIANTS = {
 
 interface ComposerAttachmentsProps {
     files: UploadFile[]
-    rejections: AttachmentRejection[]
     onRemove: (uid: string) => void
-    onDismissRejection: (index: number) => void
     /** Open a viewable attachment (image/document) in the Files drawer. */
     onView?: (uid: string) => void
     /** Retry a failed upload (wired to the upload flow). */
@@ -34,15 +31,12 @@ interface ComposerAttachmentsProps {
 }
 
 /**
- * The composer's staged attachments: a grid of equal-height cards holding the files and the
- * batch's rejections side by side, since a rejection is a thing you dismiss exactly like a file.
- * Picking and dropping are owned by the parent — this only draws what is staged.
+ * The composer's staged attachments, as equal-height cards that wrap. Picking, dropping and the
+ * rejection strip are owned by the parent — this only draws what is actually staged.
  */
 const ComposerAttachments = ({
     files,
-    rejections,
     onRemove,
-    onDismissRejection,
     onView,
     onRetry,
     canRetry,
@@ -102,7 +96,7 @@ const ComposerAttachments = ({
 
     // Nothing staged means nothing to draw — the paperclip opens the picker directly, so there is
     // no empty state to invite a drop.
-    if (files.length === 0 && rejections.length === 0) return null
+    if (files.length === 0) return null
 
     return (
         <MotionConfig transition={SESSION_SPRING}>
@@ -154,29 +148,6 @@ const ComposerAttachments = ({
                             )
                         })}
 
-                        {/* Rejections never became files, so they carry no uid, and two can
-                            agree on name AND reason — position is the only thing that separates
-                            them. */}
-                        {rejections.map((r, i) => (
-                            <motion.div
-                                key={`rejection-${i}-${r.name}`}
-                                layout
-                                variants={ITEM_VARIANTS}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                className="min-w-0"
-                            >
-                                <AttachmentCard
-                                    name={r.name}
-                                    mediaType=""
-                                    state="error"
-                                    errorReason={r.reason}
-                                    action="remove"
-                                    onRemove={() => onDismissRejection(i)}
-                                />
-                            </motion.div>
-                        ))}
                     </AnimatePresence>
                 </AttachmentCardGrid>
             </div>
