@@ -244,6 +244,38 @@ therefore see two ids without any lifecycle regression. Before ruling a warm cas
 the runner log for `[credential-preflight] STUCK`: if it fired inside the run, re-run the case
 instead of reporting the eviction.
 
+## On a placeholder 401, read the proxy log before you blame a key — 2026-08-31
+
+A free-credits user on cloud hit a 401 on their first message. The product told them to add the
+project's OpenAI key. That advice was wrong three ways: their key was fine, adding one would not
+have helped, and the run was retryable. The real cause was the first-call race. On a Daytona run
+the real key never enters the sandbox — it is a Daytona Secret, and the sandbox holds a
+`dtn_secret_<id>` placeholder that Daytona substitutes into egress asynchronously, with no
+confirmation signal, 10-24s after the Secret is created. A cold sandbox whose FIRST model call
+beats that propagation sends the raw placeholder, and the provider refuses it with a 401.
+
+**The rule.** A 401 from a Daytona run is not evidence about the user's key until you have read
+the litellm-proxy log. Grep it for `Received=dtn_`. If the line is there, the key was never the
+problem and no key change will fix it: the run needed a retry. Only when that line is ABSENT does
+a 401 mean what it looks like. The runner classifies this correctly as `credential_delivery_failed`
+(see `PLACEHOLDER_CREDENTIAL` in `services/runner/src/engines/sandbox_agent/errors.ts`), so a
+run that reports an add-a-key message over a placeholder refusal is a product bug, not a user
+error. The related trap already recorded above still holds: a stuck-substitution rebuild is not an
+eviction, so grep `[credential-preflight] STUCK` before calling a warm case failed.
+
+Four standing checks came out of this incident. Run all four on every gate; each one is described
+in full in the skill's resource inventory.
+
+1. `matrix_c5_first_call_race.py` — forces a cold Daytona sandbox and sends one message
+   immediately, so the first model call lands as early as it can. FAILs when a placeholder refusal
+   is reported as the user's key problem.
+2. `sweep_disagree.py` — run AFTER a gate session. Greps the runner log for
+   `[reconcile] shadow ... DISAGREE ...`, the over-eviction signature that never shows on the wire.
+3. `matrix_h1_bad_harness.py` — a malformed harness must be refused at some boundary and must
+   never run as a silent defaulted turn.
+4. `check_secrets_teardown.py` — a Daytona Secret must not outlive its run. Names only, never
+   values.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.

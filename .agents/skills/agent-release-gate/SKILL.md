@@ -432,6 +432,44 @@ lands on a pool miss and takes the cold decision-map path, which is exactly the 
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
 
+### The incident checks — born from the free-credits 401 of 2026-08-30
+
+A free-credits user on cloud hit a 401 because a fresh Daytona sandbox's first model call raced
+the asynchronous substitution of its Daytona Secret: the provider got the raw `dtn_secret_<id>`
+placeholder. The product then blamed the user's own key, which was wrong. The same release fixed a
+family of warm-session over-evictions caused by drift between two identity views in the runner.
+These four checks make each layer's failure loud instead of silent. Run all four on every gate.
+
+- `resources/matrix_c5_first_call_race.py` — **[mechanical]** the placeholder race, and whether it
+  is reported honestly. Mints a new workflow so the sandbox is necessarily cold, sends one short
+  message so the first model call lands as early as possible, and asserts the STORED turn row came
+  back. PASSes when the turn succeeds or when the failure carries the runner's
+  `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
+  while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
+  the incident itself. On a local deployment it also counts `Received=dtn_` lines in the
+  litellm-proxy container and reports the count as diagnostic, never as a verdict.
+- `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
+  the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
+  when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
+  That drift is the over-eviction signature and it is invisible from the wire — the turn still
+  succeeds, it just paid for a rebuild it did not need — so a log sweep is the only way to catch
+  it. `--since <iso-timestamp>` is required; `--container` defaults to autodetecting the local
+  stack's runner. Exits 0 PASS, 1 FAIL (printing the offending lines), 2 SKIP when the log is not
+  reachable.
+- `resources/matrix_h1_bad_harness.py` — **[mechanical]** a malformed harness must fail closed.
+  Drives three unreadable `harness` blocks (a wrong-type value, an unknown string, a null kind) at
+  both the commit API and the live invoke, and records WHICH boundary refused (`commit_api`,
+  `invoke_http`, or `runner_stream`) rather than demanding a particular one — a refusal further
+  out is better, not worse. The invariant is that some boundary refuses attributably and no turn
+  ever runs on a defaulted harness. FAILs if a turn executes and stores output.
+- `resources/check_secrets_teardown.py` — **[mechanical]** a Daytona Secret must not outlive its
+  run. Inventories the Daytona organization's Secret NAMES (never values) before a short Daytona
+  journey, forces the teardown with a config-change eviction, then asserts every `agenta_*` Secret
+  the run created is gone within a bounded settle window. Needs a Daytona API key in the
+  environment (`DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`) and SKIPs with the exact
+  reason without one. Run it alone: a concurrent Daytona run against the same organization looks
+  the same as a leftover.
+
 ## Contributing
 
 Before committing any resource script, run the repo-pinned ruff (`uv run --no-sync ruff format`
