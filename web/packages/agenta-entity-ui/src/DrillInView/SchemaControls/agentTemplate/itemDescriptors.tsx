@@ -4,7 +4,7 @@
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
+import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
@@ -22,6 +22,10 @@ export interface ItemDescriptor {
     color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
+    /** Avatar chip classes, for an item that paints its own chip. Set with `avatarStyle`. */
+    avatarClassName?: string
+    /** Custom properties the chip classes read (the light and dark tint and ink). */
+    avatarStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
     tags: string[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
@@ -89,6 +93,36 @@ export function monogram(value: string): string {
 /** Uppercase the first character (leaves the rest untouched). */
 function capitalizeFirst(value: string): string {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : value
+}
+
+/** A saved subagent row. Not `describeTool`: that returns the internal vocabulary (a "workflow"
+ *  tag, a teal square, a monospace name), none of which is true of another agent. */
+export function describeSubagent(
+    tool: unknown,
+    chrome?: {glyph: React.ReactNode; className: string; style?: React.CSSProperties},
+): ItemDescriptor {
+    const t = (tool ?? {}) as Record<string, unknown>
+    const slug = typeof t.slug === "string" ? t.slug : undefined
+    const name = typeof t.name === "string" && t.name ? t.name : slug
+    return {
+        name: name ?? "Subagent",
+        // Prose, never monospace: this is an agent's name, not an identifier.
+        monoName: false,
+        description: typeof t.description === "string" ? t.description : undefined,
+        mono: "",
+        color: "transparent",
+        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
+        avatarClassName:
+            chrome?.className ??
+            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+        avatarStyle: chrome?.style,
+        // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
+        tags: [],
+        typeLabel: "subagent",
+        typeColor: "geekblue",
+        subtitle: slug ? `Subagent · ${slug}` : "Subagent",
+    }
 }
 
 /** Classify a tool into its row avatar / name / description / type tags. */

@@ -23,6 +23,7 @@ from agenta.sdk.engines.running.utils import (
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -123,6 +124,7 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    InvalidAgentHarnessError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -207,6 +209,34 @@ class RevisionConflictError(Exception):
             ),
             "details": details,
         }
+
+
+def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
+    """Refuse a commit whose agent template names a harness that does not exist.
+
+    Deliberately narrow. It reads ONE field, and only when the commit actually carries it, so
+    a workflow that is not an agent (and an agent commit that leaves the harness alone) takes
+    exactly the path it took before. An absent or null kind means "use the default" and is
+    left to the runtime, which is the behaviour every existing config relies on.
+    """
+    if not isinstance(data, dict):
+        return
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict):
+        return
+    agent = parameters.get("agent")
+    if not isinstance(agent, dict):
+        return
+    harness = agent.get("harness")
+    if not isinstance(harness, dict):
+        return
+    kind = harness.get("kind")
+    if kind is None or not str(kind).strip():
+        return
+    try:
+        HarnessKind.coerce(kind)
+    except InvalidHarnessKindError as e:
+        raise InvalidAgentHarnessError(value=kind, message=e.message) from e
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -2170,6 +2200,11 @@ class WorkflowsService:
         candidate = self._build_revision_commit(
             workflow_revision_commit=workflow_revision_commit,
         )
+
+        # Checked on the CANDIDATE, so both commit forms are covered by one call: the delta arm
+        # has already merged its operations onto the head by here, and a full-data commit is
+        # the data as sent. An unrunnable agent config must not become a revision.
+        _reject_unreadable_harness_kind(candidate.data)
 
         # The no-change answer belongs to the ordered-operations surface. With the flag off
         # the commit path stays exactly today's: a legacy delta or a full-data commit that

@@ -92,11 +92,15 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
-def _check_tool_name(name: str, seen: set[str]) -> None:
+def _reject_reserved_tool_name(name: str) -> None:
     # The harness registers custom tools by name beside its built-ins, so a same-named custom
     # tool would silently replace the built-in the platform activates on every run.
     if name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
         raise ReservedToolNameError(name)
+
+
+def _check_tool_name(name: str, seen: set[str]) -> None:
+    _reject_reserved_tool_name(name)
     if name in seen:
         raise DuplicateToolNameError(name)
     seen.add(name)
@@ -130,8 +134,19 @@ def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
     seen: set[str] = set()
     for tool_config in tool_configs:
         name = _declared_config_name(tool_config)
-        if name is not None:
-            _check_tool_name(name, seen)
+        if name is None:
+            continue
+        if isinstance(tool_config, ReferenceToolConfig):
+            # A reference tool's model-visible name is DERIVED: an authored display name,
+            # sanitized to the provider's tool-name pattern. Two distinct children can therefore
+            # arrive here sharing one name ("Support Router" and "Support/Router" both sanitize
+            # to `Support_Router`) without either being a mistake. The workflow adapter gives
+            # them distinct names before they reach the wire, and `_validate_unique_names` still
+            # checks the result, so rejecting them here would refuse a valid configuration. The
+            # reserved-name check still applies — that one is about shadowing a built-in.
+            _reject_reserved_tool_name(name)
+            continue
+        _check_tool_name(name, seen)
 
 
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
