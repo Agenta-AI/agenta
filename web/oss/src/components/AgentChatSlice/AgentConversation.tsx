@@ -55,6 +55,7 @@ import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
+import MessageAttachmentViewer from "./components/MessageAttachmentViewer"
 import {Inspector} from "./components/Inspector/Inspector"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
@@ -710,6 +711,8 @@ const AgentConversation = ({
                 >
                     {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                     {quickLookHost}
+                    {/* Previews a SENT attachment; the tray's own drawer is below. */}
+                    <MessageAttachmentViewer />
                     {uploadsEnabled ? (
                         <AttachmentViewerDrawer
                             uploads={files}

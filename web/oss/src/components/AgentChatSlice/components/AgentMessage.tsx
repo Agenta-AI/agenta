@@ -6,7 +6,7 @@ import {
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, filePartName} from "@agenta/chat/assets"
+import {attachmentIdForPart, filePartName, isViewable} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
@@ -52,6 +52,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 
+import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
 import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
@@ -272,6 +273,7 @@ const triggerDownload = (href: string, name: string) => {
 }
 
 const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: string}) => {
+    const setViewing = useSetAtom(viewingMessageAttachmentAtom)
     const attachmentId = attachmentIdForPart(file)
     const source = useAttachmentMediaSrc(attachmentId ? sessionId : null, attachmentId)
     const src = attachmentId ? source.src : file.url
@@ -316,6 +318,16 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
             loading={attachmentId ? source.isPending : false}
             action={src && !source.failed ? "download" : "none"}
             onDownload={() => void handleDownload()}
+            onView={
+                src && isViewable(file.mediaType ?? "")
+                    ? () =>
+                          setViewing({
+                              name,
+                              mediaType: file.mediaType ?? "",
+                              url: src,
+                          })
+                    : undefined
+            }
         />
     )
 }
