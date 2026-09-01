@@ -90,6 +90,52 @@ describe("readAgentConfig — three schema shapes normalize to one view", () => 
     })
 })
 
+describe("subagents are named and described like every other tool", () => {
+    // A subagent is stored as a `type:"reference"` tool. The diff named it by its SLUG and threw
+    // its description away, so a reader saw a handle where the config panel shows a name, and an
+    // edited description registered as a change with nothing to show.
+    const ref = (over: Record<string, unknown>) => ({
+        type: "reference",
+        ref_by: "variant",
+        slug: "dev-to-article-writer",
+        ...over,
+    })
+
+    it("uses the subagent's name, and says what kind of thing it is", () => {
+        const tools = classifyAgentChanges(
+            {agent: {tools: [ref({name: "Article writer"})]}},
+            {agent: {tools: []}},
+        ).find((s) => s.id === "tools")
+        expect(tools?.items?.[0]).toMatchObject({
+            kind: "added",
+            label: "Article writer",
+            detail: "Subagent",
+            // The slug stays reachable as the technical key.
+            rawKey: "dev-to-article-writer",
+        })
+    })
+
+    it("falls back to the slug when the reference carries no name", () => {
+        const tools = classifyAgentChanges({agent: {tools: [ref({})]}}, {agent: {tools: []}}).find(
+            (s) => s.id === "tools",
+        )
+        expect(tools?.items?.[0]).toMatchObject({label: "dev-to-article-writer"})
+    })
+
+    it("shows WHAT changed when a subagent's description is edited", () => {
+        const before = {agent: {tools: [ref({name: "Writer", description: "Writes drafts."})]}}
+        const after = {
+            agent: {tools: [ref({name: "Writer", description: "Writes and publishes."})]},
+        }
+        const item = classifyAgentChanges(after, before).find((s) => s.id === "tools")?.items?.[0]
+        expect(item?.kind).toBe("edited")
+        expect(item?.descriptionDiff).toEqual({
+            before: "Writes drafts.",
+            after: "Writes and publishes.",
+        })
+    })
+})
+
 describe("advanced settings read as settings, not as JSON paths", () => {
     // Regression: the row printed the storage path and the stored enum verbatim —
     // `runner.permissions.default  allow → allow_reads` — which says nothing to a reader who has
