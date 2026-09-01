@@ -369,3 +369,218 @@ describe("the swallowed-Pi-error recovery path (Codex P1)", () => {
     );
   });
 });
+
+describe("the fresh-Secret branch requires a provider 401 (CodeRabbit, #6408)", () => {
+  // `AUTH_REFUSAL` is broad on purpose — it decides which advice to print, and bare
+  // "unauthorized" appears in authorization failures all over the runner. That breadth is wrong
+  // for this branch, which SPENDS the session's one credential-race report and tells the user to
+  // retry. An unrelated "unauthorized" inside the propagation window would burn the report and
+  // hand out retry guidance a retry cannot fix, leaving the genuine race that followed to get the
+  // add-a-key copy.
+  const UNRELATED = [
+    "Unauthorized: the tool's own API rejected the request",
+    "mount failed: unauthorized",
+    "authentication required by the storage backend",
+    "invalid api key for the analytics service",
+  ];
+
+  it("does not classify an unrelated authorization failure as a delivery race", () => {
+    for (const raw of UNRELATED) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "runner_error", raw);
+      assert.doesNotMatch(
+        r.message,
+        /credentials from reaching the model/,
+        raw,
+      );
+    }
+  });
+
+  it("does not let an unrelated authorization failure consume the session report", () => {
+    const store = new SessionContinuityStore();
+    const report = () =>
+      store.noteCredentialRaceReport("session-x") <=
+      CREDENTIAL_RACE_REPORTS_PER_SESSION;
+
+    classifyRunError(new Error(UNRELATED[0]), "claude", "anthropic", {
+      daytonaCredentialFresh: report,
+    });
+    assert.equal(store.credentialRaceReportCount("session-x"), 0);
+
+    // The report is still available for the real race that follows.
+    const r = classifyRunError(
+      new Error(ANTHROPIC_DIRECT_401),
+      "claude",
+      "anthropic",
+      {
+        daytonaCredentialFresh: report,
+      },
+    );
+    assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("still recognizes the 401 shapes providers actually send", () => {
+    for (const raw of [
+      "API Error: 401 Invalid bearer token",
+      'HTTP 401: {"error":"unauthorized"}',
+      '{"status_code": 401, "message": "no"}',
+      "http-401 refused",
+    ]) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "credential_delivery_failed", raw);
+    }
+  });
+
+  it("keeps the placeholder branches free of the report budget", () => {
+    // A body that echoes the placeholder is self-evidencing: a real user key never contains
+    // `dtn_`, so every such refusal IS a delivery failure however often it repeats. Capping it
+    // would eventually tell a user with a good key to add one.
+    const store = new SessionContinuityStore();
+    const report = () =>
+      store.noteCredentialRaceReport("session-y") <=
+      CREDENTIAL_RACE_REPORTS_PER_SESSION;
+    for (let i = 0; i < 5; i++) {
+      const r = classifyRunError(
+        new Error(LITELLM_PROXY_401),
+        "claude",
+        "anthropic",
+        {
+          daytonaCredentialFresh: report,
+        },
+      );
+      assert.equal(r.code, "credential_delivery_failed");
+    }
+    assert.equal(store.credentialRaceReportCount("session-y"), 0);
+  });
+});
+
+describe("a 401 the RUNNER produced is not the provider's (CodeRabbit Major, #6422)", () => {
+  // This classifier reads one flattened error STRING; it never sees an HTTP response, so the
+  // status it matches is whatever the throwing code wrote into the message. Several authenticated
+  // calls the runner makes DURING a turn can answer 401 and reach the same catch. Left
+  // unexcluded, any of them inside the propagation window spends the session's one report and
+  // prints retry guidance for a failure a retry cannot fix — and the genuine race that follows
+  // then gets the add-a-key copy, which is the original bug wearing a disguise.
+  // EXACTLY the five prefixed emitters that reach this classifier as input. Mount, geesefs and
+  // otel are deliberately absent: those sites build their message AROUND `conciseError`, so the
+  // prefix is added after classification and the classifier only ever sees the inner error.
+  const RUNNER_401 = [
+    "tool call workflow.variant.summarizer failed: HTTP 401",
+    "attachment fetch failed: HTTP 401",
+    "attachment claim failed: HTTP 401",
+    "session records query failed: HTTP 401",
+    "session records persist failed: HTTP 401",
+  ];
+
+  it("does not classify a runner-side 401 as a credential race", () => {
+    for (const raw of RUNNER_401) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "runner_error", raw);
+      assert.doesNotMatch(
+        r.message,
+        /credentials from reaching the model/,
+        raw,
+      );
+    }
+  });
+
+  it("does not let a runner-side 401 consume the session report", () => {
+    // The load-bearing half. A consumed report is invisible at the time and only shows up later,
+    // as the real race being told to add a key.
+    const store = new SessionContinuityStore();
+    const report = () =>
+      store.noteCredentialRaceReport("session-z") <=
+      CREDENTIAL_RACE_REPORTS_PER_SESSION;
+
+    for (const raw of RUNNER_401) {
+      classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: report,
+      });
+    }
+    assert.equal(store.credentialRaceReportCount("session-z"), 0);
+
+    // Still available for the genuine refusal that follows.
+    const r = classifyRunError(
+      new Error(ANTHROPIC_DIRECT_401),
+      "claude",
+      "anthropic",
+      {
+        daytonaCredentialFresh: report,
+      },
+    );
+    assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("does not exclude a provider 401 whose prose merely contains an emitter substring", () => {
+    // The exclusion must never fire on a PROVIDER refusal, because that is the worse direction of
+    // this bug: it hands a genuine race the add-a-key copy. An earlier draft matched loose
+    // `mount failed` and a bare `otel`, which swallowed all three of these.
+    for (const raw of [
+      "API Error: 401 the requested amount failed to authorize",
+      "API Error: 401 paramount failed",
+      "API Error: 401 hotel-search rejected the key",
+    ]) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "credential_delivery_failed", raw);
+    }
+  });
+
+  it("still classifies a provider 401 that merely mentions a tool", () => {
+    // The exclusion keys on the runner's own failure PREFIX, not on any appearance of the word:
+    // a model refusal whose body happens to say "tool" must not be excluded.
+    const r = classifyRunError(
+      new Error(
+        'API Error: 401 {"message":"Invalid bearer token","request":"tool_use"}',
+      ),
+      "claude",
+      "anthropic",
+      { daytonaCredentialFresh: () => true },
+    );
+    assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("keeps a self-evidencing placeholder echo classified inside a runner-side failure", () => {
+    // The placeholder branch runs earlier and stands alone: a literal `dtn_secret_` in the body
+    // means the placeholder really went out, whoever was calling, so the runner-side exclusion
+    // must not suppress it.
+    const r = classifyRunError(
+      new Error("tool call x failed: HTTP 401 rejected dtn_secret_abc123"),
+      "claude",
+      "anthropic",
+      { daytonaCredentialFresh: () => true },
+    );
+    assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("refuses a bare `dtn_****` mask with no LiteLLM phrasing", () => {
+    // Not a regression: `Received=dtn_****` is evidence only via LiteLLM's quoted sentence. On
+    // its own the mask has a zero-length stem, which the tightened signature rejects by design so
+    // a literal glob cannot spoof it. Pinned here so the asymmetry is deliberate, not accidental.
+    const r = classifyRunError(
+      new Error("tool call x failed: HTTP 401 got dtn_**** instead"),
+      "claude",
+      "anthropic",
+      { daytonaCredentialFresh: () => true },
+    );
+    assert.equal(r.code, "runner_error");
+
+    // With LiteLLM's own sentence in front of it, the same mask IS evidence.
+    const withPhrase = classifyRunError(
+      new Error(
+        "LiteLLM Virtual Key expected. Received=dtn_****, expected sk-",
+      ),
+      "claude",
+      "anthropic",
+      { daytonaCredentialFresh: () => false },
+    );
+    assert.equal(withPhrase.code, "credential_delivery_failed");
+  });
+});

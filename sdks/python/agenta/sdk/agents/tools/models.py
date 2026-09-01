@@ -63,21 +63,47 @@ def disambiguate_tool_names(pairs: List[tuple]) -> Dict[str, str]:
     the earlier tool rather than erroring, so the second subagent would simply never be callable.
 
     Only colliding names are decorated, so the common case keeps the name the user recognizes.
-    The discriminator is a short digest of the tool's own stable identity (its `call_ref`), NOT
-    its position: an ordinal would renumber when the author reorders or removes a tool, changing
-    a name the model may already have used earlier in the conversation.
+    The discriminator is a digest of the tool's own stable identity (its `call_ref`), NOT its
+    position: an ordinal would renumber when the author reorders or removes a tool, changing a
+    name the model may already have used earlier in the conversation.
+
+    The digest starts short for readability and LENGTHENS until every name in the colliding group
+    is distinct. Six hex characters is only 24 bits, so two `call_ref` values can share a prefix;
+    if their base names also matched, the function would hand back one name for both entries and
+    the final uniqueness check would reject a configuration this helper promises is unique. Growing
+    the digest keeps the guarantee without reintroducing an ordinal: the length depends on the set
+    of colliding identities, never on their order, so the same configuration always yields the same
+    names. Two distinct identities cannot share the FULL digest, so the loop always terminates.
     """
     counts: Dict[str, int] = {}
     for _identity, name in pairs:
         counts[name] = counts.get(name, 0) + 1
+
     resolved: Dict[str, str] = {}
-    for identity, name in pairs:
-        if counts[name] > 1:
-            digest = sha1(identity.encode("utf-8")).hexdigest()[:6]
-            resolved[identity] = f"{name}_{digest}"
-        else:
-            resolved[identity] = name
+    for name, count in counts.items():
+        group = [identity for identity, item_name in pairs if item_name == name]
+        if count == 1:
+            resolved[group[0]] = name
+            continue
+        digests = {identity: _identity_digest(identity) for identity in group}
+        # Sorting makes the width a property of the SET, not of iteration order.
+        width = _shortest_distinct_prefix(sorted(digests.values()))
+        for identity in group:
+            resolved[identity] = f"{name}_{digests[identity][:width]}"
     return resolved
+
+
+def _identity_digest(identity: str) -> str:
+    return sha1(identity.encode("utf-8")).hexdigest()
+
+
+def _shortest_distinct_prefix(digests: List[str], start: int = 6) -> int:
+    """The smallest prefix length (from `start`) at which every digest differs."""
+    longest = max((len(digest) for digest in digests), default=start)
+    for width in range(start, longest + 1):
+        if len({digest[:width] for digest in digests}) == len(digests):
+            return width
+    return longest
 
 
 # Layer-3 per-tool permission: ``allow`` runs with no prompt, ``ask`` raises a
