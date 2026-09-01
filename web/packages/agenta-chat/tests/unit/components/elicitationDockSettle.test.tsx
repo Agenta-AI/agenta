@@ -97,6 +97,22 @@ describe("the reserved box", () => {
 })
 
 describe("chrome", () => {
+    it("hides the question stepper when the form has only one question", () => {
+        const {container} = setup({
+            message: "One question",
+            requestedSchema: {
+                type: "object",
+                properties: {name: {type: "string", title: "Your name"}},
+            },
+        })
+        const card = container.querySelector('[role="group"]') as HTMLElement
+
+        expect(screen.queryByLabelText("Previous question")).toBeNull()
+        expect(screen.queryByText("1/1")).toBeNull()
+        expect(screen.queryByLabelText("Next question")).toBeNull()
+        expect(card.querySelector(":scope > [aria-hidden]")).toBeNull()
+    })
+
     it("uses real Button components for the nav, so a disabled control stays chrome-less", () => {
         // A raw <button> here grew a visible 1px box the moment it was disabled — the exact case
         // the `ghost` variant's own note in @agenta/ui warns about.
@@ -269,7 +285,7 @@ describe("automation", () => {
         fireEvent.keyDown(box, {key: "Enter", shiftKey: true})
 
         expect(onOutput).not.toHaveBeenCalled()
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(screen.queryByText("1/1")).toBeNull()
     })
 
     it("leaves plain Enter alone in a textarea, so the browser inserts the newline", () => {
@@ -287,7 +303,7 @@ describe("automation", () => {
 
         // Nothing intercepts it, so the browser's own newline stands and the step does not move.
         expect(onOutput).not.toHaveBeenCalled()
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(screen.queryByText("1/1")).toBeNull()
     })
 
     it("advances immediately on a digit, with no hold", () => {
@@ -353,7 +369,7 @@ describe("multi-select", () => {
         fireEvent.click(screen.getByText("Releases"))
 
         // Still on the one and only question — a checkbox list is not done until you say so.
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(screen.queryByText("1/1")).toBeNull()
         expect(onOutput).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByText("Send answers"))

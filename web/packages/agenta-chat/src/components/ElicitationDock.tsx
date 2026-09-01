@@ -380,6 +380,7 @@ const LiveCard = ({
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
+    const showQuestionStepper = steps.length > 1
 
     return (
         <div
@@ -396,26 +397,30 @@ const LiveCard = ({
         >
             <Eyebrow label={askerLabel}>
                 <div className="ml-auto flex items-center gap-0.5">
-                    <NavButton
-                        label="Previous question"
-                        disabled={!stepper.canGoBack}
-                        onClick={stepper.back}
-                    >
-                        <CaretLeft size={11} />
-                    </NavButton>
-                    <span
-                        aria-live="polite"
-                        className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
-                    >
-                        {stepper.position}/{stepper.total}
-                    </span>
-                    <NavButton
-                        label="Next question"
-                        disabled={!stepper.canGoForward}
-                        onClick={stepper.forward}
-                    >
-                        <CaretRight size={11} />
-                    </NavButton>
+                    {showQuestionStepper ? (
+                        <>
+                            <NavButton
+                                label="Previous question"
+                                disabled={!stepper.canGoBack}
+                                onClick={stepper.back}
+                            >
+                                <CaretLeft size={11} />
+                            </NavButton>
+                            <span
+                                aria-live="polite"
+                                className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
+                            >
+                                {stepper.position}/{stepper.total}
+                            </span>
+                            <NavButton
+                                label="Next question"
+                                disabled={!stepper.canGoForward}
+                                onClick={stepper.forward}
+                            >
+                                <CaretRight size={11} />
+                            </NavButton>
+                        </>
+                    ) : null}
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -431,16 +436,18 @@ const LiveCard = ({
                 </div>
             </Eyebrow>
 
-            <div className="flex gap-1" aria-hidden>
-                {steps.map((candidate, index) => (
-                    <span
-                        key={candidate.name}
-                        className={`h-0.5 flex-1 rounded-full ${
-                            index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
-                        }`}
-                    />
-                ))}
-            </div>
+            {showQuestionStepper ? (
+                <div className="flex gap-1" aria-hidden>
+                    {steps.map((candidate, index) => (
+                        <span
+                            key={candidate.name}
+                            className={`h-0.5 flex-1 rounded-full ${
+                                index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
+                            }`}
+                        />
+                    ))}
+                </div>
+            ) : null}
 
             {/* pb-1 so the control does not sit flush against the actions; the card's own gap
                 alone read as cramped under a field. */}
