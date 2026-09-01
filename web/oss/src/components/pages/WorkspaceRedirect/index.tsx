@@ -1,11 +1,12 @@
 import {useEffect, useMemo} from "react"
 
+import {NotFoundScreen} from "@agenta/auth-ui"
 import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {projectAtom} from "@/oss/state/project"
+import {projectAtom, workspaceContextAtom} from "@/oss/state/project"
 
 const WorkspaceRedirect = () => {
     const router = useRouter()
@@ -13,6 +14,7 @@ const WorkspaceRedirect = () => {
     const {workspaceId, baseAppURL} = useURL()
 
     const project = useAtomValue(projectAtom)
+    const {isNotFound} = useAtomValue(workspaceContextAtom)
 
     const targetPath = useMemo(() => {
         if (baseAppURL) return baseAppURL
@@ -39,8 +41,9 @@ const WorkspaceRedirect = () => {
         void router.replace(targetPath)
     }, [router, targetPath])
 
-    if (targetPath && router.asPath.split("?")[0] === targetPath.split("?")[0]) {
-        return null
+    // The 404 belongs on this leaf: `/w/:id` matches a route, so Next never reaches its own.
+    if (isNotFound) {
+        return <NotFoundScreen onBack={() => router.back()} path={router.asPath} />
     }
 
     return (

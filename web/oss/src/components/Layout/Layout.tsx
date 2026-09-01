@@ -20,7 +20,7 @@ import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {getProjectValues, useProjectData, workspaceContextAtom} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
     demoReturnHintDismissedAtom,
@@ -431,7 +431,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
     // stale on the hop off a 404. /404 renders bare like the auth screens.
     const router = useRouter()
-    const isBareRoute = isAuthRoute || router.pathname === "/404"
+    // A dead workspace id gets the same bare, full-bleed 404 as an unrouted path.
+    const {isNotFound: isWorkspaceNotFound} = useAtomValue(workspaceContextAtom)
+    const isBareRoute = isAuthRoute || router.pathname === "/404" || isWorkspaceNotFound
 
     // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
     // against the layout viewport hides its bottom edge behind it. This publishes the visible

@@ -7,20 +7,19 @@ import type {ProjectsResponse} from "./types"
  *
  * All five calls go through the shared axios instance, which carries auth via its interceptor —
  * the desktop previously split GETs onto a separate fetch client for no behavioural reason, and
- * a package cannot reach that client anyway. `fetchAllProjects` still answers `[]` rather than
- * throwing when the caller is not signed in, which is what its consumers expect.
+ * a package cannot reach that client anyway.
+ */
+
+/**
+ * Throws like every other call here. It used to answer `[]` for any failure, which hid the 401
+ * the auth middleware raises for a `workspace_id` that does not exist — leaving callers unable
+ * to tell a missing workspace from an empty one.
  */
 export const fetchAllProjects = async (workspaceId?: string): Promise<ProjectsResponse[]> => {
-    try {
-        const {data} = await axios.get(`${getAgentaApiUrl()}/projects`, {
-            params: workspaceId ? {workspace_id: workspaceId} : undefined,
-        })
-        return Array.isArray(data) ? data : []
-    } catch (error) {
-        if ((error as {response?: {status?: number}})?.response?.status === 401) return []
-        console.error("Failed to fetch projects", error)
-        return []
-    }
+    const {data} = await axios.get(`${getAgentaApiUrl()}/projects`, {
+        params: workspaceId ? {workspace_id: workspaceId} : undefined,
+    })
+    return Array.isArray(data) ? data : []
 }
 
 export const fetchProject = async (projectId: string): Promise<ProjectsResponse> => {

@@ -13,6 +13,13 @@ import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
+import {
+    NEUTRAL_WORKSPACE_CONTEXT,
+    resolveWorkspaceContext,
+    shouldRunWorkspaceGuard,
+    type WorkspaceContext,
+} from "./workspaceContext"
+
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
 
@@ -113,6 +120,12 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // parallel with /profile/, so this does not reintroduce the sequential
         // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
         enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
+        // A 4xx is an answer, not a hiccup: most often a workspace id that does not exist.
+        retry: (failureCount, error: any) => {
+            const status = error?.response?.status
+            if (status && status >= 400 && status < 500) return false
+            return failureCount < 2
+        },
         // Paint from disk + background revalidate; key includes orgId so no cross-org bleed.
         persister: catalogPersister.persisterFn<ProjectsResponse[], QueryKey>,
     }
@@ -133,6 +146,27 @@ export const projectsAtom = atom((get) => {
     const projects = ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
     // Hide demo projects from the UI unless they are the user's only projects
     return filterOutDemoProjects(projects)
+})
+
+/**
+ * Whether the workspace the URL names can be entered, for the `/w/:workspace_id[/p]` gates and
+ * Layout's bare-route check. Route-gated before the query is read, so nothing else subscribes.
+ */
+export const workspaceContextAtom = atom<WorkspaceContext>((get) => {
+    const {routeLayer} = get(appStateSnapshotAtom)
+    if (!shouldRunWorkspaceGuard(routeLayer)) return NEUTRAL_WORKSPACE_CONTEXT
+
+    const {workspaceId} = get(appIdentifiersAtom)
+    const query = get(projectsQueryAtom) as {isPending?: boolean; error?: unknown}
+    const error = query.error as {response?: {status?: number}} | null | undefined
+
+    return resolveWorkspaceContext({
+        routeLayer,
+        workspaceId,
+        sessionExists: get(sessionExistsAtom),
+        isPending: query.isPending ?? true,
+        failure: error ? {status: error.response?.status ?? null} : null,
+    })
 })
 
 const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
