@@ -56,7 +56,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                             type="button"
                             aria-label={`Dismiss ${rejection.name}`}
                             onClick={() => onDismiss(index)}
-                            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorWarning opacity-70 transition-opacity hover:opacity-100"
+                            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorWarning opacity-70 transition-opacity hover:opacity-100"
                         >
                             <X size={12} weight="bold" />
                         </button>

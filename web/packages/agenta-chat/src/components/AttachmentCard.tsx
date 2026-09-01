@@ -61,7 +61,7 @@ const CardAction = ({
                     e.stopPropagation()
                     onRemove()
                 }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
             >
                 <X size={12} weight="bold" />
             </button>
@@ -78,7 +78,7 @@ const CardAction = ({
                     e.stopPropagation()
                     onDownload()
                 }}
-                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100"
             >
                 <DownloadSimple size={14} />
             </button>
@@ -120,7 +120,7 @@ const AudioTile = ({src, name}: {src?: string; name: string}) => {
                     if (el.paused) void el.play()
                     else el.pause()
                 }}
-                className={`flex ${TILE} items-center justify-center border-0 bg-colorFillTertiary p-0 text-colorTextSecondary transition-colors ${src ? "cursor-pointer hover:text-colorText" : "cursor-default opacity-50"}`}
+                className={`flex ${TILE} items-center justify-center border-0 bg-colorFillTertiary p-0 [&_svg]:shrink-0 text-colorTextSecondary transition-colors ${src ? "cursor-pointer hover:text-colorText" : "cursor-default opacity-50"}`}
             >
                 {playing ? <Pause size={13} weight="fill" /> : <Play size={13} weight="fill" />}
             </button>
@@ -242,7 +242,7 @@ export const AttachmentCard = ({
                         e.stopPropagation()
                         onRetry()
                     }}
-                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
+                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
                 >
                     <ArrowClockwise size={12} weight="bold" />
                 </button>
