@@ -10,6 +10,7 @@
  */
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
@@ -102,9 +103,16 @@ export const ApprovalCard = ({
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
+    const base = useMemo(() => (current ? describeApproval(current) : null), [current?.approvalId])
+    // A gateway gate names an integration by its slug; the sentence must name it the way the rest
+    // of the product does (#6349), and the catalog answers late. The query is disabled on an empty
+    // key, so a gate with no integration subscribes to nothing.
+    const sourceKey = base?.sourceKey ?? ""
+    const {integration} = useToolIntegrationDetail(sourceKey)
+    const appName = sourceKey ? integration?.name : undefined
     const preview = useMemo(
-        () => (current ? describeApproval(current) : null),
-        [current?.approvalId],
+        () => (current && appName ? describeApproval(current, appName) : base),
+        [current?.approvalId, appName, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.

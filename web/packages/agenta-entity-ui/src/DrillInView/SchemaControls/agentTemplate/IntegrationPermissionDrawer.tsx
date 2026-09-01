@@ -22,6 +22,7 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
+import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, SearchInput, Spinner} from "@agenta/ui/ui"
@@ -58,7 +59,6 @@ import type {
 } from "../toolUtils"
 
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
-import {humanizeActionKey} from "./itemDescriptors"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
 

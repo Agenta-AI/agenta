@@ -3,6 +3,7 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
+import {humanizeActionKey} from "@agenta/shared/utils"
 import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
 
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
@@ -90,55 +91,6 @@ function capitalizeFirst(value: string): string {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : value
 }
 
-// Whole-word tokens kept uppercase when humanizing an action key (GitHub/Composio actions are
-// littered with these). Everything else is sentence-cased.
-const ACTION_ACRONYMS = new Set([
-    "API",
-    "URL",
-    "URI",
-    "ID",
-    "PR",
-    "CI",
-    "CD",
-    "SSO",
-    "SSH",
-    "IP",
-    "DNS",
-    "SLA",
-    "SMS",
-    "PDF",
-    "CSV",
-    "JSON",
-    "HTTP",
-    "HTTPS",
-    "SDK",
-    "UUID",
-    "GPG",
-    "OAUTH",
-    "2FA",
-    "MFA",
-])
-
-/**
- * Turn a provider action key into a readable label: `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to
- * an issue". Sentence-cased, common acronyms kept uppercase. Used for connected-app tool rows, whose
- * stored `function.name` is the slug (the friendly catalog name isn't persisted).
- */
-export function humanizeActionKey(key: string): string {
-    const words = key
-        .toLowerCase()
-        .split(/[_\s]+/)
-        .filter(Boolean)
-    if (words.length === 0) return key
-    return words
-        .map((word, index) => {
-            const upper = word.toUpperCase()
-            if (ACTION_ACRONYMS.has(upper)) return upper
-            return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
-        })
-        .join(" ")
-}
-
 /** Classify a tool into its row avatar / name / description / type tags. */
 export function describeTool(tool: unknown): ItemDescriptor {
     const t = (tool ?? {}) as Record<string, unknown>
@@ -188,14 +140,10 @@ export function describeTool(tool: unknown): ItemDescriptor {
     }
     if (entry) {
         const gateway = entry.action
-        // Some action keys repeat the integration (GITHUB_ADD_...) — drop it; the group header
-        // already names the app. Then humanize the key into a readable label.
-        const intgPrefix = `${gateway.integration.toUpperCase()}_`
-        const actionKey = gateway.action.toUpperCase().startsWith(intgPrefix)
-            ? gateway.action.slice(intgPrefix.length)
-            : gateway.action
         return {
-            name: humanizeActionKey(actionKey),
+            // The key often repeats the integration (GITHUB_ADD_...); the group header already
+            // names the app, so the helper drops the prefix before humanizing.
+            name: humanizeActionKey(gateway.action, gateway.integration),
             monoName: false,
             description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),

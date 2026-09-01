@@ -45,14 +45,25 @@ export interface ApprovalPreview {
     sentence: string
     /** The rows behind the toggle. Empty hides the toggle entirely. */
     items: ApprovalPreviewItem[]
+    /** The integration slug whose catalog name would improve the sentence, when the gate names one.
+     * The card looks it up and re-describes; a describer that sets this must read `appName`. */
+    sourceKey?: string
 }
 
 /**
  * One approval registry entry: a pure function from the gate's payload to what the card says.
  * Returning `null` falls back to the generic describer, so a describer that cannot read its own
  * payload degrades instead of guessing.
+ *
+ * `appName` is the integration's catalog name, which answers late — exactly as in
+ * `resolveToolDisplay`. A describer resolves once without it, reports the slug it wants as
+ * `sourceKey`, and is called again once the card has the name.
  */
-export type ApprovalDescriber = (input: unknown, manifest: unknown) => ApprovalPreview | null
+export type ApprovalDescriber = (
+    input: unknown,
+    manifest: unknown,
+    appName?: string,
+) => ApprovalPreview | null
 
 /** Best-effort tool family, inferred from the wire-name shape and the call's arguments. */
 export type ToolKind = "gateway" | "mcp" | "platform" | "shell" | "file"

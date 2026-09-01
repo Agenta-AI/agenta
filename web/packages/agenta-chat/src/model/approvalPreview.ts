@@ -61,15 +61,21 @@ const genericPreview = (approval: PendingApproval): ApprovalPreview => {
     }
 }
 
-/** The plain-English copy for one gate. Never throws: a describer that fails falls back. */
-export const describeApproval = (approval: PendingApproval): ApprovalPreview => {
+/**
+ * The plain-English copy for one gate. Never throws: a describer that fails falls back.
+ *
+ * `appName` is the catalog name for the preview's `sourceKey`, which answers late. The card
+ * resolves once without it and calls again once it has one — same two-pass shape as
+ * `resolveToolDisplay`.
+ */
+export const describeApproval = (approval: PendingApproval, appName?: string): ApprovalPreview => {
     // Canonical for the lookup: the same platform tool must resolve under every harness, so a
     // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.
     const name = canonicalToolName(approval.toolName)
     const describer = resolveApprovalDescriber(name) ?? BUILTIN_APPROVAL_DESCRIBERS[name]
     if (describer) {
         try {
-            const preview = describer(approval.input, approval.manifest)
+            const preview = describer(approval.input, approval.manifest, appName)
             if (preview) return preview
         } catch {
             // A describer that cannot read its own payload must not take the card down with it.
