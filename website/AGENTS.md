@@ -146,7 +146,10 @@ Every merge to `main` that touches `website/**` deploys production, via
   `www.agenta.ai` requests directly to the equivalent `https://agenta.ai` URL with a
   308, preserving path and query string. This must remain a zone rule: it runs before
   the site worker, static assets, and the `/docs/*` proxy, avoiding redirect chains.
-  The deployment token therefore needs Zone Read and Dynamic URL Redirects Write.
+  The script also rejects Cloudflare's legacy Always Use HTTPS setting when it is on,
+  because that setting would add a redirect hop before the canonical rule. The
+  deployment token therefore needs Zone Read, Zone Settings Read, and Dynamic URL
+  Redirects Write.
 - **Guard:** runs only on `Agenta-AI/agenta`; same secrets as the preview workflow.
 
 - Static-first (`output: 'static'`); interactivity is browser-side React islands
