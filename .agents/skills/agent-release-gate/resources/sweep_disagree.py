@@ -53,6 +53,7 @@ import os
 import re
 import subprocess
 import sys
+from urllib.parse import urlparse
 
 EXIT_PASS = 0
 EXIT_FAIL = 1
@@ -131,9 +132,20 @@ def partition_known_gaps(
     return excluded, unexplained
 
 
+#: Hostnames that mean "this machine". Matched against the PARSED host, never the raw URL: a
+#: substring test calls `https://runner-localhost.example` local, and the sweep would then scan
+#: whatever runner happens to be on this box and report PASS for a deployment it never looked at.
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"})
+
+
 def base_is_local() -> bool:
     base = os.environ.get("AGENTA_BASE", "")
-    return any(h in base for h in ("localhost", "127.0.0.1", "0.0.0.0"))
+    host = (urlparse(base).hostname or "").strip().lower()
+    if not host:
+        # No scheme, so `urlparse` puts everything in `path`. Read the authority by hand rather
+        # than guessing: a bare `localhost:8480` is a normal way to set this.
+        host = base.split("/")[0].split("@")[-1].rsplit(":", 1)[0].strip().lower()
+    return host in LOCAL_HOSTS
 
 
 def autodetect_runner() -> tuple[str | None, str]:

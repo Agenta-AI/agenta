@@ -256,8 +256,18 @@ beats that propagation sends the raw placeholder, and the provider refuses it wi
 
 **The rule.** A 401 from a Daytona run is not evidence about the user's key until you have read
 the litellm-proxy log. Grep it for `Received=dtn_`. If the line is there, the key was never the
-problem and no key change will fix it: the run needed a retry. Only when that line is ABSENT does
-a 401 mean what it looks like. The runner classifies this correctly as `credential_delivery_failed`
+problem and no key change will fix it: the run needed a retry.
+
+**An ABSENT marker proves nothing.** The marker is one-directional evidence — present, it
+confirms a placeholder refusal; absent, it is silence, and silence has many causes. A direct
+provider never emits it at all (`api.anthropic.com` answers "Invalid bearer token" and echoes
+nothing), a remote deployment has no reachable proxy log, and incomplete log access looks
+identical to a clean window. Reading an empty grep as "so it really was the user's key" is how F6
+survived a whole release. When the marker is absent, judge on the other evidence instead: the
+stored error's CODE (`credential_delivery_failed` is the runner's own verdict and outranks any
+grep), whether the sandbox was freshly created, and whether the copy contradicts itself by
+advising a key change on a run whose key was delivered seconds earlier. The runner classifies
+this correctly as `credential_delivery_failed`
 (see `PLACEHOLDER_CREDENTIAL` in `services/runner/src/engines/sandbox_agent/errors.ts`), so a
 run that reports an add-a-key message over a placeholder refusal is a product bug, not a user
 error. The related trap already recorded above still holds: a stuck-substitution rebuild is not an

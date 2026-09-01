@@ -58,7 +58,7 @@ from qa_matrix_lib import (  # noqa: E402
     invoke,
     refs,
     seed_and_baseline,
-    turn_ledger,
+    turn_ledger_or_unavailable,
     user_msg,
 )
 
@@ -163,7 +163,7 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
     # The failure this cell exists for: a turn that RAN. Read it back from storage, because a
     # defaulted harness is only visible after the fact as a stored row with a real harness_kind.
     time.sleep(1.0)
-    ledger = turn_ledger(session_id)
+    ledger, ledger_available = turn_ledger_or_unavailable(session_id)
     stored_harnesses = sorted(
         {row.get("harness_kind") for row in ledger if row.get("harness_kind")}
     )
@@ -171,13 +171,31 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
     detail["stored_turn_rows"] = len(ledger)
     detail["stored_harness_kinds"] = stored_harnesses
     detail["produced_output"] = produced_output
+    detail["ledger_available"] = ledger_available
     detail["reply"] = turn.reply.strip()[:120]
 
-    if produced_output and not error_text:
+    # EXECUTION EVIDENCE OUTRANKS A LATER REFUSAL. A turn that emitted text or called a tool RAN,
+    # and a `data-agent-error` arriving afterwards does not undo that: the malformed harness was
+    # defaulted to something runnable first and complained second. The earlier version required
+    # `not error_text`, so a streamed error let a genuinely defaulted run pass. A stored
+    # harness_kind is the same evidence read from the other side, and is checked here too.
+    if produced_output or stored_harnesses:
         detail["status"] = "FAIL"
         detail["why"] = (
-            f"a malformed harness {harness!r} RAN: the turn produced output and stored "
-            f"harness_kind={stored_harnesses} -- the harness was defaulted, not refused"
+            f"a malformed harness {harness!r} RAN: produced_output={produced_output}, stored "
+            f"harness_kind={stored_harnesses} -- the harness was defaulted, not refused "
+            f"(a later refusal does not undo an executed turn; error={error_text[:200]!r})"
+        )
+        return detail
+
+    # A PASS here asserts that NOTHING was stored, so an unanswered ledger query cannot support
+    # it: that would be the strongest claim drawn from the weakest evidence. `turn_ledger` alone
+    # cannot tell "no rows" from "no answer", which is why this cell reads availability too.
+    if not ledger_available:
+        detail["status"] = "FAIL"
+        detail["why"] = (
+            "the turn ledger did not answer, so there is no evidence the malformed harness "
+            f"stored nothing; refusing to infer a PASS from a failed query (boundaries={boundaries})"
         )
         return detail
 
@@ -209,8 +227,12 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
 
 def h1_bad_harness() -> dict:
     hexid = uuid.uuid4().hex[:8]
-    wf, var = create_workflow(hexid, "qa-h1harness")
+    # Created BEFORE the try so the `finally` can never raise UnboundLocalError over the real
+    # result. A create that fails must surface its own SKIP or FAIL, not a cleanup crash on top
+    # of it -- the cell's whole contract is that every outcome is explained.
+    wf: str | None = None
     try:
+        wf, var = create_workflow(hexid, "qa-h1harness")
         rev_id, _ver = seed_and_baseline(wf, var, agent_config(), hexid)
         references = refs(wf, var, rev_id)
 
@@ -249,7 +271,8 @@ def h1_bad_harness() -> dict:
             "why": f"unhandled exception: {type(e).__name__}: {msg}",
         }
     finally:
-        archive(wf)
+        if wf is not None:
+            archive(wf)
 
 
 if __name__ == "__main__":
