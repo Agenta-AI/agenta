@@ -237,6 +237,18 @@ export {
     parseGatewayToolSlug,
 } from "./toolSlug"
 
+// Agent tool-permission policy vocabulary (shared by the config drawer, the /permissions
+// palette, and the commit diff).
+export {
+    DEFAULT_PERMISSION_POLICY,
+    PERMISSION_POLICY_OPTIONS,
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    type PermissionPolicy,
+    type PermissionPolicyOption,
+} from "./permissionPolicy"
+
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {
     buildFormFieldsFromData,

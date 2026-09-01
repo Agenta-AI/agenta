@@ -221,12 +221,17 @@ function ScalarRows({changes}: {changes: ScalarChange[]}) {
             {changes.map((c) => (
                 <div
                     key={c.key}
-                    className="flex items-center gap-2 px-3.5 py-1.5 font-mono text-xs"
+                    className="flex flex-wrap items-center gap-2 px-3.5 py-1.5 text-xs"
+                    title={c.key}
                 >
-                    <span className={textColors.secondary}>{c.key}</span>
-                    <span style={{color: "var(--ag-colorError)"}}>{c.before ?? "—"}</span>
+                    <span className={textColors.secondary}>{c.label ?? c.key}</span>
+                    <span className="font-mono" style={{color: "var(--ag-colorError)"}}>
+                        {c.beforeLabel ?? c.before ?? "—"}
+                    </span>
                     <ArrowRight className={textColors.tertiary} />
-                    <span style={{color: "var(--ag-colorSuccess)"}}>{c.after ?? "—"}</span>
+                    <span className="font-mono" style={{color: "var(--ag-colorSuccess)"}}>
+                        {c.afterLabel ?? c.after ?? "—"}
+                    </span>
                 </div>
             ))}
         </div>

@@ -9,6 +9,7 @@ import {computeTextDiffLines} from "@agenta/ui/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
 import {agentItemIdentity, type AgentItemKind} from "./identity"
+import {scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
 import type {
     AgentConfigView,
     ChangeItem,
@@ -193,10 +194,17 @@ function scalarSection(
     const changes: ScalarChange[] = []
     for (const key of [...new Set([...Object.keys(remoteMap), ...Object.keys(localMap)])].sort()) {
         if (stableStringify(remoteMap[key]) === stableStringify(localMap[key])) continue
+        const before = fmtScalar(remoteMap[key])
+        const after = fmtScalar(localMap[key])
         changes.push({
             key,
-            before: fmtScalar(remoteMap[key]),
-            after: fmtScalar(localMap[key]),
+            label: scalarKeyLabel(key),
+            // Stored values stay untouched: the config panel reads them back to say what a
+            // property was committed as, and a display string there would be a lie.
+            before,
+            after,
+            beforeLabel: scalarValueLabel(key, before),
+            afterLabel: scalarValueLabel(key, after),
             kind: !(key in remoteMap) ? "added" : !(key in localMap) ? "removed" : "changed",
         })
     }

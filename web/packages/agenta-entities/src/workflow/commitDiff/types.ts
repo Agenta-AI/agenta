@@ -41,9 +41,16 @@ export interface ChangeItem {
 
 /** A scalar before→after change (model, temperature, …). */
 export interface ScalarChange {
+    /** Storage path (`runner.permissions.default`) — identity, and the detail/JSON view. */
     key: string
+    /** What to call it on screen ("Tool permissions"). Falls back to a humanized path. */
+    label: string
+    /** Stored values — identity for consumers that recall what a property was committed as. */
     before: string | undefined
     after: string | undefined
+    /** Display forms of the same values ("Allow all", "On"). Absent = show the stored value. */
+    beforeLabel?: string
+    afterLabel?: string
     kind: ChangeKind
 }
 

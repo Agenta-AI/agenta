@@ -90,6 +90,47 @@ describe("readAgentConfig — three schema shapes normalize to one view", () => 
     })
 })
 
+describe("advanced settings read as settings, not as JSON paths", () => {
+    // Regression: the row printed the storage path and the stored enum verbatim —
+    // `runner.permissions.default  allow → allow_reads` — which says nothing to a reader who has
+    // not seen the schema.
+    const advanced = (params: Record<string, unknown>) =>
+        classifyAgentChanges({agent: params}, {agent: {}})?.find((s) => s.id === "params")
+
+    it("names the runner policy and its values the way the config panel does", () => {
+        const section = classifyAgentChanges(
+            {agent: {runner: {permissions: {default: "allow_reads"}}}},
+            {agent: {runner: {permissions: {default: "allow"}}}},
+        ).find((s) => s.id === "params")
+        const [change] = section?.scalarChanges ?? []
+        expect(change.label).toBe("Tool permissions")
+        expect(change.beforeLabel).toBe("Allow all")
+        expect(change.afterLabel).toBe("Allow reads")
+        // Stored values survive for consumers that read them back.
+        expect(change.before).toBe("allow")
+        expect(change.after).toBe("allow_reads")
+        // The storage path survives for the detail/JSON view.
+        expect(change.key).toBe("runner.permissions.default")
+    })
+
+    it("names generation parameters", () => {
+        const [change] = advanced({temperature: 0.7})?.scalarChanges ?? []
+        expect(change.label).toBe("Temperature")
+    })
+
+    it("reads booleans as On/Off", () => {
+        const [change] = advanced({stream: true})?.scalarChanges ?? []
+        expect(change.label).toBe("Streaming")
+        expect(change.afterLabel).toBe("On")
+    })
+
+    it("humanizes an unmapped key instead of dropping it", () => {
+        const [change] = advanced({sandbox: {network_access: "none"}})?.scalarChanges ?? []
+        expect(change.label).toBe("Sandbox › network access")
+        expect(change.afterLabel).toBe("none")
+    })
+})
+
 describe("gateway tools are named by what they DO, not by their discriminator", () => {
     // Regression: canonical gateway tools carry no `function.name`, so they fell through to the
     // bare-type fallback and every one of them rendered as "Gateway" / "Gateway connection" —
@@ -320,8 +361,11 @@ describe("classifyAgentChanges", () => {
         expect(advanced?.title).toBe("Advanced")
         expect(advanced?.scalarChanges).toContainEqual({
             key: "harness.max_iterations",
+            label: "Max iterations",
             before: "10",
             after: "25",
+            beforeLabel: "10",
+            afterLabel: "25",
             kind: "changed",
         })
     })
@@ -332,8 +376,11 @@ describe("classifyAgentChanges", () => {
         const advanced = classifyAgentChanges(local, remote).find((s) => s.id === "params")
         expect(advanced?.scalarChanges).toContainEqual({
             key: "harness.permissions.web_search",
+            label: "Web search",
             before: "false",
             after: "true",
+            beforeLabel: "Off",
+            afterLabel: "On",
             kind: "changed",
         })
     })
@@ -356,8 +403,11 @@ describe("classifyAgentChanges", () => {
         expect(modelHarness?.title).toBe("Model & harness")
         expect(modelHarness?.scalarChanges).toContainEqual({
             key: "llm.connection.mode",
+            label: "Connection mode",
             before: "agenta",
             after: "self_managed",
+            beforeLabel: "agenta",
+            afterLabel: "self_managed",
             kind: "changed",
         })
     })
@@ -370,8 +420,11 @@ describe("classifyAgentChanges", () => {
         const mh = sections.find((s) => s.id === "model")
         expect(mh?.scalarChanges).toContainEqual({
             key: "llm.model",
+            label: "Model",
             before: "opus",
             after: "opus[1m]",
+            beforeLabel: "opus",
+            afterLabel: "opus[1m]",
             kind: "changed",
         })
     })
@@ -391,8 +444,11 @@ describe("classifyAgentChanges", () => {
         expect(mh?.title).toBe("Model & harness")
         expect(mh?.scalarChanges).toContainEqual({
             key: "harness.kind",
+            label: "Harness",
             before: "pi_core",
             after: "claude",
+            beforeLabel: "pi_core",
+            afterLabel: "claude",
             kind: "changed",
         })
         // model + harness are one section, never split into two accordions.
