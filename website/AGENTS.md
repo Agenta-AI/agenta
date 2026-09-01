@@ -85,6 +85,53 @@ Every PR that touches `website/**` gets an automatically deployed preview, via
   `head.repo.full_name == github.repository`), so secrets are never exposed to
   untrusted code. Fork PRs simply get no preview comment.
 
+## The edge worker (agent readiness)
+
+`worker/index.ts` is a thin shim in front of Cloudflare's assets binding. Astro
+still builds a fully static `dist/`; the worker only reads the request's `Accept`
+header, picks one of the **prebuilt** representations, and sets the headers a
+machine client needs. It exists because static assets alone cannot do content
+negotiation, `Vary`, a `406`, or a structured JSON error.
+
+What it does, and the invariants that keep it safe:
+
+- **Markdown twins.** Every route has a `.md` twin built by `src/pages/*.md.ts`
+  (`/pricing` → `/pricing.md`). `Accept: text/markdown` gets the twin with
+  `Vary: Accept` and `X-Robots-Tag: noindex`; the HTML page stays canonical. The
+  twin filenames are flat on purpose (`blog.md.ts`, not `blog/index.md.ts`) —
+  the worker asks the binding for `"<path>.md"`.
+- **Agent-friendly 404s.** Unknown paths reach the worker because
+  `not_found_handling` is **`"none"`** (with `"404-page"` the asset server would
+  answer them itself and no agent could ever get a machine-readable 404). JSON
+  askers and `/api/*` get a structured `{error:{code,status,hints,…}}` body;
+  markdown askers get a short markdown recovery note; **everyone else — browsers,
+  crawlers, bare `curl`, uptime monitors — keeps the designed `404.astro` page.**
+- **`run_worker_first` is an allowlist, never `/*`.** Cloudflare does not apply
+  `_headers` or `_redirects` to worker-served responses, so only the HTML routes
+  that need negotiation run the worker first. Everything else (images, fonts,
+  favicons, `/openapi.json`, `/llms.txt`, `/sitemap-*.xml`, and the four 308s in
+  `public/_redirects`) stays on the plain asset path. Responses the worker does
+  return re-apply the `/*` policy from its own `HEADERS` constant in
+  `worker/negotiate.ts` — edit that and `public/_headers` together.
+- **It can never take the site down.** The whole handler is wrapped in a
+  `try/catch` that falls back to `env.ASSETS.fetch(request)`.
+- **Cloudflare ignores `Vary` values other than `Accept-Encoding`** when caching,
+  so markdown responses are `Cache-Control: private, max-age=0` — a shared cache
+  must never be able to hand a markdown body to a browser.
+
+`/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
+from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's
+relative `/api` server to the real `us`/`eu.cloud.agenta.ai` base URLs and drops
+the `/admin/*` surface. The output `public/openapi.json` is **gitignored** — a
+derived copy, like the licensed fonts. Both deploy workflows list the source spec
+in their `paths:` filter so a regenerated spec redeploys the site.
+
+Tests: `pnpm test` (vitest) covers the negotiation logic, the markdown builders,
+and the spec script; `pnpm build` runs `scripts/verify-build.mjs` (every twin
+emitted, spec valid, no `.md` in the sitemap); and
+`scripts/verify-deployment.sh <url>` is the post-deploy smoke test both workflows
+run against the deployed URL.
+
 ## CI production deploy
 
 Every merge to `main` that touches `website/**` deploys production, via
@@ -98,6 +145,8 @@ Every merge to `main` that touches `website/**` deploys production, via
 
 - Static-first (`output: 'static'`); interactivity is browser-side React islands
   (`client:visible`), never SSR. This keeps us off the `workerd` ≠ Node edge cases.
+  The one piece of request-time code is `worker/index.ts` (see "The edge worker"
+  above) — it picks between prebuilt files, it never renders.
 - Content is MDX in `src/content/` (posts, authors) + JSON singletons; the shapes
   match `Agenta landing page pivot/handoff/CONTENT_MODEL.md`.
 - Style against the ported design tokens in `src/styles/`. Never invent a hex.
