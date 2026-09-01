@@ -77,6 +77,7 @@ import re
 import sys
 import time
 import uuid
+from urllib.parse import urlparse
 
 import httpx
 
@@ -105,17 +106,72 @@ PAGE_LIMIT = 100
 MAX_PAGES = 200
 MAX_ENUMERATION_SECONDS = 120.0
 
-MISSING_CREDENTIAL_MARKERS = (
-    "connection",
+#: How long to wait between settle polls, capped by whatever remains of the caller's budget.
+SETTLE_POLL_SECONDS = 5.0
+
+#: A floor for the FIRST probe only. That read measures what is already true rather than waiting
+#: for a deletion, so `--settle 0` still gets one honest look instead of a zero-second timeout.
+INITIAL_PROBE_SECONDS = 10.0
+
+#: The vault resolver's OWN diagnostics, as whole phrases. Deliberately not the bare nouns
+#: `credential` and `connection`: those appear in transport failures and in
+#: `credential_delivery_failed` itself, so matching them turned real defects into green SKIPs.
+MISSING_CREDENTIAL_PHRASES = (
     "not found for provider",
+    "no connections for provider",
     "no connections",
+    "multiple connections for provider",
     "multiple connections",
-    "credential",
+    "requires an effective https endpoint",
+    "no usable credential",
+)
+
+#: A real failure, whatever else the message happens to mention. Checked first, and never a SKIP.
+TRANSPORT_FAILURE_MARKERS = (
+    "econnreset",
+    "econnrefused",
+    "connection reset",
+    "connection refused",
+    "connection error",
+    "enotfound",
+    "eai_again",
+    "timed out",
+    "timeout",
+    "502",
+    "503",
+    "504",
+    "credential_delivery_failed",
+    "credentials from reaching the model",
 )
 
 
 class SkipCheck(Exception):
     """Raised for a condition that leaves the invariant untested, never for a real failure."""
+
+
+def environment_cause(error_text: str) -> str | None:
+    """Why this ONE error frame is an environment condition, or None when it is a real failure.
+
+    SKIP means "the product was never tested here", so the bar for it is evidence that the run
+    could not start, not merely that some credential word appears. The previous version matched
+    `credential` and `connection` anywhere in the joined error text, which swept in exactly the
+    failures this check exists to catch: a connection reset, an upstream connection error, or a
+    `credential_delivery_failed` timeout all contain one of those words and would have become a
+    green SKIP.
+
+    So a transport or service failure is checked FIRST and always wins: those are real, and a
+    vault phrase appearing beside one does not excuse it. What remains is matched against the
+    vault resolver's own diagnostics, which are specific sentences rather than bare nouns.
+    """
+    low = error_text.lower()
+    if any(marker in low for marker in TRANSPORT_FAILURE_MARKERS):
+        return None
+    spent = out_of_credit(error_text)
+    if spent:
+        return spent
+    if any(phrase in low for phrase in MISSING_CREDENTIAL_PHRASES):
+        return "missing or ambiguous Daytona vault credential"
+    return None
 
 
 def daytona_key() -> str:
@@ -132,21 +188,36 @@ def daytona_key() -> str:
 
 
 def daytona_api_url() -> str:
-    return (
+    """The Daytona API base, refused unless it is HTTPS.
+
+    `_get` sends the API key as a bearer token, so an `http://` base would put a live credential
+    on the wire in cleartext. Both env vars are operator-set and a typo is the likely cause, so
+    this refuses loudly rather than downgrading silently. A SKIP naming the scheme is a far better
+    outcome than a leaked key and a green check.
+    """
+    raw = (
         os.environ.get("DAYTONA_API_URL")
         or os.environ.get("AGENTA_RUNNER_DAYTONA_API_URL")
         or "https://app.daytona.io/api"
     ).rstrip("/")
+    if urlparse(raw).scheme.lower() != "https":
+        raise SkipCheck(
+            f"the Daytona API base is not HTTPS ({raw!r}); refusing to send the API key over "
+            "a cleartext connection. Fix DAYTONA_API_URL or AGENTA_RUNNER_DAYTONA_API_URL."
+        )
+    return raw
 
 
-def _get(path: str, params: dict | None = None) -> httpx.Response:
+def _get(
+    path: str, params: dict | None = None, timeout: float = 30.0
+) -> httpx.Response:
     url = f"{daytona_api_url()}{path}"
     try:
         return httpx.get(
             url,
             params=params,
             headers={"Authorization": f"Bearer {daytona_key()}"},
-            timeout=30.0,
+            timeout=timeout,
         )
     except httpx.HTTPError as e:
         raise SkipCheck(
@@ -184,6 +255,14 @@ def list_secret_ids_by_name(fetch=None) -> dict[str, str]:
                 "produce a verdict, so this is a SKIP rather than a guess."
             )
         body = fetcher(cursor)
+        # Validate the SHAPE before touching it. A malformed page must be a SKIP naming what came
+        # back, never an AttributeError or TypeError escaping mid-walk: the cell would then abort
+        # with a stack trace instead of a verdict, which reads as a broken gate rather than an
+        # unreadable inventory. `fetch` is a test seam, so this also holds for injected pages.
+        if not isinstance(body, dict):
+            raise SkipCheck(
+                f"unexpected Daytona Secrets payload shape: body is {type(body).__name__}"
+            )
         items = body.get("items")
         if not isinstance(items, list):
             raise SkipCheck(
@@ -193,7 +272,16 @@ def list_secret_ids_by_name(fetch=None) -> dict[str, str]:
             if isinstance(row, dict) and row.get("name") and row.get("id"):
                 by_name[str(row["name"])] = str(row["id"])
 
-        cursor = body.get("nextCursor") or None
+        next_cursor = body.get("nextCursor")
+        if next_cursor is not None and not isinstance(next_cursor, str):
+            # A list or dict here would be unhashable or unusable, and `cursor in seen_cursors`
+            # would raise instead of skipping. The walk cannot continue from a cursor it cannot
+            # send, and a partial inventory produces no verdict.
+            raise SkipCheck(
+                "unexpected Daytona Secrets payload shape: nextCursor is "
+                f"{type(next_cursor).__name__}"
+            )
+        cursor = next_cursor or None
         if cursor is None:
             return by_name
         # A cursor that repeats is not advancing. Left unchecked that is an infinite loop, and it
@@ -232,13 +320,13 @@ def _fetch_page(cursor: str | None) -> dict:
     return body
 
 
-def secret_exists(secret_id: str) -> bool:
+def secret_exists(secret_id: str, timeout: float = 30.0) -> bool:
     """Is this Secret still present? `GET /secret/{secretId}`; a 404 means it is gone.
 
     Polling by id keeps the settle loop O(secrets this run created) instead of re-enumerating a
     ~3510-secret organization every few seconds.
     """
-    r = _get(f"/secret/{secret_id}")
+    r = _get(f"/secret/{secret_id}", timeout=timeout)
     if r.status_code == 200:
         return True
     if r.status_code == 404:
@@ -286,22 +374,20 @@ def secrets_teardown(settle_seconds: int) -> dict:
             references,
         )
         if t1.errors:
-            joined = " ".join(t1.errors)
-            # An exhausted key means the journey never got far enough to create a Secret, so
-            # there is nothing to assert teardown on. That is an environment condition, not a
-            # teardown defect, and rendering it as FAIL would point at the wrong thing entirely.
-            # Checked before the vault-credential markers, which match a bare substring and would
-            # otherwise claim this failure with a less accurate reason.
-            spent = out_of_credit(joined)
-            if spent:
-                raise SkipCheck(f"{spent}: {t1.errors[0][:200]}")
-            if any(m in joined.lower() for m in MISSING_CREDENTIAL_MARKERS):
-                raise SkipCheck(
-                    f"missing or ambiguous Daytona vault credential: {t1.errors[0][:200]}"
-                )
+            # Classify EACH error frame, and SKIP only when every one of them is an environment
+            # cause. Joining the frames first let a single credit phrase excuse a transport or
+            # delivery failure sitting beside it, turning a real teardown miss into a green SKIP.
+            # A mixed window is not an environment window.
+            unexplained = [e for e in t1.errors if environment_cause(e) is None]
+            if not unexplained:
+                reason = environment_cause(t1.errors[0]) or "environment condition"
+                raise SkipCheck(f"{reason}: {t1.errors[0][:200]}")
             return {
                 "status": "FAIL",
-                "why": f"the journey never ran: {t1.errors}",
+                "why": (
+                    f"the journey never ran, and {len(unexplained)} of {len(t1.errors)} error "
+                    f"frame(s) name no environment cause: {unexplained[0][:200]!r}"
+                ),
                 "session_id": session_id,
                 "workflow_id": wf,
             }
@@ -331,13 +417,41 @@ def secrets_teardown(settle_seconds: int) -> dict:
         # fast and a slow one still gets its full budget. Poll each created Secret BY ID rather
         # than re-enumerating the organization: a full enumeration is ~36 requests here, and
         # running that every few seconds would cost more than the whole rest of the cell.
-        deadline = time.time() + settle_seconds
-        leftover = sorted(created)
-        while time.time() < deadline:
-            time.sleep(5.0)
-            leftover = sorted(n for n in created if secret_exists(created_ids[n]))
-            if not leftover:
+        # Check ONCE immediately, then poll within what is left of the budget. The earlier
+        # version slept a flat 5s before its first look, so `--settle 1` reported PASS on a
+        # deletion that took five times its budget, and `--settle 0` never looked at all — the
+        # deadline was decorative. `monotonic` because a wall-clock step would corrupt it.
+        #
+        # Each probe is bounded by the REMAINING budget, not only the gaps between them. A probe
+        # carries its own request timeout, so a slow one could otherwise complete long after the
+        # deadline, come back 404, and let the loop report a within-budget deletion it never
+        # observed within budget. The first read gets a floor: it measures what is already true
+        # rather than waiting for anything, so `--settle 0` still gets one honest look.
+        deadline = time.monotonic() + settle_seconds
+
+        def remaining() -> float:
+            return deadline - time.monotonic()
+
+        def still_present(budget: float) -> list:
+            return sorted(
+                n for n in created if secret_exists(created_ids[n], timeout=budget)
+            )
+
+        # TIMESTAMP THE OBSERVATION, not just the polling. The first read carries a floor so it
+        # can complete at all, which means it may itself finish after the deadline on a short
+        # budget -- and an absence FIRST SEEN after the deadline is not evidence of an in-budget
+        # deletion, however true the absence is. Recording when the absence was observed is what
+        # keeps the PASS claim ("deleted within Ns") honest; without it the floor quietly reopened
+        # the very deadline hole the polling fix closed.
+        leftover = still_present(max(remaining(), INITIAL_PROBE_SECONDS))
+        observed_at = time.monotonic()
+        while leftover and remaining() > 0:
+            time.sleep(min(SETTLE_POLL_SECONDS, remaining()))
+            budget = remaining()
+            if budget <= 0:
                 break
+            leftover = still_present(budget)
+            observed_at = time.monotonic()
 
         if leftover:
             return {
@@ -352,6 +466,20 @@ def secrets_teardown(settle_seconds: int) -> dict:
                 "session_id": session_id,
                 "workflow_id": wf,
             }
+        if observed_at > deadline:
+            # Deleted, but NOT proven within the requested budget. Deliberately not a FAIL: no
+            # Secret outlived its run, so the invariant this cell guards was never violated, and
+            # reporting a leak that did not happen is how a standing check earns a reputation for
+            # crying wolf. Deliberately not a PASS either: the budgeted claim is unproven, and the
+            # PASS line would state a number nobody measured. A SKIP is the cell's honest verdict
+            # for "the thing you asked was not tested", and the gate counts every SKIP as a
+            # failure to explain, so it stays visible rather than passing quietly.
+            raise SkipCheck(
+                f"all {len(created)} Secret(s) created by this run are gone, but the absence was "
+                f"first observed {observed_at - deadline:.1f}s AFTER the {settle_seconds}s settle "
+                "budget, so deletion within that budget is unproven. No Secret outlived its run. "
+                "Re-run with a larger --settle to turn this into a verdict."
+            )
         return {
             "status": "PASS",
             "why": (
@@ -384,11 +512,9 @@ def main() -> int:
         r = {"status": "SKIP", "why": str(e)}
     except Exception as e:  # noqa: BLE001 -- classify infra faults, never crash the run
         msg = str(e)
-        if any(m in msg.lower() for m in MISSING_CREDENTIAL_MARKERS):
-            r = {
-                "status": "SKIP",
-                "why": f"missing or ambiguous Daytona vault credential: {msg}",
-            }
+        reason = environment_cause(msg)
+        if reason:
+            r = {"status": "SKIP", "why": f"{reason}: {msg}"}
         else:
             r = {
                 "status": "FAIL",

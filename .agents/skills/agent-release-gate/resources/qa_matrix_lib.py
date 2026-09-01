@@ -513,7 +513,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
     `POST /sessions/turns/`), which makes this a STORED outcome rather than an echo.
 
     Returns [] when the ledger is unavailable, which callers must treat as MISSING EVIDENCE and
-    fail on -- never as evidence of stability."""
+    fail on -- never as evidence of stability. A caller that needs to TELL those two apart (a
+    check whose PASS depends on nothing having been stored) must use `turn_ledger_or_unavailable`
+    instead; this signature cannot express the difference."""
+    rows, _available = turn_ledger_or_unavailable(session_id, limit)
+    return rows
+
+
+def turn_ledger_or_unavailable(
+    session_id: str, limit: int = 20
+) -> tuple[list[dict], bool]:
+    """`(rows, available)` -- the ledger, and whether the query actually answered.
+
+    `turn_ledger` collapses "the query failed" and "the session stored no turn" into the same
+    empty list. That is safe for a check whose PASS needs rows to EXIST, because both readings
+    fail. It is unsafe for a check whose PASS needs rows to be ABSENT: a query failure would then
+    read as proof that nothing ran, which is the strongest possible claim drawn from the weakest
+    possible evidence. `matrix_h1_bad_harness.py` is exactly that shape."""
     r = api_call(
         "POST",
         "/sessions/turns/query",
@@ -523,8 +539,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
         },
     )
     if r.status_code != 200:
-        return []
-    return r.json().get("turns") or []
+        return [], False
+    # A 200 is not an answer until the payload is the shape the contract promises. `{}` and
+    # `{"turns": null}` would otherwise read as an answered-EMPTY ledger, which is the one reading
+    # a caller must never get for free: `matrix_h1_bad_harness.py` turns "answered empty" into a
+    # PASS asserting nothing was stored. Malformed is unavailable, so that PASS stays unreachable.
+    try:
+        body = r.json()
+    except ValueError:
+        return [], False
+    if not isinstance(body, dict):
+        return [], False
+    turns = body.get("turns")
+    if not isinstance(turns, list):
+        return [], False
+    if any(not isinstance(row, dict) for row in turns):
+        return [], False
+    return turns, True
 
 
 def ledger_ids(session_id: str) -> tuple[list[str], list[str]]:

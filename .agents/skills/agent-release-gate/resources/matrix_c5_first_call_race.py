@@ -147,13 +147,54 @@ AUTH_CLASS = re.compile(
     re.I,
 )
 
-MISSING_CREDENTIAL_MARKERS = (
-    "connection",
+#: The vault resolver's OWN diagnostics, as whole phrases. NOT the bare nouns `credential` and
+#: `connection`: those appear in transport failures and inside `credential_delivery_failed`
+#: itself, so matching them let a connection reset or a delivery timeout — the very failures this
+#: cell exists to catch — become a green SKIP.
+MISSING_CREDENTIAL_PHRASES = (
     "not found for provider",
+    "no connections for provider",
     "no connections",
+    "multiple connections for provider",
     "multiple connections",
-    "credential",
+    "requires an effective https endpoint",
+    "no usable credential",
 )
+
+#: A real failure, whatever else the message mentions. Checked first, and never a SKIP.
+TRANSPORT_FAILURE_MARKERS = (
+    "econnreset",
+    "econnrefused",
+    "connection reset",
+    "connection refused",
+    "connection error",
+    "enotfound",
+    "eai_again",
+    "timed out",
+    "timeout",
+    "502",
+    "503",
+    "504",
+    # A delivery failure is the very thing this cell tests, so it can never be an excuse to skip.
+    # When the CODED frame carries it, the PASS branch above has already claimed it; reaching here
+    # means the text names a delivery failure that no coded frame carried, which is anomalous and
+    # must fail rather than borrow a vault-miss SKIP. Kept identical to the teardown check's list.
+    "credential_delivery_failed",
+    "credentials from reaching the model",
+)
+
+
+def missing_vault_credential(error_text: str) -> bool:
+    """Is this failure the vault having no usable connection, as opposed to anything going wrong?
+
+    SKIP claims the product was never tested, so it needs evidence the run could not start. A
+    transport or service failure is checked first and always wins: it is real, and a vault phrase
+    appearing beside one does not excuse it.
+    """
+    low = error_text.lower()
+    if any(marker in low for marker in TRANSPORT_FAILURE_MARKERS):
+        return False
+    return any(phrase in low for phrase in MISSING_CREDENTIAL_PHRASES)
 
 
 def key_blame_verdict(
@@ -416,12 +457,13 @@ def c5_first_call_race(
             return {**blame, **evidence}
 
         if CREDENTIAL_DELIVERY_FAILED in codes:
-            if not ledger:
+            if not stored_sandboxes:
                 return {
                     "status": "FAIL",
                     "why": (
-                        "classified as credential_delivery_failed, but no stored turn row came "
-                        "back from /sessions/turns/query -- missing evidence, not stability"
+                        "classified as credential_delivery_failed, but the stored ledger names "
+                        f"no sandbox (rows={len(ledger)}) -- without a sandbox id there is no "
+                        "evidence the turn ran in the cold Daytona sandbox this cell validates"
                     ),
                     **evidence,
                 }
@@ -451,8 +493,7 @@ def c5_first_call_race(
                     ),
                     **evidence,
                 }
-            low = error_text.lower()
-            if any(m in low for m in MISSING_CREDENTIAL_MARKERS):
+            if missing_vault_credential(error_text):
                 return {
                     "status": "SKIP",
                     "why": (
@@ -467,12 +508,13 @@ def c5_first_call_race(
                 **evidence,
             }
 
-        if not ledger:
+        if not stored_sandboxes:
             return {
                 "status": "FAIL",
                 "why": (
-                    "the turn reported success but no stored turn row came back from "
-                    "/sessions/turns/query -- missing evidence, not stability"
+                    "the turn reported success but the stored ledger names no sandbox "
+                    f"(rows={len(ledger)}) -- a row without a sandbox id is not evidence the "
+                    "turn ran in the cold Daytona sandbox this cell validates"
                 ),
                 **evidence,
             }
@@ -492,7 +534,7 @@ def c5_first_call_race(
         }
     except Exception as e:  # noqa: BLE001 -- classify infra faults as SKIP, never crash the run
         msg = str(e)
-        if any(m in msg.lower() for m in MISSING_CREDENTIAL_MARKERS):
+        if missing_vault_credential(msg):
             return {
                 "status": "SKIP",
                 "why": f"missing or ambiguous Daytona vault credential: {msg}",

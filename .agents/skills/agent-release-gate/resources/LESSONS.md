@@ -256,8 +256,18 @@ beats that propagation sends the raw placeholder, and the provider refuses it wi
 
 **The rule.** A 401 from a Daytona run is not evidence about the user's key until you have read
 the litellm-proxy log. Grep it for `Received=dtn_`. If the line is there, the key was never the
-problem and no key change will fix it: the run needed a retry. Only when that line is ABSENT does
-a 401 mean what it looks like. The runner classifies this correctly as `credential_delivery_failed`
+problem and no key change will fix it: the run needed a retry.
+
+**An ABSENT marker proves nothing.** The marker is one-directional evidence — present, it
+confirms a placeholder refusal; absent, it is silence, and silence has many causes. A direct
+provider never emits it at all (`api.anthropic.com` answers "Invalid bearer token" and echoes
+nothing), a remote deployment has no reachable proxy log, and incomplete log access looks
+identical to a clean window. Reading an empty grep as "so it really was the user's key" is how F6
+survived a whole release. When the marker is absent, judge on the other evidence instead: the
+stored error's CODE (`credential_delivery_failed` is the runner's own verdict and outranks any
+grep), whether the sandbox was freshly created, and whether the copy contradicts itself by
+advising a key change on a run whose key was delivered seconds earlier. The runner classifies
+this correctly as `credential_delivery_failed`
 (see `PLACEHOLDER_CREDENTIAL` in `services/runner/src/engines/sandbox_agent/errors.ts`), so a
 run that reports an add-a-key message over a placeholder refusal is a product bug, not a user
 error. The related trap already recorded above still holds: a stuck-substitution rebuild is not an
@@ -296,6 +306,21 @@ than no log: it invents evidence about a deployment that was never under test. R
 container by its `com.docker.compose.project` label against the target stack's project (derive
 the project from whichever container publishes the port in `AGENTA_BASE`), or take it explicitly.
 When nothing matches, say so and continue.
+
+## Standing reds: expected, named, never softened
+
+A check that goes red for a filed finding stays red — softening it would hide the next real
+break behind the same shape. What it gets instead is a NAME in its failure message, so a reader
+scanning a gate report recognizes it in one line instead of chasing it as fresh breakage. This is
+how the W5 steer red is handled, and it now applies to one more:
+
+- **`matrix_h1_bad_harness.py`, the `null_kind` case — finding SF2.** A cleared harness
+  (`{"kind": null}`) is not rejected: it silently defaults to `pi_core`, so on any config whose
+  model spelling suits Pi the turn runs and the cell correctly fails. Filed for the next release,
+  not fixed in v0.114.4. The failure message says so. When SF2 is fixed the case turns green on
+  its own and the `known_finding` key stops appearing — that is the signal to delete the note.
+  A wrong-type or unknown-string harness that runs is a DIFFERENT, unfiled defect and is
+  deliberately not covered by the name.
 
 ## The checklist for the next QA run
 

@@ -53,6 +53,7 @@ import os
 import re
 import subprocess
 import sys
+from urllib.parse import urlparse
 
 EXIT_PASS = 0
 EXIT_FAIL = 1
@@ -131,9 +132,51 @@ def partition_known_gaps(
     return excluded, unexplained
 
 
+#: Hostnames that mean "this machine". Matched against the PARSED host, never the raw URL: a
+#: substring test calls `https://runner-localhost.example` local, and the sweep would then scan
+#: whatever runner happens to be on this box and report PASS for a deployment it never looked at.
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+
+
+def base_host() -> str:
+    """The hostname `AGENTA_BASE` names, lowercased, or "" when it names none.
+
+    Never raises. `urlparse(...).hostname` throws `ValueError` on a malformed bracketed IPv6
+    literal such as `http://[::1`, and this helper decides whether the sweep runs at all — a
+    crash here would take the whole check down before it could even report a SKIP.
+
+    The scheme-less fallback is IPv6-aware. Stripping the last colon-segment turns a bare `::1`
+    into `:` and `[::1]` into `[:`, so a real loopback would read as remote and the sweep would
+    skip a deployment it could have scanned.
+    """
+    base = os.environ.get("AGENTA_BASE", "").strip()
+    try:
+        parsed = urlparse(base).hostname
+    except ValueError:
+        parsed = None
+    if parsed:
+        return parsed.strip().lower()
+    if "://" in base:
+        # It HAS a scheme and still yielded no hostname, so it is malformed (`http://[::1`).
+        # Falling through to the authority reader would answer "http", which is worse than
+        # admitting the base names no host.
+        return ""
+
+    # No scheme, so `urlparse` put everything in `path`. Read the authority by hand: a bare
+    # `localhost:8480` is a normal way to set this.
+    authority = base.split("/")[0].split("@")[-1].strip()
+    if authority.startswith("["):
+        # A bracketed IPv6 literal, with or without a trailing `:port`.
+        return authority.split("]")[0].lstrip("[").strip().lower()
+    if authority.count(":") > 1:
+        # An UNbracketed IPv6 literal (`::1`). Every colon belongs to the address, so there is no
+        # port to strip.
+        return authority.lower()
+    return authority.rsplit(":", 1)[0].strip().lower()
+
+
 def base_is_local() -> bool:
-    base = os.environ.get("AGENTA_BASE", "")
-    return any(h in base for h in ("localhost", "127.0.0.1", "0.0.0.0"))
+    return base_host() in LOCAL_HOSTS
 
 
 def autodetect_runner() -> tuple[str | None, str]:

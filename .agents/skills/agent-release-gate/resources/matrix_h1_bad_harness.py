@@ -58,7 +58,7 @@ from qa_matrix_lib import (  # noqa: E402
     invoke,
     refs,
     seed_and_baseline,
-    turn_ledger,
+    turn_ledger_or_unavailable,
     user_msg,
 )
 
@@ -86,6 +86,41 @@ CASES = {
     "unknown_string": {"kind": "not_a_harness"},
     "null_kind": {"kind": None},
 }
+
+
+#: The one FAIL shape that is already known, filed, and NOT a fresh regression.
+#:
+#: A cleared harness (`{"kind": None}`) is not rejected: it silently defaults to `pi_core`, so on
+#: any config whose model spelling suits Pi the turn runs and this cell goes red. That is SF2,
+#: found by this cell and deliberately filed rather than fixed for this release.
+#:
+#: The FAIL is NOT softened, because the invariant really is broken -- a malformed harness ran.
+#: What the name buys is that the next reader recognizes it in a gate report instead of chasing it
+#: as new breakage, which is how W5's standing red is handled. When SF2 is fixed this case turns
+#: green on its own and `known_finding` stops appearing; that is the signal to delete this.
+SF2_NOTE = (
+    "known finding SF2 (cleared harness silently defaults to pi_core), filed for the "
+    "next release -- expected red, not a fresh regression"
+)
+
+
+def known_finding(harness: dict, stored_harnesses: list) -> str | None:
+    """The note for a FAIL shape that is already filed, or None when the failure is new.
+
+    Narrow on purpose: only a CLEARED harness, and only when nothing contradicts the default.
+    A wrong-type or unknown-string harness that runs is a different, unfiled defect and must read
+    as one.
+    """
+    if harness.get("kind") is not None:
+        return None
+    # POSITIVE evidence of the pi_core default is required. A stored row whose harness_kind is
+    # unset proves a turn ran but says nothing about what it ran AS, and SF2 is specifically the
+    # silent pi_core default. The asymmetry decides this: under-labelling costs an operator one
+    # investigation of a real FAIL, while over-labelling teaches them to wave past a shape that
+    # may be a fresh regression. So an unproven default reads as new breakage.
+    if stored_harnesses != ["pi_core"]:
+        return None
+    return SF2_NOTE
 
 
 def bad_config(harness: dict) -> dict:
@@ -163,7 +198,7 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
     # The failure this cell exists for: a turn that RAN. Read it back from storage, because a
     # defaulted harness is only visible after the fact as a stored row with a real harness_kind.
     time.sleep(1.0)
-    ledger = turn_ledger(session_id)
+    ledger, ledger_available = turn_ledger_or_unavailable(session_id)
     stored_harnesses = sorted(
         {row.get("harness_kind") for row in ledger if row.get("harness_kind")}
     )
@@ -171,13 +206,41 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
     detail["stored_turn_rows"] = len(ledger)
     detail["stored_harness_kinds"] = stored_harnesses
     detail["produced_output"] = produced_output
+    detail["ledger_available"] = ledger_available
     detail["reply"] = turn.reply.strip()[:120]
 
-    if produced_output and not error_text:
+    # EXECUTION EVIDENCE OUTRANKS A LATER REFUSAL. A turn that emitted text or called a tool RAN,
+    # and a `data-agent-error` arriving afterwards does not undo that: the malformed harness was
+    # defaulted to something runnable first and complained second. The earlier version required
+    # `not error_text`, so a streamed error let a genuinely defaulted run pass. A stored
+    # harness_kind is the same evidence read from the other side, and is checked here too.
+    # ROW PRESENCE is the evidence, not the truthiness of a field inside it. `stored_harnesses`
+    # keeps only truthy `harness_kind` values, so a stored row whose kind is missing, null or
+    # empty collapsed to `[]` and let the probe reach PASS with a turn demonstrably persisted --
+    # the same "absence of a field read as absence of the thing" mistake the ledger-availability
+    # fix addressed one layer up. A PASS here asserts NOTHING was stored, so any row refutes it.
+    if produced_output or ledger:
         detail["status"] = "FAIL"
         detail["why"] = (
-            f"a malformed harness {harness!r} RAN: the turn produced output and stored "
-            f"harness_kind={stored_harnesses} -- the harness was defaulted, not refused"
+            f"a malformed harness {harness!r} RAN: produced_output={produced_output}, "
+            f"stored_turn_rows={len(ledger)}, stored harness_kind={stored_harnesses} -- the "
+            f"harness was defaulted, not refused (a later refusal does not undo an executed "
+            f"turn; error={error_text[:200]!r})"
+        )
+        known = known_finding(harness, stored_harnesses)
+        if known:
+            detail["known_finding"] = "SF2"
+            detail["why"] = f"{detail['why']} -- {known}"
+        return detail
+
+    # A PASS here asserts that NOTHING was stored, so an unanswered ledger query cannot support
+    # it: that would be the strongest claim drawn from the weakest evidence. `turn_ledger` alone
+    # cannot tell "no rows" from "no answer", which is why this cell reads availability too.
+    if not ledger_available:
+        detail["status"] = "FAIL"
+        detail["why"] = (
+            "the turn ledger did not answer, so there is no evidence the malformed harness "
+            f"stored nothing; refusing to infer a PASS from a failed query (boundaries={boundaries})"
         )
         return detail
 
@@ -209,8 +272,12 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
 
 def h1_bad_harness() -> dict:
     hexid = uuid.uuid4().hex[:8]
-    wf, var = create_workflow(hexid, "qa-h1harness")
+    # Created BEFORE the try so the `finally` can never raise UnboundLocalError over the real
+    # result. A create that fails must surface its own SKIP or FAIL, not a cleanup crash on top
+    # of it -- the cell's whole contract is that every outcome is explained.
+    wf: str | None = None
     try:
+        wf, var = create_workflow(hexid, "qa-h1harness")
         rev_id, _ver = seed_and_baseline(wf, var, agent_config(), hexid)
         references = refs(wf, var, rev_id)
 
@@ -249,7 +316,8 @@ def h1_bad_harness() -> dict:
             "why": f"unhandled exception: {type(e).__name__}: {msg}",
         }
     finally:
-        archive(wf)
+        if wf is not None:
+            archive(wf)
 
 
 if __name__ == "__main__":
