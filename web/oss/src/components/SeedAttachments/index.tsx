@@ -72,17 +72,20 @@ export const SeedAttachmentChips = ({
     files: File[]
     onChange: (files: File[]) => void
 }) => {
-    const [previews, setPreviews] = useState<string[]>([])
+    // Keyed by the File itself, not by position: `previews` is state and lags `files` by a commit,
+    // so an index lookup hands a surviving card the URL of the one just removed — a URL this
+    // effect is revoking in the same pass.
+    const [previews, setPreviews] = useState<Map<File, string>>(new Map())
 
-    // Thumbnails for what can show one; revoked together whenever the picked set changes.
     useEffect(() => {
-        const urls = files.map((file) =>
-            file.type.startsWith("image/") || file.type.startsWith("audio/")
-                ? URL.createObjectURL(file)
-                : "",
-        )
+        const urls = new Map<File, string>()
+        files.forEach((file) => {
+            if (file.type.startsWith("image/") || file.type.startsWith("audio/")) {
+                urls.set(file, URL.createObjectURL(file))
+            }
+        })
         setPreviews(urls)
-        return () => urls.forEach((url) => url && URL.revokeObjectURL(url))
+        return () => urls.forEach((url) => URL.revokeObjectURL(url))
     }, [files])
 
     if (!files.length) return null
@@ -94,7 +97,7 @@ export const SeedAttachmentChips = ({
                         key={`${file.name}-${index}`}
                         name={file.name}
                         mediaType={file.type}
-                        src={previews[index] || undefined}
+                        src={previews.get(file)}
                         action="remove"
                         onRemove={() => onChange(files.filter((_, at) => at !== index))}
                     />

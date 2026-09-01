@@ -1,7 +1,8 @@
-import {useEffect, useState} from "react"
+import {useEffect, useMemo} from "react"
 
 import type {StagedUpload as UploadFile} from "@agenta/chat/model"
-import {atom, useAtom} from "jotai"
+import {atom, useAtom, useAtomValue} from "jotai"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import AttachmentViewerDrawer from "./AttachmentViewerDrawer"
 
@@ -16,46 +17,51 @@ export interface ViewingMessageAttachment {
 export const viewingMessageAttachmentAtom = atom<ViewingMessageAttachment | null>(null)
 
 /**
+ * The selected attachment as a `File`. Keyed on the URL, so the blob can only ever belong to the
+ * current selection — switching attachments cannot leave the previous one on screen.
+ */
+const attachmentFileAtom = atomWithQuery((get) => {
+    const viewing = get(viewingMessageAttachmentAtom)
+    return {
+        queryKey: ["message-attachment", viewing?.url ?? null],
+        queryFn: async (): Promise<File | null> => {
+            if (!viewing) return null
+            const response = await fetch(viewing.url, {credentials: "include"})
+            if (!response.ok) throw new Error("Attachment fetch failed")
+            const blob = await response.blob()
+            return new File([blob], viewing.name, {type: viewing.mediaType || blob.type})
+        },
+        enabled: !!viewing,
+        staleTime: 5 * 60_000,
+    }
+})
+
+/**
  * Previews a SENT attachment in the same Files drawer the composer tray uses.
  *
- * The drawer reads local blobs, and a replayed attachment is a URL — so this fetches it once on
- * open and hands the drawer a synthesized staged row. Mounted once by the conversation; cards set
- * the atom rather than each owning a drawer.
+ * The drawer reads local blobs and a replayed attachment is a URL, so the bytes are fetched once
+ * and handed over as a synthesized staged row. Mounted once by the conversation; cards set the
+ * atom rather than each owning a drawer.
  */
 const MessageAttachmentViewer = () => {
     const [viewing, setViewing] = useAtom(viewingMessageAttachmentAtom)
-    const [uploads, setUploads] = useState<UploadFile[]>([])
+    const {data: file, isError} = useAtomValue(attachmentFileAtom)
 
+    // Nothing to preview — close rather than leave an empty drawer open.
     useEffect(() => {
-        if (!viewing) {
-            setUploads([])
-            return
-        }
-        let cancelled = false
-        void (async () => {
-            try {
-                const response = await fetch(viewing.url, {credentials: "include"})
-                if (!response.ok) throw new Error("Attachment fetch failed")
-                const blob = await response.blob()
-                if (cancelled) return
-                const file = new File([blob], viewing.name, {
-                    type: viewing.mediaType || blob.type,
-                })
-                setUploads([{uid: viewing.url, name: viewing.name, originFileObj: file}])
-            } catch {
-                // Nothing to preview — close rather than leave an empty drawer open.
-                if (!cancelled) setViewing(null)
-            }
-        })()
-        return () => {
-            cancelled = true
-        }
-    }, [viewing, setViewing])
+        if (isError) setViewing(null)
+    }, [isError, setViewing])
+
+    const uploads = useMemo<UploadFile[]>(
+        () =>
+            viewing && file ? [{uid: viewing.url, name: viewing.name, originFileObj: file}] : [],
+        [viewing, file],
+    )
 
     return (
         <AttachmentViewerDrawer
             uploads={uploads}
-            openUid={viewing && uploads.length > 0 ? uploads[0].uid : null}
+            openUid={uploads[0]?.uid ?? null}
             onClose={() => setViewing(null)}
         />
     )
