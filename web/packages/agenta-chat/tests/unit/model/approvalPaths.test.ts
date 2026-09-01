@@ -16,8 +16,7 @@ const SKILL_PATH =
     "/agents/skills/5eee78b5924e4761f63041f9ca2e406cd3c198319a3b06f5bdc5f56efec594e9" +
     "/build-an-agent/SKILL.md"
 
-const gate = (toolName: string, input: unknown) =>
-    ({toolName, input, manifest: undefined}) as never
+const gate = (toolName: string, input: unknown) => ({toolName, input, manifest: undefined}) as never
 
 describe("displayPath", () => {
     it("drops the sandbox root and the runner's id segments", () => {
@@ -63,9 +62,9 @@ describe("fileTarget", () => {
     })
 
     it("drops a parent that elided to a gap — the name alone says more", () => {
-        expect(fileTarget("/tmp/agenta/mounts/p1/m1/agents/skills/" + "a".repeat(40) + "/x.md")).toBe(
-            "x.md",
-        )
+        expect(
+            fileTarget("/tmp/agenta/mounts/p1/m1/agents/skills/" + "a".repeat(40) + "/x.md"),
+        ).toBe("x.md")
     })
 })
 
