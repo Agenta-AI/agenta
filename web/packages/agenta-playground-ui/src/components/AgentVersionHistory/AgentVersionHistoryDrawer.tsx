@@ -9,7 +9,7 @@
  * shared `AgentRevisionStatus`. Below `sm` the two panes become one at a time — a phone has no
  * room for a 250px rail beside a diff.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     workflowMolecule,
@@ -78,8 +78,13 @@ export const AgentVersionHistoryDrawer = ({
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
 
+    // Bumped whenever the flow is abandoned, so a revert that resolves afterwards knows its
+    // result is stale. Escape and outside-click dismiss the drawer, so a commit can outlive it.
+    const revertRun = useRef(0)
+
     // The drawer stays mounted so it can animate out, so closing must reset its own state.
     const handleClose = useCallback(() => {
+        revertRun.current += 1
         closeDrawer(workflowId)
         setPhase("idle")
         setMobileView("list")
@@ -87,6 +92,7 @@ export const AgentVersionHistoryDrawer = ({
 
     const handleSelect = useCallback(
         (id: string) => {
+            revertRun.current += 1
             selectVersion({workflowId, revisionId: id})
             setPhase("idle")
             setMobileView("diff")
@@ -96,8 +102,12 @@ export const AgentVersionHistoryDrawer = ({
 
     const handleConfirm = useCallback(async () => {
         if (!selectedRow) return
+        const run = ++revertRun.current
         setPhase("reverting")
         const landed = await revert({revisionId, targetRevisionId: selectedRow.id})
+        // Closed or moved on while the commit was in flight: the outcome is no longer this
+        // drawer's to report. The revision itself still landed either way.
+        if (run !== revertRun.current) return
         setPhase(landed ? "done" : "failed")
     }, [selectedRow, revert, revisionId])
 
