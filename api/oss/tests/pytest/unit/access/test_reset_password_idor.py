@@ -101,7 +101,12 @@ class TestCrossOrgResetBlocked:
 
         project = _make_project(organization_id=ORG_A_ID)
 
-        target_org_data = ("DIFFERENT-ORG-ID", "workspace-id")
+        target_org_data = {
+            "id": TARGET_OTHER_ORG_USER_ID,
+            "uid": "target-other-uid",
+            "workspace_ids": ["workspace-id"],
+            "organization_ids": ["DIFFERENT-ORG-ID"],
+        }
 
         with (
             patch(
@@ -145,7 +150,12 @@ class TestSameOrgResetAllowed:
         project = _make_project(organization_id=ORG_A_ID)
 
         # Target user IS in Org A
-        target_org_data = (ORG_A_ID, "workspace-id")
+        target_org_data = {
+            "id": TARGET_SAME_ORG_USER_ID,
+            "uid": "target-uid",
+            "workspace_ids": ["workspace-id"],
+            "organization_ids": [ORG_A_ID],
+        }
 
         target_user = _make_user(
             user_id=TARGET_SAME_ORG_USER_ID, email="target@test.agenta.ai"
@@ -217,7 +227,12 @@ class TestNonexistentTargetUser:
 
         project = _make_project(organization_id=ORG_A_ID)
 
-        target_org_data = (ORG_A_ID, "workspace-id")
+        target_org_data = {
+            "id": TARGET_NONEXISTENT_USER_ID,
+            "uid": "target-nonexistent-uid",
+            "workspace_ids": ["workspace-id"],
+            "organization_ids": [ORG_A_ID],
+        }
 
         with (
             patch(
