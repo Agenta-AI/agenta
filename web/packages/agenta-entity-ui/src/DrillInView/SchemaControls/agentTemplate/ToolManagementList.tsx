@@ -203,6 +203,8 @@ export interface SubagentListProps {
     nonAgentSlugs?: Set<string>
     /** Each subagent's icon chrome by slug. Only the caller can reach the icon record. */
     chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
+    /** Each subagent's CURRENT agent name by slug. Only the caller can resolve the artifact. */
+    nameBySlug?: Map<string, string>
     openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
@@ -227,17 +229,15 @@ function markNonAgent(
 
 /** Stable per-entry key: the saved reference's own identity, never its array position. */
 function subagentKey(item: unknown, index: number): string {
-    const t = (item ?? {}) as Record<string, unknown>
-    const name = typeof t.name === "string" ? t.name : ""
-    const identity = [toolReferenceSlug(item) ?? "", name].filter(Boolean).join("|")
-    // A reference with no identity falls back to its position, rather than colliding.
-    return identity || `subagent-${index}`
+    // A reference with no slug falls back to its position, rather than colliding.
+    return toolReferenceSlug(item) || `subagent-${index}`
 }
 
 export function SubagentList({
     entries,
     nonAgentSlugs,
     chromeBySlug,
+    nameBySlug,
     openEdit,
     removeItem,
     closeEditor,
@@ -256,7 +256,11 @@ export function SubagentList({
                 <ItemRow
                     key={subagentKey(item, index)}
                     descriptor={markNonAgent(
-                        describeSubagent(item, chromeBySlug?.get(toolReferenceSlug(item) ?? "")),
+                        describeSubagent(
+                            item,
+                            chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                        ),
                         item,
                         nonAgentSlugs,
                     )}
