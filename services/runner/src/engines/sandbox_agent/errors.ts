@@ -188,25 +188,36 @@ const PROVIDER_401 =
  * status prefix, not the provider's response. Provenance is therefore prose, and prose has to be
  * excluded by prose.
  *
- * The runner makes several authenticated calls of its own during a turn that can answer 401 and
- * reach the same catch: the tool callback (`tool call <ref> failed: HTTP 401`), attachment fetch
- * and claim, and the session-records query and persist. Without this exclusion, any one of them
- * landing inside the propagation window would consume the session's single credential-race report
- * and print retry guidance for a failure a retry cannot fix — and the genuine race that followed
- * would then get the add-a-key copy, which is the original bug wearing a disguise.
+ * EXACTLY FIVE EMITTERS, and no more. The runner makes five authenticated calls of its own during
+ * a turn that can answer 401 and reach this same catch AS CLASSIFIER INPUT: the tool callback
+ * (`tool call <ref> failed: HTTP 401`), attachment fetch, attachment claim, session-records query,
+ * and session-records persist. Without this exclusion, any one of them landing inside the
+ * propagation window would consume the session's single credential-race report and print retry
+ * guidance for a failure a retry cannot fix — and the genuine race that followed would then get
+ * the add-a-key copy, which is the original bug wearing a disguise.
  *
- * WHY THIS IS SOUND RATHER THAN A GUESS. Every emitter above is greppable in `services/runner/src`
- * and prefixed at its throw site precisely so it can be recognized here. Three of them threw a
- * BARE `HTTP <status>` until this change and were genuinely indistinguishable from a provider
- * refusal; they now carry a name. The alternative — plumbing a typed provider-response provenance
- * signal through the harness boundary into `ConciseErrorOptions` — is the right long-term shape
- * and a large change; naming the emitters costs one regex and one word per throw site.
+ * WHY THIS IS SOUND RATHER THAN A GUESS. Each of the five is greppable in `services/runner/src`
+ * and prefixed AT ITS THROW SITE precisely so it can be recognized here — four of them threw a
+ * bare `HTTP <status>` until this change and were genuinely indistinguishable from a provider
+ * refusal. The alternative, plumbing a typed provider-response provenance signal through the
+ * harness boundary into `ConciseErrorOptions`, is the right long-term shape and a large change;
+ * naming the emitters costs one regex and one word per throw site.
+ *
+ * WHAT IS DELIBERATELY NOT HERE. Mount, geesefs and otel failures are NOT in this set, for two
+ * independent reasons. They never arrive as classifier input: those sites build their message
+ * AROUND `conciseError(err, ...)`, so the prefix is added after classification and the classifier
+ * only ever sees the inner error. And matching them is actively unsafe — none is a prefixed
+ * emitter, so the patterns would have to be loose, and a loose `mount failed` matches inside
+ * "the requested amount failed to authorize" or "paramount failed" while a bare `otel` matches
+ * inside "hotel-search". Excluding a provider-shaped string is the WORSE direction of this bug:
+ * it hands a genuine race the add-a-key copy, which is the failure this whole class exists to
+ * prevent. If one ever does prove reachable, re-add it anchored with `\b`.
  *
  * THE STANDING OBLIGATION: a new authenticated call inside the turn must prefix its failure, or it
- * silently rejoins this hazard. That is why the throw sites carry a comment pointing back here.
+ * silently rejoins this hazard. That is why the five throw sites carry a comment pointing back.
  */
 const RUNNER_INTERNAL_401 =
-  /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed|(?:re)?mount(?:point)? (?:failed|cleanup failed)|geesefs|otel/i;
+  /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed/i;
 
 /**
  * How long after a Daytona Secret is delivered a credential refusal is still better explained by

@@ -465,14 +465,15 @@ describe("a 401 the RUNNER produced is not the provider's (CodeRabbit Major, #64
   // unexcluded, any of them inside the propagation window spends the session's one report and
   // prints retry guidance for a failure a retry cannot fix — and the genuine race that follows
   // then gets the add-a-key copy, which is the original bug wearing a disguise.
+  // EXACTLY the five prefixed emitters that reach this classifier as input. Mount, geesefs and
+  // otel are deliberately absent: those sites build their message AROUND `conciseError`, so the
+  // prefix is added after classification and the classifier only ever sees the inner error.
   const RUNNER_401 = [
-    "mount failed: HTTP 401",
     "tool call workflow.variant.summarizer failed: HTTP 401",
     "attachment fetch failed: HTTP 401",
     "attachment claim failed: HTTP 401",
     "session records query failed: HTTP 401",
     "session records persist failed: HTTP 401",
-    "remount failed: HTTP 401",
   ];
 
   it("does not classify a runner-side 401 as a credential race", () => {
@@ -514,6 +515,22 @@ describe("a 401 the RUNNER produced is not the provider's (CodeRabbit Major, #64
       },
     );
     assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("does not exclude a provider 401 whose prose merely contains an emitter substring", () => {
+    // The exclusion must never fire on a PROVIDER refusal, because that is the worse direction of
+    // this bug: it hands a genuine race the add-a-key copy. An earlier draft matched loose
+    // `mount failed` and a bare `otel`, which swallowed all three of these.
+    for (const raw of [
+      "API Error: 401 the requested amount failed to authorize",
+      "API Error: 401 paramount failed",
+      "API Error: 401 hotel-search rejected the key",
+    ]) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "credential_delivery_failed", raw);
+    }
   });
 
   it("still classifies a provider 401 that merely mentions a tool", () => {
