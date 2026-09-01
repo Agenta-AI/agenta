@@ -52,6 +52,18 @@ export async function configureCanonicalRedirect({
     throw new Error(`Expected one Cloudflare zone named ${zoneName}, found ${zones.length}`);
   }
   const zoneId = zones[0].id;
+
+  const alwaysUseHttps = await api(
+    fetchImpl,
+    token,
+    `/zones/${zoneId}/settings/always_use_https`,
+  );
+  if (alwaysUseHttps.value !== "off") {
+    throw new Error(
+      "Cloudflare Always Use HTTPS must be off to guarantee a one-hop canonical redirect",
+    );
+  }
+
   const phasePath = `/zones/${zoneId}/rulesets/phases/http_request_dynamic_redirect/entrypoint`;
 
   let ruleset;
@@ -77,13 +89,19 @@ export async function configureCanonicalRedirect({
   if (!existing) {
     return api(fetchImpl, token, rulesPath, {
       method: "POST",
-      body: JSON.stringify(canonicalRedirectRule),
+      body: JSON.stringify({
+        ...canonicalRedirectRule,
+        position: { before: "" },
+      }),
     });
   }
 
   return api(fetchImpl, token, `${rulesPath}/${existing.id}`, {
     method: "PATCH",
-    body: JSON.stringify(canonicalRedirectRule),
+    body: JSON.stringify({
+      ...canonicalRedirectRule,
+      position: { before: "" },
+    }),
   });
 }
 
