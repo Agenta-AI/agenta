@@ -1,7 +1,5 @@
+import {AttachmentCard, AttachmentCardGrid} from "@agenta/chat/components"
 import type {Meta, StoryObj} from "@storybook/react"
-
-import AttachmentCard from "./AttachmentCard"
-import AttachmentCardGrid from "./AttachmentCardGrid"
 
 const meta: Meta<typeof AttachmentCard> = {
     title: "Chat/AttachmentCard",
