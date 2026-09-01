@@ -207,3 +207,80 @@ class TestResolverInteraction:
                     ClientToolConfig(name="dup", description="b"),
                 ]
             )
+
+
+class TestDigestCollisions:
+    """A six-hex discriminator is 24 bits, so two identities can share it (CodeRabbit, #6412).
+
+    When that happens on names that ALSO collide, the helper would return one name for both
+    entries and the final uniqueness check would reject a configuration this function documents as
+    unique — the same shadowing failure the discriminator exists to prevent, one layer down.
+    """
+
+    def test_the_digest_lengthens_until_the_group_is_distinct(self, monkeypatch):
+        from agenta.sdk.agents.tools import models
+
+        # Force the 6-hex prefixes to collide while the full digests still differ, which is the
+        # real-world shape (a prefix collision, not a hash break).
+        forced = {
+            "workflow.variant.a": "aaaaaa" + "1" + "0" * 33,
+            "workflow.variant.b": "aaaaaa" + "2" + "0" * 33,
+        }
+        monkeypatch.setattr(
+            models, "_identity_digest", lambda identity: forced[identity]
+        )
+
+        resolved = models.disambiguate_tool_names(
+            [("workflow.variant.a", "dup"), ("workflow.variant.b", "dup")]
+        )
+        assert len(set(resolved.values())) == 2, resolved
+        # It grew by exactly one character rather than jumping to the full digest.
+        assert resolved["workflow.variant.a"] == "dup_aaaaaa1"
+        assert resolved["workflow.variant.b"] == "dup_aaaaaa2"
+
+    def test_the_width_is_a_property_of_the_set_not_the_order(self, monkeypatch):
+        from agenta.sdk.agents.tools import models
+
+        forced = {
+            "workflow.variant.a": "aaaaaa" + "1" + "0" * 33,
+            "workflow.variant.b": "aaaaaa" + "2" + "0" * 33,
+        }
+        monkeypatch.setattr(
+            models, "_identity_digest", lambda identity: forced[identity]
+        )
+
+        forward = models.disambiguate_tool_names(
+            [("workflow.variant.a", "dup"), ("workflow.variant.b", "dup")]
+        )
+        backward = models.disambiguate_tool_names(
+            [("workflow.variant.b", "dup"), ("workflow.variant.a", "dup")]
+        )
+        assert forward == backward
+
+    def test_a_deep_prefix_collision_still_resolves(self, monkeypatch):
+        from agenta.sdk.agents.tools import models
+
+        # Identical for 20 characters: the width has to grow well past the default.
+        forced = {
+            "workflow.variant.a": "a" * 20 + "1" + "0" * 19,
+            "workflow.variant.b": "a" * 20 + "2" + "0" * 19,
+        }
+        monkeypatch.setattr(
+            models, "_identity_digest", lambda identity: forced[identity]
+        )
+
+        resolved = models.disambiguate_tool_names(
+            [("workflow.variant.a", "dup"), ("workflow.variant.b", "dup")]
+        )
+        assert len(set(resolved.values())) == 2
+        for name in resolved.values():
+            assert PROVIDER_TOOL_NAME.match(name)
+
+    def test_real_digests_need_no_extension(self):
+        # The common case must stay short and readable: distinct call_refs practically never
+        # share six hex characters, so the decorated name keeps its 6-char suffix.
+        resolved = disambiguate_tool_names(
+            [("workflow.variant.a", "dup"), ("workflow.variant.b", "dup")]
+        )
+        for name in resolved.values():
+            assert len(name) == len("dup_") + 6, name

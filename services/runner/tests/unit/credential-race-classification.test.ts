@@ -369,3 +369,91 @@ describe("the swallowed-Pi-error recovery path (Codex P1)", () => {
     );
   });
 });
+
+describe("the fresh-Secret branch requires a provider 401 (CodeRabbit, #6408)", () => {
+  // `AUTH_REFUSAL` is broad on purpose — it decides which advice to print, and bare
+  // "unauthorized" appears in authorization failures all over the runner. That breadth is wrong
+  // for this branch, which SPENDS the session's one credential-race report and tells the user to
+  // retry. An unrelated "unauthorized" inside the propagation window would burn the report and
+  // hand out retry guidance a retry cannot fix, leaving the genuine race that followed to get the
+  // add-a-key copy.
+  const UNRELATED = [
+    "Unauthorized: the tool's own API rejected the request",
+    "mount failed: unauthorized",
+    "authentication required by the storage backend",
+    "invalid api key for the analytics service",
+  ];
+
+  it("does not classify an unrelated authorization failure as a delivery race", () => {
+    for (const raw of UNRELATED) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "runner_error", raw);
+      assert.doesNotMatch(
+        r.message,
+        /credentials from reaching the model/,
+        raw,
+      );
+    }
+  });
+
+  it("does not let an unrelated authorization failure consume the session report", () => {
+    const store = new SessionContinuityStore();
+    const report = () =>
+      store.noteCredentialRaceReport("session-x") <=
+      CREDENTIAL_RACE_REPORTS_PER_SESSION;
+
+    classifyRunError(new Error(UNRELATED[0]), "claude", "anthropic", {
+      daytonaCredentialFresh: report,
+    });
+    assert.equal(store.credentialRaceReportCount("session-x"), 0);
+
+    // The report is still available for the real race that follows.
+    const r = classifyRunError(
+      new Error(ANTHROPIC_DIRECT_401),
+      "claude",
+      "anthropic",
+      {
+        daytonaCredentialFresh: report,
+      },
+    );
+    assert.equal(r.code, "credential_delivery_failed");
+  });
+
+  it("still recognizes the 401 shapes providers actually send", () => {
+    for (const raw of [
+      "API Error: 401 Invalid bearer token",
+      'HTTP 401: {"error":"unauthorized"}',
+      '{"status_code": 401, "message": "no"}',
+      "http-401 refused",
+    ]) {
+      const r = classifyRunError(new Error(raw), "claude", "anthropic", {
+        daytonaCredentialFresh: () => true,
+      });
+      assert.equal(r.code, "credential_delivery_failed", raw);
+    }
+  });
+
+  it("keeps the placeholder branches free of the report budget", () => {
+    // A body that echoes the placeholder is self-evidencing: a real user key never contains
+    // `dtn_`, so every such refusal IS a delivery failure however often it repeats. Capping it
+    // would eventually tell a user with a good key to add one.
+    const store = new SessionContinuityStore();
+    const report = () =>
+      store.noteCredentialRaceReport("session-y") <=
+      CREDENTIAL_RACE_REPORTS_PER_SESSION;
+    for (let i = 0; i < 5; i++) {
+      const r = classifyRunError(
+        new Error(LITELLM_PROXY_401),
+        "claude",
+        "anthropic",
+        {
+          daytonaCredentialFresh: report,
+        },
+      );
+      assert.equal(r.code, "credential_delivery_failed");
+    }
+    assert.equal(store.credentialRaceReportCount("session-y"), 0);
+  });
+});

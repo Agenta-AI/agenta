@@ -164,6 +164,22 @@ const AUTH_REFUSAL =
   /authentication required|invalid api key|unauthorized|(?<!\d)401(?!\d)/i;
 
 /**
+ * A refusal the PROVIDER answered with 401, as opposed to any authorization failure anywhere.
+ *
+ * `AUTH_REFUSAL` above is deliberately broad because it decides which advice to print, and bare
+ * "unauthorized" appears in plenty of authorization failures that have nothing to do with the
+ * model credential — a tool's own API, a mount, a platform call. That breadth is wrong for the
+ * fresh-Secret branch, which does two things a display string does not: it spends the session's
+ * one credential-race report, and it tells the user to retry. An unrelated "unauthorized" landing
+ * inside the propagation window would consume the report and hand out retry guidance for a
+ * failure a retry cannot fix, and the genuine race that followed would then get the add-a-key
+ * copy. So that branch requires an explicit 401 — the status the provider actually returns when
+ * it refuses a credential.
+ */
+const PROVIDER_401 =
+  /(?<!\d)401(?!\d)|status(?:_?code)?[":\s=]+401\b|http[ _-]?401\b/i;
+
+/**
  * How long after a Daytona Secret is delivered a credential refusal is still better explained by
  * propagation than by the key.
  *
@@ -313,6 +329,13 @@ export function classifyRunError(
   // credential delivery, not the user's key, and the add-a-key advice would be false. The two
   // self-evidencing signatures stand alone; the masked echo is a formatting guess, so it must be
   // corroborated by the refusal actually being about the credential.
+  //
+  // DELIBERATELY NOT SUBJECT TO THE PER-SESSION REPORT BUDGET, unlike the branch below. That
+  // budget exists because a bare 401 cannot distinguish a delivery race from a genuinely wrong
+  // key, so the honest-retry reading has to be spent sparingly. A body that ECHOES the placeholder
+  // carries its own proof: a real user key never contains `dtn_`, so every such refusal IS a
+  // delivery failure, however many times it happens. Capping it would eventually tell a user with
+  // a perfectly good key to go add one — the exact wrong answer this class exists to prevent.
   if (
     PLACEHOLDER_CREDENTIAL.test(raw) ||
     (MASKED_PLACEHOLDER_ECHO.test(raw) && AUTH_REFUSAL.test(raw))
@@ -326,7 +349,11 @@ export function classifyRunError(
   // refusal carries no placeholder because the provider does not echo what it received, so the
   // only evidence is that this run's key WAS a Daytona Secret delivered moments ago. Same class,
   // same honest copy — the alternative is telling a user with a valid key to add one.
-  if (AUTH_REFUSAL.test(raw) && options.daytonaCredentialFresh?.()) {
+  //
+  // `PROVIDER_401`, not `AUTH_REFUSAL`: this branch spends the session's one report and prints
+  // retry guidance, so it must not fire for an authorization failure that merely says
+  // "unauthorized" somewhere unrelated. See the note on `PROVIDER_401`.
+  if (PROVIDER_401.test(raw) && options.daytonaCredentialFresh?.()) {
     return {
       message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
       code: "credential_delivery_failed",
