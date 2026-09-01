@@ -30,6 +30,8 @@ export interface AgentVersionRow {
     createdAt: string | null
     /** The revision the header is on — the side every diff compares against. */
     isCurrent: boolean
+    /** The newest version. Usually also `isCurrent`, but not when the surface sits on an older one. */
+    isLatest: boolean
     /** Committed by a revert. Derived from the message; no field records it. */
     isReverted: boolean
 }
@@ -46,17 +48,19 @@ export const buildVersionRows = (
 ): AgentVersionRow[] =>
     revisions
         .filter((revision) => (revision.version as number | null | undefined) !== 0)
-        // Sorted here rather than trusted from the caller: not every revisions atom is
-        // recency-ordered, and the list's whole shape assumes newest first.
+        // Version number first, timestamp only as a tie-break: `created_at` can disagree with
+        // the real order (a revision committed by the agent carries its own clock), and the
+        // highest version must always sit on top.
         .slice()
         .sort((a, b) => {
+            const byVersion = (((b.version as number) ?? 0) -
+                ((a.version as number) ?? 0)) as number
+            if (byVersion !== 0) return byVersion
             const at = Date.parse(a.created_at ?? "")
             const bt = Date.parse(b.created_at ?? "")
-            const byTime = (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at)
-            if (byTime !== 0) return byTime
-            return (((b.version as number) ?? 0) - ((a.version as number) ?? 0)) as number
+            return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at)
         })
-        .map((revision) => {
+        .map((revision, index) => {
             const message = revision.message?.trim() || null
             return {
                 id: revision.id,
@@ -64,6 +68,7 @@ export const buildVersionRows = (
                 message,
                 createdAt: revision.created_at ?? null,
                 isCurrent: revision.id === currentRevisionId,
+                isLatest: index === 0,
                 isReverted: !!message?.startsWith(REVERT_MESSAGE_PREFIX),
             }
         })

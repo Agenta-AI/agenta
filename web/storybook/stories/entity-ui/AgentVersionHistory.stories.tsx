@@ -32,6 +32,7 @@ const rows: AgentVersionRow[] = [
         message: "Tighten refusal wording and add the Write tool",
         createdAt: new Date(now - 2 * HOUR).toISOString(),
         isCurrent: true,
+        isLatest: true,
         isReverted: false,
     },
     {
@@ -40,6 +41,7 @@ const rows: AgentVersionRow[] = [
         message: 'Revert to v1 — "Initial commit"',
         createdAt: new Date(now - 72 * HOUR).toISOString(),
         isCurrent: false,
+        isLatest: false,
         isReverted: true,
     },
     {
@@ -48,6 +50,7 @@ const rows: AgentVersionRow[] = [
         message: "Add the Linear MCP server",
         createdAt: new Date(now - 144 * HOUR).toISOString(),
         isCurrent: false,
+        isLatest: false,
         isReverted: false,
     },
     {
@@ -56,6 +59,7 @@ const rows: AgentVersionRow[] = [
         message: null,
         createdAt: new Date(now - 336 * HOUR).toISOString(),
         isCurrent: false,
+        isLatest: false,
         isReverted: false,
     },
 ]
@@ -75,7 +79,7 @@ const listArgs = {
 
 type ListStory = StoryObj<typeof VersionList>
 
-/** v2 is selected. v4 is Latest — it IS the current configuration, so its row is disabled. */
+/** v2 is selected. v4 is Current — it IS the configuration on screen, so its row is disabled. */
 export const List: ListStory = {
     render: (args) => (
         <Rail>

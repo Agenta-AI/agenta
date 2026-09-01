@@ -20,6 +20,10 @@ const AgentVersionHistoryDrawer = dynamic(
     {ssr: false},
 )
 
+/** Wraps in a tooltip only when there is something to say beyond the visible label. */
+const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
+    tip ? <SimpleTooltip title={tip}>{children}</SimpleTooltip> : <>{children}</>
+
 export interface AgentRevisionStatusProps {
     /** The revision whose version and dirty state this reads. */
     revisionId: string
@@ -28,8 +32,6 @@ export interface AgentRevisionStatusProps {
      * surface has no workflow handle (the chip then just states the version).
      */
     historyWorkflowId?: string | null
-    /** Optional: lets a version's row offer "Open", pinning the surface to that revision. */
-    onSelectRevision?: (revisionId: string) => void
     className?: string
 }
 
@@ -46,7 +48,6 @@ export interface AgentRevisionStatusProps {
 export const AgentRevisionStatus = ({
     revisionId,
     historyWorkflowId,
-    onSelectRevision,
     className,
 }: AgentRevisionStatusProps) => {
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
@@ -116,7 +117,6 @@ export const AgentRevisionStatus = ({
                             <AgentVersionHistoryDrawer
                                 workflowId={historyWorkflowId}
                                 revisionId={revisionId}
-                                onSelectRevision={onSelectRevision}
                             />
                         ) : null}
                     </>
@@ -143,7 +143,9 @@ export const AgentRevisionStatus = ({
                         </span>
                     </SimpleTooltip>
                 ))}
-            <SimpleTooltip title={dot.tip}>
+            {/* Tooltip only on failure: there it carries the error and the retry hint. In every
+                other state it just repeated the word already next to the dot. */}
+            <StatusWrap tip={failed ? dot.tip : null}>
                 <span
                     role={failed ? "button" : undefined}
                     tabIndex={failed ? 0 : undefined}
@@ -171,7 +173,7 @@ export const AgentRevisionStatus = ({
                         tooltip already say it, and the identity beside it needs the room. */}
                     <span className="hidden sm:inline">{dot.label}</span>
                 </span>
-            </SimpleTooltip>
+            </StatusWrap>
         </div>
     )
 }

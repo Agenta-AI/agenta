@@ -159,6 +159,29 @@ describe("buildVersionRows", () => {
         expect(rows.map((r) => r.isCurrent)).toEqual([false, true])
     })
 
+    it("puts the highest version on top even when created_at disagrees", () => {
+        const rows = buildVersionRows(
+            [
+                revision({id: "old", version: 1, created_at: "2026-01-09T00:00:00Z"}),
+                revision({id: "new", version: 3, created_at: "2026-01-01T00:00:00Z"}),
+                revision({id: "mid", version: 2, created_at: "2026-01-05T00:00:00Z"}),
+            ],
+            "old",
+        )
+        expect(rows.map((r) => r.version)).toEqual([3, 2, 1])
+    })
+
+    it("separates latest from current — the surface can sit on an older revision", () => {
+        const rows = buildVersionRows(
+            [revision({id: "a", version: 3}), revision({id: "b", version: 1})],
+            "b",
+        )
+        expect(rows.map((r) => [r.version, r.isLatest, r.isCurrent])).toEqual([
+            [3, true, false],
+            [1, false, true],
+        ])
+    })
+
     it("recognises a revert by its commit message", () => {
         const rows = buildVersionRows(
             [

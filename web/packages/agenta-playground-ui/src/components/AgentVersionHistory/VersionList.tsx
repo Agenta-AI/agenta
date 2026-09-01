@@ -43,8 +43,6 @@ export interface VersionListProps {
     isError: boolean
     onRetry: () => void
     onSelect: (revisionId: string) => void
-    /** Rendered per row where the host can pin a revision (mobile). Omitted, rows only select. */
-    renderRowAction?: (row: AgentVersionRow) => React.ReactNode
 }
 
 export const VersionList = ({
@@ -54,7 +52,6 @@ export const VersionList = ({
     isError,
     onRetry,
     onSelect,
-    renderRowAction,
 }: VersionListProps) => (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {isLoading ? (
@@ -88,40 +85,41 @@ export const VersionList = ({
             />
         ) : (
             rows.map((row) => (
-                // Row action sits beside the select button, never inside it: nested interactive
-                // elements are invalid and swallow the inner click.
                 <div
                     key={row.id}
                     className={cn(
                         "mb-px flex items-center gap-1 rounded-md",
                         row.id === selectedId
                             ? "bg-[var(--ag-colorFillSecondary)]"
-                            : !row.isCurrent && "hover:bg-[var(--ag-colorFillQuaternary)]",
+                            : !row.isLatest && "hover:bg-[var(--ag-colorFillQuaternary)]",
                     )}
                 >
-                    {/* The latest version IS the current configuration, so selecting it could
-                        only ever diff against itself. It stays listed, not selectable. */}
+                    {/* The latest version is what everything else is compared against, so
+                        selecting it could only ever diff against itself. Listed, not selectable. */}
                     <button
                         type="button"
-                        disabled={row.isCurrent}
+                        disabled={row.isLatest}
                         aria-current={row.id === selectedId}
                         onClick={() => onSelect(row.id)}
                         className={cn(
                             "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
                             // Dimmed so the row READS unselectable, not just behaves that way.
-                            row.isCurrent ? "cursor-default opacity-55" : "cursor-pointer",
+                            row.isLatest ? "cursor-default opacity-55" : "cursor-pointer",
                         )}
                     >
                         <span className="flex items-center gap-1.5">
                             <span className="text-xs font-medium text-colorText">
                                 v{row.version}
                             </span>
-                            {row.isCurrent ? (
-                                <span className="rounded px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)] bg-[var(--ag-colorInfoBg)]">
+                            {/* One tag, one meaning: the newest revision. Whether the surface
+                                happens to sit on it is carried by the row's disabled state, not
+                                by a second competing label. */}
+                            {row.isLatest ? (
+                                <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
                                     Latest
                                 </span>
                             ) : null}
-                            {row.isReverted && !row.isCurrent ? (
+                            {row.isReverted && !row.isLatest ? (
                                 <span
                                     className={cn(
                                         "rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-px text-[10px] font-medium",
@@ -149,9 +147,6 @@ export const VersionList = ({
                             {row.message || "No commit message"}
                         </span>
                     </button>
-                    {renderRowAction ? (
-                        <span className="shrink-0 pr-1.5">{renderRowAction(row)}</span>
-                    ) : null}
                 </div>
             ))
         )}

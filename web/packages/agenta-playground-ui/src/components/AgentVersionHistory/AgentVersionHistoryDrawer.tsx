@@ -20,7 +20,6 @@ import {classifyAgentChanges} from "@agenta/entities/workflow/commitDiff"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -41,14 +40,11 @@ export interface AgentVersionHistoryDrawerProps {
     workflowId: string
     /** The revision under edit — the side every diff compares against, and revert commits from. */
     revisionId: string
-    /** Where the host can pin a revision (mobile). Omitted, rows only select for comparison. */
-    onSelectRevision?: (revisionId: string) => void
 }
 
 export const AgentVersionHistoryDrawer = ({
     workflowId,
     revisionId,
-    onSelectRevision,
 }: AgentVersionHistoryDrawerProps) => {
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
@@ -66,18 +62,20 @@ export const AgentVersionHistoryDrawer = ({
 
     const rows = useMemo(() => buildVersionRows(revisions, revisionId), [revisions, revisionId])
     const selectedRow = rows.find((row) => row.id === selectedId) ?? null
-    const currentRow = rows.find((row) => row.isCurrent) ?? null
+    // The footer counts off the LATEST version: a revert mints the next one after it, which is
+    // not `current + 1` when the surface happens to sit on an older revision.
+    const latestRow = rows.find((row) => row.isLatest) ?? null
 
     const currentParams = useAtomValue(workflowMolecule.selectors.configuration(revisionId || ""))
     const selectedParams = useAtomValue(
         workflowMolecule.selectors.serverConfiguration(selectedId || ""),
     )
 
-    // Open on the version below the latest — the latest IS the current configuration, so it is
-    // not selectable and would show an empty diff. Set directly, not through `handleSelect`,
-    // so a phone still opens on the list rather than jumping to the diff.
+    // Open on the version below the latest — the latest is the comparison baseline, so it is not
+    // selectable and would show an empty diff. Set directly, not through `handleSelect`, so a
+    // phone still opens on the list rather than jumping to the diff.
     const selectVersionId = useSetAtom(versionHistorySelectedAtomFamily(workflowId))
-    const firstComparableId = rows.find((row) => !row.isCurrent)?.id ?? null
+    const firstComparableId = rows.find((row) => !row.isLatest)?.id ?? null
     useEffect(() => {
         if (open && !selectedId && firstComparableId) selectVersionId(firstComparableId)
     }, [open, selectedId, firstComparableId, selectVersionId])
@@ -139,7 +137,7 @@ export const AgentVersionHistoryDrawer = ({
                 <RevertFooter
                     phase={phase}
                     selectedVersion={selectedRow?.version ?? null}
-                    currentVersion={currentRow?.version ?? null}
+                    currentVersion={latestRow?.version ?? null}
                     revertedFrom={revertedFrom}
                     disabled={!selectedRow || diffLoading || !sections.length}
                     onRequestConfirm={() => setPhase("confirm")}
@@ -163,20 +161,6 @@ export const AgentVersionHistoryDrawer = ({
                         isError={isError}
                         onRetry={() => void query.refetch()}
                         onSelect={handleSelect}
-                        renderRowAction={
-                            onSelectRevision
-                                ? (row) =>
-                                      row.isCurrent ? null : (
-                                          <Button
-                                              variant="link"
-                                              size="sm"
-                                              onClick={() => onSelectRevision(row.id)}
-                                          >
-                                              Open
-                                          </Button>
-                                      )
-                                : undefined
-                        }
                     />
                 </div>
 

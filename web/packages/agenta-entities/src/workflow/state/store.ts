@@ -100,21 +100,39 @@ const workflowRecencyScore = (workflow: Workflow | null | undefined): number => 
     )
 }
 
+/**
+ * Is `a` a later revision than `b`?
+ *
+ * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
+ * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
+ * and a tie used to fall through to array order and pick an arbitrary revision as "latest". That
+ * wrong pick then persisted: it is written to the `latestRevision` key, mirrored to IndexedDB, and
+ * that query is disabled whenever the key is already populated, so nothing ever revalidated it.
+ *
+ * Timestamps stay as the tie-break for revisions that share a version.
+ */
+export const isLaterWorkflowRevision = (
+    a: Workflow | null | undefined,
+    b: Workflow | null | undefined,
+): boolean => {
+    if (!a) return false
+    if (!b) return true
+    const aVersion = Number(a.version ?? 0)
+    const bVersion = Number(b.version ?? 0)
+    if (aVersion !== bVersion) return aVersion > bVersion
+    return workflowRecencyScore(a) > workflowRecencyScore(b)
+}
+
 const pickMostRecentWorkflowRevision = (
     revisions: (Workflow | null | undefined)[],
 ): Workflow | null => {
     let latest: Workflow | null = null
-    let latestScore = -1
 
     for (const revision of revisions) {
         if (!revision) continue
         // Skip v0 revisions (auto-created initial revisions with no useful data)
         if ((revision.version ?? 0) === 0) continue
-        const score = workflowRecencyScore(revision)
-        if (!latest || score > latestScore) {
-            latest = revision
-            latestScore = score
-        }
+        if (isLaterWorkflowRevision(revision, latest)) latest = revision
     }
 
     return latest
@@ -738,11 +756,13 @@ export const workflowRevisionRefsByWorkflowAtomFamily = atomFamily((workflowId: 
     atom<WorkflowRevisionRef[]>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
         const refs = query.data?.refs ?? []
+        // Version first, timestamp only as a tie-break — see `isLaterWorkflowRevision`.
         return [...refs].sort((a, b) => {
+            const byVersion = (b.version ?? 0) - (a.version ?? 0)
+            if (byVersion !== 0) return byVersion
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
-            if (bTime !== aTime) return bTime - aTime
-            return (b.version ?? 0) - (a.version ?? 0)
+            return bTime - aTime
         })
     }),
 )
@@ -803,10 +823,7 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
                             revision.workflow_id,
                             projectId,
                         ])
-                        if (
-                            !cachedLatest ||
-                            workflowRecencyScore(revision) > workflowRecencyScore(cachedLatest)
-                        ) {
+                        if (isLaterWorkflowRevision(revision, cachedLatest)) {
                             queryClient.setQueryData(
                                 ["workflows", "latestRevision", revision.workflow_id, projectId],
                                 revision,
