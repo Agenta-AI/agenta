@@ -16,6 +16,7 @@ import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
+import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
 import ComposerRejections from "./ComposerRejections"
@@ -38,6 +39,11 @@ export interface ChatComposerProps {
     className?: string
     disabled?: boolean
     hideSendButton?: boolean
+    /**
+     * Force the Send/Newline hints on or off. Left unset they follow the device: shown wherever
+     * there is a keyboard to press them with, hidden on a touch-only screen.
+     */
+    hideShortcutHints?: boolean
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -72,6 +78,7 @@ export const ChatComposer = ({
     className,
     disabled,
     hideSendButton,
+    hideShortcutHints,
     placeholder,
     waitingOnUser,
     initialMarkdown,
@@ -101,6 +108,11 @@ export const ChatComposer = ({
     } = attachments
 
     const fileInputRef = useRef<HTMLInputElement>(null)
+    // Keyboard affordances are only worth their width where there is a keyboard. On a phone the
+    // "Enter to send" hint and the `⌘ ↵` chips name keys the user has no way to press, and they
+    // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
+    // iPhone was being shown the `⌘` variant specifically.
+    const hasKeyboard = useHardwareKeyboard()
 
     return (
         <Suspense fallback={fallback ?? null}>
@@ -132,13 +144,16 @@ export const ChatComposer = ({
                 onSubmit={onSubmit}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
+                hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
                 placeholder={
                     placeholder ??
                     (waitingOnUser
                         ? // The parked interaction is docked directly above, so point at it rather
                           // than describing the wait in the abstract.
                           "Answer above, or type to queue a message"
-                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
+                        : hasKeyboard
+                          ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                          : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}

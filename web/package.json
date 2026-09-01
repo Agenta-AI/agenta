@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.114.4",
+    "version": "0.114.5",
     "workspaces": [
         "ee",
         "mobile",

@@ -340,12 +340,40 @@ export function resolveOtlpTraceEndpoint(endpoint?: string): string {
  * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
  * because a third-party collector may share the Agenta host behind a different proxy path.
  */
+/**
+ * Host names that all denote THIS deployment's own API host.
+ *
+ * A service running in bridge mode cannot reach the host through `localhost` — that name resolves
+ * to its own container — so the SDK rewrites a configured `localhost`/`0.0.0.0` API URL to
+ * `host.docker.internal` before using it (`agenta/sdk/utils/helpers.py`, `parse_url`). The endpoint
+ * that then arrives on a run request names a DIFFERENT alias than the base configured here, and
+ * comparing them verbatim says "this is somebody else's collector" about the deployment's own
+ * ingest. The credential is withheld on that basis and every session call the runner makes comes
+ * back 401 — with nothing in the message pointing at a hostname.
+ *
+ * Folding the aliases together does not widen who gets the credential: the endpoint must still
+ * equal one of the operator-configured API bases, port and path included. Only the spelling of the
+ * local host is treated as interchangeable, which is the same equivalence the SDK's rewrite asserts.
+ */
+const LOCAL_HOST_ALIASES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+  "host.docker.internal",
+]);
+
 export function isAgentaIngest(endpoint: string): boolean {
   const normalize = (value: string): string | undefined => {
     try {
       const url = new URL(value);
       const path = url.pathname.replace(/\/+$/, "") || "/";
-      return `${url.origin}${path}`;
+      const host = LOCAL_HOST_ALIASES.has(url.hostname)
+        ? "__local__"
+        : url.hostname;
+      const port = url.port ? `:${url.port}` : "";
+      return `${url.protocol}//${host}${port}${path}`;
     } catch {
       return undefined;
     }
