@@ -1,10 +1,4 @@
-/**
- * The agent's default tool-permission policy: the values, and what a human calls them.
- *
- * Lives in `shared` because three layers need the same four names — the config drawer's
- * Permissions group, the chat composer's `/permissions` palette, and the commit diff, which
- * would otherwise print the raw enum (`allow_reads`) at the reader.
- */
+/** The agent's default tool-permission policy, and what a human calls each value. */
 export type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
 
 export interface PermissionPolicyOption {
@@ -34,11 +28,7 @@ export function isPermissionPolicy(value: unknown): value is PermissionPolicy {
 export const permissionPolicyLabel = (value: string | null | undefined): string | undefined =>
     PERMISSION_POLICY_OPTIONS.find((option) => option.value === value)?.label
 
-/**
- * The options a schema `enum` permits, or all of them when it names none. Every surface offering
- * policies goes through this — one that offered a value the schema forbids would write a draft
- * config the agent's own schema rejects.
- */
+/** The options a schema `enum` permits, or all of them when it names none. */
 export function permissionPolicyOptionsForEnum(values: unknown): PermissionPolicyOption[] {
     if (!Array.isArray(values)) return PERMISSION_POLICY_OPTIONS
     const allowed = new Set(values.filter(isPermissionPolicy))

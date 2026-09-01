@@ -79,11 +79,15 @@ export const scalarKeyLabel = (path: string): string => PATH_LABELS[path] ?? hum
  * On/Off; everything else is shown as stored, since inventing a name for an arbitrary value
  * would be a guess.
  */
-export const scalarValueLabel = (path: string, value: string | undefined): string | undefined => {
+export const scalarValueLabel = (
+    path: string,
+    value: string | undefined,
+    raw?: unknown,
+): string | undefined => {
     if (value === undefined) return undefined
     const mapped = VALUE_LABELS[path]?.(value)
     if (mapped) return mapped
-    if (value === "true") return "On"
-    if (value === "false") return "Off"
+    // Only a real boolean reads as On/Off; the string "false" is a value, not a flag.
+    if (typeof raw === "boolean") return raw ? "On" : "Off"
     return value
 }

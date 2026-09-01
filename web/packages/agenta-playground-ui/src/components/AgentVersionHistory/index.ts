@@ -9,6 +9,4 @@ export {
     selectAgentVersionAtom,
     versionHistoryOpenAtomFamily,
     versionHistorySelectedAtomFamily,
-    versionHistoryPhaseAtomFamily,
-    type RevertPhase,
 } from "./store"

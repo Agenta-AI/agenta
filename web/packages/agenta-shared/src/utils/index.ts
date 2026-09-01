@@ -237,8 +237,7 @@ export {
     parseGatewayToolSlug,
 } from "./toolSlug"
 
-// Agent tool-permission policy vocabulary (shared by the config drawer, the /permissions
-// palette, and the commit diff).
+// Agent tool-permission policy vocabulary.
 export {
     DEFAULT_PERMISSION_POLICY,
     PERMISSION_POLICY_OPTIONS,

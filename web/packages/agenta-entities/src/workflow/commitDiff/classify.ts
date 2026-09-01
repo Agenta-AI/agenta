@@ -202,8 +202,8 @@ function scalarSection(
             // property was committed as, and a display string there would be a lie.
             before,
             after,
-            beforeLabel: scalarValueLabel(key, before),
-            afterLabel: scalarValueLabel(key, after),
+            beforeLabel: scalarValueLabel(key, before, remoteMap[key]),
+            afterLabel: scalarValueLabel(key, after, localMap[key]),
             kind: !(key in remoteMap) ? "added" : !(key in localMap) ? "removed" : "changed",
         })
     }

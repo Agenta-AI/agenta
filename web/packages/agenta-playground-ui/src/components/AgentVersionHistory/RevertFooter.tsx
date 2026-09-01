@@ -9,7 +9,8 @@ import {cn, textColors} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {CheckCircle, WarningCircle} from "@phosphor-icons/react"
 
-import type {RevertPhase} from "./store"
+/** The footer's machine. `done`/`failed` are terminal until the user acts again. */
+export type RevertPhase = "idle" | "confirm" | "reverting" | "done" | "failed"
 
 export interface RevertFooterProps {
     phase: RevertPhase
@@ -17,8 +18,6 @@ export interface RevertFooterProps {
     selectedVersion: number | null
     /** The current version, so the confirm copy can name the range that stays untouched. */
     currentVersion: number | null
-    /** The version a completed revert restored. */
-    revertedFrom: number | null
     /** Revert is pointless when the selection is already the current configuration. */
     disabled: boolean
     onRequestConfirm: () => void
@@ -31,7 +30,6 @@ export const RevertFooter = ({
     phase,
     selectedVersion,
     currentVersion,
-    revertedFrom,
     disabled,
     onRequestConfirm,
     onCancel,
@@ -51,7 +49,7 @@ export const RevertFooter = ({
         return (
             <div className="flex items-center gap-2 text-xs text-[var(--ag-colorSuccess)]">
                 <CheckCircle size={14} />
-                Reverted. v{currentVersion} now matches v{revertedFrom}.
+                Reverted. v{currentVersion} now matches v{selectedVersion}.
             </div>
         )
     }

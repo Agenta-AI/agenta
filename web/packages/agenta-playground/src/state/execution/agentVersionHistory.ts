@@ -13,6 +13,7 @@
 import {
     discardWorkflowDraftAtom,
     updateWorkflowDraftAtom,
+    workflowDraftAtomFamily,
     workflowMolecule,
     type Workflow,
 } from "@agenta/entities/workflow"
@@ -92,10 +93,9 @@ export interface RevertAgentRevisionParams {
  * was never committed. Schemas ride along — the commit sends `data.schemas`, so leaving them
  * behind would restore a configuration the old version never had.
  *
- * All-or-nothing: if the commit does not land, the staged draft is rolled back, so "no version
- * was created" also means the agent on screen is the one the user started with. The rollback is
- * skipped when the revision was ALREADY dirty — discarding then would throw away edits this
- * revert never owned, and a stranded draft is recoverable where a discarded one is not.
+ * All-or-nothing: if the commit does not land, the draft goes back exactly as it was. Staging
+ * OVERWRITES an existing draft, so a pre-existing one is snapshotted and restored rather than
+ * discarded, or a failed revert would eat edits it never owned.
  *
  * Resolves to whether a new version landed.
  */
@@ -108,13 +108,17 @@ export const revertAgentRevisionAtom = atom(
         if (!parameters) return false
         const schemas = get(workflowMolecule.selectors.serverData(targetRevisionId))?.data?.schemas
 
-        const wasDirty = get(workflowMolecule.selectors.isDirty(revisionId))
+        // Staging overwrites whatever is there, so keep the original to put back on failure.
+        const priorDraft = get(workflowDraftAtomFamily(revisionId))
         set(updateWorkflowDraftAtom, revisionId, {
             data: {parameters, ...(schemas ? {schemas} : {})},
         } as Partial<Workflow>)
 
         // Nothing staged means the target already matches the current configuration.
-        if (!get(workflowMolecule.selectors.isDirty(revisionId))) return false
+        if (!get(workflowMolecule.selectors.isDirty(revisionId))) {
+            if (priorDraft) set(workflowDraftAtomFamily(revisionId), priorDraft)
+            return false
+        }
 
         const target = get(workflowMolecule.selectors.data(targetRevisionId)) as Workflow | null
         const commitMessage = buildRevertMessage({
@@ -123,7 +127,10 @@ export const revertAgentRevisionAtom = atom(
         })
 
         const landed = await set(flushAgentAutoCommitAtom, {revisionId, commitMessage})
-        if (!landed && !wasDirty) set(discardWorkflowDraftAtom, revisionId)
+        if (!landed) {
+            if (priorDraft) set(workflowDraftAtomFamily(revisionId), priorDraft)
+            else set(discardWorkflowDraftAtom, revisionId)
+        }
         return landed
     },
 )

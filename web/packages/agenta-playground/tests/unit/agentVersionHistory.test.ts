@@ -32,6 +32,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
         }
     }
     const isDirty = mk<boolean>(true)
+    const draft = mk<unknown>(null)
     return {
         ...actual,
         workflowMolecule: {
@@ -48,6 +49,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             },
         },
         registerWorkflowDraftCallbacks: () => undefined,
+        workflowDraftAtomFamily: draft,
         updateWorkflowDraftAtom: atom(
             null,
             (
@@ -57,6 +59,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
                 updates: any,
             ) => {
                 draftWrites.push({revisionId, updates})
+                set(draft(revisionId), updates)
                 set(isDirty(revisionId), true)
             },
         ),
@@ -64,6 +67,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             null,
             (_g: unknown, set: (a: unknown, v: unknown) => void, revisionId: string) => {
                 discards.push(revisionId)
+                set(draft(revisionId), null)
                 set(isDirty(revisionId), false)
             },
         ),
@@ -82,7 +86,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     }
 })
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowDraftAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 
 import {__resetAgentAutoCommit} from "../../src/state/execution/agentAutoCommit"
@@ -98,6 +102,7 @@ const nextId = () => `rev-${++seq}`
 
 const put = (sel: any, id: string, value: unknown) =>
     store.set(sel(id) as PrimitiveAtom<unknown>, value)
+const draftOf = (id: string) => workflowDraftAtomFamily(id) as unknown as PrimitiveAtom<unknown>
 
 /** A committed revision: what the drawer reads and what a revert restores from. */
 function seedRevision(
@@ -287,15 +292,20 @@ describe("revertAgentRevisionAtom", () => {
         expect(discards).toEqual([current])
     })
 
-    it("keeps a pre-existing draft when the commit fails, rather than discarding the user's edits", async () => {
+    it("restores the user's own draft when the commit fails, rather than leaving ours staged", async () => {
+        // Staging overwrites the draft, so "your agent is unchanged" is only true if the edits
+        // this revert never owned are put back. Discarding is not enough.
         commitOutcome = {success: false, error: new Error("rejected")}
         const target = seedRevision(nextId(), {version: 2, params: OLD})
         const current = seedRevision(nextId(), {version: 4, params: NEW})
+        const mine = {data: {parameters: {agent: {llm: {model: "my-edit"}}}}}
+        store.set(draftOf(current), mine)
         put((workflowMolecule as any).selectors.isDirty, current, true)
 
         await store.set(revertAgentRevisionAtom, {revisionId: current, targetRevisionId: target})
 
         expect(discards).toEqual([])
+        expect(store.get(draftOf(current))).toEqual(mine)
     })
 
     it("cancelling is simply never calling it — no draft is staged and nothing commits", () => {

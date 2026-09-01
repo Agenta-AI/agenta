@@ -25,12 +25,11 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChangesPane} from "./ChangesPane"
 import {RevertFooter} from "./RevertFooter"
+import type {RevertPhase} from "./RevertFooter"
 import {
     closeAgentVersionHistoryAtom,
     selectAgentVersionAtom,
     versionHistoryOpenAtomFamily,
-    versionHistoryPhaseAtomFamily,
-    versionHistoryRevertedFromAtomFamily,
     versionHistorySelectedAtomFamily,
 } from "./store"
 import {VersionList} from "./VersionList"
@@ -48,10 +47,6 @@ export const AgentVersionHistoryDrawer = ({
 }: AgentVersionHistoryDrawerProps) => {
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
-    const phase = useAtomValue(versionHistoryPhaseAtomFamily(workflowId))
-    const revertedFrom = useAtomValue(versionHistoryRevertedFromAtomFamily(workflowId))
-    const setPhase = useSetAtom(versionHistoryPhaseAtomFamily(workflowId))
-    const setRevertedFrom = useSetAtom(versionHistoryRevertedFromAtomFamily(workflowId))
     const selectVersion = useSetAtom(selectAgentVersionAtom)
     const closeDrawer = useSetAtom(closeAgentVersionHistoryAtom)
     const revert = useSetAtom(revertAgentRevisionAtom)
@@ -78,12 +73,22 @@ export const AgentVersionHistoryDrawer = ({
         if (open && !selectedId && firstComparableId) selectVersionId(firstComparableId)
     }, [open, selectedId, firstComparableId, selectVersionId])
 
+    // Drawer-local: nothing outside reads either.
+    const [phase, setPhase] = useState<RevertPhase>("idle")
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
+
+    // The drawer stays mounted so it can animate out, so closing must reset its own state.
+    const handleClose = useCallback(() => {
+        closeDrawer(workflowId)
+        setPhase("idle")
+        setMobileView("list")
+    }, [closeDrawer, workflowId])
 
     const handleSelect = useCallback(
         (id: string) => {
             selectVersion({workflowId, revisionId: id})
+            setPhase("idle")
             setMobileView("diff")
         },
         [selectVersion, workflowId],
@@ -93,13 +98,8 @@ export const AgentVersionHistoryDrawer = ({
         if (!selectedRow) return
         setPhase("reverting")
         const landed = await revert({revisionId, targetRevisionId: selectedRow.id})
-        if (landed) {
-            setRevertedFrom(selectedRow.version)
-            setPhase("done")
-        } else {
-            setPhase("failed")
-        }
-    }, [selectedRow, revert, revisionId, setPhase, setRevertedFrom])
+        setPhase(landed ? "done" : "failed")
+    }, [selectedRow, revert, revisionId])
 
     // `local` is the selected version and `remote` the current one, so "added" reads as what
     // restoring this version would bring back — the diff doubles as the revert preview.
@@ -115,7 +115,7 @@ export const AgentVersionHistoryDrawer = ({
     const isError = query.isError && revisions.length === 0
     // A selected version whose config has not resolved is LOADING, not "identical" — an empty
     // `sections` means both, and only this tells them apart.
-    const diffLoading = listLoading || (!!selectedId && !selectedParams)
+    const diffLoading = listLoading || (!!selectedId && (!selectedParams || !currentParams))
     const placeholder = isError
         ? "The version history could not be loaded. Retry from the list."
         : rows.length <= 1
@@ -127,7 +127,7 @@ export const AgentVersionHistoryDrawer = ({
     return (
         <EnhancedDrawer
             open={open}
-            onClose={() => closeDrawer(workflowId)}
+            onClose={handleClose}
             title={<span className="text-sm font-normal">Version history</span>}
             width={780}
             classNames={{body: "!p-0"}}
@@ -136,12 +136,11 @@ export const AgentVersionHistoryDrawer = ({
                     phase={phase}
                     selectedVersion={selectedRow?.version ?? null}
                     currentVersion={latestRow?.version ?? null}
-                    revertedFrom={revertedFrom}
                     disabled={!selectedRow || diffLoading || !sections.length}
                     onRequestConfirm={() => setPhase("confirm")}
                     onCancel={() => setPhase("idle")}
                     onConfirm={handleConfirm}
-                    onClose={() => closeDrawer(workflowId)}
+                    onClose={handleClose}
                 />
             }
         >
@@ -159,6 +158,7 @@ export const AgentVersionHistoryDrawer = ({
                         isError={isError}
                         onRetry={() => void query.refetch()}
                         onSelect={handleSelect}
+                        disabled={phase === "reverting"}
                     />
                 </div>
 

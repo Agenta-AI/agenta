@@ -43,6 +43,8 @@ export interface VersionListProps {
     isError: boolean
     onRetry: () => void
     onSelect: (revisionId: string) => void
+    /** Freeze selection while a revert is in flight. */
+    disabled?: boolean
 }
 
 export const VersionList = ({
@@ -52,6 +54,7 @@ export const VersionList = ({
     isError,
     onRetry,
     onSelect,
+    disabled,
 }: VersionListProps) => (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {isLoading ? (
@@ -98,13 +101,14 @@ export const VersionList = ({
                         selecting it could only ever diff against itself. Listed, not selectable. */}
                     <button
                         type="button"
-                        disabled={row.isLatest}
+                        disabled={row.isLatest || !!disabled}
                         aria-current={row.id === selectedId}
                         onClick={() => onSelect(row.id)}
                         className={cn(
                             "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
                             // Dimmed so the row READS unselectable, not just behaves that way.
-                            row.isLatest ? "cursor-default opacity-55" : "cursor-pointer",
+                            row.isLatest || disabled ? "cursor-default" : "cursor-pointer",
+                            row.isLatest && "opacity-55",
                         )}
                     >
                         <span className="flex items-center gap-1.5">

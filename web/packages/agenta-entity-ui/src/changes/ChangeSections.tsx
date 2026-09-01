@@ -47,6 +47,38 @@ const DEL_BG = "color-mix(in srgb, var(--ag-colorError) 13%, transparent)"
 // carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
 export const CARD =
     "overflow-hidden rounded-[10px] border border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]"
+/** Keyboard users need to see where focus lands once these rows are real controls. */
+const FOCUS_RING =
+    "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+
+/** A row that is a button when it does something, and a plain div when it does not. */
+function Row({
+    clickable,
+    onActivate,
+    className,
+    children,
+}: {
+    clickable: boolean
+    onActivate?: () => void
+    className: string
+    children: React.ReactNode
+}) {
+    if (!clickable) return <div className={className}>{children}</div>
+    return (
+        <button
+            type="button"
+            onClick={onActivate}
+            className={cn(
+                className,
+                "cursor-pointer border-0 bg-transparent hover:bg-[var(--ag-colorFillQuaternary)]",
+                FOCUS_RING,
+            )}
+        >
+            {children}
+        </button>
+    )
+}
+
 export const LINK_BTN = cn(
     "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
     textColors.secondary,
@@ -151,12 +183,10 @@ export function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: num
 function ItemRow({it, onOpenTool}: {it: ChangeItem; onOpenTool?: (itemId: string) => void}) {
     const clickable = it.kind === "edited" && !!onOpenTool
     return (
-        <div
-            className={cn(
-                "flex items-center gap-2.5 px-3.5 py-1.5",
-                clickable && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
-            )}
-            onClick={clickable ? () => onOpenTool?.(it.id) : undefined}
+        <Row
+            clickable={clickable}
+            onActivate={clickable ? () => onOpenTool?.(it.id) : undefined}
+            className="flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left"
         >
             <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
                 {kindIcon(it.kind)}
@@ -168,7 +198,7 @@ function ItemRow({it, onOpenTool}: {it: ChangeItem; onOpenTool?: (itemId: string
                 ) : null}
             </span>
             {clickable ? <CaretRight className={textColors.tertiary} /> : null}
-        </div>
+        </Row>
     )
 }
 
@@ -279,9 +309,13 @@ export function SectionCard({
                           ),
                 )}
             >
-                <div
+                <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={onToggle}
                     className={cn(
-                        "flex cursor-pointer items-center transition-colors",
+                        "flex w-full cursor-pointer items-center border-0 text-left font-[inherit] transition-colors",
+                        FOCUS_RING,
                         // Ghost bleeds its fill outward so the icon column still lines up with
                         // the heading above it — same left edge, no visible inset.
                         ghost
@@ -295,7 +329,6 @@ export function SectionCard({
                                   small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                               ),
                     )}
-                    onClick={onToggle}
                 >
                     <span
                         className={cn(
@@ -317,7 +350,7 @@ export function SectionCard({
                     >
                         {open ? <CaretDown /> : <CaretRight />}
                     </span>
-                </div>
+                </button>
             </div>
             <HeightCollapse open={open}>
                 <div
@@ -378,18 +411,20 @@ export function DetailCard({
         <div>
             {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
             <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
-                <div
+                <button
+                    type="button"
+                    onClick={onCollapse}
                     className={cn(
-                        "flex cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors",
+                        "flex w-full cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] text-left font-[inherit] transition-colors",
+                        FOCUS_RING,
                         small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
-                    onClick={onCollapse}
                 >
                     {head}
                     <span className={textColors.tertiary}>
                         <CaretDown />
                     </span>
-                </div>
+                </button>
             </div>
             <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
                 {children}
