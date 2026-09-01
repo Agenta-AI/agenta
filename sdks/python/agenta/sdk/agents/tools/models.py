@@ -378,7 +378,15 @@ class ReferenceToolConfig(ToolConfigBase):
         default=None,
         description="Pin a workflow revision (ref_by='variant' only); absent = latest.",
     )
-    name: Optional[str] = Field(default=None, min_length=1)
+    name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Legacy: a copy of the target's display name, taken when the subagent was added. "
+            "Renaming the target never reached it, so nothing reads it any more (#6444). Kept "
+            "only so configurations saved before then still parse."
+        ),
+    )
     description: Optional[str] = None
     input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
 
@@ -403,15 +411,18 @@ class ReferenceToolConfig(ToolConfigBase):
 
     @property
     def tool_name(self) -> str:
-        """The model-visible name; defaults to the workflow slug when none is authored.
+        """The model-visible name: the workflow SLUG, never the stored display name.
 
-        Sanitized to the provider's tool-name pattern, because the authored `name` is a DISPLAY
-        name a person typed and may contain spaces or punctuation the provider refuses. The
-        display name itself is never rewritten — only this wire value. Collisions between two
-        children that sanitize alike are resolved by the caller building the tool list, which is
-        the only place that can see siblings.
+        The slug is the reference's only identity and a rename never touches it, so this is
+        stable inside a conversation AND correct after the target is renamed — the stored `name`
+        was neither, because it was a copy taken at add time (#6444).
+
+        Still sanitized to the provider's tool-name pattern: a slug authored through the API
+        rather than the UI need not match it, and a name the provider refuses fails the whole
+        tool list. Collisions between two slugs that sanitize alike are resolved by the caller
+        building the tool list, which is the only place that can see siblings.
         """
-        return sanitize_tool_name(self.name, fallback=self.slug)
+        return sanitize_tool_name(self.slug, fallback=self.slug)
 
     @property
     def call_ref(self) -> str:

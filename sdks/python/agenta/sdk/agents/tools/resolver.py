@@ -137,10 +137,10 @@ def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
         if name is None:
             continue
         if isinstance(tool_config, ReferenceToolConfig):
-            # A reference tool's model-visible name is DERIVED: an authored display name,
-            # sanitized to the provider's tool-name pattern. Two distinct children can therefore
-            # arrive here sharing one name ("Support Router" and "Support/Router" both sanitize
-            # to `Support_Router`) without either being a mistake. The workflow adapter gives
+            # A reference tool's model-visible name is DERIVED: its workflow slug, sanitized to
+            # the provider's tool-name pattern. Two distinct children can therefore arrive here
+            # sharing one name ("support router" and "support/router" both sanitize to
+            # `support_router`) without either being a mistake. The workflow adapter gives
             # them distinct names before they reach the wire, and `_validate_unique_names` still
             # checks the result, so rejecting them here would refuse a valid configuration. The
             # reserved-name check still applies — that one is about shadowing a built-in.
