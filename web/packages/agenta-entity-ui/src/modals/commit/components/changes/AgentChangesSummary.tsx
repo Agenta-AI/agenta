@@ -2,359 +2,39 @@
  * AgentChangesSummary
  *
  * Plain-language, section-grouped view of an agent workflow's commit changes.
- * Each change is a self-contained card (header + a real diff/rows surface) so nothing
- * bleeds onto the flat panel. Master → detail navigation inside a fixed frame: the summary
- * list, an edited-tool detail, a full-instructions diff, and the raw JSON diff all render
- * in the same scroll area so the modal never grows. Nothing inline grows unbounded.
+ * Master → detail navigation inside a fixed frame: the summary list, an edited-tool detail, a
+ * full-instructions diff, and the raw JSON diff all render in the same scroll area so the modal
+ * never grows. Nothing inline grows unbounded.
+ *
+ * The section list itself lives in `@agenta/entity-ui/changes` — a surface that only needs
+ * "what changed" renders that directly and keeps `DiffView` (and Lexical) out of its bundle.
+ * What stays here is what needs the editor or a detail stack: the JSON view and the drill-ins.
  */
 import {useMemo, useState} from "react"
 
-import type {ChangeItem, ChangeSection, ScalarChange} from "@agenta/entities/workflow/commitDiff"
-import {HeightCollapse} from "@agenta/ui/components"
-import {AdaptiveList} from "@agenta/ui/components/selection"
-import type {ExtendedDiffLine} from "@agenta/ui/diff"
+import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Badge, type BadgeProps} from "@agenta/ui/ui"
+import {ArrowLeft, ChatText, Code, PencilSimple} from "@phosphor-icons/react"
+
 import {
-    ArrowLeft,
-    ArrowRight,
-    CaretDown,
-    CaretRight,
-    ChatText,
-    Code,
-    Cpu,
-    DotsThree,
-    Minus,
-    PencilSimple,
-    PlugsConnected,
-    Plus,
-    Sparkle,
-    SlidersHorizontal,
-    Wrench,
-} from "@phosphor-icons/react"
+    CARD,
+    ChangeSections,
+    DetailCard,
+    HunkRows,
+    LINK_BTN,
+    StatusTags,
+    kindIcon,
+    kindStyle,
+} from "@agenta/entity-ui/changes"
 
 import {isSectionOpen} from "./sectionOpenState"
-
-const INLINE_TEXT_DIFF_LINES = 6
-const SUBGROUP_VISIBLE = 5
-const VIRTUALIZE_AT = 50
-
-const ADD_BG = "color-mix(in srgb, var(--ag-colorSuccess) 13%, transparent)"
-const DEL_BG = "color-mix(in srgb, var(--ag-colorError) 13%, transparent)"
-
-// One subtle surface for the whole card; header inherits it, the diff tints + open divider
-// carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
-const CARD =
-    "overflow-hidden rounded-[10px] border border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]"
-const LINK_BTN = cn(
-    "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
-    textColors.secondary,
-    "hover:text-[var(--ag-colorText)]",
-)
 
 type View =
     | {kind: "summary"}
     | {kind: "json"}
     | {kind: "instructions"; sectionId: string}
     | {kind: "tool"; sectionId: string; itemId: string}
-
-const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
-    tools: <Wrench />,
-    instructions: <ChatText />,
-    model: <Cpu />,
-    mcps: <PlugsConnected />,
-    skills: <Sparkle />,
-    params: <SlidersHorizontal />,
-}
-
-const KIND_COLOR: Record<string, BadgeProps["variant"]> = {
-    added: "green",
-    removed: "red",
-    edited: "gold",
-    changed: "gold",
-}
-
-const kindIcon = (kind: string) => {
-    if (kind === "added") return <Plus />
-    if (kind === "removed") return <Minus />
-    return <PencilSimple />
-}
-
-const kindStyle = (kind: string) => {
-    if (kind === "added") return {color: "var(--ag-colorSuccess)"}
-    if (kind === "removed") return {color: "var(--ag-colorError)"}
-    return {color: "var(--ag-colorWarning)"}
-}
-
-function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean}) {
-    return (
-        <>
-            {tags.map((t, i) => (
-                <Badge
-                    key={i}
-                    variant={KIND_COLOR[t.kind] ?? "default"}
-                    className={cn(
-                        "rounded-full",
-                        small ? "px-1.5 text-[12px] leading-[18px]" : "px-2 text-[12px]",
-                    )}
-                >
-                    {t.label}
-                </Badge>
-            ))}
-        </>
-    )
-}
-
-/** Diff surface — tinted +/- rows with a sign gutter; long lines wrap. */
-function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: number}) {
-    const shown = limit ? hunks.slice(0, limit) : hunks
-    return (
-        <div className="py-2 font-mono text-xs leading-[1.8]">
-            {shown.map((line, i) => {
-                if (line.type === "fold") {
-                    return (
-                        <div key={i} className={cn("px-3.5 italic", textColors.tertiary)}>
-                            {line.content}
-                        </div>
-                    )
-                }
-                const isAdd = line.type === "added"
-                const isDel = line.type === "removed"
-                const style = isAdd
-                    ? {
-                          background: ADD_BG,
-                          boxShadow: "inset 2px 0 0 var(--ag-colorSuccess)",
-                          color: "var(--ag-colorSuccess)",
-                      }
-                    : isDel
-                      ? {
-                            background: DEL_BG,
-                            boxShadow: "inset 2px 0 0 var(--ag-colorError)",
-                            color: "var(--ag-colorError)",
-                        }
-                      : undefined
-                return (
-                    <div
-                        key={i}
-                        className={cn(
-                            "flex px-3.5",
-                            line.type === "context" && textColors.tertiary,
-                        )}
-                        style={style}
-                    >
-                        <span className="w-3.5 shrink-0 opacity-70">
-                            {isAdd ? "+" : isDel ? "−" : " "}
-                        </span>
-                        <span className="whitespace-pre-wrap break-words">{line.content}</span>
-                    </div>
-                )
-            })}
-        </div>
-    )
-}
-
-function ItemRow({it, onOpenTool}: {it: ChangeItem; onOpenTool?: (itemId: string) => void}) {
-    const clickable = it.kind === "edited" && !!onOpenTool
-    return (
-        <div
-            className={cn(
-                "flex items-center gap-2.5 px-3.5 py-1.5",
-                clickable && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
-            )}
-            onClick={clickable ? () => onOpenTool?.(it.id) : undefined}
-        >
-            <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
-                {kindIcon(it.kind)}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-xs">
-                {it.label}
-                {it.detail ? (
-                    <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
-                ) : null}
-            </span>
-            {clickable ? <CaretRight className={textColors.tertiary} /> : null}
-        </div>
-    )
-}
-
-/** A capped list with "Show N more"; virtualizes only when a huge group is fully expanded. */
-function CappedItems({
-    items,
-    onOpenTool,
-}: {
-    items: ChangeItem[]
-    onOpenTool?: (itemId: string) => void
-}) {
-    const [expanded, setExpanded] = useState(false)
-
-    if (expanded && items.length > VIRTUALIZE_AT) {
-        return (
-            <AdaptiveList
-                items={items}
-                maxHeight={320}
-                estimateSize={30}
-                getItemKey={(it) => it.id}
-                renderItem={(it) => <ItemRow it={it} onOpenTool={onOpenTool} />}
-            />
-        )
-    }
-
-    const visible = expanded ? items : items.slice(0, SUBGROUP_VISIBLE)
-    const hidden = items.length - visible.length
-    return (
-        <div className="py-1">
-            {visible.map((it) => (
-                <ItemRow key={it.id} it={it} onOpenTool={onOpenTool} />
-            ))}
-            {hidden > 0 ? (
-                <button
-                    type="button"
-                    className={cn("px-3.5 py-1.5 text-xs", LINK_BTN)}
-                    onClick={() => setExpanded(true)}
-                >
-                    <DotsThree />
-                    Show {hidden} more
-                </button>
-            ) : null}
-        </div>
-    )
-}
-
-function ScalarRows({changes}: {changes: ScalarChange[]}) {
-    return (
-        <div className="py-1">
-            {changes.map((c) => (
-                <div
-                    key={c.key}
-                    className="flex items-center gap-2 px-3.5 py-1.5 font-mono text-xs"
-                >
-                    <span className={textColors.secondary}>{c.key}</span>
-                    <span style={{color: "var(--ag-colorError)"}}>{c.before ?? "—"}</span>
-                    <ArrowRight className={textColors.tertiary} />
-                    <span style={{color: "var(--ag-colorSuccess)"}}>{c.after ?? "—"}</span>
-                </div>
-            ))}
-        </div>
-    )
-}
-
-/** Detail-view card with a sticky header that collapses back to the summary on click.
- * Split frame, not CARD: CARD's overflow-hidden clips sticky positioning. */
-function DetailCard({
-    head,
-    onCollapse,
-    small,
-    children,
-}: {
-    head: React.ReactNode
-    onCollapse: () => void
-    small?: boolean
-    children: React.ReactNode
-}) {
-    return (
-        <div>
-            {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
-            <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
-                <div
-                    className={cn(
-                        "flex cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors",
-                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
-                    )}
-                    onClick={onCollapse}
-                >
-                    {head}
-                    <span className={textColors.tertiary}>
-                        <CaretDown />
-                    </span>
-                </div>
-            </div>
-            <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
-                {children}
-            </div>
-        </div>
-    )
-}
-
-function SectionCard({
-    section,
-    items,
-    open,
-    onToggle,
-    onOpenInstructions,
-    onOpenTool,
-    small,
-}: {
-    section: ChangeSection
-    items?: ChangeItem[]
-    open: boolean
-    onToggle: () => void
-    onOpenInstructions: () => void
-    onOpenTool: (itemId: string) => void
-    small?: boolean
-}) {
-    const toolItems = items ?? section.items
-    // Split frame per DetailCard; each header sticks only within its own card wrapper.
-    return (
-        <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
-            <div
-                className={cn(
-                    "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
-                    open ? "rounded-t-[10px]" : "rounded-[10px]",
-                )}
-            >
-                <div
-                    className={cn(
-                        "flex cursor-pointer items-center border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
-                        open ? "rounded-t-[10px]" : "rounded-[10px]",
-                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
-                    )}
-                    onClick={onToggle}
-                >
-                    <span className={cn("w-[18px] text-center", textColors.secondary)}>
-                        {SECTION_ICON[section.id]}
-                    </span>
-                    <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
-                        {section.title}
-                    </span>
-                    <StatusTags tags={section.tags} small={small} />
-                    <span className={textColors.tertiary}>
-                        {open ? <CaretDown /> : <CaretRight />}
-                    </span>
-                </div>
-            </div>
-            <HeightCollapse open={open}>
-                <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
-                    {section.id === "tools" && toolItems ? (
-                        <CappedItems items={toolItems} onOpenTool={onOpenTool} />
-                    ) : null}
-                    {section.scalarChanges ? <ScalarRows changes={section.scalarChanges} /> : null}
-                    {section.textDiff ? (
-                        <>
-                            <HunkRows
-                                hunks={section.textDiff.hunks}
-                                limit={INLINE_TEXT_DIFF_LINES}
-                            />
-                            <div className="flex items-center border-t border-[var(--ag-colorBorderSecondary)] px-3.5 py-2">
-                                <button
-                                    type="button"
-                                    className={cn("text-xs", LINK_BTN)}
-                                    onClick={onOpenInstructions}
-                                >
-                                    <ArrowRight />
-                                    View full diff
-                                    {section.textDiff.added + section.textDiff.removed > 2
-                                        ? ` · ${section.textDiff.added + section.textDiff.removed} lines`
-                                        : ""}
-                                </button>
-                            </div>
-                        </>
-                    ) : null}
-                </div>
-            </HeightCollapse>
-        </div>
-    )
-}
 
 export interface AgentChangesSummaryProps {
     sections: ChangeSection[]
@@ -391,7 +71,14 @@ export default function AgentChangesSummary({
         [sections],
     )
 
-    const isOpen = (id: string) => isSectionOpen(openOverrides, id, defaultOpen)
+    // ChangeSections takes a resolved map; `defaultOpen` is a policy, so resolve it per section.
+    const openState = useMemo(
+        () =>
+            Object.fromEntries(
+                sections.map((s) => [s.id, isSectionOpen(openOverrides, s.id, defaultOpen)]),
+            ),
+        [sections, openOverrides, defaultOpen],
+    )
     const toggleSection = (id: string) =>
         setOpenOverrides((prev) => ({...prev, [id]: !isSectionOpen(prev, id, defaultOpen)}))
 
@@ -458,24 +145,20 @@ export default function AgentChangesSummary({
                     compact ? "max-h-80 rounded-[10px]" : "min-h-0 flex-1 px-4 pb-4",
                 )}
             >
-                {view.kind === "summary"
-                    ? sections.map((section) => (
-                          <SectionCard
-                              key={section.id}
-                              section={section}
-                              items={section.items}
-                              open={isOpen(section.id)}
-                              small={size === "small"}
-                              onToggle={() => toggleSection(section.id)}
-                              onOpenInstructions={() =>
-                                  setView({kind: "instructions", sectionId: section.id})
-                              }
-                              onOpenTool={(itemId) =>
-                                  setView({kind: "tool", sectionId: section.id, itemId})
-                              }
-                          />
-                      ))
-                    : null}
+                {view.kind === "summary" ? (
+                    <ChangeSections
+                        sections={sections}
+                        size={size}
+                        openState={openState}
+                        onToggleSection={toggleSection}
+                        onOpenInstructions={(sectionId) =>
+                            setView({kind: "instructions", sectionId})
+                        }
+                        onOpenTool={(sectionId, itemId) =>
+                            setView({kind: "tool", sectionId, itemId})
+                        }
+                    />
+                ) : null}
 
                 {view.kind === "instructions" && activeSection?.textDiff ? (
                     <DetailCard

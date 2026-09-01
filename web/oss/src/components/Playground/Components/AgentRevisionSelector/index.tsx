@@ -77,7 +77,10 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 value={_variantId ?? undefined}
                 borderlessTrigger
             />
-            <AgentRevisionStatus revisionId={variantId} />
+            <AgentRevisionStatus
+                revisionId={variantId}
+                historyWorkflowId={runnableData?.workflow_id}
+            />
         </div>
     )
 }

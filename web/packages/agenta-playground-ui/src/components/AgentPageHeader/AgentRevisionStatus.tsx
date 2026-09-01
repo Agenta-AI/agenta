@@ -1,107 +1,41 @@
-import {useEffect} from "react"
+import {useEffect, useState} from "react"
 
-import {
-    invalidateAgentCommittedRevisionCache,
-    workflowMolecule,
-    workflowRevisionsByWorkflowListDataAtomFamily,
-    workflowRevisionsByWorkflowQueryAtomFamily,
-} from "@agenta/entities/workflow"
+import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
 } from "@agenta/playground/state"
-import {timeAgo} from "@agenta/shared/utils"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
-import {CaretDown, Check, WarningCircle} from "@phosphor-icons/react"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {CaretDown, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
+
+import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
+
+// Mounted only once opened: the drawer pulls the whole revision list and diff machinery.
+const AgentVersionHistoryDrawer = dynamic(
+    () => import("../AgentVersionHistory").then((m) => m.AgentVersionHistoryDrawer),
+    {ssr: false},
+)
 
 export interface AgentRevisionStatusProps {
     /** The revision whose version and dirty state this reads. */
     revisionId: string
     /**
-     * Turn the `vN` chip into a picker over this workflow's revisions. Omit where the surface
-     * already has one (the desktop's variant selector sits beside this).
+     * Turn the `vN` chip into the version-history drawer for this workflow. Omit where the
+     * surface has no workflow handle (the chip then just states the version).
      */
-    pickerWorkflowId?: string | null
-    /** Required with `pickerWorkflowId` — the host decides what selecting a revision means. */
+    historyWorkflowId?: string | null
+    /** Optional: lets a version's row offer "Open", pinning the surface to that revision. */
     onSelectRevision?: (revisionId: string) => void
     className?: string
 }
 
 /**
- * The revision list behind the chip. Its rows carry the commit message, so the picker form drops
- * the chip's message tooltip — the same text, one tap away instead of on hover.
- */
-const RevisionPicker = ({
-    workflowId,
-    revisionId,
-    version,
-    onSelectRevision,
-}: {
-    workflowId: string
-    revisionId: string
-    version: number
-    onSelectRevision: (revisionId: string) => void
-}) => {
-    // Reading the query atom is what fetches; the list atom resolves the refs it primes.
-    useAtomValue(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
-    const revisions = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(workflowId))
-
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    aria-label="Select revision"
-                    className="flex cursor-pointer items-center rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:text-colorText"
-                >
-                    v{version}
-                    <CaretDown size={9} className="ml-1" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[280px]">
-                <DropdownMenuLabel>Revisions</DropdownMenuLabel>
-                {revisions.length === 0 ? (
-                    <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
-                ) : null}
-                {revisions.map((revision) => (
-                    <DropdownMenuItem
-                        key={revision.id}
-                        onSelect={() => onSelectRevision(revision.id)}
-                    >
-                        {revision.id === revisionId ? (
-                            <Check size={12} />
-                        ) : (
-                            <span className="inline-block w-[12px]" />
-                        )}
-                        <span className="shrink-0">v{revision.version ?? 0}</span>
-                        <span className="min-w-0 flex-1 truncate text-colorTextSecondary">
-                            {revision.message?.trim() || "No commit message"}
-                        </span>
-                        {revision.created_at ? (
-                            <span className="shrink-0 text-colorTextTertiary">
-                                {timeAgo(Date.parse(revision.created_at))}
-                            </span>
-                        ) : null}
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-
-/**
  * A revision's committed identity: the `vN` chip (its commit message on hover) and a save-status
- * dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
+ * dot. With `historyWorkflowId` the chip opens the version-history drawer instead.
  *
  * The dot reports auto-commit; there is no Save button, so a failed save makes the dot the retry.
  *
@@ -111,7 +45,7 @@ const RevisionPicker = ({
  */
 export const AgentRevisionStatus = ({
     revisionId,
-    pickerWorkflowId,
+    historyWorkflowId,
     onSelectRevision,
     className,
 }: AgentRevisionStatusProps) => {
@@ -133,6 +67,14 @@ export const AgentRevisionStatus = ({
     const autoCommitError = useAtomValue(agentAutoCommitErrorAtomFamily(revisionId || ""))
     const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
+
+    const historyOpen = useAtomValue(versionHistoryOpenAtomFamily(historyWorkflowId || ""))
+    const openHistory = useSetAtom(openAgentVersionHistoryAtom)
+    // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
+    const [historyMounted, setHistoryMounted] = useState(false)
+    useEffect(() => {
+        if (historyOpen) setHistoryMounted(true)
+    }, [historyOpen])
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
@@ -157,13 +99,27 @@ export const AgentRevisionStatus = ({
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {version !== null &&
-                (pickerWorkflowId && onSelectRevision ? (
-                    <RevisionPicker
-                        workflowId={pickerWorkflowId}
-                        revisionId={revisionId}
-                        version={version}
-                        onSelectRevision={onSelectRevision}
-                    />
+                (historyWorkflowId ? (
+                    <>
+                        <SimpleTooltip title="Version history">
+                            <button
+                                type="button"
+                                aria-label="Open version history"
+                                onClick={() => openHistory(historyWorkflowId)}
+                                className="flex cursor-pointer items-center rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:text-colorText"
+                            >
+                                v{version}
+                                <CaretDown size={9} className="ml-1" />
+                            </button>
+                        </SimpleTooltip>
+                        {historyMounted ? (
+                            <AgentVersionHistoryDrawer
+                                workflowId={historyWorkflowId}
+                                revisionId={revisionId}
+                                onSelectRevision={onSelectRevision}
+                            />
+                        ) : null}
+                    </>
                 ) : (
                     <SimpleTooltip
                         className="max-w-[360px]"

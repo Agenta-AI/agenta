@@ -114,14 +114,22 @@ const clearTimer = (store: Store, revisionId: string) => {
     setScheduled(store, revisionId, false)
 }
 
-const schedule = (store: Store, revisionId: string, delay: number, isRetry: boolean) => {
+const schedule = (
+    store: Store,
+    revisionId: string,
+    delay: number,
+    isRetry: boolean,
+    messageOverride?: string,
+) => {
     clearTimer(store, revisionId)
     timers.set(
         revisionId,
         setTimeout(() => {
             timers.delete(revisionId)
             setScheduled(store, revisionId, false)
-            void runFlush(store, revisionId, isRetry)
+            // The override rides the timer: a deferred revert must still commit under its own
+            // message, not the generated summary.
+            void runFlush(store, revisionId, isRetry, messageOverride)
         }, delay),
     )
     setScheduled(store, revisionId, true)
@@ -156,24 +164,29 @@ const forgetRevision = (store: Store, revisionId: string) => {
     agentAutoCommitScheduledAtomFamily.remove(revisionId)
 }
 
-const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
+const runFlush = async (
+    store: Store,
+    revisionId: string,
+    isRetry: boolean,
+    messageOverride?: string,
+): Promise<boolean> => {
     const blocker = flushBlocker(store, revisionId)
 
     if (blocker === "skip" || blocker === "clean") {
         settleIdle(store, revisionId, blocker)
-        return
+        return false
     }
 
     if (blocker === "busy") {
-        schedule(store, revisionId, DEBOUNCE_MS, isRetry)
-        return
+        schedule(store, revisionId, DEBOUNCE_MS, isRetry, messageOverride)
+        return false
     }
 
     inFlight.add(revisionId)
     store.set(agentAutoCommitStatusAtomFamily(revisionId), "saving")
 
     try {
-        const commitMessage = buildMessage(store, revisionId)
+        const commitMessage = messageOverride ?? buildMessage(store, revisionId)
         const result = await store.set(commitWorkflowRevisionAtom, {revisionId, commitMessage})
 
         if (result.success) {
@@ -189,14 +202,14 @@ const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
                 // finish first. Safe: it is superseded.
                 setTimeout(() => forgetRevision(store, revisionId), 0)
             }
-            return
+            return true
         }
 
         if (!isRetry) {
             // Still working, so the header keeps saying so rather than flashing a failure the
             // retry is about to clear.
-            schedule(store, revisionId, RETRY_MS, true)
-            return
+            schedule(store, revisionId, RETRY_MS, true, messageOverride)
+            return false
         }
 
         store.set(agentAutoCommitStatusAtomFamily(revisionId), "error")
@@ -204,6 +217,7 @@ const runFlush = async (store: Store, revisionId: string, isRetry: boolean) => {
             agentAutoCommitErrorAtomFamily(revisionId),
             result.error?.message ?? "Couldn't save changes",
         )
+        return false
     } finally {
         inFlight.delete(revisionId)
     }
@@ -228,13 +242,20 @@ const scheduleAgentAutoCommit = (revisionId: string) => {
 /**
  * Save now, skipping the debounce. The header's failure notice uses it to retry; the timer path
  * needs nothing else.
+ *
+ * `commitMessage` overrides the generated summary — a revert names what it did. Returns whether
+ * the commit landed, so a caller that shows its own outcome (the version-history drawer) can.
  */
 export const flushAgentAutoCommitAtom = atom(
     null,
-    async (_get, _set, {revisionId}: {revisionId: string}) => {
+    async (
+        _get,
+        _set,
+        {revisionId, commitMessage}: {revisionId: string; commitMessage?: string},
+    ): Promise<boolean> => {
         clearTimer(getDefaultStore(), revisionId)
         // A manual retry is the user's second attempt; don't spend the automatic one on it.
-        await runFlush(getDefaultStore(), revisionId, true)
+        return runFlush(getDefaultStore(), revisionId, true, commitMessage)
     },
 )
 

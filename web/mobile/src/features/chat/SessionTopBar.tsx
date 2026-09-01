@@ -64,7 +64,7 @@ export const SessionTopBar = ({
                 entityId ? (
                     <AgentRevisionStatus
                         revisionId={entityId}
-                        pickerWorkflowId={agentId}
+                        historyWorkflowId={agentId}
                         onSelectRevision={pinRevision}
                     />
                 ) : undefined
