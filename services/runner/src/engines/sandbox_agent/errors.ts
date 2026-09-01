@@ -21,8 +21,24 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
  * resolved connection). When it is absent, fall back to the harness default
  * — Claude is always Anthropic; every other harness defaults to OpenAI, matching the old
  * behavior for that path only.
+ *
+ * A CUSTOM deployment overrides the family label entirely: its provider family is "openai"
+ * because the endpoint speaks the OpenAI dialect, not because the key is an OpenAI key — a
+ * Gemini run through an OpenAI-compatible proxy must not read "add the project's OpenAI key".
+ * The hint names the connection instead, which is where that key actually lives.
  */
-function keyHintFor(provider: string | undefined, harness: string): string {
+function keyHintFor(
+  provider: string | undefined,
+  harness: string,
+  connection?: ConciseErrorOptions["connection"],
+): string {
+  if (connection?.deployment === "custom") {
+    // NEUTRAL on purpose: the runner cannot tell a user-created connection from a managed one
+    // (the seeded starter-credits connection is write-only and hidden from Settings), so naming
+    // the slug can both leak an internal identifier and instruct the user to edit a connection
+    // they cannot see. Review finding on #6362.
+    return "the model connection's API key";
+  }
   const label = provider
     ? PROVIDER_KEY_LABELS[provider.toLowerCase()]
     : undefined;
@@ -44,6 +60,7 @@ export type RunErrorCode =
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
+  | "credential_delivery_failed"
   | "rate_limited";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
@@ -53,13 +70,11 @@ export interface ClassifiedRunError {
 }
 
 /*
- * TODO(copy: owner) — the five strings below are PLACEHOLDERS. They are the first product copy the
- * runner puts in front of an end user (every other line here is an operator hint), so the final
- * wording is the product owner's to write. Keep them short, plain, and free of provider/proxy
- * mechanics: the user cannot act on which service refused, only on what to do next.
- *
- * They are deliberately NOT prefixed with the harness name the way the operator hints are — the
- * reader of these is the person chatting, to whom "claude:" is noise.
+ * Product copy, settled 2026-08-31 for v0.114.4. These strings are the first product copy the
+ * runner shows to an end user; every other line here is an operator hint. Keep them short and
+ * plain, with no provider or proxy mechanics: the user cannot act on which service refused,
+ * only on what to do next. They carry no harness-name prefix, unlike the operator hints,
+ * because the reader is the person in the chat.
  */
 const STARTER_CREDITS_EXHAUSTED_MESSAGE =
   "Your free Agenta credits are used up. Add your own provider key to keep going.";
@@ -71,6 +86,8 @@ const PROVIDER_RATE_LIMITED_MESSAGE =
   "Too many requests to the model provider right now. Try again in a moment.";
 const STARTER_CREDITS_UNAVAILABLE_MESSAGE =
   "Agenta credits are temporarily unavailable. Try again in a moment.";
+const CREDENTIAL_DELIVERY_FAILED_MESSAGE =
+  "A temporary issue kept this run's credentials from reaching the model. Send the message again.";
 
 /*
  * Recognition is matched on the BODY, never on the HTTP status alone: 429 covers admission-time
@@ -96,6 +113,157 @@ const PROXY_RATE_LIMIT =
 /** The upstream provider's own quota refusal (Vertex/Google shape), distinct from a billing stop. */
 const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
 
+/**
+ * The provider received the sandbox's opaque credential PLACEHOLDER instead of the real key.
+ *
+ * On a Daytona run the real model key never enters the sandbox: it is stored as a Daytona Secret
+ * and the sandbox holds a `dtn_secret_<id>` placeholder that Daytona substitutes into egress
+ * requests to the key's exact host. That substitution propagates asynchronously with no
+ * confirmation signal, and when a sandbox's FIRST outbound call beats it (observed live at 10-24s
+ * after Secret creation), the raw placeholder reaches the provider and is refused with a 401.
+ * The user's key is fine, so the add-a-key advice would be wrong three ways; this is its own
+ * transient class. The first alternative matches LiteLLM's refusal of a non-`sk-` bearer
+ * ("LiteLLM Virtual Key expected. Received=dtn_****…"); the second matches any provider that
+ * echoes the placeholder itself.
+ *
+ * Both alternatives are SELF-EVIDENCING: each names the placeholder in a shape only the delivery
+ * layer produces, so neither needs corroboration. They stay anchored on the literal `dtn_`
+ * namespace, Daytona's placeholder prefix, which cannot appear in an `sk-` provider key.
+ */
+const PLACEHOLDER_CREDENTIAL =
+  /virtual key expected.*received=dtn_|dtn_secret_/i;
+
+/**
+ * A provider echoing the placeholder MASKED, which the signature above cannot see.
+ *
+ * OpenAI answers a direct call with "Incorrect API key provided: dtn_secr***************cdef" —
+ * the mask truncates before the literal `dtn_secret_`, so without this every direct OpenAI
+ * placeholder 401 was blamed on the user's key. It mirrors `MASKED_PLACEHOLDER_ECHO` in
+ * `credential-preflight.ts`, and `*` is the only mask character trusted here for the same reason
+ * there: a `...`/`…` truncation could equally be a cut-off scrubbed value.
+ *
+ * WHY IT IS SHAPED THIS TIGHTLY, AND WHY IT NEEDS CORROBORATION. Unlike the two above, this
+ * pattern is a guess about formatting rather than a quoted protocol string, so it is the one that
+ * can be spoofed by ordinary text. The stem is `{4,}` and the mask `{3,}` so a literal glob like
+ * `dtn_*` — a perfectly normal thing to find in a path, a filter, or a log line — cannot match;
+ * a real mask is many characters wide. And the caller requires AUTH_REFUSAL alongside it, so a
+ * hypothetical customer key spelled `dtn_customer_***` inside an unrelated error is not read as a
+ * delivery fault. Corroboration costs nothing here: an unsubstituted placeholder is only ever
+ * observed as a credential refusal.
+ */
+const MASKED_PLACEHOLDER_ECHO = /dtn_[A-Za-z0-9_-]{4,}\*{3,}/i;
+
+/**
+ * A refusal of the credential itself, whatever the provider calls it.
+ *
+ * `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status code
+ * embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to contain
+ * "401" as a substring (a real, timestamp-dependent flake this caused).
+ */
+const AUTH_REFUSAL =
+  /authentication required|invalid api key|unauthorized|(?<!\d)401(?!\d)/i;
+
+/**
+ * A refusal the PROVIDER answered with 401, as opposed to any authorization failure anywhere.
+ *
+ * `AUTH_REFUSAL` above is deliberately broad because it decides which advice to print, and bare
+ * "unauthorized" appears in plenty of authorization failures that have nothing to do with the
+ * model credential — a tool's own API, a mount, a platform call. That breadth is wrong for the
+ * fresh-Secret branch, which does two things a display string does not: it spends the session's
+ * one credential-race report, and it tells the user to retry. An unrelated "unauthorized" landing
+ * inside the propagation window would consume the report and hand out retry guidance for a
+ * failure a retry cannot fix, and the genuine race that followed would then get the add-a-key
+ * copy. So that branch requires an explicit 401 — the status the provider actually returns when
+ * it refuses a credential.
+ */
+const PROVIDER_401 =
+  /(?<!\d)401(?!\d)|status(?:_?code)?[":\s=]+401\b|http[ _-]?401\b/i;
+
+/**
+ * A 401 the RUNNER produced, not the model provider.
+ *
+ * HOW THE 401 IS DETECTED AT ALL, stated plainly because it constrains everything below: this
+ * classifier receives one flattened error STRING. It never sees an HTTP response object, so the
+ * status it reads is whatever the throwing code chose to write into the message — the runner's own
+ * status prefix, not the provider's response. Provenance is therefore prose, and prose has to be
+ * excluded by prose.
+ *
+ * EXACTLY FIVE EMITTERS, and no more. The runner makes five authenticated calls of its own during
+ * a turn that can answer 401 and reach this same catch AS CLASSIFIER INPUT: the tool callback
+ * (`tool call <ref> failed: HTTP 401`), attachment fetch, attachment claim, session-records query,
+ * and session-records persist. Without this exclusion, any one of them landing inside the
+ * propagation window would consume the session's single credential-race report and print retry
+ * guidance for a failure a retry cannot fix — and the genuine race that followed would then get
+ * the add-a-key copy, which is the original bug wearing a disguise.
+ *
+ * WHY THIS IS SOUND RATHER THAN A GUESS. Each of the five is greppable in `services/runner/src`
+ * and prefixed AT ITS THROW SITE precisely so it can be recognized here — four of them threw a
+ * bare `HTTP <status>` until this change and were genuinely indistinguishable from a provider
+ * refusal. The alternative, plumbing a typed provider-response provenance signal through the
+ * harness boundary into `ConciseErrorOptions`, is the right long-term shape and a large change;
+ * naming the emitters costs one regex and one word per throw site.
+ *
+ * WHAT IS DELIBERATELY NOT HERE. Mount, geesefs and otel failures are NOT in this set, for two
+ * independent reasons. They never arrive as classifier input: those sites build their message
+ * AROUND `conciseError(err, ...)`, so the prefix is added after classification and the classifier
+ * only ever sees the inner error. And matching them is actively unsafe — none is a prefixed
+ * emitter, so the patterns would have to be loose, and a loose `mount failed` matches inside
+ * "the requested amount failed to authorize" or "paramount failed" while a bare `otel` matches
+ * inside "hotel-search". Excluding a provider-shaped string is the WORSE direction of this bug:
+ * it hands a genuine race the add-a-key copy, which is the failure this whole class exists to
+ * prevent. If one ever does prove reachable, re-add it anchored with `\b`.
+ *
+ * THE STANDING OBLIGATION: a new authenticated call inside the turn must prefix its failure, or it
+ * silently rejoins this hazard. That is why the five throw sites carry a comment pointing back.
+ */
+const RUNNER_INTERNAL_401 =
+  /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed/i;
+
+/**
+ * How long after a Daytona Secret is delivered a credential refusal is still better explained by
+ * propagation than by the key.
+ *
+ * Daytona's support puts the outer bound at ~30s, our own samples saw healthy substitution in
+ * ~2s, and the preflight convicts a stuck sandbox at 10s. The first model call lands after
+ * acquire, so the window has to outlast acquire itself; 60s covers that with margin while
+ * staying far short of a warm sandbox's later turns, where a 401 really is about the key.
+ *
+ * ACCEPTED LIMITATION: an unusually slow acquire pushes a GENUINE race past 60s and it gets the
+ * add-a-key advice instead. That is the right way round to be wrong. Substitution propagates in
+ * 10-24s, so a refusal arriving a full minute after delivery is far more likely a real bad key —
+ * exactly the reader the fallback advice serves. The cost when it does misfire is one turn shown
+ * the pre-fix copy, on a run whose retry lands on a fresh sandbox anyway.
+ */
+const CREDENTIAL_PROPAGATION_WINDOW_MS = 60_000;
+
+/**
+ * How many times one conversation may be told its credentials did not reach the model.
+ *
+ * A credential race and a genuinely wrong key look identical on a direct provider: both are a 401
+ * with no placeholder echo. The retry copy is the right answer for the race — the failed turn
+ * DELETES the sandbox, so the retry lands on a fresh one and the per-sandbox fault is gone — but
+ * it is a trap for a bad key, which would be told to retry forever. One report per session bounds
+ * that: the second identical failure, on a second fresh sandbox, is far better explained by the
+ * key, so it falls through to the ordinary add-a-key advice. A bad key costs exactly one wasted
+ * retry; a real race still recovers silently.
+ */
+export const CREDENTIAL_RACE_REPORTS_PER_SESSION = 1;
+
+/**
+ * Whether a credential refusal falls inside the propagation window of a Daytona-delivered key.
+ *
+ * Exported for the call sites that build the predicate, and so a test can pin the window.
+ */
+export function withinCredentialPropagationWindow(
+  deliveredAt: number | undefined,
+  now: number = Date.now(),
+): boolean {
+  return (
+    deliveredAt !== undefined &&
+    now - deliveredAt < CREDENTIAL_PROPAGATION_WINDOW_MS
+  );
+}
+
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
 const CONNECTION_FAILURE =
@@ -117,6 +285,25 @@ export interface ConciseErrorOptions {
    * Lazy so the check (a stat) only runs on the error path it explains.
    */
   authFault?: () => string | undefined;
+  /**
+   * The run's named connection (wire `connection.slug`) and resolved deployment
+   * (`modelConnection.deployment`), when the caller knows them. A custom deployment carries the
+   * provider family "openai" for its DIALECT, so without this the auth hint names a key the
+   * user never configured; with it, the hint names the connection the key lives on.
+   */
+  connection?: { slug?: string; deployment?: string };
+  /**
+   * Whether this run's MODEL credential rode a Daytona Secret delivered recently enough that
+   * substitution may not have propagated. Lazy, like `authFault`: only the refusal path asks.
+   *
+   * This is the ONLY signal available on a direct provider. The body-echo signature above sees
+   * the race only when the provider names the placeholder it received, which the credits proxy
+   * does ("Received=dtn_****") and a direct endpoint does not — api.anthropic.com answers a
+   * bad bearer with "Invalid bearer token" and no echo at all, and a masked OpenAI echo
+   * ("dtn_secr*****") no longer contains the literal `dtn_secret_` the signature looks for.
+   * Without this option every direct-path placeholder 401 is blamed on the user's key.
+   */
+  daytonaCredentialFresh?: () => boolean;
 }
 
 /**
@@ -135,7 +322,7 @@ export function classifyRunError(
 ): ClassifiedRunError {
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
-  const keyHint = keyHintFor(provider, harness);
+  const keyHint = keyHintFor(provider, harness, options.connection);
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
@@ -178,13 +365,52 @@ export function classifyRunError(
   if (PROXY_RATE_LIMIT.test(raw)) {
     return { message: RATE_LIMITED_MESSAGE, code: "rate_limited" };
   }
-  // `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status
-  // code embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to
-  // contain "401" as a substring (a real, timestamp-dependent flake this caused).
+  // Before the generic auth branch: a placeholder-shaped refusal IS a 401, but its cause is
+  // credential delivery, not the user's key, and the add-a-key advice would be false.
+  //
+  // `PLACEHOLDER_CREDENTIAL` is self-evidencing and stands alone: it quotes a protocol string only
+  // the delivery layer produces. `MASKED_PLACEHOLDER_ECHO` is NOT — it is a guess about formatting,
+  // so it is corroborated by `AUTH_REFUSAL` and only the pair of them together is evidence.
+  //
+  // DELIBERATELY NOT SUBJECT TO THE PER-SESSION REPORT BUDGET, unlike the branch below. That
+  // budget exists because a bare 401 cannot distinguish a delivery race from a genuinely wrong
+  // key, so the honest-retry reading has to be spent sparingly. A body that ECHOES the placeholder
+  // carries its own proof: a real user key never contains `dtn_`, so every such refusal IS a
+  // delivery failure, however many times it happens. Capping it would eventually tell a user with
+  // a perfectly good key to go add one — the exact wrong answer this class exists to prevent.
   if (
-    /authentication required|invalid api key|unauthorized/i.test(raw) ||
-    /(?<!\d)401(?!\d)/.test(raw)
+    PLACEHOLDER_CREDENTIAL.test(raw) ||
+    (MASKED_PLACEHOLDER_ECHO.test(raw) && AUTH_REFUSAL.test(raw))
   ) {
+    return {
+      message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+      code: "credential_delivery_failed",
+    };
+  }
+  // Still before the generic auth branch, and the direct-provider half of the case above: the
+  // refusal carries no placeholder because the provider does not echo what it received, so the
+  // only evidence is that this run's key WAS a Daytona Secret delivered moments ago. Same class,
+  // same honest copy — the alternative is telling a user with a valid key to add one.
+  //
+  // `PROVIDER_401`, not `AUTH_REFUSAL`: this branch spends the session's one report and prints
+  // retry guidance, so it must not fire for an authorization failure that merely says
+  // "unauthorized" somewhere unrelated. See the note on `PROVIDER_401`.
+  //
+  // And not a 401 the RUNNER itself produced. A tool call, an attachment fetch, or a
+  // session-records query can answer 401 inside the same window and reach this same catch; the
+  // status in the string is the runner's own prefix, not the provider's response, so the only way
+  // to tell them apart is to name them. See `RUNNER_INTERNAL_401`.
+  if (
+    PROVIDER_401.test(raw) &&
+    !RUNNER_INTERNAL_401.test(raw) &&
+    options.daytonaCredentialFresh?.()
+  ) {
+    return {
+      message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+      code: "credential_delivery_failed",
+    };
+  }
+  if (AUTH_REFUSAL.test(raw)) {
     return {
       message:
         options.authFault?.() ??

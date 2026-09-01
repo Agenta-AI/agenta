@@ -2,17 +2,17 @@
  * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
- * of collapsible accordion sections (Model, Instructions, Tools, MCP servers,
- * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
- * pattern can roll out to other config surfaces.
+ * of collapsible accordion sections (Model, Instructions, Integrations, Subagents,
+ * MCP servers, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
+ * so the same pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). Its `value` IS the agent template (the `parameters.agent` object,
  * just as the prompt control's value is the prompt template): the portable definition
  * (instructions/llm/tools/mcps/skills) is FLAT on it, and the execution parts
  * (harness/runner/sandbox) are nested sub-objects. It reuses the existing schema controls rather
- * than inventing new ones: the model selector (GroupedChoiceControl), the agent tool picker
- * (AgentToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
+ * than inventing new ones: the model selector (GroupedChoiceControl), the integration and
+ * subagent lists (ToolManagementList + SubagentList), the MCP server editor (McpServerItemControl), enum
  * selects (harness, sandbox, permission policy), and a textarea (agents_md). The shape is the
  * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground resolves
@@ -37,7 +37,15 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Cpu, FileText, GraduationCap, Plugs, SlidersHorizontal, Wrench} from "@phosphor-icons/react"
+import {
+    Cpu,
+    FileText,
+    GraduationCap,
+    Plugs,
+    PuzzlePiece,
+    Robot,
+    SlidersHorizontal,
+} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -53,9 +61,9 @@ import {
     type AgentTemplateSectionDescriptor,
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
+import {toolReferenceSlug} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
@@ -66,7 +74,16 @@ import {
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
 import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
-import {ToolManagementList} from "./agentTemplate/ToolManagementList"
+import {
+    ConnectedSubagentList,
+    SubagentDrawerContainer,
+} from "./agentTemplate/SubagentDrawerContainer"
+import {SubagentHeaderIcon, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
+import {
+    selectSubagentTools,
+    SubagentList,
+    ToolManagementList,
+} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -77,16 +94,14 @@ import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {
     findIntegrationRow,
-    isHarnessBuiltinTool,
     integrationRowConnection,
+    integrationRowIndices,
     parseGatewayEntry,
     type GatewayConnectionTarget,
     type GatewayEntry,
     type IntegrationRow,
-    type ToolObj,
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
-import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
@@ -94,10 +109,15 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
+/** The schema field a section's change marks come from. Integrations and Subagents share `tools`. */
+const changeFieldFor = (sectionKey: string): string =>
+    sectionKey === "subagents" ? "tools" : sectionKey
+
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
-    tools: "Unsaved tool changes.",
+    tools: "Unsaved integration changes.",
+    subagents: "Unsaved subagent changes.",
     mcp: "Unsaved MCP server changes.",
     skills: "Unsaved skill changes.",
     advanced: "Unsaved advanced-setting changes.",
@@ -138,7 +158,7 @@ const ModelHarnessSectionBody = ({
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
 // the agent populates them (see `useAutoExpandOnPopulate`).
-const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
+const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
@@ -343,7 +363,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            if (!agentChangedKeys?.has(sectionKey as PanelSectionKey)) return undefined
+            if (!agentChangedKeys?.has(changeFieldFor(sectionKey) as PanelSectionKey))
+                return undefined
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
@@ -401,12 +422,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
         tools,
-        handleAddTool,
         handleAddWorkflowReference,
-        handleRemoveToolByName,
-        handleRemoveBuiltinTool,
-        selectedToolNames,
-        referenceableWorkflows,
+        handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
         setIntegrationPermissions,
@@ -441,11 +458,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [permissionTarget, integrationRows],
     )
 
-    // Legacy harness built-in entries render nowhere (ToolManagementList drops them), so the
-    // header count and the section's open state must ignore them too.
-    const visibleToolCount = useMemo(
-        () => tools.filter((tool) => !isHarnessBuiltinTool(tool)).length,
-        [tools],
+    // The subagents, each keeping its index in `tools`: edit and remove address it by index.
+    const subagentTools = useMemo(
+        () => selectSubagentTools(tools, integrationRows),
+        [tools, integrationRows],
+    )
+    // Each section counts only the kind it renders; what renders nowhere is counted nowhere.
+    const integrationCount = integrationRows.length
+    const subagentCount = subagentTools.length
+    // What the picker marks as added, read from the saved tools rather than the picker's state.
+    const savedSubagentSlugs = useMemo(
+        () =>
+            subagentTools
+                .map(({item}) => toolReferenceSlug(item))
+                .filter((s): s is string => Boolean(s)),
+        [subagentTools],
     )
 
     // External HTTP MCP servers from the saved agent template.
@@ -468,10 +495,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [openCreate],
     )
 
-    // Controlled open-state for the four list sections so the accordion can react to the agent
+    // Controlled open-state for the list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
     const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
-        tools: visibleToolCount > 0,
+        tools: integrationCount > 0,
+        subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
         skills: skills.length > 0,
         triggers: triggerCount > 0,
@@ -483,12 +511,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     const sectionCounts = useMemo(
         () => ({
-            tools: visibleToolCount,
+            tools: integrationCount,
+            subagents: subagentCount,
             mcp: mcpServers.length,
             skills: skills.length,
             triggers: triggerCount,
         }),
-        [visibleToolCount, mcpServers.length, skills.length, triggerCount],
+        [integrationCount, subagentCount, mcpServers.length, skills.length, triggerCount],
     )
     useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
@@ -742,9 +771,23 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (mh.modelUnsupported) return "The selected model isn't available on this harness."
             return null
         }
+        if (key === "subagents") {
+            return subagentTools.some(({item}) =>
+                ITEM_KINDS.tool.draftInvalid(item as Record<string, unknown>),
+            )
+                ? "A subagent is missing its name."
+                : null
+        }
         if (key === "tools") {
-            if (tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>)))
-                return "A tool is missing its name."
+            // Integration entries only: anything else has its own header or renders nowhere.
+            const owned = new Set(integrationRows.flatMap(integrationRowIndices))
+            if (
+                tools.some(
+                    (t, i) =>
+                        owned.has(i) && ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
+                )
+            )
+                return "An integration is missing its name."
             if (toolResolutionSummary.unresolved > 0)
                 return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
             return null
@@ -774,7 +817,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        if (draftSectionKeys.has(key as PanelSectionKey))
+        if (draftSectionKeys.has(changeFieldFor(key) as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
@@ -801,27 +844,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
-    // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
-    // drive the same add flow.
-    const toolSelectorProps = {
-        onAddTool: handleAddTool,
-        onRemoveTool: handleRemoveToolByName,
-        onRemoveBuiltinTool: handleRemoveBuiltinTool,
-        selectedToolNames,
-        selectedTools: tools as ToolObj[],
-        existingToolCount: tools.length,
-        gatewayTools,
-        onReferenceWorkflow: workflowReference?.enabled
-            ? () => {
-                  // Opening the picker is the point the workflow list is actually needed — activate
-                  // the (lazy) bridge so it resolves now instead of on every playground load.
-                  workflowReference.activate?.()
-                  setReferenceSelectorOpen(true)
-              }
-            : undefined,
-        // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
-        onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
-    }
+    // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
+    const openSubagentSelector = workflowReference?.enabled
+        ? () => {
+              workflowReference.activate?.()
+              setReferenceSelectorOpen(true)
+          }
+        : undefined
+    // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
+    const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
 
     // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
     // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
@@ -829,6 +860,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const headerAddButton = (label: string, onClick: () => void) => (
         <SectionAddButton label={label} onClick={onClick} />
     )
+
+    // Shared by both subagent-list branches, which differ only by wrapper.
+    const subagentListProps = {
+        entries: subagentTools,
+        openEdit,
+        removeItem,
+        closeEditor,
+        disabled,
+        statusFor: toolStatusFor,
+        emptyAdd: openSubagentSelector ? (
+            <AddTextLink label="add a subagent" onClick={openSubagentSelector} />
+        ) : undefined,
+    }
 
     // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
     // is clean, which is what keeps it a plain drawer-opening row.
@@ -883,46 +927,65 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 </div>
             ),
         },
-        hasTools && {
-            key: "tools",
-            icon: <Wrench size={16} />,
-            title: fieldTitle("tools", "Tools"),
-            summary: countSummary(visibleToolCount, "tool"),
-            indicator: sectionIndicator("tools"),
-            extra: !disabled ? (
-                <AgentToolSelectorPopover
-                    {...toolSelectorProps}
-                    trigger={<SectionAddButton label="Add tool" disabled={disabled} />}
-                />
-            ) : undefined,
-            defaultOpen: visibleToolCount > 0,
-            content: (
-                <ToolManagementList
-                    tools={tools}
-                    integrationRows={integrationRows}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    statusFor={toolStatusFor}
-                    onAddIntegration={gatewayTools?.enabled ? openIntegration : undefined}
-                    onOpenIntegration={
-                        gatewayTools?.enabled ? openIntegrationPermissions : undefined
-                    }
-                    onRemoveIntegration={(row) => {
-                        removeIntegration(row)
-                        closeEditor()
-                    }}
-                    // The empty-state add is the same popover as the header +.
-                    emptyAdd={
-                        <AgentToolSelectorPopover
-                            {...toolSelectorProps}
-                            trigger={<AddTextLink label="add a tool" />}
-                        />
-                    }
-                />
-            ),
-        },
+        // Connected apps. Shares the `tools` indicator key with Subagents.
+        hasTools &&
+            (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
+                key: "tools",
+                icon: <PuzzlePiece size={16} />,
+                title: "Integrations",
+                summary: countSummary(integrationCount, "integration"),
+                indicator: sectionIndicator("tools"),
+                // One action, so the header plus opens the drawer directly instead of a menu.
+                extra:
+                    !disabled && openIntegrationDrawer
+                        ? headerAddButton("Add integration", openIntegrationDrawer)
+                        : undefined,
+                defaultOpen: integrationCount > 0,
+                content: (
+                    <ToolManagementList
+                        tools={tools}
+                        integrationRows={integrationRows}
+                        disabled={disabled}
+                        statusFor={toolStatusFor}
+                        onOpenIntegration={
+                            gatewayTools?.enabled ? openIntegrationPermissions : undefined
+                        }
+                        onRemoveIntegration={(row) => {
+                            removeIntegration(row)
+                            closeEditor()
+                        }}
+                        // The empty-state add opens the header's drawer, and hides when there is none.
+                        emptyAdd={
+                            openIntegrationDrawer ? (
+                                <AddTextLink
+                                    label="add an integration"
+                                    onClick={openIntegrationDrawer}
+                                />
+                            ) : undefined
+                        }
+                    />
+                ),
+            },
+        // The agents this agent can call, saved as `{type: "reference"}` in the same `tools` array.
+        hasTools &&
+            (Boolean(openSubagentSelector) || subagentCount > 0) && {
+                key: "subagents",
+                icon: <Robot size={16} />,
+                title: "Subagents",
+                summary: countSummary(subagentCount, "subagent"),
+                indicator: sectionIndicator("subagents"),
+                extra:
+                    !disabled && openSubagentSelector
+                        ? headerAddButton("Add subagent", openSubagentSelector)
+                        : undefined,
+                defaultOpen: subagentCount > 0,
+                // Only the connected list can resolve a reference's type and mark a non-agent.
+                content: workflowReference?.enabled ? (
+                    <ConnectedSubagentList bridge={workflowReference} {...subagentListProps} />
+                ) : (
+                    <SubagentList {...subagentListProps} />
+                ),
+            },
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
@@ -990,6 +1053,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const lastEditingRef = useRef(editing)
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
+
+    // Resolved in children, which mount only when the host supplies a bridge: a hook reached
+    // through an optional member cannot be called from here without breaking hook order.
+    const editingSubagentSlug =
+        shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
+    const subagentHeaderIcon = workflowReference ? (
+        <SubagentHeaderIcon bridge={workflowReference} slug={editingSubagentSlug} />
+    ) : undefined
+    const subagentHeaderAction = workflowReference ? (
+        <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
+    ) : undefined
     const lastInstructionRef = useRef(editingInstruction)
     if (editingInstruction) lastInstructionRef.current = editingInstruction
     const shownInstruction = editingInstruction ?? lastInstructionRef.current
@@ -1012,28 +1086,37 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
-                      // Skills state their identity in the form, so the drawer drops the icon,
-                      // badge, subtitle and footer note (rows still show them).
+                      // Skills state their identity in their own form; the drawer drops its chrome.
                       const bareChrome = shownEditing.kind === "skill"
+                      const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={bareChrome ? undefined : def.icon}
+                              icon={
+                                  bareChrome
+                                      ? undefined
+                                      : isSubagent
+                                        ? subagentHeaderIcon
+                                        : def.icon
+                              }
                               title={def.drawerTitle(draft)}
                               badge={
-                                  bareChrome
+                                  bareChrome || isSubagent
                                       ? undefined
                                       : {text: desc.typeLabel, color: desc.typeColor}
                               }
-                              subtitle={bareChrome ? undefined : desc.subtitle}
+                              subtitle={
+                                  bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
+                              }
+                              // Skills carry their own footer; every other kind keeps the note.
                               footerNote={
-                                  bareChrome
+                                  shownEditing.kind === "skill"
                                       ? undefined
                                       : "Changes apply to this agent configuration"
                               }
-                              width={def.drawerWidth}
-                              contentFlush={def.formFlush}
+                              width={def.drawerWidth?.(draft)}
+                              contentFlush={Boolean(def.formFlush?.(draft))}
                               view={drawerView}
                               onViewChange={setDrawerView}
                               onCancel={closeEditor}
@@ -1044,6 +1127,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                   (drawerView === "json" && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
+                              formOnly={Boolean(def.formOnly?.(draft))}
+                              headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
                                   <Form
@@ -1140,14 +1225,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             </SectionDrawer>
 
             {workflowReference?.enabled && (
-                <WorkflowReferenceSelector
+                <SubagentDrawerContainer
                     open={referenceSelectorOpen}
                     onClose={() => setReferenceSelectorOpen(false)}
-                    workflows={referenceableWorkflows}
                     bridge={workflowReference}
-                    onSelect={(payload) => {
-                        void handleAddWorkflowReference(payload)
-                        setReferenceSelectorOpen(false)
+                    revisionId={revisionId}
+                    savedSlugs={savedSubagentSlugs}
+                    onAdd={handleAddWorkflowReference}
+                    onRemoveSlug={(slug) => {
+                        handleRemoveReferenceBySlug(slug)
+                        closeEditor()
                     }}
                 />
             )}

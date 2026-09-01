@@ -344,10 +344,13 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
 
 - `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
   itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
-  must stay warm; an instructions edit, a permissions edit and a tool-catalog edit must escalate)
-  and reports the `model` case rather than guessing at a deployment's connection shape. This is
-  the cell that would have caught the `cold1` rot described below.
+  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
+  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
+  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
+  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
+  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
+  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
+  that would have caught the `cold1` rot described below.
 - `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
   combination: an approval answered while a config change rides along in the SAME request. It is
   the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
@@ -428,6 +431,82 @@ lands on a pool miss and takes the cold decision-map path, which is exactly the 
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
+
+### The incident checks — born from the free-credits 401 of 2026-08-30
+
+A free-credits user on cloud hit a 401 because a fresh Daytona sandbox's first model call raced
+the asynchronous substitution of its Daytona Secret: the provider got the raw `dtn_secret_<id>`
+placeholder. The product then blamed the user's own key, which was wrong. The same release fixed a
+family of warm-session over-evictions caused by drift between two identity views in the runner.
+These four checks make each layer's failure loud instead of silent. Run all four on every gate.
+
+- `resources/matrix_c5_first_call_race.py` — **[mechanical]** the placeholder race, and whether it
+  is reported honestly. Mints a new workflow so the sandbox is necessarily cold, sends one short
+  message so the first model call lands as early as possible, and asserts the STORED turn row came
+  back. PASSes when the turn succeeds or when the failure carries the runner's
+  `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
+  while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
+  the incident itself. The assertion is deliberately body-INDEPENDENT: only the litellm proxy
+  echoes a placeholder, so on a direct provider (where BYO-key cloud users live) an echo test is
+  blind, and F6 shipped a user-blaming 401 straight through the first version of this cell. A
+  credential refusal on this cell's necessarily-fresh sandbox must never advise adding a key, echo
+  or no echo; with PR #6408 the honest classification is `credential_delivery_failed`. Against a
+  deployment predating #6408 that assertion fails by construction — pass `--pre-6408` to report it
+  as a SKIP naming the known gap instead of an unexplained failure. It also counts `Received=dtn_`
+  lines in the credits proxy and reports the
+  count as diagnostic, never as a verdict. The proxy is never guessed by name across the box: it
+  must be named with `--proxy-container`, or belong to the target stack's compose project
+  (`--compose-project`, else derived from whichever container publishes the port in
+  `AGENTA_BASE`). With no match it prints "no credits proxy in this deployment; count not
+  applicable" and carries on. Reading a foreign project's proxy invents evidence about a
+  deployment that was never under test, which is worse than reading none. A run that dies on an
+  exhausted provider key SKIPs with "environment: provider key out of credit" rather than
+  failing — but only when the stored error carries a credit or billing signature, and never
+  when a placeholder refusal is present, because that combination is the incident itself.
+- `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
+  the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
+  when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
+  That drift is the over-eviction signature and it is invisible from the wire — the turn still
+  succeeds, it just paid for a rebuild it did not need — so a log sweep is the only way to catch
+  it. `--since <iso-timestamp>` is required; `--container` defaults to autodetecting the local
+  stack's runner. Exits 0 PASS, 1 FAIL (printing the offending lines), 2 SKIP when the log is not
+  reachable. Three line shapes are excluded as known SHADOW-COMPARATOR gaps (triage 2026-08-31,
+  `f7-disagree-triage.md`): the coordinator is correct and pinned, only the shadow's model of it
+  disagrees, and the comparator fixes are a post-release follow-up — without the exceptions the
+  sweep fails on the runner's own expected behavior on every loaded window. They are never
+  silent: each excluded line is printed with its shape and the triage marker, the excluded count
+  is reported separately, each shape is anchored on both halves of the line so it cannot swallow
+  a real disagreement, and any line matching no shape still FAILS. Delete a shape when its fix
+  lands; `--no-exceptions` fails on every DISAGREE line and is how you prove one can go.
+- `resources/matrix_h1_bad_harness.py` — **[mechanical]** a malformed harness must fail closed.
+  Drives three unreadable `harness` blocks (a wrong-type value, an unknown string, a null kind) at
+  both the commit API and the live invoke, and records WHICH boundary refused (`commit_api`,
+  `invoke_http`, or `runner_stream`) rather than demanding a particular one — a refusal further
+  out is better, not worse. The invariant is that some boundary refuses attributably and no turn
+  ever runs on a defaulted harness. FAILs if a turn executes and stores output.
+- `resources/check_secrets_teardown.py` — **[mechanical]** a Daytona Secret must not outlive its
+  run. Inventories the Daytona organization's Secret NAMES (never values) before a short Daytona
+  journey, forces the teardown with a config-change eviction, then asserts every `agenta_*` Secret
+  the run created is gone within a bounded settle window. Needs a Daytona API key in the
+  environment (`DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`) and SKIPs with the exact
+  reason without one. Run it alone: a concurrent Daytona run against the same organization looks
+  the same as a leftover. The listing walks `GET /secret/paginated` by cursor to exhaustion —
+  `/secrets` does not exist, plain `/secret` is deprecated and fails above 1500 secrets, and a
+  `page` parameter is silently ignored, so anything less than real cursor pagination is noise
+  against an organization this size. The settle loop polls `GET /secret/{secretId}` per created
+  Secret rather than re-enumerating. `test_check_secrets_teardown_pagination.py` pins the walk.
+  A journey that dies on an exhausted provider key never creates a Secret, so it SKIPs with
+  "environment: provider key out of credit" instead of failing the teardown path it never
+  exercised.
+- `qa_matrix_lib.out_of_credit(error_text, codes)` — **[shared classification; no cell of its
+  own]** the SKIP reason when a run failed ONLY because the provider key has no credit left, and
+  `None` for everything else. An exhausted key is an environment condition: a cell that renders
+  it as FAIL spends a reviewer's attention on a topped-up balance, and teaches the reader that
+  this cell's FAIL is sometimes noise, which is how a real regression gets waved through later.
+  Recognition is narrow in both directions — the `starter_credits_*` codes plus the runner's own
+  credits copy and the provider's billing refusal, and deliberately NOT a bare 401, a rate limit,
+  or the placeholder refusal. Wired into `matrix_c5_first_call_race.py` and
+  `check_secrets_teardown.py`; `test_out_of_credit_skip.py` pins the boundary from both sides.
 
 ## Contributing
 

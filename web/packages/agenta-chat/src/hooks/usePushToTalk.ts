@@ -1,21 +1,12 @@
 import {useEffect, useRef} from "react"
 
-import {isMacPlatform} from "@agenta/shared/utils"
+import {isMacPlatform, isOverlayOpen} from "@agenta/shared/utils"
 
 /** How long the chord must be held before the mic opens. */
 export const PUSH_TO_TALK_ARM_MS = 300
 
 /** Modifier key names that keep a held chord alive rather than breaking it. */
 const CHORD_KEYS = new Set(["Control", "Alt", "AltGraph"])
-
-/** True while an antd confirm/modal or a Radix dialog owns the screen. No global open-dialog state
- * exists to ask, and these dialogs come from `modal.confirm`, so the DOM is the only witness. */
-const isOverlayOpen = (): boolean =>
-    Boolean(
-        document.querySelector(
-            '.ant-modal-wrap:not([style*="display: none"]), [role="dialog"][data-state="open"]',
-        ),
-    )
 
 export interface UsePushToTalkParams {
     enabled: boolean

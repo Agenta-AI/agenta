@@ -44,6 +44,7 @@
         "./rich-chat-input": "./src/RichChatInput/index.ts",
         "./select-llm-provider": "./src/SelectLLMProvider/index.ts",
         "./shared-editor": "./src/SharedEditor/index.ts",
+        "./shortcuts": "./src/shortcuts/index.ts",
         "./styles": "./src/utils/styles.ts",
         "./surfaces.css": "./src/styles/surfaces.css",
         "./table": "./src/InfiniteVirtualTable/index.ts",
