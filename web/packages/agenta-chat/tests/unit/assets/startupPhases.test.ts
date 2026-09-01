@@ -18,6 +18,23 @@ describe("observed startup labels", () => {
         ).toBe("Agent ready")
     })
 
+    it("names the two stages inside the acquire, so a cold start is not one static line", () => {
+        // `create_session` alone measured 19.2s of a 24.5s cold acquire. Without its own phase
+        // the whole wait sat under "Starting the agent" and read as a stall.
+        expect(
+            startupLabelFromDataPart({
+                type: "data-agent-status",
+                data: {phase: "preparing_workspace"},
+            }),
+        ).toBe("Preparing the workspace")
+        expect(
+            startupLabelFromDataPart({
+                type: "data-agent-status",
+                data: {phase: "opening_session"},
+            }),
+        ).toBe("Opening the agent session")
+    })
+
     it("ignores unrelated and unknown data", () => {
         expect(
             startupLabelFromDataPart({type: "data-other", data: {phase: "environment_ready"}}),
