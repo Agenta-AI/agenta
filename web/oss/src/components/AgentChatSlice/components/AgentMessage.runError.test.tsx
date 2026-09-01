@@ -57,7 +57,7 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Try again")
     })
 
-    it("does not offer Try again for a non-transient failure", () => {
+    it("offers Try again for a generic runner failure (#6445)", () => {
         const rendered = text(
             <RunErrorBody
                 text="model authentication failed"
@@ -67,6 +67,43 @@ describe("RunErrorBody", () => {
             />,
         )
 
+        expect(rendered).toContain("Try again")
+    })
+
+    it("offers Try again for a failure that carried no code at all", () => {
+        const rendered = text(
+            <RunErrorBody text="Something broke." stateKey="turn-6" onRetry={() => undefined} />,
+        )
+
+        expect(rendered).toContain("Try again")
+    })
+
+    it("keeps Add your key (not Try again) for a starter-credit failure", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="Out of starter credits."
+                stateKey="turn-7"
+                code="starter_credits_exhausted"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Add your key")
         expect(rendered).not.toContain("Try again")
+    })
+
+    it("gives a short raw JSON payload the Show more toggle even under the length cap (#6445)", () => {
+        const payload = `OpenAI API error (400): {"message":"Invalid 'tools[23].name'","code":"invalid_value"}`
+
+        expect(payload.length).toBeLessThan(240)
+        const rendered = text(<RunErrorBody text={payload} stateKey="turn-8" />)
+
+        expect(rendered).toContain("Show more")
+    })
+
+    it("keeps a short human reason as plain prose with no toggle", () => {
+        const rendered = text(<RunErrorBody text="The model timed out." stateKey="turn-9" />)
+
+        expect(rendered).not.toContain("Show more")
     })
 })

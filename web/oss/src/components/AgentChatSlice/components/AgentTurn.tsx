@@ -87,7 +87,7 @@ const AgentTurn = ({
                 onClientToolOutput={onClientToolOutput}
                 precededByEmptyAssistant={precededByEmptyAssistant}
                 turnTraceId={turnTraceId}
-                // A transient run failure offers "Try again" — the same regenerate wiring as the
+                // A failed run offers "Try again" — the same regenerate wiring as the
                 // Stopped → Resend pair, and gated the same way: last turn only, never while busy.
                 onRetry={isLast && !resendDisabled ? onResend : undefined}
             />

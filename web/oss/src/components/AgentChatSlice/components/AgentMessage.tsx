@@ -150,15 +150,11 @@ const STARTER_CREDIT_CODES = new Set([
     "starter_credits_program_paused",
 ])
 
-/** Transient failure classes where the honest advice is simply to run the turn again. */
-const RETRYABLE_CODES = new Set([
-    "credential_delivery_failed",
-    "starter_credits_unavailable",
-    "rate_limited",
-])
-
-/** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
-const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
+/** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350).
+ * A machine-shaped payload (raw JSON dump) always gets the collapsible block whatever its length:
+ * `break-all` wraps it, but only the expanded <pre> makes the whole thing reachable (#6445). */
+const isBigError = (text: string) =>
+    text.length > 240 || text.split("\n").length > 4 || text.includes('{"') || text.includes('":')
 
 /**
  * Failed-run body: the icon + "The agent run failed" + the reason. An everyday reason shows in
@@ -175,7 +171,8 @@ export const RunErrorBody = ({
     stateKey: string
     /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
     code?: string
-    /** Re-run the failed turn; offered only for the transient classes in RETRYABLE_CODES. */
+    /** Re-run the failed turn; offered for any failure except the ones with a better action
+     * (STARTER_CREDIT_CODES get "Add your key" instead). */
     onRetry?: () => void
 }) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
@@ -184,7 +181,9 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerRetry = !!onRetry && !!code && RETRYABLE_CODES.has(code)
+    // Any failure the card can't route somewhere better gets a generic re-run; the handler
+    // (handleResend) already confirms before repeating a tool write, so this is safe.
+    const offerRetry = !!onRetry && !offerOwnKey
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -192,12 +191,12 @@ export const RunErrorBody = ({
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">The agent run failed</span>
                 {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-all bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
                     <span
-                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
+                        className={`whitespace-pre-wrap break-all text-xs text-colorErrorText ${
                             big ? "line-clamp-3" : ""
                         }`}
                         title={big ? text : undefined}
