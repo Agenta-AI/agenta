@@ -7,17 +7,19 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
+import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerRejections from "./ComposerRejections"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -95,18 +97,17 @@ export const ChatComposer = ({
         uploadsEnabled,
         files,
         rejections,
-        setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         limits,
         atMax,
         attachmentsSettled,
         uploadBlockReason,
         addFiles,
         removeFile,
+        dismissRejection,
         uploads,
     } = attachments
 
+    const fileInputRef = useRef<HTMLInputElement>(null)
     // Keyboard affordances are only worth their width where there is a keyboard. On a phone the
     // "Enter to send" hint and the `⌘ ↵` chips name keys the user has no way to press, and they
     // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
@@ -115,6 +116,26 @@ export const ChatComposer = ({
 
     return (
         <Suspense fallback={fallback ?? null}>
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={acceptAttrFor(limits)}
+                onChange={(e) => {
+                    const list = e.target.files
+                    if (list && list.length) addFiles(Array.from(list))
+                    e.target.value = "" // let the same file be re-picked after a remove
+                }}
+                className="hidden"
+            />
+            {/* Docked ABOVE the composer, not inside the tray: a rejection has no thumbnail, no
+            upload and nothing to send, so sizing it like an attachment card only cost the reason
+            its room. */}
+            <div className={className}>
+                <HeightCollapse open={rejections.length > 0}>
+                    <ComposerRejections rejections={rejections} onDismiss={dismissRejection} />
+                </HeightCollapse>
+            </div>
             <RichChatInput
                 ref={inputRef}
                 autoFocus={autoFocus}
@@ -162,7 +183,7 @@ export const ChatComposer = ({
                                 variant="ghost"
                                 size="icon"
                                 disabled={!uploadsEnabled || composerDisabled}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                onClick={() => fileInputRef.current?.click()}
                                 aria-label="Attach files"
                             >
                                 <Paperclip size={16} />
@@ -171,14 +192,10 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                    <HeightCollapse open={files.length > 0}>
                         <ComposerAttachments
                             files={files}
-                            rejections={rejections}
-                            limits={limits}
-                            onAdd={addFiles}
                             onRemove={removeFile}
-                            onDismissRejections={() => setRejections([])}
                             onView={uploadsEnabled ? onViewAttachment : undefined}
                             onRetry={uploads.retry}
                             canRetry={uploads.canRetry}

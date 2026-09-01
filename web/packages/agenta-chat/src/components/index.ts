@@ -1,7 +1,18 @@
 export {ApprovalCard, type ApprovalCardProps} from "./ApprovalCard"
 export {ChatComposer, type ChatComposerProps} from "./ChatComposer"
 export {default as ComposerAttachments} from "./ComposerAttachments"
-export {default as AudioPlayer} from "./AudioPlayer"
+export {default as ComposerRejections, type ComposerRejectionsProps} from "./ComposerRejections"
+export {
+    default as AttachmentCard,
+    type AttachmentCardProps,
+    type AttachmentCardState,
+    type AttachmentCardAction,
+} from "./AttachmentCard"
+export {default as AttachmentCardGrid, type AttachmentCardGridProps} from "./AttachmentCardGrid"
+export {
+    default as AttachmentDropOverlay,
+    type AttachmentDropOverlayProps,
+} from "./AttachmentDropOverlay"
 export {default as RevealCollapse} from "./RevealCollapse"
 export {
     CollapsibleMessageBody,
