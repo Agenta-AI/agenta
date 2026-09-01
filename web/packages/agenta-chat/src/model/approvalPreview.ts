@@ -10,6 +10,8 @@
  * `resolveToolDisplay` already turns a raw tool name and its arguments into a sentence the
  * transcript rows use; reusing it here keeps the card and the row saying the same thing.
  */
+import {PATH_KEYS} from "@agenta/entities/session"
+
 import {
     canonicalToolName,
     inSentence,
@@ -19,7 +21,13 @@ import {
 import type {ApprovalPreview, ApprovalPreviewItem} from "../skin/types"
 
 import {BUILTIN_APPROVAL_DESCRIBERS} from "./approvalDescribers"
-import {asSentence, fieldLabel, oneLine, readableFieldRows} from "./approvalDescribers/approvalText"
+import {
+    asSentence,
+    fieldLabel,
+    fileTarget,
+    oneLine,
+    readableFieldRows,
+} from "./approvalDescribers/approvalText"
 import {summarizeApprovalInput} from "./approvalInputSummary"
 import type {PendingApproval} from "./approvals"
 
@@ -36,7 +44,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const genericItems = (input: unknown): ApprovalPreviewItem[] => {
     if (typeof input === "string" && input.trim()) return [{title: "Input", detail: oneLine(input)}]
     if (!isRecord(input)) return []
-    const items = readableFieldRows(input)
+    const items = readableFieldRows(input, {resolvePaths: true})
     if (items.length) return items
     // Nothing structured was readable — fall back to the payload's single primary field, if it
     // has one (a bash gate is its command, not a bag of arguments).
@@ -46,6 +54,25 @@ const genericItems = (input: unknown): ApprovalPreviewItem[] => {
         : []
 }
 
+/** The path argument a file tool names, if it has one. */
+const pathArgument = (input: unknown): string | undefined => {
+    if (!isRecord(input)) return undefined
+    for (const key of PATH_KEYS) {
+        const value = input[key]
+        if (typeof value === "string" && value.trim()) return value.trim()
+    }
+    return undefined
+}
+
+/** "Reading a file" + `notes/a.md` → "reading notes/a.md" (#6349).
+ * Singular only: a many-file tool's path is the SCOPE it searches, so naming it would misstate it. */
+const namedFileActivity = (activity: string, input: unknown): string | undefined => {
+    const generic = /^(.*?)\s+(?:an?|the)\s+file$/i.exec(activity)
+    if (!generic?.[1]) return undefined
+    const path = pathArgument(input)
+    return path ? `${generic[1]} ${fileTarget(path)}` : undefined
+}
+
 /**
  * The preview for any tool without a describer: the humanized activity as the sentence, and the
  * payload's readable arguments as rows.
@@ -53,23 +80,29 @@ const genericItems = (input: unknown): ApprovalPreviewItem[] => {
 const genericPreview = (approval: PendingApproval): ApprovalPreview => {
     const display = resolveToolDisplay(approval.toolName, approval.input)
     const source = display.source ? ` from ${display.source}` : ""
+    const running =
+        display.kind === "file"
+            ? (namedFileActivity(display.activity.running, approval.input) ??
+              display.activity.running)
+            : display.activity.running
     return {
         sentence: asSentence(
-            `The agent wants your approval before ${inSentence(display.activity.running)}${source}`,
+            `The agent wants your approval before ${inSentence(running)}${source}`,
         ),
         items: genericItems(approval.input),
     }
 }
 
-/** The plain-English copy for one gate. Never throws: a describer that fails falls back. */
-export const describeApproval = (approval: PendingApproval): ApprovalPreview => {
+/** The plain-English copy for one gate. Never throws: a describer that fails falls back.
+ * `appName` answers late, so the card resolves twice — same shape as `resolveToolDisplay`. */
+export const describeApproval = (approval: PendingApproval, appName?: string): ApprovalPreview => {
     // Canonical for the lookup: the same platform tool must resolve under every harness, so a
     // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.
     const name = canonicalToolName(approval.toolName)
     const describer = resolveApprovalDescriber(name) ?? BUILTIN_APPROVAL_DESCRIBERS[name]
     if (describer) {
         try {
-            const preview = describer(approval.input, approval.manifest)
+            const preview = describer(approval.input, approval.manifest, appName)
             if (preview) return preview
         } catch {
             // A describer that cannot read its own payload must not take the card down with it.

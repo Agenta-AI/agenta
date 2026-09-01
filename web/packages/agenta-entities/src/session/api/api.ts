@@ -179,6 +179,10 @@ export interface RespondInteractionParams extends InteractionScopedParams {
 export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number} | null)?.statusCode === 409
 
+/** True for the backend's `404 No such file or folder`. */
+const isNotFound = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 404
+
 export interface TransitionInteractionParams extends SessionScopedParams {
     token: string
     status: SessionInteractionStatusCode
@@ -918,11 +922,15 @@ export async function readMountFile({
 
     // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
     // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
-    const data = await callFern("[readMountFile]", () =>
-        getMountsClient().getMountFiles(
-            {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal, 1),
-        ),
+    // 404 is silent: "not there" is this call's answer, not a failure (#6349).
+    const data = await callFern(
+        "[readMountFile]",
+        () =>
+            getMountsClient().getMountFiles(
+                {mount_id: mountId, read: path},
+                projectScopedRequest(projectId, appId, abortSignal, 1),
+            ),
+        isNotFound,
     )
     if (!data) return null
 
