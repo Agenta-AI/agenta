@@ -4,6 +4,9 @@ import {atom} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
+    AGENTS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    SIDEBAR_ENTITIES,
     defineSidebarEntity,
     livePollInterval,
     agentSessionCounts,
@@ -538,5 +541,22 @@ describe("agentSessionCounts", () => {
         >[0][number]
 
         expect(agentSessionCounts([orphan]).size).toBe(0)
+    })
+})
+
+// The registry is the single source for where a row opens, so assert the destinations here.
+describe("registered entity destinations", () => {
+    const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
+
+    it("opens an agent on its overview, not the playground", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
+            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/overview",
+        )
+    })
+
+    it("still opens a prompt on the playground", () => {
+        expect(SIDEBAR_ENTITIES[PROMPTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
+            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/playground",
+        )
     })
 })
