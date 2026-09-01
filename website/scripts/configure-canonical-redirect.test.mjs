@@ -28,6 +28,7 @@ describe("canonical redirect configuration", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(ok([{ id: "zone-id" }]))
+      .mockResolvedValueOnce(ok({ value: "off" }))
       .mockResolvedValueOnce(
         ok({
           id: "ruleset-id",
@@ -41,23 +42,44 @@ describe("canonical redirect configuration", () => {
 
     await configureCanonicalRedirect({ token: "test", fetchImpl });
 
-    const [url, request] = fetchImpl.mock.calls[2];
+    const [url, request] = fetchImpl.mock.calls[3];
     expect(url.endsWith("/zones/zone-id/rulesets/ruleset-id/rules/canonical-id")).toBe(true);
     expect(request.method).toBe("PATCH");
-    expect(JSON.parse(request.body)).toEqual(canonicalRedirectRule);
+    expect(JSON.parse(request.body)).toEqual({
+      ...canonicalRedirectRule,
+      position: { before: "" },
+    });
   });
 
   it("adds its rule without replacing existing rules", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(ok([{ id: "zone-id" }]))
+      .mockResolvedValueOnce(ok({ value: "off" }))
       .mockResolvedValueOnce(ok({ id: "ruleset-id", rules: [] }))
       .mockResolvedValueOnce(ok({ id: "canonical-id" }));
 
     await configureCanonicalRedirect({ token: "test", fetchImpl });
 
-    const [url, request] = fetchImpl.mock.calls[2];
+    const [url, request] = fetchImpl.mock.calls[3];
     expect(url.endsWith("/zones/zone-id/rulesets/ruleset-id/rules")).toBe(true);
     expect(request.method).toBe("POST");
+    expect(JSON.parse(request.body)).toEqual({
+      ...canonicalRedirectRule,
+      position: { before: "" },
+    });
+  });
+
+  it("rejects the legacy HTTPS redirect to prevent redirect chains", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(ok([{ id: "zone-id" }]))
+      .mockResolvedValueOnce(ok({ value: "on" }));
+
+    await expect(
+      configureCanonicalRedirect({ token: "test", fetchImpl }),
+    ).rejects.toThrow("Cloudflare Always Use HTTPS must be off");
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
