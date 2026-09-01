@@ -2409,6 +2409,9 @@ importers:
 
   storybook:
     dependencies:
+      '@agenta/chat':
+        specifier: workspace:*
+        version: link:../packages/agenta-chat
       '@agenta/entities':
         specifier: workspace:*
         version: link:../packages/agenta-entities

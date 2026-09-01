@@ -25,6 +25,7 @@ import {
     type PendingSessionOpen,
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -42,7 +43,6 @@ import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
-import {useSessionShortcuts} from "./hooks/useSessionShortcuts"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {
     FILES_PANE_MAX,
@@ -244,6 +244,11 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const requestRename = useSetAtom(renameSessionRequestAtom)
     const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const drawerOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
+    // like the config pane on the other side: its divider runs to the top and the session bar
+    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
+    const filesPane = useSessionFilesPane(activeId ?? "")
+
     useSessionShortcuts({
         sessions,
         activeId,
@@ -284,12 +289,12 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             () => setConfigPanelCollapsed(!configPanelCollapsed),
             [configPanelCollapsed, setConfigPanelCollapsed],
         ),
+        onToggleFilesPane: useCallback(() => {
+            if (filesPane.open) filesPane.close()
+            else filesPane.openPane()
+        }, [filesPane]),
     })
 
-    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
-    // like the config pane on the other side: its divider runs to the top and the session bar
-    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
-    const filesPane = useSessionFilesPane(activeId ?? "")
     // Workflow artifact id — the key for the agent's durable `agent-files` mount; the pane's
     // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))

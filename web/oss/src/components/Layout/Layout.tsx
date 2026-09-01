@@ -428,6 +428,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
+    // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
+    // stale on the hop off a 404. /404 renders bare like the auth screens.
+    const router = useRouter()
+    const isBareRoute = isAuthRoute || router.pathname === "/404"
 
     // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
     // against the layout viewport hides its bottom edge behind it. This publishes the visible
@@ -442,7 +446,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         <>
             <PostHogThemeCapture />
             <AppMessageContext />
-            {typeof window === "undefined" ? null : isAuthRoute ? (
+            {typeof window === "undefined" ? null : isBareRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
                         {children}

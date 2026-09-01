@@ -37,8 +37,10 @@ import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -62,7 +64,6 @@ import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"
-import {isAltChord, isOverlayOpen} from "./hooks/useSessionShortcuts"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
@@ -447,7 +448,9 @@ const AgentConversation = ({
     useEffect(() => {
         if (activeSessionId !== sessionId) return
         const onKey = (e: KeyboardEvent) => {
-            if (isOverlayOpen()) return
+            // Radix cancels Escape for a layer but still lets it reach us, and it never touches
+            // Alt+G, which only the overlay check catches.
+            if (e.defaultPrevented || isOverlayOpen()) return
             // An IME user presses Escape to cancel composition, not to stop the run.
             if (e.key === "Escape" && !e.isComposing && busyRef.current) {
                 e.preventDefault()
@@ -620,8 +623,29 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
-            setStopped(false)
-            regenerate({messageId}).catch(ignoreStreamRejection)
+            const msgs = messagesRef.current
+            const idx = msgs.findIndex((m) => m.id === messageId)
+            // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
+            // turn, including any tool that already ran — a retryable model error can land
+            // AFTER a completed write, and the retry would run the write again.
+            const sideEffects = idx >= 0 ? sideEffectingToolsInRange(msgs.slice(idx)) : []
+            const run = () => {
+                setStopped(false)
+                regenerate({messageId}).catch(ignoreStreamRejection)
+            }
+            if (sideEffects.length > 0) {
+                modal.confirm({
+                    title: "Retry past a tool that already ran?",
+                    content: `${sideEffects.join(", ")} already executed. Retrying re-runs this turn but will NOT undo it.`,
+                    okText: "Retry anyway",
+                    okButtonProps: {danger: true},
+                    cancelText: "Cancel",
+                    centered: true,
+                    onOk: run,
+                })
+            } else {
+                run()
+            }
         },
         [regenerate, setStopped],
     )

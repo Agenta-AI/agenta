@@ -46,21 +46,61 @@ from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spe
 class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
-    ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
-    policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code.
+    ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
-    AGENTA = "pi_agenta"
     CODEX = "codex"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
-        """Accept either an enum or a loose string (the playground sends a string)."""
+        """Accept either an enum or a loose string (the playground sends a string).
+
+        Raises :class:`InvalidHarnessKindError` for anything else, so a value the runtime
+        cannot read fails as a named 400 rather than the enum's bare ``ValueError``.
+        """
         if isinstance(value, cls):
             return value
-        return cls(str(value).lower())
+        normalized = str(value).lower()
+        # ``pi_agenta`` was a short-lived experiment (Pi plus a forced Agenta overlay), removed
+        # 2026-08-29. Revisions saved while it existed still carry the value, so reading maps it
+        # to plain Pi instead of refusing to load the config.
+        if normalized == "pi_agenta":
+            normalized = "pi_core"
+        try:
+            return cls(normalized)
+        except ValueError as exc:
+            raise InvalidHarnessKindError(value) from exc
+
+
+class InvalidHarnessKindError(ErrorStatus, ValueError):
+    """``harness.kind`` names a harness this runtime does not have.
+
+    Maps to HTTP 400 so the caller is told the field, the value it sent, and the values that
+    exist. Before this, a malformed kind reached ``make_harness`` as the enum's bare
+    ``ValueError`` and surfaced as an unhandled 500 whose body was the Python repr, and the
+    commit that stored it answered 200 (finding F4).
+
+    It is also a ``ValueError``, because the enum has always raised one here and callers
+    (and tests) guard ``coerce`` on that type. Inheriting both keeps those guards working
+    while the middleware renders the coded status.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-harness-kind"
+
+    def __init__(self, value: Any) -> None:
+        allowed = ", ".join(sorted(kind.value for kind in HarnessKind))
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"invalid harness.kind ({type(value).__name__}) {value!r}; "
+                f"expected one of {allowed}"
+            ),
+        )
+        self.value = value
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +112,7 @@ class HarnessKind(str, Enum):
 # ``engines/running/interfaces.py``). The namespace is ``harness`` and the trailing ``v0`` is
 # bumped only when the harness contract shape breaks. This is purely the INTERFACE identity the
 # agent_template schema advertises; the stored/wire harness VALUE stays the bare enum string
-# (``pi_core`` / ``pi_agenta`` / ``claude``), which the runner reads as the runtime selector.
+# (``pi_core`` / ``claude`` / ``codex``), which the runner reads as the runtime selector.
 
 
 class HarnessIdentity(BaseModel):
@@ -96,11 +136,6 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessKind.PI.value,
         slug=f"agenta:harness:{HarnessKind.PI.value}:v0",
         name="Pi",
-    ),
-    HarnessIdentity(
-        value=HarnessKind.AGENTA.value,
-        slug=f"agenta:harness:{HarnessKind.AGENTA.value}:v0",
-        name="Pi (Agenta)",
     ),
     HarnessIdentity(
         value=HarnessKind.CLAUDE.value,
@@ -698,6 +733,26 @@ class AgentTemplate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class GatewayGuidance(BaseModel):
+    """The derived gateway-tools instruction section, carried as its own wire field.
+
+    It used to be composed INTO the prompt strings (``append_system`` for Pi, ``agents_md``
+    for the file-based harnesses). That put the integration NAMES inside the session
+    fingerprint, so adding a second integration evicted a warm session for a one-word prompt
+    change. As a separate field the runner splices it into ``carrier`` when it BUILDS an
+    environment, and deliberately excludes it from the fingerprint: the text refreshes
+    whenever a session is built or reopened, and never evicts one on its own. The wording
+    presents the names as examples ("for instance"), so a list that goes stale mid-session
+    stays honest.
+    """
+
+    text: str
+    carrier: Literal["appendSystemPrompt", "agentsMd"]
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {"text": self.text, "carrier": self.carrier}
+
+
 class HarnessAgentTemplate(BaseModel):
     """Base for a harness-specific config. A Harness produces one of these from the neutral
     config; a backend plumbs it as-is, with no business logic about how the harness works.
@@ -731,6 +786,9 @@ class HarnessAgentTemplate(BaseModel):
     # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
     # wire.
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
+    # The derived gateway-tools guidance, set by the adapter when the agent has at least one
+    # gateway connection. Rides the wire as ``gatewayGuidance``; see :class:`GatewayGuidance`.
+    gateway_guidance: Optional[GatewayGuidance] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -773,6 +831,14 @@ class HarnessAgentTemplate(BaseModel):
         """The system-prompt fields this harness contributes to the ``/run`` payload. Empty
         by default; a harness that exposes prompt overrides (Pi) emits them here."""
         return {}
+
+    def wire_gateway_guidance(self) -> Dict[str, Any]:
+        """The ``gatewayGuidance`` field for the ``/run`` payload. Omitted when the agent has
+        no gateway connection so a connection-free payload is unchanged (the golden wire
+        contract)."""
+        if not self.gateway_guidance:
+            return {}
+        return {"gatewayGuidance": self.gateway_guidance.to_wire()}
 
     def wire_mcp(self) -> Dict[str, Any]:
         """The ``mcpServers`` field for the ``/run`` payload. Omitted when none are declared so
@@ -1074,14 +1140,6 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         return {"harnessFiles": files}
 
 
-class AgentaAgentTemplate(PiAgentTemplate):
-    """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
-    system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
-    inline packages, not through ``wire_tools`` (skills are not tools)."""
-
-    harness: ClassVar[HarnessKind] = HarnessKind.AGENTA
-
-
 # ---------------------------------------------------------------------------
 # The session bundle
 # ---------------------------------------------------------------------------
@@ -1349,7 +1407,26 @@ def _parse_run_selection(
     ``harness`` from ``harness.kind``, ``sandbox`` from ``sandbox.kind``, and the runner policy
     from ``runner.permissions.default``. The kinds and permission mode are lower-cased so
     playground-supplied values match the bare runtime selectors."""
-    harness = str(_section(params, "harness").get("kind") or defaults.harness).lower()
+    # An absent, null, or blank kind means "use the default", which is what every config that
+    # never set a harness relies on. Anything else must name a harness this runtime has, and a
+    # kind it cannot read is refused HERE, where the template is parsed, rather than travelling
+    # to `make_harness` and surfacing as an unhandled 500 (finding F4). The returned value keeps
+    # its stored spelling, so a legacy value still normalizes where it always did.
+    raw_harness = _section(params, "harness").get("kind")
+    if raw_harness is None or not str(raw_harness).strip():
+        harness = str(defaults.harness).lower()
+    else:
+        resolved = HarnessKind.coerce(raw_harness)
+        # A STRING keeps its stored spelling, so a legacy value still normalizes exactly where
+        # it always did (`make_harness` maps `pi_agenta` to Pi; collapsing it here would change
+        # the harness identity a stored revision carries). A MEMBER has no spelling to keep, so
+        # it becomes its wire value: `str()` on one gives "HarnessKind.CLAUDE", which lower-cased
+        # to "harnesskind.claude" and made the SDK's own enum unusable as input.
+        harness = (
+            str(raw_harness).lower()
+            if not isinstance(raw_harness, HarnessKind)
+            else resolved.value
+        )
     sandbox = str(_section(params, "sandbox").get("kind") or defaults.sandbox).lower()
     permissions = _section(params, "runner").get("permissions")
     raw_default = permissions.get("default") if isinstance(permissions, dict) else None

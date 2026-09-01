@@ -41,7 +41,7 @@ export interface SessionTabStripProps {
     onAdd?: () => void
     addDisabled?: boolean
     /** Overrides the New session tooltip (e.g. why it is disabled). */
-    addTooltip?: string
+    addTooltip?: React.ReactNode
     /** Right-aligned extras, pinned outside the scroller (the desktop's history menu). */
     extra?: ReactNode
     /** Leading extra, pinned before the scroller — the desktop's config-panel reveal control,
