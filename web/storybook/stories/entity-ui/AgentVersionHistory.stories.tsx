@@ -6,13 +6,8 @@ import {ChangesPane} from "../../../packages/agenta-playground-ui/src/components
 import {RevertFooter} from "../../../packages/agenta-playground-ui/src/components/AgentVersionHistory/RevertFooter"
 import {VersionList} from "../../../packages/agenta-playground-ui/src/components/AgentVersionHistory/VersionList"
 
-// The three panes of the agent version-history drawer (#6405), each in the states a reviewer
-// cannot reach by clicking: a failed version fetch, a single-version agent, a revert mid-flight,
-// and a rejected revert. The drawer itself is jotai + react-query connected; these are its pure
-// presentational pieces, which is where the design contract actually lives.
-//
-// Layout note: the real drawer is 780px with a 250px rail. The list stories fix that rail width
-// so the rows wrap exactly as they do in the drawer.
+// The version-history drawer's three panes (#6405), in the states a reviewer cannot click to.
+// Widths match the real drawer (780px, 250px rail) so rows wrap as they do in situ.
 
 const meta = {
     title: "@agenta/playground-ui/AgentVersionHistory",

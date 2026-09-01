@@ -86,8 +86,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
           : undefined
     const fnName = fn && typeof fn.name === "string" ? fn.name : undefined
 
-    // A whole integration the agent reaches through the gateway. Named by the app it connects,
-    // not by its discriminator — `gateway_connection` told the reader nothing.
+    // An integration entry: named by the app it connects, not by its discriminator.
     if (raw.type === "gateway_connection") {
         const conn = isObj(raw.connection) ? raw.connection : {}
         const integration = typeof conn.integration === "string" ? conn.integration : ""
@@ -107,9 +106,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         }
     }
 
-    // One third-party action, canonical encoding (`{type:"gateway", integration, action, …}`).
-    // It has no `function.name`, so without this it fell through to the bare-type fallback below
-    // and every such tool read "Gateway".
+    // Canonical gateway action: no `function.name`, so it must be read before the fallback below.
     if (raw.type === "gateway") {
         const integration = typeof raw.integration === "string" ? raw.integration : ""
         const action = typeof raw.action === "string" ? raw.action : ""
@@ -130,8 +127,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
 
     // Function / gateway tool.
     if (fnName) {
-        // A legacy gateway slug (`tools__provider__integration__ACTION__connection`) reads through
-        // the same helper the config panel uses, so one tool never has two different names.
+        // A legacy gateway slug resolves to the same name as the canonical encoding.
         const slug = parseGatewayToolSlug(fnName)
         const parsed = slug
             ? {
@@ -153,11 +149,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         }
     }
 
-    // Workflow-reference tool (#4860) — a subagent. Keyed by the slug it targets, but NAMED the
-    // way the config panel names it: the slug is a handle, not what the agent is called. Its
-    // description is the text the calling agent reads to decide when to call it, so it is real
-    // content and has to survive into the diff — hardcoding "" made an edited description a
-    // change with nothing to show.
+    // Subagent (#4860): keyed by slug, but named and described the way the config panel does.
     if (raw.type === "reference") {
         const slug = typeof raw.slug === "string" ? raw.slug : undefined
         const name = typeof raw.name === "string" && raw.name ? raw.name : undefined

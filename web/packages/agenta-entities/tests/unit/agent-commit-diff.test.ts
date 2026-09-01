@@ -91,9 +91,7 @@ describe("readAgentConfig — three schema shapes normalize to one view", () => 
 })
 
 describe("subagents are named and described like every other tool", () => {
-    // A subagent is stored as a `type:"reference"` tool. The diff named it by its SLUG and threw
-    // its description away, so a reader saw a handle where the config panel shows a name, and an
-    // edited description registered as a change with nothing to show.
+    // Regression: named by slug, description dropped, so an edited description showed nothing.
     const ref = (over: Record<string, unknown>) => ({
         type: "reference",
         ref_by: "variant",
@@ -137,9 +135,7 @@ describe("subagents are named and described like every other tool", () => {
 })
 
 describe("advanced settings read as settings, not as JSON paths", () => {
-    // Regression: the row printed the storage path and the stored enum verbatim —
-    // `runner.permissions.default  allow → allow_reads` — which says nothing to a reader who has
-    // not seen the schema.
+    // Regression: the row printed the storage path and the stored enum verbatim.
     const advanced = (params: Record<string, unknown>) =>
         classifyAgentChanges({agent: params}, {agent: {}})?.find((s) => s.id === "params")
 
@@ -178,9 +174,7 @@ describe("advanced settings read as settings, not as JSON paths", () => {
 })
 
 describe("gateway tools are named by what they DO, not by their discriminator", () => {
-    // Regression: canonical gateway tools carry no `function.name`, so they fell through to the
-    // bare-type fallback and every one of them rendered as "Gateway" / "Gateway connection" —
-    // a diff that told the reader nothing about which tool was added or removed.
+    // Regression: no `function.name`, so every gateway tool rendered as its discriminator.
     const config = (tools: unknown[]) => readAgentConfig({agent: {tools}})
 
     it("names a canonical gateway action, and drops the integration prefix", () => {

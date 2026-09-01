@@ -102,9 +102,7 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         if (!prev) {
             added.push(tool)
         } else if (prev.fingerprint !== tool.fingerprint) {
-            // Every tool kind goes through the same field diff. A subagent has no function
-            // parameters, so the params half finds nothing, but its DESCRIPTION is content the
-            // reader needs — skipping non-function tools reported "edited" with nothing to show.
+            // Every tool kind: a subagent has no params, but its description still diffs.
             edited.push({tool, fields: diffToolFields(prev, tool)})
         }
     }

@@ -48,9 +48,7 @@ export const buildVersionRows = (
 ): AgentVersionRow[] =>
     revisions
         .filter((revision) => (revision.version as number | null | undefined) !== 0)
-        // Version number first, timestamp only as a tie-break: `created_at` can disagree with
-        // the real order (a revision committed by the agent carries its own clock), and the
-        // highest version must always sit on top.
+        // Version first, timestamp only as a tie-break — `created_at` can disagree with the order.
         .slice()
         .sort((a, b) => {
             const byVersion = (((b.version as number) ?? 0) -

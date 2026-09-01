@@ -44,10 +44,7 @@ export function agentItemIdentity(kind: AgentItemKind, item: unknown, index: num
             const integration = typeof conn?.integration === "string" ? conn.integration : ""
             if (provider && integration) return `integration:${provider}:${integration}`
         }
-        // Canonical gateway tool — keyed by the action it performs. It carries no `function.name`,
-        // so without this it fell to the positional key below: swapping one action for another at
-        // the same index read as a single edited slot rather than an add and a remove, and
-        // reordering tools reported false adds and removes.
+        // Canonical gateway tool — keyed by its action; positional keys mis-report swaps.
         if (rec.type === "gateway") {
             const integration = typeof rec.integration === "string" ? rec.integration : ""
             const action = typeof rec.action === "string" ? rec.action : ""

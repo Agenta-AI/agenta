@@ -71,9 +71,7 @@ export const AgentVersionHistoryDrawer = ({
         workflowMolecule.selectors.serverConfiguration(selectedId || ""),
     )
 
-    // Open on the version below the latest — the latest is the comparison baseline, so it is not
-    // selectable and would show an empty diff. Set directly, not through `handleSelect`, so a
-    // phone still opens on the list rather than jumping to the diff.
+    // Opens below the latest; set directly so a phone still lands on the list, not the diff.
     const selectVersionId = useSetAtom(versionHistorySelectedAtomFamily(workflowId))
     const firstComparableId = rows.find((row) => !row.isLatest)?.id ?? null
     useEffect(() => {
