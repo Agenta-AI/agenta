@@ -61,9 +61,9 @@ const CardAction = ({
                     e.stopPropagation()
                     onRemove()
                 }}
-                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
             >
-                <X size={10} weight="bold" />
+                <X size={12} weight="bold" />
             </button>
         )
     }
@@ -80,7 +80,7 @@ const CardAction = ({
                 }}
                 className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary transition-opacity hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/attachment:opacity-100"
             >
-                <DownloadSimple size={12} />
+                <DownloadSimple size={14} />
             </button>
         )
     }
@@ -122,7 +122,7 @@ const AudioTile = ({src, name}: {src?: string; name: string}) => {
                 }}
                 className={`flex ${TILE} items-center justify-center border-0 bg-colorFillTertiary p-0 text-colorTextSecondary transition-colors ${src ? "cursor-pointer hover:text-colorText" : "cursor-default opacity-50"}`}
             >
-                {playing ? <Pause size={11} weight="fill" /> : <Play size={11} weight="fill" />}
+                {playing ? <Pause size={13} weight="fill" /> : <Play size={13} weight="fill" />}
             </button>
             {src && <audio ref={ref} src={src} preload="none" className="hidden" />}
         </>
@@ -172,7 +172,7 @@ export const AttachmentCard = ({
         <div
             className={`flex ${TILE} items-center justify-center bg-colorFillTertiary text-colorTextSecondary`}
         >
-            <Play size={11} weight="fill" />
+            <Play size={13} weight="fill" />
         </div>
     ) : isImage && src && !thumbFailed ? (
         // A blob or cookie-authenticated URL — next/image can optimize neither.
@@ -186,7 +186,7 @@ export const AttachmentCard = ({
         <div
             className={`flex ${TILE} items-center justify-center bg-colorFillTertiary text-colorTextTertiary`}
         >
-            <ImageBroken size={13} />
+            <ImageBroken size={14} />
         </div>
     ) : (
         <div
@@ -242,9 +242,9 @@ export const AttachmentCard = ({
                         e.stopPropagation()
                         onRetry()
                     }}
-                    className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
+                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorError transition-colors hover:bg-colorErrorBgHover"
                 >
-                    <ArrowClockwise size={11} weight="bold" />
+                    <ArrowClockwise size={12} weight="bold" />
                 </button>
             )}
             <CardAction action={action} name={name} onRemove={onRemove} onDownload={onDownload} />

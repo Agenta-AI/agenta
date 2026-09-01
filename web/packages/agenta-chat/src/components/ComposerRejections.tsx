@@ -41,7 +41,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                         className="flex min-w-0 items-center gap-2"
                     >
                         <WarningCircle
-                            size={14}
+                            size={15}
                             weight="fill"
                             className="shrink-0 text-colorWarning"
                         />
@@ -56,9 +56,9 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                             type="button"
                             aria-label={`Dismiss ${rejection.name}`}
                             onClick={() => onDismiss(index)}
-                            className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorWarning opacity-70 transition-opacity hover:opacity-100"
+                            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorWarning opacity-70 transition-opacity hover:opacity-100"
                         >
-                            <X size={10} weight="bold" />
+                            <X size={12} weight="bold" />
                         </button>
                     </motion.div>
                 ))}
