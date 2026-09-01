@@ -69,24 +69,38 @@ export const displayPath = (value: string): string => {
     return kept.join("/") || drive.path
 }
 
-/** The tail a sentence names a file by: its folder and its name, the pair the drive cards show.
- * An elided parent is dropped — "SKILL.md" says more than "…/SKILL.md". Named apart from
- * `fieldLabel` above on purpose: they differ by one letter and mean nothing alike. */
+/**
+ * The name a sentence calls a file by: its folder and its name, the pair the drive cards show.
+ *
+ * A path OUTSIDE the workspace keeps every segment. Taking the tail of `/home/me/.ssh/id_rsa` would
+ * say "reading .ssh/id_rsa" — a file the agent reached outside its sandbox, worded exactly like one
+ * of the project's own. The sentence is the part that gets read; it is the last place to shorten a
+ * path whose location is the whole reason to ask.
+ *
+ * Named apart from `fieldLabel` above on purpose: they differ by one letter and mean nothing alike.
+ */
 export const fileTarget = (path: string): string => {
+    if (!drivePathFromToolPath(path)) return path
     const parts = displayPath(path).split("/").slice(-2)
+    // An elided parent is dropped — "SKILL.md" says more than "…/SKILL.md".
     return (parts.length === 2 && parts[0] === "…" ? parts.slice(1) : parts).join("/")
 }
 
-const isPathKey = (field: string): boolean => PATH_KEYS.includes(field)
-
-/** One row per readable field, labelled by its name. Nested objects are skipped, never stringified. */
-export const readableFieldRows = (input: unknown): {title: string; detail: string}[] => {
+/** One row per readable field, labelled by its name. Nested objects are skipped, never stringified.
+ *
+ * `resolvePath` is opt-in because the two callers mean different things by a path field: a harness
+ * gate names a file in THIS sandbox, while a gateway tool's `path` argument addresses a third
+ * party's storage, where stripping a leading `/agenta/mounts/...` would rewrite a real remote path. */
+export const readableFieldRows = (
+    input: unknown,
+    {resolvePaths = false}: {resolvePaths?: boolean} = {},
+): {title: string; detail: string}[] => {
     if (!input || typeof input !== "object" || Array.isArray(input)) return []
     const rows: {title: string; detail: string}[] = []
     for (const [field, value] of Object.entries(input as Record<string, unknown>)) {
         const readable = readableValue(value)
         if (!readable) continue
-        const detail = isPathKey(field) ? displayPath(readable) : readable
+        const detail = resolvePaths && PATH_KEYS.includes(field) ? displayPath(readable) : readable
         rows.push({title: fieldLabel(field), detail: oneLine(detail)})
     }
     return rows

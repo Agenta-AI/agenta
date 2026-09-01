@@ -44,7 +44,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const genericItems = (input: unknown): ApprovalPreviewItem[] => {
     if (typeof input === "string" && input.trim()) return [{title: "Input", detail: oneLine(input)}]
     if (!isRecord(input)) return []
-    const items = readableFieldRows(input)
+    const items = readableFieldRows(input, {resolvePaths: true})
     if (items.length) return items
     // Nothing structured was readable — fall back to the payload's single primary field, if it
     // has one (a bash gate is its command, not a bag of arguments).

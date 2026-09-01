@@ -55,6 +55,13 @@ describe("fileTarget", () => {
         expect(fileTarget("README.md")).toBe("README.md")
     })
 
+    it("keeps every segment of a path outside the workspace", () => {
+        // Naming it ".ssh/id_rsa" would word a file the agent reached OUTSIDE its sandbox exactly
+        // like one of the project's own — on the line a person actually reads.
+        expect(fileTarget("/home/me/.ssh/id_rsa")).toBe("/home/me/.ssh/id_rsa")
+        expect(fileTarget("/etc/hosts")).toBe("/etc/hosts")
+    })
+
     it("drops a parent that elided to a gap — the name alone says more", () => {
         expect(fileTarget("/tmp/agenta/mounts/p1/m1/agents/skills/" + "a".repeat(40) + "/x.md")).toBe(
             "x.md",
@@ -98,6 +105,27 @@ describe("the generic preview for a file gate", () => {
     it("falls back to the generic wording when the gate names no path", () => {
         expect(describeApproval(gate("read", {})).sentence).toBe(
             "The agent wants your approval before reading a file.",
+        )
+    })
+
+    it("does not soften a read outside the workspace in the sentence either", () => {
+        expect(describeApproval(gate("read", {path: "/home/me/.ssh/id_rsa"})).sentence).toBe(
+            "The agent wants your approval before reading /home/me/.ssh/id_rsa.",
+        )
+    })
+
+    it("leaves a gateway argument's path alone — it addresses someone else's storage", () => {
+        // `/agenta/mounts/...` in a Dropbox argument is a real remote path, not this sandbox's root.
+        const preview = describeApproval(
+            gate("run_tool", {
+                integration: "dropbox",
+                tool: "UPLOAD_FILE",
+                arguments: {path: "/agenta/mounts/team/2024/report.pdf"},
+            }),
+        )
+
+        expect(preview.items.map((item) => item.detail)).toContain(
+            "/agenta/mounts/team/2024/report.pdf",
         )
     })
 
