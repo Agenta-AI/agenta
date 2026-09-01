@@ -108,9 +108,7 @@ export const ApprovalCard = ({
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
     const base = useMemo(() => (current ? describeApproval(current) : null), [current?.approvalId])
-    // A gateway gate names an integration by its slug; the sentence must name it the way the rest
-    // of the product does (#6349), and the catalog answers late. The query is disabled on an empty
-    // key, so a gate with no integration subscribes to nothing.
+    // The catalog answers late, so re-describe once it names the slug (#6349). Disabled on "".
     const sourceKey = base?.sourceKey ?? ""
     const {integration} = useToolIntegrationDetail(sourceKey)
     const appName = sourceKey ? integration?.name : undefined

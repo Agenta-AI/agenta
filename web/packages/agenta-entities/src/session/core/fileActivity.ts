@@ -38,9 +38,7 @@ const EDIT_NAMES = new Set([
 ])
 const DELETE_NAMES = new Set(["delete_file", "remove_file", "rm_file"])
 
-/** Input keys that carry the target path, across harness vocabularies (Pi `path`, Claude Code
- * `file_path`/`notebook_path`, misc `filename`/`target_file`). Exported because the chat package
- * reads the same argument for its tool rows and approval cards. */
+/** Path keys across harness vocabularies. Exported: the chat package reads the same argument. */
 export const PATH_KEYS = [
     "path",
     "file_path",

@@ -45,8 +45,7 @@ export interface ApprovalPreview {
     sentence: string
     /** The rows behind the toggle. Empty hides the toggle entirely. */
     items: ApprovalPreviewItem[]
-    /** The integration slug whose catalog name would improve the sentence, when the gate names one.
-     * The card looks it up and re-describes; a describer that sets this must read `appName`. */
+    /** Integration slug the card looks up, then re-describes with `appName`. */
     sourceKey?: string
 }
 
@@ -55,9 +54,8 @@ export interface ApprovalPreview {
  * Returning `null` falls back to the generic describer, so a describer that cannot read its own
  * payload degrades instead of guessing.
  *
- * `appName` is the integration's catalog name, which answers late — exactly as in
- * `resolveToolDisplay`. A describer resolves once without it, reports the slug it wants as
- * `sourceKey`, and is called again once the card has the name.
+ * `appName` is the catalog name, which answers late: resolve once, report `sourceKey`, get called
+ * again with the name. Same contract as `resolveToolDisplay`.
  */
 export type ApprovalDescriber = (
     input: unknown,

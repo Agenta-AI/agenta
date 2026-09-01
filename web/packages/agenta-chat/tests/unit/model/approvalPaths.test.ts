@@ -1,11 +1,5 @@
-/**
- * What a path SAYS on the approval card.
- *
- * A `read` gate fell through to the generic preview, which rendered the payload verbatim — so the
- * card asked for a trust decision on a 200-character sandbox path whose every meaningful segment
- * was buried behind two mount UUIDs and a 64-char skill hash (#6349). The card is read by people
- * who do not know what `/tmp/agenta/mounts/<uuid>/<uuid>/` is, and should not have to.
- */
+/** What a path says on the approval card: a trust decision must not read as a 200-char
+ * sandbox path buried behind two mount UUIDs and a skill hash (#6349). */
 import {describe, expect, it} from "vitest"
 
 import {displayPath, fileTarget} from "../../../src/model/approvalDescribers/approvalText"
@@ -55,8 +49,7 @@ describe("fileTarget", () => {
     })
 
     it("keeps every segment of a path outside the workspace", () => {
-        // Naming it ".ssh/id_rsa" would word a file the agent reached OUTSIDE its sandbox exactly
-        // like one of the project's own — on the line a person actually reads.
+        // ".ssh/id_rsa" would word an escape from the sandbox like a project file.
         expect(fileTarget("/home/me/.ssh/id_rsa")).toBe("/home/me/.ssh/id_rsa")
         expect(fileTarget("/etc/hosts")).toBe("/etc/hosts")
     })
@@ -86,7 +79,7 @@ describe("the generic preview for a file gate", () => {
     })
 
     it("leaves a many-file tool alone, whose path is the scope and not the target", () => {
-        // "looking for src/" would claim glob is after that path rather than searching under it.
+        // "looking for src/" would claim glob targets that path, not searches under it.
         expect(describeApproval(gate("glob", {path: "src/deep"})).sentence).toBe(
             "The agent wants your approval before looking for files.",
         )
@@ -114,7 +107,7 @@ describe("the generic preview for a file gate", () => {
     })
 
     it("leaves a gateway argument's path alone — it addresses someone else's storage", () => {
-        // `/agenta/mounts/...` in a Dropbox argument is a real remote path, not this sandbox's root.
+        // A Dropbox `/agenta/mounts/...` is a real remote path, not this sandbox's root.
         const preview = describeApproval(
             gate("run_tool", {
                 integration: "dropbox",

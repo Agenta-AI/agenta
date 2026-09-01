@@ -61,12 +61,8 @@ const ACTION_ACRONYMS = new Set([
 ])
 
 /**
- * Turn a provider action key into a readable label: `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to
- * an issue". Sentence-cased, common acronyms kept uppercase. Used wherever a tool's stored
- * `function.name` is the slug, because the friendly catalog name isn't persisted.
- *
- * Pass `integration` to drop an action key that repeats it (`GITHUB_ADD_ASSIGNEES` → "Add
- * assignees"): the surface naming the action always names the app too, so the prefix is noise.
+ * `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to an issue". Sentence-cased, acronyms kept.
+ * Pass `integration` to drop a key that repeats it (`GITHUB_ADD_ASSIGNEES` → "Add assignees").
  */
 export function humanizeActionKey(key: string, integration?: string): string {
     const prefix = integration ? `${integration.toUpperCase()}_` : ""

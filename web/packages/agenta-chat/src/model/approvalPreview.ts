@@ -64,15 +64,8 @@ const pathArgument = (input: unknown): string | undefined => {
     return undefined
 }
 
-/**
- * Swap the generic object of a file activity for the file itself: "Reading a file" + `notes/a.md`
- * → "reading notes/a.md" (#6349). The ask is then complete without expanding the details.
- *
- * SINGULAR only, and that carries the whole rule. A tool that acts on one file ("Reading a file")
- * takes the path as its TARGET, so naming it is the ask; a tool that acts on many ("Listing files",
- * "Looking for files") takes the same argument as the SCOPE it searches, and "looking for src/" is
- * a claim about the wrong thing. An activity this shape does not match keeps its own wording.
- */
+/** "Reading a file" + `notes/a.md` → "reading notes/a.md" (#6349).
+ * Singular only: a many-file tool's path is the SCOPE it searches, so naming it would misstate it. */
 const namedFileActivity = (activity: string, input: unknown): string | undefined => {
     const generic = /^(.*?)\s+(?:an?|the)\s+file$/i.exec(activity)
     if (!generic?.[1]) return undefined
@@ -100,13 +93,8 @@ const genericPreview = (approval: PendingApproval): ApprovalPreview => {
     }
 }
 
-/**
- * The plain-English copy for one gate. Never throws: a describer that fails falls back.
- *
- * `appName` is the catalog name for the preview's `sourceKey`, which answers late. The card
- * resolves once without it and calls again once it has one — same two-pass shape as
- * `resolveToolDisplay`.
- */
+/** The plain-English copy for one gate. Never throws: a describer that fails falls back.
+ * `appName` answers late, so the card resolves twice — same shape as `resolveToolDisplay`. */
 export const describeApproval = (approval: PendingApproval, appName?: string): ApprovalPreview => {
     // Canonical for the lookup: the same platform tool must resolve under every harness, so a
     // `mcp__agenta-tools__commit_revision` gate gets the commit describer too.

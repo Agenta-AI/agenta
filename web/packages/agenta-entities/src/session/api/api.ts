@@ -922,8 +922,7 @@ export async function readMountFile({
 
     // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
     // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
-    // That probe is also why a 404 is silent: "the file isn't there" is this call's answer, not a
-    // failure, and logging it buries real errors in the console (#6349).
+    // 404 is silent: "not there" is this call's answer, not a failure (#6349).
     const data = await callFern(
         "[readMountFile]",
         () =>

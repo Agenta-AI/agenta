@@ -10,9 +10,8 @@
  * So this describer names the integration and the action in the sentence, where they are always
  * visible, and gives the rows to `arguments`.
  *
- * The sentence speaks product language, never the wire identifiers (#6349): the action reads as the
- * permission drawer labels it, and the integration reads as the catalog names it. The `Action` row
- * keeps the raw `slug · ACTION_KEY` pair — that is the one place the precise identifier belongs.
+ * The sentence speaks product language, never the wire identifiers (#6349); the `Action` row keeps
+ * the raw `slug · ACTION_KEY` pair.
  */
 import {humanizeActionKey} from "@agenta/shared/utils"
 
@@ -25,14 +24,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const squash = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, "")
 
-/**
- * Whether the action already says the app ("Convert text to PDF" on "Text to PDF").
- *
- * Matches the whole app name against a run of WHOLE action words, so neither loose test misfires:
- * `registry.ts`'s word-level `echoesApp` would echo "Text to PDF" on the stopword "to" alone, while
- * plain containment would echo "Box" inside "sandbox". Dropping the app from a trust decision is
- * the strict case, and a run keeps the spelling difference between "OneDrive" and "one drive".
- */
+/** Whether the action already says the app ("Convert text to PDF" on "Text to PDF").
+ * Whole-word runs: `echoesApp` would echo on the stopword "to", containment on "box" in "sandbox". */
 const namesApp = (action: string, appName: string): boolean => {
     const app = squash(appName)
     if (!app) return false
@@ -57,8 +50,7 @@ export const describeRunTool: ApprovalDescriber = (
     const tool = typeof input.tool === "string" ? input.tool.trim() : ""
     if (!integration || !tool) return null
 
-    // Until the catalog answers, the humanized slug already reads as the real name ("text_to_pdf"
-    // → "Text to PDF"), so the sentence never flickers through the raw identifier.
+    // Until the catalog answers, the humanized slug already reads as the real name.
     const app = appName || humanizeActionKey(integration)
     const action = humanizeActionKey(tool, integration)
     const source = namesApp(action, app) ? "" : ` on ${app}`

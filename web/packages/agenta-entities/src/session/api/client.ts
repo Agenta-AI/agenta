@@ -95,8 +95,7 @@ export function isAbortError(error: unknown): boolean {
  * Boundary wrapper for Fern calls. Fern throws `AgentaApiError` on non-2xx; we return
  * null on failure (logged) and rethrow aborts so query clients cancel cleanly.
  *
- * `isExpected` marks statuses that are an ANSWER rather than a failure — a probe for a file that
- * may not exist. Those return null without logging, so the console keeps only real errors (#6349).
+ * `isExpected` marks a status that is an answer, not a failure: null, unlogged.
  */
 export async function callFern<T>(
     label: string,

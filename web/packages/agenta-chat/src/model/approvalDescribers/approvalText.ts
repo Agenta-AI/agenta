@@ -42,21 +42,13 @@ export const readableValue = (value: unknown): string | undefined => {
     return undefined
 }
 
-/** A machine-written id segment: a UUID, or a bare hash. Deliberately narrow — a folder a PERSON
- * named ("2024-reports", "v2-migration") must never be mistaken for plumbing and hidden. */
+/** A UUID or bare hash. Narrow on purpose: a folder someone named ("2024-reports") must survive. */
 const isOpaqueId = (segment: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
     /^[0-9a-f]{32,}$/i.test(segment)
 
-/**
- * A sandbox path as a person can read it: the run's own root dropped, and the runner's id segments
- * folded to an ellipsis (#6349).
- *
- * `drivePathFromToolPath` is the same helper the Files drawer resolves a tool path with, so the
- * card and the drive agree on what a path names. It returns null for a path under NO sandbox root
- * (`/etc/hosts`) — that one shows verbatim, because a read outside the workspace is precisely the
- * detail an approval must not soften.
- */
+/** A sandbox path a person can read: run root dropped, id segments elided (#6349).
+ * A path under no sandbox root (`/etc/hosts`) stays verbatim; an approval must not soften that. */
 export const displayPath = (value: string): string => {
     const drive = drivePathFromToolPath(value)
     if (!drive) return value
@@ -69,16 +61,8 @@ export const displayPath = (value: string): string => {
     return kept.join("/") || drive.path
 }
 
-/**
- * The name a sentence calls a file by: its folder and its name, the pair the drive cards show.
- *
- * A path OUTSIDE the workspace keeps every segment. Taking the tail of `/home/me/.ssh/id_rsa` would
- * say "reading .ssh/id_rsa" — a file the agent reached outside its sandbox, worded exactly like one
- * of the project's own. The sentence is the part that gets read; it is the last place to shorten a
- * path whose location is the whole reason to ask.
- *
- * Named apart from `fieldLabel` above on purpose: they differ by one letter and mean nothing alike.
- */
+/** Folder + name, as the drive cards show it. A path outside the workspace keeps every segment:
+ * "reading .ssh/id_rsa" would word an escape from the sandbox like a project file. */
 export const fileTarget = (path: string): string => {
     if (!drivePathFromToolPath(path)) return path
     const parts = displayPath(path).split("/").slice(-2)
@@ -87,10 +71,7 @@ export const fileTarget = (path: string): string => {
 }
 
 /** One row per readable field, labelled by its name. Nested objects are skipped, never stringified.
- *
- * `resolvePath` is opt-in because the two callers mean different things by a path field: a harness
- * gate names a file in THIS sandbox, while a gateway tool's `path` argument addresses a third
- * party's storage, where stripping a leading `/agenta/mounts/...` would rewrite a real remote path. */
+ * `resolvePaths` is opt-in: a gateway tool's `path` addresses a third party's storage, not this sandbox. */
 export const readableFieldRows = (
     input: unknown,
     {resolvePaths = false}: {resolvePaths?: boolean} = {},
