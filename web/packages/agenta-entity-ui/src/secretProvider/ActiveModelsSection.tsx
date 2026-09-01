@@ -92,9 +92,11 @@ const ActiveModelsSection = ({
     }
 
     const catalogNote =
-        discoveryStatus && discoveryStatus !== "fetched"
-            ? `Showing Agenta's shipped catalog. ${title}'s own list was not fetched.`
-            : null
+        discoveryStatus === "fetched"
+            ? null
+            : discoveryStatus == null
+              ? `Showing Agenta's shipped catalog. ${title}'s own list has not been fetched yet.`
+              : `Showing Agenta's shipped catalog. ${title}'s own list was not fetched.`
 
     return (
         <section className="flex min-h-0 flex-1 flex-col gap-2">
