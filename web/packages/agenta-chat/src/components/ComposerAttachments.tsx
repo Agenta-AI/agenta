@@ -147,7 +147,6 @@ const ComposerAttachments = ({
                                 </motion.div>
                             )
                         })}
-
                     </AnimatePresence>
                 </AttachmentCardGrid>
             </div>
