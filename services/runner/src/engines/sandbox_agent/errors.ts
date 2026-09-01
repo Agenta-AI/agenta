@@ -180,6 +180,35 @@ const PROVIDER_401 =
   /(?<!\d)401(?!\d)|status(?:_?code)?[":\s=]+401\b|http[ _-]?401\b/i;
 
 /**
+ * A 401 the RUNNER produced, not the model provider.
+ *
+ * HOW THE 401 IS DETECTED AT ALL, stated plainly because it constrains everything below: this
+ * classifier receives one flattened error STRING. It never sees an HTTP response object, so the
+ * status it reads is whatever the throwing code chose to write into the message — the runner's own
+ * status prefix, not the provider's response. Provenance is therefore prose, and prose has to be
+ * excluded by prose.
+ *
+ * The runner makes several authenticated calls of its own during a turn that can answer 401 and
+ * reach the same catch: the tool callback (`tool call <ref> failed: HTTP 401`), attachment fetch
+ * and claim, and the session-records query and persist. Without this exclusion, any one of them
+ * landing inside the propagation window would consume the session's single credential-race report
+ * and print retry guidance for a failure a retry cannot fix — and the genuine race that followed
+ * would then get the add-a-key copy, which is the original bug wearing a disguise.
+ *
+ * WHY THIS IS SOUND RATHER THAN A GUESS. Every emitter above is greppable in `services/runner/src`
+ * and prefixed at its throw site precisely so it can be recognized here. Three of them threw a
+ * BARE `HTTP <status>` until this change and were genuinely indistinguishable from a provider
+ * refusal; they now carry a name. The alternative — plumbing a typed provider-response provenance
+ * signal through the harness boundary into `ConciseErrorOptions` — is the right long-term shape
+ * and a large change; naming the emitters costs one regex and one word per throw site.
+ *
+ * THE STANDING OBLIGATION: a new authenticated call inside the turn must prefix its failure, or it
+ * silently rejoins this hazard. That is why the throw sites carry a comment pointing back here.
+ */
+const RUNNER_INTERNAL_401 =
+  /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed|(?:re)?mount(?:point)? (?:failed|cleanup failed)|geesefs|otel/i;
+
+/**
  * How long after a Daytona Secret is delivered a credential refusal is still better explained by
  * propagation than by the key.
  *
@@ -326,9 +355,11 @@ export function classifyRunError(
     return { message: RATE_LIMITED_MESSAGE, code: "rate_limited" };
   }
   // Before the generic auth branch: a placeholder-shaped refusal IS a 401, but its cause is
-  // credential delivery, not the user's key, and the add-a-key advice would be false. The two
-  // self-evidencing signatures stand alone; the masked echo is a formatting guess, so it must be
-  // corroborated by the refusal actually being about the credential.
+  // credential delivery, not the user's key, and the add-a-key advice would be false.
+  //
+  // `PLACEHOLDER_CREDENTIAL` is self-evidencing and stands alone: it quotes a protocol string only
+  // the delivery layer produces. `MASKED_PLACEHOLDER_ECHO` is NOT — it is a guess about formatting,
+  // so it is corroborated by `AUTH_REFUSAL` and only the pair of them together is evidence.
   //
   // DELIBERATELY NOT SUBJECT TO THE PER-SESSION REPORT BUDGET, unlike the branch below. That
   // budget exists because a bare 401 cannot distinguish a delivery race from a genuinely wrong
@@ -353,7 +384,16 @@ export function classifyRunError(
   // `PROVIDER_401`, not `AUTH_REFUSAL`: this branch spends the session's one report and prints
   // retry guidance, so it must not fire for an authorization failure that merely says
   // "unauthorized" somewhere unrelated. See the note on `PROVIDER_401`.
-  if (PROVIDER_401.test(raw) && options.daytonaCredentialFresh?.()) {
+  //
+  // And not a 401 the RUNNER itself produced. A tool call, an attachment fetch, or a
+  // session-records query can answer 401 inside the same window and reach this same catch; the
+  // status in the string is the runner's own prefix, not the provider's response, so the only way
+  // to tell them apart is to name them. See `RUNNER_INTERNAL_401`.
+  if (
+    PROVIDER_401.test(raw) &&
+    !RUNNER_INTERNAL_401.test(raw) &&
+    options.daytonaCredentialFresh?.()
+  ) {
     return {
       message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
       code: "credential_delivery_failed",
