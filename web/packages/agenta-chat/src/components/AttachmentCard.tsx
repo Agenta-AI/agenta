@@ -105,7 +105,9 @@ const AudioTile = ({src, name}: {src?: string; name: string}) => {
             el.removeEventListener("pause", onStop)
             el.removeEventListener("ended", onStop)
         }
-    }, [])
+        // The <audio> only mounts once a src arrives, so a mount-only effect would run while the
+        // ref is still null and never attach.
+    }, [src])
 
     return (
         <>

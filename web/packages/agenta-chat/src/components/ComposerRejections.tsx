@@ -4,9 +4,6 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import type {AttachmentRejection} from "../assets"
 import {SESSION_SPRING} from "../assets/motion"
 
-/** Four rows, then it scrolls — a bad multi-select should not push the input down the screen. */
-const MAX_HEIGHT = 108
-
 export interface ComposerRejectionsProps {
     rejections: AttachmentRejection[]
     /** Dismiss one row by position: two files can reject with the same name AND reason. */
@@ -25,9 +22,9 @@ export interface ComposerRejectionsProps {
  */
 export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsProps) => (
     <MotionConfig transition={SESSION_SPRING}>
+        {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}
         <div
-            className="mb-2 flex flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
-            style={{maxHeight: MAX_HEIGHT}}
+            className="mb-2 flex max-h-[108px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
             role="status"
         >
             <AnimatePresence initial={false} mode="popLayout">
