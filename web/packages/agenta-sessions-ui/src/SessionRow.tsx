@@ -59,6 +59,8 @@ const SessionRowImpl = ({
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
+    const renderAgentLabel = () =>
+        renderAgent ? renderAgent(row.agentId) : <SessionAgentName agentId={row.agentId} />
 
     return (
         // A plain container, not an ARIA button: descendants of a button role are
@@ -118,11 +120,18 @@ const SessionRowImpl = ({
                         {row.subtitle}
                     </span>
                 ) : null}
+                {/* Phone: the trailing group used to pin the agent name at w-40 (160px) and
+                    the timestamp at w-24, so the title's flex-1 min-w-0 collapsed to one
+                    letter. Park the agent under the title below md; desktop keeps the
+                    single-line slot. */}
+                {showAgent ? (
+                    <span className="w-full min-w-0 truncate md:hidden">{renderAgentLabel()}</span>
+                ) : null}
             </button>
 
             {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
                 than on a row whose height the subtitle decides. */}
-            <div className="flex h-5 shrink-0 items-center gap-3">
+            <div className="flex h-5 shrink-0 items-center gap-2 md:gap-3">
                 {row.status.chipLabel ? (
                     <span
                         className={clsx(
@@ -135,16 +144,12 @@ const SessionRowImpl = ({
                 ) : null}
 
                 {showAgent ? (
-                    <span className="w-40 shrink-0 truncate">
-                        {renderAgent ? (
-                            renderAgent(row.agentId)
-                        ) : (
-                            <SessionAgentName agentId={row.agentId} />
-                        )}
+                    <span className="hidden w-40 shrink-0 truncate md:block">
+                        {renderAgentLabel()}
                     </span>
                 ) : null}
 
-                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                <span className="shrink-0 text-xs text-colorTextTertiary text-right md:w-24">
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
