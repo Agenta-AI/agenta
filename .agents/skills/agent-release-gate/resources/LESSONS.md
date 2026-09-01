@@ -307,6 +307,21 @@ container by its `com.docker.compose.project` label against the target stack's p
 the project from whichever container publishes the port in `AGENTA_BASE`), or take it explicitly.
 When nothing matches, say so and continue.
 
+## Standing reds: expected, named, never softened
+
+A check that goes red for a filed finding stays red — softening it would hide the next real
+break behind the same shape. What it gets instead is a NAME in its failure message, so a reader
+scanning a gate report recognizes it in one line instead of chasing it as fresh breakage. This is
+how the W5 steer red is handled, and it now applies to one more:
+
+- **`matrix_h1_bad_harness.py`, the `null_kind` case — finding SF2.** A cleared harness
+  (`{"kind": null}`) is not rejected: it silently defaults to `pi_core`, so on any config whose
+  model spelling suits Pi the turn runs and the cell correctly fails. Filed for the next release,
+  not fixed in v0.114.4. The failure message says so. When SF2 is fixed the case turns green on
+  its own and the `known_finding` key stops appearing — that is the signal to delete the note.
+  A wrong-type or unknown-string harness that runs is a DIFFERENT, unfiled defect and is
+  deliberately not covered by the name.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.

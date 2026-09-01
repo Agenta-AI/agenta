@@ -179,3 +179,172 @@ class TestLedgerAvailability:
 
         monkeypatch.setattr(lib, "api_call", lambda *a, **k: _Resp())
         assert lib.turn_ledger_or_unavailable("s") == ([], True)
+
+
+class TestH1Probe:
+    """`probe`'s two new decisions, driven through the five outcomes verified by hand.
+
+    Lifted from the cross-reviewer's driver. The decisions under test are (a) execution evidence
+    outranks a later refusal, and (b) an unanswered ledger cannot support a PASS that asserts
+    nothing was stored. Both were correct but untested, which is how the first version of this
+    rule shipped with a hole in it.
+    """
+
+    ERROR_FRAME = [
+        {
+            "type": "data-agent-error",
+            "data": {
+                "code": "agent_run_failed",
+                "errorText": "harness kind is invalid",
+            },
+        }
+    ]
+
+    class FakeTurn:
+        def __init__(self, reply="", raw=None, errors=None):
+            self.reply = reply
+            self.frames = [f.get("type", "") for f in (raw or [])]
+            self.raw_frames = raw or []
+            self.tool_calls = []
+            self.errors = errors or []
+
+    def _drive(
+        self,
+        monkeypatch,
+        *,
+        commit_status,
+        turn,
+        rows,
+        available,
+        harness=None,
+    ):
+        import types
+
+        h1 = _mod(monkeypatch, "matrix_h1_bad_harness")
+        monkeypatch.setattr(
+            h1,
+            "commit_direct",
+            lambda *a, **k: types.SimpleNamespace(
+                status_code=commit_status,
+                text='{"detail":{"code":"invalid_harness_kind","message":"invalid harness.kind"}}',
+            ),
+        )
+        monkeypatch.setattr(h1, "invoke", lambda *a, **k: turn)
+        monkeypatch.setattr(
+            h1, "turn_ledger_or_unavailable", lambda *a, **k: (rows, available)
+        )
+        monkeypatch.setattr(h1.time, "sleep", lambda *a: None)
+        return h1.probe("wf", "var", {}, "case", harness or {"kind": 12345})
+
+    def test_1_commit_refusal_with_nothing_stored_passes(self, monkeypatch):
+        d = self._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=self.FakeTurn(),
+            rows=[],
+            available=True,
+        )
+        assert d["status"] == "PASS", d["why"]
+        assert d["refused_by"] == "commit_api"
+
+    def test_2_runner_stream_error_with_nothing_stored_passes(self, monkeypatch):
+        d = self._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=self.FakeTurn(raw=self.ERROR_FRAME, errors=["harness kind bad"]),
+            rows=[],
+            available=True,
+        )
+        assert d["status"] == "PASS", d["why"]
+        assert d["refused_by"] == "runner_stream"
+
+    def test_3_output_plus_a_streamed_error_fails(self, monkeypatch):
+        # THE BUG THIS RULE FIXES. The old condition required `not error_text`, so a streamed
+        # refusal arriving after the turn had already spoken let a defaulted run pass.
+        d = self._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=self.FakeTurn(
+                reply="READY", raw=self.ERROR_FRAME, errors=["harness kind bad"]
+            ),
+            rows=[],
+            available=True,
+        )
+        assert d["status"] == "FAIL", d["why"]
+        assert "RAN" in d["why"]
+
+    def test_4_stored_harness_kind_with_no_output_fails(self, monkeypatch):
+        # The same evidence read from the other side: the row proves a turn was persisted under a
+        # real harness even though the stream said nothing.
+        d = self._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=self.FakeTurn(raw=self.ERROR_FRAME, errors=["e"]),
+            rows=[{"harness_kind": "pi_core"}],
+            available=True,
+        )
+        assert d["status"] == "FAIL", d["why"]
+        assert "pi_core" in d["why"]
+
+    def test_5_unanswered_ledger_with_a_refusal_present_fails(self, monkeypatch):
+        # A refusal alone is not enough: this PASS asserts nothing was stored, and a query that
+        # never answered cannot support that.
+        d = self._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=self.FakeTurn(),
+            rows=[],
+            available=False,
+        )
+        assert d["status"] == "FAIL", d["why"]
+        assert "did not answer" in d["why"]
+
+
+class TestSF2IsNamedNotSoftened:
+    """The cleared-harness FAIL is real, and it is the filed finding SF2 (W5 handling)."""
+
+    def test_the_cleared_harness_fail_names_sf2(self, monkeypatch):
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=probe.FakeTurn(reply="READY"),
+            rows=[{"harness_kind": "pi_core"}],
+            available=True,
+            harness={"kind": None},
+        )
+        # Still a FAIL. The invariant really is broken; only the reader's context improves.
+        assert d["status"] == "FAIL"
+        assert d["known_finding"] == "SF2"
+        assert "silently defaults to pi_core" in d["why"]
+        assert "filed for the next release" in d["why"]
+
+    def test_a_wrong_type_harness_that_runs_is_not_sf2(self, monkeypatch):
+        # A different, UNFILED defect must read as new breakage, not borrow SF2's excuse.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=probe.FakeTurn(reply="READY"),
+            rows=[{"harness_kind": "pi_core"}],
+            available=True,
+            harness={"kind": 12345},
+        )
+        assert d["status"] == "FAIL"
+        assert "known_finding" not in d
+        assert "SF2" not in d["why"]
+
+    def test_a_cleared_harness_defaulting_elsewhere_is_not_sf2(self, monkeypatch):
+        # SF2 is specifically the pi_core default. A cleared harness running as claude would be a
+        # different finding and must not be filed under this one.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=probe.FakeTurn(reply="READY"),
+            rows=[{"harness_kind": "claude"}],
+            available=True,
+            harness={"kind": None},
+        )
+        assert d["status"] == "FAIL"
+        assert "known_finding" not in d

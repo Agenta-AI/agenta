@@ -88,6 +88,36 @@ CASES = {
 }
 
 
+#: The one FAIL shape that is already known, filed, and NOT a fresh regression.
+#:
+#: A cleared harness (`{"kind": None}`) is not rejected: it silently defaults to `pi_core`, so on
+#: any config whose model spelling suits Pi the turn runs and this cell goes red. That is SF2,
+#: found by this cell and deliberately filed rather than fixed for this release.
+#:
+#: The FAIL is NOT softened, because the invariant really is broken -- a malformed harness ran.
+#: What the name buys is that the next reader recognizes it in a gate report instead of chasing it
+#: as new breakage, which is how W5's standing red is handled. When SF2 is fixed this case turns
+#: green on its own and `known_finding` stops appearing; that is the signal to delete this.
+SF2_NOTE = (
+    "known finding SF2 (cleared harness silently defaults to pi_core), filed for the "
+    "next release -- expected red, not a fresh regression"
+)
+
+
+def known_finding(harness: dict, stored_harnesses: list) -> str | None:
+    """The note for a FAIL shape that is already filed, or None when the failure is new.
+
+    Narrow on purpose: only a CLEARED harness, and only when nothing contradicts the default.
+    A wrong-type or unknown-string harness that runs is a different, unfiled defect and must read
+    as one.
+    """
+    if harness.get("kind") is not None:
+        return None
+    if stored_harnesses and stored_harnesses != ["pi_core"]:
+        return None
+    return SF2_NOTE
+
+
 def bad_config(harness: dict) -> dict:
     cfg = copy.deepcopy(agent_config())
     cfg["harness"] = harness
@@ -186,6 +216,10 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
             f"harness_kind={stored_harnesses} -- the harness was defaulted, not refused "
             f"(a later refusal does not undo an executed turn; error={error_text[:200]!r})"
         )
+        known = known_finding(harness, stored_harnesses)
+        if known:
+            detail["known_finding"] = "SF2"
+            detail["why"] = f"{detail['why']} -- {known}"
         return detail
 
     # A PASS here asserts that NOTHING was stored, so an unanswered ledger query cannot support
