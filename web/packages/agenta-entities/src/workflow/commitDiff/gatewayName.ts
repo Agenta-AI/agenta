@@ -9,7 +9,8 @@ export interface ParsedToolName {
     source?: string
 }
 
-function titleCase(token: string): string {
+/** `gmail` / `GMAIL` / `my_app` → `Gmail` / `My app`. */
+export function titleCase(token: string): string {
     const cleaned = token.replace(/[_-]+/g, " ").trim().toLowerCase()
     if (!cleaned) return token
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)

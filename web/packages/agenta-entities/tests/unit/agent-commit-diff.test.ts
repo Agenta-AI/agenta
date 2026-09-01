@@ -90,6 +90,77 @@ describe("readAgentConfig — three schema shapes normalize to one view", () => 
     })
 })
 
+describe("gateway tools are named by what they DO, not by their discriminator", () => {
+    // Regression: canonical gateway tools carry no `function.name`, so they fell through to the
+    // bare-type fallback and every one of them rendered as "Gateway" / "Gateway connection" —
+    // a diff that told the reader nothing about which tool was added or removed.
+    const config = (tools: unknown[]) => readAgentConfig({agent: {tools}})
+
+    it("names a canonical gateway action, and drops the integration prefix", () => {
+        const [t] = config([
+            {
+                type: "gateway",
+                provider: "composio",
+                integration: "gmail",
+                action: "GMAIL_ADD_LABEL",
+                connection: "b81",
+            },
+        ]).tools
+        expect(t.label).toBe("Add label")
+        expect(t.source).toBe("Gmail")
+        // The technical key stays reachable for the detail view.
+        expect(t.rawKey).toBe("GMAIL_ADD_LABEL")
+    })
+
+    it("names an integration entry after the app it connects", () => {
+        const [t] = config([
+            {
+                type: "gateway_connection",
+                connection: {provider: "composio", integration: "gmail", slug: "gmail-work"},
+            },
+        ]).tools
+        expect(t.label).toBe("Gmail")
+        expect(t.source).toBe("Integration")
+    })
+
+    it("gives the legacy slug encoding the same name as the canonical one", () => {
+        const [legacy] = config([
+            {function: {name: "tools__composio__gmail__GMAIL_ADD_LABEL__b81"}},
+        ]).tools
+        expect(legacy.label).toBe("Add label")
+        expect(legacy.source).toBe("Gmail")
+    })
+
+    it("reports which tool changed, not just that a tool changed", () => {
+        const before = {
+            agent: {
+                tools: [
+                    {
+                        type: "gateway",
+                        integration: "gmail",
+                        action: "GMAIL_ADD_LABEL",
+                        connection: "b81",
+                    },
+                ],
+            },
+        }
+        const after = {
+            agent: {
+                tools: [
+                    {
+                        type: "gateway",
+                        integration: "gmail",
+                        action: "GMAIL_SEND_EMAIL",
+                        connection: "b81",
+                    },
+                ],
+            },
+        }
+        const tools = classifyAgentChanges(after, before).find((s) => s.id === "tools")
+        expect(tools?.items?.map((i) => i.label).sort()).toEqual(["Add label", "Send email"])
+    })
+})
+
 describe("classifyAgentChanges", () => {
     const base = {
         prompt: {

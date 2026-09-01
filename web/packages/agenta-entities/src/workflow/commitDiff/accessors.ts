@@ -7,7 +7,9 @@
  *
  * Pure and dependency-free so it can be unit-tested against fixtures for each shape.
  */
-import {parseGatewayToolName} from "./gatewayName"
+import {humanizeActionKey, parseGatewayToolSlug} from "@agenta/shared/utils"
+
+import {parseGatewayToolName, titleCase} from "./gatewayName"
 import {agentItemIdentity} from "./identity"
 import type {AgentConfigView, NormalizedTool} from "./types"
 
@@ -84,9 +86,59 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
           : undefined
     const fnName = fn && typeof fn.name === "string" ? fn.name : undefined
 
+    // A whole integration the agent reaches through the gateway. Named by the app it connects,
+    // not by its discriminator — `gateway_connection` told the reader nothing.
+    if (raw.type === "gateway_connection") {
+        const conn = isObj(raw.connection) ? raw.connection : {}
+        const integration = typeof conn.integration === "string" ? conn.integration : ""
+        const slug = typeof conn.slug === "string" ? conn.slug : undefined
+        if (integration) {
+            return {
+                key,
+                label: titleCase(integration),
+                rawKey: slug ?? integration,
+                source: "Integration",
+                description: "",
+                params: {},
+                paramsJson: "{}",
+                fingerprint,
+                isFunction: false,
+            }
+        }
+    }
+
+    // One third-party action, canonical encoding (`{type:"gateway", integration, action, …}`).
+    // It has no `function.name`, so without this it fell through to the bare-type fallback below
+    // and every such tool read "Gateway".
+    if (raw.type === "gateway") {
+        const integration = typeof raw.integration === "string" ? raw.integration : ""
+        const action = typeof raw.action === "string" ? raw.action : ""
+        if (integration && action) {
+            return {
+                key,
+                label: humanizeActionKey(action, integration),
+                rawKey: action,
+                source: titleCase(integration),
+                description: typeof raw.description === "string" ? raw.description : "",
+                params: {},
+                paramsJson: "{}",
+                fingerprint,
+                isFunction: false,
+            }
+        }
+    }
+
     // Function / gateway tool.
     if (fnName) {
-        const parsed = parseGatewayToolName(fnName)
+        // A legacy gateway slug (`tools__provider__integration__ACTION__connection`) reads through
+        // the same helper the config panel uses, so one tool never has two different names.
+        const slug = parseGatewayToolSlug(fnName)
+        const parsed = slug
+            ? {
+                  label: humanizeActionKey(slug.action, slug.integration),
+                  source: titleCase(slug.integration),
+              }
+            : parseGatewayToolName(fnName)
         const params = isObj(fn?.parameters) ? (fn?.parameters as Record<string, unknown>) : {}
         return {
             key,
