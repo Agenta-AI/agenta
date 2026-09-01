@@ -437,13 +437,21 @@ def secrets_teardown(settle_seconds: int) -> dict:
                 n for n in created if secret_exists(created_ids[n], timeout=budget)
             )
 
+        # TIMESTAMP THE OBSERVATION, not just the polling. The first read carries a floor so it
+        # can complete at all, which means it may itself finish after the deadline on a short
+        # budget -- and an absence FIRST SEEN after the deadline is not evidence of an in-budget
+        # deletion, however true the absence is. Recording when the absence was observed is what
+        # keeps the PASS claim ("deleted within Ns") honest; without it the floor quietly reopened
+        # the very deadline hole the polling fix closed.
         leftover = still_present(max(remaining(), INITIAL_PROBE_SECONDS))
+        observed_at = time.monotonic()
         while leftover and remaining() > 0:
             time.sleep(min(SETTLE_POLL_SECONDS, remaining()))
             budget = remaining()
             if budget <= 0:
                 break
             leftover = still_present(budget)
+            observed_at = time.monotonic()
 
         if leftover:
             return {
@@ -458,6 +466,20 @@ def secrets_teardown(settle_seconds: int) -> dict:
                 "session_id": session_id,
                 "workflow_id": wf,
             }
+        if observed_at > deadline:
+            # Deleted, but NOT proven within the requested budget. Deliberately not a FAIL: no
+            # Secret outlived its run, so the invariant this cell guards was never violated, and
+            # reporting a leak that did not happen is how a standing check earns a reputation for
+            # crying wolf. Deliberately not a PASS either: the budgeted claim is unproven, and the
+            # PASS line would state a number nobody measured. A SKIP is the cell's honest verdict
+            # for "the thing you asked was not tested", and the gate counts every SKIP as a
+            # failure to explain, so it stays visible rather than passing quietly.
+            raise SkipCheck(
+                f"all {len(created)} Secret(s) created by this run are gone, but the absence was "
+                f"first observed {observed_at - deadline:.1f}s AFTER the {settle_seconds}s settle "
+                "budget, so deletion within that budget is unproven. No Secret outlived its run. "
+                "Re-run with a larger --settle to turn this into a verdict."
+            )
         return {
             "status": "PASS",
             "why": (

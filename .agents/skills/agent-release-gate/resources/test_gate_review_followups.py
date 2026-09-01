@@ -501,3 +501,75 @@ class TestSweepIPv6Hosts:
     def test_ipv6_and_named_hosts_classify_correctly(self, monkeypatch, base, expected):
         m = self._host(monkeypatch, base)
         assert m.base_is_local() is expected, f"{base} -> {m.base_host()!r}"
+
+
+class TestAbsenceObservedAfterTheDeadline:
+    """An absence first SEEN after the budget is not an in-budget deletion (CodeRabbit, major).
+
+    The first probe carries a floor so it can complete at all, which means on a short budget it
+    can itself finish after the deadline. Without timestamping the observation, that floor quietly
+    reopened the deadline hole the polling fix had just closed: a slow 404 came back, the loop saw
+    an empty leftover, and the cell reported `deleted within 0s` — a number nobody measured.
+    """
+
+    RUN_SECRET = "agenta_" + "a" * 36 + "_0"
+
+    def _drive(self, monkeypatch, *, settle, probe_seconds, present=False):
+        m = _mod(monkeypatch, "check_secrets_teardown")
+
+        clock = {"now": 0.0}
+        monkeypatch.setattr(m.time, "monotonic", lambda: clock["now"])
+        monkeypatch.setattr(
+            m.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s)
+        )
+
+        def slow_secret_exists(secret_id, timeout=30.0):
+            # Every probe costs wall-clock time, which is the whole point: a probe is not free
+            # and can outlast the budget it was meant to respect.
+            clock["now"] += probe_seconds
+            return present
+
+        monkeypatch.setattr(m, "secret_exists", slow_secret_exists)
+
+        inventories = [{}, {self.RUN_SECRET: "id-1"}]
+        monkeypatch.setattr(
+            m, "list_secret_ids_by_name", lambda *a, **k: inventories.pop(0)
+        )
+        monkeypatch.setattr(m, "create_workflow", lambda *a, **k: ("wf-1", "var-1"))
+        monkeypatch.setattr(m, "seed_and_baseline", lambda *a, **k: ("rev-1", 1))
+        monkeypatch.setattr(m, "refs", lambda *a, **k: {})
+        monkeypatch.setattr(m, "archive", lambda *a, **k: None)
+
+        class _Turn:
+            errors: list = []
+
+        monkeypatch.setattr(m, "invoke", lambda *a, **k: _Turn())
+        return m
+
+    def test_settle_zero_with_a_slow_404_does_not_pass(self, monkeypatch):
+        # CodeRabbit's exact regression: the Secret IS gone, but the read that proved it landed
+        # 2s into a 0s budget.
+        m = self._drive(monkeypatch, settle=0, probe_seconds=2.0)
+        with pytest.raises(m.SkipCheck) as e:
+            m.secrets_teardown(0)
+        why = str(e.value)
+        assert "AFTER the 0s settle budget" in why
+        assert "unproven" in why
+        # And it says plainly that nothing leaked, so a reader does not chase a leak that is not
+        # there: this is a measurement gap, not a violated invariant.
+        assert "No Secret outlived its run" in why
+
+    def test_a_short_probe_inside_a_real_budget_still_passes(self, monkeypatch):
+        # The positive control. Without it, "never PASS" would satisfy the test above.
+        m = self._drive(monkeypatch, settle=60, probe_seconds=2.0)
+        r = m.secrets_teardown(60)
+        assert r["status"] == "PASS", r["why"]
+        assert "deleted within 60s" in r["why"]
+
+    def test_a_secret_that_really_survives_still_fails(self, monkeypatch):
+        # The distinction that matters: an unproven-but-clean run is a SKIP, a genuine leftover is
+        # a FAIL. Conflating them either way would break the check.
+        m = self._drive(monkeypatch, settle=1, probe_seconds=2.0, present=True)
+        r = m.secrets_teardown(1)
+        assert r["status"] == "FAIL", r
+        assert self.RUN_SECRET in r["leftover_secret_names"]
