@@ -77,9 +77,7 @@ describe("validateIncoming", () => {
         const file = makeFile("big.png", "image/png", 200)
         const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
-        expect(rejections).toEqual([
-            {name: "big.png", reason: "is too large, max 100 B supported"},
-        ])
+        expect(rejections).toEqual([{name: "big.png", reason: "is too large, max 100 B supported"}])
     })
 
     it("rejects files once the remaining slot count is exhausted, keeping earlier ones in order", () => {
