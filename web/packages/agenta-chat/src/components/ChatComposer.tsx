@@ -10,6 +10,7 @@
 import {Suspense, lazy, type ReactNode, type RefObject} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {useCoarsePointer} from "@agenta/ui/hooks"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
@@ -84,6 +85,7 @@ export const ChatComposer = ({
     slashCommands,
     fallback,
 }: ChatComposerProps) => {
+    const softKeyboard = useCoarsePointer()
     const {
         uploadsEnabled,
         files,
@@ -116,7 +118,11 @@ export const ChatComposer = ({
                         ? // The parked interaction is docked directly above, so point at it rather
                           // than describing the wait in the abstract.
                           "Answer above, or type to queue a message"
-                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
+                        : softKeyboard
+                          ? // Touch sends from the button and Enter breaks the line, so the
+                            // keyboard hint would be wrong here.
+                            "Ask the agent…"
+                          : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}

@@ -16,6 +16,8 @@
  */
 import {useEffect} from "react"
 
+import {useMediaQuery} from "./useMediaQuery"
+
 /** The CSS variable this hook writes on the document element. Consumers fall back to `100dvh`. */
 export const VIEWPORT_HEIGHT_VAR = "--ag-viewport-height"
 
@@ -80,6 +82,13 @@ export function hasCoarsePointer(): boolean {
     if (typeof window === "undefined" || !window.matchMedia) return false
     return window.matchMedia(COARSE_POINTER_QUERY).matches
 }
+
+/**
+ * The same answer as `hasCoarsePointer`, for code that must RENDER differently on touch rather
+ * than branch inside an event handler — keyboard hints, shortcut copy. It starts false so the
+ * server render and the first client render agree, then settles after mount.
+ */
+export const useCoarsePointer = (): boolean => useMediaQuery(COARSE_POINTER_QUERY)
 
 /**
  * Close the on-screen keyboard after a message is sent. Does nothing on a mouse-driven browser,

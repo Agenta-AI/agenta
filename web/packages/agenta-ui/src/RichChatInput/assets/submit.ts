@@ -36,3 +36,28 @@ export function submitEditorAsMarkdown(
     })
     return true
 }
+
+/** The three things Enter can do in the composer. */
+export type EnterKeyAction = "send" | "newline" | "swallow"
+
+/** Only what `enterKeyAction` reads, so the rule is decidable without a DOM event. */
+export interface EnterKeyModifiers {
+    shiftKey: boolean
+    metaKey: boolean
+    ctrlKey: boolean
+}
+
+/**
+ * What Enter does, given the modifiers held and the keyboard it came from. A soft keyboard has no
+ * practical Shift+Enter, so there the roles swap: Enter breaks the line and only the send button
+ * sends. `disabled` blocks a send but never a newline — the draft stays writable while a run
+ * streams.
+ */
+export function enterKeyAction(
+    modifiers: EnterKeyModifiers,
+    {softKeyboard, disabled}: {softKeyboard: boolean; disabled?: boolean},
+): EnterKeyAction {
+    if (modifiers.shiftKey || modifiers.metaKey || modifiers.ctrlKey) return "newline"
+    if (softKeyboard) return "newline"
+    return disabled ? "swallow" : "send"
+}

@@ -11,6 +11,7 @@ export {useMediaQuery, useIsNarrowScreen, NARROW_SCREEN_QUERY} from "./useMediaQ
 export {
     useVisualViewportHeight,
     hasCoarsePointer,
+    useCoarsePointer,
     dismissSoftKeyboardAfterSend,
     KEYBOARD_SETTLE_MS,
     keyboardInset,

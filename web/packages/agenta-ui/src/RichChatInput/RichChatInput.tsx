@@ -25,6 +25,8 @@ import {
     type LexicalEditor,
 } from "lexical"
 
+import {useCoarsePointer} from "../hooks/useVisualViewport"
+
 import type {SlashCommandSection} from "./assets/slashCommands"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
@@ -250,6 +252,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         )
 
         const comfortable = size === "comfortable"
+        // Touch swaps Enter and the newline and has no modifier keys, so the hints below would
+        // advertise two shortcuts that do not exist there.
+        const softKeyboard = useCoarsePointer()
         const hintsVisible = focused && !dictating
 
         return (
@@ -316,7 +321,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         )}
                     >
                         {prefix}
-                        {hideShortcutHints ? null : (
+                        {hideShortcutHints || softKeyboard ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
                             // Dictation hides them the same way — editing is locked while speech
