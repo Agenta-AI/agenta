@@ -38,9 +38,17 @@ const EDIT_NAMES = new Set([
 ])
 const DELETE_NAMES = new Set(["delete_file", "remove_file", "rm_file"])
 
-// Input keys that carry the target path, across harness vocabularies (Pi `path`, Claude Code
-// `file_path`/`notebook_path`, misc `filename`/`target_file`).
-const PATH_KEYS = ["path", "file_path", "filePath", "notebook_path", "filename", "target_file"]
+/** Input keys that carry the target path, across harness vocabularies (Pi `path`, Claude Code
+ * `file_path`/`notebook_path`, misc `filename`/`target_file`). Exported because the chat package
+ * reads the same argument for its tool rows and approval cards. */
+export const PATH_KEYS = [
+    "path",
+    "file_path",
+    "filePath",
+    "notebook_path",
+    "filename",
+    "target_file",
+]
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))

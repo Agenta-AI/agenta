@@ -10,6 +10,8 @@
  * `resolveToolDisplay` already turns a raw tool name and its arguments into a sentence the
  * transcript rows use; reusing it here keeps the card and the row saying the same thing.
  */
+import {PATH_KEYS} from "@agenta/entities/session"
+
 import {
     canonicalToolName,
     inSentence,
@@ -19,7 +21,13 @@ import {
 import type {ApprovalPreview, ApprovalPreviewItem} from "../skin/types"
 
 import {BUILTIN_APPROVAL_DESCRIBERS} from "./approvalDescribers"
-import {asSentence, fieldLabel, oneLine, readableFieldRows} from "./approvalDescribers/approvalText"
+import {
+    asSentence,
+    fieldLabel,
+    fileTarget,
+    oneLine,
+    readableFieldRows,
+} from "./approvalDescribers/approvalText"
 import {summarizeApprovalInput} from "./approvalInputSummary"
 import type {PendingApproval} from "./approvals"
 
@@ -46,6 +54,32 @@ const genericItems = (input: unknown): ApprovalPreviewItem[] => {
         : []
 }
 
+/** The path argument a file tool names, if it has one. */
+const pathArgument = (input: unknown): string | undefined => {
+    if (!isRecord(input)) return undefined
+    for (const key of PATH_KEYS) {
+        const value = input[key]
+        if (typeof value === "string" && value.trim()) return value.trim()
+    }
+    return undefined
+}
+
+/**
+ * Swap the generic object of a file activity for the file itself: "Reading a file" + `notes/a.md`
+ * → "reading notes/a.md" (#6349). The ask is then complete without expanding the details.
+ *
+ * SINGULAR only, and that carries the whole rule. A tool that acts on one file ("Reading a file")
+ * takes the path as its TARGET, so naming it is the ask; a tool that acts on many ("Listing files",
+ * "Looking for files") takes the same argument as the SCOPE it searches, and "looking for src/" is
+ * a claim about the wrong thing. An activity this shape does not match keeps its own wording.
+ */
+const namedFileActivity = (activity: string, input: unknown): string | undefined => {
+    const generic = /^(.*?)\s+(?:an?|the)\s+file$/i.exec(activity)
+    if (!generic?.[1]) return undefined
+    const path = pathArgument(input)
+    return path ? `${generic[1]} ${fileTarget(path)}` : undefined
+}
+
 /**
  * The preview for any tool without a describer: the humanized activity as the sentence, and the
  * payload's readable arguments as rows.
@@ -53,9 +87,14 @@ const genericItems = (input: unknown): ApprovalPreviewItem[] => {
 const genericPreview = (approval: PendingApproval): ApprovalPreview => {
     const display = resolveToolDisplay(approval.toolName, approval.input)
     const source = display.source ? ` from ${display.source}` : ""
+    const running =
+        display.kind === "file"
+            ? (namedFileActivity(display.activity.running, approval.input) ??
+              display.activity.running)
+            : display.activity.running
     return {
         sentence: asSentence(
-            `The agent wants your approval before ${inSentence(display.activity.running)}${source}`,
+            `The agent wants your approval before ${inSentence(running)}${source}`,
         ),
         items: genericItems(approval.input),
     }

@@ -2,6 +2,7 @@
  * Text helpers shared by the approval describers and the generic preview. A leaf module so the
  * describers and `approvalPreview` can both use it without importing each other.
  */
+import {drivePathFromToolPath, PATH_KEYS} from "@agenta/entities/session"
 
 // Collapsed rows truncate to one line with CSS; expanded rows show the full string. This cap is
 // only a safety net so a pathological pasted file cannot bloat the DOM — it sits well past a normal
@@ -41,13 +42,52 @@ export const readableValue = (value: unknown): string | undefined => {
     return undefined
 }
 
+/** A machine-written id segment: a UUID, or a bare hash. Deliberately narrow — a folder a PERSON
+ * named ("2024-reports", "v2-migration") must never be mistaken for plumbing and hidden. */
+const isOpaqueId = (segment: string): boolean =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
+    /^[0-9a-f]{32,}$/i.test(segment)
+
+/**
+ * A sandbox path as a person can read it: the run's own root dropped, and the runner's id segments
+ * folded to an ellipsis (#6349).
+ *
+ * `drivePathFromToolPath` is the same helper the Files drawer resolves a tool path with, so the
+ * card and the drive agree on what a path names. It returns null for a path under NO sandbox root
+ * (`/etc/hosts`) — that one shows verbatim, because a read outside the workspace is precisely the
+ * detail an approval must not soften.
+ */
+export const displayPath = (value: string): string => {
+    const drive = drivePathFromToolPath(value)
+    if (!drive) return value
+    const kept: string[] = []
+    for (const segment of drive.path.split("/")) {
+        if (!isOpaqueId(segment)) kept.push(segment)
+        // A run of ids collapses to one gap rather than a row of them.
+        else if (kept[kept.length - 1] !== "…") kept.push("…")
+    }
+    return kept.join("/") || drive.path
+}
+
+/** The tail a sentence names a file by: its folder and its name, the pair the drive cards show.
+ * An elided parent is dropped — "SKILL.md" says more than "…/SKILL.md". Named apart from
+ * `fieldLabel` above on purpose: they differ by one letter and mean nothing alike. */
+export const fileTarget = (path: string): string => {
+    const parts = displayPath(path).split("/").slice(-2)
+    return (parts.length === 2 && parts[0] === "…" ? parts.slice(1) : parts).join("/")
+}
+
+const isPathKey = (field: string): boolean => PATH_KEYS.includes(field)
+
 /** One row per readable field, labelled by its name. Nested objects are skipped, never stringified. */
 export const readableFieldRows = (input: unknown): {title: string; detail: string}[] => {
     if (!input || typeof input !== "object" || Array.isArray(input)) return []
     const rows: {title: string; detail: string}[] = []
     for (const [field, value] of Object.entries(input as Record<string, unknown>)) {
         const readable = readableValue(value)
-        if (readable) rows.push({title: fieldLabel(field), detail: oneLine(readable)})
+        if (!readable) continue
+        const detail = isPathKey(field) ? displayPath(readable) : readable
+        rows.push({title: fieldLabel(field), detail: oneLine(detail)})
     }
     return rows
 }
