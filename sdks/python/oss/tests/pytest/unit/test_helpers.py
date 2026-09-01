@@ -1,4 +1,3 @@
-import pytest
 from agenta.sdk.utils.helpers import parse_url
 
 
@@ -9,13 +8,13 @@ def test_parse_url_schemeless_localhost_bridge_mode(monkeypatch):
 
 def test_parse_url_schemeless_non_local_host(monkeypatch):
     monkeypatch.setenv("DOCKER_NETWORK_MODE", "bridge")
-    assert parse_url("my-agenta.example.com/api") == "http://my-agenta.example.com/api"
+    assert parse_url("my-agenta.example.com/api") == "https://my-agenta.example.com/api"
 
     monkeypatch.setenv("DOCKER_NETWORK_MODE", "host")
-    assert parse_url("my-agenta.example.com/api") == "http://my-agenta.example.com/api"
+    assert parse_url("my-agenta.example.com/api") == "https://my-agenta.example.com/api"
 
     monkeypatch.delenv("DOCKER_NETWORK_MODE", raising=False)
-    assert parse_url("my-agenta.example.com/api") == "http://my-agenta.example.com/api"
+    assert parse_url("my-agenta.example.com/api") == "https://my-agenta.example.com/api"
 
 
 def test_parse_url_absolute_https_cloud_url_unchanged(monkeypatch):

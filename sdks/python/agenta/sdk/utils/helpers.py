@@ -24,7 +24,15 @@ def parse_url(url: str) -> str:
 
     url = url.rstrip("/")
     if "://" not in url:
-        url = f"http://{url}"
+        if (
+            url.startswith("localhost")
+            or url.startswith("0.0.0.0")
+            or url.startswith("127.0.0.1")
+            or url.startswith("host.docker.internal")
+        ):
+            url = f"http://{url}"
+        else:
+            url = f"https://{url}"
 
     if "localhost" not in url and "0.0.0.0" not in url:
         return url
