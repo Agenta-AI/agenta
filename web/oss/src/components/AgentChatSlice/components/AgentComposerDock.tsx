@@ -252,7 +252,9 @@ const AgentComposerDock = ({
             {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
                 empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                 onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
-            <Reveal className="px-3" enabled={composer.playComposerEntrance}>
+            {/* `relative z-10`: Reveal's transform traps the `/` panels' own z-index, so without a
+                stacking order here the transcript's `z-[5]` bottom fade washes the docked chrome. */}
+            <Reveal className="relative z-10 px-3" enabled={composer.playComposerEntrance}>
                 {/* Agent empty-chat strip (S6): docked above the composer. Visibility is decided by
                     AgentConversation, which hands the same flag to the empty state so exactly one of
                     the strip and the starter pills renders. */}
