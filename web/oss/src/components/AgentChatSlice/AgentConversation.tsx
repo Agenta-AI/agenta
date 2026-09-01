@@ -330,7 +330,16 @@ const AgentConversation = ({
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
     // orphaned restored resume shape (reload mid-approval-resume) voids it the same way.
-    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {
+        queued,
+        submit,
+        removeQueued,
+        hitlPending,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+    } = useAgentChatQueue({
         status,
         messages,
         stopped,
@@ -502,13 +511,20 @@ const AgentConversation = ({
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
     ) => {
-        // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
-        // with the answer streaming below. Park during the glide, follow again on settle. Clear any
-        // prior "stopped" marker — it's resolved by asking again.
-        scrollIntent.armGlide()
-        setStopped(false)
-        // One path: `submit` sends now or queues behind held messages via the shared release gate.
-        submit({text: trimmed, fileParts})
+        if (editingId) {
+            // A rewrite of a held message: nothing is sent, so the transcript must not move.
+            // The input clears itself on submit, so the displaced draft goes back after that.
+            const draft = commitEdit({text: trimmed, fileParts})
+            if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
+        } else {
+            // Glide to the bottom; the min-h-full active turn makes that show the new question at the
+            // top with the answer streaming below. Park during the glide, follow again on settle.
+            // Clear any prior "stopped" marker — it's resolved by asking again.
+            scrollIntent.armGlide()
+            setStopped(false)
+            // One path: `submit` sends now or queues behind held messages via the shared release gate.
+            submit({text: trimmed, fileParts})
+        }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
@@ -798,7 +814,13 @@ const AgentConversation = ({
                                         busy={busy}
                                         runningElsewhere={runningElsewhere}
                                         hitlPending={hitlPending}
-                                        queue={{queued, removeQueued, clearQueue}}
+                                        queue={{
+                                            queued,
+                                            removeQueued,
+                                            editingId,
+                                            beginEdit,
+                                            cancelEdit,
+                                        }}
                                         modelKey={{...modelKey, entityId}}
                                         modelBlocked={modelBlocked}
                                         contextMaxTokens={contextMaxTokens}
