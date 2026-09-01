@@ -775,11 +775,11 @@ async def handle_commit_revision(
     from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
-    from oss.src.core.workflows.service import (
+    from oss.src.core.workflows.service import RevisionConflictError
+    from oss.src.core.workflows.types import (
         InvalidAgentHarnessError,
-        RevisionConflictError,
+        StaticWorkflowSlug,
     )
-    from oss.src.core.workflows.types import StaticWorkflowSlug
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("commit_revision is unavailable.")
