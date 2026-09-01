@@ -8,8 +8,12 @@ import {Switch as AntSwitch, Tag as AntTag, Tooltip as AntTooltip, Typography} f
 
 // Imported from source: agentTemplate internals are not re-exported from the DrillInView barrel.
 import {
+    describeBuildKitEmbed,
+    describeBuildKitPlatformTool,
+} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/buildKitDescriptors"
+import {
     BuildKitSection,
-    type BuildKitPlatformTool,
+    type BuildKitTool,
     PermissionOverrideHint,
     formatPermissionValue,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/BuildKitSection"
@@ -33,7 +37,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The playground-only build-kit overlay (platform tools, embedded tools/skills, sandbox permissions) with its enable switch — read-only, stripped by the backend on commit. `PermissionOverrideHint` is the sibling warning shown above SandboxPermissionControl.",
+                    "The playground-only build-kit overlay — one readable tool list (switchable platform tools plus the locked Agenta-owned embeds) and the sandbox permissions, under its enable switch. Stripped by the backend on commit. `PermissionOverrideHint` is the sibling warning shown above SandboxPermissionControl.",
             },
         },
     },
@@ -42,6 +46,8 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+// The pre-migration antd half renders the raw ops the rows used to show, so the two columns are
+// comparable as MARKUP; the agenta half runs them through the copy table (#6025).
 const platformDescriptor = (name: string): ItemDescriptor => ({
     name,
     description: "Platform-owned playground tool",
@@ -56,40 +62,22 @@ const platformDescriptor = (name: string): ItemDescriptor => ({
 
 const PLATFORM_OPS = ["discover_tools", "commit_revision", "query_spans", "test_run"]
 
-const platformTools = (disabledOps: string[] = []): BuildKitPlatformTool[] =>
-    PLATFORM_OPS.map((op) => ({
-        op,
-        enabled: !disabledOps.includes(op),
-        descriptor: platformDescriptor(op),
-    }))
+// The locked Agenta-owned embeds, keyed by the slugs the copy table knows.
+const EMBED_SLUGS = ["__ag__request_connection", "__ag__build_an_agent"]
 
-const PLATFORM_TOOLS = platformTools()
-
-const EMBEDDED_TOOLS: ItemDescriptor[] = [
-    {
-        name: "Agent builder",
-        description: "Provided by Agenta. This item cannot be edited or removed.",
-        mono: "wf",
-        color: "#0d9488",
-        tags: ["@ag.embed"],
-        typeLabel: "@ag.embed",
-        typeColor: "blue",
-        subtitle: "Agenta-owned reference",
-    },
+const buildKitTools = (disabledOps: string[] = []): BuildKitTool[] => [
+    ...PLATFORM_OPS.map((op) => ({
+        key: op,
+        descriptor: describeBuildKitPlatformTool(op),
+        toggle: {op, enabled: !disabledOps.includes(op)},
+    })),
+    ...EMBED_SLUGS.map((slug) => ({
+        key: slug,
+        descriptor: describeBuildKitEmbed(slug, undefined),
+    })),
 ]
 
-const EMBEDDED_SKILLS: ItemDescriptor[] = [
-    {
-        name: "write-prompts",
-        description: "Provided by Agenta. This item cannot be edited or removed.",
-        mono: "sk",
-        color: "#6b7280",
-        tags: ["@ag.embed"],
-        typeLabel: "@ag.embed",
-        typeColor: "blue",
-        subtitle: "Agenta-owned reference",
-    },
-]
+const TOOLS = buildKitTools()
 
 const PERMISSIONS: Record<string, unknown> = {
     network: "on",
@@ -98,7 +86,7 @@ const PERMISSIONS: Record<string, unknown> = {
 }
 
 const CAPTION =
-    "These playground-only tools, skills, and permissions help the assistant build and revise this agent. None of this is part of the published agent."
+    "These playground-only tools and permissions help the assistant build and revise this agent. None of this is part of the published agent."
 const DISABLED_NOTE = "The assistant can no longer create files, run code, or edit the agent here."
 const OVERRIDE_KEYS = ["network", "filesystem"]
 
@@ -132,18 +120,8 @@ const AntdBuildKitSection = ({
             </div>
         ) : null}
         <RailField label="Platform tools">
-            {PLATFORM_TOOLS.map((tool, index) => (
-                <ItemRow key={`platform-${index}`} descriptor={tool.descriptor} locked />
-            ))}
-        </RailField>
-        <RailField label="Embedded tools">
-            {EMBEDDED_TOOLS.map((descriptor, index) => (
-                <ItemRow key={`tool-${index}`} descriptor={descriptor} locked />
-            ))}
-        </RailField>
-        <RailField label="Embedded skills">
-            {EMBEDDED_SKILLS.map((descriptor, index) => (
-                <ItemRow key={`skill-${index}`} descriptor={descriptor} locked />
+            {PLATFORM_OPS.map((op) => (
+                <ItemRow key={`platform-${op}`} descriptor={platformDescriptor(op)} locked />
             ))}
         </RailField>
         <RailField label="Sandbox permissions">
@@ -175,11 +153,9 @@ const AntdPermissionOverrideHint = () => (
 )
 
 const BASE = {
-    platformTools: PLATFORM_TOOLS,
+    tools: TOOLS,
     onToggleTool: () => undefined,
     onSetAllTools: () => undefined,
-    embeddedTools: EMBEDDED_TOOLS,
-    embeddedSkills: EMBEDDED_SKILLS,
     permissions: PERMISSIONS,
     // The app renders this collapsed; every story opens it so the body is visible/measured.
     defaultOpen: true,
@@ -203,7 +179,7 @@ const Live = ({
                 enabled={enabled}
                 onEnabledChange={setEnabled}
                 disabled={disabled}
-                platformTools={platformTools(disabledOps)}
+                tools={buildKitTools(disabledOps)}
                 onToggleTool={(op, next) =>
                     setDisabledOps((prev) =>
                         next ? prev.filter((entry) => entry !== op) : [...prev, op],
@@ -239,21 +215,19 @@ export const SomeToolsOff: Story = {
         ...BASE,
         enabled: true,
         onEnabledChange: () => undefined,
-        platformTools: platformTools(["commit_revision", "test_run"]),
+        tools: buildKitTools(["commit_revision", "test_run"]),
     },
     render: () => <Live initialDisabledOps={["commit_revision", "test_run"]} />,
 }
 
-/** A thin overlay: permissions only, no tools or skills. */
+/** A thin overlay: permissions only, no tools. */
 export const PermissionsOnly: Story = {
     args: {
         enabled: true,
         onEnabledChange: () => undefined,
-        platformTools: [],
+        tools: [],
         onToggleTool: () => undefined,
         onSetAllTools: () => undefined,
-        embeddedTools: [],
-        embeddedSkills: [],
         permissions: PERMISSIONS,
         defaultOpen: true,
     },
@@ -263,11 +237,9 @@ export const PermissionsOnly: Story = {
                 enabled
                 defaultOpen
                 onEnabledChange={() => undefined}
-                platformTools={[]}
+                tools={[]}
                 onToggleTool={() => undefined}
                 onSetAllTools={() => undefined}
-                embeddedTools={[]}
-                embeddedSkills={[]}
                 permissions={PERMISSIONS}
             />
         </div>
