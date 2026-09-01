@@ -29,15 +29,11 @@ const fadeMask = (left: boolean, right: boolean): string => {
     return `linear-gradient(to right, ${start}, ${end})`
 }
 
-/** Footprint of the inline New session (+) — the 28px button plus the 4px it sits off the last
- * chip. Room the strip must have spare before the button leaves the pinned cluster and goes back
- * inline. Un-pinning also widens the scroller by roughly the same amount, so demanding the whole
- * footprint up front leaves the button comfortably inside the strip and can't flip-flop. */
+/** Footprint of the inline New session (+): the 28px button plus the 4px it sits off the last chip. */
 const INLINE_ADD_PX = 32
 
-/** Width the chips occupy, which `scrollWidth` cannot report while they fit: the scroller is
- * `flex-1`, so a strip with room to spare reports `scrollWidth === clientWidth` and looks exactly
- * like one filled to the millimetre. Measured off the chips themselves instead. */
+/** Chips' own width. `scrollWidth` can't give it: the scroller is `flex-1`, so a strip with room to
+ * spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. */
 const chipsWidth = (el: HTMLElement): number => {
     const first = el.firstElementChild as HTMLElement | null
     const last = el.lastElementChild as HTMLElement | null
@@ -95,11 +91,8 @@ export const SessionTabStrip = ({
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
     // a strip that fits (single tab, no scroll) shows no fade on either edge.
     const [fade, setFade] = useState({left: false, right: false})
-    // New session (+) rides inside the scroller, right after the last tab, while the tabs still fit
-    // — that is where it is discoverable. It only moves out to the pinned cluster once the tabs
-    // fill the strip, where inline would mean scrolling to reach it. Starts inline so the common
-    // case (a strip with room) never flashes the button across the bar: the first measure runs in
-    // the scroller's ref callback, before paint.
+    // New session (+) sits inline after the last tab while they fit, pinned once they overflow.
+    // Starts inline so the common case never flashes it across the bar (first measure is pre-paint).
     const [pinAdd, setPinAdd] = useState(false)
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
@@ -109,11 +102,9 @@ export const SessionTabStrip = ({
         const overflow = el.scrollWidth - el.clientWidth > 1
         const left = overflow && el.scrollLeft > 1
         const right = overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1
-        // Chips resize per frame while animating in and out — bail on an unchanged mask so the
-        // measure doesn't re-render the strip on every one of those frames.
+        // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
         setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
-        // Pin as soon as the chips (with the inline button among them) overflow; un-pin once the
-        // chips alone leave the button's footprint spare.
+        // Pin once the chips overflow; un-pin once they leave the button's footprint spare.
         const pin = pinAddRef.current ? el.clientWidth - chipsWidth(el) < INLINE_ADD_PX : overflow
         if (pin !== pinAddRef.current) {
             pinAddRef.current = pin
@@ -148,14 +139,15 @@ export const SessionTabStrip = ({
             el.addEventListener("scroll", measureFade, {passive: true})
             const ro = new ResizeObserver(() => measureFade())
             ro.observe(el)
-            // Watch the chips too, not just the scroll box: they animate their width in and out,
-            // and a chip leaving the DOM never resizes the box — so content-only changes would
-            // otherwise strand the fade and the add button's spot on a stale measurement.
+            // Watch the chips too: they animate their width, and a removed chip never resizes the box.
             const observeChildren = () => {
                 for (const child of Array.from(el.children)) ro.observe(child)
             }
             observeChildren()
-            const mo = new MutationObserver(observeChildren)
+            const mo = new MutationObserver(() => {
+                observeChildren()
+                measureFade()
+            })
             mo.observe(el, {childList: true})
             measureFade()
             stripCleanupRef.current = () => {
@@ -167,8 +159,7 @@ export const SessionTabStrip = ({
         },
         [measureFade],
     )
-    // A ResizeObserver watches the element box, not its content — remeasure when the tab set
-    // changes, and after the add button moves (which resizes the scroller from the other side).
+    // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
@@ -196,8 +187,7 @@ export const SessionTabStrip = ({
             </span>
         </SimpleTooltip>
     ) : null
-    // Inline it as the scroller's last child, so it trails the last chip. Kept out of the reorder
-    // values, so it is never a drag slot.
+    // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
     const inlineAdd =
         canAdd && !pinAdd ? (
             <div className="ml-1 flex shrink-0 items-center">{addButton}</div>
@@ -241,8 +231,7 @@ export const SessionTabStrip = ({
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
-            {/* Fixed session-actions cluster. New session (+) only lands here once the chips fill
-                the strip — inline it would then be scrolled out of reach. */}
+            {/* Fixed session-actions cluster; (+) lands here only when inline would scroll out of reach. */}
             {(canAdd && pinAdd) || extra ? (
                 <div className="flex shrink-0 items-center gap-1">
                     {pinAdd ? addButton : null}
