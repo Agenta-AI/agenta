@@ -20,11 +20,11 @@ from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.change_set import ChangeSetError
 from oss.src.core.workflows.service import (
-    InvalidAgentHarnessError,
     RevisionConflictError,
     WorkflowsService,
     SimpleWorkflowsService,
 )
+from oss.src.core.workflows.types import InvalidAgentHarnessError
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )

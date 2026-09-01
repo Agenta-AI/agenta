@@ -1,5 +1,4 @@
 import json
-from math import isfinite
 from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -125,6 +124,7 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    InvalidAgentHarnessError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -208,60 +208,6 @@ class RevisionConflictError(Exception):
                 "send the commit again with the new base_revision_id."
             ),
             "details": details,
-        }
-
-
-def _json_safe_echo(value: Any) -> Any:
-    """A value echoed back to the caller must survive JSON serialization.
-
-    Python's json parser accepts the non-standard `NaN` and `Infinity` literals in a request
-    body, so a caller really can send one as a harness kind. Starlette serializes a response
-    with `allow_nan=False`, so echoing that float verbatim would raise inside the response and
-    turn this refusal into exactly the 500 it exists to replace.
-    """
-    if isinstance(value, float) and not isfinite(value):
-        return repr(value)
-    if isinstance(value, (str, int, float)):
-        return value
-    return str(value)
-
-
-class InvalidAgentHarnessError(Exception):
-    """The commit carries an agent configuration whose harness the runtime cannot read.
-
-    A config with an unreadable ``harness.kind`` can never run, so storing it only moves the
-    failure somewhere less useful: the commit answered 200 and the invoke died on the enum's
-    bare ``ValueError`` as an unhandled 500 (finding F4). The write boundary is the outermost
-    place the caller can still be told which field is wrong, so it is refused here.
-    """
-
-    code = "invalid_harness_kind"
-
-    def __init__(self, *, value: Any, message: str) -> None:
-        super().__init__(message)
-        self.value = value
-        self.message = message
-
-    def to_detail(self) -> Dict[str, Any]:
-        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
-
-        NOT retryable: the same bytes carry the same unreadable value forever. The caller has
-        a way forward, which is the `next_step`, so the allowed values travel in `details`
-        rather than only inside the message.
-        """
-        return {
-            "code": self.code,
-            "message": self.message,
-            "retryable": False,
-            "next_step": (
-                "Set agent.harness.kind to one of the allowed harnesses and send the "
-                "commit again."
-            ),
-            "details": {
-                "field": "parameters.agent.harness.kind",
-                "value": _json_safe_echo(self.value),
-                "allowed": sorted(kind.value for kind in HarnessKind),
-            },
         }
 
 

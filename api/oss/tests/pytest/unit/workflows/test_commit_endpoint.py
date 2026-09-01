@@ -20,10 +20,12 @@ from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
 from oss.src.core.workflows.service import (
     CommitOutcome,
-    InvalidAgentHarnessError,
     RevisionConflictError,
 )
-from oss.src.core.workflows.types import StaticWorkflowSlug
+from oss.src.core.workflows.types import (
+    InvalidAgentHarnessError,
+    StaticWorkflowSlug,
+)
 
 
 VARIANT_ID = uuid4()

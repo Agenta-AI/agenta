@@ -17,10 +17,10 @@ from starlette.responses import JSONResponse
 
 from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.workflows.service import (
-    InvalidAgentHarnessError,
     WorkflowsService,
     _reject_unreadable_harness_kind,
 )
+from oss.src.core.workflows.types import InvalidAgentHarnessError
 
 
 def _data(kind):
