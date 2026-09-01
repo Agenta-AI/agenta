@@ -141,6 +141,12 @@ Every merge to `main` that touches `website/**` deploys production, via
   --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
   separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
   the `agenta.ai` domain is attached in the Cloudflare dashboard).
+- **Canonical URL:** after the worker deploy, `scripts/configure-canonical-redirect.mjs`
+  idempotently creates or updates one zone-level Single Redirect. It sends HTTP and
+  `www.agenta.ai` requests directly to the equivalent `https://agenta.ai` URL with a
+  308, preserving path and query string. This must remain a zone rule: it runs before
+  the site worker, static assets, and the `/docs/*` proxy, avoiding redirect chains.
+  The deployment token therefore needs Zone Read and Dynamic URL Redirects Write.
 - **Guard:** runs only on `Agenta-AI/agenta`; same secrets as the preview workflow.
 
 - Static-first (`output: 'static'`); interactivity is browser-side React islands
