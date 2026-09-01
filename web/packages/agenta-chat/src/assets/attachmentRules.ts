@@ -172,9 +172,10 @@ export const typeBadgeFor = (mediaType: string, name?: string): string => {
     return subtype && subtype.length <= 4 ? subtype : "file"
 }
 
-/** A file kind an attachment viewer can preview; audio plays inline in the tray instead. */
+/** A file kind the Files drawer can preview; audio is excluded because it plays in its card. */
 export const isViewable = (mediaType: string): boolean =>
     mediaType.startsWith("image/") ||
+    mediaType.startsWith("video/") ||
     mediaType === "application/pdf" ||
     mediaType.startsWith("text/") ||
     mediaType === "application/json"
