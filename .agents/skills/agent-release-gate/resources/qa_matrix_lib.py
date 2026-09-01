@@ -540,7 +540,22 @@ def turn_ledger_or_unavailable(
     )
     if r.status_code != 200:
         return [], False
-    return (r.json().get("turns") or []), True
+    # A 200 is not an answer until the payload is the shape the contract promises. `{}` and
+    # `{"turns": null}` would otherwise read as an answered-EMPTY ledger, which is the one reading
+    # a caller must never get for free: `matrix_h1_bad_harness.py` turns "answered empty" into a
+    # PASS asserting nothing was stored. Malformed is unavailable, so that PASS stays unreachable.
+    try:
+        body = r.json()
+    except ValueError:
+        return [], False
+    if not isinstance(body, dict):
+        return [], False
+    turns = body.get("turns")
+    if not isinstance(turns, list):
+        return [], False
+    if any(not isinstance(row, dict) for row in turns):
+        return [], False
+    return turns, True
 
 
 def ledger_ids(session_id: str) -> tuple[list[str], list[str]]:

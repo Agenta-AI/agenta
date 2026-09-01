@@ -175,6 +175,12 @@ TRANSPORT_FAILURE_MARKERS = (
     "502",
     "503",
     "504",
+    # A delivery failure is the very thing this cell tests, so it can never be an excuse to skip.
+    # When the CODED frame carries it, the PASS branch above has already claimed it; reaching here
+    # means the text names a delivery failure that no coded frame carried, which is anomalous and
+    # must fail rather than borrow a vault-miss SKIP. Kept identical to the teardown check's list.
+    "credential_delivery_failed",
+    "credentials from reaching the model",
 )
 
 

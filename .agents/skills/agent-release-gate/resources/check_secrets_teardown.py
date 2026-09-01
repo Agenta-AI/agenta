@@ -109,6 +109,10 @@ MAX_ENUMERATION_SECONDS = 120.0
 #: How long to wait between settle polls, capped by whatever remains of the caller's budget.
 SETTLE_POLL_SECONDS = 5.0
 
+#: A floor for the FIRST probe only. That read measures what is already true rather than waiting
+#: for a deletion, so `--settle 0` still gets one honest look instead of a zero-second timeout.
+INITIAL_PROBE_SECONDS = 10.0
+
 #: The vault resolver's OWN diagnostics, as whole phrases. Deliberately not the bare nouns
 #: `credential` and `connection`: those appear in transport failures and in
 #: `credential_delivery_failed` itself, so matching them turned real defects into green SKIPs.
@@ -204,14 +208,16 @@ def daytona_api_url() -> str:
     return raw
 
 
-def _get(path: str, params: dict | None = None) -> httpx.Response:
+def _get(
+    path: str, params: dict | None = None, timeout: float = 30.0
+) -> httpx.Response:
     url = f"{daytona_api_url()}{path}"
     try:
         return httpx.get(
             url,
             params=params,
             headers={"Authorization": f"Bearer {daytona_key()}"},
-            timeout=30.0,
+            timeout=timeout,
         )
     except httpx.HTTPError as e:
         raise SkipCheck(
@@ -314,13 +320,13 @@ def _fetch_page(cursor: str | None) -> dict:
     return body
 
 
-def secret_exists(secret_id: str) -> bool:
+def secret_exists(secret_id: str, timeout: float = 30.0) -> bool:
     """Is this Secret still present? `GET /secret/{secretId}`; a 404 means it is gone.
 
     Polling by id keeps the settle loop O(secrets this run created) instead of re-enumerating a
     ~3510-secret organization every few seconds.
     """
-    r = _get(f"/secret/{secret_id}")
+    r = _get(f"/secret/{secret_id}", timeout=timeout)
     if r.status_code == 200:
         return True
     if r.status_code == 404:
@@ -415,14 +421,29 @@ def secrets_teardown(settle_seconds: int) -> dict:
         # version slept a flat 5s before its first look, so `--settle 1` reported PASS on a
         # deletion that took five times its budget, and `--settle 0` never looked at all — the
         # deadline was decorative. `monotonic` because a wall-clock step would corrupt it.
+        #
+        # Each probe is bounded by the REMAINING budget, not only the gaps between them. A probe
+        # carries its own request timeout, so a slow one could otherwise complete long after the
+        # deadline, come back 404, and let the loop report a within-budget deletion it never
+        # observed within budget. The first read gets a floor: it measures what is already true
+        # rather than waiting for anything, so `--settle 0` still gets one honest look.
         deadline = time.monotonic() + settle_seconds
-        leftover = sorted(n for n in created if secret_exists(created_ids[n]))
-        while leftover:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
+
+        def remaining() -> float:
+            return deadline - time.monotonic()
+
+        def still_present(budget: float) -> list:
+            return sorted(
+                n for n in created if secret_exists(created_ids[n], timeout=budget)
+            )
+
+        leftover = still_present(max(remaining(), INITIAL_PROBE_SECONDS))
+        while leftover and remaining() > 0:
+            time.sleep(min(SETTLE_POLL_SECONDS, remaining()))
+            budget = remaining()
+            if budget <= 0:
                 break
-            time.sleep(min(SETTLE_POLL_SECONDS, remaining))
-            leftover = sorted(n for n in created if secret_exists(created_ids[n]))
+            leftover = still_present(budget)
 
         if leftover:
             return {

@@ -348,3 +348,156 @@ class TestSF2IsNamedNotSoftened:
         )
         assert d["status"] == "FAIL"
         assert "known_finding" not in d
+
+
+class TestSettleDeadlineBoundsEachProbe:
+    """The deadline must bound the probes themselves, not only the gaps (CodeRabbit, major)."""
+
+    def test_each_probe_gets_the_remaining_budget_as_its_timeout(self, monkeypatch):
+        m = _mod(monkeypatch, "check_secrets_teardown")
+        seen: list[float] = []
+
+        def fake_get(path, params=None, timeout=30.0):
+            seen.append(timeout)
+
+            class _R:
+                status_code = 404
+
+            return _R()
+
+        monkeypatch.setattr(m, "_get", fake_get)
+        assert m.secret_exists("id-1", timeout=3.0) is False
+        assert seen == [3.0]
+
+    def test_a_probe_cannot_be_given_more_than_the_settle_budget(self, monkeypatch):
+        # A fixed 30s probe inside a 1s budget could return long after the deadline and let the
+        # loop claim a within-budget deletion it never observed within budget.
+        m = _mod(monkeypatch, "check_secrets_teardown")
+        assert m.INITIAL_PROBE_SECONDS <= 10.0
+        assert m.SETTLE_POLL_SECONDS <= 5.0
+
+
+class TestC5TreatsDeliveryFailureAsReal:
+    """A delivery failure is what C5 tests, so it can never excuse a SKIP (CodeRabbit, major)."""
+
+    def test_a_textual_delivery_failure_is_not_a_vault_miss(self, monkeypatch):
+        m = _mod(monkeypatch, "matrix_c5_first_call_race")
+        for text in [
+            "credential_delivery_failed: no connections for provider 'anthropic'",
+            "A temporary issue kept this run's credentials from reaching the model.",
+        ]:
+            assert m.missing_vault_credential(text) is False, text
+
+    def test_the_two_cells_agree_on_what_counts_as_a_real_failure(self, monkeypatch):
+        # These lists drifted once already: the teardown check carried the delivery markers and
+        # C5 did not, which is exactly how the SKIP hole opened.
+        c5 = _mod(monkeypatch, "matrix_c5_first_call_race")
+        teardown = _mod(monkeypatch, "check_secrets_teardown")
+        assert set(c5.TRANSPORT_FAILURE_MARKERS) == set(
+            teardown.TRANSPORT_FAILURE_MARKERS
+        )
+
+    def test_a_plain_vault_miss_still_skips(self, monkeypatch):
+        m = _mod(monkeypatch, "matrix_c5_first_call_race")
+        assert m.missing_vault_credential("no connections for provider 'anthropic'")
+
+
+class TestLedgerPayloadValidation:
+    """A 200 is not an answer until the payload has the promised shape (CodeRabbit, major)."""
+
+    def _lib_returning(self, monkeypatch, payload, status=200):
+        lib = _mod(monkeypatch, "qa_matrix_lib")
+
+        class _Resp:
+            status_code = status
+
+            def json(self):
+                if isinstance(payload, Exception):
+                    raise payload
+                return payload
+
+        monkeypatch.setattr(lib, "api_call", lambda *a, **k: _Resp())
+        return lib
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"turns": None},
+            {"turns": "nope"},
+            {"turns": [1, 2]},
+            [],
+            "nope",
+            None,
+            ValueError("not json"),
+        ],
+    )
+    def test_a_malformed_200_is_unavailable(self, monkeypatch, payload):
+        # The load-bearing one: `{}` and `{"turns": null}` would otherwise be ([], True), which
+        # h1 turns into a PASS asserting nothing was stored.
+        lib = self._lib_returning(monkeypatch, payload)
+        assert lib.turn_ledger_or_unavailable("s") == ([], False), payload
+
+    def test_a_well_formed_empty_ledger_is_available(self, monkeypatch):
+        lib = self._lib_returning(monkeypatch, {"turns": []})
+        assert lib.turn_ledger_or_unavailable("s") == ([], True)
+
+    def test_rows_are_returned_when_the_shape_is_right(self, monkeypatch):
+        lib = self._lib_returning(monkeypatch, {"turns": [{"sandbox_id": "sb-1"}]})
+        rows, available = lib.turn_ledger_or_unavailable("s")
+        assert available is True
+        assert rows == [{"sandbox_id": "sb-1"}]
+
+    def test_the_back_compat_wrapper_still_returns_a_list(self, monkeypatch):
+        lib = self._lib_returning(monkeypatch, {})
+        assert lib.turn_ledger("s") == []
+
+    def test_h1_fails_on_a_malformed_200_rather_than_passing(self, monkeypatch):
+        # End to end: the seam change is only worth anything if h1 refuses the PASS.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=probe.FakeTurn(),
+            rows=[],
+            available=False,
+        )
+        assert d["status"] == "FAIL"
+        assert "did not answer" in d["why"]
+
+
+class TestSweepIPv6Hosts:
+    """The base parser must not crash, and must not mangle IPv6 (CodeRabbit, two minors)."""
+
+    def _host(self, monkeypatch, base):
+        monkeypatch.setenv("AGENTA_BASE", base)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        sys.modules.pop("sweep_disagree", None)
+        return importlib.import_module("sweep_disagree")
+
+    def test_a_malformed_bracketed_ipv6_does_not_crash(self, monkeypatch):
+        # `urlparse("http://[::1").hostname` raises ValueError; this helper decides whether the
+        # sweep runs at all, so a crash here takes the check down before it can even SKIP.
+        m = self._host(monkeypatch, "http://[::1")
+        assert m.base_is_local() is False
+        assert m.base_host() == ""
+
+    @pytest.mark.parametrize(
+        "base,expected",
+        [
+            ("http://[::1]:8480", True),
+            ("http://[::1]", True),
+            ("[::1]:8480", True),
+            ("[::1]", True),
+            ("::1", True),
+            ("http://localhost:8480", True),
+            ("localhost:8480", True),
+            ("https://runner-localhost.example", False),
+            ("http://[2001:db8::1]:8480", False),
+            ("2001:db8::1", False),
+            ("", False),
+        ],
+    )
+    def test_ipv6_and_named_hosts_classify_correctly(self, monkeypatch, base, expected):
+        m = self._host(monkeypatch, base)
+        assert m.base_is_local() is expected, f"{base} -> {m.base_host()!r}"
