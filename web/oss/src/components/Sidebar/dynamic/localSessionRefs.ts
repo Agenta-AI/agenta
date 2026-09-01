@@ -78,8 +78,8 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
             pinned: pinned.includes(session.id),
             alive: false,
             activityAt: activityAt(session),
-            // A client-created session has no server row yet, so it cannot be archived.
-            archived: false,
+            // The server source excludes archived rows, so this ref is their only way in (#6468).
+            archived: Boolean(session.archived),
             // A playground chat is never a trigger run.
             isAutomation: false,
             // Running and awaiting are DIFFERENT signals — one spins, the other goes amber — so
