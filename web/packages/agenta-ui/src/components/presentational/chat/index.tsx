@@ -83,9 +83,12 @@ export const ChatBubble = ({
             )}
         >
             {!loading && header ? <div className="w-full">{header}</div> : null}
+            {/* No content, no card. A caller's `classNames.content` paints its own fill and border,
+                which the borderless variant cannot undo — so an empty bubble has to not exist
+                rather than be styled away. */}
             {loading ? (
                 <ChatTypingDots />
-            ) : (
+            ) : content ? (
                 <div
                     className={cn(
                         "relative box-border min-w-0 max-w-full break-words text-xs leading-normal text-colorText",
@@ -98,7 +101,7 @@ export const ChatBubble = ({
                 >
                     {content}
                 </div>
-            )}
+            ) : null}
         </div>
     </div>
 )
