@@ -7,9 +7,9 @@
  *
  * Pure and dependency-free so it can be unit-tested against fixtures for each shape.
  */
-import {humanizeActionKey, parseGatewayToolSlug} from "@agenta/shared/utils"
+import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
-import {parseGatewayToolName, titleCase} from "./gatewayName"
+import {humanizeGatewayAction, parseGatewayToolName, titleCase} from "./gatewayName"
 import {agentItemIdentity} from "./identity"
 import type {AgentConfigView, NormalizedTool} from "./types"
 
@@ -116,7 +116,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         if (integration && action) {
             return {
                 key,
-                label: humanizeActionKey(action, integration),
+                label: humanizeGatewayAction(action, integration),
                 rawKey: action,
                 source: titleCase(integration),
                 description: typeof raw.description === "string" ? raw.description : "",
@@ -135,7 +135,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         const slug = parseGatewayToolSlug(fnName)
         const parsed = slug
             ? {
-                  label: humanizeActionKey(slug.action, slug.integration),
+                  label: humanizeGatewayAction(slug.action, slug.integration),
                   source: titleCase(slug.integration),
               }
             : parseGatewayToolName(fnName)
@@ -153,14 +153,20 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         }
     }
 
-    // Workflow-reference tool (#4860) — keyed by the slug it targets.
+    // Workflow-reference tool (#4860) — a subagent. Keyed by the slug it targets, but NAMED the
+    // way the config panel names it: the slug is a handle, not what the agent is called. Its
+    // description is the text the calling agent reads to decide when to call it, so it is real
+    // content and has to survive into the diff — hardcoding "" made an edited description a
+    // change with nothing to show.
     if (raw.type === "reference") {
         const slug = typeof raw.slug === "string" ? raw.slug : undefined
+        const name = typeof raw.name === "string" && raw.name ? raw.name : undefined
         return {
             key,
-            label: slug || "Workflow tool",
+            label: name || slug || "Subagent",
             rawKey: slug,
-            description: "",
+            source: "Subagent",
+            description: typeof raw.description === "string" ? raw.description : "",
             params: {},
             paramsJson: "{}",
             fingerprint,
