@@ -105,7 +105,13 @@ class _CapturingBackend(Backend):
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
-def _make_handler(secret: str, backend: _CapturingBackend):
+def _make_handler(
+    secret: str,
+    backend: _CapturingBackend,
+    *,
+    binding_name: str = "OPENAI_API_KEY",
+    usage: str = "opaque_http",
+):
     async def _resolve(*, model, context):
         return ResolvedConnection(
             provider="openai",
@@ -114,9 +120,9 @@ def _make_handler(secret: str, backend: _CapturingBackend):
             credential_mode="env",
             credentials=[
                 {
-                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "binding": {"kind": "environment", "name": binding_name},
                     "value": secret,
-                    "usage": "opaque_http",
+                    "usage": usage,
                 }
             ],
             endpoint={"base_url": "https://93.184.216.34/v1"},
@@ -145,6 +151,42 @@ def _messages() -> List[Dict[str, str]]:
 def _knows(redactor: Redactor, secret: str) -> bool:
     """True when `secret` is in the redactor's deny-set (it gets scrubbed)."""
     return secret not in (redactor.redact_string(f"x {secret}", sink="test") or "")
+
+
+async def test_path_credential_locator_does_not_enter_the_run_deny_set():
+    path = "/run/secrets/service-account"
+    backend = _CapturingBackend()
+
+    await _make_handler(
+        path,
+        backend,
+        binding_name="GOOGLE_APPLICATION_CREDENTIALS",
+        usage="local_use",
+    )(
+        request=WorkflowServiceRequest(),
+        messages=_messages(),
+        parameters=_params(),
+    )
+
+    assert not _knows(backend.captured_redactors[0], path)
+
+
+async def test_pasted_credential_material_still_enters_the_run_deny_set():
+    material = '{"private_key":"fake-private-key-DO-NOT-USE"}'
+    backend = _CapturingBackend()
+
+    await _make_handler(
+        material,
+        backend,
+        binding_name="GOOGLE_APPLICATION_CREDENTIALS",
+        usage="local_use",
+    )(
+        request=WorkflowServiceRequest(),
+        messages=_messages(),
+        parameters=_params(),
+    )
+
+    assert _knows(backend.captured_redactors[0], material)
 
 
 # --------------------------------------------------------------------------- #

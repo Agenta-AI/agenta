@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 
 import type { AgentRunRequest } from "../../protocol.ts";
-import { sandboxVisibleSecretValues, type Redactor } from "../../redaction.ts";
+import {
+  modelEnvironmentSecretValues,
+  sandboxVisibleSecretValues,
+  type Redactor,
+} from "../../redaction.ts";
 import type { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import { createPiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import {
@@ -143,13 +147,15 @@ function piTracePort(options: {
           content: request.telemetry?.capture?.content?.enabled !== false,
         },
         skills: plan.workspace.skillDirs.map((skill) => skill.name),
-        // Only values visible inside the sandbox cross this boundary. In particular, the runner
-        // OTLP authorization never enters the control file.
+        // Only secret values visible inside the sandbox cross this boundary. Approved public
+        // model configuration and the runner OTLP authorization never enter the control file.
         redaction: {
           knownValues: [
             ...new Set(
               [
-                ...Object.values(request.modelConnection?.environment ?? {}),
+                ...modelEnvironmentSecretValues(
+                  request.modelConnection?.environment,
+                ),
                 ...sandboxVisibleSecretValues(env),
               ].filter((value): value is string => !!value),
             ),
