@@ -573,3 +573,76 @@ class TestAbsenceObservedAfterTheDeadline:
         r = m.secrets_teardown(1)
         assert r["status"] == "FAIL", r
         assert self.RUN_SECRET in r["leftover_secret_names"]
+
+
+class TestRowPresenceIsTheEvidence:
+    """A stored row refutes PASS even when its harness_kind is unset (CodeRabbit, major).
+
+    `stored_harnesses` keeps only truthy values, so a row with a missing, null or empty
+    `harness_kind` collapsed to `[]` and the probe reached PASS with a turn demonstrably
+    persisted. Same class as the ledger-availability finding: an absent FIELD was read as an
+    absent THING.
+    """
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            {"harness_kind": None},
+            {"harness_kind": ""},
+            {},
+            {"sandbox_id": "sb-1"},
+        ],
+    )
+    def test_a_row_without_a_usable_kind_still_fails(self, monkeypatch, row):
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=probe.FakeTurn(),
+            rows=[row],
+            available=True,
+        )
+        assert d["status"] == "FAIL", d["why"]
+        assert "stored_turn_rows=1" in d["why"]
+
+    def test_such_a_row_is_not_labelled_sf2(self, monkeypatch):
+        # SF2 is specifically the silent pi_core default. An unset stored kind proves a turn ran
+        # but not what it ran AS, so it must read as new breakage rather than the filed finding.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=probe.FakeTurn(),
+            rows=[{"harness_kind": None}],
+            available=True,
+            harness={"kind": None},
+        )
+        assert d["status"] == "FAIL"
+        assert "known_finding" not in d
+        assert "SF2" not in d["why"]
+
+    def test_output_with_no_stored_kind_is_not_labelled_sf2_either(self, monkeypatch):
+        # A cleared harness that visibly ran but stored no kind: still a FAIL, still unlabelled.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=200,
+            turn=probe.FakeTurn(reply="READY"),
+            rows=[],
+            available=True,
+            harness={"kind": None},
+        )
+        assert d["status"] == "FAIL"
+        assert "known_finding" not in d
+
+    def test_an_empty_answered_ledger_with_no_output_still_passes(self, monkeypatch):
+        # The positive control: row presence is the evidence, so NO rows must still allow a PASS.
+        probe = TestH1Probe()
+        d = probe._drive(
+            monkeypatch,
+            commit_status=422,
+            turn=probe.FakeTurn(),
+            rows=[],
+            available=True,
+        )
+        assert d["status"] == "PASS", d["why"]

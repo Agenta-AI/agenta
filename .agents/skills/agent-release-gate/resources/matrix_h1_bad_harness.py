@@ -113,7 +113,12 @@ def known_finding(harness: dict, stored_harnesses: list) -> str | None:
     """
     if harness.get("kind") is not None:
         return None
-    if stored_harnesses and stored_harnesses != ["pi_core"]:
+    # POSITIVE evidence of the pi_core default is required. A stored row whose harness_kind is
+    # unset proves a turn ran but says nothing about what it ran AS, and SF2 is specifically the
+    # silent pi_core default. The asymmetry decides this: under-labelling costs an operator one
+    # investigation of a real FAIL, while over-labelling teaches them to wave past a shape that
+    # may be a fresh regression. So an unproven default reads as new breakage.
+    if stored_harnesses != ["pi_core"]:
         return None
     return SF2_NOTE
 
@@ -209,12 +214,18 @@ def probe(wf: str, var: str, references: dict, name: str, harness: dict) -> dict
     # defaulted to something runnable first and complained second. The earlier version required
     # `not error_text`, so a streamed error let a genuinely defaulted run pass. A stored
     # harness_kind is the same evidence read from the other side, and is checked here too.
-    if produced_output or stored_harnesses:
+    # ROW PRESENCE is the evidence, not the truthiness of a field inside it. `stored_harnesses`
+    # keeps only truthy `harness_kind` values, so a stored row whose kind is missing, null or
+    # empty collapsed to `[]` and let the probe reach PASS with a turn demonstrably persisted --
+    # the same "absence of a field read as absence of the thing" mistake the ledger-availability
+    # fix addressed one layer up. A PASS here asserts NOTHING was stored, so any row refutes it.
+    if produced_output or ledger:
         detail["status"] = "FAIL"
         detail["why"] = (
-            f"a malformed harness {harness!r} RAN: produced_output={produced_output}, stored "
-            f"harness_kind={stored_harnesses} -- the harness was defaulted, not refused "
-            f"(a later refusal does not undo an executed turn; error={error_text[:200]!r})"
+            f"a malformed harness {harness!r} RAN: produced_output={produced_output}, "
+            f"stored_turn_rows={len(ledger)}, stored harness_kind={stored_harnesses} -- the "
+            f"harness was defaulted, not refused (a later refusal does not undo an executed "
+            f"turn; error={error_text[:200]!r})"
         )
         known = known_finding(harness, stored_harnesses)
         if known:
