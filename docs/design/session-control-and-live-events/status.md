@@ -30,6 +30,9 @@
 - Side-by-side endpoint migration accepted as the first draft. Final naming deferred.
 - Existing record properties, violations, structural constraints, and repair options traced before
   selecting a replay storage design.
+- Corrected the cursor analysis: plain Postgres sequences do not guarantee commit visibility order.
+- Added the repaired-records and separate-event-log options with trade-offs. Redis-only permanent
+  history excluded from the draft.
 
 ## Branch
 

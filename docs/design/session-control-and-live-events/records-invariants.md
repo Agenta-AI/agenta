@@ -47,8 +47,11 @@ A `snapshot + events after cursor` interface adds these requirements:
    second cursor entry.
 
 The sequence does not need to be dense or start at one for each session. It only needs to be
-strictly increasing and stable. A table-global database sequence can serve session-filtered reads;
-gaps from other sessions are harmless.
+strictly increasing and stable. Gaps are harmless. A plain table-global Postgres sequence is not
+enough by itself: Postgres allocates sequence values before commit, so transaction 102 can commit
+and become visible before transaction 101. A client that advances to 102 could then miss the late
+commit of 101. The write path must preserve commit visibility order, use a committed watermark, or
+serialize sequence assignment and commit for each session.
 
 ## Current violations
 
@@ -153,11 +156,14 @@ The durable model can append distinct facts such as `tool.started` and `tool.com
 one final `tool_call` fact. Reusing one ID and replacing its payload is a chosen projection model,
 not a storage necessity.
 
-### A dense per-session counter is not required
+### A dense per-session counter is not required, but commit order is required
 
 The earlier design rejected a dense per-session sequence because concurrent writers would need a
-counter row, lock, or serializable retry. Cursor replay does not need dense per-session numbers. A
-global Postgres sequence provides strict commit order without per-session counter contention.
+counter row, lock, or serializable retry. Cursor replay does not need dense per-session numbers,
+but it must not expose a higher cursor while a lower event can still commit later. A plain global
+sequence does not provide that guarantee. Viable designs include a per-session transactional
+counter and lock, one ordered projector per partition with session affinity, or a separate
+committed watermark protocol. The final choice must match the expected write volume.
 
 ### The asynchronous Redis worker is structurally useful
 
@@ -178,8 +184,8 @@ The existing records model could become an append-only replay source if it chang
 1. Give every durable logical event a producer-generated stable `event_id` before its first send.
 2. Make durable inserts immutable. Duplicate `event_id` writes become no-ops or verified identical
    duplicates.
-3. Add a database-assigned monotonic sequence. It can be global while reads remain filtered by
-   session.
+3. Add a monotonic cursor whose visibility order matches commit order. Do not use a plain database
+   sequence without solving out-of-order commits.
 4. Keep temporary deltas and progressive snapshots outside permanent records. Append only durable
    starts, completions, interaction changes, and execution lifecycle facts.
 5. Preserve stable message, tool, interaction, and execution IDs inside event payloads.
@@ -200,5 +206,5 @@ events.
 2. Should records contain all session lifecycle facts, or only conversation facts?
 3. Is the existing records API an internal projection, a public event contract, or both?
 4. Can we migrate current upsert rows to immutable events without breaking harness reconstruction?
-5. Does one global sequence meet operational scale requirements?
+5. Which cursor assignment method preserves commit order at the expected operational scale?
 6. Which durable facts must survive a runner crash before they reach Redis?

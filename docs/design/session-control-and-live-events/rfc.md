@@ -245,11 +245,86 @@ shape without silently changing existing invoke behavior.
 
 ### Live frame ingress and relay
 
-Pending discussion.
+The working model has one raw runner event ingress. The API acknowledges a frame only after it is
+accepted into the shared Redis Stream. Live readers consume temporary frames from that stream.
+The durable projector consumes the same source and commits permanent facts.
+
+Browser delivery never blocks the runner. A slow reader is disconnected and later recovers from
+durable state. With multiple API replicas, the runner and readers can connect to different
+replicas because Redis and Postgres hold the shared state. A runner-to-API disconnect does not
+stop execution; the runner reconnects and resends unacknowledged frames.
 
 ### Durable events and replay
 
-Pending discussion.
+The durable history requires immutable event IDs, an order whose visibility matches database
+commit order, idempotent retries, and a replay-to-live handoff that cannot miss a commit. A plain
+Postgres `BIGSERIAL` is insufficient by itself because sequence allocation can precede an
+out-of-order transaction commit.
+
+Two storage options remain under consideration.
+
+#### Option A: Repair records into the session event history
+
+Change records so every durable fact has a stable producer ID, immutable payload, and commit-safe
+session cursor. Duplicate delivery becomes a no-op. Add execution, input, and interaction
+lifecycle facts so the same append-only history can build the transcript and the session snapshot.
+
+Benefits:
+
+- One permanent history to write, retain, query, and debug.
+- Existing transcript and harness reconstruction already read records.
+- No consistency problem between two permanent logs.
+
+Costs and risks:
+
+- Changes the existing upsert contract and tool snapshot behavior.
+- Expands a conversation-oriented tracing record into the public session event contract.
+- Requires a migration story for old rows without cursors and current record retention.
+- Requires commit-safe ordering and reliable delivery changes regardless of table reuse.
+
+#### Option B: Keep records as a transcript projection and add a session event log
+
+Keep current records for conversation and harness reconstruction. Add an immutable session event
+history for input, execution, tool, interaction, and message lifecycle events. Build session
+snapshots from that history or projections updated in the same transaction.
+
+Benefits:
+
+- Leaves the current transcript and harness path largely intact during migration.
+- Gives the public event contract its own schema and retention policy.
+- Separates mutable or coalesced transcript projections from immutable lifecycle facts.
+
+Costs and risks:
+
+- Two permanent representations of some conversation facts.
+- The projector must keep records and session events consistent.
+- Debugging and recovery must define which representation is authoritative.
+- More schema, storage, migrations, and cleanup machinery.
+
+#### Redis as permanent history
+
+Redis remains the temporary ingress and delivery buffer. It is not a permanent session history in
+this draft because the Stream is bounded, entries are acknowledged and deleted, and Redis does not
+match the existing Postgres retention, query, and recovery model.
+
+#### Snapshot and stream consistency
+
+The snapshot is a durable projection through cursor N. The event endpoint replays durable events
+after N and then follows newly committed events. Snapshot data and cursor must be read from one
+consistent database view, or the projection and cursor must update in the same transaction.
+
+Temporary live frames do not advance the durable cursor. The next durable completion repairs
+missed previews. A reader subscribes to commit wake-ups before reading replay history so a commit
+cannot fall between the historical read and live tail.
+
+The delivery chain must handle these failure boundaries:
+
+1. Runner to API: retry unacknowledged frames after reconnect.
+2. API to Redis: acknowledge only after `XADD` succeeds.
+3. Redis to projector: leave failed work pending for retry.
+4. Projector to Postgres: append events and update projections in one transaction.
+5. Postgres to live wake-up: a lost wake-up is repaired by querying after the cursor.
+6. API to browser: reconnect after the last durable cursor.
 
 ### Detached sender
 
