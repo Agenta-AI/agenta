@@ -1169,10 +1169,16 @@ export async function runTurn(
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
-    // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
-    // clean cancel, not an error: resolve the race to CANCELLED both when the abort event lands first
-    // AND when the prompt rejection lands first while already aborted, so the outcome is deterministic
-    // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
+    // A user Stop aborts `signal`. That abort does NOT reach the harness: the signal is handed to
+    // `SandboxAgent.start` for its health wait only, never to the ACP transport or the prompt
+    // request, so the prompt promise below stays pending and the harness keeps working. (An earlier
+    // comment here claimed the abort severed the harness fetch. It does not, which is why the
+    // cancelled branch has to send a real `session/cancel` — see `cancel-turn.ts`.)
+    //
+    // So the race is won by the abort event itself. Resolve to CANCELLED both when the abort lands
+    // first AND when the prompt rejection lands first while already aborted, so the outcome is
+    // deterministic regardless of ordering. A real (non-abort) prompt rejection is re-thrown into
+    // the shared catch.
     const cancelled = new Promise<typeof CANCELLED>((resolve) => {
       if (signal?.aborted) resolve(CANCELLED);
       else

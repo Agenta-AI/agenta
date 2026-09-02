@@ -16,6 +16,11 @@ import {
   DEFAULT_CANCEL_SETTLE_MS,
 } from "../../src/engines/sandbox_agent/cancel-turn.ts";
 import { shouldPark } from "../../src/engines/sandbox_agent/engine.ts";
+import { readKeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  isUserStopAbort,
+  USER_STOP_ABORT_REASON,
+} from "../../src/sessions/stop-signal.ts";
 import { teardownDisposition } from "../../src/engines/sandbox_agent/teardown.ts";
 import type { AgentRunResult } from "../../src/protocol.ts";
 
@@ -26,9 +31,17 @@ const cancelledTurn = (cancelSettled: boolean): AgentRunResult => ({
   cancelSettled,
 });
 
+/** An abort that is NOT a user Stop: a disconnect, a future call site, anything unlabelled. */
 const abortedSignal = (): AbortSignal => {
   const controller = new AbortController();
   controller.abort();
+  return controller.signal;
+};
+
+/** The cooperative user Stop: the heartbeat interrupt labels its abort. */
+const userStopSignal = (): AbortSignal => {
+  const controller = new AbortController();
+  controller.abort(USER_STOP_ABORT_REASON);
   return controller.signal;
 };
 
@@ -122,29 +135,53 @@ describe("cancelHarnessTurn", () => {
   });
 });
 
+describe("the user-Stop abort label", () => {
+  it("recognizes only the abort that carries the Stop reason", () => {
+    assert.equal(isUserStopAbort(userStopSignal()), true);
+    assert.equal(isUserStopAbort(abortedSignal()), false);
+    assert.equal(isUserStopAbort(undefined), false);
+    assert.equal(isUserStopAbort(new AbortController().signal), false);
+  });
+
+  it("cannot be forged by a look-alike value", () => {
+    const controller = new AbortController();
+    controller.abort({ agentaAbort: "user-stop" });
+    assert.equal(isUserStopAbort(controller.signal), false);
+  });
+});
+
 describe("shouldPark on a user Stop", () => {
-  it("parks an aborted turn whose harness cancel settled", () => {
+  it("parks a stopped turn whose harness cancel settled", () => {
     assert.equal(
-      shouldPark(cancelledTurn(true), abortedSignal(), undefined),
+      shouldPark(cancelledTurn(true), userStopSignal(), undefined),
       true,
     );
   });
 
-  it("destroys an aborted turn whose harness cancel timed out", () => {
+  it("destroys a stopped turn whose harness cancel timed out", () => {
     assert.equal(
-      shouldPark(cancelledTurn(false), abortedSignal(), undefined),
+      shouldPark(cancelledTurn(false), userStopSignal(), undefined),
+      false,
+    );
+  });
+
+  it("destroys an UNLABELLED abort even when the cancel settled", () => {
+    // The guard that keeps a future `controller.abort()` from silently parking a sandbox
+    // nobody checked. Only the heartbeat interrupt labels its abort.
+    assert.equal(
+      shouldPark(cancelledTurn(true), abortedSignal(), undefined),
       false,
     );
   });
 
   it("destroys an aborted turn that never reported a cancel at all", () => {
     const runLimitTrip: AgentRunResult = { ok: false, error: "run limit" };
-    assert.equal(shouldPark(runLimitTrip, abortedSignal(), undefined), false);
+    assert.equal(shouldPark(runLimitTrip, userStopSignal(), undefined), false);
   });
 
   it("keeps destroying on client disconnect, settled cancel or not", () => {
     assert.equal(
-      shouldPark(cancelledTurn(true), abortedSignal(), () => true),
+      shouldPark(cancelledTurn(true), userStopSignal(), () => true),
       false,
     );
     assert.equal(
@@ -180,5 +217,20 @@ describe("the cancelled teardown reason", () => {
 
   it("leaves a plain abort deleting", () => {
     assert.equal(teardownDisposition("aborted"), "delete");
+  });
+});
+
+describe("the stopped-session park window", () => {
+  it("gives a local stopped session the longer approval window, not the idle one", () => {
+    const config = readKeepaliveConfig("local");
+    assert.equal(config.ttlMs, 60_000);
+    assert.equal(config.approvalTtlMs, 600_000);
+    assert.equal(config.stoppedTtlMs, 600_000);
+  });
+
+  it("keeps a Daytona stopped session on its billed idle window by default", () => {
+    const config = readKeepaliveConfig("daytona");
+    assert.equal(config.ttlMs, 120_000);
+    assert.equal(config.stoppedTtlMs, 120_000);
   });
 });
