@@ -61,9 +61,10 @@ import {
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
+  buildCredentialPreflightInput,
   deliversModelSecretOnCreate,
   STUCK_ACQUIRE_ATTEMPTS,
   SubstitutionStuckError,
@@ -72,7 +73,10 @@ import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-
 import {
   daytonaCredentialDeliveryPort,
   materializeDaytonaMcpServers,
+  retainDaytonaSecretsOnDestroy,
+  takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
+import type { DaytonaSecretLease } from "./daytona-secrets.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -307,29 +311,104 @@ export async function acquireEnvironment(
   emit?: EmitEvent,
 ): Promise<AcquireEnvironmentResult> {
   // A sandbox the preflight convicts as stuck (no Secret substitution wiring, a permanent
-  // per-sandbox fault) is already destroyed by the failure path; a FRESH sandbox on the same
-  // Secret works, so one retry converts a would-be failed first turn into a slower one.
-  for (let attempt = 1; ; attempt++) {
-    const result = await acquireEnvironmentOnce(
-      request,
-      deps,
-      signal,
-      presignedMount,
-      emit,
-    );
-    if (
-      result.ok ||
-      !result.stuckSubstitution ||
-      attempt >= STUCK_ACQUIRE_ATTEMPTS ||
-      signal?.aborted
-    ) {
-      return result;
+  // per-sandbox fault) is already destroyed by the failure path.
+  //
+  // THE REBUILD KEEPS THE SECRET (production runner logs, 2026-09-01..02). Daytona support
+  // confirmed that a new sandbox on the SAME Secret works. The runner used to delete the stuck
+  // sandbox's Secret and allocate a new one within a second, so every rebuild tested a brand-new
+  // Secret instead, and 4 of 7 observed rebuilds were stuck again. The convicted sandbox's
+  // allocation is therefore kept as a LEASE and handed to the next attempt, which mounts it.
+  //
+  // Ownership lives in the lease state, not here (see `DaytonaSecretLease`). This loop only holds
+  // the lease and releases it once on the way out. The release deletes when the lease is still
+  // detached, does nothing when a live sandbox attached it, and refuses when a create failed
+  // without proving the remote sandbox is absent.
+  let lease: DaytonaSecretLease | undefined;
+  try {
+    for (let attempt = 1; ; attempt++) {
+      const result = await acquireEnvironmentOnce(
+        request,
+        deps,
+        signal,
+        presignedMount,
+        emit,
+        lease,
+      );
+      if (!result.ok && result.lease) lease = result.lease;
+      if (
+        result.ok ||
+        !result.stuckSubstitution ||
+        attempt >= STUCK_ACQUIRE_ATTEMPTS ||
+        signal?.aborted
+      ) {
+        return publishAcquireResult(result, emit);
+      }
+      process.stderr.write(
+        `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
+          `on the same Secret (attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
+      );
     }
-    process.stderr.write(
-      `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
-        `(attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
-    );
+  } finally {
+    // Never throws: a failed Secret delete must not replace the acquire's own answer. The lease
+    // stays releasable after a failed delete, so nothing is silently marked done.
+    await lease?.release().catch((error: unknown) => {
+      process.stderr.write(
+        `[sandbox-agent] retained Daytona Secret cleanup failed: ` +
+          `${String(error instanceof Error ? error.message : error).slice(0, 200)}\n`,
+      );
+    });
   }
+}
+
+/**
+ * One attempt's answer, including the Secret lease the loop threads between attempts.
+ *
+ * PRIVATE ON PURPOSE. The lease is an ownership token: whoever holds it may delete a live
+ * sandbox's credentials. Only the loop above holds one, and `publishAcquireResult` strips it
+ * before the result reaches any caller, so no consumer of `acquireEnvironment` can reach it.
+ */
+type AcquireAttemptResult =
+  | { ok: true; env: SessionEnvironment }
+  | {
+      ok: false;
+      error: string;
+      /** The failure class, for the error event the loop emits. See `publishAcquireResult`. */
+      errorCode?: RunErrorCode;
+      stuckSubstitution?: boolean;
+      lease?: DaytonaSecretLease;
+    };
+
+/**
+ * Build the caller-facing result, and tell the client what class of failure this was.
+ *
+ * ACQUIRE IS A USER-FACING FAILURE SURFACE, and it used to be a silent one. A turn that fails
+ * inside `runTurn` emits a typed `error` event, so the client can offer the right next step. A
+ * turn that never got an environment emitted nothing, so the same failure reached the person as
+ * the SDK's generic `agent_run_failed` with whatever internal sentence the runner raised. The
+ * doubly stuck sandbox is the case that made this visible: a credential-delivery failure the
+ * client already knows how to offer a retry for, arriving with no code to recognize it by.
+ *
+ * The event is emitted only for a NAMED class. A generic `runner_error` keeps today's behavior
+ * exactly, so this widens what the client can act on without changing what it already sees.
+ * Emitted here rather than per attempt, because a stuck attempt that is rebuilt successfully is
+ * not a failure the user should ever hear about.
+ *
+ * The result itself stays minimal: `ok`, `error`, and `stuckSubstitution`. The code rides the
+ * event, and the lease never leaves the loop.
+ */
+function publishAcquireResult(
+  result: AcquireAttemptResult,
+  emit?: EmitEvent,
+): AcquireEnvironmentResult {
+  if (result.ok) return result;
+  if (result.errorCode && result.errorCode !== "runner_error") {
+    emit?.({ type: "error", message: result.error, code: result.errorCode });
+  }
+  return {
+    ok: false,
+    error: result.error,
+    ...(result.stuckSubstitution ? { stuckSubstitution: true } : {}),
+  };
 }
 
 async function acquireEnvironmentOnce(
@@ -338,7 +417,9 @@ async function acquireEnvironmentOnce(
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
   emit?: EmitEvent,
-): Promise<AcquireEnvironmentResult> {
+  /** A detached lease from a sandbox the preflight convicted. See `acquireEnvironment`. */
+  inheritedLease?: DaytonaSecretLease,
+): Promise<AcquireAttemptResult> {
   emit?.({
     type: "data",
     name: "agent-status",
@@ -376,6 +457,11 @@ async function acquireEnvironmentOnce(
     timingLog,
   } = setup;
   let runAgentDir = setup.runAgentDir;
+
+  // The credential preflight is kicked off mid-acquire and awaited at the very end, so an
+  // acquire that fails in between would leave it running with nothing observing it. This is
+  // how the failure path ends it; see the kickoff and the catch below.
+  const preflightAbort = new AbortController();
 
   // ---- MountLifecycle ------------------------------------------------------------------ //
   // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
@@ -519,6 +605,10 @@ async function acquireEnvironmentOnce(
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown) =>
     remountLocalCwdAfterRuntimeEnotconnUnit(ctx, mountDeps, event);
 
+  // Declared out here so the catch below can read the Secrets a stuck sandbox kept. The provider
+  // is opaque on purpose (local or Daytona), and the two Secret helpers duck-type it.
+  let sandboxProvider: unknown;
+
   try {
     // Fail loud before any sandbox/mount infra spins up: an applicable-but-incomplete
     // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
@@ -569,7 +659,7 @@ async function acquireEnvironmentOnce(
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
-    const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
+    sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
       plan.sandboxId,
       env,
       binaryPath,
@@ -577,6 +667,7 @@ async function acquireEnvironmentOnce(
       plan.credentials.modelEnvironment,
       plan.sandboxPermission,
       plan.credentials.daytonaSecretPlan,
+      inheritedLease ? { inheritedLease } : {},
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -634,8 +725,8 @@ async function acquireEnvironmentOnce(
     const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
     // Record the delivery moment for the 401 classifier. Same condition as the preflight below,
     // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
-    // but the preflight can only SEE it where the provider echoes what it received. A direct
-    // Anthropic endpoint echoes nothing, so on that path the classifier is the only guard.
+    // but the preflight can only SEE it on a provider whose request shape it knows. Gemini is
+    // not one of those, so on that path the classifier is still the only guard.
     if (
       deliversModelSecretOnCreate({
         isDaytona: plan.isDaytona,
@@ -652,9 +743,33 @@ async function acquireEnvironmentOnce(
       preflightBaseUrl
         ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
             sandbox: environment.sandbox,
-            baseUrl: preflightBaseUrl,
-            apiKeyVar: modelSecretCandidate.binding.name,
+            // The candidate's real value rides in as the credential for the runner's own
+            // auth call and nowhere else. See `buildCredentialPreflightInput`.
+            ...buildCredentialPreflightInput({
+              baseUrl: preflightBaseUrl,
+              candidate: modelSecretCandidate,
+              ...(request.modelConnection?.provider
+                ? { provider: request.modelConnection.provider }
+                : {}),
+              ...(request.modelConnection?.deployment
+                ? { deployment: request.modelConnection.deployment }
+                : {}),
+            }),
+            // Cancel the runner's own auth call with the run, and with an acquire that fails
+            // before the await below ever runs.
+            signal: signal
+              ? AbortSignal.any([signal, preflightAbort.signal])
+              : preflightAbort.signal,
             log: logger,
+          }).catch((error: unknown) => {
+            // `awaitCredentialSubstitution` is written not to throw. If it ever does, the
+            // acquire must not inherit the rejection from a promise nobody is awaiting yet.
+            // The error's name only: nothing from a credential path is interpolated here.
+            logger(
+              `[credential-preflight] preflight itself failed (` +
+                `${error instanceof Error ? error.name : "unknown"}); proceeding`,
+            );
+            return "ok" as const;
           })
         : undefined;
 
@@ -1191,9 +1306,18 @@ async function acquireEnvironmentOnce(
       const preflightAwaitStartedAt = Date.now();
       const verdict = await credentialPreflight;
       timingLog("credential_preflight", preflightAwaitStartedAt);
-      // Throwing takes the shared teardown below (sandbox destroyed, Secrets deleted), and the
-      // catch marks the result so the acquire wrapper retries once with a fresh sandbox.
-      if (verdict === "stuck") throw new SubstitutionStuckError();
+      if (verdict === "stuck") {
+        // Keep the Secrets. The teardown below destroys the sandbox, and the next attempt
+        // creates its sandbox against this same allocation, which is the case Daytona support
+        // confirmed works. The destroy runs through the sandbox-agent handle, so the intent has
+        // to be set on the provider here rather than passed to the destroy call. It is keyed by
+        // THIS sandbox's id, so it cannot change what any other cleanup does.
+        const convictedSandboxId = environment.sandbox?.sandboxId;
+        if (convictedSandboxId) {
+          retainDaytonaSecretsOnDestroy(sandboxProvider, convictedSandboxId);
+        }
+        throw new SubstitutionStuckError();
+      }
     }
 
     timingLog("acquire_total", acquireStartedAt);
@@ -1205,6 +1329,10 @@ async function acquireEnvironmentOnce(
     });
     return { ok: true, env: environment };
   } catch (err) {
+    // End the preflight first. Acquire failed somewhere between its kickoff and its await, so
+    // nothing downstream will ever read it, and its runner-side auth call must not outlive the
+    // acquire that started it.
+    preflightAbort.abort();
     // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
     // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
     // to the turn. The one credential-shaped failure this path can raise is the preflight's
@@ -1212,19 +1340,35 @@ async function acquireEnvironmentOnce(
     // Wiring the predicate here would also need the once-per-session counter, which lives in the
     // turn path — without it a genuinely bad key could loop. If a model-touching step is ever
     // added to acquire, this site needs BOTH the predicate and that counter.
-    const error = conciseError(
+    // The CLASS as well as the line, because acquire is now a user-facing failure surface: the
+    // loop turns a classified code into the error event the client renders a retry state from.
+    const classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
     if (err instanceof SubstitutionStuckError) {
-      return { ok: false, error, stuckSubstitution: true };
+      // The internal sentence names probes and placeholders. It belongs in the operator log, and
+      // the user reads the standard credential-delivery copy instead.
+      logger(`acquire failed: ${err.message}`);
+      // Read AFTER the destroy above: the lease is only handed back once Daytona has confirmed
+      // the sandbox is absent, which keeps the delete-order invariant intact. A destroy that
+      // failed for any other reason hands back nothing, so the next attempt allocates fresh.
+      const retainedLease = takeDaytonaSecretLease(sandboxProvider);
+      return {
+        ok: false,
+        error,
+        errorCode: classified.code,
+        stuckSubstitution: true,
+        ...(retainedLease ? { lease: retainedLease } : {}),
+      };
     }
-    return { ok: false, error };
+    return { ok: false, error, errorCode: classified.code };
   }
 }
 
