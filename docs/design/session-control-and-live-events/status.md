@@ -40,6 +40,8 @@
   requirement.
 - Recorded long polling as the current control-transport preference behind a replaceable adapter.
 - Recorded warm sandbox and harness resume as the required Stop outcome.
+- Confirmed the minimal internal command lifecycle and its separation from public execution state.
+- Left the Stop settlement timeout for the sandbox cancellation spike.
 
 ## Branch
 

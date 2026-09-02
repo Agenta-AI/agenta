@@ -125,6 +125,20 @@ The new snapshot and replayable event interface is introduced without changing t
 current stream and watch endpoints. Desktop and mobile migrate before obsolete endpoints are
 deprecated. Final endpoint names remain open for a later interface review.
 
+### D-016: Separate command delivery state from execution state
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+The internal command lifecycle starts with `pending`, `claimed`, `applied`, and `obsolete`.
+Claims are temporary and can expire or retry. An execution terminal outcome is durable and cannot
+change. Public clients follow execution states such as `running`, `stopping`, `stopped`, `failed`,
+and `lost`; they do not infer execution state from internal delivery acknowledgements.
+
+Accepting Stop durably saves the command and moves the matching execution from `running` to
+`stopping` in one transaction. A runner outcome settles both the execution and the command. A
+watchdog settles an execution whose runner disappears, but its timeout remains open until the
+sandbox cancellation spike.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress

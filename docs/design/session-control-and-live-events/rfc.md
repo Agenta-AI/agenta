@@ -286,6 +286,30 @@ inbox. It derives Send, Steer, Cancel, and Attach from inputs plus a `force` fla
 Send does not use this endpoint. A future explicit command contract must replace the ambiguous
 shape without silently changing existing invoke behavior.
 
+### Command delivery and execution settlement
+
+Command delivery and execution lifecycle are separate state machines:
+
+```text
+command:   pending -> claimed -> applied
+                              -> obsolete
+
+execution: running -> stopping -> stopped
+                              -> failed
+                              -> lost
+```
+
+The API accepts Stop by durably creating the command and moving the matching execution to
+`stopping` in one transaction. `expected_execution_id` remains optional. A command claim has a
+lease and can be delivered again after disconnection. The runner deduplicates by `command_id` and
+validates the execution ID and ownership generation before applying it.
+
+Claiming or acknowledging a command does not prove that execution stopped. Public clients follow
+execution state. The runner normally reports the terminal outcome and the API settles the command
+and execution together. If the runner disappears, a watchdog records `lost`; another runner cannot
+claim that it stopped work on the missing machine. The settlement deadline will be selected after
+the sandbox cancellation spike.
+
 ### Live frame ingress and relay
 
 The working model has one raw runner event ingress. The API acknowledges a frame only after it is
