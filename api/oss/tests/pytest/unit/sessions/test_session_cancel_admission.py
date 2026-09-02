@@ -564,6 +564,86 @@ async def test_settlement_releases_running_and_leaves_alive_alone(lock_engine):
 
 
 @pytest.mark.asyncio
+async def test_a_report_that_beats_its_own_claim_still_settles(lock_engine):
+    """The fastest Stop reports before the row is claimed, and must not be refused.
+
+    The direct adapter claims the row only AFTER the runner has answered the delivery call,
+    and the runner reports as soon as it has applied the command. When there is nothing to
+    abort — a session parked awaiting an approval decides `not_running` and returns at once —
+    the report arrives while the row is still `pending`.
+
+    Observed live before this: the outcome route answered 409, the command stayed open for
+    ever, the session read "stopping", and the parked approval was never cancelled. The
+    delivery below reproduces that exact ordering by reporting from inside `deliver`.
+    """
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-parked",
+    )
+    dao = _FakeCommandsDAO()
+    interactions = _FakeInteractionsService()
+    streams = _FakeStreamsService(
+        _stream("turn-parked", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+
+    class _ReportsBeforeItAnswers:
+        """A runner that has nothing to abort, so it reports before the API can claim."""
+
+        def __init__(self) -> None:
+            self.service = None
+            self.report_error = None
+
+        async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
+            try:
+                await self.service.report_outcome(
+                    command_id=command.id,
+                    replica_id="runner-1",
+                    result="applied",
+                    execution_id=command.target_turn_id,
+                    execution_state="not_running",
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.report_error = exc
+            return DeliveryReceipt(status="accepted", replica_id="runner-1")
+
+        async def acknowledge(self, *, command_id, replica_id) -> None:
+            return None
+
+    delivery = _ReportsBeforeItAnswers()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        interactions=interactions,
+        delivery=delivery,
+    )
+    delivery.service = svc
+
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert delivery.report_error is None, (
+        f"the report was refused: {delivery.report_error}"
+    )
+    assert dao.rows[0].state == SessionCommandState.applied
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    # The side effects a settled Stop owes: the parked gate closes, readers are told.
+    assert interactions.cancelled == ["turn-parked"]
+    assert streams.ended == [_SESSION]
+    # And the claim that lands a moment later changes nothing, because it only moves `pending`.
+    assert (
+        await dao.claim_for_delivery(
+            project_id=_PROJECT,
+            command_id=dao.rows[0].id,
+            replica_id="runner-1",
+            lease_seconds=90,
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
 async def test_a_second_outcome_report_changes_nothing(lock_engine):
     await _run_turn(lock_engine, "turn-A")
     dao = _FakeCommandsDAO()

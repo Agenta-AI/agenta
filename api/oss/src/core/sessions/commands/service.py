@@ -478,6 +478,31 @@ class SessionCommandsService:
         )
         if settled is None:
             stored = await self._dao.fetch_command(command_id=command_id)
+            # THE REPORT CAN BEAT THE CLAIM, and on the fastest Stop it always does. The direct
+            # adapter claims the row only after the runner has answered the delivery call, and
+            # the runner reports on its own clock as soon as it has applied the command. When
+            # there is nothing to abort — a session parked awaiting an approval, which decides
+            # `not_running` and returns at once — the report reaches this route while the row
+            # is still `pending`, and the claimed-state guard refuses it. Observed live: the
+            # command stayed `claimed` for ever, the session read "stopping", and the parked
+            # approval was never cancelled.
+            #
+            # A `pending` row is one NO replica holds, so there is no other writer to protect
+            # it from and accepting the report is safe. The caller is the runner, authenticated
+            # with the shared runner token. The claim that arrives a moment later finds a
+            # terminal row and is a no-op, because `claim_for_delivery` only moves `pending`.
+            if stored is not None and stored.state == SessionCommandState.pending:
+                settled = await self.settle(
+                    command_id=command_id,
+                    project_id=command.project_id,
+                    replica_id=None,
+                    expected_state=SessionCommandState.pending,
+                    state=state,
+                    outcome=outcome,
+                    execution_id=execution_id or command.target_turn_id,
+                )
+        if settled is None:
+            stored = await self._dao.fetch_command(command_id=command_id)
             raise SessionCommandNotClaimable(
                 command_id=str(command_id),
                 state=stored.state.value if stored else "unknown",
