@@ -358,6 +358,15 @@ async def _agent_run_to_vercel_parts_impl(
                     failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded unchanged as the FIRST data part
+                # of the turn. The AI SDK's `start` frame is emitted before the runner replies at
+                # all (see the `start` yield above), so it cannot carry a runner-minted id; this
+                # is the earliest frame that can. A client keeps it to name the execution it means
+                # to Stop (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {"type": "data-agent-turn", "data": {"turnId": turn_id}}
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
                 reason = data.get("stopReason")
@@ -641,6 +650,15 @@ async def _agent_stream_to_vercel_stream_impl(
                     failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded unchanged as the FIRST data part
+                # of the turn. The AI SDK's `start` frame is emitted before the runner replies at
+                # all (see the `start` yield above), so it cannot carry a runner-minted id; this
+                # is the earliest frame that can. A client keeps it to name the execution it means
+                # to Stop (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {"type": "data-agent-turn", "data": {"turnId": turn_id}}
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
                 # terminal `done` after the runner's `done` when the authoritative result

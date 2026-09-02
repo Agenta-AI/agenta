@@ -134,7 +134,7 @@ function sessionRequest(
 
 interface StreamRecord {
   kind: string;
-  event?: { type: string; message?: string; code?: string };
+  event?: { type: string; message?: string; code?: string; turnId?: string };
   result?: { ok: boolean; error?: string };
 }
 
@@ -370,6 +370,95 @@ describe("runner admission: an admitted turn proceeds", () => {
       assert.equal(terminal!.result!.ok, true);
     } finally {
       await runner.close();
+    }
+  });
+});
+
+describe("runner admission: the admitted turn id reaches the client", () => {
+  // The runner mints the turn id per execution, and until now it told no one. The client's
+  // `start` frame is built and sent before the runner replies at all, so it cannot carry a
+  // runner-minted id — which is why `expected_execution_id` on the public Cancel has never had a
+  // first-party caller able to fill it. A Stop could only mean "whatever is running now", never
+  // "the turn I was watching". The `turn` event is the earliest frame that can carry it.
+
+  it("emits a turn event carrying the admitted turn id, before any other event", async () => {
+    const api = await startFakeApi(() => true);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "answered",
+      events: [],
+    }));
+    try {
+      const { records } = await postRun(runner.url, sessionRequest());
+
+      const events = records.filter((r) => r.kind === "event");
+      assert.ok(events.length > 0, "the run streamed at least one event");
+      assert.equal(
+        events[0].event!.type,
+        "turn",
+        "the turn id must arrive FIRST, so a Stop that races the turn's own output can name it",
+      );
+      const turnId = events[0].event!.turnId;
+      assert.ok(turnId, "the turn event carries an id");
+      assert.match(
+        String(turnId),
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        "the id is the uuid the runner minted",
+      );
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+
+  it("emits the SAME id the alive lock was acquired under", async () => {
+    // The whole point of handing the id out is that a client can name THIS execution to the
+    // control plane. An id that does not match the one holding the session's locks would name
+    // nothing, so the two must be the same value, not merely both present.
+    const api = await startFakeApi(() => true);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "answered",
+      events: [],
+    }));
+    try {
+      const { records } = await postRun(runner.url, sessionRequest());
+
+      const turnEvent = records.find(
+        (r) => r.kind === "event" && r.event?.type === "turn",
+      );
+      assert.ok(turnEvent, "a turn event was emitted");
+      assert.equal(
+        turnEvent!.event!.turnId,
+        api.beats[0].turn_id,
+        "the streamed id must be the id that heartbeat the alive lock",
+      );
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+
+  it("emits NO turn event for a refused turn, which owns no execution to name", async () => {
+    const api = await startFakeApi(() => false);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "",
+      events: [],
+    }));
+    try {
+      const { records } = await postRun(runner.url, sessionRequest());
+
+      assert.ok(
+        !records.some((r) => r.kind === "event" && r.event?.type === "turn"),
+        "a refused turn must not hand out an id: it runs nothing and there is nothing to stop",
+      );
+    } finally {
+      await runner.close();
+      await api.close();
     }
   });
 });
