@@ -81,7 +81,9 @@ import {
 } from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
+  httpLivenessProbe,
   resolveSandboxLivenessLimits,
+  sandboxHealthUrl,
   startSandboxLivenessProbe,
 } from "./sandbox-liveness.ts";
 import {
@@ -260,18 +262,21 @@ export async function runTurn(
   // while a turn waits for a human. So probe the sandbox's own HTTP surface, independently of
   // the wedged ACP channel, and end the turn through the same trip path any other limit uses.
   // See `sandbox-liveness.ts` and issue #6418.
-  const sandboxLiveness =
-    typeof env.sandbox?.getSession === "function"
-      ? startSandboxLivenessProbe({
-          probe: () => env.sandbox.getSession(env.sessionId),
-          limits: resolveSandboxLivenessLimits(logger),
-          onGone: (reason: string) => {
-            runLimitReason = reason;
-            runLimitTrip?.();
-          },
-          log: logger,
-        })
-      : undefined;
+  const sandboxHealth = sandboxHealthUrl(env.sandbox);
+  const sandboxLiveness = sandboxHealth
+    ? startSandboxLivenessProbe({
+        probe: httpLivenessProbe(sandboxHealth),
+        limits: resolveSandboxLivenessLimits(logger),
+        onGone: (reason: string) => {
+          runLimitReason = reason;
+          runLimitTrip?.();
+        },
+        log: logger,
+      })
+    : undefined;
+  if (!sandboxHealth) {
+    logger("[sandbox-liveness] no health URL on this sandbox; probe disabled");
+  }
 
   try {
     // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
