@@ -245,7 +245,24 @@ Pending discussion.
 
 ### Detached sender
 
-Pending discussion.
+Starting work and watching work are separate operations. The API durably accepts an input and
+returns without waiting for a runner claim, harness start, first output frame, or reader
+connection. The execution then proceeds independently of the submitting HTTP request.
+
+The durable acceptance boundary includes:
+
+- The submitted input.
+- Its idempotency identity.
+- Its session association.
+- Its accepted execution intent.
+
+The sender then reads the same session event stream as desktop, mobile, bots, and external
+clients. Disconnecting any reader does not cancel or park the execution. A convenience request
+may submit and begin streaming in one call, but that response remains a reader of an independently
+accepted execution.
+
+During migration, the current invoke response can continue serving the sender while the shared
+read path is introduced. The final client model removes this privileged sender path.
 
 ### Durable commands
 

@@ -23,6 +23,7 @@
 - Visible server-side pending inputs added to the interface discussion.
 - Queued inputs made immutable. Clients can remove and replace them, but cannot edit or reorder.
 - Detailed API mechanics delegated to established conventions unless they affect architecture.
+- Durable acceptance defined independently from runner claim and execution start.
 
 ## Branch
 

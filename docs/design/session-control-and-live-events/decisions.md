@@ -99,6 +99,15 @@ The discussion focuses on resource boundaries, execution ownership, event flow, 
 user-visible behavior. Routine endpoint naming, status codes, defaults, and validation details use
 established API conventions during RFC drafting unless they materially change those properties.
 
+### D-013: A successful submission means durable acceptance
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+The API confirms a submitted input only after it has durably saved the input, its idempotency
+identity, its session, and the intent to execute it. Acceptance does not wait for a runner to claim
+the work, the harness to start, or the first output frame. If no runner is available, accepted work
+remains queued rather than disappearing.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
