@@ -117,6 +117,14 @@ raw live output as secret to the browser that started the execution. Existing co
 redaction and authorization behavior must be understood, but sender-only visibility is not a
 target product rule.
 
+### D-015: Add the new session interface beside the current endpoints
+
+**Status:** Confirmed as a fair first draft by Mahmoud on 2026-09-02.
+
+The new snapshot and replayable event interface is introduced without changing the meaning of the
+current stream and watch endpoints. Desktop and mobile migrate before obsolete endpoints are
+deprecated. Final endpoint names remain open for a later interface review.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress

@@ -27,6 +27,7 @@
 - Sender-only visibility explicitly excluded from the target requirements.
 - Proposed snapshot and event routes explicitly marked as new contracts, not changed meanings of
   current stream routes.
+- Side-by-side endpoint migration accepted as the first draft. Final naming deferred.
 
 ## Branch
 
