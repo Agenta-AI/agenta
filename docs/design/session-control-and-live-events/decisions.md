@@ -60,6 +60,29 @@ Within five seconds of an accepted Stop request, the active execution must stop 
 requests and new tool actions. The exact deadline for terminating an already-running provider or
 tool operation remains open until harness and tool cancellation capabilities are verified.
 
+### D-008: Separate Stop from Delete
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+Stop preserves the session, its history, and its resumable sandbox state. Delete permanently
+removes the session and its session-scoped resources. The public interface must not overload one
+operation to mean both.
+
+### D-009: Let first-party and external clients use the same session API
+
+**Status:** Confirmed direction from Mahmoud on 2026-09-02.
+
+Desktop, mobile, integrations, and external API consumers should use the same public session
+contract. Private API-to-runner delivery remains an implementation detail behind that contract.
+
+### D-010: Make the expected execution guard optional
+
+**Status:** Confirmed direction from Mahmoud on 2026-09-02.
+
+A Cancel request can include `expected_execution_id`. When supplied, the API cancels only that
+execution and rejects a stale request. When omitted, the API cancels the session's current active
+execution.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
@@ -140,10 +163,17 @@ Choose whether Cancel publicly targets:
 - A specific execution resource.
 - The current work in a session plus `expected_execution_id` as a stale-request guard.
 
-The current proposal favors the third option. The browser supplies the ID from session state. The
-person pressing Stop does not manage it.
+The selected direction combines the first and third options. Cancel targets the current work in a
+session. `expected_execution_id` is an optional stale-request guard supplied by clients that know
+the current execution.
 
 ### O-009: Busy-message policy names
 
 Choose the public names and defaults for a message submitted while work is active. The current
 working set is `reject`, `queue`, and `steer` under an `on_busy` field.
+
+### O-010: Pending input management
+
+Decide whether clients can edit, remove, and reorder messages that the server accepted with
+`on_busy: queue`. Pending messages must at least be visible in the session snapshot and event
+stream so all clients show the same queue.

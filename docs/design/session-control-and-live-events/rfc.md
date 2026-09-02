@@ -59,7 +59,8 @@ POST /sessions/{session_id}/cancel
 
 The browser learns `execution-12` from the session snapshot or the `execution.started` event. The
 person pressing Stop never enters it. This field prevents a delayed Stop request from cancelling
-new work that started after the button was pressed.
+new work that started after the button was pressed. The field is optional. Without it, the API
+cancels whichever execution is active when the request is applied.
 
 Respond to an interaction through a resource-specific public endpoint:
 
@@ -117,6 +118,75 @@ execution is already running:
 
 When the session is idle, all accepted messages start normally. The contract may call this field
 `on_busy` so its purpose is clear.
+
+### Visible pending messages
+
+Once Queue moves from the browser to the server, every client must be able to see the same pending
+messages. A session snapshot can include them:
+
+```json
+{
+  "pending_inputs": [
+    {
+      "id": "input-24",
+      "type": "user_message",
+      "content": "Then check the database",
+      "position": 1,
+      "status": "pending"
+    }
+  ]
+}
+```
+
+The event stream announces changes:
+
+```text
+input.queued
+input.updated
+input.removed
+input.promoted
+```
+
+The smallest useful management interface is:
+
+```http
+PATCH /sessions/{session_id}/inputs/{input_id}
+DELETE /sessions/{session_id}/inputs/{input_id}
+```
+
+PATCH edits pending content. DELETE removes pending input. Both reject changes after the input was
+promoted into active work. Reordering is an open choice. It can use `position` in PATCH if the
+product needs it.
+
+This keeps clients synchronized. A message is no longer hidden inside one browser's local queue.
+
+### One public interface for all clients
+
+Agenta desktop, mobile, bots, and external API users should call the same public session API. A
+first-party browser must not depend on a separate privileged execution endpoint.
+
+The runner still needs a private protocol because it performs trusted internal work. That private
+protocol carries claims, heartbeats, event frames, acknowledgements, and control wake-ups. It is
+not a second product API.
+
+### Interaction responses
+
+Moving interaction response under the session URL does not itself improve correctness. It only
+makes session ownership and authorization visible in the path. The current endpoint can remain:
+
+```http
+POST /sessions/interactions/{interaction_id}/respond
+```
+
+or the clean public contract can use:
+
+```http
+POST /sessions/{session_id}/interactions/{interaction_id}/responses
+```
+
+The material change is internal. The API must durably accept the response, make one response win,
+and expose whether continuation is pending, running, or failed. URL nesting is a consistency
+choice, not the reason for changing approval handling.
 
 ### Private control path
 

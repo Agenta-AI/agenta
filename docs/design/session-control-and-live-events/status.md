@@ -17,6 +17,10 @@
 - Current interaction response path documented.
 - Public APIs from Gumloop, OpenAI background Responses, and Claude Managed Agents compared.
 - Each current operation mapped to its proposed behavior and degree of change.
+- Stop and Delete distinction confirmed.
+- Optional `expected_execution_id` guard recorded.
+- One public session API for first-party and external clients recorded.
+- Visible server-side pending inputs added to the interface discussion.
 
 ## Branch
 

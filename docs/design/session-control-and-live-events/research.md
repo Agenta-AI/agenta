@@ -177,3 +177,21 @@ They differ on the Stop target:
 Agenta can support both safety and convenience. The browser can send a session-scoped Cancel with
 an `expected_execution_id` prefilled from state. A human never types the execution ID. The API
 rejects the Cancel if that execution already ended and another one started.
+
+## Public queue visibility
+
+The reviewed Gumloop public API exposes a run state of `QUEUED`, but its documented run API does
+not expose an editable per-session message queue. It starts runs, retrieves run state, and kills a
+run. This is a workflow-run queue rather than a conversation input queue.
+
+OpenAI background Responses expose a `queued` execution status and allow cancellation. The public
+background-mode documentation does not expose editing or reordering queued conversation inputs.
+
+Claude Managed Agents comes closer to a conversation inbox. User events are persisted in order.
+Each event has `processed_at=null` while it waits behind earlier events, and past events can be
+listed. The reviewed documentation does not describe patching or reordering an already-sent user
+event.
+
+The proposed Agenta pending-input API therefore goes beyond these reviewed public interfaces. It
+addresses a product-specific need: Queue currently exists in browser state, and multiple clients
+need one visible and editable copy.
