@@ -13,8 +13,11 @@
  * delete it exactly once when no sandbox ends up owning it.
  *
  * Ownership is the whole risk here, so most of these cases are about who is allowed to DELETE:
- * an attached lease never deletes, an indeterminate one refuses, and a failed delete stays
- * retryable rather than marking itself done.
+ * an attached lease never deletes, an indeterminate one refuses, a failed delete stays retryable
+ * rather than marking itself done, and overlapping releases share one delete.
+ *
+ * The last pair covers what the PERSON sees when every attempt is convicted: the standard
+ * credential-delivery copy and code, not the preflight's internal sentence.
  *
  * Run: pnpm exec vitest run tests/unit/stuck-substitution-rebuild.test.ts
  */
@@ -38,6 +41,7 @@ import {
   type DaytonaSecretApi,
 } from "../../src/engines/sandbox_agent/daytona-secrets.ts";
 import { STUCK_ACQUIRE_ATTEMPTS } from "../../src/engines/sandbox_agent/credential-preflight.ts";
+import { CREDENTIAL_DELIVERY_FAILED_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const GENERATION = "create-fingerprint-a";
@@ -411,6 +415,34 @@ describe("the provider destroys a stuck sandbox and keeps its Secrets", () => {
     ]);
   });
 
+  it("shares one delete between overlapping release calls", async () => {
+    const events: string[] = [];
+    const provider = daytonaWithProcessLocalSecrets(
+      providerFactory(events),
+      plan,
+      secretApi(events),
+      {
+        registry: new Map(),
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+      },
+    );
+    const id = await provider.create();
+    retainDaytonaSecretsOnDestroy(provider, id);
+    await provider.destroy(id);
+    const lease = takeDaytonaSecretLease(provider)!;
+
+    // Both callers start before either finishes. The second must join the in-flight delete
+    // rather than issue its own against the same provider ids.
+    await Promise.all([lease.release(), lease.release()]);
+
+    assert.deepEqual(secretEvents(events), [
+      "secret:create:secret-1",
+      "secret:delete:secret-1",
+    ]);
+    assert.equal(lease.state, "released");
+  });
+
   it("hands back no lease when the retained destroy itself fails", async () => {
     // A destroy that rejects with anything but a 404 cannot prove the sandbox is gone, so the
     // cleanup re-raises before it reaches the lease. The Secret and the sandbox are stranded
@@ -693,6 +725,65 @@ describe("acquireEnvironment rebuilds a stuck sandbox on the same Secret", () =>
         "sandbox:create:sandbox-3",
       ],
     );
+  });
+
+  it("reports a doubly stuck acquire as a credential-delivery failure", async () => {
+    // The user used to read the preflight's internal sentence, coded `agent_run_failed`, which
+    // the web cannot offer a retry for. Every attempt being convicted means the model key never
+    // reached the model, which is the class the client already knows how to handle.
+    const { deps } = acquireFixture(["stuck", "stuck", "stuck"]);
+    const emitted: Array<Record<string, unknown>> = [];
+
+    const result = await acquireEnvironment(
+      daytonaRequest,
+      deps,
+      undefined,
+      undefined,
+      (event) => emitted.push(event as Record<string, unknown>),
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(
+      (result as { error: string }).error,
+      CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+    );
+    assert.equal(
+      (result as { error: string }).error.includes("placeholder"),
+      false,
+      "the internal sentence belongs in the runner log, not in the chat",
+    );
+    assert.deepEqual(
+      emitted.filter((event) => event.type === "error"),
+      [
+        {
+          type: "error",
+          message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+          code: "credential_delivery_failed",
+        },
+      ],
+      "exactly one error event, carrying the class the client renders a retry from",
+    );
+  });
+
+  it("says nothing to the user about an attempt that was rebuilt successfully", async () => {
+    const { deps } = acquireFixture(["stuck", "ok"]);
+    const emitted: Array<Record<string, unknown>> = [];
+
+    const result = await acquireEnvironment(
+      daytonaRequest,
+      deps,
+      undefined,
+      undefined,
+      (event) => emitted.push(event as Record<string, unknown>),
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      emitted.filter((event) => event.type === "error"),
+      [],
+      "a recovered rebuild is not a failure the user should hear about",
+    );
+    if (result.ok) await result.env.destroy({ reason: "failed-turn" });
   });
 
   it("never returns the lease to its caller", async () => {

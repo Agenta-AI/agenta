@@ -61,7 +61,7 @@ import {
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
   deliversModelSecretOnCreate,
@@ -340,7 +340,7 @@ export async function acquireEnvironment(
         attempt >= STUCK_ACQUIRE_ATTEMPTS ||
         signal?.aborted
       ) {
-        return publishAcquireResult(result);
+        return publishAcquireResult(result, emit);
       }
       process.stderr.write(
         `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
@@ -371,15 +371,38 @@ type AcquireAttemptResult =
   | {
       ok: false;
       error: string;
+      /** The failure class, for the error event the loop emits. See `publishAcquireResult`. */
+      errorCode?: RunErrorCode;
       stuckSubstitution?: boolean;
       lease?: DaytonaSecretLease;
     };
 
-/** Build the caller-facing result: everything the attempt said, minus the lease. */
+/**
+ * Build the caller-facing result, and tell the client what class of failure this was.
+ *
+ * ACQUIRE IS A USER-FACING FAILURE SURFACE, and it used to be a silent one. A turn that fails
+ * inside `runTurn` emits a typed `error` event, so the client can offer the right next step. A
+ * turn that never got an environment emitted nothing, so the same failure reached the person as
+ * the SDK's generic `agent_run_failed` with whatever internal sentence the runner raised. The
+ * doubly stuck sandbox is the case that made this visible: a credential-delivery failure the
+ * client already knows how to offer a retry for, arriving with no code to recognize it by.
+ *
+ * The event is emitted only for a NAMED class. A generic `runner_error` keeps today's behavior
+ * exactly, so this widens what the client can act on without changing what it already sees.
+ * Emitted here rather than per attempt, because a stuck attempt that is rebuilt successfully is
+ * not a failure the user should ever hear about.
+ *
+ * The result itself stays minimal: `ok`, `error`, and `stuckSubstitution`. The code rides the
+ * event, and the lease never leaves the loop.
+ */
 function publishAcquireResult(
   result: AcquireAttemptResult,
+  emit?: EmitEvent,
 ): AcquireEnvironmentResult {
   if (result.ok) return result;
+  if (result.errorCode && result.errorCode !== "runner_error") {
+    emit?.({ type: "error", message: result.error, code: result.errorCode });
+  }
   return {
     ok: false,
     error: result.error,
@@ -1283,16 +1306,22 @@ async function acquireEnvironmentOnce(
     // Wiring the predicate here would also need the once-per-session counter, which lives in the
     // turn path — without it a genuinely bad key could loop. If a model-touching step is ever
     // added to acquire, this site needs BOTH the predicate and that counter.
-    const error = conciseError(
+    // The CLASS as well as the line, because acquire is now a user-facing failure surface: the
+    // loop turns a classified code into the error event the client renders a retry state from.
+    const classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
     if (err instanceof SubstitutionStuckError) {
+      // The internal sentence names probes and placeholders. It belongs in the operator log, and
+      // the user reads the standard credential-delivery copy instead.
+      logger(`acquire failed: ${err.message}`);
       // Read AFTER the destroy above: the lease is only handed back once Daytona has confirmed
       // the sandbox is absent, which keeps the delete-order invariant intact. A destroy that
       // failed for any other reason hands back nothing, so the next attempt allocates fresh.
@@ -1300,11 +1329,12 @@ async function acquireEnvironmentOnce(
       return {
         ok: false,
         error,
+        errorCode: classified.code,
         stuckSubstitution: true,
         ...(retainedLease ? { lease: retainedLease } : {}),
       };
     }
-    return { ok: false, error };
+    return { ok: false, error, errorCode: classified.code };
   }
 }
 

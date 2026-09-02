@@ -119,13 +119,21 @@ export class DaytonaSecretLease {
   /**
    * Delete the Secrets if this lease still owns them.
    *
-   * Safe to call on every exit path and safe to call twice. The state is advanced to `released`
-   * only AFTER the delete resolves, so a failed delete leaves the lease releasable and a later
-   * call retries it. The error is re-raised so the caller can log it.
+   * Safe to call on every exit path, safe to call twice, and safe to call CONCURRENTLY. Two
+   * things make that true, and both matter:
+   *
+   *  - The state advances to `released` only after the delete resolves, so a failed delete leaves
+   *    the lease releasable and a later call retries it. The error is re-raised so the caller can
+   *    log it.
+   *  - Overlapping callers share the one in-flight delete. Without that, the second caller would
+   *    read a state that is still `detached` (the first has not finished) and issue a second
+   *    delete of the same records. Both would then be racing the same provider ids, and the
+   *    loser's 404 would be swallowed as success, which is a wrong answer arrived at by luck.
    */
-  async release(): Promise<void> {
-    if (this.leaseState === "attached" || this.leaseState === "released")
-      return;
+  release(): Promise<void> {
+    if (this.leaseState === "attached" || this.leaseState === "released") {
+      return Promise.resolve();
+    }
     if (this.leaseState === "indeterminate") {
       if (this.allocation.created.length > 0) {
         const hosts = [
@@ -136,10 +144,22 @@ export class DaytonaSecretLease {
             `hosts=[${hosts.join(",")}] reason=create-outcome-unknown`,
         );
       }
-      return;
+      return Promise.resolve();
     }
-    await deleteDaytonaSecrets(this.allocation, this.api, this.log);
-    this.leaseState = "released";
+    this.pendingRelease ??= this.deleteAndMarkReleased();
+    return this.pendingRelease;
+  }
+
+  private pendingRelease?: Promise<void>;
+
+  /** The one delete every overlapping `release` awaits. Clears itself so a failure can retry. */
+  private async deleteAndMarkReleased(): Promise<void> {
+    try {
+      await deleteDaytonaSecrets(this.allocation, this.api, this.log);
+      this.leaseState = "released";
+    } finally {
+      this.pendingRelease = undefined;
+    }
   }
 }
 
