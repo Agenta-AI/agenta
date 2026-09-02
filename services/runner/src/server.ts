@@ -82,6 +82,14 @@ import {
 } from "./sessions/admission.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import {
+  awaitTurnOrAbandon,
+  resolveTurnSettleLimits,
+} from "./sessions/turn-settle.ts";
+import {
+  ABANDONED_TURN_MARKER,
+  type RunErrorCode,
+} from "./engines/sandbox_agent/errors.ts";
+import {
   buildWorkflowReferenceList,
   cancelStaleInteractions,
 } from "./sessions/interactions.ts";
@@ -453,6 +461,13 @@ async function runAndStreamWithApiBaseResolved(
   // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
   const controller = new AbortController();
   let clientDisconnected = false;
+  // Resolves when the platform tells us this turn is no longer current — a Stop, a takeover,
+  // or the API's own execution watchdog having declared the turn lost. `awaitTurnOrAbandon`
+  // uses it to stop waiting on a run that may never return. See `sessions/turn-settle.ts`.
+  let markInterrupted: ((reason: string) => void) | undefined;
+  const interrupted = new Promise<string>((resolve) => {
+    markInterrupted = resolve;
+  });
   if (!sessionOwned) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
@@ -489,8 +504,18 @@ async function runAndStreamWithApiBaseResolved(
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
+  // Closed once this request has written the turn's terminal outcome. An abandoned run may
+  // still unwind minutes later and emit its own `error`/`done` through the same emitter; the
+  // turn already has an ending, and a second one would put two endings in one transcript.
+  let turnClosed = false;
+  const gatedEmit: EmitEvent = (event) => {
+    if (turnClosed) return;
+    emitFn(event);
+  };
   let flushPersist: (() => Promise<void>) | undefined;
-  let persistError: ((message: string) => void) | undefined;
+  let persistError:
+    | ((message: string, code?: RunErrorCode) => void)
+    | undefined;
   let aliveWatchdog:
     | {
         release: () => Promise<void>;
@@ -520,7 +545,13 @@ async function runAndStreamWithApiBaseResolved(
       sessionId,
       turnId,
       platformCredentialForRequest(request),
-      () => controller.abort(),
+      () => {
+        markInterrupted?.(
+          "the platform reported this turn is no longer current (stopped, taken over, or " +
+            "declared lost)",
+        );
+        controller.abort();
+      },
       {
         name: proposeSessionName(request),
         references: buildWorkflowReferenceList(request.runContext?.workflow),
@@ -625,15 +656,42 @@ async function runAndStreamWithApiBaseResolved(
     }
     emitFn = persistingEmit;
     flushPersist = flush;
-    persistError = (message) => persist({ type: "error", message }, "agent");
+    persistError = (message, code) =>
+      persist({ type: "error", message, ...(code ? { code } : {}) }, "agent");
   }
 
   let result: AgentRunResult;
   try {
-    result = await run(request, emitFn, controller.signal, {
-      clientGone: () => clientDisconnected,
-      credential: aliveWatchdog?.credential,
+    // Not a bare `await run(...)`: an await inside the run that never settles would keep this
+    // function parked forever, and with it the terminal record below AND the alive watchdog's
+    // release in the `finally` — the turn would announce `running=true` every 30s for good.
+    // `awaitTurnOrAbandon` returns either the run's own result or a reason to write one
+    // without it, so this request always produces exactly one terminal outcome.
+    const outcome = await awaitTurnOrAbandon({
+      run: run(request, gatedEmit, controller.signal, {
+        clientGone: () => clientDisconnected,
+        credential: aliveWatchdog?.credential,
+      }),
+      abort: () => controller.abort(),
+      interrupted: sessionOwned ? interrupted : undefined,
+      limits: resolveTurnSettleLimits((message) =>
+        process.stderr.write(`${message}\n`),
+      ),
+      log: (message) => process.stderr.write(`${message}\n`),
     });
+    if (outcome.settled) {
+      result = outcome.value;
+    } else {
+      // The run is still pending and may never settle. Give the turn the ending the runner
+      // owes it, and let the abandoned run keep its own teardown if it ever unwinds.
+      turnClosed = true;
+      const message = `${ABANDONED_TURN_MARKER}: ${outcome.reason}`;
+      process.stderr.write(
+        `[sessions] ABANDONED session=${sessionId ?? "-"} turn=${turnId ?? "-"}: ${outcome.reason}\n`,
+      );
+      if (persistError) persistError(message, "execution_lost");
+      result = { ok: false, error: message };
+    }
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
     // persisting emitter, so no extra persist here (it would duplicate the record). Drain
     // all queued persists before the sandbox tears down.

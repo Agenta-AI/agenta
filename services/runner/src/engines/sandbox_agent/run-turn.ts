@@ -81,6 +81,12 @@ import {
 } from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
+  httpLivenessProbe,
+  resolveSandboxLivenessLimits,
+  sandboxHealthUrl,
+  startSandboxLivenessProbe,
+} from "./sandbox-liveness.ts";
+import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
   type CurrentTurn,
@@ -250,6 +256,27 @@ export async function runTurn(
     runLimitReason = reason;
     runLimitTrip?.();
   });
+
+  // The run limits above cannot see a sandbox that DIED under the turn: the ACP prompt they
+  // race against never settles once the peer is gone, and `notePaused()` retires them entirely
+  // while a turn waits for a human. So probe the sandbox's own HTTP surface, independently of
+  // the wedged ACP channel, and end the turn through the same trip path any other limit uses.
+  // See `sandbox-liveness.ts` and issue #6418.
+  const sandboxHealth = sandboxHealthUrl(env.sandbox);
+  const sandboxLiveness = sandboxHealth
+    ? startSandboxLivenessProbe({
+        probe: httpLivenessProbe(sandboxHealth),
+        limits: resolveSandboxLivenessLimits(logger),
+        onGone: (reason: string) => {
+          runLimitReason = reason;
+          runLimitTrip?.();
+        },
+        log: logger,
+      })
+    : undefined;
+  if (!sandboxHealth) {
+    logger("[sandbox-liveness] no health URL on this sandbox; probe disabled");
+  }
 
   try {
     // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
@@ -1472,6 +1499,8 @@ export async function runTurn(
     void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
+    // Same contract for the sandbox liveness probe: one timer, released on EVERY path.
+    sandboxLiveness?.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
     // after the prompt; stop is safe to repeat, matching the old finally). Null it afterwards so
     // a later `destroy()` — possibly after the dispatch cleared the sink — cannot double-stop or

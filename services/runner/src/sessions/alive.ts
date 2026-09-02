@@ -19,8 +19,23 @@ import { apiBase } from "../apiBase.ts";
 import { randomUUID } from "node:crypto";
 
 import { HEARTBEAT_INTERVAL_SECONDS } from "./contract.ts";
+import { envTimerMs } from "../env.ts";
 
 const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
+
+export const HEARTBEAT_TIMEOUT_ENV = "AGENTA_RUNNER_HEARTBEAT_TIMEOUT_MS";
+/**
+ * A beat that never answers must not outlive its interval.
+ *
+ * The beat used a bare `fetch` with no signal, so a stalled socket never settled: beats piled
+ * up behind it, and the final `is_running: false` beat in `release()` could hold the request
+ * open after the turn had already ended. Half an interval keeps at most one beat in flight.
+ */
+export const DEFAULT_HEARTBEAT_TIMEOUT_MS = Math.floor(REFRESH_INTERVAL_MS / 2);
+
+function heartbeatTimeoutMs(): number {
+  return envTimerMs(HEARTBEAT_TIMEOUT_ENV, DEFAULT_HEARTBEAT_TIMEOUT_MS);
+}
 
 /**
  * This runner container's stable id, minted once per process. An orchestrator can inject a
@@ -74,6 +89,7 @@ async function sendHeartbeat(
     const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
       method: "POST",
+      signal: AbortSignal.timeout(heartbeatTimeoutMs()),
       headers: {
         "content-type": "application/json",
         authorization,
@@ -231,17 +247,29 @@ export async function startAliveWatchdog(
   );
   handleBeat(first);
 
+  // One beat in flight at a time. `setInterval` fires unconditionally, so without this a
+  // slow API stacks a new request every 30s on top of every request already waiting.
+  let beatInFlight = false;
   const interval = setInterval(() => {
+    if (beatInFlight) {
+      log(`heartbeat skipped (previous still in flight) session=${sessionId}`);
+      return;
+    }
+    beatInFlight = true;
     void (async () => {
-      handleBeat(
-        await sendHeartbeat(
-          sessionId,
-          turnId,
-          credentialLease.credential(),
-          true,
-          proposal,
-        ),
-      );
+      try {
+        handleBeat(
+          await sendHeartbeat(
+            sessionId,
+            turnId,
+            credentialLease.credential(),
+            true,
+            proposal,
+          ),
+        );
+      } finally {
+        beatInFlight = false;
+      }
     })();
   }, REFRESH_INTERVAL_MS);
 
