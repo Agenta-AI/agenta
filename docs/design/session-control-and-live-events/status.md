@@ -15,11 +15,13 @@
 - Five seconds recorded as the provisional Stop delivery target.
 - Public resource API separated from the proposed internal command transport.
 - Current interaction response path documented.
+- Public APIs from Gumloop, OpenAI background Responses, and Claude Managed Agents compared.
+- Each current operation mapped to its proposed behavior and degree of change.
 
-## Blockers
+## Branch
 
-- GitHub CLI is unavailable in the environment. The isolated checkout uses standard Git.
-- The branch exists only locally. It has not been committed or pushed.
+- Branch: `agent/session-execution-rfc`
+- The branch is pushed to `Agenta-AI/agenta` after each design exchange.
 
 ## Next discussion
 

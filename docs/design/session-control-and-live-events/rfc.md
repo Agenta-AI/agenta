@@ -24,7 +24,15 @@ Pending discussion.
 
 ### Public interface boundary
 
-The working public interface separates resources, commands, queries, and events.
+The working public interface separates four operations. This is a proposal, not an approved API.
+
+1. Send intent to a session.
+2. Read the current session snapshot.
+3. Follow session changes.
+4. Delete a session permanently.
+
+The proposal does not require one generic public command endpoint. Clear resource-specific
+endpoints can all feed one private command-delivery mechanism.
 
 Create or send session work:
 
@@ -39,16 +47,19 @@ Idempotency-Key: <client-generated-key>
 }
 ```
 
-Control an active execution:
+Stop the current execution, but only if it is still the execution the caller observed:
 
 ```http
-POST /sessions/{session_id}/commands
+POST /sessions/{session_id}/cancel
 
 {
-  "type": "cancel",
   "expected_execution_id": "execution-12"
 }
 ```
+
+The browser learns `execution-12` from the session snapshot or the `execution.started` event. The
+person pressing Stop never enters it. This field prevents a delayed Stop request from cancelling
+new work that started after the button was pressed.
 
 Respond to an interaction through a resource-specific public endpoint:
 
@@ -64,7 +75,7 @@ POST /sessions/{session_id}/interactions/{interaction_id}/responses
 The API can translate the response into the same internal command envelope used by Send, Cancel,
 Queue, and Steer. The public caller does not need to understand internal runner routing.
 
-Read current state:
+Read current state. This is an ordinary query, not an event endpoint:
 
 ```http
 GET /sessions/{session_id}
@@ -79,6 +90,55 @@ Accept: text/event-stream
 
 Rename, archive, delete, and hard termination remain explicit session resource or lifecycle
 operations. Attach is replaced by reading the snapshot and event stream.
+
+### Current and proposed public behavior
+
+| Operation | Today | Proposed direction | Change |
+|---|---|---|---|
+| Send | Invoke a workflow and read its response stream | Keep this during migration. Later accept work independently and return an execution ID | Later change |
+| Stop | `POST /sessions/streams/` with no inputs and `force=false` | `POST /sessions/{id}/cancel` with an expected execution ID supplied by the client | Clearer endpoint and faster delivery |
+| Hard kill | `DELETE /sessions/streams/?session_id=...`; destroys the sandbox | Keep as a separate destructive operation with an explicit name | Rename or reshape only |
+| Answer approval | `POST /sessions/interactions/{interaction_id}/respond` | Keep a resource-specific response endpoint. Improve acknowledgement and resume guarantees internally | Public shape mostly unchanged |
+| Queue while busy | Browser-local queue | Save the message on the server with `on_busy: queue` | Changes ownership from browser to server |
+| Steer while busy | Ambiguous `force=true` coordination mode; normal send still uses invoke | Save the message, request interruption, then start the saved message | Behavior becomes explicit and durable |
+| Attach | `force=true` without inputs records watcher state but does not provide live output | Remove the command. Load a snapshot, then follow events | Replaced by read operations |
+| Load current state | Several queries for records, liveness, and pending interactions | One versioned session snapshot, or a documented composition of existing queries | Open design choice |
+| Follow changes | SSE sends change notifications; the browser refetches records | Replay events after a cursor, then continue with live frames | Changes from invalidation to replay plus live tail |
+| Delete | Separate destructive behavior exists through the stream API | Explicit session deletion after work is stopped | Public naming changes |
+
+### Busy-message policies
+
+The words `reject`, `queue`, and `steer` apply only when a new user message arrives while an
+execution is already running:
+
+- `reject`: return a conflict response. Do not save or start the new message.
+- `queue`: save the new message. Start it after current work stops normally.
+- `steer`: save the new message. Interrupt current work, then start the new message.
+
+When the session is idle, all accepted messages start normally. The contract may call this field
+`on_busy` so its purpose is clear.
+
+### Private control path
+
+The public Cancel request does not need a runner address. A simple internal flow is:
+
+1. The browser sends Cancel to the API.
+2. The API records that execution 12 must stop.
+3. The API sends a private wake-up to the runner that owns execution 12.
+4. The runner stops local work and reports `execution.cancelled`.
+5. Every browser receives that event.
+
+The API already knows the logical runner owner as `replica_id`. It does not yet know a reliable
+network address for that replica. The implementation must add one of these private delivery
+mechanisms:
+
+- The runner keeps an outbound connection open to the API. The API sends control messages on it.
+- The runner subscribes to a private per-runner broker channel.
+- The runner service adds owner-aware routing behind one internal URL.
+
+This private choice does not change the public Cancel endpoint. A heartbeat remains useful for
+renewing ownership and detecting a crashed runner. It stops being the normal way to deliver
+Cancel.
 
 ### Execution identity and ownership
 

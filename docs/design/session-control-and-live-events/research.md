@@ -101,3 +101,79 @@ replica holds the live sandbox, unless the runner service provides its own owner
 - `docs/design/agenta-mobile/plans/2026-07-27-mobile-approvals-steering.md`
 - `docs/designs/sessions/records/specs.md`
 - `docs/designs/sessions/interactions/specs.md`
+
+## Public API comparison
+
+This comparison uses public vendor documentation. It describes interface shapes, not internal
+implementations.
+
+### Gumloop
+
+Gumloop models one workflow execution as a run:
+
+- `POST /api/v1/start_pipeline` starts work and returns `run_id`.
+- `GET /api/v1/get_pl_run?run_id=...` returns the run state, logs, and outputs.
+- `POST /api/v1/kill_pipeline` accepts `run_id` and stops that run.
+
+The kill operation is a POST. It does not delete the workflow definition. The caller uses the
+`run_id` returned by the start request.
+
+Sources:
+
+- https://docs.gumloop.com/api-reference/running-an-automation/start-automation
+- https://docs.gumloop.com/api-reference/running-an-automation/retrieve-run-details
+- https://docs.gumloop.com/api-reference/running-an-automation/kill-automation
+
+### OpenAI Responses background mode
+
+OpenAI models one background execution as a Response:
+
+- `POST /v1/responses` with `background: true` starts work and returns a Response with an ID.
+- `GET /v1/responses/{response_id}` retrieves its current state and result.
+- `POST /v1/responses/{response_id}/cancel` cancels it. Repeating Cancel is idempotent.
+- Creating with both `background: true` and `stream: true` provides live events. A disconnected
+  reader can reconnect with `starting_after=<sequence_number>`.
+
+This is the closest public example to the target read model. Execution continues independently
+of the first stream. The same response ID identifies retrieval, cancellation, and resumed
+streaming.
+
+Source: https://developers.openai.com/api/docs/guides/background
+
+### Claude Managed Agents
+
+Claude Managed Agents models control as events sent to a persistent session:
+
+- A `user.message` event starts or continues work.
+- A `user.interrupt` event stops current work.
+- Sending `user.interrupt` followed by `user.message` redirects the session.
+- `GET /v1/sessions/{session_id}/events/stream` provides session events. Optional delta events
+  provide live text previews. Buffered message events remain authoritative.
+- Tool confirmation is another event, `user.tool_confirmation`, tied to the pending tool event ID.
+- Deleting a session is separate. Deletion permanently removes its events and sandbox.
+
+The public interrupt targets a session. The service resolves which internal execution must stop.
+Claude also documents that model output can stop immediately while an active tool can take longer.
+
+Sources:
+
+- https://platform.claude.com/docs/en/managed-agents/events-and-streaming
+- https://platform.claude.com/docs/en/managed-agents/session-operations
+
+## Findings from the public comparison
+
+The three interfaces use different names, but they agree on four points:
+
+1. Starting work returns or uses a stable public identifier.
+2. Reading status is separate from stopping work.
+3. Stop is an action. It does not mean deleting the session or workflow.
+4. Deletion remains a separate destructive operation.
+
+They differ on the Stop target:
+
+- Gumloop and OpenAI target a specific execution ID.
+- Claude targets the session and lets the service interrupt its current work.
+
+Agenta can support both safety and convenience. The browser can send a session-scoped Cancel with
+an `expected_execution_id` prefilled from state. A human never types the execution ID. The API
+rejects the Cancel if that execution already ended and another one started.

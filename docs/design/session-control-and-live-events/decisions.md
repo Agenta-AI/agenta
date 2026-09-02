@@ -131,3 +131,19 @@ shows a need to change that boundary.
 Decide whether public callers submit every execution action to one command collection or use
 clear resource endpoints that translate into internal commands. The current proposal favors clear
 public resources with one internal command envelope.
+
+### O-008: Public Cancel target
+
+Choose whether Cancel publicly targets:
+
+- The current work in a session, with no execution ID.
+- A specific execution resource.
+- The current work in a session plus `expected_execution_id` as a stale-request guard.
+
+The current proposal favors the third option. The browser supplies the ID from session state. The
+person pressing Stop does not manage it.
+
+### O-009: Busy-message policy names
+
+Choose the public names and defaults for a message submitted while work is active. The current
+working set is `reject`, `queue`, and `steer` under an `on_busy` field.
