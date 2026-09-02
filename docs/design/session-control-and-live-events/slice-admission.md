@@ -47,7 +47,7 @@ acting on the session.
 
 ## What changed
 
-Three commits on `feat/session-single-turn-admission`.
+Seven commits on `feat/session-single-turn-admission`.
 
 ### 1. The runner reads the admission answer (`7675eb0dc7`)
 
@@ -105,7 +105,60 @@ Mobile shares the queue hook and the error model, so it gets the refusal class. 
 composer and its own copy of the error effect, so it does not get the text restore. See the open
 questions.
 
-### 3. API tests only (`8b1a45e5a6`)
+### 3. The client learns which execution it is watching (`ce0f1e12da`, `ca600cb1e6`)
+
+Added on request from the Stop guard lane, which found that no first-party client can send
+`expected_execution_id` on the public Cancel: the runner mints the turn id per execution
+(`services/runner/src/server.ts:189`) and never tells anyone, so a Stop can only mean "whatever
+is running now", never "the turn I was watching".
+
+**The `start` frame cannot carry it.** It is built and sent by the SDK's Vercel egress before the
+runner replies at all: the `start` yield is the first statement of the projection
+(`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:459-464`), and the runner is not
+consulted until the loop below it. Putting the id there would mean moving the mint out of the
+runner and threading a new correlation id through the normalizer, the response models and the
+routing layer for **every** workflow, not just agent ones. That is a much larger change than the
+problem needs.
+
+The earliest frame that can carry it is the one right after:
+
+| File | Change |
+|---|---|
+| `services/runner/src/protocol.ts:479` | New `{type: "turn", turnId}` agent event. |
+| `services/runner/src/server.ts:579` | Emitted as the first event of a session-owned run, immediately after admission, through `liveEmit` and never the persisting emitter. It is transport correlation, not conversation, and must not become a session record. |
+| `sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:361` and `:663` | Forwarded onto the MESSAGE METADATA, in both the live and dev-twin projections. |
+
+The client reads it as `message.metadata.turnId`, beside the `sessionId` the `start` frame already
+sets and the `traceId` and `usage` the `finish` frame adds, rather than scanning parts for it.
+A `message-metadata` chunk is a first-class chunk in the pinned `ai@6.0.0-beta.150`.
+
+That is safe **because the AI SDK merges metadata rather than replacing it** (`mergeObjects`), so
+the `finish` frame's own metadata lands beside the turn id rather than over it. A test pins that
+the two carry disjoint keys and the turn id is written first. If the SDK ever changed to replace,
+a client would lose the id exactly when a late Stop needs it.
+
+A missing, empty or non-string id emits no frame, so a client is never handed a guard value that
+names nothing. A refused turn emits none either: it runs nothing, so there is nothing to stop.
+
+Verified live on the stack below. The frame arrives third, after `start` and `start-step` and
+before any content:
+
+```
+["start", "start-step", "message-metadata", "text-start"]
+```
+
+and its id is the one holding the session's alive lock, cross-checked against the runner log:
+
+```
+message-metadata  turnId=6a49ff3f-2165-4e4b-bbe8-c9f7192fabb3
+[sessions] stream sessionOwned=true sessionId=2fa74edd-… turnId=6a49ff3f-2165-4e4b-bbe8-c9f7192fabb3
+```
+
+The first version of this (`ce0f1e12da`) used a `data-agent-turn` part instead. `ca600cb1e6`
+replaced it rather than adding to it: one fact should travel one channel, and nothing consumed the
+part yet. The Stop guard lane adds the browser half on its own branch.
+
+### 4. API tests only (`8b1a45e5a6`)
 
 No API code changed. Three cases now pin the answers the runner depends on, in
 `api/oss/tests/pytest/unit/sessions/test_heartbeat_is_current_turn.py`.
@@ -133,8 +186,9 @@ end at the runner.
 
 | Suite | Command | Result |
 |---|---|---|
-| Runner unit | `cd services/runner && pnpm test` | 2636 passed, 4 failed |
+| Runner unit | `cd services/runner && pnpm test` | 2639 passed, 4 failed |
 | Chat package | `cd web/packages/agenta-chat && pnpm test` | 626 passed |
+| SDK agents unit | `pytest oss/tests/pytest/unit/agents/` | 1198 passed, 4 skipped |
 | API sessions unit | `pytest unit/sessions/` | 328 passed, 41 skipped |
 | Web lint | `cd web && pnpm lint-fix` | 25 tasks, 0 errors |
 | Web typecheck | `tsc --noEmit` on `@agenta/oss` and `@agenta/chat` | clean |
@@ -164,6 +218,17 @@ New tests:
 - `web/packages/agenta-chat/tests/unit/model/error.test.ts` (+4).
 - `web/packages/agenta-chat/tests/unit/hooks/useAgentChatQueue.test.ts` (+4).
 - `api/oss/tests/pytest/unit/sessions/test_heartbeat_is_current_turn.py` (+3).
+- `services/runner/tests/unit/session-admission.test.ts` (+3, the turn-id frame): it arrives
+  first, it is the id the alive lock was acquired under, and a refused turn emits none.
+- `sdks/python/oss/tests/pytest/unit/agents/adapters/test_vercel_stream_conformance.py` (+4): the
+  egress forwards the id verbatim exactly once in both projections, before any content; the
+  `finish` frame's metadata does not displace it; and a frame with no usable id emits nothing.
+
+One rewritten test was found to be passing for the wrong reason. The `destroyed`-entry case in
+`session-keepalive-dispatch.test.ts` called `pool.destroyAll`, which clears the map, so the
+assertion ran against a `miss` rather than a `destroyed` entry. The runner typecheck caught the
+argument-type error that exposed it. It now marks the entry directly, because every public route
+that destroys a session also removes it.
 
 ---
 
