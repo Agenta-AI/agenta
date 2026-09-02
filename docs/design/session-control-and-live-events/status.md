@@ -33,6 +33,8 @@
 - Corrected the cursor analysis: plain Postgres sequences do not guarantee commit visibility order.
 - Added the repaired-records and separate-event-log options with trade-offs. Redis-only permanent
   history excluded from the draft.
+- Added a mandatory stable-ID producer spike before immutable record changes.
+- Made single active execution and stale-writer fencing explicit requirements.
 
 ## Branch
 

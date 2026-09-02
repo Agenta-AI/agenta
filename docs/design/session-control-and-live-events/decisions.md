@@ -198,26 +198,26 @@ reuses a `record_id`. Separate exact delivery retries from progressive updates a
 re-emissions. Add regression tests for the final state of tools, interactions, terminal events,
 and harness reconstruction.
 
-### O-005: Immediate runner control
+### O-006: Immediate runner control
 
 Choose direct runner HTTP, per-runner Redis control delivery, or a persistent runner connection.
 The current API knows the logical owner `replica_id`, but its configured runner URL is not a
 replica-specific route.
 
-### O-006: Command boundary
+### O-007: Command boundary
 
 Decide which actions enter a general command inbox. The working boundary is execution-affecting
 intent: Send, Cancel, interaction response, Queue, and Steer. Attach is a read operation. Kill,
 rename, archive, and delete remain explicit resource or lifecycle operations unless discussion
 shows a need to change that boundary.
 
-### O-007: Public resource API versus internal command transport
+### O-008: Public resource API versus internal command transport
 
 Decide whether public callers submit every execution action to one command collection or use
 clear resource endpoints that translate into internal commands. The current proposal favors clear
 public resources with one internal command envelope.
 
-### O-008: Public Cancel target
+### O-009: Public Cancel target
 
 Choose whether Cancel publicly targets:
 
