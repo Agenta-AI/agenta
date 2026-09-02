@@ -8,7 +8,10 @@ import assert from "node:assert/strict";
 
 import {
   awaitCredentialSubstitution,
+  credentialPreflightRequest,
   deliversModelSecretOnCreate,
+  type ControlProbeRequest,
+  type ControlProbeResponse,
   type PreflightSandbox,
 } from "../../src/engines/sandbox_agent/credential-preflight.ts";
 
@@ -33,14 +36,37 @@ function sandboxAnswering(bodies: (string | Error)[]): {
   };
 }
 
-function harness(bodies: (string | Error)[], budgetMs = 25_000) {
+interface HarnessOptions {
+  /** The model connection's provider, which selects the probe shape. */
+  provider?: string;
+  /** The real key value the runner holds, used only by the control call. */
+  controlKey?: string;
+  /** What the runner's own control call answers, or an error it throws. */
+  control?: ControlProbeResponse | Error;
+  baseUrl?: string;
+  apiKeyVar?: string;
+}
+
+function harness(
+  bodies: (string | Error)[],
+  budgetMs = 25_000,
+  options: HarnessOptions = {},
+) {
   const { sandbox, commands } = sandboxAnswering(bodies);
   const logs: string[] = [];
+  const controlRequests: ControlProbeRequest[] = [];
   let clock = 0;
   const run = awaitCredentialSubstitution({
     sandbox,
-    baseUrl: "https://gateway.example/",
-    apiKeyVar: "OPENAI_API_KEY",
+    baseUrl: options.baseUrl ?? "https://gateway.example/",
+    apiKeyVar: options.apiKeyVar ?? "OPENAI_API_KEY",
+    ...(options.provider ? { provider: options.provider } : {}),
+    ...(options.controlKey ? { controlKey: options.controlKey } : {}),
+    controlProbe: async (request) => {
+      controlRequests.push(request);
+      if (options.control instanceof Error) throw options.control;
+      return options.control ?? { status: 400 };
+    },
     log: (m) => logs.push(m),
     budgetMs,
     pollMs: 2_000,
@@ -49,8 +75,12 @@ function harness(bodies: (string | Error)[], budgetMs = 25_000) {
       clock += ms;
     },
   });
-  return { run, logs, commands };
+  return { run, logs, commands, controlRequests };
 }
+
+/** The OpenRouter body observed in production: a 401 that never names the key. */
+const BARE_401 =
+  '{"error":{"message":"No auth credentials found","code":401}}\n401';
 
 describe("awaitCredentialSubstitution", () => {
   it("returns ok immediately when the first probe substitutes", async () => {
@@ -173,5 +203,227 @@ describe("deliversModelSecretOnCreate: what arms the race guards", () => {
       deliversModelSecretOnCreate({ ...base, hasModelSecretCandidate: false }),
       false,
     );
+  });
+});
+
+describe("the control call: judging a provider that does not echo the key", () => {
+  // The production defect (AGE-4249): on the direct OpenRouter connection a bad bearer comes
+  // back as a 401 that never names the key, so the masked-echo instrument is blind and the
+  // preflight fails open on probe 1. The second instrument is body-independent: the runner
+  // holds the real key, so it calls the same URL itself and compares the two answers.
+
+  it("convicts a bare 401 when the runner's own control call was accepted", async () => {
+    const { run, logs, commands, controlRequests } = harness(
+      [BARE_401],
+      3_000,
+      {
+        controlKey: "sk-real-key-value",
+        control: { status: 400 },
+      },
+    );
+    assert.equal(await run, "stuck");
+    assert.ok(commands.length >= 1);
+    assert.equal(
+      controlRequests.length,
+      1,
+      "exactly one control call per preflight",
+    );
+    const stuck = logs[logs.length - 1];
+    assert.match(stuck, /STUCK/);
+    assert.match(stuck, /control call/i);
+    assert.match(stuck, /accepted/i);
+  });
+
+  it("fails open when the control call is refused too: the key itself is bad", async () => {
+    const { run, logs, commands } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: { status: 401 },
+    });
+    assert.equal(await run, "ok");
+    assert.equal(
+      commands.length,
+      1,
+      "a refused control call must not be re-probed",
+    );
+    assert.match(logs[0], /control call/i);
+    assert.match(logs[0], /refused|the key itself/i);
+  });
+
+  it("fails open when the control call is forbidden (403)", async () => {
+    const { run } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: { status: 403 },
+    });
+    assert.equal(await run, "ok");
+  });
+
+  it("fails open when the control call throws or times out", async () => {
+    const { run, logs } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: new Error("control timed out"),
+    });
+    assert.equal(await run, "ok");
+    assert.match(logs[0], /control call/i);
+    assert.match(logs[0], /no verdict|proceeding/i);
+  });
+
+  it("fails open when the control call returns no status", async () => {
+    const { run } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: {},
+    });
+    assert.equal(await run, "ok");
+  });
+
+  it("makes no control call and fails open when the runner holds no key", async () => {
+    const { run, controlRequests } = harness([BARE_401], 3_000, {});
+    assert.equal(await run, "ok");
+    assert.equal(controlRequests.length, 0);
+  });
+
+  it("fails open on a non-401 status, whatever the control call says", async () => {
+    // A 400 from the sandbox means the endpoint read the header and rejected the junk body.
+    const { run } = harness(
+      ['{"error":{"message":"model is required"}}\n400'],
+      3_000,
+      { controlKey: "sk-real-key-value", control: { status: 400 } },
+    );
+    assert.equal(await run, "ok");
+  });
+
+  it("never puts the real key in a log line or in the sandbox command", async () => {
+    const secret = "sk-real-key-value-0123456789";
+    const { run, logs, commands } = harness([BARE_401], 3_000, {
+      controlKey: secret,
+      control: { status: 400 },
+    });
+    await run;
+    for (const line of [...logs, ...commands]) {
+      assert.ok(!line.includes(secret), `key leaked into: ${line}`);
+    }
+  });
+});
+
+describe("provider shapes", () => {
+  it("uses the OpenAI-compatible shape by default", async () => {
+    const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: { status: 400 },
+    });
+    await run;
+    assert.match(commands[0], /https:\/\/gateway\.example\/chat\/completions/);
+    assert.match(commands[0], /Authorization: Bearer \$OPENAI_API_KEY/);
+    assert.equal(
+      controlRequests[0].url,
+      "https://gateway.example/chat/completions",
+    );
+    assert.equal(
+      controlRequests[0].headers.Authorization,
+      "Bearer sk-real-key-value",
+    );
+  });
+
+  it("uses the Anthropic shape for a direct Anthropic connection", async () => {
+    const secret = "sk-ant-real-key-value";
+    const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
+      provider: "anthropic",
+      baseUrl: "https://api.anthropic.com",
+      apiKeyVar: "ANTHROPIC_API_KEY",
+      controlKey: secret,
+      control: { status: 400 },
+    });
+    await run;
+    assert.match(commands[0], /https:\/\/api\.anthropic\.com\/v1\/messages/);
+    assert.match(commands[0], /x-api-key: \$ANTHROPIC_API_KEY/);
+    assert.match(commands[0], /anthropic-version: 2023-06-01/);
+    assert.ok(
+      !commands[0].includes(secret),
+      "the key never enters the sandbox command",
+    );
+    assert.equal(
+      controlRequests[0].url,
+      "https://api.anthropic.com/v1/messages",
+    );
+    assert.equal(controlRequests[0].headers["x-api-key"], secret);
+    assert.equal(controlRequests[0].headers["anthropic-version"], "2023-06-01");
+    assert.equal(controlRequests[0].headers.Authorization, undefined);
+  });
+
+  it("asks the sandbox probe for the HTTP status", async () => {
+    const { run, commands } = harness([BARE_401], 3_000, {
+      controlKey: "sk-real-key-value",
+      control: { status: 400 },
+    });
+    await run;
+    assert.match(commands[0], /http_code/);
+  });
+
+  it("keeps an unknown provider on the default shape", async () => {
+    const { run, commands } = harness([BARE_401], 3_000, {
+      provider: "some-new-gateway",
+      controlKey: "sk-real-key-value",
+      control: { status: 401 },
+    });
+    assert.equal(await run, "ok");
+    assert.match(commands[0], /chat\/completions/);
+  });
+});
+
+describe("credentialPreflightRequest: what the acquire path hands the preflight", () => {
+  // `acquireEnvironment` cannot be driven without a live provider, so this builder is where
+  // the kickoff's wiring is pinned. The key value has exactly one destination.
+  const candidate = {
+    binding: { name: "OPENROUTER_API_KEY" },
+    value: "sk-or-real-key-value",
+  };
+
+  it("routes the candidate value only into the control-call input", () => {
+    const request = credentialPreflightRequest({
+      baseUrl: " https://openrouter.ai/api/v1 ",
+      candidate,
+      provider: "openrouter",
+    });
+    assert.equal(request.baseUrl, "https://openrouter.ai/api/v1");
+    assert.equal(request.apiKeyVar, "OPENROUTER_API_KEY");
+    assert.equal(request.provider, "openrouter");
+    assert.equal(request.controlKey, candidate.value);
+    const serialized = JSON.stringify(request);
+    assert.equal(
+      serialized.split(candidate.value).length - 1,
+      1,
+      "the value appears once, as the control key",
+    );
+  });
+
+  it("keeps the key out of every log line the preflight then writes", async () => {
+    const request = credentialPreflightRequest({
+      baseUrl: "https://openrouter.ai/api/v1",
+      candidate,
+      provider: "openrouter",
+    });
+    const logs: string[] = [];
+    const commands: string[] = [];
+    let clock = 0;
+    const verdict = await awaitCredentialSubstitution({
+      ...request,
+      sandbox: {
+        async runProcess(req) {
+          commands.push(req.args?.[1] ?? req.command);
+          return { exitCode: 0, stdout: BARE_401 };
+        },
+      },
+      controlProbe: async () => ({ status: 400 }),
+      log: (m) => logs.push(m),
+      budgetMs: 3_000,
+      pollMs: 2_000,
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+    });
+    assert.equal(verdict, "stuck");
+    for (const line of [...logs, ...commands]) {
+      assert.ok(!line.includes(candidate.value), `key leaked into: ${line}`);
+    }
   });
 });

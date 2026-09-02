@@ -64,6 +64,7 @@ import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
+  credentialPreflightRequest,
   deliversModelSecretOnCreate,
   STUCK_ACQUIRE_ATTEMPTS,
   SubstitutionStuckError,
@@ -634,8 +635,8 @@ async function acquireEnvironmentOnce(
     const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
     // Record the delivery moment for the 401 classifier. Same condition as the preflight below,
     // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
-    // but the preflight can only SEE it where the provider echoes what it received. A direct
-    // Anthropic endpoint echoes nothing, so on that path the classifier is the only guard.
+    // but the preflight can only SEE it on a provider whose request shape it knows. Gemini is
+    // not one of those, so on that path the classifier is still the only guard.
     if (
       deliversModelSecretOnCreate({
         isDaytona: plan.isDaytona,
@@ -652,8 +653,15 @@ async function acquireEnvironmentOnce(
       preflightBaseUrl
         ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
             sandbox: environment.sandbox,
-            baseUrl: preflightBaseUrl,
-            apiKeyVar: modelSecretCandidate.binding.name,
+            // The candidate's real value rides in as the control call's credential and
+            // nowhere else. See `credentialPreflightRequest`.
+            ...credentialPreflightRequest({
+              baseUrl: preflightBaseUrl,
+              candidate: modelSecretCandidate,
+              ...(request.modelConnection?.provider
+                ? { provider: request.modelConnection.provider }
+                : {}),
+            }),
             log: logger,
           })
         : undefined;
