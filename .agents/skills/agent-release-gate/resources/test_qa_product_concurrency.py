@@ -15,6 +15,7 @@ and what it does when a stream never ends. The one thing they cannot check is wh
 works, which is what the live gate is for.
 """
 
+import gzip
 import importlib
 import os
 import sys
@@ -445,7 +446,7 @@ def test_counts_are_capped():
 
 
 def _fake_httpx(response):
-    """A stand-in httpx.Client whose stream() returns `response`."""
+    """A stand-in httpx.Client whose stream() returns `response` and records that it was asked."""
 
     class _Client:
         def __init__(self, timeout=None):
@@ -453,6 +454,7 @@ def _fake_httpx(response):
             response.timeout = timeout
 
         def stream(self, *a, **k):
+            response.stream_started = True
             return response
 
         def __enter__(self):
@@ -464,26 +466,45 @@ def _fake_httpx(response):
     return _Client
 
 
+def _gunzip(chunk: bytes) -> bytes:
+    """Decode a chunk the way HTTPX would, so the fake models the real contract."""
+    if chunk[:2] == b"\x1f\x8b":
+        return gzip.decompress(chunk)
+    return chunk
+
+
 class _RawResponse:
     """A streaming response whose raw chunks the test controls."""
 
     status_code = 200
 
-    def __init__(self, chunks, sleep=0.01, raise_timeout=False):
+    def __init__(self, chunks, sleep=0.01, raise_timeout=False, repeat=True):
         self._chunks = chunks
         self._sleep = sleep
         self._raise_timeout = raise_timeout
+        self._repeat = repeat
         self.closed = False
         self.timeout = None
+        self.stream_started = False
 
-    def iter_raw(self):
+    def _emit(self, chunks):
         if self._raise_timeout:
             time.sleep(self._sleep)
             raise qa.httpx.ReadTimeout("read timed out")
         while True:
-            for chunk in self._chunks:
+            for chunk in chunks:
                 yield chunk
                 time.sleep(self._sleep)
+            if not self._repeat:
+                return
+
+    def iter_bytes(self):
+        """What HTTPX yields AFTER decoding Content-Encoding. This is what the driver reads."""
+        return self._emit([_gunzip(c) for c in self._chunks])
+
+    def iter_raw(self):
+        """The bytes exactly as they arrived. Compressed, when the server gzipped them."""
+        return self._emit(self._chunks)
 
     def close(self):
         self.closed = True
@@ -512,6 +533,50 @@ def test_a_stream_without_newlines_still_hits_the_deadline():
     assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, (t.hung, t.hung_reason)
     assert took < 5, f"a newline-free stream held the turn for {took:.1f}s"
     assert response.closed, "the abandoned response is closed, not left open"
+
+
+def test_a_deadline_with_milliseconds_left_never_starts_the_request():
+    """The floor is HTTPX's minimum positive timeout, not a grant of 50ms."""
+    _reset()
+    response = _RawResponse([b'data: {"type": "finish", "finishReason": "stop"}\n'])
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        started = time.monotonic()
+        t = qa.invoke(
+            "s",
+            [qa.user_msg("hi")],
+            {},
+            timeout=30.0,
+            deadline=time.monotonic() + 0.005,
+        )
+        took = time.monotonic() - started
+    finally:
+        qa.httpx.Client = real
+    assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, t.summary()
+    assert response.stream_started is False, (
+        "an unaffordable request was started anyway"
+    )
+    assert took < qa.DEADLINE_FLOOR_SECONDS, f"returned after {took * 1000:.0f}ms"
+
+
+def test_a_gzip_encoded_stream_is_decoded_and_parsed():
+    """`iter_raw()` would hand over compressed bytes: zero frames, no finish, no error."""
+    _reset()
+    body = (
+        b'data: {"type": "text-delta", "delta": "hello"}\n'
+        b'data: {"type": "finish", "finishReason": "stop"}\n'
+    )
+    response = _RawResponse([gzip.compress(body)], sleep=0.0, repeat=False)
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        t = qa.invoke("s", [qa.user_msg("hi")], {}, timeout=30.0)
+    finally:
+        qa.httpx.Client = real
+    assert t.reply == "hello", t.summary()
+    assert t.finish_reason == "stop", t.summary()
+    assert not t.hung
 
 
 def test_a_silent_read_past_the_deadline_is_hung_not_a_crash():

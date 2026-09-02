@@ -132,12 +132,13 @@ proof.
 
 Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
 parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
-GiB in flight. The counts are capped at 32 each and are `--burst-size` (default 16), `--crosstalk-
-conversations` (default 3) and `--crosstalk-approvals` (default 2). When the provider refuses on
-capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL, because nothing
-about the product was measured. `--concurrency-timeout` (default 300s) bounds one TURN and rides
-into the stream as an absolute deadline, so a two-turn crosstalk run gets twice that and a stream
-that never ends is abandoned rather than followed.
+GiB in flight. The counts are `--burst-size` (default 16), `--crosstalk-conversations` (default 3)
+and `--crosstalk-approvals` (default 2). The cap is 32 concurrent runs: 32 for the burst size, and
+32 for the two crosstalk counts TOGETHER, because what costs disk is what runs at once. When the
+provider refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL,
+because nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one
+TURN and rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice
+that and a stream that never ends is abandoned rather than followed.
 
 A release that changes `services/runner/src/engines/sandbox_agent/**` or
 `services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through

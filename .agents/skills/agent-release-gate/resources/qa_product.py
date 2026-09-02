@@ -110,6 +110,12 @@ MCP_URL = DEFAULT_MCP_URL
 # spelling, so a result file and an assertion cannot drift apart.
 HUNG_AT_DEADLINE = "abandoned by the client at its absolute deadline"
 
+# HTTPX needs a POSITIVE timeout, so this is the smallest value worth handing it. It is a floor,
+# never a grant: an operation with less than this left is not started at all, because starting one
+# would hand out time the turn does not have. Measured cost of getting this wrong: a turn with 5ms
+# remaining came back 50ms late.
+DEADLINE_FLOOR_SECONDS = 0.05
+
 # Anything key-shaped, masked before it reaches a result file. The gate writes results to disk and
 # commits them as evidence, and an error body from a provider can quote the credential it refused.
 # Keep the shape visible (the prefix and the length) and drop the value.
@@ -561,17 +567,24 @@ class Turn:
 
 
 def _sse_lines(response, out_of_time):
-    """Yield decoded SSE lines from a RAW byte stream, and `None` the moment time runs out.
+    """Yield SSE lines from the response's byte stream, and `None` the moment time runs out.
 
     `iter_lines()` cannot be used where a deadline must hold: it only yields on a newline, so a
     stream that sends bytes without one (or nothing at all) never gives the caller a chance to
-    check the clock. Reading raw chunks moves the check to every chunk boundary.
+    check the clock. Reading chunks moves the check to every chunk boundary.
+
+    `iter_bytes()`, NOT `iter_raw()`. `iter_raw()` hands over the bytes exactly as they arrived,
+    which for a `Content-Encoding: gzip` (or deflate, or br) response is compressed data: the
+    frames never parse, the turn ends with nothing, and no error says why. `iter_bytes()` is the
+    same stream after HTTPX has decoded the content encoding, which is what `iter_lines()` was
+    reading before.
 
     Splitting on b"\n" before decoding is safe: a newline byte cannot appear inside a UTF-8
-    multi-byte sequence, so no character is ever cut in half.
+    multi-byte sequence, so no character is ever cut in half. Trailing CR is stripped for CRLF
+    senders; a bare-CR line ending is not supported, and never was, because the emitter writes LF.
     """
     buffer = bytearray()
-    for chunk in response.iter_raw():
+    for chunk in response.iter_bytes():
         if out_of_time():
             yield None
             return
@@ -629,17 +642,27 @@ def invoke(
     }
     start = time.time()
 
+    def _remaining() -> float | None:
+        return None if deadline is None else deadline - time.monotonic()
+
     def _out_of_time() -> bool:
-        return deadline is not None and time.monotonic() > deadline
+        # At or below the floor counts as out of time. An operation that cannot fit in what is
+        # left must not be started, rather than be given the floor as a grant.
+        left = _remaining()
+        return left is not None and left <= DEADLINE_FLOOR_SECONDS
 
     def _mark_hung() -> None:
         t.hung = True
         t.hung_reason = HUNG_AT_DEADLINE
 
-    # Never grant an operation more time than the whole turn has left.
-    effective = timeout
-    if deadline is not None:
-        effective = max(0.05, min(timeout, deadline - time.monotonic()))
+    # Never START an operation the turn has no time for, and never grant one more time than the
+    # turn has left.
+    if _out_of_time():
+        _mark_hung()
+        t.ms = int((time.time() - start) * 1000)
+        return t
+    left = _remaining()
+    effective = timeout if left is None else min(timeout, left)
     try:
         with httpx.Client(timeout=effective) as client:
             with client.stream(
