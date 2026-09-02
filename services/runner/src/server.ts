@@ -525,7 +525,17 @@ async function runAndStreamWithApiBaseResolved(
       // `shouldPark` parks only an abort the runner can prove was one. An unlabelled abort here
       // would end the turn `cancelled` and then DESTROY the sandbox, which is the exact failure
       // Stop exists to avoid. See `sessions/stop-signal.ts`.
-      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+      //
+      // `markInterrupted` too, not the abort alone. The abort is what a cooperating run
+      // unwinds from, and almost every run does. A run that does NOT unwind would otherwise
+      // hold this request until the hard per-turn deadline, hours away, because the abandon
+      // grace window is armed only by the interruption signal. With both, a Stop the run
+      // ignores still reaches a terminal record inside the grace window.
+      // See `sessions/turn-settle.ts`.
+      abort: () => {
+        markInterrupted?.("a control command stopped this turn");
+        controller.abort(USER_STOP_ABORT_REASON);
+      },
     });
   }
 
