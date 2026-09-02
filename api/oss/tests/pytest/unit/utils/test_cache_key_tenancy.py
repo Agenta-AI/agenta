@@ -294,3 +294,51 @@ async def test_renew_keeps_both_generations_alive(fake_redis):
     # previous release in.
     assert await fake_redis.ttl(lock_key) > 5
     assert await fake_redis.ttl(legacy_key) > 5
+
+
+async def test_renew_fails_when_the_legacy_key_is_gone(fake_redis):
+    """A lapsed legacy key breaks mutual exclusion even while the primary survives.
+
+    Renewal used to report the primary's result alone, so a holder kept working inside
+    the section believing the lock was safe while a pod on the previous release could
+    acquire the now-missing legacy key and enter it too.
+    """
+    lock_key, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    owner = await locking.acquire_lock(
+        namespace="eval", key="run", project_id=PROJECT_A, ttl=5
+    )
+    assert owner is not None
+
+    # The legacy key expires or is evicted while the primary is still held.
+    await fake_redis.delete(legacy_key)
+
+    assert not await locking.renew_lock(
+        namespace="eval", key="run", project_id=PROJECT_A, ttl=90, owner=owner
+    )
+
+    # The primary is still renewed, so the caller can finish and release cleanly rather
+    # than having the section pulled out from under it twice over.
+    assert await fake_redis.ttl(lock_key) > 5
+
+
+async def test_renew_fails_when_the_primary_key_is_gone(fake_redis):
+    """The mirror case: the primary lapsing must not be masked by a live legacy key."""
+    lock_key, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    owner = await locking.acquire_lock(
+        namespace="eval", key="run", project_id=PROJECT_A, ttl=5
+    )
+    assert owner is not None
+
+    await fake_redis.delete(lock_key)
+
+    assert not await locking.renew_lock(
+        namespace="eval", key="run", project_id=PROJECT_A, ttl=90, owner=owner
+    )

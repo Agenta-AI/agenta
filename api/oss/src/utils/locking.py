@@ -275,8 +275,13 @@ async def renew_lock(
 
         # Held for as long as the lock itself, or a pod on the previous release would
         # take it the moment it lapsed while this holder was still inside the section.
+        # Its renewal has to count: if the legacy key is gone while the primary survives,
+        # the section is no longer mutually exclusive across releases, and reporting
+        # success would leave the caller believing otherwise. Renew it either way rather
+        # than short-circuiting, so the primary is still extended when the legacy key is
+        # what failed.
         if legacy_key is not None:
-            await _renew_if_owner(legacy_key, owner, ttl)
+            renewed = await _renew_if_owner(legacy_key, owner, ttl) and renewed
 
         if renewed:
             if LOCK_DEBUG:
