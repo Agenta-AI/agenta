@@ -455,6 +455,9 @@ def _fake_httpx(response):
 
         def stream(self, *a, **k):
             response.stream_started = True
+            # Request setup is not free. A fake that returns instantly cannot show what happens
+            # when connecting and sending have already spent the turn's budget.
+            time.sleep(response.setup_sleep)
             return response
 
         def __enter__(self):
@@ -474,20 +477,36 @@ def _gunzip(chunk: bytes) -> bytes:
 
 
 class _RawResponse:
-    """A streaming response whose raw chunks the test controls."""
+    """A streaming response whose chunks, status and setup cost the test controls."""
 
-    status_code = 200
-
-    def __init__(self, chunks, sleep=0.01, raise_timeout=False, repeat=True):
+    def __init__(
+        self,
+        chunks,
+        sleep=0.01,
+        raise_timeout=False,
+        repeat=True,
+        setup_sleep=0.0,
+        status_code=200,
+    ):
         self._chunks = chunks
         self._sleep = sleep
         self._raise_timeout = raise_timeout
         self._repeat = repeat
+        self.setup_sleep = setup_sleep
+        self.status_code = status_code
         self.closed = False
         self.timeout = None
         self.stream_started = False
+        self.reads = 0
+        self.body_reads = 0
+
+    def read(self):
+        """The error-body read. Counted, so a test can prove it never happened."""
+        self.body_reads += 1
+        return b"upstream said no"
 
     def _emit(self, chunks):
+        self.reads += 1
         if self._raise_timeout:
             time.sleep(self._sleep)
             raise qa.httpx.ReadTimeout("read timed out")
@@ -577,6 +596,59 @@ def test_a_gzip_encoded_stream_is_decoded_and_parsed():
     assert t.reply == "hello", t.summary()
     assert t.finish_reason == "stop", t.summary()
     assert not t.hung
+
+
+def test_setup_that_eats_the_budget_means_no_read_is_started():
+    """The deadline passes between the request starting and the first read."""
+    _reset()
+    response = _RawResponse(
+        [b'data: {"type": "finish", "finishReason": "stop"}\n'], setup_sleep=0.25
+    )
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        t = qa.invoke(
+            "s", [qa.user_msg("hi")], {}, timeout=30.0, deadline=time.monotonic() + 0.15
+        )
+    finally:
+        qa.httpx.Client = real
+    assert response.stream_started is True, (
+        "the request itself was affordable when it began"
+    )
+    assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, t.summary()
+    assert response.reads == 0, "a read was started with no time left to pay for it"
+    assert t.frames == [], t.frames
+
+
+def test_an_error_body_is_not_read_past_the_deadline():
+    """`r.read()` is a read like any other and needs the same check in front of it."""
+    _reset()
+    response = _RawResponse([], setup_sleep=0.25, status_code=500)
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        t = qa.invoke(
+            "s", [qa.user_msg("hi")], {}, timeout=30.0, deadline=time.monotonic() + 0.15
+        )
+    finally:
+        qa.httpx.Client = real
+    assert t.http_status == 500
+    assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, t.summary()
+    assert response.body_reads == 0, "the error body was read with no time left"
+    assert response.closed
+
+
+def test_an_error_body_is_still_read_when_there_is_time():
+    _reset()
+    response = _RawResponse([], status_code=503)
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        t = qa.invoke("s", [qa.user_msg("hi")], {}, timeout=30.0)
+    finally:
+        qa.httpx.Client = real
+    assert t.http_status == 503 and response.body_reads == 1
+    assert not t.hung and "HTTP 503" in t.errors[0], t.errors
 
 
 def test_a_silent_read_past_the_deadline_is_hung_not_a_crash():

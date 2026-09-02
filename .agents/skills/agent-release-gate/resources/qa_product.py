@@ -579,15 +579,25 @@ def _sse_lines(response, out_of_time):
     same stream after HTTPX has decoded the content encoding, which is what `iter_lines()` was
     reading before.
 
+    The clock is checked BEFORE every read, the first one included, by stepping the iterator by
+    hand. `for chunk in response.iter_bytes()` starts a read and only then reaches the check, so
+    setting the request up can eat the whole budget and the driver would still begin a read it
+    cannot afford.
+
     Splitting on b"\n" before decoding is safe: a newline byte cannot appear inside a UTF-8
     multi-byte sequence, so no character is ever cut in half. Trailing CR is stripped for CRLF
     senders; a bare-CR line ending is not supported, and never was, because the emitter writes LF.
     """
     buffer = bytearray()
-    for chunk in response.iter_bytes():
+    chunks = iter(response.iter_bytes())
+    while True:
         if out_of_time():
             yield None
             return
+        try:
+            chunk = next(chunks)
+        except StopIteration:
+            break
         buffer.extend(chunk)
         while True:
             index = buffer.find(b"\n")
@@ -596,9 +606,6 @@ def _sse_lines(response, out_of_time):
             line = bytes(buffer[:index])
             del buffer[: index + 1]
             yield line.rstrip(b"\r").decode("utf-8", "replace")
-        if out_of_time():
-            yield None
-            return
     if buffer:
         yield bytes(buffer).rstrip(b"\r").decode("utf-8", "replace")
 
@@ -674,6 +681,13 @@ def invoke(
             ) as r:
                 t.http_status = r.status_code
                 if r.status_code >= 400:
+                    # Reading the error body is a read like any other, and setting the request up
+                    # may already have spent the budget. Check before it, not after.
+                    if _out_of_time():
+                        _mark_hung()
+                        r.close()
+                        t.ms = int((time.time() - start) * 1000)
+                        return t
                     t.errors.append(f"HTTP {r.status_code}: {r.read().decode()[:500]}")
                     t.ms = int((time.time() - start) * 1000)
                     return t
