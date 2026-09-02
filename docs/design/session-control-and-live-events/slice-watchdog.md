@@ -46,8 +46,20 @@ session's conversation simply stopped mid-turn. Verified before this change.
 
 ## What this slice changes
 
-Two halves. Either one alone leaves a hole, because the runner cannot report an outcome when it
-is gone, and the platform cannot see a dead sandbox under a runner that is still beating.
+Two halves, and **they close different bugs**. Neither one alone is enough, and it is worth
+being precise about which does what, because the obvious reading is wrong.
+
+| Failure | Detected by | Why the other half cannot |
+|---|---|---|
+| The sandbox dies under the turn ([#6418](https://github.com/Agenta-AI/agenta/issues/6418)) | The runner's sandbox liveness probe | The runner is healthy and keeps beating, so its heartbeat never goes stale and the API scan never sees the row |
+| The runner is gone: restart, crash, OOM | The API watchdog | There is no runner left to detect anything |
+
+**The API watchdog does not close [#6418](https://github.com/Agenta-AI/agenta/issues/6418), and
+cannot.** It keys off heartbeat age, and a wedged turn's own heartbeat stays perfectly fresh —
+only the machine underneath is gone. The runner-side probe is what closes that one, and it is
+proved live in Scenario B below. This was flagged from the Stop map before the work started and
+it held up in the live test: at the moment of the kill the runner logged `ECONNREFUSED` on the
+ACP socket and `heartbeat OK ... running=true` in the same second.
 
 ### API: settle an execution whose runner cannot report one
 
@@ -82,6 +94,15 @@ the core database, so this is a two-phase read, never a join.
 
 If that lookup fails, the pass writes nothing and still collapses the row. Saying nothing is
 better than inventing a second ending.
+
+**Only a turn that still claims `is_running` is eligible**, and that is what protects a parked
+approval. A turn that parks for a human sends one final beat with `is_running: false`
+(`services/runner/src/sessions/alive.ts:241-252`) and then stops beating on purpose, so its
+heartbeat goes stale within seconds. It is also the state we most need to keep: the sandbox is
+warm and the user is about to answer. Such a row never becomes a candidate for a terminal
+record however long it sits. It is still reclaimed after thirty minutes, which is the
+pre-existing sweep behaviour keyed to the approval TTL, but no ending is written for it.
+Pinned by `test_a_parked_approval_is_never_settled`.
 
 ### Runner: never wait on a run forever
 
@@ -134,7 +155,7 @@ Every value is a setting. Nothing here needs a redesign to tune.
 
 | Setting | Default | Environment variable |
 |---|---|---|
-| Grace past one heartbeat before a running turn is lost | 90 s | `AGENTA_SESSIONS_WATCHDOG_GRACE_SECONDS` |
+| Heartbeat age before a running turn is lost | 90 s | `AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS` |
 | Grace before an alive-but-idle row is settled | 1800 s | `AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS` |
 | How often the watchdog runs | 60 s | `AGENTA_SESSIONS_WATCHDOG_INTERVAL_SECONDS` |
 | Rows settled per pass | 500 | `AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE` |
@@ -151,10 +172,15 @@ Definitions live in `api/oss/src/utils/env.py:564` (`SessionWatchdogConfig`),
 
 Two of these deserve their reasoning stated.
 
-**The running threshold is one heartbeat interval plus the grace, so 120 seconds by default.**
-It was a flat 300 seconds. Five minutes was defensible for a sweep that only collapsed flags;
-it is too long to make a user watch a dead turn now that the sweep writes a real ending. 120
-seconds is three missed beats. Raise the grace if a healthy deployment ever settles a live turn.
+**The rule is heartbeat age, not lease expiry, and the difference is an hour.** The Redis
+`alive` and `running` keys carry a 3600-second TTL (`api/oss/src/utils/env.py:1416-1422`), so a
+watchdog phrased as "settle shortly after the lease expires" would leave a dead turn running for
+an hour. The runner beats every 30 seconds
+(`services/runner/src/sessions/contract.ts:18`) and the beat is mirrored onto
+`session_streams.updated_at`, so the age of that column is the real signal. The threshold is 90
+seconds of it: three missed beats. It was a flat 300 seconds, which was defensible while the
+sweep only collapsed flags and nobody saw the result, and is too long now that it writes an
+ending a user reads.
 
 **The hard per-turn deadline sits ABOVE the longest legitimate run, not below it.** The run
 limits already own when a real turn should stop, and users have asked for longer runs, not
@@ -220,8 +246,10 @@ Before: the Redis lease had 3586 seconds left, a second turn asking for the sess
 2026-09-02T21:26:29.643Z [INFO.] watchdog: settled 1 sessions (1 turns marked lost)
 ```
 
-The row was created at 21:24:17 and settled at 21:26:29, so 132 seconds: the 120-second
-threshold plus part of one sweep interval.
+The row was created at 21:24:17 and settled at 21:26:29, so 132 seconds. That run used the
+earlier 120-second threshold; at the 90-second threshold this slice now ships, the same case
+settles between 90 and 150 seconds depending on where the sweep tick falls. The behaviour under
+test is unchanged — only the constant moved.
 
 After, all four verified by reading the stores:
 
@@ -353,6 +381,19 @@ the repository.
 - It does not fix the originating tab. `refreshFromRecords` deliberately early-returns while the
   tab is busy, so a tab holding an open-but-dead HTTP stream ignores the watchdog's records until
   its own stream errors. Other tabs and a reload see the settled turn immediately.
+
+## Handover: command settlement
+
+The durable-cancel slice writes a command's terminal outcome and deliberately does not sweep
+expired claims. Its DAO exposes `expire_claims(now, max_deliveries)` and `settle_command` for
+this watchdog to call, on the principle that one execution reaches one terminal outcome from
+one writer, and that the watchdog is that writer.
+
+**Agreed, and not built here.** Those functions do not exist on this branch, so code written
+against them could be neither compiled nor tested, and a second sweep beside this one is exactly
+the race this slice avoided. The work is small and belongs in the pass that already exists: once
+the commands slice lands, extend `run_orphan_sweep` to expire claims and settle each expired
+command in the same loop that settles its execution.
 
 ## Open questions for Mahmoud
 

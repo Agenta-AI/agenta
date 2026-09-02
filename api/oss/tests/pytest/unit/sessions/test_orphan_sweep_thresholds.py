@@ -249,12 +249,16 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_thresholds_are_two_and_thirty_minutes(anyio_backend):
-    """The running threshold moved from 5 minutes to 2 when the watchdog started writing a
-    terminal record. Five minutes was safe for a sweep that only collapsed flags; a user
-    watching a dead turn should not wait that long for an ending. 120s is one 30s heartbeat
-    interval plus the 90s default grace, which is three missed beats."""
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (120, 1800)
+async def test_the_running_threshold_is_three_missed_heartbeats(anyio_backend):
+    """90 seconds of heartbeat age, not lease expiry.
+
+    The Redis alive/running keys carry a ONE HOUR TTL, so a rule phrased as "shortly after the
+    lease expires" would leave a dead turn running for an hour. The runner beats every 30
+    seconds and mirrors the beat onto `updated_at`, so three missed beats is the signal. The
+    old value was 300s, which was defensible while the sweep only collapsed flags and nobody
+    ever saw the result; it is too long now that the sweep writes a real ending.
+    """
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
 
 
 @pytest.mark.anyio

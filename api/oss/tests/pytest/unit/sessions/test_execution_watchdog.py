@@ -286,6 +286,37 @@ async def test_an_idle_row_owes_no_ending(anyio_backend):
 
 
 @pytest.mark.anyio
+async def test_a_parked_approval_is_never_settled(anyio_backend):
+    """The hazard the heartbeat-age rule creates, pinned.
+
+    A turn that parks for a human sends one final beat with `is_running: false` and then stops
+    beating on purpose. Its heartbeat therefore goes stale immediately, and it is exactly the
+    state we most need to keep: the sandbox is warm, the user is about to answer, and the turn
+    is resumable. Only a row that still CLAIMS running is eligible, so this one is not a
+    candidate however long it sits.
+    """
+    row = _FakeRow(
+        session_id="sess-parked",
+        turn_id="turn-parked",
+        is_running=False,
+        age_seconds=ORPHAN_THRESHOLD_SECONDS * 5,
+    )
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_FakeRecordsService(),
+        publish=publisher,
+    )
+
+    assert publisher.published == [], (
+        "a parked approval must never be given a terminal record: the user is still going to "
+        "answer it"
+    )
+
+
+@pytest.mark.anyio
 async def test_a_running_row_without_a_turn_id_is_settled_silently(anyio_backend):
     """Nothing to attribute an ending to, so the row is collapsed and no record is written."""
     row = _FakeRow(
