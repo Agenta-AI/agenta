@@ -40,6 +40,7 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
+import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
 import {
   teardownDisposition,
   type TeardownReason,
@@ -1316,12 +1317,29 @@ export async function runWithKeepalive(
       return result;
     }
     // checkout lost a race; fall through to cold.
+  } else if (existing && existing.state === "busy") {
+    // A LIVE turn is streaming on this environment right now, in this process. Refuse; never
+    // destroy it.
+    //
+    // This branch used to `evict` and cold-start ("supersede-busy"), which is the second half of
+    // the double-send bug (#6417, #5539, #5538): a second message on a running session tore the
+    // sandbox out from under the first turn, so both turns died and the session stayed locked
+    // until the 30-minute lease expired. Admission (`sessions/admission.ts`, decided by the API's
+    // atomic `nx` acquire on the turn's first heartbeat) now refuses the second turn at the edge,
+    // so in normal operation nothing reaches here at all.
+    //
+    // What still reaches here is the fail-open window: the heartbeat fails open on a network or
+    // HTTP error, so an API blip can admit two turns. Local state is the more specific truth in
+    // that window — a busy entry means a turn is demonstrably in flight on this box — so this is
+    // the backstop that keeps the invariant true when the arbiter is unreachable. Only a
+    // `checkoutIdle` continuation and a freshly `reserve`d cold turn leave a busy entry;
+    // `checkoutApproval` REMOVES its session, so an in-flight approval resume is never found here.
+    klog(`refuse (busy) key=${key}; another turn owns this session`);
+    return { ok: false, error: SESSION_TURN_IN_USE_MESSAGE };
   } else if (existing) {
-    // Busy / destroyed: two turns racing one session. Only a checkoutIdle continuation leaves a
-    // busy entry in the map (checkoutApproval REMOVES its session, so an in-flight approval
-    // resume can never be found — a duplicate approval misses the pool and runs cold, and its
-    // environment can never be destroyed by this branch). Supersede — destroy the parked one and
-    // cold-start — awaited so its teardown cannot overlap our acquire.
+    // `destroyed`: a dead entry left by a drain (`destroyAll`) or a teardown that has already
+    // run. Nothing is in flight on it, so clearing the key and cold-starting is correct and
+    // costs nothing warm.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
     await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {
