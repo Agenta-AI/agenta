@@ -91,6 +91,14 @@ Clients can view and remove a pending input. They cannot edit or reorder it. To 
 content, a client removes the old input and submits a replacement. The API rejects removal after
 the input has been promoted into active work.
 
+### D-012: Keep design discussions at the architectural level
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+The discussion focuses on resource boundaries, execution ownership, event flow, recovery, and
+user-visible behavior. Routine endpoint naming, status codes, defaults, and validation details use
+established API conventions during RFC drafting unless they materially change those properties.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
