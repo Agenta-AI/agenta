@@ -378,6 +378,11 @@ async function acquireEnvironmentOnce(
   } = setup;
   let runAgentDir = setup.runAgentDir;
 
+  // The credential preflight is kicked off mid-acquire and awaited at the very end, so an
+  // acquire that fails in between would leave it running with nothing observing it. This is
+  // how the failure path ends it; see the kickoff and the catch below.
+  const preflightAbort = new AbortController();
+
   // ---- MountLifecycle ------------------------------------------------------------------ //
   // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
   // recursive closures over this scope; they now take `ctx` and capture nothing. `ctx` is the
@@ -665,9 +670,21 @@ async function acquireEnvironmentOnce(
                 ? { deployment: request.modelConnection.deployment }
                 : {}),
             }),
-            // Cancel the runner's own auth call with the run, not just with the preflight.
-            ...(signal ? { signal } : {}),
+            // Cancel the runner's own auth call with the run, and with an acquire that fails
+            // before the await below ever runs.
+            signal: signal
+              ? AbortSignal.any([signal, preflightAbort.signal])
+              : preflightAbort.signal,
             log: logger,
+          }).catch((error: unknown) => {
+            // `awaitCredentialSubstitution` is written not to throw. If it ever does, the
+            // acquire must not inherit the rejection from a promise nobody is awaiting yet.
+            // The error's name only: nothing from a credential path is interpolated here.
+            logger(
+              `[credential-preflight] preflight itself failed (` +
+                `${error instanceof Error ? error.name : "unknown"}); proceeding`,
+            );
+            return "ok" as const;
           })
         : undefined;
 
@@ -1218,6 +1235,10 @@ async function acquireEnvironmentOnce(
     });
     return { ok: true, env: environment };
   } catch (err) {
+    // End the preflight first. Acquire failed somewhere between its kickoff and its await, so
+    // nothing downstream will ever read it, and its runner-side auth call must not outlive the
+    // acquire that started it.
+    preflightAbort.abort();
     // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
     // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
     // to the turn. The one credential-shaped failure this path can raise is the preflight's

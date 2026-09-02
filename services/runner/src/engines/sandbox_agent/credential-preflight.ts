@@ -73,18 +73,26 @@
  * 10s and rebuild rather than hold every stuck user turn another 20s for a recovery nobody
  * has observed. Decided by the product owner 2026-08-31; revisit only if a late recovery
  * ever shows up in the preflight logs (it would log "substitution confirmed after N
- * probes" with N > 1). It is ONE deadline: every sandbox probe timeout and the runner's own
- * call are capped by what is left of it, so a slow probe cannot spend more than the grace.
+ * probes" with N > 1).
+ *
+ * AND IT IS ONE HARD DEADLINE. Every curl timeout, every exec timeout, every poll, and the
+ * runner's own call are capped by what is left of the grace; a probe is never started once the
+ * grace is gone; and a poll that would land exactly on the deadline convicts instead of
+ * sleeping. The runner's call carries its own timer as well, because its abort signal alone
+ * fires only when the preflight has already stopped waiting, and a provider that never answers
+ * would otherwise hold the whole acquire open.
  *
  * SCOPE. Only a freshly created Daytona sandbox whose MODEL credential rides a Daytona Secret
  * and whose connection declares an endpoint base URL. Within that, the differential covers
- * exactly three direct providers (openrouter, anthropic, openai). Every other connection —
- * a custom gateway such as the LiteLLM credits proxy, and any direct provider not named above
- * — keeps the OpenAI-compatible chat probe and masked-echo-only conviction, which is what has
- * been convicting stuck sandboxes on the credits proxy since this module shipped. Gemini is
- * not covered at all: its auth rides a query parameter rather than a header, so it needs its
- * own shape. A plaintext-env run has no placeholder; a reconnected sandbox already proved
- * itself.
+ * exactly three direct providers (openrouter, anthropic, openai) AT THEIR CANONICAL BASE URL —
+ * `deployment: "direct"` does not by itself say which host the connection points at, so the
+ * base URL is compared against a pinned table (`CANONICAL_DIRECT_BASE_URLS`). Every other
+ * connection — a custom gateway such as the LiteLLM credits proxy, a self-hosted gateway
+ * labelled with a known provider family, and any direct provider not named above — keeps the
+ * OpenAI-compatible chat probe and masked-echo-only conviction, which is what has been
+ * convicting stuck sandboxes on the credits proxy since this module shipped. Gemini is not
+ * covered at all: its auth rides a query parameter rather than a header, so it needs its own
+ * shape. A plaintext-env run has no placeholder; a reconnected sandbox already proved itself.
  *
  * THE KEY VALUE NEVER LEAVES THIS MODULE. The sandbox command carries the env var name, which
  * the sandbox shell expands, and the runner's own call carries the value in a request header
@@ -268,27 +276,69 @@ function chatProbeShape(base: string): ProbeShape {
 }
 
 /**
- * Pick the request shape from the connection's provider family and how it is reached.
+ * The one base URL each differential provider is reached at.
  *
- * Only a DIRECT connection to one of the three providers below gets a differential shape, and
- * each one is that provider's own documented endpoint for checking a key. `deployment` matters
- * as much as `provider`: a custom gateway can carry any provider name while speaking its own
- * dialect at its own host, so the auth endpoint below would not exist there.
+ * `deployment: "direct"` is NOT enough on its own to know the host. A vault custom-provider
+ * record naming a known provider family is labelled `direct` by the resolver while keeping its
+ * own configured URL (`sdks/python/agenta/sdk/agents/platform/connections.py`, pinned by
+ * `test_known_direct_custom_provider_uses_direct_deployment`), and an explicit endpoint always
+ * overrides the family default (`endpoints.py`). Without this table the preflight would send
+ * the real key to a tenant gateway's `/models` and read whatever it answered as a verdict.
+ */
+const CANONICAL_DIRECT_BASE_URLS: Record<string, string> = {
+  openrouter: "https://openrouter.ai/api/v1",
+  anthropic: "https://api.anthropic.com",
+  openai: "https://api.openai.com/v1",
+};
+
+/**
+ * Reduce a base URL to scheme, host and path for an exact comparison, or return undefined.
+ *
+ * Undefined for anything unparseable, and for a URL carrying a query, a fragment, or embedded
+ * credentials: those parts would be lost by the comparison while still being part of the real
+ * request, so a URL that has them is simply not one of the canonical bases.
+ */
+function normalizeBaseUrl(baseUrl: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(baseUrl.trim());
+  } catch {
+    return undefined;
+  }
+  if (url.search || url.hash || url.username || url.password) return undefined;
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}`;
+}
+
+/**
+ * Pick the request shape from the connection's provider family, how it is reached, and its host.
+ *
+ * A differential shape needs all three to agree: a known provider, a `direct` deployment, and a
+ * base URL that IS that provider's canonical one. The URL check is the load-bearing part, for
+ * the reason spelled out on `CANONICAL_DIRECT_BASE_URLS`. When it matches, the probe URL is
+ * built from the canonical base rather than the request's spelling, so the two are the same
+ * request by construction.
  */
 function probeShapeFor(
   baseUrl: string,
   provider?: string,
   deployment?: string,
 ): ProbeShape {
-  const base = baseUrl.replace(/\/+$/, "");
-  if (deployment?.trim().toLowerCase() !== "direct")
-    return chatProbeShape(base);
-  switch (provider?.trim().toLowerCase()) {
+  const family = provider?.trim().toLowerCase() ?? "";
+  const canonical = CANONICAL_DIRECT_BASE_URLS[family];
+  if (
+    deployment?.trim().toLowerCase() !== "direct" ||
+    !canonical ||
+    normalizeBaseUrl(baseUrl) !== canonical
+  ) {
+    return chatProbeShape(baseUrl.replace(/\/+$/, ""));
+  }
+  switch (family) {
     case "openrouter":
       // OpenRouter's documented "get current key" endpoint.
       return {
         method: "GET",
-        url: `${base}/key`,
+        url: `${canonical}/key`,
         buildHeaders: (credential) => ({
           Authorization: `Bearer ${credential}`,
         }),
@@ -298,24 +348,22 @@ function probeShapeFor(
       // `limit=1` so the answer stays small; the status is all this reads.
       return {
         method: "GET",
-        url: `${base}/v1/models?limit=1`,
+        url: `${canonical}/v1/models?limit=1`,
         buildHeaders: (credential) => ({
           "x-api-key": credential,
           "anthropic-version": ANTHROPIC_VERSION,
         }),
         differential: true,
       };
-    case "openai":
+    default:
       return {
         method: "GET",
-        url: `${base}/models`,
+        url: `${canonical}/models`,
         buildHeaders: (credential) => ({
           Authorization: `Bearer ${credential}`,
         }),
         differential: true,
       };
-    default:
-      return chatProbeShape(base);
   }
 }
 
@@ -406,15 +454,27 @@ function readRunnerAuthStatus(
  */
 function createFetchControlProbe(fetchImpl: typeof fetch): ControlProbe {
   return async (request) => {
-    const response = await fetchImpl(request.url, {
-      method: request.method,
-      headers: request.headers,
-      ...(request.body === undefined ? {} : { body: request.body }),
-      redirect: "error",
-      signal: request.signal,
-    });
-    await response.body?.cancel().catch(() => {});
-    return { status: response.status };
+    // `request.signal` alone cannot end a call the provider never answers: nothing fires it
+    // until the preflight is already done waiting. Without this timer an unanswered fetch
+    // holds `await control` open past the grace and past the preflight's own cleanup.
+    const timeout = new AbortController();
+    const timer = setTimeout(
+      () => timeout.abort(new Error("runner auth call timed out")),
+      request.timeoutMs,
+    );
+    try {
+      const response = await fetchImpl(request.url, {
+        method: request.method,
+        headers: request.headers,
+        ...(request.body === undefined ? {} : { body: request.body }),
+        redirect: "error",
+        signal: AbortSignal.any([request.signal, timeout.signal]),
+      });
+      await response.body?.cancel().catch(() => {});
+      return { status: response.status };
+    } finally {
+      clearTimeout(timer);
+    }
   };
 }
 
@@ -476,7 +536,9 @@ export async function awaitCredentialSubstitution(
           url: shape.url,
           headers: shape.buildHeaders(controlKey),
           ...(shape.body === undefined ? {} : { body: shape.body }),
-          timeoutMs: Math.max(1_000, Math.min(CONTROL_TIMEOUT_MS, budgetMs)),
+          // The same one deadline the sandbox probes answer to. No floor: a caller who gives
+          // the preflight almost no budget gets almost no wait, not a fixed second of one.
+          timeoutMs: Math.min(CONTROL_TIMEOUT_MS, remainingMs()),
           signal: controlSignal,
         }).then(
           (response) => readRunnerAuthStatus(response.status),
@@ -491,11 +553,22 @@ export async function awaitCredentialSubstitution(
 
   try {
     for (let attempt = 1; ; attempt++) {
+      const leftMs = remainingMs();
+      if (leftMs <= 0) {
+        // The grace is gone and nothing has convicted. Starting another probe would spend
+        // time the caller did not give, so the answer is the fail-open one.
+        log(
+          `[credential-preflight] grace spent after ${attempt - 1} probes with no verdict; ` +
+            `proceeding`,
+        );
+        return "ok";
+      }
       // Every probe is capped by what is left of the one deadline, so a slow sandbox cannot
-      // spend more than the grace no matter how long its exec channel takes to answer.
+      // spend more than the grace no matter how long its exec channel takes to answer. The
+      // floor is one second because `curl -m 0` means no timeout at all, not an instant one.
       const probeSeconds = Math.max(
         1,
-        Math.min(PROBE_TIMEOUT_S, Math.ceil(remainingMs() / 1000)),
+        Math.min(PROBE_TIMEOUT_S, Math.floor(leftMs / 1000)),
       );
       const script = sandboxProbeScript(shape, input.apiKeyVar, probeSeconds);
       let stdout: string | undefined;
@@ -503,7 +576,9 @@ export async function awaitCredentialSubstitution(
         const result = await input.sandbox.runProcess({
           command: "sh",
           args: ["-c", script],
-          timeoutMs: (probeSeconds + 4) * 1000,
+          // Capped by the same deadline. The exec channel gets its usual slack over curl's
+          // own ceiling only while the grace can pay for it.
+          timeoutMs: Math.max(1, Math.min((probeSeconds + 4) * 1000, leftMs)),
         });
         stdout = result?.stdout;
       } catch (error) {
@@ -590,14 +665,16 @@ export async function awaitCredentialSubstitution(
         }
         return "ok";
       }
-      if (elapsedMs + pollMs > budgetMs) {
+      // `>=`, not `>`: sleeping exactly onto the deadline and then starting another probe
+      // spends time the grace does not have. A poll that would land on the deadline convicts.
+      if (elapsedMs + pollMs >= budgetMs) {
         log(
           `[credential-preflight] ${evidence.stuckLine}; this sandbox will never substitute`,
         );
         return "stuck";
       }
       log(`[credential-preflight] ${evidence.probeLine}`);
-      await sleep(pollMs);
+      await sleep(Math.min(pollMs, remainingMs()));
     }
   } finally {
     // Nothing reads the runner's call after this point, on any exit path.

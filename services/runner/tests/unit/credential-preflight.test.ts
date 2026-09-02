@@ -81,7 +81,7 @@ function harness(
       clock += ms;
     },
   });
-  return { run, logs, commands, controlRequests };
+  return { run, logs, commands, controlRequests, elapsed: () => clock };
 }
 
 /** The OpenRouter body observed in production: a 401 that never names the key. */
@@ -325,18 +325,29 @@ describe("the differential: judging a provider that does not echo the key", () =
 });
 
 describe("the one deadline", () => {
-  it("caps each probe by what is left of the grace", async () => {
-    // Probe 1 starts with the full 10s, so curl gets its own 8s ceiling. Probe 2 starts at
-    // 5s spent and gets 5s. Probe 3 starts with the grace gone and gets the 1s floor, so a
-    // probe the loop has already committed to cannot run for another eight seconds.
-    const { run, commands } = harness(["Received=dtn_****9maz"], 10_000, {
-      probeCostMs: 3_000,
-    });
+  it("caps each probe by what is left of the grace and never runs past it", async () => {
+    // Probe 1 starts with the full 10s, so curl gets its own 8s ceiling. Probe 2 starts at 5s
+    // spent and gets 5s. A third probe would have to run past the deadline, so the loop
+    // convicts instead of sleeping onto it.
+    const { run, commands, elapsed } = harness(
+      ["Received=dtn_****9maz"],
+      10_000,
+      { probeCostMs: 3_000 },
+    );
     assert.equal(await run, "stuck");
-    assert.equal(commands.length, 3);
+    assert.equal(commands.length, 2);
     assert.match(commands[0], /curl -s -m 8 /);
     assert.match(commands[1], /curl -s -m 5 /);
-    assert.match(commands[2], /curl -s -m 1 /);
+    assert.ok(elapsed() <= 10_000, `finished at ${elapsed()}ms`);
+  });
+
+  it("starts no probe at all when there is no grace to spend", async () => {
+    // The body would convict if it were ever read. Reaching the fail-open answer with zero
+    // commands proves the deadline is checked before a probe is started, not after.
+    const { run, logs, commands } = harness(["Received=dtn_****9maz"], 0);
+    assert.equal(await run, "ok");
+    assert.equal(commands.length, 0);
+    assert.match(logs[0], /grace spent after 0 probes/);
   });
 
   it("a slow probe cannot push the total past the budget", async () => {
@@ -434,6 +445,73 @@ describe("provider shapes", () => {
     assert.equal(controlRequests.length, 0, "no runner call is made at all");
   });
 
+  it("never applies the differential to a tenant gateway labelled direct", async () => {
+    // A vault custom-provider record for a known family is labelled `direct` by the resolver
+    // while keeping its own URL. Without the canonical-base check the runner would send the
+    // real key to that gateway's /models and read the answer as a verdict about our sandbox.
+    const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
+      provider: "openai",
+      deployment: "direct",
+      baseUrl: "https://tenant-gateway.example/v1",
+      controlKey: "sk-real-key-value",
+      control: { status: 200 },
+    });
+    assert.equal(await run, "ok");
+    assert.equal(controlRequests.length, 0, "no key leaves the runner");
+    assert.match(commands[0], /chat\/completions/);
+  });
+
+  it("matches the canonical base through a trailing slash and an uppercase host", async () => {
+    for (const baseUrl of [
+      "https://api.openai.com/v1/",
+      "https://API.OpenAI.COM/v1",
+      "  https://api.openai.com/v1  ",
+    ]) {
+      const { run, controlRequests } = harness([BARE_401], 3_000, {
+        provider: "openai",
+        deployment: "direct",
+        baseUrl,
+        controlKey: "sk-real-key-value",
+        control: { status: 200 },
+      });
+      assert.equal(await run, "stuck", baseUrl);
+      assert.equal(
+        controlRequests[0].url,
+        "https://api.openai.com/v1/models",
+        baseUrl,
+      );
+    }
+  });
+
+  it("does not match a canonical host reached over plain http", async () => {
+    const { run, controlRequests } = harness([BARE_401], 3_000, {
+      provider: "openai",
+      deployment: "direct",
+      baseUrl: "http://api.openai.com/v1",
+      controlKey: "sk-real-key-value",
+      control: { status: 200 },
+    });
+    assert.equal(await run, "ok");
+    assert.equal(controlRequests.length, 0);
+  });
+
+  it("does not match a canonical base carrying a query or credentials", async () => {
+    for (const baseUrl of [
+      "https://api.openai.com/v1?tenant=acme",
+      "https://user:pass@api.openai.com/v1",
+    ]) {
+      const { run, controlRequests } = harness([BARE_401], 3_000, {
+        provider: "openai",
+        deployment: "direct",
+        baseUrl,
+        controlKey: "sk-real-key-value",
+        control: { status: 200 },
+      });
+      assert.equal(await run, "ok", baseUrl);
+      assert.equal(controlRequests.length, 0, baseUrl);
+    }
+  });
+
   it("keeps a direct provider outside the three on the chat probe", async () => {
     const { run, commands, controlRequests } = harness([BARE_401], 3_000, {
       provider: "gemini",
@@ -513,6 +591,34 @@ describe("the runner's own request", () => {
     assert.equal(seen[0].init.method, "GET");
     assert.equal(seen[0].init.body, undefined);
     assert.ok(seen[0].init.signal, "the request carries an abort signal");
+  });
+
+  it("gives up on a provider that never answers, instead of waiting forever", async () => {
+    // The preflight's own abort signal cannot end this call: nothing fires it until the
+    // preflight has already stopped waiting. Only a timer inside the request can. Before it
+    // existed, a fetch that never settles held `await control` open for the whole run.
+    let requestSignal: AbortSignal | undefined;
+    const fetchImpl = (async (
+      _url: string | URL | Request,
+      init: RequestInit,
+    ) => {
+      requestSignal = init.signal ?? undefined;
+      // Never resolves on its own; only the abort ends it, exactly like a hung provider.
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted")),
+        );
+      });
+    }) as unknown as typeof fetch;
+    // A tiny budget makes the request's own deadline tiny too, so this finishes in
+    // milliseconds of real time rather than the eight second default.
+    const { run, logs } = harness([BARE_401], 20, {
+      ...OPENROUTER,
+      fetchImpl,
+    });
+    assert.equal(await run, "ok");
+    assert.match(logs[0], /gave no verdict/);
+    assert.equal(requestSignal?.aborted, true);
   });
 });
 
