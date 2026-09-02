@@ -72,7 +72,11 @@ import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-
 import {
   daytonaCredentialDeliveryPort,
   materializeDaytonaMcpServers,
+  retainDaytonaSecretsOnDestroy,
+  takeRetainedDaytonaSecrets,
+  type RetainedSecretAllocation,
 } from "./daytona-secret-provider.ts";
+import type { DaytonaSecretAllocation } from "./daytona-secrets.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -307,28 +311,53 @@ export async function acquireEnvironment(
   emit?: EmitEvent,
 ): Promise<AcquireEnvironmentResult> {
   // A sandbox the preflight convicts as stuck (no Secret substitution wiring, a permanent
-  // per-sandbox fault) is already destroyed by the failure path; a FRESH sandbox on the same
-  // Secret works, so one retry converts a would-be failed first turn into a slower one.
-  for (let attempt = 1; ; attempt++) {
-    const result = await acquireEnvironmentOnce(
-      request,
-      deps,
-      signal,
-      presignedMount,
-      emit,
-    );
-    if (
-      result.ok ||
-      !result.stuckSubstitution ||
-      attempt >= STUCK_ACQUIRE_ATTEMPTS ||
-      signal?.aborted
-    ) {
-      return result;
+  // per-sandbox fault) is already destroyed by the failure path.
+  //
+  // THE REBUILD KEEPS THE SECRET (production runner logs, 2026-09-01..02). Daytona support
+  // confirmed that a new sandbox on the SAME Secret works. The runner used to delete the stuck
+  // sandbox's Secret and allocate a new one within a second, so every rebuild tested a brand-new
+  // Secret instead, and 4 of 7 observed rebuilds were stuck again. The convicted sandbox's
+  // allocation is therefore retained and handed to the next attempt, which mounts it as-is.
+  //
+  // Ownership: the retry's registry entry adopts the allocation and deletes it at its own
+  // teardown, exactly as an allocation of its own would be. `release` covers every path where no
+  // sandbox adopted it (attempts exhausted, an abort, or an attempt that failed before create),
+  // and is a no-op once a live sandbox holds it.
+  let retained: RetainedSecretAllocation | undefined;
+  try {
+    for (let attempt = 1; ; attempt++) {
+      const result = await acquireEnvironmentOnce(
+        request,
+        deps,
+        signal,
+        presignedMount,
+        emit,
+        retained?.allocation,
+      );
+      if (!result.ok && result.retainedSecrets) {
+        retained = result.retainedSecrets;
+      }
+      if (
+        result.ok ||
+        !result.stuckSubstitution ||
+        attempt >= STUCK_ACQUIRE_ATTEMPTS ||
+        signal?.aborted
+      ) {
+        return result;
+      }
+      process.stderr.write(
+        `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
+          `on the same Secret (attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
+      );
     }
-    process.stderr.write(
-      `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
-        `(attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
-    );
+  } finally {
+    // Never throws: a failed Secret delete must not replace the acquire's own answer.
+    await retained?.release().catch((error: unknown) => {
+      process.stderr.write(
+        `[sandbox-agent] retained Daytona Secret cleanup failed: ` +
+          `${String(error instanceof Error ? error.message : error).slice(0, 200)}\n`,
+      );
+    });
   }
 }
 
@@ -338,6 +367,8 @@ async function acquireEnvironmentOnce(
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
   emit?: EmitEvent,
+  /** Secrets kept from a sandbox the preflight convicted. See `acquireEnvironment`. */
+  inheritedSecrets?: DaytonaSecretAllocation,
 ): Promise<AcquireEnvironmentResult> {
   emit?.({
     type: "data",
@@ -519,6 +550,10 @@ async function acquireEnvironmentOnce(
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown) =>
     remountLocalCwdAfterRuntimeEnotconnUnit(ctx, mountDeps, event);
 
+  // Declared out here so the catch below can read the Secrets a stuck sandbox kept. The provider
+  // is opaque on purpose (local or Daytona), and the two Secret helpers duck-type it.
+  let sandboxProvider: unknown;
+
   try {
     // Fail loud before any sandbox/mount infra spins up: an applicable-but-incomplete
     // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
@@ -569,7 +604,7 @@ async function acquireEnvironmentOnce(
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
-    const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
+    sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
       plan.sandboxId,
       env,
       binaryPath,
@@ -577,6 +612,7 @@ async function acquireEnvironmentOnce(
       plan.credentials.modelEnvironment,
       plan.sandboxPermission,
       plan.credentials.daytonaSecretPlan,
+      inheritedSecrets,
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -1191,9 +1227,14 @@ async function acquireEnvironmentOnce(
       const preflightAwaitStartedAt = Date.now();
       const verdict = await credentialPreflight;
       timingLog("credential_preflight", preflightAwaitStartedAt);
-      // Throwing takes the shared teardown below (sandbox destroyed, Secrets deleted), and the
-      // catch marks the result so the acquire wrapper retries once with a fresh sandbox.
-      if (verdict === "stuck") throw new SubstitutionStuckError();
+      if (verdict === "stuck") {
+        // Keep the Secrets. The teardown below destroys the sandbox, and the next attempt
+        // creates its sandbox against this same allocation, which is the case Daytona support
+        // confirmed works. The destroy runs through the sandbox-agent handle, so the intent has
+        // to be set on the provider here rather than passed to the destroy call.
+        retainDaytonaSecretsOnDestroy(sandboxProvider);
+        throw new SubstitutionStuckError();
+      }
     }
 
     timingLog("acquire_total", acquireStartedAt);
@@ -1222,7 +1263,15 @@ async function acquireEnvironmentOnce(
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
     if (err instanceof SubstitutionStuckError) {
-      return { ok: false, error, stuckSubstitution: true };
+      // Read AFTER the destroy above: the allocation is only handed back once Daytona has
+      // confirmed the sandbox is absent, which keeps the delete-order invariant intact.
+      const retainedSecrets = takeRetainedDaytonaSecrets(sandboxProvider);
+      return {
+        ok: false,
+        error,
+        stuckSubstitution: true,
+        ...(retainedSecrets ? { retainedSecrets } : {}),
+      };
     }
     return { ok: false, error };
   }

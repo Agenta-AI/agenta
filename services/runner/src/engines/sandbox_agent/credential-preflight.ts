@@ -33,9 +33,10 @@
  * and in the 20-sandbox probe carried a masked echo, so the narrower signature costs no
  * detection.
  *
- * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries ONCE
- * with a brand-new sandbox, because the twin experiment proved a new sandbox on the same
- * Secret works. The user sees a slower first turn instead of a failed one.
+ * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries with a
+ * brand-new sandbox built on the SAME Daytona Secret, because that is exactly what the twin
+ * experiment proved works. The Secret is kept across the rebuild; see `acquireEnvironment`.
+ * The user sees a slower first turn instead of a failed one.
  *
  * THE GRACE IS 10 SECONDS, A DELIBERATE CHOICE BELOW DAYTONA'S ~30s BOUND. Their support
  * (2026-08-31, confirming our report) said a sandbox may still start working within ~30s
@@ -106,8 +107,16 @@ export class SubstitutionStuckError extends Error {
   }
 }
 
-/** Total acquire attempts when a sandbox is convicted stuck: the original plus one retry. */
-export const STUCK_ACQUIRE_ATTEMPTS = 2;
+/**
+ * Total acquire attempts when a sandbox is convicted stuck: the original plus two rebuilds.
+ *
+ * RAISED FROM 2 TO 3 (production runner logs, 2026-09-01..02). The single retry was stuck again
+ * in 4 of 7 observed rebuilds, and every one of those rebuilds also churned the Secret, which is
+ * the real defect (see `acquireEnvironment`). A rebuild on the SAME Secret is the case Daytona
+ * support confirmed works, so the extra attempt is a cheap safety net behind that fix rather than
+ * a substitute for it. Each attempt costs one sandbox create, so the ceiling stays low.
+ */
+export const STUCK_ACQUIRE_ATTEMPTS = 3;
 
 export interface CredentialPreflightInput {
   sandbox: PreflightSandbox;

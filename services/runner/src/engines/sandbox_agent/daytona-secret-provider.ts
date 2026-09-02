@@ -31,10 +31,43 @@ interface RegistryEntry {
   cleanupTimer?: ReturnType<typeof setTimeout>;
 }
 
+/**
+ * A Secret allocation that outlived the sandbox it was created for.
+ *
+ * Handed out when a stuck sandbox is destroyed WITHOUT deleting its Secrets, so the next sandbox
+ * of the same run can be created against them. The holder passes `allocation` to the next
+ * provider as `inheritedAllocation`, and calls `release` when no further sandbox will claim it.
+ */
+export interface RetainedSecretAllocation {
+  allocation: DaytonaSecretAllocation;
+  /**
+   * Delete the retained Secrets, unless a live sandbox has adopted them.
+   *
+   * Idempotent, and safe to call on every exit path. The adoption check is a registry lookup for
+   * this exact allocation: a sandbox that inherited it holds it in a registry entry, and that
+   * entry deletes the Secrets at its own teardown. Without the check, a caller that released
+   * unconditionally would delete the Secret its own healthy sandbox is mounted on.
+   *
+   * A release AFTER an inheriting sandbox already tore itself down deletes records Daytona no
+   * longer has. Each delete is idempotent (a 404 is success), so that costs one wasted call.
+   */
+  release(): Promise<void>;
+}
+
 export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
   materializeMcpServers(
     servers: McpServerConfig[] | undefined,
   ): McpServerConfig[] | undefined;
+  /**
+   * Keep this sandbox's Secrets when it is destroyed, rather than deleting them.
+   *
+   * Set by the acquire path when the credential preflight convicts the sandbox. The destroy goes
+   * through the sandbox-agent handle, so the intent cannot ride on the destroy call itself. The
+   * flag is consumed by the first destroy that follows and never carries over.
+   */
+  retainSecretsOnDestroy(): void;
+  /** The allocation a retained destroy kept. Returned once; undefined if nothing was kept. */
+  takeRetainedSecrets(): RetainedSecretAllocation | undefined;
   /**
    * How a rotated credential reaches THIS sandbox without rebuilding it.
    *
@@ -58,6 +91,14 @@ export interface ProcessLocalSecretDependencies {
   createFingerprint: string;
   /** Capability override for the delivery port. See `DaytonaCredentialDeliveryDeps`. */
   credentialCapabilities?: CredentialDeliveryCapabilities;
+  /**
+   * Secrets an earlier sandbox of this run allocated and kept. `create` uses them as-is.
+   *
+   * This is how a sandbox convicted by the credential preflight is rebuilt on the SAME Secret,
+   * which is the case Daytona support confirmed works. With no inherited allocation, `create`
+   * allocates a fresh one, exactly as it always did.
+   */
+  inheritedAllocation?: DaytonaSecretAllocation;
   cleanupDelayMilliseconds: number;
   setCleanupTimer?: typeof setTimeout;
   clearCleanupTimer?: typeof clearTimeout;
@@ -178,15 +219,37 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   const cancel = dependencies.clearCleanupTimer ?? clearTimeout;
   const log = dependencies.log ?? (() => {});
   const createFingerprint = dependencies.createFingerprint;
+  const inheritedAllocation = dependencies.inheritedAllocation;
   let provider: T | undefined;
   let currentAllocation: DaytonaSecretAllocation | undefined;
   // The sandbox the current allocation belongs to, so the delivery port can name the environment
   // it serializes on. Cleared wherever the allocation is.
   let currentSandboxId: string | undefined;
+  // Set by `retainSecretsOnDestroy`, consumed by the next cleanup. See the interface comment.
+  let keepSecretsOnDestroy = false;
+  let retainedSecrets: RetainedSecretAllocation | undefined;
 
   const providerFor = (attachments: Record<string, string>): T => {
     provider ??= buildProvider(attachments);
     return provider;
+  };
+
+  const retainedHandleFor = (
+    allocation: DaytonaSecretAllocation,
+  ): RetainedSecretAllocation => {
+    let released = false;
+    return {
+      allocation,
+      async release(): Promise<void> {
+        if (released) return;
+        released = true;
+        for (const entry of registry.values()) {
+          // A later sandbox adopted these Secrets and now owns them. Its teardown deletes them.
+          if (entry.allocation === allocation) return;
+        }
+        await deleteDaytonaSecrets(allocation, api, log);
+      },
+    };
   };
 
   const cleanupAfterSandbox = async (
@@ -197,7 +260,14 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     // A Secret remains mounted until Daytona confirms the sandbox is absent. Never reverse this
     // order, including timer cleanup and create compensation after an id was returned.
     await destroySandboxIdempotently(activeProvider, sandboxId);
-    await deleteDaytonaSecrets(entry.allocation, api, log);
+    if (keepSecretsOnDestroy) {
+      // The sandbox is gone and its Secrets stay allocated for the next sandbox of this run.
+      // Ownership moves to the caller's retained handle until a new sandbox registers them.
+      keepSecretsOnDestroy = false;
+      retainedSecrets = retainedHandleFor(entry.allocation);
+    } else {
+      await deleteDaytonaSecrets(entry.allocation, api, log);
+    }
     if (registry.get(sandboxId) === entry) registry.delete(sandboxId);
     if (currentAllocation === entry.allocation) {
       currentAllocation = undefined;
@@ -208,17 +278,18 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   const facade: ProcessLocalDaytonaSecretProvider = {
     name: "daytona",
     async create(...args: unknown[]): Promise<string> {
-      const allocation = await allocateDaytonaSecrets(
-        plan,
-        api,
-        undefined,
-        log,
-      );
+      // An inherited allocation is reused as-is: no api.create, no new placeholder, and the same
+      // Secret behind the new sandbox. That is the whole point of the rebuild path.
+      const allocation =
+        inheritedAllocation ??
+        (await allocateDaytonaSecrets(plan, api, undefined, log));
       try {
         provider = buildProvider(allocation.attachments);
       } catch (cause) {
         // buildProvider is synchronous and failed before any remote create call, so absence is
-        // proven and compensation may safely remove the newly allocated Secrets.
+        // proven and compensation may safely remove the newly allocated Secrets. An INHERITED
+        // allocation is left alone: the caller still holds its retained handle and releases it.
+        if (inheritedAllocation) throw cause;
         try {
           await deleteDaytonaSecrets(allocation, api, log);
         } catch (cleanupError) {
@@ -376,6 +447,14 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         await cleanupAfterSandbox(sandboxId, entry, activeProvider);
       });
     },
+    retainSecretsOnDestroy(): void {
+      keepSecretsOnDestroy = true;
+    },
+    takeRetainedSecrets(): RetainedSecretAllocation | undefined {
+      const retained = retainedSecrets;
+      retainedSecrets = undefined;
+      return retained;
+    },
     credentialDeliveryPort(): CredentialDeliveryPort | undefined {
       // No allocation, no reference to rotate. A plan with no hideable candidates lands here too:
       // its values were passed to Daytona directly and live in the daemon environment, where only
@@ -437,6 +516,41 @@ export function daytonaCredentialDeliveryPort(
     typeof provider.credentialDeliveryPort === "function"
   ) {
     return provider.credentialDeliveryPort();
+  }
+  return undefined;
+}
+
+/**
+ * Ask this provider to keep its Secrets when the sandbox is destroyed. No-op for any other one.
+ *
+ * Duck-typed for the same reason as `daytonaCredentialDeliveryPort`: the acquire path holds a
+ * provider whose concrete type it deliberately does not know. A provider without the method has
+ * no Secrets to keep, so doing nothing is the honest answer and the caller keeps today's behavior.
+ */
+export function retainDaytonaSecretsOnDestroy(provider: unknown): void {
+  if (
+    typeof provider === "object" &&
+    provider !== null &&
+    "retainSecretsOnDestroy" in provider &&
+    typeof provider.retainSecretsOnDestroy === "function"
+  ) {
+    provider.retainSecretsOnDestroy();
+  }
+}
+
+/** The allocation a retained destroy kept, or undefined. Duck-typed like the setter above. */
+export function takeRetainedDaytonaSecrets(
+  provider: unknown,
+): RetainedSecretAllocation | undefined {
+  if (
+    typeof provider === "object" &&
+    provider !== null &&
+    "takeRetainedSecrets" in provider &&
+    typeof provider.takeRetainedSecrets === "function"
+  ) {
+    return provider.takeRetainedSecrets() as
+      | RetainedSecretAllocation
+      | undefined;
   }
   return undefined;
 }
