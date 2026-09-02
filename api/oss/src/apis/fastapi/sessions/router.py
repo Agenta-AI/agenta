@@ -68,7 +68,10 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
 )
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.streams.service import (
+    SessionStreamsService,
+    derive_command_mode,
+)
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import publish_record
@@ -401,7 +404,13 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        await self._service.check_runner_concurrency_limit(project_id=project_id)
+        mode = derive_command_mode(payload)
+
+        # A cancel starts nothing, so the per-project concurrency limit must not gate it. Before
+        # this, a project at its limit could not stop the very runs that held the limit — the one
+        # request that frees capacity was the one refused with 429.
+        if mode != CommandMode.cancel:
+            await self._service.check_runner_concurrency_limit(project_id=project_id)
 
         response = await self._service.command(
             arrived_at_ms=arrived_at_ms,
@@ -410,7 +419,7 @@ class SessionStreamsRouter:
             request=payload,
         )
 
-        if response.mode == CommandMode.cancel:
+        if mode == CommandMode.cancel:
             # Stop cancels the stopped turn's pending gates, the same way kill does
             # (`delete_session_stream` below). Without this a stopped session keeps showing an
             # approval card whose buttons answer a turn that no longer exists (#6315). Scoped
