@@ -56,9 +56,9 @@ If later runs should use the result, the agent can also save a copy in its share
 
 ## Each automation runs a version you choose
 
-A schedule or event trigger points to a committed agent version. Draft changes in the playground do not silently change an automation that is already running.
+A schedule or event trigger carries a `Version` field. An automation can follow the agent as you improve it, or stay on one version you choose.
 
-This gives you a clear review point. Improve the agent and test the recurring message in the playground. Then commit the new version and choose when the automation should use it.
+Hold it on one version when a change should not reach a running automation before you have tested it. Improve the agent and test the recurring message in the playground, then move the trigger to the version you want it to run.
 
 ## Continue with the guides
 
