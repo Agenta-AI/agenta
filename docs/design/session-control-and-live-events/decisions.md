@@ -1,275 +1,152 @@
 # Decisions
 
-> AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
+> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** Confirmed items record Mahmoud's statements from the
+> 2026-09-02 discussion. Provisional items are AI-selected defaults for review. Nothing is approved
+> for implementation until a human reviews the draft RFC.
 
-## Confirmed process decisions
+## Confirmed direction
 
-### D-001: Start from bugs and system requirements
+### Start from bugs and requirements
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+The design starts with the open issue inventory and the properties the final system must satisfy.
+An issue observation does not by itself approve a feature or implementation.
 
-The design starts with the open issue inventory and the requirements the final system must
-satisfy. Architecture options must link back to these requirements.
+### Keep control and reading independent
 
-### D-002: Discuss one track at a time
+The client-to-runner control path and runner-to-client read path can proceed in parallel. Stop does
+not wait for shared live output. Shared live output does not wait for Queue or Steer.
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+### Preserve live output
 
-For each track, first present the high-level design and important questions. Record the answers
-and decisions in the RFC after discussion.
+Moving readers behind the API must not reduce live output to completed paragraphs. Every authorized
+reader should receive temporary text and tool progress frames.
 
-### D-003: Keep the read path and control path independent
+### Separate temporary frames from permanent facts
 
-**Status:** Confirmed direction on 2026-09-02.
+Temporary frames can expire. Completed messages, tool results, interaction state, and execution
+outcomes need durable recovery.
 
-Shared reading and immediate control touch different directions and can progress in parallel:
+### Separate Stop from Delete
 
-- Read path: runner to API to clients.
-- Control path: client to API to runner.
+Stop preserves the session and workspace. Delete removes the session and its scoped resources.
 
-Stop must not wait for the live relay, replay, or sender-as-reader work to finish.
+### Require warm resume after Stop
 
-### D-004: Preserve live token output in the target experience
+The Stop spike must prove that the next message resumes the same sandbox and native harness
+session. If the current sandbox agent cannot do this, the spike must identify the patch and Daytona
+snapshot work.
 
-**Status:** Confirmed direction on 2026-09-02.
+### Use five seconds as the provisional Stop target
 
-Moving readers behind the API must not reduce the sender to paragraph-only updates. The final
-system must deliver live frames to every connected reader.
+Within five seconds of accepted Stop under normal operation, the runner stops starting new model
+and tool actions. The deadline for interrupting an already-running provider or tool call depends on
+the capability spike.
 
-### D-005: Keep temporary frames separate from permanent facts
+### Use one public session interface
 
-**Status:** Confirmed direction on 2026-09-02.
+Desktop, mobile, integrations, and external clients use the same public session resources. The
+runner uses a private protocol for trusted execution work.
 
-Live text fragments can have bounded retention. Completed messages, lifecycle facts, tools, and
-interactions require durable recovery. One raw ingress can feed both consumers.
+### Make the expected execution guard optional
 
-### D-006: Investigate sandbox-agent cancellation before selecting Stop semantics
+Stop can include `expected_execution_id`. When omitted, it targets the current execution at API
+acceptance. When supplied, a mismatch prevents an old request from stopping newer work.
 
-**Status:** Confirmed process decision on 2026-09-02.
+### Make accepted input durable
 
-The Stop track starts with a focused sandbox-agent investigation. It must determine whether one
-execution can be cancelled while the harness session and sandbox remain resumable. It must also
-identify any required vendored patch and Daytona snapshot rebuild. This investigation can proceed
-in parallel with the API control-path design.
+A successful Send, Queue, or Steer response means the API saved the input and idempotency identity.
+It does not wait for runner claim or output.
 
-### D-007: Use five seconds as the provisional Stop delivery target
+### Keep pending inputs visible and immutable
 
-**Status:** Provisional product direction from Mahmoud on 2026-09-02.
+Every client can see pending input. A client can remove it before promotion. Editing means remove
+and replace. The initial interface does not reorder pending input.
 
-Within five seconds of an accepted Stop request, the active execution must stop starting new model
-requests and new tool actions. The exact deadline for terminating an already-running provider or
-tool operation remains open until harness and tool cancellation capabilities are verified.
+### Separate delivery state from execution state
 
-### D-008: Separate Stop from Delete
+Internal commands use `pending`, `claimed`, `applied`, and `obsolete`. Claims can expire and retry.
+Public clients follow execution state and durable outcomes rather than transport acknowledgements.
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+### Use long polling behind an adapter
 
-Stop preserves the session, its history, and its resumable sandbox state. Delete permanently
-removes the session and its session-scoped resources. The public interface must not overload one
-operation to mean both.
+The runner initiates authenticated HTTP long polling to claim commands. The command service does
+not depend on that transport. A future adapter can use a persistent connection, broker, or direct
+managed-runner routing.
 
-### D-009: Let first-party and external clients use the same session API
+### Keep Redis ownership in the first version
 
-**Status:** Confirmed direction from Mahmoud on 2026-09-02.
+The first version retains the existing Redis `alive`, `running`, `owner`, and `superseded` model.
+It does not add Postgres ownership generations or full stale-writer rejection. The current system
+has one runner and does not plan near-term runner scaling.
 
-Desktop, mobile, integrations, and external API consumers should use the same public session
-contract. Private API-to-runner delivery remains an implementation detail behind that contract.
+### Keep ownership while Stop settles
 
-### D-010: Make the expected execution guard optional
+Accepting Stop does not immediately free the current `alive` lock. Long polling delivers the
+command. Heartbeat command discovery provides fallback. The runner releases owner-checked locks
+after cancellation settles.
 
-**Status:** Confirmed direction from Mahmoud on 2026-09-02.
+### Add new read contracts beside old endpoints
 
-A Cancel request can include `expected_execution_id`. When supplied, the API cancels only that
-execution and rejects a stale request. When omitted, the API cancels the session's current active
-execution.
+The snapshot and replayable event routes do not change the meaning of current stream and watch
+routes. Clients migrate before obsolete endpoints are removed. Final route names remain open.
 
-### D-011: Keep queued inputs immutable
+## Provisional AI-selected defaults
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+### Use one canonical live-frame path
 
-Clients can view and remove a pending input. They cannot edit or reorder it. To change pending
-content, a client removes the old input and submits a replacement. The API rejects removal after
-the input has been promoted into active work.
+The runner emits one ordered frame sequence to the backend. A bounded Redis Stream feeds the live
+relay and durable projector. Existing sender streaming and record persistence remain during
+migration.
 
-### D-012: Keep design discussions at the architectural level
+### Add a separate session event log
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+The draft selects a separate append-only `session_events` table as the target because current
+records are mutable, follow tracing retention, and omit several session lifecycle facts. This is a
+reviewer gate. Repairing records remains a valid alternative.
 
-The discussion focuses on resource boundaries, execution ownership, event flow, recovery, and
-user-visible behavior. Routine endpoint naming, status codes, defaults, and validation details use
-established API conventions during RFC drafting unless they materially change those properties.
+### Use an opaque per-session cursor
 
-### D-013: A successful submission means durable acceptance
+The event store assigns commit-safe per-session order. Clients treat cursors as opaque values. A
+snapshot and its cursor come from one consistent database view.
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+### Default busy sends to reject during migration
 
-The API confirms a submitted input only after it has durably saved the input, its idempotency
-identity, its session, and the intent to execute it. Acceptance does not wait for a runner to claim
-the work, the harness to start, or the first output frame. If no runner is available, accepted work
-remains queued rather than disappearing.
+The first public default remains `reject` until every first-party client displays the server queue.
+The product can later change the default to `queue`.
 
-### D-014: Do not preserve sender-only live visibility as a requirement
+### Pause queue promotion after manual Stop
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+Manual Stop leaves pending inputs visible and does not immediately start the next one. Normal
+completion promotes one pending input in admission order. This avoids making Stop appear to fail.
 
-The shared session stream is available to authorized session viewers. The design does not treat
-raw live output as secret to the browser that started the execution. Existing configured
-redaction and authorization behavior must be understood, but sender-only visibility is not a
-target product rule.
+### Model Steer as saved input followed by Stop
 
-### D-015: Add the new session interface beside the current endpoints
+The API saves the steering input first, stops current work, and promotes the input after terminal
+settlement. A failed Stop does not discard the steering input.
 
-**Status:** Confirmed as a fair first draft by Mahmoud on 2026-09-02.
+### Use one client reducer
 
-The new snapshot and replayable event interface is introduced without changing the meaning of the
-current stream and watch endpoints. Desktop and mobile migrate before obsolete endpoints are
-deprecated. Final endpoint names remain open for a later interface review.
+Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
+Durable checkpoints replace those previews.
 
-### D-016: Separate command delivery state from execution state
+## Reviewer gates
 
-**Status:** Confirmed by Mahmoud on 2026-09-02.
+1. Warm cancellation behavior in each harness and sandbox.
+2. Long-poll authentication, timeout, and claim-expiry values.
+3. Manual Stop behavior for pending input.
+4. Separate session events versus repaired records.
+5. Per-session commit-order implementation.
+6. Temporary frame retention and slow-reader limits.
+7. Stop, Steer, and interaction-response races.
+8. Final public endpoint names.
+9. Stable record-ID behavior before any immutable-record migration.
 
-The internal command lifecycle starts with `pending`, `claimed`, `applied`, and `obsolete`.
-Claims are temporary and can expire or retry. An execution terminal outcome is durable and cannot
-change. Public clients follow execution states such as `running`, `stopping`, `stopped`, `failed`,
-and `lost`; they do not infer execution state from internal delivery acknowledgements.
+## Deferred decisions
 
-Accepting Stop durably saves the command and moves the matching execution from `running` to
-`stopping` in one transaction. A runner outcome settles both the execution and the command. A
-watchdog settles an execution whose runner disappears, but its timeout remains open until the
-sandbox cancellation spike.
-
-### D-017: Keep current Redis execution ownership for the first version
-
-**Status:** Confirmed by Mahmoud on 2026-09-02.
-
-The first version keeps the existing Redis `alive`, `running`, `owner`, and `superseded` model.
-It does not add Postgres execution authority, ownership generations, or full stale-writer fencing.
-Those changes have low current value because Agenta operates one runner and does not plan near-term
-runner scaling.
-
-Durable commands and runner-initiated long polling remain in scope. Stop delivery no longer depends
-on deleting ownership and waiting for a heartbeat. The current execution keeps its Redis ownership
-while stopping and releases it after cancellation settles. Heartbeat command discovery remains a
-fallback if long polling is unavailable.
-
-## Proposed design decisions
-
-### P-001: Use one raw runner event ingress
-
-**Status:** Proposed. Not approved.
-
-The runner sends raw frames once. A shared Redis Stream can feed both the live relay and a durable
-projector. The projector combines raw frames into durable events. The live relay forwards raw or
-briefly batched frames without waiting for message completion.
-
-The current sender response and current persistence path can remain during migration.
-
-### P-002: Keep ownership heartbeats but remove normal control delivery from them
-
-**Status:** Proposed. Not approved.
-
-Heartbeats continue to renew runner ownership and detect failures. Immediate control delivery
-handles Stop and Steer. Heartbeat detection remains a fallback when direct delivery fails.
-
-### P-003: Use append-only durable events for replay
-
-**Status:** Proposed. Requires an explicit decision reversal or separation from records.
-
-The existing records specification decided to use UUIDv7 ordering and no stored per-session
-sequence. The new replay requirement may need an append-only event log with a per-session cursor.
-The design must either reopen the existing decision or introduce a separate event-log concept.
-
-### P-004: Require one active execution and fence stale writers
-
-**Status:** Proposed. Direction confirmed, mechanism not approved.
-
-At most one execution can be active for a session. Admission must be atomic. Each accepted owner
-receives an increasing ownership generation, also called a fencing token. Every durable write and
-effect-producing command carries that generation. The API rejects a write from an older
-generation even if the old runner is still alive.
-
-Redis heartbeats remain useful for leases and crash detection. A lease alone is not the final
-correctness guarantee because it can expire during a network partition while the old runner keeps
-working.
-
-## Open decision gates
-
-### O-001: Vocabulary
-
-Settle the meanings of `session`, `conversation turn`, and `execution`. Decide how existing
-`turn_id` and `turn_index` map to those terms.
-
-### O-002: Stop behavior inside sandbox-agent
-
-Verify whether the vendored sandbox-agent can cancel one execution while preserving its harness
-session. Warm resume is the required outcome. If current behavior cannot provide it, define the
-required patch and whether Daytona needs a rebuilt snapshot.
-
-### O-003: Durable ordering
-
-Choose between:
-
-- A new append-only durable event log with a per-session sequence.
-- Append-only records with a new ordering contract.
-- Separate record storage and replay-event storage.
-
-Do not add a sequence column to mutable upserts and call the result append-only.
-
-### O-004: Raw live transport
-
-Choose the Redis Stream layout, retention limit, redaction boundary, and browser fan-out model.
-
-### O-005: Stable record-ID semantics spike
-
-Before immutable event insertion is implemented, inventory every runner and backend path that
-reuses a `record_id`. Separate exact delivery retries from progressive updates and resume
-re-emissions. Add regression tests for the final state of tools, interactions, terminal events,
-and harness reconstruction.
-
-### O-006: Immediate runner control
-
-Choose runner-initiated long polling or a persistent runner connection. Future user-operated
-runners are possible but not confirmed. Treat their firewall and credential constraints as one
-consideration, not a binding requirement. The current API knows the logical owner `replica_id`,
-but its configured runner URL is not a replica-specific route.
-
-The current preference is durable long polling because it uses ordinary HTTP, supports prompt
-delivery, and keeps commands recoverable during disconnection. The implementation should place
-transport behind a control-delivery port so Stop and command logic do not depend on long polling,
-Redis, WebSockets, or direct runner routing.
-
-### O-007: Command boundary
-
-Decide which actions enter a general command inbox. The working boundary is execution-affecting
-intent: Send, Cancel, interaction response, Queue, and Steer. Attach is a read operation. Kill,
-rename, archive, and delete remain explicit resource or lifecycle operations unless discussion
-shows a need to change that boundary.
-
-### O-008: Public resource API versus internal command transport
-
-Decide whether public callers submit every execution action to one command collection or use
-clear resource endpoints that translate into internal commands. The current proposal favors clear
-public resources with one internal command envelope.
-
-### O-009: Public Cancel target
-
-Choose whether Cancel publicly targets:
-
-- The current work in a session, with no execution ID.
-- A specific execution resource.
-- The current work in a session plus `expected_execution_id` as a stale-request guard.
-
-The selected direction combines the first and third options. Cancel targets the current work in a
-session. `expected_execution_id` is an optional stale-request guard supplied by clients that know
-the current execution.
-
-### O-009: Busy-message policy names
-
-Choose the public names and defaults for a message submitted while work is active. The current
-working set is `reject`, `queue`, and `steer` under an `on_busy` field.
-
-### O-010: Pending input ordering
-
-Pending inputs remain visible in the session snapshot and event stream. The initial contract uses
-server-assigned FIFO order. Clients cannot edit or reorder queued inputs.
+- Postgres execution ownership.
+- Ownership generations and full stale-writer rejection.
+- Multiple-runner guarantees beyond current behavior.
+- User-operated runner requirements.
+- WebSocket or gRPC control transport.
+- Queue editing and reordering.
+- Permanent token storage.
