@@ -1,7 +1,7 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,11 @@ from oss.src.dbs.postgres.sessions.records.mappings import (
     map_record_dbe_to_dto,
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
+
+# The runner's terminal per-turn record type. Mirrored in
+# oss/src/tasks/asyncio/sessions/records_worker.py, which reads the same marker off the
+# ingest stream; both come from services/runner/src/protocol.ts (`{ type: "done" }`).
+TERMINAL_RECORD_TYPE = "done"
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -224,6 +229,38 @@ class RecordsDAO(RecordsDAOInterface):
                 timestamp=row.timestamp or row.created_at,
             )
         return previews
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        """Which of these `(session_id, turn_id)` pairs already carry a terminal record.
+
+        The watchdog asks this before it writes one of its own, so a turn whose runner DID
+        report an outcome is never given a second, contradictory ending. One query for the
+        whole batch, served by `ix_records_project_id_session_id_turn_id`.
+        """
+        if not keys:
+            return set()
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE.session_id, RecordDBE.turn_id)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.record_type == TERMINAL_RECORD_TYPE,
+                    RecordDBE.deleted_at.is_(None),
+                    tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(
+                        [(session_id, turn_id) for session_id, turn_id in keys]
+                    ),
+                )
+                .distinct()
+            )
+            rows = (await session.execute(stmt)).all()
+
+        return {(row.session_id, row.turn_id) for row in rows}
 
     async def get_event(
         self,

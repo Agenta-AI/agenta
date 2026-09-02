@@ -113,10 +113,18 @@ def _value(node, row):
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, flags: Optional[dict], age_seconds: int):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        flags: Optional[dict],
+        age_seconds: int,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = session_id
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = flags
         self.created_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -241,8 +249,12 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_thresholds_are_five_and_thirty_minutes(anyio_backend):
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (300, 1800)
+async def test_thresholds_are_two_and_thirty_minutes(anyio_backend):
+    """The running threshold moved from 5 minutes to 2 when the watchdog started writing a
+    terminal record. Five minutes was safe for a sweep that only collapsed flags; a user
+    watching a dead turn should not wait that long for an ending. 120s is one 30s heartbeat
+    interval plus the 90s default grace, which is three missed beats."""
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (120, 1800)
 
 
 @pytest.mark.anyio

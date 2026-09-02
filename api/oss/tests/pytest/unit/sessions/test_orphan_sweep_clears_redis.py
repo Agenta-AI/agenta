@@ -9,6 +9,8 @@ fake-engine pattern in test_streams_dao_conflict.py.
 """
 
 from contextlib import asynccontextmanager
+from typing import Optional
+
 from datetime import datetime, timezone, timedelta
 
 import pytest
@@ -22,10 +24,17 @@ _PROJECT_ID = "proj-orphan-1"
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, updated_at: datetime):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        updated_at: datetime,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = "stream-1"
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = {"is_alive": True, "is_running": True, "is_attached": False}
         self.updated_at = updated_at
