@@ -11,12 +11,12 @@
  * fresh sandboxes (target eu); production showed ~3% over an earlier window, so the rate
  * varies. Waiting therefore cannot help; only a fresh sandbox can.
  *
- * THE MECHANISM. Right after the sandbox is created, probe the credential's own endpoint from
- * INSIDE the sandbox: POST the provider's auth-first path with the key env var as the
- * credential. Several consecutive placeholder answers convict the sandbox as STUCK; any other
- * response means the header was substituted (a 400 for the junk body, a real 401 for a
- * genuinely bad key) and the run may proceed. The preflight runs CONCURRENTLY with the rest of
- * acquire (mounts, workspace, session open, ~10s), so a healthy sandbox pays nothing.
+ * THE MECHANISM. Right after the sandbox is created, call the credential's own endpoint from
+ * INSIDE the sandbox with the key env var as the credential. Several consecutive placeholder
+ * readings convict the sandbox as STUCK; anything else means the header was substituted, or
+ * means nothing this module can judge, and the run proceeds. The preflight runs CONCURRENTLY
+ * with the rest of acquire (mounts, workspace, session open, ~10s), so a healthy sandbox pays
+ * nothing.
  *
  * TWO INSTRUMENTS READ THAT PROBE, BECAUSE ONE OF THEM IS BLIND ON HALF THE PROVIDERS.
  *
@@ -32,18 +32,34 @@
  * placeholder really went out. This is the same correction that invalidated the first probe
  * run; see the "CORRECTED" section of `docs/design/daytona-secret-propagation/README.md`.
  *
- * 2. THE CONTROL CALL, for a provider that echoes nothing. OpenRouter answers a bad bearer with
- * a plain 401 that never names the key, and so do Anthropic and Gemini. Instrument 1 sees
- * nothing there and fails open, so every stuck sandbox on those connections became a failed
- * first turn: 10 user-visible failures on the direct OpenRouter connection in production over
- * 2026-09-01..02 (AGE-4249). The runner itself holds the real key at this point, because it
- * created the Secret from it. So it makes ONE call of its own, from the runner process, to the
- * same URL with the same body, concurrently with the sandbox probe. The two answers together
- * are the reading: sandbox 401 plus control accepted means the sandbox sent something the
- * provider refused while the real key works, and the only other thing the sandbox can send is
- * the raw placeholder. Control refused (401 or 403) means the key itself is bad, which is not
- * this fault. The control call is body-independent, so no provider wording can hide the fault
- * from it.
+ * 2. THE DIFFERENTIAL, for a provider that echoes nothing. OpenRouter answers a bad bearer with
+ * a plain 401 that never names the key, and so do Anthropic and OpenAI on their auth endpoints.
+ * Instrument 1 sees nothing there and fails open, so every stuck sandbox on those connections
+ * became a failed first turn: 10 user-visible failures on the direct OpenRouter connection in
+ * production over 2026-09-01..02 (AGE-4249). The runner itself holds the real key at this
+ * point, because it created the Secret from it. So it calls the SAME auth endpoint itself,
+ * concurrently with the sandbox probe, and the pair of answers is the reading.
+ *
+ * WHAT THE DIFFERENTIAL ACTUALLY MEASURES, STATED PLAINLY. It is a difference between two
+ * REQUEST CONTEXTS — one request from inside the sandbox, one from the runner process — and it
+ * attributes that difference to the credential. That attribution is an assumption, not a proof.
+ * Any other environment difference between the two contexts would convict a healthy sandbox:
+ * an IP allowlist on the provider account, a WAF or bot rule that treats the sandbox's egress
+ * range differently, a regional block, a provider-side per-source throttle. Three things bound
+ * the damage. Only a positive, documented auth answer counts as accepted (HTTP 200 from a
+ * non-generation auth endpoint), so an environment difference that produces anything else is
+ * unknown and fails open. A wrong verdict costs a rebuild, not a failed run, because acquire
+ * retries with a fresh sandbox and the retry ladder is bounded. And the rule applies only to
+ * the three direct providers whose auth endpoint is documented and pinned below; every other
+ * connection, custom gateways included, keeps masked-echo-only conviction.
+ *
+ * ONLY A NON-GENERATION AUTH ENDPOINT, READ BY STATUS ALONE. Each differential provider has a
+ * documented endpoint whose entire job is to answer whether a key is good: OpenRouter's
+ * `GET /key`, Anthropic's `GET /v1/models`, OpenAI's `GET /models`. 200 means accepted, 401
+ * means the key is refused, and every other status — 403, 3xx, 404, 405, 429, 5xx, a timeout —
+ * is unknown and fails open. Reading the status of a purpose-built endpoint, rather than
+ * inferring acceptance from "not a refusal" on a generation endpoint, is what keeps a
+ * misrouted or rate-limited call from being read as proof that a key works.
  *
  * WHAT A "STUCK" VERDICT DOES. The acquire path destroys the environment and retries ONCE
  * with a brand-new sandbox, because the twin experiment proved a new sandbox on the same
@@ -57,27 +73,30 @@
  * 10s and rebuild rather than hold every stuck user turn another 20s for a recovery nobody
  * has observed. Decided by the product owner 2026-08-31; revisit only if a late recovery
  * ever shows up in the preflight logs (it would log "substitution confirmed after N
- * probes" with N > 1).
+ * probes" with N > 1). It is ONE deadline: every sandbox probe timeout and the runner's own
+ * call are capped by what is left of it, so a slow probe cannot spend more than the grace.
  *
  * SCOPE. Only a freshly created Daytona sandbox whose MODEL credential rides a Daytona Secret
- * and whose connection declares an endpoint base URL. That covers the OpenAI-compatible shape
- * (the LiteLLM credits proxy, OpenAI, OpenRouter and any custom gateway) and the Anthropic
- * shape, which are the two request shapes below. A provider outside those two stays on the
- * OpenAI-compatible shape and therefore fails open on anything it cannot judge, exactly as an
- * unknown response body does. Gemini is not covered: its auth rides a query parameter rather
- * than a header, so it needs its own shape and its own evidence. A plaintext-env run has no
- * placeholder; a reconnected sandbox already proved itself.
+ * and whose connection declares an endpoint base URL. Within that, the differential covers
+ * exactly three direct providers (openrouter, anthropic, openai). Every other connection —
+ * a custom gateway such as the LiteLLM credits proxy, and any direct provider not named above
+ * — keeps the OpenAI-compatible chat probe and masked-echo-only conviction, which is what has
+ * been convicting stuck sandboxes on the credits proxy since this module shipped. Gemini is
+ * not covered at all: its auth rides a query parameter rather than a header, so it needs its
+ * own shape. A plaintext-env run has no placeholder; a reconnected sandbox already proved
+ * itself.
  *
  * THE KEY VALUE NEVER LEAVES THIS MODULE. The sandbox command carries the env var name, which
- * the sandbox shell expands, and the control call carries the value in a request header only.
- * Every log line goes through a redactor, so no future message can leak it either.
+ * the sandbox shell expands, and the runner's own call carries the value in a request header
+ * only. Every log line goes through a redactor, so no future message can leak it either.
  *
  * AMBIGUITY FAILS OPEN. Any of these returns "ok" and the run proceeds: a probe that errors, a
  * body with nothing judgeable in it, an UNMASKED placeholder-shaped echo, a sandbox status that
- * is not 401, a control call that was refused, and a control call that errored, timed out, or
- * gave no status. The worst outcome is the pre-existing behavior, classified honestly by
- * `classifyRunError`. Only consecutive, unambiguous readings convict: a masked raw-placeholder
- * echo, or a sandbox 401 beside a control call that accepted the same key.
+ * is not 401, a sandbox 401 on a connection without a differential shape, and a runner call
+ * that was refused, errored, timed out, or answered any status but 200. The worst outcome is
+ * the pre-existing behavior, classified honestly by `classifyRunError`. Only consecutive,
+ * unambiguous readings convict: a masked raw-placeholder echo, or a sandbox 401 beside a
+ * runner call that the provider's own auth endpoint answered with 200.
  */
 
 /**
@@ -114,15 +133,18 @@ export interface PreflightSandbox {
   }): Promise<{ exitCode?: number | null; stdout: string } | undefined>;
 }
 
-/** One control call the runner makes itself, with the real key. */
+/** One call the runner makes itself, with the real key, to the provider's auth endpoint. */
 export interface ControlProbeRequest {
+  method: "GET" | "POST";
   url: string;
   headers: Record<string, string>;
-  body: string;
+  body?: string;
   timeoutMs: number;
+  /** Aborted as soon as the preflight stops needing the answer. */
+  signal: AbortSignal;
 }
 
-/** What the control call answered. `status` is absent when nothing could be read. */
+/** What that call answered. `status` is absent when nothing could be read. */
 export interface ControlProbeResponse {
   status?: number;
 }
@@ -138,8 +160,9 @@ export type CredentialPreflightVerdict = "ok" | "stuck";
 export class SubstitutionStuckError extends Error {
   constructor() {
     super(
-      "This sandbox never received its credential-substitution wiring (raw placeholder " +
-        "echoed on every probe); a fresh sandbox is required.",
+      "This sandbox never received its credential-substitution wiring: every probe from " +
+        "inside it either echoed the raw placeholder back or was refused by the provider " +
+        "while the same key succeeded from the runner. A fresh sandbox is required.",
     );
     this.name = "SubstitutionStuckError";
   }
@@ -150,17 +173,19 @@ export const STUCK_ACQUIRE_ATTEMPTS = 2;
 
 export interface CredentialPreflightInput {
   sandbox: PreflightSandbox;
-  /** The custom connection's endpoint base URL (`modelConnection.endpoint.baseUrl`). */
+  /** The connection's endpoint base URL (`modelConnection.endpoint.baseUrl`). */
   baseUrl: string;
   /** The env var name holding the key in the sandbox (the Secret's placeholder). */
   apiKeyVar: string;
-  /** The connection's provider family, which selects the request shape. */
+  /** The connection's provider family (`modelConnection.provider`). */
   provider?: string;
+  /** How that provider is reached (`modelConnection.deployment`): `direct`, `custom`, ... */
+  deployment?: string;
   /**
-   * The real key value, used ONLY as the control call's credential header.
+   * The real key value, used ONLY as the runner call's credential header.
    *
-   * Without it the control instrument is unavailable and a bare 401 fails open, which is the
-   * behavior that shipped before the control call existed.
+   * Without it the differential is unavailable and a bare 401 fails open, which is the
+   * behavior that shipped before the differential existed.
    */
   controlKey?: string;
   log: (message: string) => void;
@@ -168,21 +193,24 @@ export interface CredentialPreflightInput {
   budgetMs?: number;
   /** Delay between probes. */
   pollMs?: number;
-  /** Injectable clock/sleep/control call for tests. */
+  /** The acquire's cancellation signal; aborts the runner's own call with the run. */
+  signal?: AbortSignal;
+  /** Injectable clock/sleep/transport for tests. */
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   controlProbe?: ControlProbe;
+  fetchImpl?: typeof fetch;
 }
 
 /** See the module doc: 10s, deliberately below Daytona's ~30s keep-or-recreate bound. */
 const DEFAULT_BUDGET_MS = 10_000;
 const DEFAULT_POLL_MS = 2_000;
-const CURL_TIMEOUT_S = 8;
+const PROBE_TIMEOUT_S = 8;
 const CONTROL_TIMEOUT_MS = 8_000;
-/** Pinned by Anthropic's API, which refuses a `/v1/messages` call without it. */
+/** Pinned by Anthropic's API, which refuses a versionless call. */
 const ANTHROPIC_VERSION = "2023-06-01";
-/** Where the credential goes in a header template, for the sandbox and the control call alike. */
-const KEY_SLOT = "%KEY%";
+/** A shell would expand anything else in the command string. */
+const SHELL_SAFE_ENV_VAR = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * The only echo that proves the raw placeholder went out: one the provider MASKED.
@@ -203,67 +231,122 @@ const MASKED_PLACEHOLDER_ECHO =
   /dtn_[A-Za-z0-9_-]*\*|virtual key expected.*received=\s*dtn_/i;
 
 /**
- * The auth-first request this preflight sends, in the shape the provider understands.
+ * The request this preflight sends, in the shape the provider understands.
  *
- * Both shapes post an empty JSON body on purpose: an auth-first endpoint answers it without
- * running a model, so the probe costs nothing and returns quickly. The credential sits in
- * `KEY_SLOT` so the same shape builds the sandbox command (which gets a shell expansion) and
- * the control request (which gets the real value).
+ * `buildHeaders` takes the credential and returns the headers, so the same shape builds the
+ * sandbox command (which gets a shell expansion of the env var) and the runner's own request
+ * (which gets the real value). `differential` says whether a bare 401 from the sandbox may be
+ * judged against the runner's answer; see the module doc for why only three providers set it.
  */
 interface ProbeShape {
+  method: "GET" | "POST";
   url: string;
-  headers: [string, string][];
-  body: string;
+  buildHeaders: (credential: string) => Record<string, string>;
+  body?: string;
+  differential: boolean;
 }
 
-function probeShapeFor(baseUrl: string, provider?: string): ProbeShape {
-  const base = baseUrl.replace(/\/+$/, "");
-  if (provider?.trim().toLowerCase() === "anthropic") {
-    return {
-      url: `${base}/v1/messages`,
-      headers: [
-        ["Content-Type", "application/json"],
-        ["x-api-key", KEY_SLOT],
-        ["anthropic-version", ANTHROPIC_VERSION],
-      ],
-      body: "{}",
-    };
-  }
-  // The OpenAI-compatible shape, and the fallback for a provider whose shape is unknown. It
-  // covers the LiteLLM credits proxy, OpenAI, OpenRouter, and any custom gateway. An unknown
-  // provider that does not speak it simply answers something unjudgeable, which fails open.
+/**
+ * The chat probe: a POST of an empty JSON body to the OpenAI-compatible chat path.
+ *
+ * The default for every connection without a documented auth endpoint here. An auth-first
+ * gateway answers it without running a model, and the LiteLLM credits proxy answers it with the
+ * masked refusal that has been convicting stuck sandboxes since this module shipped. It carries
+ * no differential: a 401 from a generation endpoint has too many causes to attribute.
+ */
+function chatProbeShape(base: string): ProbeShape {
   return {
+    method: "POST",
     url: `${base}/chat/completions`,
-    headers: [
-      ["Content-Type", "application/json"],
-      ["Authorization", `Bearer ${KEY_SLOT}`],
-    ],
+    buildHeaders: (credential) => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${credential}`,
+    }),
     body: "{}",
+    differential: false,
   };
 }
 
 /**
- * The curl the sandbox runs. `-w` appends the HTTP status on its own line, which is the second
- * instrument's whole input: the body alone cannot tell a refusal from a substituted call on a
+ * Pick the request shape from the connection's provider family and how it is reached.
+ *
+ * Only a DIRECT connection to one of the three providers below gets a differential shape, and
+ * each one is that provider's own documented endpoint for checking a key. `deployment` matters
+ * as much as `provider`: a custom gateway can carry any provider name while speaking its own
+ * dialect at its own host, so the auth endpoint below would not exist there.
+ */
+function probeShapeFor(
+  baseUrl: string,
+  provider?: string,
+  deployment?: string,
+): ProbeShape {
+  const base = baseUrl.replace(/\/+$/, "");
+  if (deployment?.trim().toLowerCase() !== "direct")
+    return chatProbeShape(base);
+  switch (provider?.trim().toLowerCase()) {
+    case "openrouter":
+      // OpenRouter's documented "get current key" endpoint.
+      return {
+        method: "GET",
+        url: `${base}/key`,
+        buildHeaders: (credential) => ({
+          Authorization: `Bearer ${credential}`,
+        }),
+        differential: true,
+      };
+    case "anthropic":
+      // `limit=1` so the answer stays small; the status is all this reads.
+      return {
+        method: "GET",
+        url: `${base}/v1/models?limit=1`,
+        buildHeaders: (credential) => ({
+          "x-api-key": credential,
+          "anthropic-version": ANTHROPIC_VERSION,
+        }),
+        differential: true,
+      };
+    case "openai":
+      return {
+        method: "GET",
+        url: `${base}/models`,
+        buildHeaders: (credential) => ({
+          Authorization: `Bearer ${credential}`,
+        }),
+        differential: true,
+      };
+    default:
+      return chatProbeShape(base);
+  }
+}
+
+/**
+ * The curl the sandbox runs. `-w` appends the HTTP status on its own line, which is the
+ * differential's whole input: the body alone cannot tell a refusal from a substituted call on a
  * provider that echoes nothing. The env var is expanded by the sandbox shell, so the key value
  * never appears in any runner-side string.
  */
-function sandboxProbeScript(shape: ProbeShape, apiKeyVar: string): string {
-  const headers = shape.headers
-    .map(
-      ([name, value]) =>
-        `-H "${name}: ${value.split(KEY_SLOT).join(`$${apiKeyVar}`)}" `,
-    )
+function sandboxProbeScript(
+  shape: ProbeShape,
+  apiKeyVar: string,
+  timeoutSeconds: number,
+): string {
+  const headers = Object.entries(shape.buildHeaders(`$${apiKeyVar}`))
+    .map(([name, value]) => `-H "${name}: ${value}" `)
     .join("");
+  const method = shape.method === "POST" ? "-X POST " : "";
+  const body =
+    shape.body === undefined ? "" : `-d ${JSON.stringify(shape.body)} `;
   return (
-    `curl -s -m ${CURL_TIMEOUT_S} -w '\\n%{http_code}' -X POST ` +
+    `curl -s -m ${timeoutSeconds} -w '\\n%{http_code}' ` +
+    method +
     headers +
-    `-d ${JSON.stringify(shape.body)} ${JSON.stringify(shape.url)}`
+    body +
+    JSON.stringify(shape.url)
   );
 }
 
 /** Split curl's output into the response body and the status `-w` appended. */
-export function splitProbeOutput(stdout: string | undefined): {
+export function parseCurlProbeOutput(stdout: string | undefined): {
   body: string;
   status?: number;
 } {
@@ -278,28 +361,44 @@ export function splitProbeOutput(stdout: string | undefined): {
   return { body: stdout.slice(0, lastNewline), status };
 }
 
-/** What the runner's own call to the same endpoint said about the key. */
-type ControlReading =
+/** What the runner's own call to the provider's auth endpoint said about the key. */
+type RunnerAuthProbeResult =
   | { kind: "accepted"; status: number }
   | { kind: "refused"; status: number }
   | { kind: "unknown"; detail: string };
 
-async function fetchControlProbe(
-  request: ControlProbeRequest,
-): Promise<ControlProbeResponse> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), request.timeoutMs);
-  try {
-    const response = await fetch(request.url, {
-      method: "POST",
+/**
+ * Read the auth endpoint's answer. Only a 200 is acceptance and only a 401 is refusal; every
+ * other status is a different fact about the request, not about the key. See the module doc.
+ */
+function readRunnerAuthStatus(
+  status: number | undefined,
+): RunnerAuthProbeResult {
+  if (status === undefined) return { kind: "unknown", detail: "no status" };
+  if (status === 200) return { kind: "accepted", status };
+  if (status === 401) return { kind: "refused", status };
+  return { kind: "unknown", detail: `HTTP ${status}` };
+}
+
+/**
+ * The runner's own call, over `fetch`.
+ *
+ * `redirect: "error"` so a 3xx is never followed: the auth endpoint is pinned, and a redirect
+ * would send the real key to whatever host the response named. The body is cancelled once the
+ * status is read, because nothing here reads it and an unread body holds the connection.
+ */
+function createFetchControlProbe(fetchImpl: typeof fetch): ControlProbe {
+  return async (request) => {
+    const response = await fetchImpl(request.url, {
+      method: request.method,
       headers: request.headers,
-      body: request.body,
-      signal: controller.signal,
+      ...(request.body === undefined ? {} : { body: request.body }),
+      redirect: "error",
+      signal: request.signal,
     });
+    await response.body?.cancel().catch(() => {});
     return { status: response.status };
-  } finally {
-    clearTimeout(timer);
-  }
+  };
 }
 
 /**
@@ -315,175 +414,202 @@ export async function awaitCredentialSubstitution(
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const budgetMs = input.budgetMs ?? DEFAULT_BUDGET_MS;
   const pollMs = input.pollMs ?? DEFAULT_POLL_MS;
-  const shape = probeShapeFor(input.baseUrl, input.provider);
-  const script = sandboxProbeScript(shape, input.apiKeyVar);
   // Last line of defence: no message this module writes may carry the key, whatever a future
-  // edit or a provider error string puts in it.
+  // edit or a provider error string puts in it. Any non-empty value is redacted.
   const controlKey = input.controlKey;
   const log = (message: string) =>
     input.log(
-      controlKey && controlKey.length >= 8
-        ? message.split(controlKey).join("[redacted]")
-        : message,
+      controlKey ? message.split(controlKey).join("[redacted]") : message,
     );
 
-  // Started HERE so it runs concurrently with probe 1, and awaited only when a bare 401 makes
-  // it the deciding evidence. One call per preflight. It never rejects, so an unawaited
-  // rejection cannot escape when the sandbox answers cleanly.
-  const control: Promise<ControlReading> | undefined = controlKey
-    ? (input.controlProbe ?? fetchControlProbe)({
-        url: shape.url,
-        headers: Object.fromEntries(
-          shape.headers.map(([name, value]) => [
-            name,
-            value.split(KEY_SLOT).join(controlKey),
-          ]),
-        ),
-        body: shape.body,
-        timeoutMs: CONTROL_TIMEOUT_MS,
-      }).then(
-        (response): ControlReading => {
-          if (response.status === undefined)
-            return { kind: "unknown", detail: "no status" };
-          // 401 and 403 are the provider refusing the key itself. Everything else — a 400 for
-          // the junk body, a 200, a 429 — means the provider read the key and accepted it.
-          return response.status === 401 || response.status === 403
-            ? { kind: "refused", status: response.status }
-            : { kind: "accepted", status: response.status };
-        },
-        (error): ControlReading => ({
-          kind: "unknown",
-          detail: String(error instanceof Error ? error.message : error).slice(
-            0,
-            120,
-          ),
-        }),
-      )
-    : undefined;
+  // The env var name is interpolated into a shell command, so it must be a name and nothing
+  // else. A value that is not one is a programming error upstream, not a stuck sandbox.
+  if (!SHELL_SAFE_ENV_VAR.test(input.apiKeyVar)) {
+    log(
+      `[credential-preflight] refusing to probe: the credential's binding name is not a ` +
+        `shell-safe environment variable name; proceeding`,
+    );
+    return "ok";
+  }
 
+  const shape = probeShapeFor(input.baseUrl, input.provider, input.deployment);
   const startedAt = now();
-  for (let attempt = 1; ; attempt++) {
-    let stdout: string | undefined;
-    try {
-      const result = await input.sandbox.runProcess({
-        command: "sh",
-        args: ["-c", script],
-        timeoutMs: (CURL_TIMEOUT_S + 4) * 1000,
-      });
-      stdout = result?.stdout;
-    } catch (error) {
-      // The exec channel itself failed (sandbox tearing down, daemon hiccup): fail open.
-      log(
-        `[credential-preflight] probe errored, proceeding: ${String(
-          error instanceof Error ? error.message : error,
-        ).slice(0, 120)}`,
-      );
-      return "ok";
-    }
-    const { body, status } = splitProbeOutput(stdout);
-    const masked = MASKED_PLACEHOLDER_ECHO.test(body);
-    // Awaited BEFORE the clock is read, so a slow control call spends the same budget every
-    // other step of the preflight spends. Otherwise a control call that took most of the grace
-    // would leave the loop thinking it still had time for several more probes.
-    const reading =
-      !masked && status === 401 && control ? await control : undefined;
-    const elapsedMs = now() - startedAt;
-    const elapsed = (elapsedMs / 1000).toFixed(1);
+  const deadlineAt = startedAt + budgetMs;
+  const remainingMs = () => Math.max(0, deadlineAt - now());
 
-    // Evidence that the raw placeholder went out. Each instrument words its own two lines: the
-    // per-probe line while the grace still runs, and the conviction line at the end.
-    let evidence: { probeLine: string; stuckLine: string } | undefined;
-    if (masked) {
-      evidence = {
-        probeLine: `raw placeholder echoed (probe ${attempt}, +${elapsed}s)`,
-        stuckLine: `STUCK: raw placeholder on all ${attempt} probes (${elapsed}s)`,
-      };
-    } else if (status === 401) {
-      // The provider refused without naming what it received. Only the control call can say
-      // whether the sandbox sent a bad key or the raw placeholder.
-      if (!reading) {
-        log(
-          `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
-            `+${elapsed}s) and the runner holds no key for a control call; proceeding`,
-        );
-        return "ok";
-      }
-      if (reading.kind === "refused") {
-        log(
-          `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
-            `+${elapsed}s), and the runner's own control call with the same key was ` +
-            `refused (HTTP ${reading.status}): the key itself is being rejected, not its ` +
-            `delivery; proceeding`,
-        );
-        return "ok";
-      }
-      if (reading.kind === "unknown") {
-        log(
-          `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
-            `+${elapsed}s), but the control call gave no verdict (${reading.detail}); ` +
-            `proceeding`,
-        );
-        return "ok";
-      }
-      evidence = {
-        probeLine:
-          `bare 401 with no echo (probe ${attempt}, +${elapsed}s); the runner's own ` +
-          `control call accepted the same key (HTTP ${reading.status})`,
-        stuckLine:
-          `STUCK: bare 401 with no echo on all ${attempt} probes (${elapsed}s) while ` +
-          `the runner's own control call accepted the same key (HTTP ${reading.status})`,
-      };
-    }
+  // ONE controller for the runner's call, aborted in the `finally` below so every exit path
+  // (verdict, throw, caller cancellation) releases it. Composed with the acquire's own signal
+  // so a cancelled run does not leave a request in flight.
+  const controlAbort = new AbortController();
+  const controlSignal = input.signal
+    ? AbortSignal.any([input.signal, controlAbort.signal])
+    : controlAbort.signal;
 
-    if (!evidence) {
-      // Substituted, or the endpoint gave nothing this preflight can judge by — fail open
-      // either way. An unmasked placeholder shape lands here on purpose: scrubbing produces
-      // it from a healthy key too, so it is not evidence. Log it, because a stuck sandbox
-      // behind an echoing endpoint now passes the preflight and surfaces as the 401 instead.
-      if (body.includes("dtn_")) {
-        log(
-          `[credential-preflight] unmasked placeholder-shaped echo (probe ${attempt}, ` +
-            `+${elapsed}s): scrubbing produces this from a REAL key ` +
-            `too, so it convicts nothing; proceeding`,
-        );
-      } else if (attempt > 1) {
-        log(
-          `[credential-preflight] substitution confirmed after ${attempt} probes ` +
-            `(${elapsed}s)`,
-        );
-      }
-      return "ok";
-    }
-    if (elapsedMs + pollMs > budgetMs) {
-      log(
-        `[credential-preflight] ${evidence.stuckLine}; this sandbox will never substitute`,
+  // Started HERE so it runs concurrently with probe 1, and awaited only when a bare 401 makes
+  // it the deciding evidence. One call per preflight, and none at all on a connection whose
+  // shape carries no differential. It never rejects, so an unawaited rejection cannot escape
+  // when the sandbox answers cleanly.
+  const control: Promise<RunnerAuthProbeResult> | undefined =
+    controlKey && shape.differential
+      ? (
+          input.controlProbe ??
+          createFetchControlProbe(input.fetchImpl ?? fetch)
+        )({
+          method: shape.method,
+          url: shape.url,
+          headers: shape.buildHeaders(controlKey),
+          ...(shape.body === undefined ? {} : { body: shape.body }),
+          timeoutMs: Math.max(1_000, Math.min(CONTROL_TIMEOUT_MS, budgetMs)),
+          signal: controlSignal,
+        }).then(
+          (response) => readRunnerAuthStatus(response.status),
+          (error): RunnerAuthProbeResult => ({
+            kind: "unknown",
+            detail: String(
+              error instanceof Error ? error.message : error,
+            ).slice(0, 120),
+          }),
+        )
+      : undefined;
+
+  try {
+    for (let attempt = 1; ; attempt++) {
+      // Every probe is capped by what is left of the one deadline, so a slow sandbox cannot
+      // spend more than the grace no matter how long its exec channel takes to answer.
+      const probeSeconds = Math.max(
+        1,
+        Math.min(PROBE_TIMEOUT_S, Math.ceil(remainingMs() / 1000)),
       );
-      return "stuck";
+      const script = sandboxProbeScript(shape, input.apiKeyVar, probeSeconds);
+      let stdout: string | undefined;
+      try {
+        const result = await input.sandbox.runProcess({
+          command: "sh",
+          args: ["-c", script],
+          timeoutMs: (probeSeconds + 4) * 1000,
+        });
+        stdout = result?.stdout;
+      } catch (error) {
+        // The exec channel itself failed (sandbox tearing down, daemon hiccup): fail open.
+        log(
+          `[credential-preflight] probe errored, proceeding: ${String(
+            error instanceof Error ? error.message : error,
+          ).slice(0, 120)}`,
+        );
+        return "ok";
+      }
+      const { body, status } = parseCurlProbeOutput(stdout);
+      const masked = MASKED_PLACEHOLDER_ECHO.test(body);
+      // Awaited BEFORE the clock is read, so a slow runner call spends the same budget every
+      // other step spends. Otherwise a call that took most of the grace would leave the loop
+      // thinking it still had time for several more probes.
+      const reading =
+        !masked && status === 401 && control ? await control : undefined;
+      const elapsedMs = now() - startedAt;
+      const elapsed = (elapsedMs / 1000).toFixed(1);
+
+      // Evidence that the raw placeholder went out. Each instrument words its own two lines:
+      // the per-probe line while the grace still runs, and the conviction line at the end.
+      let evidence: { probeLine: string; stuckLine: string } | undefined;
+      if (masked) {
+        evidence = {
+          probeLine: `raw placeholder echoed (probe ${attempt}, +${elapsed}s)`,
+          stuckLine: `STUCK: raw placeholder on all ${attempt} probes (${elapsed}s)`,
+        };
+      } else if (status === 401 && shape.differential) {
+        // The provider refused without naming what it received. Only the runner's own call to
+        // the same auth endpoint can say whether the key is bad or the delivery is.
+        if (!reading) {
+          log(
+            `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
+              `+${elapsed}s) and the runner holds no key to check it against; proceeding`,
+          );
+          return "ok";
+        }
+        if (reading.kind === "refused") {
+          log(
+            `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
+              `+${elapsed}s), and the provider's auth endpoint refused the same key from ` +
+              `the runner (HTTP ${reading.status}): the key itself is being rejected, not ` +
+              `its delivery; proceeding`,
+          );
+          return "ok";
+        }
+        if (reading.kind === "unknown") {
+          log(
+            `[credential-preflight] sandbox answered 401 with no echo (probe ${attempt}, ` +
+              `+${elapsed}s), but the runner's own call to the auth endpoint gave no ` +
+              `verdict (${reading.detail}); proceeding`,
+          );
+          return "ok";
+        }
+        evidence = {
+          probeLine:
+            `bare 401 with no echo (probe ${attempt}, +${elapsed}s); the provider's auth ` +
+            `endpoint accepted the same key from the runner (HTTP ${reading.status})`,
+          stuckLine:
+            `STUCK: bare 401 with no echo on all ${attempt} probes (${elapsed}s) while ` +
+            `the provider's auth endpoint accepted the same key from the runner ` +
+            `(HTTP ${reading.status})`,
+        };
+      }
+
+      if (!evidence) {
+        // Substituted, or the endpoint gave nothing this preflight can judge by — fail open
+        // either way. An unmasked placeholder shape lands here on purpose: scrubbing produces
+        // it from a healthy key too, so it is not evidence. Log it, because a stuck sandbox
+        // behind an echoing endpoint now passes the preflight and surfaces as the 401 instead.
+        if (body.includes("dtn_")) {
+          log(
+            `[credential-preflight] unmasked placeholder-shaped echo (probe ${attempt}, ` +
+              `+${elapsed}s): scrubbing produces this from a REAL key ` +
+              `too, so it convicts nothing; proceeding`,
+          );
+        } else if (attempt > 1) {
+          log(
+            `[credential-preflight] substitution confirmed after ${attempt} probes ` +
+              `(${elapsed}s)`,
+          );
+        }
+        return "ok";
+      }
+      if (elapsedMs + pollMs > budgetMs) {
+        log(
+          `[credential-preflight] ${evidence.stuckLine}; this sandbox will never substitute`,
+        );
+        return "stuck";
+      }
+      log(`[credential-preflight] ${evidence.probeLine}`);
+      await sleep(pollMs);
     }
-    log(`[credential-preflight] ${evidence.probeLine}`);
-    await sleep(pollMs);
+  } finally {
+    // Nothing reads the runner's call after this point, on any exit path.
+    controlAbort.abort();
   }
 }
 
 /**
- * Build the preflight's request from the acquire path's pieces.
+ * Build the preflight's input from the acquire path's pieces.
  *
  * It exists so the kickoff's wiring is testable: `acquireEnvironment` cannot be driven without a
  * live provider, and the one property worth pinning is that the candidate's real value has
- * exactly one destination, the control call. Everything the sandbox sees is a variable name.
+ * exactly one destination, the runner's own call. Everything the sandbox sees is a variable
+ * name.
  */
-export function credentialPreflightRequest(input: {
+export function buildCredentialPreflightInput(input: {
   baseUrl: string;
   candidate: { binding: { name: string }; value: string };
   provider?: string;
+  deployment?: string;
 }): Pick<
   CredentialPreflightInput,
-  "baseUrl" | "apiKeyVar" | "provider" | "controlKey"
+  "baseUrl" | "apiKeyVar" | "provider" | "deployment" | "controlKey"
 > {
   return {
     baseUrl: input.baseUrl.trim(),
     apiKeyVar: input.candidate.binding.name,
     ...(input.provider ? { provider: input.provider } : {}),
+    ...(input.deployment ? { deployment: input.deployment } : {}),
     controlKey: input.candidate.value,
   };
 }

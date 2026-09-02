@@ -64,7 +64,7 @@ import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
-  credentialPreflightRequest,
+  buildCredentialPreflightInput,
   deliversModelSecretOnCreate,
   STUCK_ACQUIRE_ATTEMPTS,
   SubstitutionStuckError,
@@ -653,15 +653,20 @@ async function acquireEnvironmentOnce(
       preflightBaseUrl
         ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
             sandbox: environment.sandbox,
-            // The candidate's real value rides in as the control call's credential and
-            // nowhere else. See `credentialPreflightRequest`.
-            ...credentialPreflightRequest({
+            // The candidate's real value rides in as the credential for the runner's own
+            // auth call and nowhere else. See `buildCredentialPreflightInput`.
+            ...buildCredentialPreflightInput({
               baseUrl: preflightBaseUrl,
               candidate: modelSecretCandidate,
               ...(request.modelConnection?.provider
                 ? { provider: request.modelConnection.provider }
                 : {}),
+              ...(request.modelConnection?.deployment
+                ? { deployment: request.modelConnection.deployment }
+                : {}),
             }),
+            // Cancel the runner's own auth call with the run, not just with the preflight.
+            ...(signal ? { signal } : {}),
             log: logger,
           })
         : undefined;
