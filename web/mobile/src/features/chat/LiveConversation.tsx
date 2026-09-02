@@ -20,7 +20,7 @@ import {
     useConnectionDock,
     useElicitationDock,
 } from "@agenta/chat/hooks"
-import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {getLivePendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
 import {
@@ -201,9 +201,11 @@ export const LiveConversation = ({
 
     // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
     // (same source function, same index-0 ordering) and acts through the engine.
+    // Emptied after a user stop, matching the desktop and the two docks below: Stop cancels the
+    // stopped turn's gates server-side, so an approve pressed after it answers a turn that is gone.
     const pendingApprovals = useMemo(
-        () => getPendingApprovals(conversation.messages),
-        [conversation.messages],
+        () => getLivePendingApprovals(conversation.messages, {stopped: conversation.stopped}),
+        [conversation.messages, conversation.stopped],
     )
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
