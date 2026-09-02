@@ -26,6 +26,7 @@ from oss.src.dbs.redis.sessions.contract import (
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
+from oss.src.dbs.redis.sessions.replicas import record_replica_beat
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
@@ -209,6 +210,19 @@ class SessionStreamsService:
                 session_id=session_id,
                 state=state,
             )
+
+    async def publish_session_ended(self, *, project_id: UUID, session_id: str) -> None:
+        """Announce that a turn ended, on the channel every open browser already listens to.
+
+        Public because the durable-command plane settles a Stop and has to publish the same
+        notification the ordinary end-of-turn path publishes. There is one `ended` event, not a
+        Stop-shaped one and a turn-shaped one; a client cannot be asked to tell them apart.
+        """
+        await self._publish_lifecycle(
+            project_id=project_id,
+            session_id=session_id,
+            state=WATCH_LIFECYCLE_ENDED,
+        )
 
     async def _publish_changed(self, *, project_id: UUID, session_id: str) -> None:
         if self._watch is None:
@@ -461,6 +475,10 @@ class SessionStreamsService:
             session_id=request.session_id,
             replica_id=request.replica_id,
         )
+        # One sorted-set entry per beat, so the direct control-delivery adapter can tell whether
+        # it is safe to post a Stop to a single runner address. Never raises; a census failure
+        # must not cost a heartbeat.
+        await record_replica_beat(self._lock, replica_id=request.replica_id)
         # A replica that lost the claim owns nothing here: mutating the nest would let it
         # overwrite the winner's turn locks and stream row. Report the true owner and stop.
         if owner != request.replica_id:
