@@ -332,36 +332,35 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
- * The agents that have been archived, or `null` while the catalog is still loading.
+ * Every agent the catalog still lists, or `null` while it is loading.
  *
- * Archiving is `deleted_at` on the workflow ref, the same field every other "is this agent gone"
- * read uses. `null` rather than an empty set while pending: an empty set would claim NOTHING is
- * archived and let the rows render before being pulled back out.
+ * The catalog excludes archived agents (`include_archived` is off), so "absent here" IS "archived"
+ * — which is what lets the rail drop their sessions without paying for the archived rows.
+ *
+ * REQUIRES an unpaged catalog. `appWorkflowsListQueryAtom` sends no `windowing`, so the query
+ * returns every agent in the project; add a limit there and an agent past the cap reads as
+ * archived and loses its sessions off the rail.
  */
-const archivedAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
+const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     if (!query.data) return null
-    return new Set(
-        (query.data.refs ?? [])
-            .filter((ref: {deleted_at?: string | null}) => Boolean(ref.deleted_at))
-            .map((ref: {id: string}) => ref.id),
-    )
+    return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
 })
 
 /**
- * Drop sessions whose agent has been archived (#5944) — an archived agent's conversations should
- * not keep occupying the rail. A PIN is an explicit user request and is exempt, the same exemption
- * it gets from every other list rule.
+ * Drop sessions whose agent is no longer listed (#5944, #6457) — an archived agent's conversations
+ * should not keep occupying the rail. A PIN is an explicit user request and is exempt, the same
+ * exemption it gets from every other list rule.
  */
-export const dropArchivedAgentSessions = (
+export const dropMissingAgentSessions = (
     refs: readonly SessionSidebarRef[],
-    // `null` = the archived-agents answer has not arrived; keep everything rather than blink rows
-    // out and back in once it does.
-    archivedAgentIds: ReadonlySet<string> | null,
+    // `null` = the catalog has not answered; keep everything rather than blank the rail on a
+    // pending or failed fetch, which an empty set would otherwise do to EVERY row.
+    liveAgentIds: ReadonlySet<string> | null,
 ): SessionSidebarRef[] =>
-    archivedAgentIds === null
+    liveAgentIds === null
         ? [...refs]
-        : refs.filter((ref) => ref.pinned || !ref.appId || !archivedAgentIds.has(ref.appId))
+        : refs.filter((ref) => ref.pinned || !ref.appId || liveAgentIds.has(ref.appId))
 
 /**
  * The rail's filters, applied to the rows the HOST contributes.
@@ -473,7 +472,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         // Archiving an agent has to take its conversations off the rail with it (#5944). Applied
         // to every scope, grouped or not: an archived agent's sessions are stale everywhere the
         // rail renders, not only where headings group them by agent.
-        const merged = dropArchivedAgentSessions(narrowed, get(archivedAgentIdsAtom))
+        const merged = dropMissingAgentSessions(narrowed, get(liveAgentIdsAtom))
 
         // An ungrouped scope needs neither, and the artifactName read would subscribe it to the
         // workflow catalog it never asked for.
