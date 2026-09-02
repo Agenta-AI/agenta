@@ -297,6 +297,22 @@ set_healthcheck() {
     railway_call environment edit --environment "$ENV_NAME" --service-config "$service" healthcheckPath "$path" --message "set healthcheck for ${service}" --json >/dev/null
 }
 
+# clear_healthcheck <service>: remove a healthcheck an earlier run of this
+# script stored. Dropping a set_healthcheck call does not undo what is already
+# on the environment, so the services that must have no healthcheck are
+# cleared explicitly on every run. An empty path clears the field
+# (serviceInstanceUpdate treats "" as a clear; see template/apply.sh). A CLI
+# that rejects the empty value must not fail the whole run, so warn instead.
+clear_healthcheck() {
+    local service="$1"
+    if ! railway_call environment edit --environment "$ENV_NAME" \
+        --service-config "$service" healthcheckPath "" \
+        --message "clear healthcheck for ${service}" --json >/dev/null 2>&1; then
+        printf "Warning: could not clear the healthcheck for '%s'. Clear it in the Railway UI, or that service never turns green.\n" \
+            "$service" >&2
+    fi
+}
+
 main() {
     require_cmd railway
     require_railway_auth
@@ -541,14 +557,24 @@ main() {
         SSL_CERT_DAYS=820 \
         RAILWAY_DEPLOYMENT_DRAINING_SECONDS=60
 
-    # No healthcheck on the gateway: it proxies / to web, and the web app
-    # answers / with a 308 redirect to /w (web/oss/next.config.ts). Railway
-    # counts a 308 as a failed probe, so the deployment never goes green. Give
-    # the gateway a healthcheck again only once the wrapper image serves its
-    # own 200 endpoint (for example location = /healthz).
     set_healthcheck api "/health"
     set_healthcheck services "/health"
-    set_healthcheck runner "/health"
+
+    # Two services must have NO healthcheck, and both are cleared rather than
+    # merely left unset, because an earlier run of this script may have stored
+    # one. The template declares the same policy (template/template.json).
+    #
+    # gateway: it proxies / to web, and the web app answers / with a 308
+    # redirect to /w (web/oss/next.config.ts). Railway counts a 308 as a
+    # failed probe, so the deployment never goes green. The gateway can carry
+    # a healthcheck again once the wrapper image serves its own 200 endpoint,
+    # for example location = /healthz.
+    #
+    # runner: it serves /health, but on AGENTA_RUNNER_PORT (8765), not on the
+    # port Railway probes, so Railway cannot reach it. Dropped from the
+    # template in 9fcbcec9d6 for that reason.
+    clear_healthcheck gateway
+    clear_healthcheck runner
 
     printf "Configuration completed for project '%s' environment '%s'\n" "$PROJECT_NAME" "$ENV_NAME"
 }
