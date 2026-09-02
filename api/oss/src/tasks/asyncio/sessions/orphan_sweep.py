@@ -229,15 +229,41 @@ async def _unsettled_turns(
     return unsettled
 
 
+async def _settle_abandoned_commands(
+    commands_service: Optional[Any],
+    now: datetime,
+) -> int:
+    """Settle every Stop command whose runner accepted it and never reported.
+
+    Delegates the decision to the commands plane, which owns the command state machine, so
+    this sweep and a runner report can never write two different terminal outcomes for the
+    same command. Never raises: an abandoned command must not stop the pass that settles
+    executions.
+    """
+    if commands_service is None:
+        return 0
+    try:
+        return await commands_service.settle_abandoned_commands(now=now)
+    except Exception:
+        log.warning("watchdog: failed to settle abandoned commands", exc_info=True)
+        return 0
+
+
 async def run_orphan_sweep(
     engine: TransactionsEngine,
     lock_engine: LockEngine,
     *,
     records_service: Optional[RecordsService] = None,
     watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+    commands_service: Optional[Any] = None,
     publish: Any = publish_record,
 ) -> None:
-    """Single watchdog pass: settle every stale is_alive row."""
+    """Single watchdog pass: settle every stale is_alive row, then every abandoned command.
+
+    `commands_service` is a `SessionCommandsService`. It is optional and typed loosely so this
+    module keeps no import edge on the commands plane, which would be a cycle. When it is
+    given, this pass is also the one writer that settles a Stop the runner never reported.
+    """
     now_utc = datetime.now(timezone.utc)
     threshold = now_utc - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
     idle_threshold = now_utc - timedelta(seconds=IDLE_THRESHOLD_SECONDS)
@@ -264,6 +290,9 @@ async def run_orphan_sweep(
         orphans = result.scalars().all()
 
         if not orphans:
+            # No stale row, but a command can still be abandoned: its execution may have ended
+            # normally between the claim and the report.
+            await _settle_abandoned_commands(commands_service, now_utc)
             return
 
         # A row that claimed a RUNNING turn owes that turn an ending. A row that was merely
@@ -365,10 +394,18 @@ async def run_orphan_sweep(
                         exc_info=True,
                     )
 
+        # AFTER the rows above are collapsed, on purpose. A command is only abandoned when its
+        # session has stopped beating, and the collapse just made that true for every row in
+        # this batch. Running it first would leave the runner-gone case waiting a second pass.
+        commands_settled = await _settle_abandoned_commands(
+            commands_service, datetime.now(timezone.utc)
+        )
+
         log.info(
-            "watchdog: settled %d sessions (%d turns marked lost)",
+            "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",
             len(orphans),
             len(unsettled),
+            commands_settled,
         )
 
 
@@ -378,6 +415,7 @@ async def orphan_sweep_loop(
     *,
     records_service: Optional[RecordsService] = None,
     watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+    commands_service: Optional[Any] = None,
 ) -> None:
     """Infinite loop; runs as a background asyncio task during app lifespan."""
     while True:
@@ -387,6 +425,7 @@ async def orphan_sweep_loop(
                 lock_engine,
                 records_service=records_service,
                 watch_publisher=watch_publisher,
+                commands_service=commands_service,
             )
         except asyncio.CancelledError:
             raise

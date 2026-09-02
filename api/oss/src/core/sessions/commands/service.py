@@ -376,6 +376,63 @@ class SessionCommandsService:
         age = (datetime.now(timezone.utc) - updated_at).total_seconds()
         return age < HEARTBEAT_INTERVAL_SECONDS * 2
 
+    async def settle_abandoned_commands(self, *, now: datetime) -> int:
+        """Settle every claimed command whose runner will never report an outcome.
+
+        THE ONE WRITER RULE. An execution reaches exactly one terminal outcome from exactly
+        one writer. The execution watchdog is that writer, so this method has exactly one
+        caller: `run_orphan_sweep`, in the same pass that settles the execution itself. A
+        second sweep racing this one is a worse bug than the one being fixed.
+
+        A claim that has expired means the runner accepted the Stop and did not report back.
+        Two very different situations look alike from the row:
+
+        * The runner is gone (a restart, a crash). Nobody will ever report. The command is
+          settled `obsolete` with outcome `lost`, which runs the same side effects a reported
+          settlement runs: the session stops reading "stopping", the execution's pending
+          interaction gates are cancelled, and open browsers are told the turn ended.
+        * The runner is alive and still beating for that session. Its report is merely late,
+          so the claim is left alone and the next pass reconsiders. Settling here would tell
+          the user the Stop failed while it was in fact still being applied.
+
+        Returns how many commands were settled, for the sweep's log line.
+        """
+        expired = await self._dao.expire_claims(
+            now=now,
+            max_deliveries=env.agenta.sessions.commands.max_deliveries,
+        )
+        settled = 0
+        for command in expired:
+            if await self._session_is_beating(
+                project_id=command.project_id, session_id=command.session_id
+            ):
+                continue
+            # `replica_id=None`: the sweep is not the replica that holds the claim, and that
+            # is the point. The state guard alone decides, so a runner that reports at the
+            # same instant either wins the row or finds it terminal, never both.
+            result = await self.settle(
+                command_id=command.id,
+                project_id=command.project_id,
+                replica_id=None,
+                expected_state=SessionCommandState.claimed,
+                state=SessionCommandState.obsolete,
+                outcome=SessionCommandOutcome.lost,
+                execution_id=command.target_turn_id,
+            )
+            if result is None:
+                continue
+            settled += 1
+            log.warning(
+                "watchdog: settled a session command whose runner never reported",
+                extra={
+                    "command_id": str(command.id),
+                    "session_id": command.session_id,
+                    "target_turn_id": command.target_turn_id,
+                    "claim_count": command.claim_count,
+                },
+            )
+        return settled
+
     # -- settlement --------------------------------------------------------- #
 
     async def report_outcome(

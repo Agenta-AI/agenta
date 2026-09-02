@@ -285,12 +285,18 @@ async def lifespan(*args, **kwargs):
 
     # The execution watchdog. It needs the records plane to write the terminal outcome a
     # dead runner owed, and the watch publisher so an open browser sees the turn close.
+    #
+    # It is also given the commands service, which makes this one pass the single writer that
+    # settles both halves of a lost turn: the execution, and any Stop command a runner accepted
+    # and never reported. `session_commands_service` is defined further down this module and
+    # resolved when the lifespan runs, which is after import.
     _orphan_sweep_task = asyncio.create_task(
         orphan_sweep_loop(
             _transactions_engine,
             _lock_engine,
             records_service=records_service,
             watch_publisher=_sessions_watch_publisher,
+            commands_service=session_commands_service,
         )
     )
 
