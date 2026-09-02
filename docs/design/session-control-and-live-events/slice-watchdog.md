@@ -397,10 +397,12 @@ command in the same loop that settles its execution.
 
 ## Open questions for Mahmoud
 
-1. **Is 120 seconds the right time to declare a turn lost?** *Recommendation: ship it and watch.*
-   It is three missed heartbeats, and it is now a setting rather than a constant, so a wrong
-   answer costs a restart. The old 300 was chosen when the sweep only collapsed flags and nobody
-   saw the result.
+1. **Is 90 seconds of heartbeat silence the right time to declare a turn lost?**
+   *Recommendation: ship it and watch.* It is three missed beats at the runner's 30-second
+   cadence, and it is a setting rather than a constant, so a wrong answer costs a restart rather
+   than a redesign. The old 300 was chosen when the sweep only collapsed flags and nobody saw the
+   result. The risk to watch for is the opposite of the obvious one: not settling a turn too
+   late, but settling a live turn whose runner was merely slow to beat.
 
 2. **Should the watchdog also close the turns ledger?** *Recommendation: not in this slice.*
    `session_turns.end_time` stays NULL on a lost turn, which is a real inconsistency, but nothing
