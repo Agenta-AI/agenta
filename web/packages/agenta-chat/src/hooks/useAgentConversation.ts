@@ -39,6 +39,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
+import {turnIdFromDataPart} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
@@ -62,7 +63,12 @@ import {
     isChatBusy,
     type SessionChatHooks,
 } from "../state/sessionChats"
-import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
+import {
+    clearSessionFresh,
+    composerDraftBySession,
+    isSessionFresh,
+    setSessionTurnId,
+} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -265,6 +271,9 @@ export const useAgentConversation = ({
         onData: (part) => {
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
+            // The runner names the turn it just started, so Stop can say WHICH turn to cancel.
+            const turnId = turnIdFromDataPart(part)
+            if (turnId) setSessionTurnId(sessionId, turnId)
         },
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))

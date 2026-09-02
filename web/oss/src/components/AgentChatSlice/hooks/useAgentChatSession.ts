@@ -5,6 +5,7 @@ import {
     getMessageTraceId,
     latestTurnId,
     startupLabelFromDataPart,
+    turnIdFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -152,6 +153,10 @@ export const useAgentChatSession = ({
         onData: (part) => {
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
+            // The runner names the turn it just started. Remembering it is what lets Stop say
+            // WHICH turn to cancel instead of "whatever is running" (#6417).
+            const turnId = turnIdFromDataPart(part)
+            if (turnId) setSessionTurnId(sessionId, turnId)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).

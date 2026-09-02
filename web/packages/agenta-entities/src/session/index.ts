@@ -21,6 +21,7 @@ export {
     cancelSessionExecution,
     cancelSessionStream,
     type CancelSessionOutcome,
+    type CancelSessionStreamParams,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,

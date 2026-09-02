@@ -627,6 +627,15 @@ export async function killSession({
  * (`callFern` logs and swallows), which is why the desktop Stop could report "Stopped" for a run
  * that was still going. A Stop is the one control call whose failure the user must see.
  */
+export interface CancelSessionStreamParams extends SessionScopedParams {
+    /**
+     * The turn this client believes it is stopping, read off the stream's `data-agent-turn` part
+     * (`getSessionTurnId` in @agenta/chat). The server cancels that turn or nothing. Absent means
+     * this client never learned the id, which is every client until the runner emits the part.
+     */
+    expectedExecutionId?: string
+}
+
 export type CancelSessionOutcome =
     | {status: "cancelled"; response: SessionStreamCommandResponse | null}
     /** The server refused: another turn holds the session, or the Stop arrived too late. */
@@ -656,12 +665,19 @@ export async function cancelSessionStream({
     projectId,
     appId,
     abortSignal,
-}: SessionScopedParams): Promise<CancelSessionOutcome> {
+    expectedExecutionId,
+}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
     if (!projectId || !sessionId) return {status: "failed"}
 
     try {
         const data = await getSessionsClient().setSessionStream(
-            {session_id: sessionId},
+            {
+                session_id: sessionId,
+                // Omitted, not sent as null, when this client never learned the turn id: the
+                // server then falls back to its own arrival-time check rather than matching a
+                // turn nothing can hold.
+                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+            },
             projectScopedRequest(projectId, appId, abortSignal),
         )
         return {

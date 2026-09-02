@@ -21,6 +21,7 @@ import {
     useElicitationDock,
 } from "@agenta/chat/hooks"
 import {getLivePendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionStream} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {message, modal} from "@agenta/ui/app-message"
@@ -209,7 +210,13 @@ export const LiveConversation = ({
     const stopHere = useCallback(() => {
         conversation.stop()
         if (!projectId || !sessionId) return
-        void cancelSessionStream({sessionId, projectId})
+        // Name the turn when the stream told this device which one it is. Absent means the runner
+        // did not emit it, and the server falls back to its own arrival-time check.
+        void cancelSessionStream({
+            sessionId,
+            projectId,
+            expectedExecutionId: getSessionTurnId(sessionId),
+        })
             .then((outcome) => {
                 if (outcome.status === "cancelled") return
                 message.warning(
