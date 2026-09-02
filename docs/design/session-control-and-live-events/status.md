@@ -28,6 +28,8 @@
 - Proposed snapshot and event routes explicitly marked as new contracts, not changed meanings of
   current stream routes.
 - Side-by-side endpoint migration accepted as the first draft. Final naming deferred.
+- Existing record properties, violations, structural constraints, and repair options traced before
+  selecting a replay storage design.
 
 ## Branch
 

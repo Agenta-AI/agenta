@@ -12,8 +12,10 @@ durable event replay, and durable commands.
 3. [Decisions](decisions.md) separates confirmed decisions from proposals and open questions.
 4. [Plan](plan.md) defines the design tracks and the order of discussion.
 5. [Research](research.md) records verified repository findings and external dependency checks.
-6. [RFC](rfc.md) is the living architecture proposal. It remains incomplete until each track is discussed.
-7. [Status](status.md) records current progress and the next discussion.
+6. [Record properties](records-invariants.md) evaluates the existing record model before storage
+   options are compared.
+7. [RFC](rfc.md) is the living architecture proposal. It remains incomplete until each track is discussed.
+8. [Status](status.md) records current progress and the next discussion.
 
 ## Terms under review
 
