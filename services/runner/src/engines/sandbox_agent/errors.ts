@@ -1,3 +1,5 @@
+import { SubstitutionStuckError } from "./credential-preflight.ts";
+
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
 const PROVIDER_KEY_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -86,7 +88,7 @@ const PROVIDER_RATE_LIMITED_MESSAGE =
   "Too many requests to the model provider right now. Try again in a moment.";
 const STARTER_CREDITS_UNAVAILABLE_MESSAGE =
   "Agenta credits are temporarily unavailable. Try again in a moment.";
-const CREDENTIAL_DELIVERY_FAILED_MESSAGE =
+export const CREDENTIAL_DELIVERY_FAILED_MESSAGE =
   "A temporary issue kept this run's credentials from reaching the model. Send the message again.";
 
 /*
@@ -323,6 +325,17 @@ export function classifyRunError(
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
+  // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
+  // was convicted by the credential preflight, which means the model key never reached the model:
+  // the same failure class as the two placeholder branches below, arrived at by proof instead of
+  // by pattern. Its own message names probes and placeholders and is written for the runner log,
+  // so it must not be what the person in the chat reads. See `credential-preflight.ts`.
+  if (err instanceof SubstitutionStuckError) {
+    return {
+      message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
+      code: "credential_delivery_failed",
+    };
+  }
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
