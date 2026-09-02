@@ -170,13 +170,17 @@ const projectMatchesWorkspace = (
  * Unscoped on purpose: the workspace-scoped request 401s for an id that does not exist and then
  * never settles, so the membership check has to ride on a call that always answers. The handler
  * returns every membership either way.
+ *
+ * Keyed by the workspace even though the response is not, so a workspace this tab has not checked
+ * before always starts empty and fetches. One shared key would judge a just-created workspace
+ * against a list fetched before it existed and 404 it — org creation refetches orgs, not projects.
  */
 const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const {routeLayer} = get(appStateSnapshotAtom)
     const {workspaceId} = get(appIdentifiersAtom)
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     return {
-        queryKey: ["projects", "workspace-guard"],
+        queryKey: ["projects", "workspace-guard", workspaceId ?? ""],
         queryFn: async () => fetchAllProjects(),
         staleTime: 60_000,
         refetchOnWindowFocus: false,
