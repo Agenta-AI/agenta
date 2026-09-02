@@ -16,6 +16,7 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
+import { USER_STOP_ABORT_REASON } from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -516,7 +517,9 @@ async function runAndStreamWithApiBaseResolved(
       sessionId,
       turnId,
       platformCredentialForRequest(request),
-      () => controller.abort(),
+      // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
+      // cooperative Stop. See `sessions/stop-signal.ts`.
+      () => controller.abort(USER_STOP_ABORT_REASON),
       {
         name: proposeSessionName(request),
         references: buildWorkflowReferenceList(request.runContext?.workflow),

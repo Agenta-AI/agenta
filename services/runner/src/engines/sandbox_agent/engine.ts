@@ -3,6 +3,7 @@ import {
   type AgentRunResult,
   type EmitEvent,
 } from "../../protocol.ts";
+import { isUserStopAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
 import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
@@ -19,12 +20,19 @@ import {
  * failed its turn must be destroyed, not reconnected on the next one.
  *
  * A USER STOP IS THE ONE ABORT THAT MAY PARK. Stop and Delete are different operations: Stop
- * keeps the session, the sandbox, and the harness session resumable. The turn therefore parks
- * when, and only when, it ended `cancelled` and the harness CONFIRMED it stopped
- * (`cancelSettled`, set in `cancel-turn.ts`). Every other abort — a run-limit trip, a shutdown, a
- * cancel the harness never answered — leaves the environment in an unknown state and still
- * destroys. The `clientGone` check moved ABOVE the abort check so a disconnect keeps destroying
- * exactly as it did before, whatever the abort says.
+ * keeps the session, the sandbox, and the harness session resumable. Three things must all be
+ * true, and each answers a different question:
+ *
+ *  - `isUserStopAbort(signal)` — WAS this abort a cooperative Stop? The signal is labelled at
+ *    the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
+ *    `signal.aborted` alone cannot answer this, and inferring it from the stop reason would let
+ *    any future `controller.abort()` park a sandbox nobody checked. See `sessions/stop-signal.ts`.
+ *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
+ *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
+ *
+ * Every other abort leaves the environment in an unknown state and still destroys. The
+ * `clientGone` check moved ABOVE the abort check so a disconnect keeps destroying exactly as it
+ * did before, whatever the abort says.
  */
 export function shouldPark(
   result: AgentRunResult,
@@ -35,6 +43,7 @@ export function shouldPark(
   if (signal?.aborted) {
     // A settled user Stop: the harness is idle and the sandbox is worth keeping warm.
     return (
+      isUserStopAbort(signal) &&
       result.ok === true &&
       result.stopReason === "cancelled" &&
       result.cancelSettled === true
