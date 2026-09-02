@@ -281,7 +281,6 @@ export {
 export {HeightCollapse} from "../HeightCollapse"
 export {
     ChatActionIconButton,
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     ChatJumpToLatest,
@@ -290,7 +289,6 @@ export {
     turnToolbarClass,
     turnToolbarRevealClass,
     userBubbleContentClass,
-    type ChatAttachmentCardProps,
     type ChatBubbleProps,
 } from "./chat"
 
