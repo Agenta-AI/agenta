@@ -261,6 +261,41 @@ After, all four verified by reading the stores:
 | Redis `superseded:...:turn:<lost turn>` | `1` |
 | A new turn on the same session | `is_current_turn = True` |
 
+### Scenario A1: re-run at the 90-second threshold, beside a parked approval
+
+Run again after the threshold changed from 120 seconds to 90, on a redeployed stack, with two
+sessions opened in the same second so the two rules are tested against each other:
+
+- one turn beating `is_running: true` and then going silent, which is a runner that died;
+- one turn sending a final beat with `is_running: false` and then going silent on purpose,
+  which is a turn parked for a human.
+
+Both were opened at 21:56:24. The constants in the running container, read from the live process:
+
+```
+running threshold (heartbeat age): 90 seconds
+idle threshold: 1800 seconds
+sweep interval: 60 seconds
+```
+
+```
+2026-09-02T21:58:02.911Z [WARN.] watchdog: settled a session_stream whose runner went silent
+  extra={'session_id': 'wd-90s-cdb259fb', ..., 'lost': True}
+2026-09-02T21:58:02.926Z [INFO.] watchdog: settled 1 sessions (1 turns marked lost)
+```
+
+One session, not two. 98 seconds from the last beat, which is the 90-second threshold plus the
+part of a sweep interval that had still to run.
+
+| Session | Records written | Row after |
+|---|---|---|
+| Runner died | `error` (`code: execution_lost`), then `done` | `is_alive: false, is_running: false` |
+| Parked for a human | none | `is_alive: true, is_running: false` |
+
+The parked session kept its warm, resumable state and was given no ending, while sitting on a
+heartbeat that had been stale for the same 98 seconds. That is the whole point of eligibility
+resting on `is_running` rather than on silence alone.
+
 ### Scenario A2: the runner wrote its outcome but lost its final beat
 
 The idempotency guard, on a real deployment. A turn was opened, the runner's own `done` record
