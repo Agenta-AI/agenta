@@ -38,6 +38,7 @@ branches gained commits mid-session and were merged again at their new tips.
 | 4 | `feat/session-stop-guard` | `364e2b2da3` | 1 |
 | 5 | `feat/session-durable-cancel` | `2988da7512` | 5 |
 | 6 | `feat/session-stop-guard` again, at `1e4f911a59` | `a7c99f05c4` | 2 |
+| 7 | `feat/session-stop-guard` again, at `ae11237e47` | `6f675cecfd` | none, documentation only |
 
 Nine conflicts. Seven were unions of the same list and needed no judgement. Two were real
 and are described in full.
