@@ -44,6 +44,12 @@ GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
 # would stop every release run that did not pass those flags.
 DAYTONA_CELLS = ("C2", "C4", "X2")
 
+# The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
+# `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
+# green release while the coverage the rule exists for never ran. Journeys named here are FORCED
+# into the selection, even against an explicit --only.
+CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
+
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
 # `**` for a subtree so the intent reads correctly, and name a file exactly when only that file
@@ -67,6 +73,14 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
     "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS,
     "services/runner/src/providers/daytona*": DAYTONA_CELLS,
+}
+
+# Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
+# separate table so a rule can demand a cell, a journey, or both, without changing the shape of
+# either one.
+PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
+    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
 }
 
 
@@ -104,6 +118,22 @@ def mandatory_cells(paths: list[str]) -> dict[str, list[str]]:
     return {cell: sorted(why) for cell, why in sorted(activated.items())}
 
 
+def mandatory_journeys(paths: list[str]) -> dict[str, list[str]]:
+    """Journey -> the changed paths that made it mandatory.
+
+    The driver forces these into the run even when --only named something else. A release that
+    reworks sandbox credential delivery and then runs `--only chat` is not covered by the fact
+    that the right CELL was selected.
+    """
+    activated: dict[str, set[str]] = {}
+    for glob, journeys in PATH_TRIGGER_JOURNEYS.items():
+        for path in paths:
+            if fnmatch.fnmatch(path, glob):
+                for journey in journeys:
+                    activated.setdefault(journey, set()).add(path)
+    return {journey: sorted(why) for journey, why in sorted(activated.items())}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
@@ -112,13 +142,19 @@ def main() -> int:
     p.add_argument("--head", default="HEAD", help="git ref under test (default HEAD)")
     args = p.parse_args()
 
-    triggered = mandatory_cells(changed_paths(args.release_base, args.head))
-    if not triggered:
+    paths = changed_paths(args.release_base, args.head)
+    triggered = mandatory_cells(paths)
+    journeys = mandatory_journeys(paths)
+    if not triggered and not journeys:
         print(f"No path rule matched the diff {args.release_base}...{args.head}.")
         return 0
     print(f"Mandatory for {args.release_base}...{args.head}:")
     for cell, why in triggered.items():
-        print(f"  {cell}")
+        print(f"  cell {cell}")
+        for path in why:
+            print(f"      because this release changed {path}")
+    for journey, why in journeys.items():
+        print(f"  journey {journey}")
         for path in why:
             print(f"      because this release changed {path}")
     return 0

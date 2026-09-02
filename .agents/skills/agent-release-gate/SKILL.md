@@ -110,26 +110,37 @@ outright) survived 1911 green tests before a human hit it as his first live acti
 drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
 The credential-delivery fault of AGE-4249 does not: about one production first message in five
 failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and per
-cold sandbox that is roughly an 8 percent fault. `burst` sends 8 first messages at the same time on
-8 brand new sessions, so the run buys 8 cold starts instead of one. `crosstalk` runs 3 two-turn
-conversations with long output beside 2 approval flows and checks that no stream carries another
-session's nonce. Both are Daytona-only by default and skip elsewhere; both report the runner's
-stable error code per run, so a `credential_delivery_failed` names itself.
+cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same time
+on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
+two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
+another session's nonce. Both are Daytona-only by default and skip elsewhere; both report the
+runner's stable error code per run, so a `credential_delivery_failed` names itself.
 
 ```bash
 uv run resources/qa_product.py --cell C4 --only burst --only crosstalk
-uv run resources/qa_product.py --cell C4 --only burst --burst-size 12          # more cold starts
+uv run resources/qa_product.py --cell C4 --only burst --burst-size 24         # more cold starts
 uv run resources/qa_product.py --cell C3 --only crosstalk --concurrency-everywhere  # local too
+uv run resources/test_qa_product_concurrency.py                               # offline tests
 ```
 
-Each burst costs one Daytona sandbox per run, so raise `--burst-size` deliberately. The counts are
-`--burst-size` (default 8), `--crosstalk-conversations` (default 3) and `--crosstalk-approvals`
-(default 2); `--concurrency-timeout` (default 300s) bounds one TURN, so a two-turn crosstalk run
-gets twice that, and a run that outlives its bound is recorded as hung and fails the journey
-rather than hanging the gate. A release that changes
-`services/runner/src/engines/sandbox_agent/**` or `services/runner/src/providers/daytona*` makes
-the Daytona cells C2, C4 and X2 mandatory through `path_triggers.py`, which is how these journeys
-reach a release that needs them.
+**Read a green burst honestly.** At an 8 percent per-cold-start fault rate, 8 runs miss the fault
+51 percent of the time, 16 miss it 26 percent, and two Daytona cells at 16 miss it about 7 percent.
+A PASS is a sample, not an all-clear, and the result says so in its own reason line. A FAIL is
+proof.
+
+Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
+parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80 GiB
+in flight. The counts are capped at 32 each and are `--burst-size` (default 16),
+`--crosstalk-conversations` (default 3) and `--crosstalk-approvals` (default 2). When the provider
+refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL, because
+nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one TURN and
+rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice that and a
+stream that never ends is abandoned rather than followed.
+
+A release that changes `services/runner/src/engines/sandbox_agent/**` or
+`services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
+`path_triggers.py`, and forces `burst` and `crosstalk` into the run even when `--only` named
+something else. That is how these journeys reach a release that needs them.
 
 **Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
 part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn

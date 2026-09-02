@@ -69,8 +69,8 @@ cell — keep them in sync if a cell changes.
 | `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
 | `secret_opaque` | Ask the sandbox to classify its own provider key variable and echo back a verdict word carrying a nonce this run invented. | The verdict says the value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4, P3, X2); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
 | `rotate` | Change the provider key in the vault **mid-conversation** to a decoy no provider accepts, send a turn, then put the real key back and keep talking. | The turn under the decoy must FAIL (a success means the runner kept serving the old credential), and the turn after the restore must succeed with the durable working directory intact. Skips on subscription cells, which have no vault key, and custom-provider cells, whose write-only key cannot be safely restored. The vault is restored in a `finally`. |
-| `burst` | Send N first messages at the same time, each on a brand new session and therefore a cold sandbox. Default N is 8 (`--burst-size`). | Every run finishes with a stop reason and no error frame, and every reply carries its OWN nonce and no other run's. **Daytona only** unless `--concurrency-everywhere`. The result lists per run the session id, the finish reason, the runner error code, the error text and the duration, so a `credential_delivery_failed` names itself instead of hiding in prose. |
-| `crosstalk` | Run K two-turn conversations that ask for a long deterministic output and M approval flows, all at the same time. Defaults are 3 and 2 (`--crosstalk-conversations`, `--crosstalk-approvals`). | Every turn arrives as more than one `text-delta` frame and ends with that turn's nonce, no reply carries another conversation's nonce, each second turn stays warm on the same session (one harness session and one sandbox in the turn ledger, the `warm` tier's evidence), and every approval pauses and resumes. **Daytona only** unless `--concurrency-everywhere`. |
+| `burst` | Send N first messages at the same time, each on a brand new session and therefore a cold sandbox. Default N is 16 (`--burst-size`, capped at 32). | Every run finishes with a stop reason and no error frame, and every reply carries its OWN nonce and no other run's. **Daytona only** unless `--concurrency-everywhere`. Each run records its session id, phase, start and end offsets, finish reason, runner error code, redacted error text and duration, so a `credential_delivery_failed` names itself instead of hiding in prose. |
+| `crosstalk` | Run K two-turn conversations that ask for a long deterministic output and M approval flows, all at the same time. Defaults are 3 and 2 (`--crosstalk-conversations`, `--crosstalk-approvals`). | Every turn arrives as more than one `text-delta` frame AND carries a reply of the size the prompt asked for (100 lines or 600 characters); every turn ends with the nonce that belongs to that turn and with no other nonce in the journey, including the other turn of the same conversation; every approval pauses, resumes, and returns output carrying its own nonce and no other. Warm reuse is RECORDED per conversation, never required: a preflight rebuild legitimately produces two sandbox ids, and the `warm` journey owns that claim. **Daytona only** unless `--concurrency-everywhere`. |
 
 The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
 active and are never listed in `tools`, so those three lists are the only lever over them: if they
@@ -101,19 +101,48 @@ model": some fresh Daytona sandboxes start without their Secret substitution wir
 one retry is stuck again more often than not, and on a provider that does not echo the key
 (OpenRouter, Anthropic) the preflight is blind, so the first model call comes back 401. Per cold
 sandbox it is about an 8 percent fault, which is why a sequential matrix stayed green through the
-whole incident (AGE-4249 / #6485). A burst of 8 cold starts turns that into a result you can read.
+whole incident (AGE-4249 / #6485).
 
-Both are **Daytona only** by default, because the fault lives in the remote credential path and a
-local sandbox has no Secrets to lose. Pass `--concurrency-everywhere` to run them on local cells
-too, which is cheap and exercises the journeys themselves. Both record the runner's stable error
-CODE per run, read off the `data-agent-error` frame, so triage starts from
+**A PASS here is probabilistic. A FAIL is proof.** At that 8 percent rate:
+
+| Cold starts in the run | Chance the run misses the fault |
+|---|---|
+| 8 | 51 percent |
+| 16 | 26 percent |
+| 32 (two Daytona cells at 16) | 7 percent |
+
+The default is 16 for that reason, and a passing result says so in its own `why` line. One green
+run is not evidence that the fault is gone. One red run is evidence that it is not.
+
+Both journeys are **Daytona only** by default, because the fault lives in the remote credential
+path and a local sandbox has no Secrets to lose. Pass `--concurrency-everywhere` to run them on
+local cells too, which is cheap and exercises the journeys themselves. Both record the runner's
+stable error CODE per run, read off the `data-agent-error` frame, so triage starts from
 `credential_delivery_failed` or `rate_limited` rather than from a message that changes with the
-copy. The frame counts and reply sizes ride in the evidence but the bar stays at "the reply
-streamed", because chunking is a harness property: measured on staging, Pi sends the same 150-line
-reply in about 312 frames and Claude sends it in 4 to 7. One hung run cannot hang the journey:
-`--concurrency-timeout` (default 300s) bounds each TURN, the journey waits that many turns plus a
-margin (one turn for a burst run, two for a crosstalk conversation or approval), and a straggler
-is recorded as hung and fails the journey.
+copy. Error text and driver exceptions are masked before they reach the results file, because a
+provider's refusal can quote the credential it refused.
+
+The frame counts and reply sizes ride in the evidence, but the streaming bar stays at "the reply
+arrived in more than one frame", because chunking is a harness property: measured on staging, Pi
+sends the same 150-line reply in about 312 frames and Claude sends it in 4 to 7. The SIZE bar is
+what holds the long-output claim.
+
+No run can hang the gate. `--concurrency-timeout` (default 300s) bounds each TURN twice over: the
+client passes it to `invoke` as an absolute deadline, so a stream that keeps emitting bytes is
+abandoned rather than followed forever, and the journey waits that many turns plus a margin before
+recording a straggler as hung. Jobs run on daemon threads, so an abandoned one cannot hold the
+process open at exit.
+
+**Capacity is not a verdict.** Each concurrent run holds its own sandbox, about 5 GiB of the
+Daytona organization's disk, and a parked sandbox keeps counting until its auto-delete window
+closes. A burst of 16 is therefore about 80 GiB in flight. When the provider refuses on capacity
+("Total disk limit exceeded"), the journey reports **SKIP** with a loud reason rather than PASS or
+FAIL, because nothing about the product was measured. That match is deliberately narrow and never
+covers `rate_limited`: an internal rate limit under a load the product is supposed to support is a
+real finding, and hiding it behind a SKIP would delete the only signal the gate has.
+
+Offline tests for both journeys live in `test_qa_product_concurrency.py` and need no deployment:
+`uv run test_qa_product_concurrency.py`, or under pytest.
 
 Triggers are deliberately **out of scope** for this gate.
 
@@ -224,20 +253,27 @@ exclude any turn it deliberately aborted or interrupted, which legitimately ends
 add `and not silent["violations"]` to its verdict — `resources/test_qa_matrix_lib_silent_turns.py`
 fails if a wired cell drops it.
 
-## Path-scoped cells: coverage the release's own diff demands
+## Path-scoped cells and journeys: coverage the release's own diff demands
 
 Everything above is fixed. It runs identically for every release, which means a release that
 rewrote a subsystem gets the same coverage as one that never touched it — and the cell that would
 have caught the regression sits unrun, because running it depends on somebody remembering.
 
-`path_triggers.py` removes the remembering. It is one dict of path glob to cells. When the driver
-is given the release's diff (`--release-base <ref>`, or `--changed-path` for a checkout that is
-not the release branch), every rule whose glob matches a changed path contributes its cells, and
-those cells are MANDATORY for that release.
+`path_triggers.py` removes the remembering. It is two dicts of path glob: one to cells
+(`PATH_TRIGGERS`), one to journeys (`PATH_TRIGGER_JOURNEYS`). When the driver is given the
+release's diff (`--release-base <ref>`, or `--changed-path` for a checkout that is not the release
+branch), every rule whose glob matches a changed path contributes what it names, and those cells
+and journeys are MANDATORY for that release.
 
-| Rule | Cells it makes mandatory | Why this subsystem needs its own cell |
+A rule that names only a cell is not enough on its own. `--release-base … --only chat` would run
+`chat` on the mandatory Daytona cells and report a green release while the coverage the rule
+exists for never ran. So a journey a rule demands is FORCED into the selection, overriding
+`--only`, and the driver prints one line saying which journeys it added and why.
+
+| Rule | What it makes mandatory | Why this subsystem needs its own coverage |
 |---|---|---|
 | `api/oss/src/core/tools/**`, `sdks/python/agenta/sdk/agents/platform/gateway.py`, `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`, `services/runner/src/tools/**`, `services/runner/src/engines/sandbox_agent/gateway-gate.ts` | `matrix_gw1_gateway_tools.py` | The gateway chain — the API's catalog and resolve, the SDK's two model-facing tools and its permission compiler, the runner's policy and semantic gate. `tool`, `approve`, and `deny` prove the approval machinery with a BUILTIN, never with a gateway tool, so nothing in the fixed matrix notices when a compiled policy and an enforced policy drift apart. Proposed in [`docs/design/composio-tools-rework/release-gate-changes.md`](../../../../docs/design/composio-tools-rework/release-gate-changes.md). |
+| `services/runner/src/engines/sandbox_agent/**`, `services/runner/src/providers/daytona*` | Cells `C2`, `C4`, `X2`; journeys `burst` and `crosstalk` | The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the credential preflight, and the retry the runner does when a first model call is refused. A fault here appears only when many sandboxes start at once, which no other journey does. Production hit it as one first message in five failing with a credential error (AGE-4249 / #6485) while the sequential gate stayed green. `P3` is a Daytona cell too but is deliberately not named: it needs `--custom-slug` and `--custom-name`, and the driver exits when a selected custom cell has no slug, so the rule would stop every release run that did not pass them. |
 
 What the driver does with a mandatory cell depends on which kind it is:
 
@@ -249,6 +285,10 @@ What the driver does with a mandatory cell depends on which kind it is:
 - **A cell that does not exist** stops the run before a single journey, naming the rule. The
   release changed code the rule protects and the coverage was never written; a SKIP there would
   be the exact false green this mechanism exists to prevent.
+- **A mandatory journey** is added to the selection even against an explicit `--only`, printed at
+  the start with the path that demanded it, and recorded in `mandatory-journeys.json` beside the
+  results. A journey a rule names that does not exist stops the run, for the same reason a
+  missing cell does.
 
 Rules are data and unordered: matches are unioned, so two rules naming the same cell is fine.
 Matching is `fnmatch` over the whole repo-relative path, which means `*` crosses directory
