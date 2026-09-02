@@ -78,16 +78,6 @@ export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => ato
 export const sidebarCollapsedScopeAtomFamily = atomFamily((_scopeId: string) => atom(false))
 
 /**
- * Groups the shell is holding open because the ROUTE lands inside them, published per scope.
- *
- * The fourth way a group can be open, after persisted, `defaultOpen` and `alwaysOpen` — and the
- * gate has to know about every one of them. Navigating to /agents opens the Agents group without
- * writing anything to the persisted set, so a gate reading only that set kept its query idle and
- * the expanded group rendered "Open to load" under a route that was already showing agents.
- */
-export const sidebarRouteOpenGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
-
-/**
  * The `defaultOpen` keys the shell is currently displaying as expanded, published per scope.
  * Not persisted: it mirrors what the user SEES so the gated entity sources agree with the
  * screen. Seeding the persisted atom instead would clobber it before storage hydrates.

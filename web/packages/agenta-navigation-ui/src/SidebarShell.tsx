@@ -6,7 +6,6 @@ import {
     sidebarAlwaysOpenGroupsAtomFamily,
     sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
-    sidebarRouteOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
     type SidebarSection,
@@ -47,11 +46,8 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
     let matched: SidebarConfig | undefined
     let matchedLength = -1
     let matchedIsExact = false
-    // Full ancestor key chain of the matched item, so every enclosing group auto-opens
-    // (supports arbitrary nesting, not just the immediate parent).
-    let openKeys: string[] = []
 
-    const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
+    const visit = (nodes: SidebarConfig[]) => {
         nodes.forEach((item) => {
             // A row can own more routes than it navigates to; an empty list opts it out.
             const matchLinks = item.matchLinks ?? (item.link ? [item.link] : [])
@@ -73,18 +69,17 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
                     matched = item
                     matchedLength = matchLink.length
                     matchedIsExact = isExact
-                    openKeys = ancestors
                 }
             }
 
             if (item.submenu?.length) {
-                visit(item.submenu, [...ancestors, item.key])
+                visit(item.submenu)
             }
         })
     }
 
-    visit(items, [])
-    return {selectedKey: matched?.key, openKeys}
+    visit(items)
+    return {selectedKey: matched?.key}
 }
 
 /** Whether any row carries this key. */
@@ -106,25 +101,6 @@ export const resolveSelectedKey = (
 ): string | undefined => {
     if (!overrideKey) return routeSelectedKey
     return overrideRendered ? overrideKey : undefined
-}
-
-const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
-    if (!selectedKey) return []
-
-    const visit = (nodes: SidebarConfig[], ancestors: string[]): string[] | undefined => {
-        for (const item of nodes) {
-            if (item.key === selectedKey) return ancestors
-
-            if (item.submenu?.length) {
-                const match = visit(item.submenu, [...ancestors, item.key])
-                if (match) return match
-            }
-        }
-
-        return undefined
-    }
-
-    return visit(items, []) ?? []
 }
 
 /** Groups that render no collapse control — their key must stay in the open set, or a gated
@@ -199,8 +175,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
     const setAlwaysOpenGroups = useSetAtom(sidebarAlwaysOpenGroupsAtomFamily(scope.id))
     const setCollapsedScope = useSetAtom(sidebarCollapsedScopeAtomFamily(scope.id))
-    const setRouteOpenGroups = useSetAtom(sidebarRouteOpenGroupsAtomFamily(scope.id))
-    const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
 
@@ -211,10 +185,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [visibleSections],
     )
 
-    const {selectedKey, routeOpenKeys, pinned} = useMemo(() => {
-        if (selection.mode === "controlled") {
-            return {selectedKey: selection.selectedKey, routeOpenKeys: [] as string[], pinned: true}
-        }
+    const selectedKey = useMemo(() => {
+        if (selection.mode === "controlled") return selection.selectedKey
 
         const match = findSelectedRoute(allItems, currentPath)
         // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
@@ -222,24 +194,15 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         // URL). The override wins over the route match.
         const overrideKey = selection.selectedKeyOverride
         const overrideRendered = overrideKey ? hasItemKey(allItems, overrideKey) : false
-        return {
-            selectedKey: resolveSelectedKey(overrideKey, overrideRendered, match.selectedKey),
-            routeOpenKeys: match.openKeys,
-            pinned: overrideRendered,
-        }
+        return resolveSelectedKey(overrideKey, overrideRendered, match.selectedKey)
     }, [allItems, currentPath, selection])
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
     const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
     const alwaysOpenKeys = useMemo(() => findAlwaysOpenKeys(allItems), [allItems])
-    // `routeOpenKeys` are the MATCHED row's ancestors, and a pinned key is by definition not the
-    // row the route matched — the session rail pins a row whose group the route never names. Walk
-    // to the pinned row instead, or its group stays folded around the selection.
-    const activeAncestorKeys = useMemo(
-        () => (pinned ? findAncestorKeys(allItems, selectedKey) : routeOpenKeys),
-        [allItems, pinned, routeOpenKeys, selectedKey],
-    )
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
+    // The route decides what is SELECTED, never what is open: expanding a matched row's ancestors
+    // persisted over a group the user had collapsed, and creating an agent reopened Agents (#6460).
     const openKeys = useMemo(
         () => uniqueKeys([...persistedOrDefaultOpenGroups, ...alwaysOpenKeys]),
         [alwaysOpenKeys, persistedOrDefaultOpenGroups],
@@ -270,32 +233,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     useEffect(() => {
         setCollapsedScope(collapsed)
     }, [collapsed, setCollapsedScope])
-
-    // Same contract for the route: these ancestors render expanded without touching the persisted
-    // set, so the gate would otherwise hold their queries idle under an already-open group.
-    useEffect(() => {
-        setRouteOpenGroups((current) =>
-            haveSameKeys(current, activeAncestorKeys) ? current : activeAncestorKeys,
-        )
-    }, [activeAncestorKeys, setRouteOpenGroups])
-
-    useEffect(() => {
-        if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return
-        lastSelectedKeyRef.current = selectedKey
-
-        if (!activeAncestorKeys.length) return
-
-        const nextOpenKeys = uniqueKeys([...persistedOrDefaultOpenGroups, ...activeAncestorKeys])
-        if (haveSameKeys(nextOpenKeys, persistedOrDefaultOpenGroups)) return
-
-        setPersistedOpenGroups(nextOpenKeys)
-    }, [
-        activeAncestorKeys,
-        persistedOpenGroups,
-        persistedOrDefaultOpenGroups,
-        selectedKey,
-        setPersistedOpenGroups,
-    ])
 
     const handleToggleOpenKey = useCallback(
         (key: string) => {
