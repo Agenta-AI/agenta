@@ -1,5 +1,5 @@
 diff --git a/dist/chunk-TVCDKGSM.js b/dist/chunk-TVCDKGSM.js
-index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..7d4585271c700e6222d24bd391604e7007e81b99 100644
+index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..60becacde92447d50c0d29609953b93be245d40d 100644
 --- a/dist/chunk-TVCDKGSM.js
 +++ b/dist/chunk-TVCDKGSM.js
 @@ -738,6 +738,7 @@ var LiveAcpConnection = class _LiveAcpConnection {
@@ -123,7 +123,18 @@ index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..7d4585271c700e6222d24bd391604e70
      const updated = {
        ...existing,
        agentSessionId: recreated.sessionId,
-@@ -2504,6 +2545,25 @@ function normalizeSessionInit(value, cwdShorthand, providerDefaultCwd) {
+@@ -1363,6 +1404,10 @@ var SandboxAgent = class _SandboxAgent {
+     }
+     return this.createSession(request);
+   }
++  async cancelSession(id) {
++    this.cancelPendingPermissionsForSession(id);
++    await this.sendSessionMethodInternal(id, SESSION_CANCEL_METHOD, {}, {}, true);
++  }
+   async destroySession(id) {
+     this.cancelPendingPermissionsForSession(id);
+     try {
+@@ -2504,6 +2549,25 @@ function normalizeSessionInit(value, cwdShorthand, providerDefaultCwd) {
      mcpServers: value.mcpServers ?? []
    };
  }
@@ -149,6 +160,18 @@ index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..7d4585271c700e6222d24bd391604e70
  function mapSessionParams(params, agentSessionId) {
    return {
      ...params,
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index e67d588032a085d28adc82252199e389722b86d2..c75a8efa3ad663abc4497e6853c0b97835549cf8 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3174,6 +3174,7 @@ declare class SandboxAgent {
+     createSession(request: SessionCreateRequest): Promise<Session>;
+     resumeSession(id: string): Promise<Session>;
+     resumeOrCreateSession(request: SessionResumeOrCreateRequest): Promise<Session>;
++    cancelSession(id: string): Promise<void>;
+     destroySession(id: string): Promise<Session>;
+     setSessionMode(sessionId: string, modeId: string): Promise<{
+         session: Session;
 diff --git a/dist/providers/local.js b/dist/providers/local.js
 index 3e68d70c340ded6b2f99cf3142e951b804a4a8a2..103851397d0f575f103644002a94ab46306034d5 100644
 --- a/dist/providers/local.js

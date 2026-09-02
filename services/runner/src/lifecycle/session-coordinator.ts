@@ -768,6 +768,9 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
+      // A settled user Stop parks like any clean turn. Logged so the live evidence shows the
+      // sandbox surviving a Stop rather than a `no-park:cancelled` eviction.
+      if (result.stopReason === "cancelled") klog(`park-cancelled key=${key}`);
       if (!(await seat(config.ttlMs, "idle"))) {
         await drop("park-refused", "clean-resumable");
       } else {
@@ -826,6 +829,7 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
+      if (result.stopReason === "cancelled") klog(`park-cancelled key=${key}`);
       if (!(await pool.repark(live, update, config.ttlMs))) {
         await live.teardown("failed-turn");
       } else {

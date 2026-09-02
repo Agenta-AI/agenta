@@ -13,18 +13,33 @@ import {
 } from "./runtime-contracts.ts";
 
 /**
- * Whether a completed turn's environment may be parked: never on abort, client disconnect,
- * pause, or failure. Session-owned streams survive disconnect WITHOUT aborting the run signal
- * (server policy), so the disconnect check needs the separate `clientGone` flag. A wedged
- * sandbox that failed its turn must be destroyed, not reconnected on the next one.
+ * Whether a completed turn's environment may be parked: never on client disconnect, pause, or
+ * failure. Session-owned streams survive disconnect WITHOUT aborting the run signal (server
+ * policy), so the disconnect check needs the separate `clientGone` flag. A wedged sandbox that
+ * failed its turn must be destroyed, not reconnected on the next one.
+ *
+ * A USER STOP IS THE ONE ABORT THAT MAY PARK. Stop and Delete are different operations: Stop
+ * keeps the session, the sandbox, and the harness session resumable. The turn therefore parks
+ * when, and only when, it ended `cancelled` and the harness CONFIRMED it stopped
+ * (`cancelSettled`, set in `cancel-turn.ts`). Every other abort — a run-limit trip, a shutdown, a
+ * cancel the harness never answered — leaves the environment in an unknown state and still
+ * destroys. The `clientGone` check moved ABOVE the abort check so a disconnect keeps destroying
+ * exactly as it did before, whatever the abort says.
  */
 export function shouldPark(
   result: AgentRunResult,
   signal: AbortSignal | undefined,
   clientGone: (() => boolean) | undefined,
 ): boolean {
-  if (signal?.aborted) return false; // aborted run: destroy, do not park
   if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
+  if (signal?.aborted) {
+    // A settled user Stop: the harness is idle and the sandbox is worth keeping warm.
+    return (
+      result.ok === true &&
+      result.stopReason === "cancelled" &&
+      result.cancelSettled === true
+    );
+  }
   if (!result.ok) return false; // failed turn: teardown as today
   if (result.stopReason === "paused") return false; // a plain pause never parks
   return true;
@@ -76,7 +91,10 @@ export async function runSandboxAgent(
       shouldPark(result, signal, undefined);
     await env.destroy({
       reason: cleanResumable
-        ? "clean-resumable"
+        ? // A settled Stop parks under its own reason, so the log says WHY the sandbox survived.
+          result?.stopReason === "cancelled"
+          ? "cancelled"
+          : "clean-resumable"
         : signal?.aborted
           ? "aborted"
           : "failed-turn",
