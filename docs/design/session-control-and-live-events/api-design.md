@@ -3,87 +3,126 @@
 > AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
 
 This file holds only the route contracts that version one of the durable-command work adds. It
-covers three routes: one public Cancel, and two internal runner routes. Everything else in the RFC's
-public interface section, including Send, the session snapshot, the event stream, pending inputs and
-the busy-message policies, is out of scope here and stays in
-[the RFC](rfc.md).
+covers one public route and three internal ones. Everything else in the RFC's public interface
+section, including Send, the session snapshot, the event stream, pending inputs and the busy-message
+policies, is out of scope here and stays in [the RFC](rfc.md).
 
 The design behind these routes is in
 [the durable command design](spike-b-durable-commands-design.md). Read that first for the state
-machine, the lease and the failure cases.
+machine, the lease, the settlement rule and the failure cases.
+
+Two of the internal routes belong to the long-poll adapter and one to the direct-call adapter.
+Version one ships **one** adapter, chosen with `AGENTA_SESSIONS_CONTROL_ADAPTER`. Both are specified
+here because the choice is Mahmoud's and neither changes the public contract.
 
 Conventions taken from the existing code, not invented here:
 
 - Request and response models live in `api/oss/src/apis/fastapi/sessions/models.py`, are plain
-  Pydantic models, and set `model_config = ConfigDict(extra="forbid")` on request bodies that are
-  new (`SessionQueryRequest`, `models.py:59`).
+  Pydantic models, and set `model_config = ConfigDict(extra="forbid")` on new request bodies
+  (`SessionQueryRequest`, `models.py:59`).
 - List responses carry `count` plus the list (`SessionsResponse`, `models.py:105`).
-- Domain errors are typed exceptions in a `types.py` and are mapped to status codes by one decorator
-  on the router (`_handle_session_exceptions`, `router.py:181`).
-- Field names are `lower_snake_case`. Header names keep their standard spelling.
+- Domain errors are typed exceptions in a `types.py`, mapped to status codes by one decorator on the
+  router (`_handle_session_exceptions`, `router.py:181`).
+- Field names are `lower_snake_case`. Header names keep their standard spelling. The runner's own
+  HTTP surface uses `camelCase`, matching its existing `/kill` body
+  (`services/runner/src/server.ts:704`).
 
 ---
 
 ## 1. Interface review
 
-Every field is classified before it is written down, as the `design-interfaces` skill requires.
+Every field is classified before it is written down, as the `design-interfaces` skill requires. The
+architecture review's section 4 fixed four of these shapes; where it did, that is noted.
 
 ### Public Cancel request
 
 | Field | Concretely | Owner | Changes | Role | Placement |
 |---|---|---|---|---|---|
 | `session_id` | Which session to act on | Caller | Per call | routing | Path parameter, because it names the resource |
-| `expected_execution_id` | The execution the caller believes is running | Caller | Per call | precondition | Body. It is a guard on this request, not data the command carries |
-| `Idempotency-Key` | Retry identity for this request | Caller | Per call | protocol context | Header, because a standard name exists and it belongs to the request, not the domain object |
+| `expected_execution_id` | The execution the caller believes is running | Caller | Per call | precondition | Body, flat |
+| `Idempotency-Key` | Retry identity for this request | Caller | Per call | protocol context | Header |
 
 Three decisions fall out of that table.
 
-- `expected_execution_id` is **not** nested under an `execution` object. It is a single atomic
-  precondition, and the skill's rule against over-nesting applies. If a second precondition is ever
-  added, both move under `expect: {...}` together.
-- `Idempotency-Key` stays a header with its standard spelling. It is not a body field, because it
-  describes the delivery of the request rather than the intent inside it. The stored column is
-  `idempotency_key`, which matches `session_attachments.idempotency_key`
-  (`api/oss/src/dbs/postgres/sessions/attachments/dbas.py:25`).
-- No `force` flag. `force` on the current stream endpoint is what makes one route mean four things
-  (`api/oss/src/core/sessions/streams/service.py:7`). Cancel means cancel.
+- **The public Cancel body stays flat.** The review examined this exact shape and ruled that it is
+  correct and should not change: `expected_execution_id` is per-call context named as the guard it
+  is, in the style of an HTTP `If-Match`. The grouping under `target` applies to the internal
+  envelope, where a resolved `target.turn_id` needs a home next to the asserted one. A public body
+  with one field does not.
+- **`Idempotency-Key` stays a header** with its standard spelling. It describes the delivery of the
+  request, not the intent inside it. The stored column is `idempotency_key`, matching
+  `session_attachments.idempotency_key` (`api/oss/src/dbs/postgres/sessions/attachments/dbas.py:25`).
+- **No `force` flag.** `force` on the current stream endpoint is what makes one route mean four
+  things (`api/oss/src/core/sessions/streams/service.py:7`). Cancel means cancel.
+
+The field stays optional, as decision D-010 requires, and first-party clients must always send it.
+Today the desktop sends nothing (`web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:505`,
+verified), which is the third guard of the design document's section 4 left switched off.
 
 ### Public Cancel response
 
 | Field | Concretely | Role |
 |---|---|---|
 | `command.id` | The durable command's id | identity, for the caller's own retries and logs |
-| `command.state` | `pending` or `obsolete` at admission time | state |
+| `command.state` | `pending` or `obsolete` at admission time | delivery |
 | `execution.id` | The execution this Cancel targets, null when nothing ran | routing |
-| `execution.state` | `stopping` or `idle` | state |
+| `execution.state` | `stopping` or `idle` | result |
 
 `command` and `execution` are separate objects because they answer different questions and settle at
-different times. A client that only wants to draw a button reads `execution`. A client that wants to
-retry safely reads `command.id`. This is decision D-016 expressed in the response shape.
+different times. A client drawing a button reads `execution`. A client retrying safely reads
+`command.id`. This is decision D-016 expressed in the response shape.
+
+### The internal command envelope
+
+The review's corrected shape, adopted here:
+
+| Group | Fields | Role |
+|---|---|---|
+| top level | `id`, `project_id`, `session_id`, `kind`, `created_at` | identity, routing, metadata |
+| `target` | `turn_id` (resolved at admission), `expected_turn_id` (as the caller sent it) | context |
+| `input` | `text`, `attachments` | input data, absent for `cancel` |
+| `policy` | `on_busy` | policy, absent for `cancel` |
+| `delivery` | `claimed_by`, `claim_expires_at`, `attempt` | delivery bookkeeping |
+
+Four rules this applies.
+
+- **Delivery bookkeeping is grouped and never merged with the result.** That is decision D-016, and
+  it is easier to hold when the shapes are separate objects.
+- **`replica_id` is not a top-level routing field.** It is delivery bookkeeping, it is logical rather
+  than an address, and it lives under `delivery` as `claimed_by`.
+- **There is no `runner_url` field of any kind.** An address in a durable record is an
+  implementation detail with a longer lifetime than the thing it points at.
+- **`input` is an object from the start**, not a bare `message` string. A turn already carries text
+  plus attachments (`services/runner/src/server.ts:565`), so a string could not grow into that
+  without a breaking change. `cancel` omits the group entirely rather than sending it empty.
+
+`created_at` is on the envelope because the runner needs it: it refuses to abort an execution that
+started after the command was created.
 
 ### Internal claim request
 
 | Field | Concretely | Owner | Role |
 |---|---|---|---|
-| `replica_id` | Which runner container is asking | Runner | routing |
-| `wait_seconds` | How long the caller is willing to be held | Runner | protocol context of this poll |
-| `limit` | How many commands to return at most | Runner | protocol context of this poll |
+| `replica_id` | Which runner is asking, for `claimed_by` | Runner | delivery bookkeeping |
+| `sessions` | The sessions this runner holds warm right now | Runner | routing |
+| `wait_seconds` | How long the caller accepts being held | Runner | protocol context of this call |
+| `limit` | How many commands to return at most | Runner | protocol context of this call |
 
-`replica_id` is in the body and not derived from the token, because the token is shared by every
-replica. It identifies the caller, not its authority.
+`sessions` is the routing input, not `replica_id`. The runner declares what it holds, so the API
+never has to guess from an expiring Redis key, and a parked session keeps receiving commands after
+its heartbeat stops. A claim is a query over durable state, never a cursor or a stream position.
 
 ### Internal outcome request
 
 | Field | Concretely | Owner | Role |
 |---|---|---|---|
-| `replica_id` | Which runner is reporting | Runner | routing, and the claim guard |
-| `result` | The command's terminal state | Runner | state |
+| `replica_id` | Which runner is reporting | Runner | delivery bookkeeping, and the claim guard |
+| `result` | The command's terminal state | Runner | delivery |
 | `execution.id` | Which execution the runner acted on | Runner | routing |
-| `execution.state` | What happened to it | Runner | output |
-| `execution.error` | Why it failed, when it did | Runner | output |
+| `execution.state` | What happened to it | Runner | result |
+| `execution.error` | Why it failed, when it did | Runner | result |
 
-`result` and `execution` stay apart for the same reason as in the Cancel response. `execution.error`
-sits under `execution` and not at the top level, because it explains one field of that object.
+`execution.error` sits under `execution` because it explains one field of that object.
 
 ---
 
@@ -108,7 +147,7 @@ class SessionCancelRequest(BaseModel):
     # Optional stale-request guard (decision D-010). When present, the API cancels only this
     # execution and rejects the request if another one is running. When absent, it cancels
     # whichever execution is active when the request is applied. A person never types this;
-    # the browser fills it from the session snapshot.
+    # the browser fills it from the session snapshot, and a first-party client always sends it.
     expected_execution_id: Optional[str] = None
 
 
@@ -136,14 +175,16 @@ Responses:
 
 | Status | When | Body |
 |---|---|---|
-| 202 Accepted | An execution was running. The command is durable and on its way | `command.state = "pending"`, `execution.state = "stopping"` |
+| 202 Accepted | An execution was running or parked. The command is durable and on its way | `command.state = "pending"`, `execution.state = "stopping"` |
 | 200 OK | Nothing was running and no `expected_execution_id` was sent | `command.state = "obsolete"`, `execution.state = "idle"`, `execution.id = null` |
 | 409 Conflict | `expected_execution_id` does not name the running execution | `detail: {"message": ..., "current_execution_id": <id or null>}` |
 | 422 | The session id fails the allowlist (`SessionIdInvalid`) | `detail: <message>` |
 | 403 | The caller lacks `RUN_SESSIONS` | `FORBIDDEN_EXCEPTION` |
 
 202 and not 200 for the accepted case, because the work is not done when the response returns. The
-caller learns the outcome from the session's own state, not from this response.
+caller learns the outcome from the session's own state, not from this response. **A delivery failure
+does not change the status**: the command is durable, so an unreachable runner still yields 202 and
+the watchdog settles it.
 
 Repeating the request with the same `Idempotency-Key` returns the same `command.id` and the same
 status. Repeating it without a key also returns the same command while one is still open, because
@@ -162,7 +203,7 @@ class ExecutionExpectationFailed(SessionCommandError):
 
 ---
 
-## 3. Internal: claim commands
+## 3. Internal: claim commands (long-poll adapter)
 
 ```http
 POST /sessions/control/commands/claim
@@ -170,6 +211,9 @@ X-Agenta-Runner-Token: <AGENTA_RUNNER_TOKEN>
 
 {
   "replica_id": "runner-7f3c",
+  "sessions": [
+    {"project_id": "1f0a4b2c-0000-4000-8000-000000000002", "session_id": "sess-42"}
+  ],
   "wait_seconds": 25,
   "limit": 10
 }
@@ -178,42 +222,65 @@ X-Agenta-Runner-Token: <AGENTA_RUNNER_TOKEN>
 Not a product API. It is excluded from the public schema with `include_in_schema=False`, the
 treatment the admin routers already get (`api/entrypoints/routers.py:1502`).
 
-Authentication is the shared runner token, not a user credential. The path prefix
-`/sessions/control/` is added to `_PUBLIC_ENDPOINTS` (`api/oss/src/middlewares/auth.py:52`) so the
-project-scoped middleware does not reject a request with no user credential, and the route then
-compares the presented token to `env.runner.token` in constant time. If that setting is unset the
-route answers 503 and serves nothing.
+Authentication is the shared runner token, not a user credential: the loop belongs to the process
+and spans many projects, and a run's credential expires while the process keeps polling. The path
+prefix `/sessions/control/` is added to `_PUBLIC_ENDPOINTS` (`api/oss/src/middlewares/auth.py:52`)
+so the project-scoped middleware does not reject a request with no user credential, and the route
+then compares the presented token to `env.runner.token` in constant time. If that setting is unset
+the route answers 503 and serves nothing. Scope comes from the declared `(project_id, session_id)`
+pairs and the rows themselves, never from a header.
 
 ```python
+class SessionScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    session_id: SessionId
+
+
 class SessionControlClaimRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Which runner container is asking. The token is shared across replicas, so it proves
-    # trust, not identity; this field is the identity.
+    # Delivery bookkeeping: this becomes `claimed_by` so a settle can be matched to its claim.
+    # Not routing, and not an address.
     replica_id: str = Field(min_length=1, max_length=128)
+    # The routing input: every session this runner holds warm right now, including sessions
+    # parked awaiting an approval. Most recently used first.
+    sessions: List[SessionScope] = Field(min_length=1, max_length=200)
     # How long the API may hold this request. Clamped server-side to the configured hold.
     wait_seconds: int = Field(default=25, ge=0, le=60)
     limit: int = Field(default=10, ge=1, le=50)
 
 
-class SessionCommandClaim(BaseModel):
-    expires_at: datetime
+class SessionCommandTarget(BaseModel):
+    # Resolved once at admission; the runner aborts only this execution.
+    turn_id: Optional[str] = None
+    # What the caller asserted, kept so a 409 stays explainable after the fact.
+    expected_turn_id: Optional[str] = None
+
+
+class SessionCommandDelivery(BaseModel):
+    claimed_by: str
+    claim_expires_at: datetime
     attempt: int
 
 
 class SessionCommandEnvelope(BaseModel):
-    """One command as the runner receives it. The heartbeat fallback returns the same model,
-    so the runner has one parser and one applier."""
+    """One command as the runner receives it. Every transport delivers this same shape,
+    so the runner has one parser, one set of guards and one applier."""
 
     id: UUID
     project_id: UUID
     session_id: str
     kind: Literal["cancel"]
-    # The execution this command must reach. Null when the session was idle at admission.
-    target_turn_id: Optional[str] = None
-    # The command's own arguments. Empty for cancel; steer will carry its message here.
-    data: Dict[str, Any] = Field(default_factory=dict)
-    claim: SessionCommandClaim
+    target: SessionCommandTarget
+    delivery: SessionCommandDelivery
+    # The runner refuses to abort an execution that started after this time.
+    created_at: datetime
+    # Absent for `cancel`. Present for the kinds that carry them, so a reader never has to
+    # interpret an empty object.
+    input: Optional[SessionCommandInput] = None
+    policy: Optional[SessionCommandPolicy] = None
 
 
 class SessionControlClaimResponse(BaseModel):
@@ -228,14 +295,17 @@ Responses:
 | 200 OK | At least one command was claimed. The body is never an empty list |
 | 204 No Content | The hold expired with nothing to deliver |
 | 401 Unauthorized | The token is absent or wrong |
+| 422 | `sessions` is empty or over the cap |
 | 503 Service Unavailable | `AGENTA_RUNNER_TOKEN` is not configured on the API |
 
-204 rather than an empty 200 keeps the common case cheap and gives the runner an unambiguous "poll
+204 rather than an empty 200 keeps the common case cheap and gives the runner an unambiguous "claim
 again now" signal.
 
 ---
 
 ## 4. Internal: report a command's outcome
+
+Used by **both** adapters. Settlement has one path on every transport.
 
 ```http
 POST /sessions/control/commands/{command_id}/outcome
@@ -257,7 +327,10 @@ class SessionExecutionOutcome(BaseModel):
 
     # The execution the runner acted on. Null when it held none.
     id: Optional[str] = None
-    state: Literal["stopped", "failed", "not_running"]
+    # stopped: cancelled as asked. not_running: no such execution here.
+    # superseded: the held execution started after the command was created.
+    # failed: the cancel itself failed.
+    state: Literal["stopped", "failed", "not_running", "superseded"]
     # Short, human-readable, present only when `state` is "failed".
     error: Optional[str] = Field(default=None, max_length=2000)
 
@@ -272,15 +345,15 @@ class SessionControlOutcomeRequest(BaseModel):
     execution: SessionExecutionOutcome
 
 
-class SessionControlOutcomeResponse(BaseModel):
-    command: SessionCommandSettlement
-
-
 class SessionCommandSettlement(BaseModel):
     id: UUID
     state: Literal["applied", "obsolete"]
-    outcome: Literal["stopped", "not_running", "failed", "lost", "superseded"]
+    outcome: Literal["stopped", "not_running", "superseded", "failed", "lost"]
     settled_at: datetime
+
+
+class SessionControlOutcomeResponse(BaseModel):
+    command: SessionCommandSettlement
 ```
 
 Responses:
@@ -300,7 +373,45 @@ in section 7 of the design document.
 
 ---
 
-## 5. One field added to an existing contract
+## 5. Internal: the runner's cancel route (direct-call adapter)
+
+This is the runner's own HTTP surface, not the API's. It sits beside the existing `POST /kill`
+(`services/runner/src/server.ts:704`, verified) and shares its token gate, its capped body reader and
+its scoping rule. The API calls it the way `kill_runner_sandbox` already calls `/kill`
+(`api/oss/src/core/sessions/streams/runner_client.py:30`, verified).
+
+```http
+POST /cancel
+Authorization: Bearer <AGENTA_RUNNER_TOKEN>
+
+{
+  "commandId": "0199a3f2-0000-7000-8000-000000000001",
+  "projectId": "1f0a4b2c-0000-4000-8000-000000000002",
+  "sessionId": "sess-42",
+  "targetTurnId": "0199a3f1-0000-7000-8000-00000000000a",
+  "createdAt": "2026-09-02T22:09:01Z"
+}
+```
+
+`camelCase` because the runner's existing routes use it. `projectId` and `sessionId` are both
+required, for the same reason `/kill` requires both: a pool key is always project-scoped, so a
+single-tenant scope needs the pair.
+
+Responses:
+
+| Status | When | Meaning to the API adapter |
+|---|---|---|
+| 202 Accepted | The runner holds this session and accepted the command | `accepted`; the outcome will arrive on the outcome route |
+| 404 Not Found | The runner does not hold this session | `not_held`; the service settles the command at once |
+| 400 | `sessionId` or `projectId` missing | `unreachable`, and a bug to fix |
+| 401 | Token mismatch | `unreachable`, and a deployment error to log loudly |
+
+**The response is an acknowledgement, not an outcome.** The runner reports what happened to the
+execution through the outcome route in section 4, so both adapters settle through one path.
+
+---
+
+## 6. One field added to an existing contract
 
 The heartbeat response grows one field. Nothing else about `POST /sessions/streams/heartbeat`
 changes.
@@ -311,22 +422,29 @@ class SessionHeartbeatResult(BaseModel):
     replica_id: str
     is_current_turn: bool = True
     # Commands for THIS session only, claimed by this beat under the same compare-and-set
-    # the long poll uses. Empty in the normal case, where the poll already delivered them.
+    # the claim route uses. Empty in the normal case.
     commands: List[SessionCommandEnvelope] = Field(default_factory=list)
 ```
 
-The field is additive and defaults to an empty list, so a runner build that does not know about it
-is unaffected.
+The field is additive and defaults to an empty list, so a runner build that does not know about it is
+unaffected.
+
+This fallback reaches only a session with a live turn. The heartbeat stops when a turn ends or parks
+(`services/runner/src/server.ts:618` and `services/runner/src/sessions/alive.ts:241`, verified), so
+it is not the delivery path for a parked session and must not be relied on as one.
 
 ---
 
-## 6. What does not change in version one
+## 7. What does not change in version one
 
 - `POST /sessions/streams/` keeps its current four-mode behavior until the last migration step, when
-  its cancel branch becomes a thin wrapper over the same command. See section 9 of the design
+  its cancel branch becomes a thin wrapper over the same command. See section 10 of the design
   document.
 - `DELETE /sessions/streams/` (kill) is untouched. Stop and Delete stay different operations
   (decision D-008).
 - `POST /sessions/interactions/{interaction_id}/respond` is untouched. Turning interaction responses
-  into commands is later work.
+  into commands is later work, and so is the `continuation` field the architecture review asks for on
+  its response.
 - No new public read route. Clients keep using `GET /sessions/streams/` and the watch stream.
+- Steer stays out. The `input` and `policy` groups are reserved in the envelope so it does not need a
+  breaking change later, but no route accepts them in version one.
