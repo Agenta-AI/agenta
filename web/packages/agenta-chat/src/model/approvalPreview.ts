@@ -64,13 +64,25 @@ const pathArgument = (input: unknown): string | undefined => {
     return undefined
 }
 
+/** The articles a generic "<verb> a file" activity can carry. */
+const GENERIC_FILE_ARTICLES = new Set(["a", "an", "the"])
+
 /** "Reading a file" + `notes/a.md` → "reading notes/a.md" (#6349).
  * Singular only: a many-file tool's path is the SCOPE it searches, so naming it would misstate it. */
 const namedFileActivity = (activity: string, input: unknown): string | undefined => {
-    const generic = /^(.*?)\s+(?:an?|the)\s+file$/i.exec(activity)
-    if (!generic?.[1]) return undefined
+    // Split on words rather than matching `/^(.*?)\s+(?:an?|the)\s+file$/`: a lazy prefix
+    // followed by `\s+` can end anywhere inside a whitespace run, so an activity that is mostly
+    // spaces backtracks quadratically (CodeQL js/polynomial-redos). Splitting is linear and the
+    // parse is the same one, read from the end.
+    const words = activity.trim().split(/\s+/)
+    if (words.length < 3) return undefined
+    const article = words[words.length - 2]!
+    if (words[words.length - 1]!.toLowerCase() !== "file") return undefined
+    if (!GENERIC_FILE_ARTICLES.has(article.toLowerCase())) return undefined
+    const prefix = words.slice(0, -2).join(" ")
+    if (!prefix) return undefined
     const path = pathArgument(input)
-    return path ? `${generic[1]} ${fileTarget(path)}` : undefined
+    return path ? `${prefix} ${fileTarget(path)}` : undefined
 }
 
 /**
