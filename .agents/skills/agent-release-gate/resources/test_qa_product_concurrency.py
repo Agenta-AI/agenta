@@ -180,52 +180,21 @@ def test_a_stream_that_never_ends_is_abandoned_not_followed():
 
 
 def test_invoke_marks_a_turn_hung_at_its_deadline():
-    """The same guarantee one level down, on the real `invoke` with a fake HTTPX stream."""
+    """The same guarantee one level down: a well-formed stream that simply never ends."""
     _reset()
-
-    class _Response:
-        status_code = 200
-
-        def __init__(self):
-            self.closed = False
-
-        def iter_lines(self):
-            while True:
-                yield 'data: {"type": "text-delta", "delta": "x"}'
-                time.sleep(0.01)
-
-        def close(self):
-            self.closed = True
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-    class _Client:
-        def __init__(self, timeout=None):
-            self.response = _Response()
-
-        def stream(self, *a, **k):
-            return self.response
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-    real_client = qa.httpx.Client
-    qa.httpx.Client = _Client
+    response = _RawResponse([b'data: {"type": "text-delta", "delta": "x"}\n'])
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
     try:
         t = qa.invoke(
             "s", [qa.user_msg("hi")], {}, timeout=30.0, deadline=time.monotonic() + 0.3
         )
     finally:
-        qa.httpx.Client = real_client
+        qa.httpx.Client = real
     assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, (t.hung, t.hung_reason)
     assert t.summary()["hung"] is True
+    assert t.frames, "the frames it did receive are kept"
+    assert response.closed
 
 
 def test_crosstalk_requires_the_long_reply_it_asked_for():
@@ -473,6 +442,273 @@ def test_counts_are_capped():
         assert "capped at 32" in str(e), e
     finally:
         sys.argv = argv
+
+
+def _fake_httpx(response):
+    """A stand-in httpx.Client whose stream() returns `response`."""
+
+    class _Client:
+        def __init__(self, timeout=None):
+            self.timeout = timeout
+            response.timeout = timeout
+
+        def stream(self, *a, **k):
+            return response
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    return _Client
+
+
+class _RawResponse:
+    """A streaming response whose raw chunks the test controls."""
+
+    status_code = 200
+
+    def __init__(self, chunks, sleep=0.01, raise_timeout=False):
+        self._chunks = chunks
+        self._sleep = sleep
+        self._raise_timeout = raise_timeout
+        self.closed = False
+        self.timeout = None
+
+    def iter_raw(self):
+        if self._raise_timeout:
+            time.sleep(self._sleep)
+            raise qa.httpx.ReadTimeout("read timed out")
+        while True:
+            for chunk in self._chunks:
+                yield chunk
+                time.sleep(self._sleep)
+
+    def close(self):
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_a_stream_without_newlines_still_hits_the_deadline():
+    """`iter_lines()` only yields on a newline, so the check has to sit on raw chunks."""
+    _reset()
+    response = _RawResponse([b"data: {partial without any newline"])
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        started = time.monotonic()
+        t = qa.invoke(
+            "s", [qa.user_msg("hi")], {}, timeout=30.0, deadline=time.monotonic() + 0.3
+        )
+        took = time.monotonic() - started
+    finally:
+        qa.httpx.Client = real
+    assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, (t.hung, t.hung_reason)
+    assert took < 5, f"a newline-free stream held the turn for {took:.1f}s"
+    assert response.closed, "the abandoned response is closed, not left open"
+
+
+def test_a_silent_read_past_the_deadline_is_hung_not_a_crash():
+    """No bytes at all: HTTPX raises its read timeout, and that IS the deadline."""
+    _reset()
+    response = _RawResponse([], sleep=0.05, raise_timeout=True)
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        t = qa.invoke(
+            "s", [qa.user_msg("hi")], {}, timeout=30.0, deadline=time.monotonic() + 0.2
+        )
+    finally:
+        qa.httpx.Client = real
+    assert t.hung and t.hung_reason == qa.HUNG_AT_DEADLINE, t.summary()
+    # The client was never granted the configured 30s: only the time that was left.
+    assert response.timeout is not None and response.timeout <= 0.3, response.timeout
+
+
+def test_a_read_timeout_without_a_deadline_still_raises():
+    """No deadline means the caller asked for the old behaviour, and gets it."""
+    _reset()
+    response = _RawResponse([], sleep=0.0, raise_timeout=True)
+    real = qa.httpx.Client
+    qa.httpx.Client = _fake_httpx(response)
+    try:
+        qa.invoke("s", [qa.user_msg("hi")], {}, timeout=1.0)
+        raise AssertionError("a read timeout with no deadline must propagate")
+    except qa.httpx.ReadTimeout:
+        pass
+    finally:
+        qa.httpx.Client = real
+
+
+def test_a_capacity_refusal_beside_a_product_failure_is_a_failure():
+    """The MUST: one out-of-disk run must never excuse a real fault in the same journey."""
+    _reset()
+    qa.BURST_SIZE = 2
+    state = {"n": 0}
+
+    def mixed(session, messages, params, timeout=300.0, deadline=None):
+        state["n"] += 1
+        t = qa.Turn()
+        t.http_status = 200
+        if state["n"] == 1:
+            t.errors.append("sandbox create failed: Total disk limit exceeded")
+        else:
+            return _turn(code="rate_limited")
+        return t
+
+    qa.invoke = mixed
+    r = qa.j_burst(CELL)
+    assert not r.get("skip"), "a product failure was hidden behind a capacity refusal"
+    assert r["pass"] is False
+    assert r["product_failures"] == 1 and len(r["capacity_refusals"]) == 1, r
+    assert "capacity refusal" in r["why"] and "product failure" in r["why"], r["why"]
+
+
+def test_a_hung_approval_fails():
+    _reset()
+    qa.CROSSTALK_CONVERSATIONS = 0
+    qa.CROSSTALK_APPROVALS = 1
+    seen: dict = {}
+
+    def gated_then_hung(session, messages, params, timeout=300.0, deadline=None):
+        if session not in seen:  # turn 1 parks the gate
+            seen[session] = True
+            t = _turn(finish="other", deltas=0)
+            t.tool_calls = [{"toolCallId": "c1", "toolName": "Bash", "input": {}}]
+            t._segments = [{"kind": "tool", "id": "c1"}]
+            t.approval = {"approvalId": "a1", "toolCallId": "c1"}
+            return t
+        t = _turn(deltas=1, hung=True)  # the resume was abandoned at the deadline
+        t.tool_calls = [{"toolCallId": "c1", "toolName": "Bash", "input": {}}]
+        t.tool_outcomes = {"c1": "available"}
+        return t
+
+    qa.invoke = gated_then_hung
+    r = qa.j_crosstalk(CELL)
+    assert not r["pass"], r
+    record = r["runs"][0]
+    assert record["hung"] is True and record["ok"] is False, record
+
+
+def _deny_flow(resumed_finish="stop", code=None):
+    """A correct DENY on the wire, with the resumed turn shaped by the arguments."""
+    seen: dict = {}
+
+    def flow(session, messages, params, timeout=300.0, deadline=None):
+        if session not in seen:
+            seen[session] = True
+            t = _turn(finish="other", deltas=0)
+            t.tool_calls = [{"toolCallId": "c1", "toolName": "Bash", "input": {}}]
+            t._segments = [{"kind": "tool", "id": "c1"}]
+            t.approval = {"approvalId": "a1", "toolCallId": "c1"}
+            return t
+        t = _turn(deltas=1, finish=resumed_finish, code=code)
+        t.finish_reason = resumed_finish
+        t.tool_calls = [{"toolCallId": "c1", "toolName": "Bash", "input": {}}]
+        t.tool_outcomes = {"c1": "denied"}
+        return t
+
+    return flow
+
+
+def test_deny_passes_when_the_resume_ends_cleanly():
+    _reset()
+    qa.invoke = _deny_flow()
+    r = qa.j4_deny(CELL)
+    assert r["pass"], r
+
+
+def test_deny_fails_when_the_resume_did_not_end():
+    """Tightened verdict: a correct denied outcome is not enough if the turn never stopped."""
+    _reset()
+    qa.invoke = _deny_flow(resumed_finish="other")
+    r = qa.j4_deny(CELL)
+    assert not r["pass"], r
+    assert "resumed finish=stop: False" in r["why"], r["why"]
+
+
+def test_deny_fails_on_a_coded_error_in_the_resume():
+    _reset()
+    qa.invoke = _deny_flow(code="credential_delivery_failed")
+    r = qa.j4_deny(CELL)
+    assert not r["pass"], r
+    assert "no coded error and neither turn hung: False" in r["why"], r["why"]
+
+
+def test_the_written_results_file_carries_no_key_material():
+    """Redaction at the persistence boundary: a key hidden deep inside a turn summary."""
+    import tempfile
+
+    _reset()
+    planted = "sk-proj-3M1PW0OPU17zAxPi4wTT33ec5L3Tqfq"
+    real_journeys = dict(qa.JOURNEYS)
+    qa.JOURNEYS["chat"] = lambda cell: {
+        "pass": True,
+        "why": "ok",
+        "turn": {
+            "reply": "fine",
+            "errors": [f"401: Incorrect API key provided: {planted}"],
+            "nested": [{"deep": {"body": planted}}],
+        },
+    }
+    outdir = tempfile.mkdtemp()
+    argv, runs_dir = sys.argv, qa.RUNS
+    sys.argv = ["qa_product.py", "--cell", "C4", "--only", "chat"]
+    qa.RUNS = Path(outdir)
+    try:
+        qa.main()
+    finally:
+        sys.argv, qa.RUNS = argv, runs_dir
+        qa.JOURNEYS.clear()
+        qa.JOURNEYS.update(real_journeys)
+    written = sorted(Path(outdir).glob("*/results.json"))[0].read_text()
+    assert planted not in written, "a planted key survived into results.json"
+    assert written.count("sk-<redacted>") == 2, written[:400]
+
+
+def test_the_total_crosstalk_count_is_capped_not_each_half():
+    argv = sys.argv
+    sys.argv = [
+        "qa_product.py",
+        "--cell",
+        "C4",
+        "--crosstalk-conversations",
+        "20",
+        "--crosstalk-approvals",
+        "20",
+    ]
+    try:
+        qa.main()
+        raise AssertionError("40 concurrent crosstalk jobs must be refused")
+    except SystemExit as e:
+        assert "capped at 32 concurrent runs" in str(e), e
+    finally:
+        sys.argv = argv
+
+
+def test_a_hung_run_still_reports_when_it_started_and_stopped():
+    _reset()
+    qa.BURST_SIZE = 2
+    qa.CONCURRENCY_TURN_TIMEOUT_SECONDS = 1.0
+    qa.CONCURRENCY_WAIT_MARGIN_SECONDS = 1.0
+    release = threading.Event()
+
+    def never_ends(session, messages, params, timeout=300.0, deadline=None):
+        release.wait(120)
+        return _turn("too late")
+
+    qa.invoke = never_ends
+    r = qa.j_burst(CELL)
+    release.set()
+    for run in r["runs"]:
+        assert run["started_s"] is not None and run["ended_s"] is not None, run
+        assert run["ended_s"] >= run["started_s"], run
 
 
 def main() -> int:

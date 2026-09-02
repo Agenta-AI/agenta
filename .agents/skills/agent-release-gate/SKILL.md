@@ -109,11 +109,13 @@ outright) survived 1911 green tests before a human hit it as his first live acti
 **The two journeys that run many things at once: `burst` and `crosstalk`.** Every other journey
 drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
 The credential-delivery fault of AGE-4249 does not: about one production first message in five
-failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and per
-cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same time
-on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
+failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and
+per cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same
+time on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
 two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
-another session's nonce. Both are Daytona-only by default and skip elsewhere; both report the
+another session's nonce, except on the codex harness, where the gate rides a platform tool with
+empty arguments, so the approval command carries no nonce and isolation is not checked there
+(`nonce_checked=false`). Both are Daytona-only by default and skip elsewhere; both report the
 runner's stable error code per run, so a `credential_delivery_failed` names itself.
 
 ```bash
@@ -129,13 +131,13 @@ A PASS is a sample, not an all-clear, and the result says so in its own reason l
 proof.
 
 Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
-parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80 GiB
-in flight. The counts are capped at 32 each and are `--burst-size` (default 16),
-`--crosstalk-conversations` (default 3) and `--crosstalk-approvals` (default 2). When the provider
-refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL, because
-nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one TURN and
-rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice that and a
-stream that never ends is abandoned rather than followed.
+parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
+GiB in flight. The counts are capped at 32 each and are `--burst-size` (default 16), `--crosstalk-
+conversations` (default 3) and `--crosstalk-approvals` (default 2). When the provider refuses on
+capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL, because nothing
+about the product was measured. `--concurrency-timeout` (default 300s) bounds one TURN and rides
+into the stream as an absolute deadline, so a two-turn crosstalk run gets twice that and a stream
+that never ends is abandoned rather than followed.
 
 A release that changes `services/runner/src/engines/sandbox_agent/**` or
 `services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
