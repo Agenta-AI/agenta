@@ -22,6 +22,11 @@ import {
   type ControlOutcome,
 } from "../../src/sessions/control-channel.ts";
 import { resetAppliedCommandsForTest } from "../../src/sessions/applied-commands.ts";
+import { shouldPark } from "../../src/engines/sandbox_agent/engine.ts";
+import {
+  isUserStopAbort,
+  USER_STOP_ABORT_REASON,
+} from "../../src/sessions/stop-signal.ts";
 import {
   findExecution,
   registerExecution,
@@ -188,6 +193,52 @@ describe("applyCommand", () => {
     assert.equal(aborts.length, 1);
     assert.equal(outcome.execution.state, "stopped");
     assert.equal(nested?.execution.state, "stopped");
+  });
+
+  it("aborts with the user-stop label, which is what lets the sandbox park", async () => {
+    // The registry hands the applier whatever abort the transport registered. `shouldPark`
+    // parks only an abort the runner can prove was a cooperative Stop, so an unlabelled abort
+    // here would end the turn `cancelled` and then DESTROY the sandbox. This pins the contract
+    // the applier depends on; `server.ts` is where the label is actually attached.
+    const controller = new AbortController();
+    const execution: LiveExecution = {
+      projectId: PROJECT,
+      sessionId: SESSION,
+      turnId: TURN,
+      startedAt: 900,
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    };
+    const { report } = collector();
+
+    await applyCommand(command(), { findLive: () => execution, report });
+
+    assert.equal(isUserStopAbort(controller.signal), true);
+    assert.equal(
+      shouldPark(
+        { ok: true, stopReason: "cancelled", cancelSettled: true },
+        controller.signal,
+        undefined,
+      ),
+      true,
+      "a Stop delivered as a command must leave the sandbox parkable",
+    );
+  });
+
+  it("does NOT park when the abort carries no label", () => {
+    // The regression this guards: the first version of the control route called
+    // `controller.abort()` with no reason, so every Stop through it destroyed the sandbox.
+    const controller = new AbortController();
+    controller.abort();
+
+    assert.equal(isUserStopAbort(controller.signal), false);
+    assert.equal(
+      shouldPark(
+        { ok: true, stopReason: "cancelled", cancelSettled: true },
+        controller.signal,
+        undefined,
+      ),
+      false,
+    );
   });
 
   it("reports the cancel as failed when the abort itself throws", async () => {

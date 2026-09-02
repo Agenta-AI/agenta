@@ -26,7 +26,6 @@ from oss.src.dbs.redis.sessions.contract import (
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
-from oss.src.dbs.redis.sessions.replicas import record_replica_beat
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
@@ -519,10 +518,6 @@ class SessionStreamsService:
             session_id=request.session_id,
             replica_id=request.replica_id,
         )
-        # One sorted-set entry per beat, so the direct control-delivery adapter can tell whether
-        # it is safe to post a Stop to a single runner address. Never raises; a census failure
-        # must not cost a heartbeat.
-        await record_replica_beat(self._lock, replica_id=request.replica_id)
         # A replica that lost the claim owns nothing here: mutating the nest would let it
         # overwrite the winner's turn locks and stream row. Report the true owner and stop.
         if owner != request.replica_id:

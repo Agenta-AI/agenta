@@ -582,8 +582,9 @@ class SessionsCommandsConfig(BaseModel):
         this slice; naming it here fails loudly rather than silently falling back.
 
     `direct` calls one service address, so with two runner replicas behind a load balancer the
-    call lands on the right process only by luck. `single_replica_check` makes that loud: when
-    more than one replica has heartbeated recently, delivery refuses instead of guessing.
+    call lands on the right process only by luck. Nothing here guards that, on purpose: the
+    detector is exact and lives in the service, where a `not_held` for a session that is alive
+    and beating is the wrong-replica failure and nothing else produces it.
     """
 
     adapter: str = os.getenv("AGENTA_SESSIONS_CONTROL_ADAPTER") or "direct"
@@ -612,19 +613,6 @@ class SessionsCommandsConfig(BaseModel):
     delivery_timeout_seconds: float = float(
         os.getenv("AGENTA_SESSIONS_COMMAND_DELIVERY_TIMEOUT_SECONDS") or 5.0
     )
-    # Window over which the direct adapter counts heartbeating runner replicas.
-    replica_census_seconds: int = (
-        _parse_optional_positive_int_env(
-            "AGENTA_SESSIONS_COMMAND_REPLICA_CENSUS_SECONDS"
-        )
-        or 300
-    )
-    # Set false only to silence the multi-replica refusal on a deployment that knowingly runs
-    # more than one runner and accepts that a Stop may reach the wrong process.
-    single_replica_check: bool = _parse_bool_env(
-        "AGENTA_SESSIONS_COMMAND_SINGLE_REPLICA_CHECK", default=True
-    )
-
     model_config = ConfigDict(extra="ignore")
 
 

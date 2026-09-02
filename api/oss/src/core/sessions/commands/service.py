@@ -62,6 +62,7 @@ from oss.src.dbs.redis.sessions.contract import (
 )
 from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
+    get_owner,
     get_running_owner,
     mark_turn_superseded,
     release_running,
@@ -331,14 +332,24 @@ class SessionCommandsService:
             project_id=command.project_id, session_id=command.session_id
         ):
             outcome = SessionCommandOutcome.lost
+            # Name the process that DOES hold the session, so the log says where the Stop
+            # should have gone rather than only that it did not arrive.
+            owner = await get_owner(
+                self._lock,
+                project_id=str(command.project_id),
+                session_id=command.session_id,
+            )
             log.error(
                 "control delivery: the runner answered not_held for session=%s while its row "
-                "is alive and beating. The call reached a process that does not hold the "
-                "session, which means more than one runner replica is live. command=%s "
-                "target_turn=%s",
+                "is alive and beating. Some process is running that session and it is not the "
+                "one we called, so this deployment has more than one runner replica and the "
+                "direct adapter cannot route to it. Settling the command lost, so the user is "
+                "told the Stop failed rather than that the work had already finished. "
+                "command=%s target_turn=%s owner_replica=%s",
                 command.session_id,
                 command.id,
                 command.target_turn_id,
+                owner or "unknown",
             )
         await self.settle(
             command_id=command.id,
