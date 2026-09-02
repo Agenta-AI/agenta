@@ -279,8 +279,15 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
+    # The execution watchdog. It needs the records plane to write the terminal outcome a
+    # dead runner owed, and the watch publisher so an open browser sees the turn close.
     _orphan_sweep_task = asyncio.create_task(
-        orphan_sweep_loop(_transactions_engine, _lock_engine)
+        orphan_sweep_loop(
+            _transactions_engine,
+            _lock_engine,
+            records_service=records_service,
+            watch_publisher=_sessions_watch_publisher,
+        )
     )
 
     _attachment_sweep_task = asyncio.create_task(

@@ -561,11 +561,52 @@ class SessionAttachmentsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class SessionWatchdogConfig(BaseModel):
+    """The execution watchdog: how long a running turn may go silent before it is settled.
+
+    A turn is declared lost when its stream row still claims `is_running` and its heartbeat
+    (`session_streams.updated_at`) is older than
+    `heartbeat_interval_seconds + running_grace_seconds`. The runner beats every 30 seconds,
+    so the default of 90 seconds of grace means three missed beats, and a turn is settled
+    about two minutes after its runner stops.
+
+    Raise `running_grace_seconds` if a healthy deployment settles live turns. Lower it to
+    settle a dead turn sooner. It is a plain restart-time setting; nothing else changes.
+    """
+
+    # Extra silence, on top of one heartbeat interval, before a RUNNING turn is declared lost.
+    running_grace_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_GRACE_SECONDS") or 90
+    )
+
+    # An ALIVE-but-not-running row (between turns, or parked awaiting a human) gets a much
+    # longer grace: the runner stops beating while a turn is parked and keeps that sandbox
+    # warm for the approval TTL. Settling those at two minutes would end a resumable session.
+    idle_grace_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
+        or 1_800
+    )
+
+    # How often the watchdog runs.
+    interval_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_INTERVAL_SECONDS")
+        or 60
+    )
+
+    # Rows settled per pass. A backlog drains over successive passes, not one huge commit.
+    batch_size: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE") or 500
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
+    watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
 
     model_config = ConfigDict(extra="ignore")
 

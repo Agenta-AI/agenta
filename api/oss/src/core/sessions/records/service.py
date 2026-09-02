@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
@@ -63,4 +63,19 @@ class RecordsService:
         return await self.records_dao.latest_message_per_session(
             project_id=project_id,
             session_ids=session_ids,
+        )
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        """One batched lookup for a whole watchdog pass — never one call per candidate."""
+        if not keys:
+            return set()
+
+        return await self.records_dao.settled_turns(
+            project_id=project_id,
+            keys=keys,
         )
