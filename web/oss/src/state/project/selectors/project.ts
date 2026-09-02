@@ -10,6 +10,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
@@ -178,9 +179,12 @@ const projectMatchesWorkspace = (
 const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const {routeLayer} = get(appStateSnapshotAtom)
     const {workspaceId} = get(appIdentifiersAtom)
+    const userId = (get(userAtom) as {id?: string} | null)?.id
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     return {
-        queryKey: ["projects", "workspace-guard", workspaceId ?? ""],
+        // Account-scoped like orgsQueryAtom: a sign-out that skips useSession.logout leaves this
+        // membership answer in the cache, and the next account must not be judged by it.
+        queryKey: ["projects", "workspace-guard", userId ?? "", workspaceId ?? ""],
         queryFn: async () => fetchAllProjects(),
         staleTime: 60_000,
         refetchOnWindowFocus: false,
@@ -194,6 +198,7 @@ const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) 
         enabled:
             shouldRunWorkspaceGuard(routeLayer) &&
             !!workspaceId &&
+            !!userId &&
             get(sessionExistsAtom) &&
             jwtReady,
     }

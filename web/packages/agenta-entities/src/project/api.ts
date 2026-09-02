@@ -19,7 +19,12 @@ export const fetchAllProjects = async (workspaceId?: string): Promise<ProjectsRe
     const {data} = await axios.get(`${getAgentaApiUrl()}/projects`, {
         params: workspaceId ? {workspace_id: workspaceId} : undefined,
     })
-    return Array.isArray(data) ? data : []
+    // A non-array body is a broken contract, not an empty account. Coercing it to `[]` would read
+    // as "this workspace holds no project" and paint a 404 over a workspace that is fine.
+    if (!Array.isArray(data)) {
+        throw new Error("Malformed /projects response: expected an array")
+    }
+    return data
 }
 
 export const fetchProject = async (projectId: string): Promise<ProjectsResponse> => {
