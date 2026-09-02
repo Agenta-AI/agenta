@@ -175,7 +175,8 @@ Settle the meanings of `session`, `conversation turn`, and `execution`. Decide h
 ### O-002: Stop behavior inside sandbox-agent
 
 Verify whether the vendored sandbox-agent can cancel one execution while preserving its harness
-session. If it cannot, define the required patch and whether Daytona needs a rebuilt snapshot.
+session. Warm resume is the required outcome. If current behavior cannot provide it, define the
+required patch and whether Daytona needs a rebuilt snapshot.
 
 ### O-003: Durable ordering
 
@@ -200,9 +201,10 @@ and harness reconstruction.
 
 ### O-006: Immediate runner control
 
-Choose direct runner HTTP, per-runner Redis control delivery, or a persistent runner connection.
-The current API knows the logical owner `replica_id`, but its configured runner URL is not a
-replica-specific route.
+Choose runner-initiated long polling or a persistent runner connection. Future user-operated
+runners can be behind firewalls, so the design must not require inbound API access or direct Redis
+access from the runner. The current API knows the logical owner `replica_id`, but its configured
+runner URL is not a replica-specific route.
 
 ### O-007: Command boundary
 

@@ -36,7 +36,7 @@ Draft requirements:
 - Every accepted execution reaches exactly one durable terminal outcome.
 - The sender and every other reader see the same terminal outcome.
 - Runner, sandbox, provider, tool, and adapter failures cannot leave an unbounded running state.
-- Normal Stop preserves the session workspace and resumable harness state where supported.
+- Normal Stop preserves the session workspace and leaves the harness session warm and resumable.
 - A watchdog settles work when the owning runner cannot produce the terminal outcome.
 - A slow tool fails with an explicit tool or execution result. It does not disappear silently.
 
@@ -63,7 +63,9 @@ Draft requirements:
 - Only the current execution ownership generation can append events or cause external effects.
 - A second message uses an explicit `reject`, `queue`, or `steer` policy.
 - The API saves an accepted queue or steer message before interrupting current work.
-- Every control command names the execution it expects.
+- The API resolves every execution-affecting command to one execution before delivery.
+- Public Stop can optionally name the execution the caller expects. If omitted, it targets the
+  current execution.
 - An older runner cannot reclaim ownership or write after replacement.
 - A failed steer leaves the saved message visible and recoverable.
 

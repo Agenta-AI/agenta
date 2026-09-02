@@ -35,6 +35,9 @@
   history excluded from the draft.
 - Added a mandatory stable-ID producer spike before immutable record changes.
 - Made single active execution and stale-writer fencing explicit requirements.
+- Kept the public Stop execution guard optional.
+- Added future user-operated runners as a control-transport constraint.
+- Recorded warm sandbox and harness resume as the required Stop outcome.
 
 ## Branch
 

@@ -105,7 +105,7 @@ operations. Attach is replaced by reading the snapshot and event stream.
 | Operation | Today | Proposed direction | Change |
 |---|---|---|---|
 | Send | Invoke a workflow and read its response stream | Keep this during migration. Later accept work independently and return an execution ID | Later change |
-| Stop | `POST /sessions/streams/` with no inputs and `force=false` | `POST /sessions/{id}/cancel` with an expected execution ID supplied by the client | Clearer endpoint and faster delivery |
+| Stop | `POST /sessions/streams/` with no inputs and `force=false` | `POST /sessions/{id}/cancel` with an optional expected execution ID | Clearer endpoint and faster delivery |
 | Hard kill | `DELETE /sessions/streams/?session_id=...`; destroys the sandbox | Keep as a separate destructive operation with an explicit name | Rename or reshape only |
 | Answer approval | `POST /sessions/interactions/{interaction_id}/respond` | Keep a resource-specific response endpoint. Improve acknowledgement and resume guarantees internally | Public shape mostly unchanged |
 | Queue while busy | Browser-local queue | Save the message on the server with `on_busy: queue` | Changes ownership from browser to server |
@@ -231,10 +231,19 @@ The recommended routing pattern for discussion is:
 4. The runner acknowledges and applies the command.
 5. Heartbeat or periodic recovery finds commands whose wake-up was lost.
 
-The runner can hold an authenticated outbound control stream to the API. This keeps Redis and
-Redis credentials behind the API boundary. In a multi-API deployment, Redis can route wake-ups to
-the API instance that holds the runner connection. A per-runner Redis channel is simpler but
-couples the runner directly to Redis. Direct pod addresses are the least portable option.
+The runner initiates the control connection to the API. This supports future user-operated runners
+behind firewalls and keeps Redis credentials behind the API boundary.
+
+The simplest first implementation is durable long polling. The runner makes an authenticated
+request that the API holds briefly until a command is available. The runner receives the command,
+acknowledges it, and immediately opens the next request. A disconnected runner reconnects and
+claims commands that remain durable. Redis or Postgres notifications may wake API replicas
+internally, but the runner never connects to either system.
+
+A persistent WebSocket or bidirectional stream can later reduce repeated requests and carry richer
+runner status. It is not required for the first contract. Direct API calls into runner pods and
+per-runner Redis subscriptions are poor fits for user-operated runners because they require inbound
+reachability or infrastructure credentials.
 
 The required invariant is stronger than “the second start usually gets a conflict”: at most one
 execution is active for a session, and only the current owner can write or cause external effects.
