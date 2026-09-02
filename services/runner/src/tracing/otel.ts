@@ -409,8 +409,13 @@ const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
  * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the
  * rewrite touches. Three things it deliberately does NOT do:
  *
- *   - `127.0.0.1` earns no alias. Neither copy of `parse_url` rewrites it, so that deployment
- *     already matches its own raw base and the bridge form is a pair the platform cannot produce.
+ *   - `127.0.0.1` earns no alias HERE. Neither copy of `parse_url` rewrites it, so that
+ *     deployment already matches its own raw base and the bridge form is a pair the platform
+ *     cannot produce. It is admitted anyway, one layer up: `isAgentaIngest` folds every
+ *     local-host spelling into one host (#6392), which subsumes this mirror entirely. This
+ *     function is kept because it is the record of WHICH rewrite the platform actually performs,
+ *     and because it names the bridge form in `configuredIngestBases()` so a rejection message
+ *     lists the host the operator will see on the wire.
  *   - A scheme-less base earns no alias, because it cannot help. The SDK's `parse_url` does no
  *     scheme defaulting (unlike the api's), so a scheme-less `AGENTA_API_URL` yields an equally
  *     scheme-less ENDPOINT, which `new URL` reads as an opaque `localhost:`-scheme path. Both
