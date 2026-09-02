@@ -31,6 +31,70 @@ def _is_no_auth_toolkit(toolkit: Dict[str, Any]) -> bool:
     return all((detail.get("mode") or "").upper() == "NO_AUTH" for detail in details)
 
 
+def _unmanaged_dcr_auth_scheme(toolkit: Dict[str, Any]) -> Optional[str]:
+    """Return Composio's DCR mode when the toolkit has no managed OAuth app."""
+    if toolkit.get("composio_managed_auth_schemes"):
+        return None
+    for detail in toolkit.get("auth_config_details") or []:
+        mode = detail.get("mode") or ""
+        if mode.upper() == "DCR_OAUTH":
+            return mode
+    return None
+
+
+def _auth_modes(toolkit: Dict[str, Any]) -> set:
+    """Every auth mode this toolkit offers, from either shape Composio returns.
+
+    The LISTING (``GET /toolkits``) names them as plain strings in ``auth_schemes``; the
+    DETAIL (``GET /toolkits/{slug}``) names them as ``auth_config_details[].mode``. The
+    connect flow reads detail and the catalog filter reads listing, so both must reach
+    the same verdict about one toolkit.
+    """
+    modes = {str(s).strip().upper() for s in (toolkit.get("auth_schemes") or []) if s}
+    for detail in toolkit.get("auth_config_details") or []:
+        mode = (detail.get("mode") or "").strip().upper()
+        if mode:
+            modes.add(mode)
+    return modes
+
+
+# The schemes some branch of `initiate_connection` below can name in an auth config.
+# Extend this in the SAME change that adds a branch:
+#
+#   NO_AUTH                       the no-auth branch, which creates no auth config
+#   API_KEY, BASIC, BEARER_TOKEN  the `auth_scheme == "api_key"` branch, which picks the
+#                                 first NON-OAuth mode and lets the person supply the
+#                                 credential
+#   OAUTH2, OAUTH1                Composio's managed app, or a bring-your-own-app branch
+#                                 once one exists
+#   DCR_OAUTH                     the unmanaged-DCR branch
+#
+# S2S_OAUTH2 and SAML are absent on purpose: they read as OAuth to the api_key branch,
+# which therefore skips them and falls back to naming API_KEY — and a toolkit that does
+# not offer API_KEY rejects that. No branch can build a working config for them.
+CONNECTABLE_AUTH_SCHEMES = frozenset(
+    {"NO_AUTH", "API_KEY", "BASIC", "BEARER_TOKEN", "OAUTH1", "OAUTH2", "DCR_OAUTH"}
+)
+
+
+def can_connect_toolkit(toolkit: Dict[str, Any]) -> bool:
+    """Whether any branch of `initiate_connection` can build this toolkit's auth config.
+
+    Fail-closed, and deliberately NOT a prediction that the connection will succeed. An
+    unmanaged OAuth toolkit passes here and still fails today for want of a
+    bring-your-own-app branch; hiding those would remove mainstream products over a gap
+    whose fix is to add the branch, not to shrink the catalog. What this excludes is the
+    narrower case of a toolkit whose every scheme no branch can even name, which a person
+    can never finish connecting however the flow is fixed around it.
+    """
+    if toolkit.get("no_auth") or _is_no_auth_toolkit(toolkit):
+        return True
+    if _auth_modes(toolkit) & CONNECTABLE_AUTH_SCHEMES:
+        return True
+    # A managed app is Composio's own, so it works whatever the scheme is called.
+    return bool(toolkit.get("composio_managed_auth_schemes"))
+
+
 class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
     """Composio V3 connection auth adapter — uses httpx directly (no SDK).
 
@@ -141,8 +205,8 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             ) from e
 
         # Step 2: create an auth config for this integration.
-        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
-        # oauth / None → use_composio_managed_auth.
+        # API keys and unmanaged DCR OAuth use the provider's exact custom scheme.
+        # Other OAuth toolkits use Composio's managed app.
         log.info(
             "initiate_connection: integration_key=%s auth_scheme=%r",
             integration_key,
@@ -159,6 +223,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
                 connection_data={"no_auth": True},
             )
 
+        dcr_auth_scheme = _unmanaged_dcr_auth_scheme(toolkit)
         if auth_scheme == "api_key":
             # Derive Composio authScheme from toolkit's auth_config_details.
             # Fall back to "API_KEY" as the common default.
@@ -172,6 +237,11 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             auth_config_body: Dict[str, Any] = {
                 "type": "use_custom_auth",
                 "authScheme": composio_auth_scheme,
+            }
+        elif dcr_auth_scheme:
+            auth_config_body = {
+                "type": "use_custom_auth",
+                "authScheme": dcr_auth_scheme,
             }
         else:
             auth_config_body = {"type": "use_composio_managed_auth"}

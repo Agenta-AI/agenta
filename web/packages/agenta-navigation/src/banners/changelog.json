@@ -1,0 +1,68 @@
+[
+    {
+        "id": "changelog-2026-08-22-agenta-on-mobile",
+        "title": "Agenta on Mobile",
+        "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",
+        "link": "https://agenta.ai/docs/changelog/agenta-on-mobile"
+    },
+    {
+        "id": "changelog-2026-08-12-slash-commands",
+        "title": "Slash Commands",
+        "description": "Control the model and reference skills or tools without leaving the conversation.",
+        "link": "https://agenta.ai/docs/changelog/slash-commands"
+    },
+    {
+        "id": "changelog-2026-08-12-automation-runs",
+        "title": "Automation Runs",
+        "description": "Review automated work, provide human input, and improve future runs.",
+        "link": "https://agenta.ai/docs/changelog/automation-runs"
+    },
+    {
+        "id": "changelog-2026-08-04-api-keys-hidden-from-agent-sandboxes",
+        "title": "API Keys Hidden from Sandboxes",
+        "description": "Agents in a cloud sandbox now see a placeholder instead of your provider API keys.",
+        "link": "https://agenta.ai/docs/changelog/api-keys-hidden-from-agent-sandboxes"
+    },
+    {
+        "id": "changelog-2026-08-03-codex-harness",
+        "title": "Codex Harness",
+        "description": "Run your agents on Codex, alongside Claude Code and Pi. Five OpenAI models, local or cloud sandbox.",
+        "link": "https://agenta.ai/docs/changelog/codex-harness"
+    },
+    {
+        "id": "changelog-2026-06-05-dark-mode",
+        "title": "Dark Mode",
+        "description": "Agenta now has a dark theme. Switch between light, dark, and system from the top bar.",
+        "link": "https://agenta.ai/docs/changelog/dark-mode"
+    },
+    {
+        "id": "changelog-2026-05-18-annotation-queues",
+        "title": "Annotation Queues",
+        "description": "Annotate traces and test sets and turn them into evals.",
+        "link": "https://agenta.ai/docs/changelog/annotation-queues"
+    },
+    {
+        "id": "changelog-2026-03-11-deployment-webhooks-github-automations",
+        "title": "Webhooks and GitHub Automations",
+        "description": "Trigger webhooks or GitHub Actions when a prompt deployment happens in Agenta.",
+        "link": "https://agenta.ai/docs/changelog/deployment-webhooks-and-github-automations"
+    },
+    {
+        "id": "changelog-2026-02-27-tool-integrations",
+        "title": "Tool Integrations in Playground",
+        "description": "Connect Gmail, Slack, Notion, and 150+ tools to your prompts. Execute tool calls from the playground.",
+        "link": "https://agenta.ai/docs/changelog/tool-integrations"
+    },
+    {
+        "id": "changelog-2026-02-25-refine-ai",
+        "title": "AI Prompt Refinement",
+        "description": "Refine prompts with AI in the playground. Describe what to improve and get a refined version.",
+        "link": "https://agenta.ai/docs/changelog/refine-ai"
+    },
+    {
+        "id": "changelog-2026-02-17-enterprise-compliance",
+        "title": "Enterprise Compliance Features",
+        "description": "Multi-org support, SSO, domain verification, and a US region.",
+        "link": "https://agenta.ai/docs/changelog/enterprise-compliance-features"
+    }
+]

@@ -15,6 +15,7 @@ from oss.src.core.gateway.connections.dtos import (
 from oss.src.core.gateway.connections.providers.composio.adapter import (
     ComposioConnectionsAdapter,
     _is_no_auth_toolkit,
+    _unmanaged_dcr_auth_scheme,
 )
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.tools.dtos import (
@@ -37,6 +38,11 @@ _OAUTH_TOOLKIT = {
     "slug": "github",
     "auth_config_details": [{"name": "GitHub", "mode": "OAUTH2"}],
 }
+_DCR_OAUTH_TOOLKIT = {
+    "slug": "granola_mcp",
+    "composio_managed_auth_schemes": [],
+    "auth_config_details": [{"name": "Granola", "mode": "DCR_OAUTH"}],
+}
 
 
 # --- toolkit detection (gateway connections adapter) ------------------------ #
@@ -56,6 +62,19 @@ def test_is_no_auth_toolkit_mixed_mode_is_authful():
         "auth_config_details": [{"mode": "NO_AUTH"}, {"mode": "OAUTH2"}],
     }
     assert _is_no_auth_toolkit(mixed) is False
+
+
+def test_unmanaged_dcr_scheme_requires_no_managed_oauth_app():
+    assert _unmanaged_dcr_auth_scheme(_DCR_OAUTH_TOOLKIT) == "DCR_OAUTH"
+    assert (
+        _unmanaged_dcr_auth_scheme(
+            {
+                **_DCR_OAUTH_TOOLKIT,
+                "composio_managed_auth_schemes": [{"name": "oauth2"}],
+            }
+        )
+        is None
+    )
 
 
 async def test_initiate_connection_skips_auth_config_for_no_auth(monkeypatch):
@@ -88,6 +107,48 @@ async def test_initiate_connection_skips_auth_config_for_no_auth(monkeypatch):
     assert result.connection_data == {"no_auth": True}
 
 
+async def test_initiate_connection_preserves_unmanaged_dcr_oauth_mode(monkeypatch):
+    adapter = object.__new__(ComposioConnectionsAdapter)
+    posted: list[tuple[str, dict]] = []
+
+    async def _get(path, *, params=None):
+        assert path == "/toolkits/granola_mcp"
+        return _DCR_OAUTH_TOOLKIT
+
+    async def _post(path, *, json=None):
+        posted.append((path, json))
+        if path == "/auth_configs":
+            return {"auth_config": {"id": "ac_granola"}}
+        return {
+            "connected_account_id": "ca_granola",
+            "redirect_url": "https://composio.test/connect",
+        }
+
+    monkeypatch.setattr(adapter, "_get", _get)
+    monkeypatch.setattr(adapter, "_post", _post)
+
+    result = await adapter.initiate_connection(
+        request=ConnectionRequest(
+            user_id="project-user",
+            integration_key="granola_mcp",
+            auth_scheme="oauth",
+        )
+    )
+
+    assert posted[0] == (
+        "/auth_configs",
+        {
+            "toolkit": {"slug": "granola_mcp"},
+            "auth_config": {
+                "type": "use_custom_auth",
+                "authScheme": "DCR_OAUTH",
+            },
+        },
+    )
+    assert posted[1][0] == "/connected_accounts/link"
+    assert result.provider_connection_id == "ca_granola"
+
+
 # --- tool execution (tools adapter) ----------------------------------------- #
 
 
@@ -108,6 +169,8 @@ async def test_execute_omits_connected_account_for_no_auth(monkeypatch):
         request=ToolExecutionRequest(
             integration_key="codeinterpreter",
             action_key="EXECUTE_CODE",
+            provider_action_id="CODEINTERPRETER_EXECUTE_CODE",
+            toolkit_version="20250827_00",
             provider_connection_id=None,
             arguments={"code_to_execute": "print(6*7)"},
         ),
@@ -133,6 +196,8 @@ async def test_execute_sends_connected_account_when_present(monkeypatch):
         request=ToolExecutionRequest(
             integration_key="github",
             action_key="GET_THE_AUTHENTICATED_USER",
+            provider_action_id="GITHUB_GET_THE_AUTHENTICATED_USER",
+            toolkit_version="20250827_00",
             provider_connection_id="acc_123",
             arguments={},
         ),

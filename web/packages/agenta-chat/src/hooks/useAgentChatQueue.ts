@@ -1,10 +1,7 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/hooks/useAgentChatQueue.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — every import already resolves to an allowed package dep.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground"
+import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
@@ -104,7 +101,77 @@ export const useAgentChatQueue = ({
         setQueued((q) => q.filter((m) => m.id !== id))
     }, [])
 
-    const clearQueue = useCallback(() => setQueued([]), [])
+    // ── Editing a held message ────────────────────────────────────────────────────────────────
+    // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
+    // already typed is stashed and handed back when the session ends (either way). Without that,
+    // clicking edit on a half-written message would silently destroy it.
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+
+    /** Open a session on `id`, stashing the composer's current draft. */
+    const beginEdit = useCallback((id: string, draft = "") => {
+        stashRef.current = draft
+        setEditingId(id)
+    }, [])
+
+    /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
+    const takeStash = useCallback(() => {
+        const draft = stashRef.current
+        stashRef.current = ""
+        return draft
+    }, [])
+
+    /** Close the session without touching the message. Returns the draft to restore. */
+    const cancelEdit = useCallback(() => {
+        setEditingId(null)
+        return takeStash()
+    }, [takeStash])
+
+    /**
+     * Apply the composer's content to the message under edit. Deliberately NOT a branch inside
+     * `submit`: that one is also called by the steer-on-denial and pending-run paths, which would
+     * otherwise overwrite whatever the user happened to be editing.
+     *
+     * Attachments MERGE rather than replace — the composer only submits newly staged files, so
+     * replacing would delete the queued message's originals on every text-only edit.
+     *
+     * The queue drains on its own, so the target can leave mid-edit. Nothing is left to rewrite
+     * then, and the content becomes a new queued message instead of vanishing.
+     *
+     * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
+     * so the text the session displaced has to come back here too or it is lost for good.
+     */
+    const commitEdit = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const id = editingId
+            setEditingId(null)
+            const draft = takeStash()
+            const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
+            if (!target) {
+                submit(item)
+                return draft
+            }
+            const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
+            // Edited down to nothing and carrying no files: there is no message left to hold.
+            if (!item.text.trim() && fileParts.length === 0) {
+                setQueued((q) => q.filter((m) => m.id !== id))
+                return draft
+            }
+            setQueued((q) =>
+                q.map((m) =>
+                    m.id === id
+                        ? {
+                              ...m,
+                              text: item.text,
+                              fileParts: fileParts.length ? fileParts : undefined,
+                          }
+                        : m,
+                ),
+            )
+            return draft
+        },
+        [editingId, submit, takeStash],
+    )
 
     // Release the queue head once the stream settles; the latch caps it at one per settle. Both
     // "ready" and "error" are settled — releasing on "error" retries the failed turn with the
@@ -127,8 +194,12 @@ export const useAgentChatQueue = ({
         queued,
         submit,
         removeQueued,
-        clearQueue,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
+        /** Id of the held message the composer is currently editing, or null. */
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
     }
 }

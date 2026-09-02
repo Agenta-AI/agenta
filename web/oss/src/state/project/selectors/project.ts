@@ -1,3 +1,5 @@
+import {fetchAllProjects, filterOutDemoProjects} from "@agenta/entities/project"
+import {ProjectsResponse} from "@agenta/entities/project"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
 import type {QueryKey} from "@tanstack/react-query"
@@ -6,8 +8,6 @@ import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllProjects} from "@/oss/services/project"
-import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {sessionExistsAtom} from "@/oss/state/session"
@@ -124,15 +124,9 @@ logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
 
-/**
- * Filters demo projects out of the list. Falls back to the full list when
- * every project is a demo one, so the user is not left with an empty UI.
- * Exported for unit-test access (projectsDemoFilter.test.ts).
- */
-export const filterOutDemoProjects = (projects: ProjectsResponse[]): ProjectsResponse[] => {
-    const nonDemoProjects = projects.filter((project) => !project.is_demo)
-    return nonDemoProjects.length ? nonDemoProjects : projects
-}
+// Lives in @agenta/entities/project so /m applies the SAME filter; re-exported for the local
+// unit test (projectsDemoFilter.test.ts) and existing importers.
+export {filterOutDemoProjects}
 
 export const projectsAtom = atom((get) => {
     const res = get(projectsQueryAtom)

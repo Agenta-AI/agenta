@@ -18,6 +18,7 @@
 
 export {
     ExecutionMetricsDisplay,
+    MetaSeparator,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./ExecutionMetricsDisplay"

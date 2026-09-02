@@ -45,16 +45,24 @@ const DURABLE_INGEST_MAX_RETRIES_CAP = 12;
  * mean on — the compose files pass the var through as `${AGENTA_RECORDS_DURABLE:-}`, which sets
  * an empty string when unset. "false" → the fire-and-forget legacy path, unchanged. */
 function durableRecordsEnabled(): boolean {
-  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").trim().toLowerCase() !== "false";
+  return (
+    String(process.env.AGENTA_RECORDS_DURABLE ?? "")
+      .trim()
+      .toLowerCase() !== "false"
+  );
 }
 
 /** Attempts before a durable-mode drop; env-overridable for ops tuning (and fast tests). */
 function durableMaxRetries(): number {
-  return envInt("AGENTA_RECORDS_INGEST_MAX_RETRIES", DURABLE_INGEST_MAX_RETRIES, {
-    min: 1,
-    max: DURABLE_INGEST_MAX_RETRIES_CAP,
-    log,
-  });
+  return envInt(
+    "AGENTA_RECORDS_INGEST_MAX_RETRIES",
+    DURABLE_INGEST_MAX_RETRIES,
+    {
+      min: 1,
+      max: DURABLE_INGEST_MAX_RETRIES_CAP,
+      log,
+    },
+  );
 }
 
 function log(msg: string): void {
@@ -108,7 +116,10 @@ async function postEvent(
           ...(spanId ? { span_id: spanId } : {}),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
+      // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
+      if (!res.ok)
+        throw new Error(`session records persist failed: HTTP ${res.status}`);
       log(
         `ingest OK session=${sessionId} idx=${eventIndex} type=${event.type}`,
       );
@@ -219,7 +230,9 @@ export function recordsIncomplete(sessionId: string): boolean {
  * substitute for a close signal the harness may never send (a call that streams then
  * stalls without a `tool_result`).
  */
-const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, { log });
+const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, {
+  log,
+});
 
 /**
  * Build an emitter that persists every event via the ingest chain AND calls the
@@ -283,6 +296,9 @@ export function buildPersistingEmitter(
   const emit = (event: AgentEvent): void => {
     // Always forward to the live stream (if any).
     liveEmit?.(event);
+
+    // Transient data describes the current live turn. It must not become transcript history.
+    if (event.type === "data" && event.transient) return;
 
     // Accumulate tool_call snapshots for one id; flush on any non-continuation below.
     if (event.type === "tool_call" && event.id) {

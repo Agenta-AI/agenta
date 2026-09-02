@@ -29,7 +29,9 @@ import {
   type ReconcilePlan,
 } from "./reconcile-plan.ts";
 
-export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
+import { harnessKindOf, type NormalizedHarnessKind } from "../harness-kind.ts";
+
+export type HarnessKind = NormalizedHarnessKind;
 
 /**
  * What each harness can do about a changed facet.
@@ -43,7 +45,9 @@ export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
  *
  * The shelved components, with their insertion points, are:
  *  - the untrusted best-effort acknowledgement (adapter-matrix.md section 4.3);
- *  - the Pi specs-file channel, replacing the `AGENTA_AGENT_TOOLS_PUBLIC_SPECS` env var;
+ *  - re-reading the Pi specs file mid-session (the file channel itself now ships — the runner
+ *    writes `AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE` on every Pi run — but the extension reads it
+ *    once, at session start);
  *  - the MCP shim `tools.listChanged` capability plus its notification.
  */
 export interface HarnessLifecycleCapabilities {
@@ -218,10 +222,13 @@ const V1_CAPABILITIES: Readonly<
 };
 
 export function harnessKind(request: AgentRunRequest): HarnessKind {
-  const harness = request.harness;
-  if (harness === "pi" || harness === "claude" || harness === "codex")
-    return harness;
-  return "unknown";
+  // Delegates to THE one normalizer (audit finding 6). This function's first version matched
+  // the bare "pi" literal the wire never carries, sending every playground Pi run into the
+  // fail-closed all-rebuild row (#6364) — the shared normalizer plus its round-trip test is
+  // what makes that drift unrepresentable now. The non-string fail-closed guard (an unchecked
+  // `JSON.parse` can put `null`, `0`, or `false` here) lives inside the normalizer too, so
+  // every caller gets it.
+  return harnessKindOf(request.harness);
 }
 
 export function capabilitiesFor(

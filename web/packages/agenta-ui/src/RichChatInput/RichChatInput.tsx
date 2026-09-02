@@ -233,7 +233,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
                 beginDictation: () => {
                     const editor = editorRef.current
-                    if (editor) dictationRef.current = beginDictation(editor)
+                    if (!editor) return
+                    // Settle any session still open (a re-press while the last one is closing) so
+                    // its words stay put instead of being orphaned at interim opacity.
+                    dictationRef.current?.end()
+                    dictationRef.current = beginDictation(editor)
                 },
                 updateDictation: (finalText: string, interimText: string) =>
                     dictationRef.current?.update(finalText, interimText),
@@ -289,10 +293,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 minHeightClassName,
                             )}
                             placeholder={
+                                // Mirrors the editor's own box exactly — same padding, same
+                                // leading. A different line-height sits the placeholder off the
+                                // caret's baseline by a couple of pixels.
                                 <div
                                     className={clsx(
-                                        "pointer-events-none absolute select-none text-[var(--ag-composer-placeholder)]",
-                                        comfortable ? "left-5 top-4" : "left-3 top-2.5",
+                                        "pointer-events-none absolute inset-0 select-none break-words leading-relaxed text-[var(--ag-composer-placeholder)]",
+                                        comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                         textSizeClassName,
                                     )}
                                 >

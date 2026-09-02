@@ -1,68 +1,31 @@
-/**
- * ToolManagementList
- *
- * The Tools section body, structured to match the triggers section: tools are partitioned into
- * sub-sections — Connected apps (third-party/gateway tools **grouped by provider**, each an
- * expandable app card), Workflow references, Tool definitions, and Built-in — each with a labelled
- * count header. Connected-app grouping mirrors the trigger section's provider groups (shared
- * {@link CollapsibleProviderGroup} / {@link SubSectionHeader}); the other kinds are flat row lists.
- *
- * Provider details (for app names/logos) only load when there are gateway tools — the parent
- * partitions with the tool function-name alone, and each group's detail hook mounts only when that
- * group exists. Dark-safe (`--ag-color*` tokens only).
- */
-import {type ReactNode, useMemo} from "react"
+/** The Integrations and Subagents section bodies, both read off the flat `tools` array. Function
+ *  tool definitions and provider built-ins are deliberately not rendered: they still run. */
+import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
-import {useAtom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {humanizeActionKey} from "@agenta/shared/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
-import {CollapsibleProviderGroup, SubSectionHeader} from "../sectionGroups"
-import {isHarnessBuiltinTool, parseGatewayTool} from "../toolUtils"
+import {integrationPermissionSummary} from "../integrationPolicy"
+import {ProviderLogo} from "../sectionGroups"
+import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
-import {describeTool, isFunctionTool} from "./itemDescriptors"
-import {ITEM_KINDS} from "./itemKinds"
 import {
-    ItemChildRow,
-    ItemRow,
-    StatusTag,
-    type ItemRowStatus,
-    type ItemRowStatusTone,
-} from "./ItemRow"
+    describeSubagent,
+    isReferenceTool,
+    toolReferenceSlug,
+    type ItemDescriptor,
+} from "./itemDescriptors"
+import {ITEM_KINDS} from "./itemKinds"
+import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
+import {PolicyGlyph} from "./PermissionGlyph"
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
 
-// Persisted per-agent expand state for connected-app groups (key = `${entityId}:${integrationKey}`).
-const toolGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
-    "agenta:tools:groups-expanded",
-    {},
-)
-
 interface IndexedTool {
     item: unknown
     index: number
-}
-interface ToolProviderGroup {
-    key: string
-    items: IndexedTool[]
-}
-
-interface GatewayProviderGroupProps {
-    group: ToolProviderGroup
-    entityId: string | null
-    openEdit: ToolManagementListProps["openEdit"]
-    removeItem: ToolManagementListProps["removeItem"]
-    closeEditor: () => void
-    disabled?: boolean
-    onOpenIntegration?: (integrationKey?: string) => void
-    statusFor?: ToolStatusFor
-}
-
-function prettifyProvider(key: string): string {
-    if (!key) return "Other"
-    return key.charAt(0).toUpperCase() + key.slice(1)
 }
 
 // Blocking problems outrank draft markers, mirroring the section-header rollup.
@@ -73,16 +36,17 @@ const STATUS_TONE_PRIORITY: Record<ItemRowStatusTone, number> = {
     new: 3,
 }
 
-/** The group's worst child status, so a collapsed provider card still points at the problem. */
-function rollupGroupStatus(
-    items: IndexedTool[],
+/** The worst status among an integration's entries, so one row still points at the problem. */
+function rollupRowStatus(
+    tools: unknown[],
+    indices: number[],
     statusFor?: ToolStatusFor,
 ): ItemRowStatus | undefined {
     if (!statusFor) return undefined
     let worst: ItemRowStatus | undefined
     let count = 0
-    for (const {item, index} of items) {
-        const status = statusFor(item, index)
+    for (const index of indices) {
+        const status = statusFor(tools[index], index)
         if (!status) continue
         if (!worst || STATUS_TONE_PRIORITY[status.tone] < STATUS_TONE_PRIORITY[worst.tone]) {
             worst = status
@@ -92,175 +56,124 @@ function rollupGroupStatus(
         }
     }
     if (!worst) return undefined
-    return count > 1 ? {...worst, tooltip: `${count} tools — expand for details.`} : worst
+    return count > 1 ? {...worst, tooltip: `${count} entries — open the integration.`} : worst
 }
 
-function GatewayProviderGroup({
-    group,
-    entityId,
-    openEdit,
-    removeItem,
-    closeEditor,
+/** Glyph plus short label for a row's saved policy. Custom appends its override count. */
+function PermissionSummary({row}: {row: IntegrationRow}) {
+    if (!row.entry) return null
+    const {preset, label} = integrationPermissionSummary(row.entry.permissions)
+    return (
+        <span
+            className={`flex items-center gap-1.5 text-xs ${
+                preset === "custom"
+                    ? "text-[var(--ag-colorWarningText)]"
+                    : "text-[var(--ag-colorTextSecondary)]"
+            }`}
+        >
+            <PolicyGlyph value={preset} />
+            {label}
+        </span>
+    )
+}
+
+function IntegrationListRow({
+    row,
+    tools,
+    onOpen,
+    onRemove,
     disabled,
-    onOpenIntegration,
     statusFor,
-}: GatewayProviderGroupProps) {
-    const [expanded, setExpanded] = useAtom(toolGroupsExpandedAtom)
-    // Selected-tool metadata must not come from the searchable browse query: typing in the open
-    // catalog changes that query's pages and would otherwise make existing groups lose their logos.
-    const {integration} = useToolIntegrationDetail(group.key)
-    const name = integration?.name || prettifyProvider(group.key)
-    const open =
-        (entityId ? expanded[`${entityId}:${group.key}`] : undefined) ?? group.items.length === 1
-    // Collapsed only: expanded groups already show the tag on the offending row itself.
-    const groupStatus = useMemo(
-        () => (open ? undefined : rollupGroupStatus(group.items, statusFor)),
-        [open, group.items, statusFor],
+}: {
+    row: IntegrationRow
+    tools: unknown[]
+    onOpen: () => void
+    onRemove: () => void
+    disabled?: boolean
+    statusFor?: ToolStatusFor
+}) {
+    // Selected-integration metadata must not come from the searchable browse query: typing in the
+    // open catalog changes that query's pages and would make existing rows lose their logos.
+    const {integration} = useToolIntegrationDetail(row.integration)
+    const name = integration?.name || humanizeActionKey(row.integration) || "Other"
+    const indices = useMemo(() => integrationRowIndices(row), [row])
+    const status = useMemo(
+        () => rollupRowStatus(tools, indices, statusFor),
+        [tools, indices, statusFor],
     )
 
-    const toggle = () => {
-        if (!entityId) return
-        const key = `${entityId}:${group.key}`
-        setExpanded((prev) => ({
-            ...prev,
-            [key]: !(prev[key] ?? group.items.length === 1),
-        }))
-    }
-
     return (
-        <CollapsibleProviderGroup
-            logo={integration?.logo ?? null}
-            name={name}
-            countText={`${group.items.length} ${group.items.length === 1 ? "tool" : "tools"}`}
-            open={open}
-            onToggle={toggle}
-            onAdd={!disabled && onOpenIntegration ? () => onOpenIntegration(group.key) : undefined}
-            addLabel={`Add ${name} tool`}
-            statusTag={groupStatus ? <StatusTag status={groupStatus} /> : undefined}
-        >
-            {group.items.map(({item, index}) => (
-                <ItemChildRow
-                    key={`tool-${index}`}
-                    descriptor={describeTool(item)}
-                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
-                    onRemove={() => {
-                        removeItem("tool", index)
-                        closeEditor()
-                    }}
-                    disabled={disabled}
-                    status={statusFor?.(item, index)}
-                />
-            ))}
-        </CollapsibleProviderGroup>
+        <ItemRow
+            descriptor={{
+                name,
+                monoName: false,
+                mono: "",
+                // The logo carries the identity here, so the avatar square stays out of the way.
+                color: "transparent",
+                icon: <ProviderLogo logo={integration?.logo ?? null} size={20} />,
+                tags: row.legacyIndices.length > 0 ? ["old format"] : [],
+                typeLabel: "integration",
+                subtitle: `Integration · ${row.integration}`,
+            }}
+            onEdit={onOpen}
+            onRemove={onRemove}
+            disabled={disabled}
+            extra={<PermissionSummary row={row} />}
+            status={status}
+        />
     )
 }
 
 export interface ToolManagementListProps {
     tools: unknown[]
-    /** The open agent's revision id — scopes persisted group-expand state. */
-    entityId: string | null
-    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
-    removeItem: (kind: "tool", index: number) => void
-    closeEditor: () => void
+    /** The integration rows, passed in so the rows rendered ARE the ones the drawers act on. */
+    integrationRows: IntegrationRow[]
     disabled?: boolean
-    /**
-     * Opens the agent integration drawer. An `integrationKey` preselects that app (a provider group's
-     * "Add {app} tool" jumps straight to its actions); omit it to open on the app grid (header +).
-     */
-    onOpenIntegration?: (integrationKey?: string) => void
-    /** Add trigger shown in the empty state (the tool selector popover). */
-    emptyAdd: ReactNode
+    /** Opens one integration's permission drawer. Migrates its legacy entries first. */
+    onOpenIntegration?: (row: IntegrationRow) => void
+    /** Drops every entry an integration owns, in one write. */
+    onRemoveIntegration?: (row: IntegrationRow) => void
+    /** Add trigger shown in the empty state. Omitted when there is no drawer to open. */
+    emptyAdd?: ReactNode
     /** Per-tool draft/validation status (unsaved edits, missing fields). */
     statusFor?: ToolStatusFor
 }
 
-/** A flat, headed sub-section of bordered item rows (references / definitions / built-in). */
-function FlatToolSection({
-    label,
-    entries,
-    openEdit,
-    removeItem,
-    closeEditor,
-    disabled,
-    statusFor,
-}: {
-    label: string
-    entries: IndexedTool[]
-    openEdit: ToolManagementListProps["openEdit"]
-    removeItem: ToolManagementListProps["removeItem"]
-    closeEditor: () => void
-    disabled?: boolean
-    statusFor?: ToolStatusFor
-}) {
-    if (entries.length === 0) return null
+/** Shared empty-state line. The add half is optional: a host with no drawer renders no control. */
+function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
     return (
-        <div className="flex flex-col gap-2">
-            <SubSectionHeader label={label} count={entries.length} />
-            <div className="flex flex-col gap-2">
-                {entries.map(({item, index}) => (
-                    <ItemRow
-                        key={`tool-${index}`}
-                        descriptor={describeTool(item)}
-                        onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
-                        onRemove={() => {
-                            removeItem("tool", index)
-                            closeEditor()
-                        }}
-                        disabled={disabled || ITEM_KINDS.tool.isReadOnly(item)}
-                        status={statusFor?.(item, index)}
-                    />
-                ))}
-            </div>
-        </div>
+        <span className="text-xs text-[var(--ag-zinc-5)]">
+            {label}
+            {add ? <> — {add}</> : null}
+        </span>
     )
 }
 
-/**
- * Connected-app tools grouped by provider. Isolated in its own component so the (paginated) tool
- * catalog only loads when gateway tools actually exist.
- */
-function GatewayGroups({
-    groups,
-    totalCount,
-    entityId,
-    openEdit,
-    removeItem,
-    closeEditor,
+/** The Integrations section body: one row per connected app, no sub-header. */
+export function ToolManagementList({
+    tools,
+    integrationRows,
     disabled,
     onOpenIntegration,
+    onRemoveIntegration,
+    emptyAdd,
     statusFor,
-}: {
-    groups: ToolProviderGroup[]
-    totalCount: number
-    entityId: string | null
-    openEdit: ToolManagementListProps["openEdit"]
-    removeItem: ToolManagementListProps["removeItem"]
-    closeEditor: () => void
-    disabled?: boolean
-    onOpenIntegration?: (integrationKey?: string) => void
-    statusFor?: ToolStatusFor
-}) {
-    const orderedGroups = useMemo(
-        () =>
-            [...groups].sort((a, b) =>
-                prettifyProvider(a.key).localeCompare(prettifyProvider(b.key)),
-            ),
-        [groups],
-    )
+}: ToolManagementListProps) {
+    if (integrationRows.length === 0) {
+        if (disabled) return null
+        return <EmptyLine label="No integrations yet" add={emptyAdd} />
+    }
 
     return (
         <div className="flex flex-col gap-2">
-            <SubSectionHeader label="Connected apps" count={totalCount} />
-            {orderedGroups.map((group) => (
-                <GatewayProviderGroup
-                    key={group.key}
-                    group={group}
-                    entityId={entityId}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    onOpenIntegration={onOpenIntegration}
+            {integrationRows.map((row) => (
+                <IntegrationListRow
+                    key={`${row.provider}:${row.integration}`}
+                    row={row}
+                    tools={tools}
+                    onOpen={() => onOpenIntegration?.(row)}
+                    onRemove={() => onRemoveIntegration?.(row)}
+                    disabled={disabled || !onOpenIntegration}
                     statusFor={statusFor}
                 />
             ))}
@@ -268,108 +181,94 @@ function GatewayGroups({
     )
 }
 
-export function ToolManagementList({
-    tools,
-    entityId,
+/** The saved subagents. Stored as `{type: "reference"}` entries; each keeps its array index,
+ *  because edit and remove address it by index. */
+export function selectSubagentTools(
+    tools: unknown[],
+    integrationRows: IntegrationRow[],
+): IndexedTool[] {
+    const claimed = new Set(integrationRows.flatMap(integrationRowIndices))
+    const entries: IndexedTool[] = []
+    tools.forEach((item, index) => {
+        // Legacy harness built-ins are inert: they render nowhere.
+        if (isHarnessBuiltinTool(item) || claimed.has(index)) return
+        if (isReferenceTool(item)) entries.push({item, index})
+    })
+    return entries
+}
+
+export interface SubagentListProps {
+    entries: IndexedTool[]
+    /** Saved references whose workflow is not an agent. Listed and removable, never addable. */
+    nonAgentSlugs?: Set<string>
+    /** Each subagent's icon chrome by slug. Only the caller can reach the icon record. */
+    chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
+    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
+    removeItem: (kind: "tool", index: number) => void
+    closeEditor: () => void
+    disabled?: boolean
+    /** Add trigger shown in the empty state. Omitted when there is no picker to open. */
+    emptyAdd?: ReactNode
+    statusFor?: ToolStatusFor
+}
+
+/** The Subagents section body: a flat row list, no sub-header. */
+/** Tag a reference whose workflow is not an agent, so it stays visible and removable. */
+function markNonAgent(
+    descriptor: ItemDescriptor,
+    item: unknown,
+    nonAgentSlugs?: Set<string>,
+): ItemDescriptor {
+    if (!nonAgentSlugs?.size) return descriptor
+    const slug = toolReferenceSlug(item)
+    if (!slug || !nonAgentSlugs.has(slug)) return descriptor
+    return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
+}
+
+/** Stable per-entry key: the saved reference's own identity, never its array position. */
+function subagentKey(item: unknown, index: number): string {
+    const t = (item ?? {}) as Record<string, unknown>
+    const name = typeof t.name === "string" ? t.name : ""
+    const identity = [toolReferenceSlug(item) ?? "", name].filter(Boolean).join("|")
+    // A reference with no identity falls back to its position, rather than colliding.
+    return identity || `subagent-${index}`
+}
+
+export function SubagentList({
+    entries,
+    nonAgentSlugs,
+    chromeBySlug,
     openEdit,
     removeItem,
     closeEditor,
     disabled,
-    onOpenIntegration,
     emptyAdd,
     statusFor,
-}: ToolManagementListProps) {
-    // Partition by kind, preserving each tool's original index (edit/remove address the flat array).
-    // Uses only the tool object — no catalog needed here.
-    const {gatewayGroups, gatewayCount, references, definitions, builtins, visibleCount} =
-        useMemo(() => {
-            const references: IndexedTool[] = []
-            const definitions: IndexedTool[] = []
-            const builtins: IndexedTool[] = []
-            const groups = new Map<string, ToolProviderGroup>()
-            tools.forEach((item, index) => {
-                // Legacy harness built-ins are inert: they render nowhere.
-                if (isHarnessBuiltinTool(item)) return
-                const t = (item ?? {}) as Record<string, unknown>
-                if (t.type === "reference") {
-                    references.push({item, index})
-                    return
-                }
-                const gw = parseGatewayTool(item)
-                if (gw) {
-                    let group = groups.get(gw.integration)
-                    if (!group) {
-                        group = {key: gw.integration, items: []}
-                        groups.set(gw.integration, group)
-                    }
-                    group.items.push({item, index})
-                    return
-                }
-                if (!isFunctionTool(item)) {
-                    builtins.push({item, index})
-                    return
-                }
-                definitions.push({item, index})
-            })
-            const gatewayGroups = [...groups.values()]
-            const gatewayCount = gatewayGroups.reduce((n, g) => n + g.items.length, 0)
-            const visibleCount =
-                gatewayCount + references.length + definitions.length + builtins.length
-            return {gatewayGroups, gatewayCount, references, definitions, builtins, visibleCount}
-        }, [tools])
-
-    // A config carrying only legacy built-in entries renders as empty, so it gets the empty state.
-    if (visibleCount === 0) {
+}: SubagentListProps) {
+    if (entries.length === 0) {
         if (disabled) return null
-        return (
-            <span className="text-xs text-[var(--ag-zinc-5)]">
-                {ITEM_KINDS.tool.emptyLabel} — {emptyAdd}
-            </span>
-        )
+        return <EmptyLine label="No subagents yet" add={emptyAdd} />
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            {gatewayGroups.length > 0 && (
-                <GatewayGroups
-                    groups={gatewayGroups}
-                    totalCount={gatewayCount}
-                    entityId={entityId}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    onOpenIntegration={onOpenIntegration}
-                    statusFor={statusFor}
+        <div className="flex flex-col gap-2">
+            {entries.map(({item, index}) => (
+                <ItemRow
+                    key={subagentKey(item, index)}
+                    descriptor={markNonAgent(
+                        describeSubagent(item, chromeBySlug?.get(toolReferenceSlug(item) ?? "")),
+                        item,
+                        nonAgentSlugs,
+                    )}
+                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
+                    onRemove={() => {
+                        removeItem("tool", index)
+                        closeEditor()
+                    }}
+                    disabled={disabled || ITEM_KINDS.tool.isReadOnly(item)}
+                    status={statusFor?.(item, index)}
                 />
-            )}
-            <FlatToolSection
-                label="Workflow references"
-                entries={references}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
-            <FlatToolSection
-                label="Tool definitions"
-                entries={definitions}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
-            <FlatToolSection
-                label="Built-in"
-                entries={builtins}
-                openEdit={openEdit}
-                removeItem={removeItem}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={statusFor}
-            />
+            ))}
         </div>
     )
 }

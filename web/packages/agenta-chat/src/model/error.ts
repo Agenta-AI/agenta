@@ -38,3 +38,8 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
     }
     return {message: fallback}
 }
+
+/** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
+ * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
+ * Next.js dev Runtime Error overlay (F-033). */
+export const ignoreStreamRejection = () => {}

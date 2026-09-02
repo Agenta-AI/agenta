@@ -42,7 +42,11 @@ import {
   type SessionPermissionRequest,
 } from "sandbox-agent";
 
-import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
+import {
+  resolveRunSessionId,
+  type AgentRunRequest,
+  type EmitEvent,
+} from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
@@ -58,6 +62,12 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
+import {
+  awaitCredentialSubstitution,
+  deliversModelSecretOnCreate,
+  STUCK_ACQUIRE_ATTEMPTS,
+  SubstitutionStuckError,
+} from "./credential-preflight.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   daytonaCredentialDeliveryPort,
@@ -77,6 +87,7 @@ import {
   type MountCredentials,
 } from "./mount.ts";
 import {
+  PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
@@ -293,7 +304,47 @@ export async function acquireEnvironment(
   deps: SandboxAgentDeps = {},
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
+  emit?: EmitEvent,
 ): Promise<AcquireEnvironmentResult> {
+  // A sandbox the preflight convicts as stuck (no Secret substitution wiring, a permanent
+  // per-sandbox fault) is already destroyed by the failure path; a FRESH sandbox on the same
+  // Secret works, so one retry converts a would-be failed first turn into a slower one.
+  for (let attempt = 1; ; attempt++) {
+    const result = await acquireEnvironmentOnce(
+      request,
+      deps,
+      signal,
+      presignedMount,
+      emit,
+    );
+    if (
+      result.ok ||
+      !result.stuckSubstitution ||
+      attempt >= STUCK_ACQUIRE_ATTEMPTS ||
+      signal?.aborted
+    ) {
+      return result;
+    }
+    process.stderr.write(
+      `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
+        `(attempt ${attempt + 1}/${STUCK_ACQUIRE_ATTEMPTS})\n`,
+    );
+  }
+}
+
+async function acquireEnvironmentOnce(
+  request: AgentRunRequest,
+  deps: SandboxAgentDeps = {},
+  signal?: AbortSignal,
+  presignedMount?: MountCredentials | null,
+  emit?: EmitEvent,
+): Promise<AcquireEnvironmentResult> {
+  emit?.({
+    type: "data",
+    name: "agent-status",
+    data: { phase: "environment_starting" },
+    transient: true,
+  });
   const setup = await prepareEnvironmentSetup(request, deps, presignedMount);
   if (!setup.ok) return setup;
   const {
@@ -308,6 +359,7 @@ export async function acquireEnvironment(
     localBuiltinGatingUnenforceable,
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
+    localPiAgentDirUnwritable,
     logger,
     mcpAbort,
     piExtEnv,
@@ -374,6 +426,24 @@ export async function acquireEnvironment(
       session: environment.session,
       alreadyRequested: !!environment.sessionDestroyRequested,
     });
+    // Pi may have retained the original prompt's telemetry channel across an approval park.
+    // The harness is now quiescent and `agent_end` has had a chance to publish its partial trace;
+    // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
+    const piTraceExport = environment.piTraceExport;
+    if (piTraceExport) {
+      let pickedUpBatches = 0;
+      try {
+        pickedUpBatches = (await piTraceExport.finish()).pickedUpBatches;
+      } catch {}
+      if (pickedUpBatches === 0) {
+        await piTraceExport
+          .emitMissingBatchFallback(
+            "Pi session ended before publishing a valid trace batch",
+          )
+          .catch(() => {});
+      }
+    }
+    environment.piTraceExport = undefined;
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
     const { parked } = await teardownSandbox({
@@ -425,7 +495,6 @@ export async function acquireEnvironment(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
-      otlpAuthFilePath: environment.otlpAuthFilePath,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).
@@ -455,6 +524,11 @@ export async function acquireEnvironment(
     // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
     if (piModelConfigError) {
       throw piModelConfigError;
+    }
+    // Surface the root cause before extension-derived gates: an unwritable subscription mount can
+    // also prevent extension installation, but rebuilding the image cannot repair mount ownership.
+    if (localPiAgentDirUnwritable) {
+      throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
@@ -548,6 +622,41 @@ export async function acquireEnvironment(
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
+
+    // CREDENTIAL PREFLIGHT (fresh Daytona sandboxes with an opaque model key and a declared
+    // endpoint). Kicked off HERE, right after the sandbox exists, and awaited at the very end of
+    // acquire, so it runs concurrently with the mounts/workspace/session work below and the
+    // common case pays nothing. See `credential-preflight.ts` for the race it closes.
+    const modelSecretCandidate =
+      plan.credentials.daytonaSecretPlan?.candidates.find(
+        (candidate) => candidate.consumer.kind === "model",
+      );
+    const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
+    // Record the delivery moment for the 401 classifier. Same condition as the preflight below,
+    // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
+    // but the preflight can only SEE it where the provider echoes what it received. A direct
+    // Anthropic endpoint echoes nothing, so on that path the classifier is the only guard.
+    if (
+      deliversModelSecretOnCreate({
+        isDaytona: plan.isDaytona,
+        sandboxMode: acquiredSandbox.mode,
+        hasModelSecretCandidate: Boolean(modelSecretCandidate),
+      })
+    ) {
+      environment.modelSecretDeliveredAt = Date.now();
+    }
+    const credentialPreflight =
+      plan.isDaytona &&
+      acquiredSandbox.mode === "create" &&
+      modelSecretCandidate &&
+      preflightBaseUrl
+        ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
+            sandbox: environment.sandbox,
+            baseUrl: preflightBaseUrl,
+            apiKeyVar: modelSecretCandidate.binding.name,
+            log: logger,
+          })
+        : undefined;
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
@@ -1078,9 +1187,31 @@ export async function acquireEnvironment(
       routePermissionRequestToActiveTurn(environment, req),
     );
 
+    if (credentialPreflight) {
+      const preflightAwaitStartedAt = Date.now();
+      const verdict = await credentialPreflight;
+      timingLog("credential_preflight", preflightAwaitStartedAt);
+      // Throwing takes the shared teardown below (sandbox destroyed, Secrets deleted), and the
+      // catch marks the result so the acquire wrapper retries once with a fresh sandbox.
+      if (verdict === "stuck") throw new SubstitutionStuckError();
+    }
+
     timingLog("acquire_total", acquireStartedAt);
+    emit?.({
+      type: "data",
+      name: "agent-status",
+      data: { phase: "environment_ready" },
+      transient: true,
+    });
     return { ok: true, env: environment };
   } catch (err) {
+    // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
+    // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
+    // to the turn. The one credential-shaped failure this path can raise is the preflight's
+    // `SubstitutionStuckError`, which already has its own honest answer below (rebuild once).
+    // Wiring the predicate here would also need the once-per-session counter, which lives in the
+    // turn path — without it a genuinely bad key could loop. If a model-touching step is ever
+    // added to acquire, this site needs BOTH the predicate and that counter.
     const error = conciseError(
       err,
       plan.harness,
@@ -1090,6 +1221,9 @@ export async function acquireEnvironment(
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
+    if (err instanceof SubstitutionStuckError) {
+      return { ok: false, error, stuckSubstitution: true };
+    }
     return { ok: false, error };
   }
 }

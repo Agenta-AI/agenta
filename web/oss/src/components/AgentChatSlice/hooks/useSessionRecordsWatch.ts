@@ -1,5 +1,7 @@
-import {useWatchEventSource} from "@/oss/hooks/useProjectWatch"
+import {useWatchEventSource} from "@agenta/sessions/watch"
+
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 
 /** Watch endpoint URL — same-origin `/api` + cookie auth, consumed via native EventSource. */
 const sessionWatchUrl = (sessionId: string, projectId: string): string =>
@@ -17,12 +19,16 @@ export const useSessionRecordsWatch = ({
     sessionId,
     projectId,
     enabled,
+    onReady,
     onRecordsChanged,
     onInteractionChanged,
 }: {
     sessionId: string
     projectId?: string | null
     enabled: boolean
+    /** Fires on every connect — a tab activation, a return to the foreground. Separate from
+     * `onRecordsChanged` so it can skip a log the caller has just read (#6296). */
+    onReady: () => void
     onRecordsChanged: () => void
     onInteractionChanged: () => void
 }): void => {
@@ -30,8 +36,9 @@ export const useSessionRecordsWatch = ({
     useWatchEventSource({
         url,
         enabled,
+        refreshSession,
         on: {
-            ready: onRecordsChanged,
+            ready: onReady,
             "records-changed": onRecordsChanged,
             interaction: onInteractionChanged,
         },

@@ -465,7 +465,17 @@ export type AgentEvent =
       total?: number;
       cost?: number;
     }
-  | { type: "error"; message: string }
+  | {
+      type: "error";
+      message: string;
+      /**
+       * Stable string code, never a display string: the class of failure, so a client can render a
+       * purposeful state (add-your-own-key, retry) instead of parsing `message`. Optional and
+       * defaulted by the consumer, so an older runner that omits it stays readable.
+       * Values: see `RunErrorCode` in engines/sandbox_agent/errors.ts.
+       */
+      code?: string;
+    }
   // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
   // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
   // Live streams carry it via `messageMetadata`; this is the durable-replay channel.
@@ -577,10 +587,37 @@ export interface ModelConnection {
   credentials: ModelCredential[];
 }
 
+/**
+ * One compiled tool decision inside `gatewayPolicy`.
+ *
+ * `readOnly` is TRI-STATE and `null` is a real value: `true` is a read, `false` is a write,
+ * and `null` means the provider catalog carries no hint. It is `boolean | null`, never
+ * `boolean | undefined` — the Python producer emits the key with a null value rather than
+ * dropping it, so a missing key and a null value must not come to mean different things.
+ */
+export interface GatewayToolPolicy {
+  permission: "allow" | "ask" | "deny";
+  readOnly: boolean | null;
+}
+
+/** One configured integration inside `gatewayPolicy`: its routing plus its tool table. */
+export interface GatewayIntegrationPolicy {
+  provider: string;
+  connection: string;
+  toolkitVersion: string;
+  tools: Record<string, GatewayToolPolicy>;
+}
+
+/** The private compiled gateway policy, keyed by integration. */
+export interface GatewayPolicy {
+  integrations: Record<string, GatewayIntegrationPolicy>;
+}
+
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * Harness id: "pi_core" | "claude" | "codex". `pi_core` drives the ACP agent "pi";
+   * "pi_agenta" (a removed 2026 experiment) is still read as `pi_core` so an old
+   * stored request replays. "claude" drives
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
@@ -651,6 +688,35 @@ export interface AgentRunRequest {
   toolCallback?: ToolCallbackContext;
   /** Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config). */
   permissions?: PermissionsConfig;
+  /**
+   * The private compiled policy for the agent's gateway connections. The SDK compiled it from
+   * each saved `gateway_connection` entry and the agent-wide permission mode, so `inherit`
+   * never appears here. Omitted when the agent configures no connection.
+   *
+   * Private on purpose: it never reaches the harness, the sandbox, a tool name, or a
+   * `callRef`. The two derived tools (`gateway.search` / `gateway.run`) both read this one
+   * table, which is why it is top level rather than attached to a tool spec — the runner
+   * filters search results before it knows which tool the model will run.
+   *
+   * Declared here ahead of the enforcement that reads it; nothing in the runner consumes it
+   * yet.
+   */
+  gatewayPolicy?: GatewayPolicy;
+  /**
+   * The derived gateway-tools instruction section (how to use `search_tools` / `run_tool`,
+   * with the configured integration names as EXAMPLES), plus which prompt surface carries it.
+   *
+   * Its own field, deliberately OUTSIDE `configFingerprint` and the desired-state facets: the
+   * text is derived from the agent's connections at resolve time, and the runner splices it
+   * into `carrier` when it BUILDS an environment (`buildRunPlan`). So adding or removing an
+   * integration never evicts a warm session for a one-word prompt change; the names refresh
+   * on the next session build, and the wording says the list may be stale. When it was
+   * composed into the prompt strings upstream, every integration add went cold.
+   */
+  gatewayGuidance?: {
+    text: string;
+    carrier: "appendSystemPrompt" | "agentsMd";
+  };
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under

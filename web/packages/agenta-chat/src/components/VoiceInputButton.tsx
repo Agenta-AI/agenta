@@ -1,0 +1,262 @@
+import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
+
+import {pushToTalkLabel} from "@agenta/shared/utils"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
+import {CaretDown, Microphone, StopCircle, Waveform} from "@phosphor-icons/react"
+import {useAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+
+import {usePushToTalk} from "../hooks/usePushToTalk"
+import {useVoiceInput} from "../hooks/useVoiceInput"
+
+/**
+ * Voice control for the composer, two modes (the last choice sticks):
+ *  - "transcribe" — dictate speech to text, streamed live into the editor (Web Speech API).
+ *  - "audio" — record a voice message; the parent owns the recorder and renders the recording
+ *    takeover, so here the mic only starts it (`onStartAudio`).
+ * Renders nothing where neither engine is supported; offers only the supported modes.
+ */
+
+type VoiceMode = "transcribe" | "audio"
+
+/**
+ * Voice messages are hidden from the UI until the agent service accepts audio attachments (D14).
+ * The recorder, the recording takeover and the send-vs-attach path all stay wired — flip this to
+ * bring the mode back. With it off there is one mode left, so the picker collapses to a bare mic.
+ */
+const VOICE_MESSAGE_MODE_ENABLED = false
+
+/** `null` = the person has not picked a mode, so capability decides which one leads. An explicit
+ * choice always wins and is never overridden. */
+const voiceModeAtom = atomWithStorage<VoiceMode | null>("agenta:agent-chat:voice-mode.v2", null)
+
+const MODE_LABEL: Record<VoiceMode, string> = {
+    audio: "Voice message",
+    transcribe: "Voice to text",
+}
+
+/** Verbs, so the tooltip says what pressing it will do — not just which mode is selected. */
+const MODE_HINT: Record<VoiceMode, string> = {
+    audio: "Record a voice message",
+    transcribe: "Dictate into the message",
+}
+
+/** Each mode carries its own icon, so the button shows which is active and switching visibly
+ * changes the control. Both stay voice-y — the difference is what comes OUT: a waveform for an
+ * audio clip, and the microphone every phone keyboard uses for dictation. */
+const modeIcon = (mode: VoiceMode, filled = false) =>
+    mode === "audio" ? (
+        <Waveform size={16} weight={filled ? "fill" : "regular"} />
+    ) : (
+        <Microphone size={16} weight={filled ? "fill" : "regular"} />
+    )
+
+const VoiceInputButton = ({
+    inputRef,
+    onStartAudio,
+    audioSupported,
+    audioPending,
+    audioPerceivable,
+    attachmentsFull,
+    onDictationError,
+    onDictatingChange,
+    disabled,
+}: {
+    inputRef: RefObject<RichChatInputHandle | null>
+    onStartAudio: () => void
+    audioSupported: boolean
+    /** Report dictation failures upward so they surface in the shared mic notice rather than a
+     * tooltip nobody hovers. The transcript itself stays local — it changes far too often to lift. */
+    onDictationError: (message: string | null) => void
+    /** Dictation locks the editor while it runs, which the composer owns. */
+    onDictatingChange: (active: boolean) => void
+    /** Tray is at its file limit. A voice message attaches like any file, so recording one now
+     * would be rejected on attach — i.e. the take would be destroyed after the fact. */
+    attachmentsFull: boolean
+    /** Awaiting the browser's mic prompt — shown here rather than as a composer takeover, since
+     * the prompt is the browser's own UI and a page cannot dismiss it. */
+    audioPending: boolean
+    /** Whether the model can take audio in; `null` when the catalog does not say. Decides which
+     * mode leads and explains itself in the menu — it never blocks recording (D6). */
+    audioPerceivable: boolean | null
+    disabled?: boolean
+}) => {
+    const [chosenMode, setMode] = useAtom(voiceModeAtom)
+    // Dictation produces text, so it works against any model; a voice message needs one that can
+    // hear. With no explicit choice, lead with whichever the model can actually use.
+    const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
+    const transcribe = useVoiceInput()
+
+    useEffect(() => {
+        onDictationError(transcribe.error)
+    }, [transcribe.error, onDictationError])
+
+    // Push the transcript through the editor's dictation session: committed words land as normal
+    // text, the provisional tail is styled as unsettled. No document rewrite, so the undo history
+    // and anything already typed survive.
+    //
+    // Unguarded: the browser can deliver a last final result in the same commit that ends the
+    // session, and skipping the write there would drop exactly the words `active` exists to save.
+    // Writing once the session is over is already a no-op — `endDictation` clears its ref.
+    useEffect(() => {
+        inputRef.current?.updateDictation(transcribe.finalText, transcribe.interimText)
+    }, [transcribe.active, transcribe.finalText, transcribe.interimText, inputRef])
+
+    // Settle the editor session once the recogniser actually stops (it emits a last final result
+    // on the way out, so ending earlier would drop those words).
+    const wasActive = useRef(false)
+    useEffect(() => {
+        if (wasActive.current && !transcribe.active) {
+            inputRef.current?.endDictation()
+            inputRef.current?.focus()
+        }
+        wasActive.current = transcribe.active
+        onDictatingChange(transcribe.active)
+    }, [transcribe.active, inputRef, onDictatingChange])
+
+    // Primary action first: a voice message is the default; dictation is the alternative.
+    const modes: {key: VoiceMode; supported: boolean}[] = [
+        {key: "audio", supported: VOICE_MESSAGE_MODE_ENABLED && audioSupported},
+        {key: "transcribe", supported: transcribe.supported},
+    ]
+    const available = modes.filter((m) => m.supported)
+    // A mode the person picked before it was withdrawn falls back to the first available one.
+    const effective: VoiceMode | null =
+        (available.find((m) => m.key === mode) ?? available[0])?.key ?? null
+
+    // The mic only reflects a recording state for transcribe; audio recording is the parent's
+    // takeover bar (which covers this button while active).
+    const dictating = effective === "transcribe" && transcribe.recording
+
+    // The editor session follows whether `start` actually opened one — rendered state lags a press
+    // by a commit, and opening a second session over a running recogniser replays its whole
+    // transcript into the new node. A press while the LAST session is merely closing does open one:
+    // `beginDictation` settles the outgoing nodes rather than orphaning them, and the recogniser
+    // queues the start across that teardown.
+    const startDictation = useCallback(() => {
+        if (transcribe.start()) inputRef.current?.beginDictation()
+    }, [transcribe.start, inputRef])
+
+    // Resolved after mount so SSR can't mismatch the glyph.
+    const [holdLabel, setHoldLabel] = useState("Ctrl+Alt")
+    useEffect(() => setHoldLabel(pushToTalkLabel()), [])
+
+    // Hold ⌃⌥ / Ctrl+Alt to dictate. Same start/stop the button's own click drives.
+    usePushToTalk({
+        enabled: effective === "transcribe" && !disabled && !audioPending,
+        onStart: startDictation,
+        onStop: transcribe.stop,
+    })
+
+    if (!effective) return null
+
+    const toggle = () => {
+        if (effective === "audio") {
+            onStartAudio()
+            return
+        }
+        if (transcribe.recording) transcribe.stop()
+        else startDictation()
+    }
+
+    // A voice message on a model that can't take audio still records and attaches (the agent can
+    // use the file with its tools) — it just won't be heard. Say so where the mode is chosen,
+    // rather than blocking it (D6).
+    const audioNotHeard = audioPerceivable === false
+
+    // Icons in the menu too, so the mapping between a mode and the button's icon is taught here.
+    const menuItems = available.map((m) => ({
+        key: m.key,
+        icon: modeIcon(m.key),
+        label:
+            m.key === "audio" && audioNotHeard ? (
+                <span className="flex flex-col">
+                    <span>{MODE_LABEL[m.key]}</span>
+                    <span className="text-xs text-colorTextTertiary">
+                        This model can’t listen to audio
+                    </span>
+                </span>
+            ) : (
+                MODE_LABEL[m.key]
+            ),
+    }))
+
+    // Dictation writes into the editor, so it is unaffected by the attachment limit.
+    const audioBlocked = effective === "audio" && attachmentsFull
+
+    const title = audioPending
+        ? "Waiting for your browser's microphone prompt…"
+        : audioBlocked
+          ? "Attachment limit reached — remove a file to record a voice message"
+          : dictating
+            ? "Stop dictation"
+            : effective === "transcribe"
+              ? `Hold ${holdLabel} to dictate`
+              : null
+
+    const highlighted = dictating || audioPending
+
+    return (
+        <div className="flex items-center">
+            <SimpleTooltip title={title}>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggle}
+                    // A second press while the prompt is open would only queue another request.
+                    disabled={disabled || audioPending || audioBlocked}
+                    aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
+                    className={highlighted ? "animate-pulse" : undefined}
+                >
+                    {/* While dictating the button's job is to stop, so it shows that instead of
+                        the mode it was started from. */}
+                    {dictating ? (
+                        <StopCircle size={16} weight="fill" />
+                    ) : (
+                        modeIcon(effective, highlighted)
+                    )}
+                </Button>
+            </SimpleTooltip>
+            {available.length > 1 && !dictating && !audioPending ? (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={disabled}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Voice input mode"
+                            className="px-1"
+                        >
+                            <CaretDown size={12} />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuRadioGroup
+                            value={effective}
+                            onValueChange={(key) => setMode(key as VoiceMode)}
+                        >
+                            {menuItems.map((item) => (
+                                <DropdownMenuRadioItem key={item.key} value={item.key}>
+                                    <span className="flex items-center gap-2">
+                                        {item.icon}
+                                        {item.label}
+                                    </span>
+                                </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ) : null}
+        </div>
+    )
+}
+
+export default VoiceInputButton

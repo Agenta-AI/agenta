@@ -16,6 +16,11 @@
 // ---------------------------------------------------------------------------
 
 export type {
+    GatewayConnectionPolicy,
+    GatewayConnectionRef,
+    GatewayConnectionToolConfig,
+    GatewayPermission,
+    GatewayPermissions,
     Status,
     ToolAuthScheme,
     ToolCall,
@@ -109,13 +114,17 @@ export {
     useToolCatalogActions,
     useToolCatalogCategories,
     useToolCatalogIntegrations,
+    invalidateToolConnections,
     useToolConnectionActions,
     useToolConnectionQuery,
     useToolConnectionsQuery,
     useToolExecution,
     useToolIntegrationConnections,
+    useToolIntegrationCatalog,
     useToolIntegrationDetail,
+    useToolsConnections,
 } from "./hooks"
+export type {CreateConnectionInput} from "./hooks"
 
 // ---------------------------------------------------------------------------
 // PROMPT — cross-entity bridge (workflow-aware tool removal)

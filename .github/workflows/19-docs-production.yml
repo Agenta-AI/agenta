@@ -1,0 +1,91 @@
+name: "19 - docs production"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/19-docs-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-production
+  cancel-in-progress: false
+
+env:
+  WRANGLER_VERSION: "4.113.0"
+
+jobs:
+  deploy:
+    name: Build and deploy production
+    runs-on: ubuntu-latest
+    # Only deploy from this repo (skip forks/mirrors that lack the secrets).
+    if: github.repository == 'Agenta-AI/agenta'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Nothing here pushes; do not leave a token in .git/config.
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: docs/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: docs/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd docs && pnpm install --frozen-lockfile
+
+      - name: Build site
+        env:
+          # PostHog project key: ingest-only and public by design, but kept as a
+          # secret so it is set in one place. Unset, the docs config falls back
+          # to a dummy key and sends nothing.
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          # 1,100+ pages with image processing; the default heap is not enough.
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          # docusaurus.config.ts falls back to a dummy key when this is empty,
+          # so without this guard a green deploy could quietly ship the docs
+          # with analytics switched off.
+          if [ -z "${POSTHOG_API_KEY}" ]; then
+            echo "::error::POSTHOG_API_KEY is not set. Add it as a repository secret before deploying the docs."
+            exit 1
+          fi
+          cd docs && pnpm run build:worker
+
+      - name: Deploy production
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd docs
+          pnpm dlx "wrangler@${WRANGLER_VERSION}" deploy \
+            --config wrangler.production.jsonc 2>&1 | tee /tmp/wrangler.log
+          url=$(grep -oiE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | head -1)
+          if [ -z "$url" ]; then
+            echo "::error::Could not extract deployed URL from wrangler output"
+            exit 1
+          fi
+          echo "url=${url}/docs" >> "$GITHUB_OUTPUT"
+
+      - name: Verify production serves the docs
+        run: |
+          for _ in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              --connect-timeout 10 --max-time 30 "${{ steps.deploy.outputs.url }}")
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Production URL did not return 200 (last code: $code)"
+          exit 1

@@ -197,7 +197,7 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     // A Secret remains mounted until Daytona confirms the sandbox is absent. Never reverse this
     // order, including timer cleanup and create compensation after an id was returned.
     await destroySandboxIdempotently(activeProvider, sandboxId);
-    await deleteDaytonaSecrets(entry.allocation, api);
+    await deleteDaytonaSecrets(entry.allocation, api, log);
     if (registry.get(sandboxId) === entry) registry.delete(sandboxId);
     if (currentAllocation === entry.allocation) {
       currentAllocation = undefined;
@@ -208,14 +208,19 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   const facade: ProcessLocalDaytonaSecretProvider = {
     name: "daytona",
     async create(...args: unknown[]): Promise<string> {
-      const allocation = await allocateDaytonaSecrets(plan, api);
+      const allocation = await allocateDaytonaSecrets(
+        plan,
+        api,
+        undefined,
+        log,
+      );
       try {
         provider = buildProvider(allocation.attachments);
       } catch (cause) {
         // buildProvider is synchronous and failed before any remote create call, so absence is
         // proven and compensation may safely remove the newly allocated Secrets.
         try {
-          await deleteDaytonaSecrets(allocation, api);
+          await deleteDaytonaSecrets(allocation, api, log);
         } catch (cleanupError) {
           throw new AggregateError(
             [cause, cleanupError],

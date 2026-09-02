@@ -28,7 +28,7 @@ interface ApprovalLike {
     approved?: boolean
 }
 
-import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
+import {CLIENT_TOOL_NAMES, canonicalClientToolName} from "@agenta/shared/clientTools"
 
 import {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 
@@ -60,18 +60,6 @@ const isToolPart = (part: ToolPartLike): boolean => {
 const isRespondedToolPart = (part: ToolPartLike): boolean =>
     isToolPart(part) && part.state === "approval-responded"
 
-/**
- * A browser-fulfilled client-tool result: a tool part the playground settled via `addToolOutput`
- * (`output-available`/`output-error`) that the server did NOT run (`providerExecuted` falsy) and
- * carries NO approval metadata. This is how a parked `request_connection` (or any client tool) reads
- * once the widget settles it.
- *
- * The `approval == null` guard is load-bearing: an approval-gated tool that was approved and then RAN
- * also lands in `output-available` with `providerExecuted` falsy, but it is NOT a parked client tool
- * (its turn already continued) — it keeps its `approval` field, so excluding it here stops a spurious
- * resume (and stops the queue gate, which composes this predicate, from holding forever). v1 client
- * tools are never approval-gated; an approval-gated client tool would need a richer signal.
- */
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
 
@@ -81,7 +69,11 @@ const toolPartName = (part: ToolPartLike): string =>
  * message-scoped map is consulted alongside the inline field and the known-name set.
  */
 const isClientTool = (part: ToolPartLike, renderMap?: Map<string, RenderHintLike>): boolean =>
-    renderKindFor(part, renderMap) !== undefined || CLIENT_TOOL_NAMES.has(toolPartName(part))
+    renderKindFor(part, renderMap) !== undefined ||
+    // Canonicalized: the wire name carries a harness wrapper (`__ag__request_input`,
+    // `mcp__agenta-tools__…`) while the set holds bare names. Matching raw made the name axis
+    // dead, so a client tool only qualified once its sibling `data-render` part had landed.
+    CLIENT_TOOL_NAMES.has(canonicalClientToolName(toolPartName(part)))
 
 /**
  * A PARKED client tool still awaiting the user (its widget is live in the transcript). Gates the
@@ -154,8 +146,17 @@ export function agentShouldResumeAfterApproval({
             }
         }
     } else {
-        const last = messages[messages.length - 1]
-        if (last?.role === "assistant") message = last
+        // A failed turn stamps a run-error carrier — an assistant message with NO parts — onto the
+        // tail, which would otherwise hide the turn that owns the gate. Look past it, but stop at
+        // the first non-assistant message so this never reaches back into an earlier user turn.
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const candidate = messages[i]
+            if (candidate.role !== "assistant") break
+            if ((candidate.parts ?? []).length > 0) {
+                message = candidate
+                break
+            }
+        }
     }
     if (!message) return false
 

@@ -20,7 +20,7 @@ const MIN_INTERVAL_MS = 3_000
  * - `records-changed` (and every `open`, for missed-event coverage) → `onRecordsChanged`,
  *   i.e. the transcript tick's body (`revalidateSessionRecordsAtom` + re-read).
  * - `lifecycle` / `interaction` → invalidate the shared liveness + actionable-interactions
- *   queries (no duplicated state; the badges' own queries refetch).
+ *   queries, and the nav rail's own session queries (no duplicated state; each refetches).
  *
  * Foreground-only: the source closes on `visibilitychange → hidden` and reopens on visible.
  * Transient errors ride EventSource's built-in reconnect (the server pins its delay with an
@@ -66,6 +66,11 @@ export const useSessionWatch = ({
             void queryClient.invalidateQueries({
                 queryKey: actionableInteractionsQueryKey(projectId),
             })
+            // The rail draws the same liveness on its own rows, off its own queries. Without
+            // these its dot outlives the run you are watching finish, until the next poll.
+            void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+            void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
+            void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
         }
 
         const close = () => {

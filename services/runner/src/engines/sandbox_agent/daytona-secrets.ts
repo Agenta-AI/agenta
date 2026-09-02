@@ -143,12 +143,24 @@ function generatedName(candidate: DaytonaSecretCandidate): string {
   return `agenta_${randomBytes(18).toString("hex")}_${candidate.ordinal}`;
 }
 
-/** Allocate every Secret before sandbox create, compensating in reverse order on any failure. */
+/**
+ * Allocate every Secret before sandbox create, compensating in reverse order on any failure.
+ *
+ * `log` gets one line per allocation and deletion with the COUNT, the allowed HOSTS, and the
+ * elapsed time — never an id, a generated name, a placeholder, or a value. This is a deliberate,
+ * narrow exception to the delivery layer's log-nothing rule: Daytona applies a new Secret's
+ * substitution rule asynchronously, and diagnosing a raw-placeholder 401 (see
+ * `classifyRunError`'s `credential_delivery_failed`) needs the create/delete timeline that today
+ * has to be reconstructed by inference from eviction lines. Hosts are config, not credential
+ * material (the same hosts appear in the vault UI and in the resolved-model log line).
+ */
 export async function allocateDaytonaSecrets(
   plan: DaytonaSecretPlan,
   api: DaytonaSecretApi,
   nameFor: (candidate: DaytonaSecretCandidate) => string = generatedName,
+  log: (message: string) => void = () => {},
 ): Promise<DaytonaSecretAllocation> {
+  const startedAt = Date.now();
   const created: DaytonaSecretRecord[] = [];
   const attachments: Record<string, string> = {};
   const mcpHeaderPlaceholders: Record<string, Record<string, string>> = {};
@@ -186,6 +198,13 @@ export async function allocateDaytonaSecrets(
         ] = secret.placeholder;
       }
     }
+    if (created.length > 0) {
+      const hosts = [...new Set(plan.candidates.map((c) => c.allowedHost))];
+      log(
+        `[daytona-secrets] allocated n=${created.length} hosts=[${hosts.join(",")}] ` +
+          `ms=${Date.now() - startedAt}`,
+      );
+    }
     return { attachments, mcpHeaderPlaceholders, created, bySlot };
   } catch (cause) {
     const cleanupFailures: unknown[] = [];
@@ -210,7 +229,9 @@ export async function allocateDaytonaSecrets(
 export async function deleteDaytonaSecrets(
   allocation: DaytonaSecretAllocation,
   api: DaytonaSecretApi,
+  log: (message: string) => void = () => {},
 ): Promise<void> {
+  const startedAt = Date.now();
   const failures: unknown[] = [];
   for (const secret of [...allocation.created].reverse()) {
     try {
@@ -223,6 +244,15 @@ export async function deleteDaytonaSecrets(
     throw new AggregateError(
       failures,
       "Daytona Secret cleanup was incomplete.",
+    );
+  }
+  if (allocation.created.length > 0) {
+    const hosts = [
+      ...new Set(allocation.created.flatMap((s) => s.hosts ?? [])),
+    ];
+    log(
+      `[daytona-secrets] deleted n=${allocation.created.length} hosts=[${hosts.join(",")}] ` +
+        `ms=${Date.now() - startedAt}`,
     );
   }
 }

@@ -1,8 +1,9 @@
+import {filterOutDemoProjects} from "@agenta/entities/project"
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
 
-import {tryRefreshSession} from "./auth"
+import {refreshSessionOutcome} from "./auth"
 
 /** Mobile's own last-visited workspace/project, for `/m/` root resolution. */
 export const LAST_CONTEXT_KEY = "agenta:mobile:last-context"
@@ -14,6 +15,13 @@ export interface LastContext {
     workspaceId: string
     projectId: string
 }
+
+/**
+ * Where a resolved context lands. The one place the mobile "project home" route is spelled
+ * out — the root resolver and every `/w/...` index gate forward here.
+ */
+export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
 export function writeLastContext(context: LastContext): void {
     try {
@@ -75,7 +83,16 @@ const projectRowSchema = z.object({
     project_name: z.string(),
     workspace_id: z.string().nullish(),
     workspace_name: z.string().nullish(),
+    // The switcher names the ORGANIZATION, as the desktop rail does. Every project in this
+    // account sits in one workspace called "Default", so labelling by workspace showed
+    // "Default" where the desktop showed the org.
+    organization_id: z.string().nullish(),
+    organization_name: z.string().nullish(),
     is_demo: z.boolean().nullish(),
+    // Only the settings list reads these two; every other consumer ignores them. They stay
+    // optional because the schema is a drift check, not a contract we want to fail on.
+    user_role: z.string().nullish(),
+    is_default_project: z.boolean().optional(),
 })
 
 export type MobileProject = z.infer<typeof projectRowSchema>
@@ -90,7 +107,9 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         const data = await getProjectsClient().getProjects()
         const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
         if (!projects) return {kind: "error"}
-        return {kind: "ok", projects}
+        // Hide demo projects, exactly as the desktop's projectsAtom does. Without this a mobile
+        // sign-in could resolve into a demo org the desktop never offers, with no way back out.
+        return {kind: "ok", projects: filterOutDemoProjects(projects)}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}
@@ -101,8 +120,14 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
 export async function fetchProjects(): Promise<ProjectsResult> {
     const first = await fetchProjectsOnce()
     if (first.kind !== "unauthenticated") return first
-    // An expired access token is not signed-out: try one cookie refresh, then
-    // retry once before letting the unauthenticated verdict stand.
-    if (!(await tryRefreshSession())) return first
+    // An expired access token is not signed-out: try one cookie refresh, then retry once before
+    // letting the unauthenticated verdict stand.
+    const outcome = await refreshSessionOutcome()
+    // A refresh we could not even REACH is not a verdict about the user. A backend that is up but
+    // not yet serving answers 401, and the refresh that follows fails for the same reason — read
+    // together that used to look exactly like a sign-out, which bounced a valid session to the
+    // sign-in page. Report it as the transient error it is; the query layer retries.
+    if (outcome === "unreachable") return {kind: "error"}
+    if (outcome === "signed-out") return first
     return fetchProjectsOnce()
 }

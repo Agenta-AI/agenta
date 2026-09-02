@@ -16,16 +16,19 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import type {
-    ProviderCatalogEntry,
-    ProviderConnection,
-    SubscriptionPair,
+import {
+    SecretManagementPolicy,
+    type ProviderCatalogEntry,
+    type ProviderConnection,
+    type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, ArrowSquareOut, WarningCircle, X} from "@phosphor-icons/react"
+import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
@@ -54,7 +57,7 @@ export interface ProviderDrawerProps {
     /** Open straight on this saved connection's card (a Settings table row click). */
     connection?: ProviderConnection | null
     /** Called after a connection is saved, so the host can refetch the vault. */
-    onSaved?: () => void
+    onSaved?: (savedConnectionId?: string) => void
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
     /**
@@ -104,13 +107,16 @@ const LIST_FOOTER_STYLE = {
 /** Wide enough for a model id and a tag on one line, narrow enough to read as a side panel. */
 const DRAWER_WIDTH = 480
 
-/** The AI-providers settings tab, derived from the current project path (the tab key is legacy). */
-const settingsHref = (): string => {
-    const projectPath =
-        typeof window === "undefined"
-            ? null
-            : window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
-    return `${projectPath ?? ""}/settings?tab=llms`
+/**
+ * The AI-providers settings tab, scoped to the project in the current route (the tab key is
+ * legacy). Read off the router's `asPath` rather than `window.location`: asPath is basePath-
+ * relative, so this stays right on the mobile app, which is mounted under `/m`. `null` on a route
+ * with no project in it — there is no settings page to point at, so the footer drops the link.
+ */
+const useSettingsHref = (): string | null => {
+    const router = useRouter()
+    const projectPath = router.asPath.split("?")[0].match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
+    return projectPath ? `${projectPath}/settings?tab=llms` : null
 }
 
 const ProviderDrawer = ({
@@ -125,6 +131,21 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
+    /**
+     * The connections the user actually connected. A manager-only one is not editable
+     * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
+     * table applies. It stays in the `connections` prop the card reads, and in the callers' own
+     * lists, so the model picker and the "Connect key" gate keep counting it.
+     */
+    const userConnections = useMemo(
+        () =>
+            connections.filter(
+                (candidate) => candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+            ),
+        [connections],
+    )
+    const visibleCount = userConnections.length
+    const settingsHref = useSettingsHref()
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
     const [cardSave, setCardSave] = useState<ProviderCardSaveState | null>(null)
@@ -274,14 +295,19 @@ const ProviderDrawer = ({
         ) : (
             <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-colorTextSecondary">
                 {/* A count over an empty list says nothing; the link is the whole footer then. */}
-                <span>{connections.length ? `${connections.length} connected` : ""}</span>
-                <a
-                    href={settingsHref()}
-                    className="flex shrink-0 items-center gap-1 text-btn-link hover:text-btn-link-hover"
-                >
-                    Manage in Settings
-                    <ArrowSquareOut size={12} />
-                </a>
+                <span>{visibleCount ? `${visibleCount} connected` : ""}</span>
+                {settingsHref ? (
+                    // In-app navigation, so `Link` rather than a bare anchor: it prefixes the
+                    // host's basePath and skips the full reload. The drawer closes behind it.
+                    <Link
+                        href={settingsHref}
+                        onClick={onClose}
+                        className="flex shrink-0 items-center gap-1 text-btn-link hover:text-btn-link-hover"
+                    >
+                        Manage in Settings
+                        <ArrowSquareOut size={12} />
+                    </Link>
+                ) : null}
             </p>
         )
 
@@ -306,7 +332,7 @@ const ProviderDrawer = ({
                 <>
                     {showConnected ? (
                         <PlaygroundConnectedSection
-                            connections={connections}
+                            connections={userConnections}
                             onSelect={(picked) =>
                                 showView({
                                     level: "connection",
@@ -344,8 +370,8 @@ const ProviderDrawer = ({
                     connection={view.connection}
                     connections={connections}
                     onSaveStateChange={setCardSave}
-                    onSaved={() => {
-                        onSaved?.()
+                    onSaved={(savedConnectionId) => {
+                        onSaved?.(savedConnectionId)
                         onClose()
                     }}
                 />

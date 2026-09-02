@@ -127,4 +127,53 @@ describe("AgentChatTransport", () => {
             {toolCallId: "call-1", output: "hi"},
         ])
     })
+
+    // The transport used to re-split coarse deltas into words on a timer. Typing cadence now
+    // lives at paint (`useTypewriter`), so the contract here is the opposite one: deltas reach
+    // the consumer WHOLE, in order, with nothing added, dropped, or delayed.
+    it("passes an oversized delta through whole, in order", async () => {
+        const words = Array.from({length: 4000}, (_, i) => `w${i}`)
+        const text = words.join(" ")
+        const sseBody =
+            [
+                {type: "start", messageId: "assist-1"},
+                {type: "start-step"},
+                {type: "text-start", id: "t1"},
+                {type: "text-delta", id: "t1", delta: text},
+                {type: "text-end", id: "t1"},
+                {type: "finish-step"},
+                {type: "finish"},
+            ]
+                .map((c) => `data: ${JSON.stringify(c)}\n\n`)
+                .join("") + "data: [DONE]\n\n"
+
+        const baseFetch = vi.fn(
+            async () =>
+                new Response(sseBody, {
+                    status: 200,
+                    headers: {"content-type": "text/event-stream"},
+                }),
+        )
+        const transport = new AgentChatTransport({
+            api: "/api/agent/invoke",
+            headers: {Accept: "text/event-stream"},
+            fetch: baseFetch as unknown as typeof fetch,
+        })
+        const chunks = await readAll(
+            await transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("write a lot")],
+            }),
+        )
+
+        const deltas = chunks.filter((c) => c.type === "text-delta") as {delta: string}[]
+        expect(deltas).toHaveLength(1)
+        expect(deltas[0].delta).toBe(text)
+        // The surrounding chunks keep their positions around it.
+        expect(chunks[0]).toMatchObject({type: "start"})
+        expect(chunks[chunks.length - 1]).toMatchObject({type: "finish"})
+        expect(chunks.filter((c) => c.type === "text-end")).toHaveLength(1)
+    })
 })

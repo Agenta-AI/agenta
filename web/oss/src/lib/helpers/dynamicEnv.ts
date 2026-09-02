@@ -42,10 +42,11 @@ export const processEnv = {
     // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
     // false keeps the current three separate template UIs untouched.
     NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
-    // Agent chat voice input (composer mic: dictation + voice messages): off by default. The
-    // recorded clip rides along as an audio attachment, which the agent service does not accept
-    // yet — set to "true" to preview the UI.
-    NEXT_PUBLIC_AGENT_VOICE_INPUT: process.env.NEXT_PUBLIC_AGENT_VOICE_INPUT,
+    // Browse-surface layout: off by default, so sessions, agents and the templates gallery use the
+    // one-row toolbar above the results. Set to "true" for the 280px filter rail beside them. Both
+    // layouts ship; mobile always renders the rail regardless of this flag (it is the phone's whole
+    // viewport, not a second sidebar).
+    NEXT_PUBLIC_AGENT_BROWSE_RAIL: process.env.NEXT_PUBLIC_AGENT_BROWSE_RAIL,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

@@ -1,15 +1,16 @@
-import {describe, expect, it, vi} from "vitest"
-
-// The registry's `create` functions reach next/font, which needs the Next build pipeline.
-vi.mock("next/font/google", () => ({
-    Inter: () => ({className: "", variable: "", style: {fontFamily: "Inter"}}),
-}))
-
 import {
     MAIN_SIDEBAR_SCOPE_ID,
     SETTINGS_SIDEBAR_SCOPE_ID,
     WORKFLOW_SIDEBAR_SCOPE_ID,
-} from "./constants"
+} from "@agenta/navigation"
+import {describe, expect, it, vi} from "vitest"
+
+// The registry's `create` functions reach next/font, which needs the Next build pipeline.
+// (`vi.mock` is hoisted, so it still applies above these imports.)
+vi.mock("next/font/google", () => ({
+    Inter: () => ({className: "", variable: "", style: {fontFamily: "Inter"}}),
+}))
+
 import {resolveSidebarView, type SidebarViewMatchContext} from "./viewRegistry"
 
 const ctx = (overrides: Partial<SidebarViewMatchContext> = {}): SidebarViewMatchContext => ({

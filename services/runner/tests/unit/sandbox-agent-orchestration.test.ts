@@ -13,6 +13,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readlinkSync,
   rmSync,
   writeFileSync,
@@ -24,8 +25,16 @@ import {
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
+import {
+  PI_TRACE_CONTROL_FILE,
+  piTraceFileName,
+} from "../../src/tracing/pi-spool-protocol.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
-import { shouldSuppressPausedToolCallUpdate } from "../../src/engines/sandbox_agent/runtime-policy.ts";
+import {
+  platformCredentialForRequest,
+  resolveRunOtlpTarget,
+  shouldSuppressPausedToolCallUpdate,
+} from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
@@ -36,6 +45,11 @@ import {
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import {
+  fakeHarness,
+  flushPromises,
+  type FakeOptions,
+} from "../utils/sandbox-agent-harness.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -48,283 +62,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-
-function flushPromises(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
-
-interface FakeOptions {
-  request?: Partial<AgentRunRequest>;
-  cwd?: string;
-  capabilities?: Record<string, unknown>;
-  promptResult?: Record<string, unknown>;
-  promptEvent?: Record<string, unknown>;
-  promptEvents?: Array<Record<string, unknown>>;
-  afterPromptEvents?: () => Promise<void> | void;
-  postPermissionEvents?: Array<Record<string, unknown>>;
-  streamUsage?: Record<string, number>;
-  output?: string;
-  promptError?: Error;
-  permissionDecision?: PermissionDecision | "pendingApproval";
-  emitPermission?: boolean;
-  permissionToolCallId?: string;
-  permissionToolName?: string;
-  permissionRawInput?: unknown;
-  permissionRequests?: Array<Record<string, unknown>>;
-  // Model Claude-over-ACP: the prompt NEVER resolves on its own after a permission gate. The
-  // runner must end the turn another way (the park -> destroySession -> cancel path, F-040).
-  hangPrompt?: boolean;
-  // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
-  // ends the turn is the local park signal — proves the run still terminates if cancel fails.
-  destroySessionError?: Error;
-  // Mirrors what the real sandbox-agent package does when the caller's AbortSignal fires mid-
-  // prompt: resolve the in-flight prompt with a cancelled stop reason. Lets a hung-prompt fixture
-  // stand in for a wedged harness that a run-limits deadline (which aborts `startOptions.signal`)
-  // must be able to unstick.
-  abortSignalCancelsHungPrompt?: boolean;
-}
-
-function fakeHarness(options: FakeOptions = {}) {
-  const calls = {
-    daemonAgent: "",
-    daemonOptions: undefined as
-      | { clearProviderEnv?: boolean; provider?: string; deployment?: string }
-      | undefined,
-    providerArgs: [] as unknown[],
-    mkdirFsPaths: [] as string[],
-    startOptions: undefined as any,
-    createSessionOptions: undefined as any,
-    promptBlocks: undefined as any,
-    runStart: undefined as any,
-    otelOptions: undefined as any,
-    workspacePlan: undefined as any,
-    workspacePiSkillSnapshot: undefined as any,
-    workspaceCleanup: 0,
-    sandboxDestroyed: 0,
-    sandboxDisposed: 0,
-    sessionDestroyed: 0,
-    toolRelayArgs: undefined as unknown[] | undefined,
-    toolRelayStops: 0,
-    permissionReplies: [] as Array<{ id: string; reply: string }>,
-    applyModelArgs: [] as Array<{
-      model: string | undefined;
-      options: { strict?: boolean } | undefined;
-    }>,
-    runFinished: 0,
-    runFlushed: 0,
-    recordedErrors: [] as Array<{ message: string; provider?: string }>,
-    handledUpdates: [] as unknown[],
-  };
-  const events: AgentEvent[] = [];
-  const logs: string[] = [];
-  let eventHandler: ((event: any) => void) | undefined;
-  let permissionHandler: ((request: any) => void) | undefined;
-  // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
-  // hung prompt with a cancelled stop reason — mirroring the real sandbox-agent package.
-  let resolveHungPrompt: ((value: any) => void) | undefined;
-
-  const session = {
-    id: "session-1",
-    onEvent(handler: (event: any) => void) {
-      eventHandler = handler;
-    },
-    onPermissionRequest(handler: (request: any) => void) {
-      permissionHandler = handler;
-    },
-    async respondPermission(id: string, reply: string) {
-      calls.permissionReplies.push({ id, reply });
-    },
-    async prompt(blocks: any) {
-      calls.promptBlocks = blocks;
-      const promptEvents = options.promptEvents ?? [
-        options.promptEvent ?? { payload: { update: { kind: "noop" } } },
-      ];
-      for (const event of promptEvents) eventHandler?.(event);
-      await options.afterPromptEvents?.();
-      if (options.emitPermission) {
-        const permissionRequests = options.permissionRequests ?? [
-          {
-            id: "perm-1",
-            availableReplies: ["once", "always", "reject"],
-            toolCall: {
-              toolCallId: options.permissionToolCallId ?? "tool-1",
-              name: options.permissionToolName ?? "edit",
-              title: options.permissionToolName ?? "edit",
-              rawInput: options.permissionRawInput,
-              input: options.permissionRawInput,
-            },
-          },
-        ];
-        for (const request of permissionRequests) permissionHandler?.(request);
-      }
-      if (options.postPermissionEvents?.length) {
-        if (options.emitPermission) await flushPromises();
-        for (const event of options.postPermissionEvents) eventHandler?.(event);
-      }
-      if (options.promptError) throw options.promptError;
-      if (options.hangPrompt) {
-        // Claude does not end a turn on an unanswered gate: the prompt hangs until the
-        // managed cancel (destroySession) resolves it with a cancelled stop reason.
-        return new Promise((resolve) => {
-          resolveHungPrompt = resolve;
-        });
-      }
-      return (
-        options.promptResult ?? {
-          stopReason: "complete",
-          usage: { inputTokens: 6, outputTokens: 4 },
-        }
-      );
-    },
-  };
-
-  const sandbox = {
-    async mkdirFs({ path }: { path: string }) {
-      calls.mkdirFsPaths.push(path);
-    },
-    async createSession(opts: any) {
-      calls.createSessionOptions = opts;
-      return session;
-    },
-    async destroySession(id: string) {
-      calls.sessionDestroyed += 1;
-      void id;
-      if (options.destroySessionError) throw options.destroySessionError;
-      // Managed cancel: resolve any in-flight prompt with a cancelled stop reason (the runner
-      // races this against the park signal, so the turn ends either way). Mirrors the package.
-      resolveHungPrompt?.({ stopReason: "cancelled" });
-    },
-    async destroySandbox() {
-      calls.sandboxDestroyed += 1;
-    },
-    async dispose() {
-      calls.sandboxDisposed += 1;
-    },
-  };
-
-  const run = {
-    start(input: any) {
-      calls.runStart = input;
-    },
-    handleUpdate(update: any) {
-      calls.handledUpdates.push(update);
-    },
-    emitEvent(event: AgentEvent) {
-      events.push(event);
-    },
-    usage() {
-      return (
-        options.streamUsage ?? { input: 0, output: 0, total: 0, cost: 0.25 }
-      );
-    },
-    setUsage(usage: unknown) {
-      events.push({ type: "usage", ...(usage as any) });
-    },
-    finish() {
-      calls.runFinished += 1;
-      return options.output ?? "assistant output";
-    },
-    recordError(message: string, provider?: string) {
-      calls.recordedErrors.push({ message, provider });
-    },
-    output() {
-      return options.output ?? "assistant output";
-    },
-    async flush() {
-      calls.runFlushed += 1;
-    },
-    events() {
-      return events;
-    },
-    settleOpenToolCalls(
-      _isExcluded: (id: string) => boolean,
-      _message: string,
-    ) {},
-    openToolCallIds() {
-      return [];
-    },
-    traceId() {
-      return "trace-1";
-    },
-  };
-
-  const deps: SandboxAgentDeps = {
-    log: (message) => logs.push(message),
-    createLocalCwd: (durable?: string) =>
-      durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
-    createDaytonaCwd: (durable?: string) =>
-      durable ?? "/home/sandbox/agenta-fake-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
-    buildDaemonEnv: (agent, daemonOptions) => {
-      calls.daemonAgent = agent;
-      calls.daemonOptions = daemonOptions;
-      return {};
-    },
-    resolveDaemonBinary: () => "/bin/sandbox-agent",
-    buildSandboxProvider: (...args: unknown[]) => {
-      calls.providerArgs = args;
-      return { provider: true } as any;
-    },
-    createPersist: () => ({}) as any,
-    startSandboxAgent: (async (opts: any) => {
-      calls.startOptions = opts;
-      if (options.abortSignalCancelsHungPrompt && opts.signal) {
-        opts.signal.addEventListener("abort", () => {
-          resolveHungPrompt?.({ stopReason: "cancelled" });
-        });
-      }
-      return sandbox;
-    }) as any,
-    prepareWorkspace: (async ({ plan, piSkillSnapshot }: any) => {
-      calls.workspacePlan = plan;
-      calls.workspacePiSkillSnapshot = piSkillSnapshot;
-      return {
-        cleanup: async () => {
-          calls.workspaceCleanup += 1;
-        },
-      };
-    }) as any,
-    probeCapabilities: async () =>
-      ({
-        source: "probed",
-        capabilities: {
-          mcpTools: true,
-          toolCalls: true,
-          usage: true,
-          streamingDeltas: true,
-          ...(options.capabilities ?? {}),
-        },
-      }) as any,
-    applyModel: async (_session, model, _log, options) => {
-      calls.applyModelArgs.push({ model, options });
-      return model ?? "resolved-model";
-    },
-    createOtel: ((otelOptions: any) => {
-      calls.otelOptions = otelOptions;
-      return run;
-    }) as any,
-    startToolRelay: ((...args: unknown[]) => {
-      calls.toolRelayArgs = args;
-      return {
-        stop: async () => {
-          calls.toolRelayStops += 1;
-        },
-      };
-    }) as any,
-    localRelayHost: (() => "local-relay-host") as any,
-    sandboxRelayHost: (() => "sandbox-relay-host") as any,
-    responderFactory: () => ({
-      async onPermission() {
-        return { kind: options.permissionDecision ?? "allow" } as const;
-      },
-      async onClientTool() {
-        return { kind: "deny" } as const;
-      },
-    }),
-  };
-
-  return { calls, deps, events, logs };
-}
 
 describe("PendingApprovalPauseController", () => {
   it("tracks paused tool-call ids", () => {
@@ -409,6 +146,167 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  it("passes the live turn credential provider to the trace exporter", async () => {
+    const { calls, deps } = fakeHarness();
+    let authorization = "Secret initial";
+    const credential = () => authorization;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+      { credential },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(typeof calls.otelOptions.authorization, "function");
+    authorization = "Secret refreshed";
+    assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
+  });
+
+  it("refreshes a standalone Agenta credential while a long turn is active", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubEnv("AGENTA_API_URL", "https://api.agenta.test/api");
+      vi.stubEnv("AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS", "900000");
+      vi.stubEnv("AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS", "900000");
+      vi.stubEnv("AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS", "900000");
+      resetRunnerConfigCache();
+      const refreshRequests: Array<{ url: string; authorization: string }> = [];
+      vi.stubGlobal(
+        "fetch",
+        async (url: string | URL | Request, init?: RequestInit) => {
+          const renderedUrl = String(url);
+          refreshRequests.push({
+            url: renderedUrl,
+            authorization: String(
+              (init?.headers as Record<string, string> | undefined)
+                ?.authorization ?? "",
+            ),
+          });
+          return new Response(
+            JSON.stringify({ credentials: "Secret refreshed" }),
+            { status: 200 },
+          );
+        },
+      );
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://api.agenta.test/api/otlp/v1/traces",
+              headers: { authorization: "Secret initial" },
+            },
+          },
+        },
+      };
+      const { calls, deps } = fakeHarness({
+        afterPromptEvents: async () => {
+          await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+        },
+      });
+
+      const result = await runSandboxAgent(request, undefined, undefined, deps);
+
+      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(platformCredentialForRequest(request), "Secret initial");
+      assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
+      assert.deepEqual(refreshRequests, [
+        {
+          url: "https://api.agenta.test/api/sessions/interactions/query",
+          authorization: "Secret initial",
+        },
+        {
+          url: "https://api.agenta.test/api/access/permissions/check?action=run_service&resource_type=service",
+          authorization: "Secret initial",
+        },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never treats a third-party collector header as a platform credential", () => {
+    assert.equal(
+      platformCredentialForRequest({
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://collector.example.test/v1/traces",
+              headers: { authorization: "Bearer collector-secret" },
+            },
+          },
+        },
+      }),
+      "",
+    );
+  });
+
+  it("keeps platform rotation away from third-party collector credentials", () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.agenta.test/api");
+    let live = "Secret initial";
+    const platform = resolveRunOtlpTarget(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://api.agenta.test/api/otlp/v1/traces",
+              headers: { authorization: "Secret initial" },
+            },
+          },
+        },
+      },
+      () => live,
+    );
+    const collector = resolveRunOtlpTarget(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://collector.example.test/v1/traces",
+              headers: { authorization: "Bearer collector-secret" },
+            },
+          },
+        },
+      },
+      () => live,
+    );
+
+    live = "Secret refreshed";
+    assert.equal(platform.authorizationSource, "platform");
+    assert.equal(platform.authorization(), "Secret refreshed");
+    assert.equal(collector.authorizationSource, "exporter");
+    assert.equal(collector.authorization(), "Bearer collector-secret");
+
+    vi.stubEnv("AGENTA_CREDENTIALS", "Secret runner-fallback");
+    const headerless = resolveRunOtlpTarget(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: { endpoint: "https://api.agenta.test/api/otlp/v1/traces" },
+          },
+        },
+      },
+      () => "",
+    );
+    assert.equal(headerless.authorizationSource, "platform");
+    assert.equal(headerless.authorization(), "Secret runner-fallback");
+  });
+
   it("delivers the current legacy inline image before one text block", async () => {
     const { calls, deps } = fakeHarness({ capabilities: { images: true } });
 
@@ -458,10 +356,9 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(
-      calls.promptBlocks,
-      [{ type: "image", data: "AQID", mimeType: "image/png" }],
-    );
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+    ]);
     assert.ok(calls.promptBlocks.length > 0);
     assert.deepEqual(
       logs.filter((message) => message.includes("legacy inline image")),
@@ -971,15 +868,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "codex",
-      customTools: [
-        {
-          name: "commit_revision",
-          kind: "callback",
-          callRef: "tools.agenta.commit_revision",
-          permission: "ask",
-          readOnly: false,
-        },
-      ] as never,
+        customTools: [
+          {
+            name: "commit_revision",
+            kind: "callback",
+            callRef: "tools.agenta.commit_revision",
+            permission: "ask",
+            readOnly: false,
+          },
+        ] as never,
         agentsMd: "Be terse.",
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
@@ -1012,15 +909,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "codex",
-      customTools: [
-        {
-          name: "commit_revision",
-          kind: "callback",
-          callRef: "tools.agenta.commit_revision",
-          permission: "ask",
-          readOnly: false,
-        },
-      ] as never,
+        customTools: [
+          {
+            name: "commit_revision",
+            kind: "callback",
+            callRef: "tools.agenta.commit_revision",
+            permission: "ask",
+            readOnly: false,
+          },
+        ] as never,
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
       undefined,
@@ -1063,15 +960,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
-      customTools: [
-        {
-          name: "commit_revision",
-          kind: "callback",
-          callRef: "tools.agenta.commit_revision",
-          permission: "ask",
-          readOnly: false,
-        },
-      ] as never,
+        customTools: [
+          {
+            name: "commit_revision",
+            kind: "callback",
+            callRef: "tools.agenta.commit_revision",
+            permission: "ask",
+            readOnly: false,
+          },
+        ] as never,
         agentsMd: "Be terse.",
         runContext: { workflow: { artifact: { id: "artifact-1" } } },
         telemetry: {
@@ -1087,8 +984,14 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     const file: string = calls.workspacePlan.prompt.agentsMd;
     // The append prompt DID get it, which is what makes the file's silence meaningful.
-    assert.match(calls.workspacePlan.prompt.appendSystemPrompt, /agent-files\//);
-    assert.ok(file.includes("parameters.agent.skills"), "the skill sentence still lands");
+    assert.match(
+      calls.workspacePlan.prompt.appendSystemPrompt,
+      /agent-files\//,
+    );
+    assert.ok(
+      file.includes("parameters.agent.skills"),
+      "the skill sentence still lands",
+    );
     assert.ok(
       !file.includes("agent-files/"),
       "the mount paragraph must not appear in the file as well",
@@ -1677,7 +1580,20 @@ describe("runSandboxAgent orchestration", () => {
     if (!result.ok) return;
     assert.deepEqual(result.events, []);
     assert.equal(result.capabilities?.streamingDeltas, true);
-    assert.deepEqual(streamed, []);
+    assert.deepEqual(streamed, [
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_starting" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_ready" },
+        transient: true,
+      },
+    ]);
   });
 
   it("surfaces permission requests and answers them through the responder", async () => {
@@ -1734,7 +1650,9 @@ describe("runSandboxAgent orchestration", () => {
     // The relay carries execution only (no permissions argument). The request sent no
     // runContext, but the runner augments its dispatch copy with the live session id so
     // $ctx.session.id bindings resolve (RunContext.session is runner-filled).
-    assert.deepEqual(calls.toolRelayArgs?.[4], { session: { id: "session-1" } });
+    assert.deepEqual(calls.toolRelayArgs?.[4], {
+      session: { id: "session-1" },
+    });
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
       Object.keys((calls.toolRelayArgs?.[5] ?? {}) as object).sort(),
@@ -1783,8 +1701,7 @@ describe("runSandboxAgent orchestration", () => {
       piGuard(request.customTools?.[0], relayRequest),
       {
         allow: false,
-        reason:
-          declinedByUserText("server_tool"),
+        reason: declinedByUserText("server_tool"),
       },
       "Pi ask without a grant fails closed",
     );
@@ -2030,6 +1947,160 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.startOptions.signal.aborted, true);
   });
 
+  it("cancels Pi before draining so agent_end's native batch is exported", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "pi-cancel-trace-"));
+    let callsRef: ReturnType<typeof fakeHarness>["calls"] | undefined;
+    const exported: number[][] = [];
+    const fixture = fakeHarness({
+      cwd,
+      hangPrompt: true,
+      abortSignalCancelsHungPrompt: true,
+      afterDestroySession: async () => {
+        const telemetryDir = callsRef?.workspacePlan?.workspace.telemetryDir;
+        assert.equal(typeof telemetryDir, "string");
+        const control = JSON.parse(
+          readFileSync(join(telemetryDir, PI_TRACE_CONTROL_FILE), "utf8"),
+        ) as {
+          channelId: string;
+          redaction: { knownValues: string[] };
+        };
+        assert.equal(
+          control.redaction.knownValues.includes("model-env-visible-to-pi"),
+          true,
+        );
+        assert.equal(
+          control.redaction.knownValues.includes("Secret current"),
+          false,
+        );
+        writeFileSync(
+          join(telemetryDir, piTraceFileName(control.channelId, 0)),
+          Buffer.from([10, 0, 255]),
+        );
+      },
+    });
+    callsRef = fixture.calls;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        // Exports carry a binary body; other runner traffic (the pre-turn interactions read)
+        // sends JSON strings and is not what this test collects.
+        if (init?.body && typeof init.body !== "string") {
+          exported.push([...(init.body as Buffer)]);
+        }
+        return new Response(null, { status: 200 });
+      }),
+    );
+    const controller = new AbortController();
+
+    try {
+      const running = runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "keep working" }],
+          modelConnection: {
+            provider: "openai",
+            deployment: "custom",
+            credentialMode: "none",
+            environment: { GATEWAY_AUTH: "model-env-visible-to-pi" },
+            credentials: [],
+          },
+          telemetry: {
+            exporters: {
+              otlp: { headers: { authorization: "Secret current" } },
+            },
+          },
+        },
+        undefined,
+        controller.signal,
+        fixture.deps,
+      );
+      await flushPromises();
+      controller.abort();
+      const result = await running;
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.stopReason, "cancelled");
+      assert.deepEqual(exported, [[10, 0, 255]], fixture.logs.join("\n"));
+      assert.equal(fixture.calls.sessionDestroyed, 1);
+      assert.deepEqual(fixture.calls.recordedErrors, []);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a successful Pi turn successful when no native trace batch arrives", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "pi-missing-trace-"));
+    const fixture = fakeHarness({ cwd });
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "hello" }],
+        },
+        undefined,
+        undefined,
+        fixture.deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(fixture.calls.recordedErrors, [
+        {
+          message:
+            "Pi did not publish a valid trace batch before the turn ended",
+          provider: undefined,
+        },
+      ]);
+      assert.equal(fixture.calls.runFlushed, 2);
+      assert.match(
+        fixture.logs.join("\n"),
+        /stage=pi_trace_missing_batch diagnostic=true/,
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves a failed Pi turn's agent error when no native trace batch arrives", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "pi-failed-trace-"));
+    const fixture = fakeHarness({
+      cwd,
+      promptError: new Error(
+        '429: {"message":"Budget has been exceeded! Key=organization-id (sk-...suffix) Current cost: 5.1, Max budget: 5.0","type":"budget_exceeded","code":"429"}',
+      ),
+    });
+    const message =
+      "Your free Agenta credits are used up. Add your own provider key to keep going.";
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [{ role: "user", content: "fail" }],
+        },
+        undefined,
+        undefined,
+        fixture.deps,
+      );
+
+      assert.deepEqual(result, { ok: false, error: message });
+      assert.deepEqual(fixture.calls.recordedErrors, [
+        { message, provider: undefined },
+      ]);
+      assert.deepEqual(
+        fixture.events.find((event) => event.type === "error"),
+        { type: "error", message, code: "starter_credits_exhausted" },
+      );
+      assert.match(
+        fixture.logs.join("\n"),
+        /stage=pi_trace_missing_batch diagnostic=true/,
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("clears inherited provider env on a managed run and applies ANTHROPIC_BASE_URL for claude", async () => {
     const { calls, deps } = fakeHarness();
 
@@ -2112,9 +2183,10 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     const env = calls.providerArgs[1] as Record<string, string>;
-    // The harness-readable env carries a file path, never the bearer itself.
+    // The harness sees only a stable telemetry-control path; endpoint and bearer stay here.
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
-    assert.equal(typeof env.AGENTA_AGENT_OTLP_AUTH_FILE, "string");
+    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined);
+    assert.equal(typeof env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH, "string");
     assert.equal(JSON.stringify(env).includes("reusable-caller-token"), false);
   });
 

@@ -2,9 +2,9 @@ import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
 
-import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 import {controlScale} from "./src/styles/theme/controlScale"
 import {shadcnTokens} from "./src/styles/theme/shadcnTokens"
+import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 const token = theme.getDesignToken()
 
 // Theme-aware colors backed by CSS variables defined in styles/theme-variables.css.
@@ -120,6 +120,11 @@ const themeAwareColors = {
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),
     colorErrorBorder: v("colorErrorBorder"),
+    // Missing here, `bg-colorErrorBg` froze at light `#f9e5e5` — the Account page's
+    // delete-account panel painted a pale pink box with white body text on it in dark mode,
+    // while its border and title (both listed above) resolved correctly dark.
+    colorErrorBg: v("colorErrorBg"),
+    colorSuccessBg: v("colorSuccessBg"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),
@@ -144,7 +149,19 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-sessions/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-sessions-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-observability-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-home-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-auth-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-chat/src/**/*.{js,ts,jsx,tsx}",
+            // Streamdown ships class-based typography; Tailwind only generates what it scans.
+            // Resolved from the workspace store, so the glob works from both oss and ee.
+            "../node_modules/.pnpm/streamdown@*/node_modules/streamdown/dist/*.js",
             ...content,
         ],
         theme: {
@@ -353,6 +370,11 @@ export const createConfig = (content: string[] = []): Config => {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
                         "100%": {maskPosition: "-80% 0", WebkitMaskPosition: "-80% 0"},
                     },
+                    // Agent startup label (#6047).
+                    "text-shimmer": {
+                        "0%": {backgroundPosition: "120% 0"},
+                        "100%": {backgroundPosition: "-120% 0"},
+                    },
                     // The `/` palette's pickers, docked above the composer they grow out of.
                     // Shallower than `dialog-in` (0.9): these span the composer, where a 10% scale
                     // reads as a lurch rather than a zoom.
@@ -371,6 +393,7 @@ export const createConfig = (content: string[] = []): Config => {
                     skeleton: "skeleton 1.4s ease infinite",
                     // 2 sweeps then hold off-screen (forwards) so it ends invisibly.
                     "config-shimmer": "config-shimmer 1.8s ease-in-out 2 forwards",
+                    "text-shimmer": "text-shimmer 2.4s linear infinite",
                     // antd motionDurationMid (0.2s) + motionEaseInOut bezier.
                     "accordion-down": "accordion-down 0.2s cubic-bezier(0.645,0.045,0.355,1)",
                     "accordion-up": "accordion-up 0.2s cubic-bezier(0.645,0.045,0.355,1)",

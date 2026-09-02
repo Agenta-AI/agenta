@@ -1,4 +1,5 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
+import type { SeededDecision } from "../../sessions/interactions.ts";
 
 import {
   type AgentRunRequest,
@@ -13,10 +14,12 @@ import {
   startToolRelay,
 } from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
+import type { PiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
 import { signAgentMountCredentials } from "./agent-mount.ts";
 import { probeCapabilities } from "./capabilities.ts";
+import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
@@ -63,6 +66,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
+  awaitCredentialSubstitution?: typeof awaitCredentialSubstitution;
   applyModel?: typeof applyModel;
   applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
@@ -176,6 +180,12 @@ export interface ParkedApprovedExecution {
 export interface RunTurnOptions {
   /** Latest session credential accessor; long turns may refresh the value between API calls. */
   credential?: () => string;
+  /**
+   * Durable approval decisions this session already holds, read and CLAIMED by the caller via
+   * `loadDurableDecisions`. Passed in rather than read here because that read is I/O and
+   * `runTurn` must not suspend before its permission responder is attached.
+   */
+  seededDecisions?: readonly SeededDecision[];
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**
@@ -265,6 +275,7 @@ export interface SessionEnvironment {
   commitApplied: (result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }) => void;
   plan: RunPlan;
   logger: Log;
@@ -282,7 +293,6 @@ export interface SessionEnvironment {
   executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
-  otlpAuthFilePath: string | undefined;
   /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
@@ -303,6 +313,16 @@ export interface SessionEnvironment {
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
+  /**
+   * When this sandbox's MODEL credential was delivered as a Daytona Secret (epoch millis), set
+   * only on a fresh create. Undefined for a plaintext-env run, a reconnect, and every local run.
+   *
+   * Read by the 401 classifier: Daytona applies a new Secret's substitution rule asynchronously,
+   * so a refusal shortly after delivery is the propagation race rather than a bad key. The
+   * timestamp is what keeps that reading honest — a warm sandbox's turn an hour later gets the
+   * ordinary auth advice, because by then the placeholder explanation is no longer available.
+   */
+  modelSecretDeliveredAt?: number;
   /** The conversation turn index this acquire's continuity record was read/written at. */
   continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
@@ -324,6 +344,8 @@ export interface SessionEnvironment {
   runtimeRemount: Promise<boolean> | undefined;
   closeToolMcp: (() => Promise<void>) | undefined;
   currentTurn?: CurrentTurn;
+  /** Pi's native span spool for the original prompt; survives approval park/resume. */
+  piTraceExport?: PiTraceTurnExport;
   /**
    * The unique ACP tool-call ids the LAST completed turn emitted (reset at each turn start).
    * The keep-alive dispatch folds them into the expected next-history fingerprint at park time,
@@ -378,4 +400,14 @@ export interface SessionEnvironment {
 
 export type AcquireEnvironmentResult =
   | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The preflight proved this sandbox never got its Secret substitution wiring (the fault
+       * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
+       * already destroyed; the acquire wrapper retries once with a fresh sandbox, because a new
+       * sandbox on the same Secret works.
+       */
+      stuckSubstitution?: boolean;
+    };

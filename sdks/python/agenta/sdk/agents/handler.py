@@ -51,7 +51,10 @@ from agenta.sdk.agents.dtos import RunContext, RunContextRun
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
 from agenta.sdk.redaction.redactor import Redactor
-from agenta.sdk.redaction.seed import seed_from_request
+from agenta.sdk.redaction.seed import (
+    is_non_secret_credential_locator,
+    seed_from_request,
+)
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
@@ -239,7 +242,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         )
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-        resolved_tools = await comp.resolve_tools(agent_template.tools)
+        # The agent-wide mode reaches the gateway permission compiler only here: an
+        # ``inherit`` in a saved connection policy resolves against it, so a resolve that
+        # does not carry it would compile a different policy than the run enforces.
+        resolved_tools = await comp.resolve_tools(
+            agent_template.tools,
+            permission_default=agent_template.permission_default,
+        )
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
 
         model_ref = _agent_model_ref(agent_template)
@@ -270,6 +279,12 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     credential.value
                     for credential in (
                         resolved_connection.credentials if resolved_connection else []
+                    )
+                    if not (
+                        credential.binding.kind == "environment"
+                        and is_non_secret_credential_locator(
+                            credential.binding.name, credential.value
+                        )
                     )
                 ),
                 *(
@@ -303,6 +318,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             effective_parameters=parameters,
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
+            # The private per-tool decisions for the agent's gateway connections. It must
+            # reach the wire: an absent policy reads as deny at the runner, so a seam that
+            # drops it fails as a silently tool-less agent rather than as an error.
+            gateway_policy=resolved_tools.gateway_policy,
             mcp_servers=resolved_mcp,
         )
 

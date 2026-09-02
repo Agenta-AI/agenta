@@ -196,6 +196,74 @@ def test_no_slug_with_one_legacy_record_is_unchanged(resolve):
     }
 
 
+@pytest.mark.parametrize(
+    "standard_data",
+    [
+        pytest.param({}, id="models-missing"),
+        pytest.param({"models": None}, id="models-null"),
+        pytest.param({"models": []}, id="models-empty"),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            id="models-populated",
+        ),
+    ],
+)
+def test_standard_model_list_wire_shapes_do_not_break_resolution(
+    resolve, standard_data
+):
+    secrets = [
+        {
+            "kind": "provider_key",
+            "slug": "openai",
+            "data": {
+                "kind": "openai",
+                "provider": {"key": "sk-openai"},
+                **standard_data,
+            },
+        }
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini") == {
+        "model": "gpt-4o-mini",
+        "api_key": "sk-openai",
+    }
+
+
+@pytest.mark.parametrize(
+    "custom_data",
+    [
+        pytest.param({}, id="model-keys-missing"),
+        pytest.param({"model_keys": None}, id="model-keys-null"),
+        pytest.param({"model_keys": []}, id="model-keys-empty"),
+        pytest.param(
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="model-keys-unrelated",
+        ),
+    ],
+)
+def test_nonclaiming_custom_model_key_shapes_do_not_break_standard_resolution(
+    resolve, custom_data
+):
+    secrets = [
+        _provider_key(slug="openai", key="sk-openai"),
+        {
+            "kind": "custom_provider",
+            "slug": "legacy-gateway",
+            "data": {
+                "kind": "custom",
+                "provider_slug": "legacy-gateway",
+                "provider": {"extras": {"api_key": "sk-gateway"}},
+                **custom_data,
+            },
+        },
+    ]
+
+    assert resolve(secrets, "gpt-4o-mini") == {
+        "model": "gpt-4o-mini",
+        "api_key": "sk-openai",
+    }
+
+
 def test_no_slug_with_two_listless_records_takes_the_first(resolve):
     secrets = [
         _provider_key(slug="openai", key="sk-first"),

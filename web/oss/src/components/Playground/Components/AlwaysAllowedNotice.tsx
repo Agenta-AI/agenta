@@ -1,12 +1,11 @@
 import {useEffect, useRef} from "react"
 
+import {useAlwaysAllowTool} from "@agenta/chat/hooks"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, ShieldCheck, X} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtom} from "jotai"
-
-import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 /**
  * "Always allowed" notice — the draft-blue counterpart of {@link AgentCommitNotice}, pinned to the
@@ -25,7 +24,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
         signal.revisionId === revisionId &&
         signal.origin === "approval-dock",
     )
-    const {revoke} = useAlwaysAllowTool(revisionId)
+    const {revokeMany} = useAlwaysAllowTool(revisionId)
 
     // Latch the last matching signal so content stays rendered through the collapse-out.
     const lastRef = useRef(signal)
@@ -41,6 +40,7 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
     }, [active, signal?.at, setSignal])
 
     const label = shown?.label ?? "this tool"
+    const plural = (shown?.toolNames?.length ?? 0) > 1
 
     return (
         <HeightCollapse open={active} durationMs={260} fade slideY={16} inert className="shrink-0">
@@ -52,32 +52,35 @@ const AlwaysAllowedNotice = ({revisionId}: {revisionId: string}) => {
                         </span>
                         <div className="flex min-w-0 flex-col gap-0.5">
                             <span className="truncate text-xs font-medium leading-5 text-colorText">
-                                Always allowing <span className="font-semibold">{label}</span>
+                                Auto-approving <span className="font-semibold">{label}</span>
                             </span>
                             <span className="text-xs leading-4 text-colorTextSecondary">
-                                Saved to this draft — this tool won&apos;t ask again.
+                                Saved to this draft — {plural ? "they run" : "it runs"} without
+                                asking from now on.
                             </span>
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         <Button
-                            type="text"
-                            className="!h-6 !gap-1 !rounded-md !px-2 !text-xs !font-medium !text-colorPrimary !bg-[color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent)] hover:!bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]"
-                            icon={<ArrowCounterClockwise size={12} weight="bold" />}
+                            variant="ghost"
+                            className="h-6 gap-1 rounded-md bg-[color-mix(in_srgb,var(--ag-colorPrimary)_12%,transparent)] px-2 text-xs font-medium text-colorPrimary hover:bg-[color-mix(in_srgb,var(--ag-colorPrimary)_22%,transparent)]"
                             onClick={() => {
-                                if (shown?.toolName) revoke(shown.toolName)
+                                if (shown?.toolNames?.length) revokeMany(shown.toolNames)
                                 setSignal(null)
                             }}
                         >
+                            <ArrowCounterClockwise size={12} weight="bold" />
                             Undo
                         </Button>
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label="Dismiss"
-                            className="!h-6 !w-6 !px-0 !text-colorTextTertiary hover:!bg-colorFillTertiary hover:!text-colorText"
-                            icon={<X size={13} />}
+                            className="h-6 w-6 p-0 text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                             onClick={() => setSignal(null)}
-                        />
+                        >
+                            <X size={13} />
+                        </Button>
                     </div>
                 </div>
             </div>

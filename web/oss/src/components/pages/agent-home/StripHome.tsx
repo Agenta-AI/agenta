@@ -1,17 +1,22 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
+import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {HomeOverview, UsageCard} from "@agenta/home-ui"
+import type {SessionRowVm} from "@agenta/sessions/row"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
+import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
@@ -19,35 +24,39 @@ import SessionAutomationDrawers from "@/oss/components/pages/sessions/components
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
-import UsageSummary from "@/oss/components/UsageSummary"
 import useURL from "@/oss/hooks/useURL"
-import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
-import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
-import HomeAutomationsSection from "./components/HomeAutomationsSection"
-import HomeSessionsSection from "./components/HomeSessionsSection"
 import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
 import {useCreateAgentFromTemplate} from "./hooks/useCreateAgentFromTemplate"
 
-/**
- * The strip-era home layout (TEMPLATE_STRIP_MODE on): hero + composer (chip-docked) +
- * TemplateStrip + (returning users) the one-line Usage card and agents table. Replaces the
- * grid/drawer/IDE-modal flows entirely on this surface; those stay behind flag-off.
- */
-// Hidden, not removed: the rail felt crowded with four sections, and templates already have
-// the gallery + first-run grid. Flip back on to restore the rail card.
-const SHOW_RAIL_TEMPLATES = false
+// The expanded analytics view is desktop-only (tremor charts) and lazy — the shared usage
+// card takes it as a slot, so mobile simply has no Expand control.
+const AnalyticsDashboard = dynamic(
+    () => import("@/oss/components/pages/observability/dashboard/AnalyticsDashboard"),
+)
 
+const actionTargetFor = (vm: SessionRowVm) => ({
+    sessionId: vm.id,
+    appId: vm.agentId,
+    name: vm.stream.name,
+    archived: Boolean(vm.stream.archived_at),
+})
+
+/**
+ * Home. A returning user gets the SHARED page (`@agenta/home-ui`) that mobile also renders;
+ * first run stays this app's own centred create-an-agent document — templates and the
+ * Lexical-backed create composer have no mobile counterpart yet.
+ */
 const StripHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
     // Home creates, navigates to the playground, and auto-sends (owner decision).
     const {onCreate} = useAgentHomeActions(composerRef, {autoSendSeed: true})
     const {firstRunOverride, creatingAgent} = useAgentHomeVariants()
-    const {baseAppURL} = useURL()
+    const {baseAppURL, projectURL} = useURL()
     const router = useRouter()
     // Create is a multi-step async round-trip; on success we navigate away, so we keep the
     // spinner running (only reset on failure) rather than flashing the label back mid-navigation.
@@ -57,7 +66,6 @@ const StripHome: React.FC = () => {
     useAtomValue(appTemplatesQueryAtom)
 
     const agents = useAtomValue(agentsWorkflowsAtom)
-    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
     const isFirstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
     // The create-an-agent surface IS the first-run surface — describe it, pick a template, send.
@@ -72,14 +80,6 @@ const StripHome: React.FC = () => {
     // centres. First run and `?template=` still show them — there the strip is the offer.
     const blankCreate = creatingAgent && !templateParam
 
-    // Only the centred first-run document wants the layout's bounded frame. The workspace scrolls
-    // with the page, so it must NOT ask — see `layoutFullHeightRequestAtom`.
-    useEffect(() => {
-        if (!firstRun) return
-        requestFullHeight(true)
-        return () => requestFullHeight(false)
-    }, [firstRun, requestFullHeight])
-
     const provenance = useTemplateProvenance({
         composerApi: {
             setText: (text) => composerRef.current?.setMarkdown(text),
@@ -87,11 +87,40 @@ const StripHome: React.FC = () => {
         },
     })
 
+    // Desktop opens a session by deep-linking into the playground; the row menu is the
+    // sessions-page action set. Both are this app's verbs, handed to the shared page.
+    const openSession = useOpenAgentSession()
+    const sessionActions = useSessionActions()
+
+    const handleOpenSession = useCallback(
+        (vm: SessionRowVm) => {
+            if (vm.agentId)
+                openSession({
+                    appId: vm.agentId,
+                    sessionId: vm.id,
+                    title: vm.stream.name?.trim() || undefined,
+                })
+        },
+        [openSession],
+    )
+    const sessionMenuFor = useCallback(
+        (vm: SessionRowVm) =>
+            sessionActions.menuItems(actionTargetFor(vm), {onOpen: () => handleOpenSession(vm)}),
+        [sessionActions, handleOpenSession],
+    )
+    const onSessionMenuSelect = useCallback(
+        (vm: SessionRowVm, key: string) =>
+            sessionActions.onMenuClick(actionTargetFor(vm), {
+                onOpen: () => handleOpenSession(vm),
+            })({key}),
+        [sessionActions, handleOpenSession],
+    )
+
     // A card here IS the create action — no composer step, no second confirmation.
     const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
 
     const handlePick = useCallback(
-        (template: AgentTemplate) => {
+        (template: AgentStarterTemplate) => {
             // On the workspace home the composer runs tasks, so a pick here has no composer to
             // seed — it means "build this", which is the create surface's job.
             if (!firstRun) {
@@ -128,185 +157,116 @@ const StripHome: React.FC = () => {
         [loading, onCreate, provenance.resolveTemplateName],
     )
 
+    // The returning-user page IS the shared one — hero, composer, in-flight column, rail — so
+    // mobile and desktop render one composition. Only the pieces this app alone owns (its
+    // composer, its analytics dashboard, its session verbs) are passed in.
+    if (!firstRun) {
+        return (
+            // The same frame as first run, Agents and Sessions: `PageLayout` carries the gutters
+            // and `pageContentWidthClass` the column cap, so Home is not the one page whose
+            // content sits 300px wider than everything beside it.
+            <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
+                <HomeOverview
+                    title={RETURNING_HERO.title}
+                    action={<NewAgentButton />}
+                    composer={
+                        <>
+                            {/* Chip docks into this gap (bottom-full), so it can only tighten so
+                                far. The 2px nudge + z-10 overlap and paint above the composer's
+                                top border so the chip reads as one shape, not a seam. */}
+                            <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
+                                {provenance.chipNode}
+                            </div>
+                            <HomeTaskComposer />
+                        </>
+                    }
+                    sessionsHref={`${projectURL}/sessions`}
+                    onOpenSession={handleOpenSession}
+                    sessionMenuFor={sessionMenuFor}
+                    onSessionMenuSelect={onSessionMenuSelect}
+                    agentsPanel={<YourAgentsTable variant="list" />}
+                    triggersPanel={<NextTriggersSection />}
+                    usagePanel={
+                        <UsageCard
+                            expandedContent={
+                                <AnalyticsDashboard layout="stack" showTimeRangeSelector={false} />
+                            }
+                        />
+                    }
+                />
+            </PageLayout>
+        )
+    }
+
+    // First run stays a centered document — one question, one answer, nothing to resume yet —
+    // and scrolls inside the frame rather than moving the page. It fills the layout's own
+    // full-height frame (`isFullHeight`, which puts the `100dvh` calc on the content wrapper)
+    // instead of restating a viewport height here: asserting one locally on a route the layout
+    // thinks is a normal flowing document gave the body its own scrollbar underneath.
     return (
         <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
-            {/* First run stays a centered document in the layout's bounded frame — one question,
-                one answer, nothing to resume yet — and scrolls inside it.
-
-                The workspace scrolls with the PAGE instead: one scrollbar, the browser's own,
-                wherever the pointer is. Only the rail is pinned, and it scrolls internally just
-                when it outgrows the viewport. `items-start` is what lets it: a stretched flex
-                item is as tall as the row and has nothing to travel within. */}
-            <div
-                className={
-                    firstRun
-                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto"
-                        : "flex w-full flex-1 items-start gap-10"
-                }
-            >
-                {/* Pinned to the top of the scroll frame — a sibling of the (sometimes vertically
-                    centred, see `my-auto` below) content block, not nested inside it, so it
-                    anchors top-left like every other page's back control instead of floating
-                    wherever that block lands. Same max-width as the content column below so its
-                    left edge still lines up with the title. */}
-                {creatingAgent && !isFirstRun ? (
-                    <div className="mx-auto w-full max-w-[840px]">
-                        <Link
-                            href={baseAppURL}
-                            className="mb-6 inline-flex items-center gap-1 self-start text-xs !text-colorTextSecondary"
-                        >
-                            <ArrowLeftIcon size={14} />
-                            Back to home
-                        </Link>
-                    </div>
-                ) : null}
-                <div
-                    className={
-                        firstRun
-                            ? // `my-auto` (not `justify-center`) so the block still centres when it
-                              // outgrows the frame without clipping its top out of the scroller.
-                              `flex w-full flex-col ${blankCreate ? "my-auto" : ""}`
-                            : // `min-w-0` or a wide table would push the column past its share.
-                              "box-border flex min-w-0 flex-1 flex-col gap-14"
-                    }
-                >
-                    <div
-                        className={
-                            firstRun
-                                ? "mx-auto flex w-full max-w-[840px] flex-col"
-                                : "flex w-full flex-col"
-                        }
-                    >
+            {/* The gutters and the shared column come from `PageLayout` (#5836), so Home sits in
+                the same column as Agents, Sessions and the overview. Only the composer's own
+                narrower measure is stated here. */}
+            <div className="mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto">
+                {/* `my-auto` (not `justify-center`) so the block still centres when it outgrows
+                    the frame without clipping its top out of the scroller. */}
+                <div className={`flex w-full flex-col ${blankCreate ? "my-auto" : ""}`}>
+                    <div className="mx-auto flex w-full max-w-[840px] flex-col">
+                        {creatingAgent && !isFirstRun ? (
+                            <Link
+                                href={baseAppURL}
+                                className="mb-6 inline-flex items-center gap-1 self-start text-xs !text-colorTextSecondary"
+                            >
+                                <ArrowLeftIcon size={14} />
+                                Back to home
+                            </Link>
+                        ) : null}
                         {/* First run centres: one column, nothing else on the page, and the
-                            centred axis is the page's own. In the workspace that axis stops
-                            existing — the left column is an asymmetric slice, and every other
-                            block on the page (composer, Templates, the agents table, every rail
-                            card) starts at its left edge. So here the hero joins that rag and
-                            drops to a label's size: the composer is the invitation, and its
-                            placeholder already asks the question the subtitle repeated. */}
-                        <div
-                            className={
-                                firstRun
-                                    ? "flex flex-col items-center gap-4 text-center"
-                                    : // The hero line carries the page's standing action. On its
-                                      // own row above everything it cost a full band of empty
-                                      // width and pushed the question it belongs beside downward.
-                                      "flex items-center justify-between gap-4"
-                            }
-                        >
+                            centred axis is the page's own. */}
+                        <div className="flex flex-col items-center gap-4 text-center">
                             <Typography.Title
                                 level={2}
-                                className={`!m-0 ${
-                                    firstRun
-                                        ? "!text-[30px] !leading-tight"
-                                        : "!text-[24px] !leading-8"
-                                }`}
+                                className="!m-0 !leading-tight !text-[30px]"
                             >
-                                {firstRun ? HERO.title : RETURNING_HERO.title}
+                                {HERO.title}
                             </Typography.Title>
-                            {firstRun ? (
-                                <Typography.Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
-                                    {HERO.subtitle}
-                                </Typography.Text>
-                            ) : null}
-                            {!firstRun ? <NewAgentButton /> : null}
+                            <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                                {HERO.subtitle}
+                            </Typography.Text>
                         </div>
 
                         {/* Chip docks into this gap (bottom-full), so it can only tighten so far.
-                        The 2px nudge + z-10 overlap and paint above the composer's top border so the
-                        chip reads as one shape, not a seam. */}
-                        <div
-                            className={`relative flex flex-col items-stretch ${
-                                firstRun ? "mt-11" : "mt-8"
-                            }`}
-                        >
+                            The 2px nudge + z-10 overlap and paint above the composer's top border
+                            so the chip reads as one shape, not a seam. */}
+                        <div className="relative mt-11 flex flex-col items-stretch">
                             <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
                                 {provenance.chipNode}
                             </div>
                             {/* First run has no agent to talk to, so the composer describes one to
-                            create. Once agents exist, the daily action is starting a task with one
-                            of them — creating another moves into the picker's footer. */}
-                            {firstRun ? (
-                                <StripComposer
-                                    composerRef={composerRef}
-                                    onCreate={handleCreate}
-                                    composerClassName={provenance.composerClassName}
-                                    onTextChange={provenance.onComposerTextChange}
-                                    loading={loading}
-                                />
-                            ) : (
-                                <HomeTaskComposer />
-                            )}
+                                create. Once agents exist the daily action is starting a task with
+                                one of them — that composer lives on the shared Home above. */}
+                            <StripComposer
+                                composerRef={composerRef}
+                                onCreate={handleCreate}
+                                composerClassName={provenance.composerClassName}
+                                onTextChange={provenance.onComposerTextChange}
+                                loading={loading}
+                            />
                         </div>
                     </div>
 
-                    {firstRun ? (
-                        blankCreate ? null : (
-                            <TemplateStrip
-                                className="mt-20"
-                                surface="home"
-                                layout="grid"
-                                selectedTemplateKey={provenance.selectedTemplateKey}
-                                onPick={handlePick}
-                                pendingTemplateKey={pendingKey}
-                            />
-                        )
-                    ) : (
-                        // EXPERIMENT: the columns' contents are swapped. What's in flight takes
-                        // the wide column under the composer; the templates strip and the agents
-                        // roster move to the rail. The hero and composer stay put.
-                        // Bare, on the page background: the rail is the page's one defined
-                        // object, and a second sheet opposite it made both read as equal weight.
-                        <div className="mt-10 flex flex-col gap-10">
-                            <HomeSessionsSection limit={6} />
-                            <HomeAutomationsSection />
-                        </div>
+                    {blankCreate ? null : (
+                        <TemplateStrip
+                            className="mt-20"
+                            surface="home"
+                            layout="grid"
+                            selectedTemplateKey={provenance.selectedTemplateKey}
+                            onPick={handlePick}
+                            pendingTemplateKey={pendingKey}
+                        />
                     )}
                 </div>
-
-                {/* Right column, post-swap: what you could start. It scrolls up with the page
-                    first and only pins on arrival — which is what the offset buys: sticky pins
-                    the moment the element reaches `top`, so an offset equal to its resting y
-                    (the 56px gutter) would pin it from scroll zero and it would never travel.
-                    16px leaves it 40px of travel and a little air once pinned. The cap is what
-                    lets `PanelScroll` inside take over when the rail outgrows the viewport.
-
-                    A third of the width rather than a fixed 400px, which held its proportion
-                    only at one screen size — it read as a third on a large display and as a
-                    slab on a laptop.
-
-                    `--ag-demo-banner-h` is the layout's fixed demo banner (0 outside a demo
-                    workspace): without it the banner covered the pinned rail's top 22px. */}
-                {!firstRun ? (
-                    // The rail's cards carry the warm tinted surface rather than plain white, so
-                    // they read as one object against the page. Light only: dark restores
-                    // colorBgElevated, since the shipped dark card (#242424) is not the tint's
-                    // dark step (#272727) and dark card surfaces aren't part of this change.
-                    <div className="sticky top-[calc(1rem+var(--ag-demo-banner-h,0px))] box-border flex max-h-[calc(100vh-3rem-var(--ag-demo-banner-h,0px))] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1 [&_.ag-panel-section-header]:bg-[var(--ag-surface-paper)] [&_.ag-panel-section]:bg-[var(--ag-surface-paper)] dark:[&_.ag-panel-section-header]:bg-colorBgElevated dark:[&_.ag-panel-section]:bg-colorBgElevated">
-                        <PanelSurface>
-                            <PanelScroll>
-                                {/* Rows, not the scroller: a 238px card and a six-tab category
-                                    row both need width this column doesn't have. */}
-                                {SHOW_RAIL_TEMPLATES ? (
-                                    <TemplateStrip
-                                        surface="home"
-                                        layout="list"
-                                        selectedTemplateKey={provenance.selectedTemplateKey}
-                                        onPick={handlePick}
-                                    />
-                                ) : null}
-                                <YourAgentsTable variant="list" />
-                                {/* Forward-looking, unlike the automation RUNS in the main column:
-                                    a schedule that stopped firing is invisible in a list of things
-                                    that already happened. */}
-                                <NextTriggersSection />
-                                {/* Usage sits with what you could start, not with what is in
-                                    flight — it is the column you glance at, not work from. */}
-                                <UsageSummary variant="strip" />
-                            </PanelScroll>
-                        </PanelSurface>
-                    </div>
-                ) : null}
             </div>
             <SessionAutomationDrawers />
         </PageLayout>

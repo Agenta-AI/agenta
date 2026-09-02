@@ -30,9 +30,9 @@ import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {HeightCollapse} from "@agenta/ui/components"
 import {Input} from "@agenta/ui/ui"
+// SchemaForm takes a form instance; this one only exists to prefill trigger_config.
 import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
-// The SchemaForm bridge: SchemaForm (gatewayTool) still requires an antd FormInstance.
-import {Form} from "antd"
+import {useForm} from "@rc-component/form"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
@@ -155,7 +155,7 @@ export function SubscriptionForm({
         [subscriptions, connectionId, eventKey, subscriptionId],
     )
 
-    const [configForm] = Form.useForm()
+    const [configForm] = useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
 
     // Prefill from the freshly-fetched subscription (edit mode). Hydrate once per id: any

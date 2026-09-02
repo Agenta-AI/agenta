@@ -5,14 +5,14 @@ description: "Start an agent run from an event in a connected app and pass event
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 An event trigger starts an agent when something happens in a connected app. First, [prepare the agent for automation](/guides/create-an-automation).
 
 ## Connect the app first
 
-Go to `Sidebar > Settings > Triggers`, then click `+ Connect` under `Connections`. Select the app and connect an account.
+Go to `Sidebar > Settings > Triggers`, then click `Connect app` on the `Connections` section. Select the app and connect an account.
 
 The trigger picker shows your connections in its left rail, under `YOUR CONNECTIONS`, and each app card has a `+ Connect another account` button for adding a second account.
 
@@ -22,40 +22,17 @@ An event trigger runs one pinned variant and revision. Commit the agent first, s
 
 ## Pick the app and the event
 
-You can open the trigger picker from two places.
-
-**From the agent.** `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, scroll the `Configuration` column to the `Triggers` heading, and click `Add subscription` on the `Subscriptions` section.
-
-**From project settings.** `Sidebar > Settings > Triggers`, then `+ Subscribe` on the `Event triggers` section.
+Go to `Sidebar > Settings > Triggers`, then click `Subscribe` on the `Event triggers` section.
 
 The `Choose a trigger` dialog shows your connections and the available apps.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/triggers-choose-a-trigger.png")}
-  alt="The Choose a trigger dialog with the YOUR CONNECTIONS rail and the ALL APPS grid"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="ffc45c647c0676c511fc7bd204378e6e" height="400px" />
 
 Click the app, choose a connection, then select an event under `CHOOSE AN EVENT`.
-
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/triggers-github-events.png")}
-  alt="The GitHub event list under CHOOSE AN EVENT"
-  loading="lazy"
-/>
 
 ## Fill in the trigger
 
 Picking an event opens the `New trigger` dialog.
-
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/subscription-event-form.png")}
-  alt="The New trigger form with its Name, When this happens, Which version runs, and What the agent gets sections"
-  loading="lazy"
-/>
 
 ### 1. Name
 

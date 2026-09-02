@@ -2,9 +2,13 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
+from agenta.sdk.agents.tools import (
+    BuiltinToolConfig,
+    GatewayConnectionToolConfig,
+    GatewayToolConfig,
+)
 from agenta.sdk.models.workflows import JsonSchemas
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from oss.src.core.workflows.dtos import WorkflowRevisionDelta
 
@@ -57,8 +61,14 @@ class ToolCatalogAction(BaseModel):
     categories: List[str] = []
     logo: Optional[str] = None
     #
+    # The provider's own action ID, kept exactly as the provider spells it. Execution
+    # reads it from here; no call path may rebuild it from the integration and the key.
+    provider_action_id: Optional[str] = None
+    #
     # From the MCP behavioral hints: True (read-only), False (mutating), None (unknown).
     read_only: Optional[bool] = None
+    # Private runtime catalog data. Public action detail keeps schemas under ``schemas``.
+    input_schema: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
 
 
 class ToolCatalogActionDetails(ToolCatalogAction):
@@ -105,6 +115,20 @@ class ToolCatalogActionsPage(BaseModel):
     total: int = 0
 
 
+class ToolCatalogEntry(BaseModel):
+    """One catalog tool reduced to what the platform itself needs.
+
+    This is what the whole-integration catalog cache holds. The input schema travels with
+    identity because a gateway run must show the model the schema from the same concrete
+    toolkit version it will execute.
+    """
+
+    key: str
+    provider_action_id: str
+    read_only: Optional[bool] = None
+    input_schema: Optional[Dict[str, Any]] = None
+
+
 # ---------------------------------------------------------------------------
 # Tool Connections — shared `gateway_connections` rows, inherited here so the
 # tools router/models never reference the generic gateway DTOs directly.
@@ -149,10 +173,62 @@ class ToolCallData(BaseModel):
     function: ToolCallFunction
 
 
+def _concrete_toolkit_version(value: str) -> str:
+    """Refuse the mutable alias and a blank, and store what is left trimmed.
+
+    Blank is rejected here rather than left to the routes' truthiness checks: a
+    whitespace-only version is truthy, and would reach the provider naming no version.
+    """
+    version = value.strip()
+    if not version or version.lower() == "latest":
+        raise ValueError("gateway toolkit version must be concrete")
+    return version
+
+
+class ToolCallContext(BaseModel):
+    """Trusted routing the caller adds beside the model's arguments (contracts section 6).
+
+    The runner reads every field from its private resolved policy, so none of it is
+    model input. ``connection`` and ``tool`` are absent for ``gateway.search``. The
+    gateway routes refuse a call whose context is missing or incomplete; there is no
+    default connection to fall back to.
+    """
+
+    provider: Optional[str] = None
+    integration: Optional[str] = None
+    connection: Optional[str] = None
+    tool: Optional[str] = None
+    toolkit_version: Optional[str] = None
+    # ``gateway.search`` ranks across every configured integration at once, so it carries
+    # one pinned version per integration rather than the single version a run uses.
+    toolkit_versions: Optional[Dict[str, str]] = None
+
+    @field_validator("toolkit_version")
+    @classmethod
+    def _require_concrete_toolkit_version(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return _concrete_toolkit_version(value)
+
+    @field_validator("toolkit_versions")
+    @classmethod
+    def _require_concrete_toolkit_versions(
+        cls, value: Optional[Dict[str, str]]
+    ) -> Optional[Dict[str, str]]:
+        if value is None:
+            return None
+        return {
+            integration.strip().lower(): _concrete_toolkit_version(version)
+            for integration, version in value.items()
+            if integration.strip()
+        }
+
+
 class ToolCall(BaseModel):
     """Request envelope — wraps the raw OpenAI tool call."""
 
     data: ToolCallData
+    context: Optional[ToolCallContext] = None
 
 
 class ToolResultData(BaseModel):
@@ -180,6 +256,8 @@ class ToolExecutionRequest(BaseModel):
 
     integration_key: str
     action_key: str
+    provider_action_id: str  # read from the catalog, never rebuilt from the two above
+    toolkit_version: str
     provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
@@ -205,7 +283,12 @@ class ToolExecutionResponse(BaseModel):
 
 BuiltinTool = BuiltinToolConfig
 ComposioTool = GatewayToolConfig
-ToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
+GatewayConnectionTool = GatewayConnectionToolConfig
+ToolReference = Union[
+    BuiltinToolConfig,
+    GatewayToolConfig,
+    GatewayConnectionToolConfig,
+]
 
 
 class ResolvedTool(BaseModel):
@@ -222,15 +305,59 @@ class ResolvedTool(BaseModel):
     read_only: Optional[bool] = None
 
 
+class ResolvedGatewayTool(BaseModel):
+    """One catalog tool as the SDK permission compiler reads it (contracts section 2)."""
+
+    key: str
+    read_only: Optional[bool] = None
+
+
+class ResolvedGatewayConnection(BaseModel):
+    """The catalog slice for one validated connection entry (contracts section 3).
+
+    The whole integration is returned in one round trip, so the SDK compiles its
+    per-tool policy without asking for each tool separately.
+    """
+
+    provider: str
+    integration: str
+    connection: str
+    toolkit_version: str
+    tools: List[ResolvedGatewayTool] = Field(default_factory=list)
+
+
+class GatewaySearchResult(BaseModel):
+    """One translated search hit as the model reads it (contracts section 7).
+
+    It never carries the connection slug, the provider account ID, the provider action
+    ID, a permission value, or ``read_only``: the runner already owns the policy and
+    the model needs none of them to call the tool.
+    """
+
+    integration: str
+    tool: str
+    name: str
+    description: Optional[str] = None
+    input_schema: Dict[str, Any]
+
+
+class GatewaySearchResults(BaseModel):
+    """The ``gateway.search`` result body. The runner filters and caps ``results``."""
+
+    results: List[GatewaySearchResult] = Field(default_factory=list)
+
+
 class ToolsResolution(BaseModel):
     """Outcome of resolving a ``tools`` list.
 
     ``builtins`` pass straight into Pi's ``tools: string[]``; ``custom`` become Pi
     ``customTools`` whose ``execute`` routes through ``/tools/call``.
+    ``gateway_connections`` carries one catalog slice per connection entry.
     """
 
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
+    gateway_connections: List[ResolvedGatewayConnection] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

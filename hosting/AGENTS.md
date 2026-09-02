@@ -46,6 +46,29 @@ subscription logins. Because `run.sh` assembles the same set every time, a routi
 - `--compose-file <name>` appends an extra file (repeatable; bare name resolves in the edition
   dir like `-e`, or pass a path). Appended after the auto-included ones.
 
+### The mobile web app (`/m`) — on by default
+
+Every stack starts the `web-mobile` service, and both device gates are on, so a phone that
+opens the desktop app is redirected to `/m`. The compose files carry no profile for it and
+no env key is needed. Traefik routes ``Path(`/m`) || PathPrefix(`/m/`)`` to it; the nginx
+proxy has the same two `location` blocks.
+
+Three opt-outs, from coarse to fine:
+
+- `run.sh --no-mobile`, or `AGENTA_MOBILE_ENABLED=false` in the shell or in the resolved env
+  file: the service starts with 0 replicas and the desktop redirect gate is forced off, so
+  phones stay on the desktop UI. `--no-web` / `--web-mode none` implies the same mobile
+  opt-out for backend-only runs. On a hand-rolled `docker compose up`, pass both
+  `--scale web-mobile=0` and `AGENTA_MOBILE_GATE=false`.
+- `AGENTA_MOBILE_GATE=false`: `/m` still runs and is reachable, but no redirect happens in
+  either direction.
+- `AGENTA_MOBILE_REVERSE_GATE=false`: phones still go to `/m`, and a desktop browser can open
+  `/m` instead of being bounced back. This is what a preview or review deployment wants.
+
+Only the exact string `false` opts out. The keys are read at request time, so a change plus a
+container recreate is enough — no rebuild. The dev stack pays a second Next dev server for
+`web-mobile` (about 0.5-1GB RAM); use `--no-mobile` on a small VM.
+
 ### Restart one service (surgical)
 
 `run.sh --recreate <service>` and `--rebuild <service>` are the blessed entry point for

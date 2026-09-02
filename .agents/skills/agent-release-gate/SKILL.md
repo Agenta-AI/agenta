@@ -31,21 +31,35 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug> --require-store  # everything
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --custom-name "<display-name>" --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
+**EXPORT the three variables, do not just set them.** The driver falls back to an env FILE when
+`AGENTA_*` is absent from its environment, which is helpful interactively and dangerous in a
+release run: a credentials file of bare `KEY=value` lines sourced with `. file` sets the shell
+only, the child `uv run` process inherits nothing, and the driver silently runs the whole gate
+against WHATEVER DEPLOYMENT the fallback file names. The failure surfaces as `401 Invalid
+credentials` from a stage whose key you just watched answer 200, or worse as a green run
+recorded against the wrong stack. Use `set -a` around the source, or `export` each variable,
+and confirm the stage in the results before trusting them. (Cost a staging gate run on
+2026-08-28; the fallback degrades to "wrong deployment", never to "no credentials".)
+
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
-`--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
-via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
+`--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
+running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver fails
+fast if it's missing. `--custom-name` is also required because `model_keys` is built from the
+display name rather than the stable slug. Custom-provider cells skip the credential-rotation
+journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
+additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
-have permission to manage Secrets, because credential hiding is on by default; without it those
-cells fail at sandbox creation with an error naming the permission.
+each cell requires. The Daytona cells (C2, C4, P3, X2) additionally run the `secret_opaque`
+journey and need the runner's Daytona API key to manage Secrets, because credential hiding is on
+by default; without it those cells fail at sandbox creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
@@ -54,6 +68,31 @@ default and FAIL with `--require-store`. Run the gate against a deployment with 
 configured and pass `--require-store`, or the greenest possible run still says nothing about
 durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
 (`--cold2-replace-cmd`) and SKIPs without it.
+
+**The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
+without it a release that reworked a subsystem gets exactly the coverage of a release that did
+not touch it. Pass the ref the release branches from, and the driver reads the release's own
+changed paths, matches them against the rules in `resources/path_triggers.py`, and makes the
+cells those rules name MANDATORY for this run:
+
+```bash
+uv run resources/qa_product.py --all --release-base origin/main --require-store   # every release run
+uv run resources/path_triggers.py --release-base origin/main                      # preview only, runs nothing
+```
+
+A mandatory cell that lives in `qa_product.py` is added to the run even when `--cell` did not ask
+for it. A mandatory cell that is a standalone `matrix_*.py` script is a separate process the
+driver cannot observe, so it is printed, written to `mandatory.json`, and listed in `summary.md`
+under "Mandatory for this release" — **the release is not green until each of those has a recorded
+result of its own.** If a rule names a cell that does not exist, the driver stops before running
+anything and says so: the release changed code a rule protects and the coverage was never
+written, which is the one outcome that must never read as green. Add `--changed-path` to state
+paths by hand where the checkout is not the release branch. With no `--release-base` and no
+`--changed-path` nothing changes, so every existing invocation behaves exactly as before.
+
+Adding a rule is one line in `PATH_TRIGGERS` (a glob, and the cells it makes mandatory) plus the
+cell it names. Matching is `fnmatch` over the whole repo-relative path, so `*` crosses directory
+separators and `a/b/*` covers the whole subtree; write `**` so a subtree rule reads as one.
 
 **Reading the result.** Each journey prints `PASS`, `FAIL`, or `SKIP` with a one-line reason, and
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
@@ -119,18 +158,30 @@ proves nothing about the durable working directory (LESSONS #16).
   approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys). **Currently broken**: two
-  unresolved git merge conflicts sit inside the `CELLS` dict (P2/P3 definitions), a SyntaxError
-  that fails the whole file on import, not just those cells. Needs a human to pick the correct
-  side per cell before this driver runs again; do not resolve it blind.
+- `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
+  gateway tool surface against a real provider: search filters by policy (the denied key never
+  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
+  ask-tier tool parks with the right stored identity and is answered through the **interactions
+  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
+  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
+  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
+  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
+  exists, and SKIPs rather than failing the release when the model provider itself errors.
+  Made mandatory by the gateway rule in `path_triggers.py`.
+- `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
+  a release must run when its diff touches that glob, plus the two functions the driver calls.
+  Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
+  only meaningful for changes in one part of the tree.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`, so it still runs
-  while that file is broken.
+  round trip (see above). Self-contained; does not import `qa_product.py`.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
-  only, no CLI.
+  only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its
+  verdict — `check_no_blank_success_on_refusal` and `check_no_silent_turn` (see below). **If you
+  write a new cell, wire `check_no_silent_turn` into its PASS condition.**
 - `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
   disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
   Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
@@ -206,6 +257,21 @@ proves nothing about the durable working directory (LESSONS #16).
   A reliable deterministic trigger (e.g. a genuine cold-resume stale-approval replay, or a crafted
   duplicate `toolCallId`) is an open follow-up; until then, treat any SKIP from this cell as "the
   invariant was not tested this run," never as green.
+- `qa_matrix_lib.check_no_silent_turn(turns)` — **[mechanism-level invariant; no cell of its
+  own]** no turn may come back completely bare: no text, no tool call, no approval gate, no file
+  or data payload, and no error. That combination is a swallowed provider failure (ASD-EST100) —
+  the model call is rejected, the error is dropped on the way back, and the turn is reported as a
+  clean empty finish, so the user sees a blank bubble with no reason anywhere. It matters most in
+  cells whose PASS depends on something NOT appearing (no error, no leak, no blank success): a
+  turn that produced nothing satisfies those by doing nothing at all. Its content definition
+  deliberately mirrors `content_parts_emitted` in the product's own Vercel egress
+  (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`) — reasoning does NOT count, so a
+  turn that only thought is still a violation. Wired into `matrix_w7*.py`, `matrix_t8_saved_files.py`,
+  `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`,
+  `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py` and `matrix_w5.py` as
+  `... and not silent["violations"]`; add the same conjunct to any new cell. The one thing a cell
+  must exclude itself is a turn it deliberately aborted or interrupted, which legitimately ends
+  bare — `matrix_w5.py` shows the pattern (it checks only its post-interrupt turns).
 - `resources/matrix_g1_guidance_discovery.py` — **[mechanism-blind]** does the platform guidance
   actually change what the model does? The trial prompt is Mahmoud's own verbatim phrasing from
   the live session that found the bug ("can you add gstack-autoplan skill to your skills (i saved
@@ -278,10 +344,13 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
 
 - `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
   itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
-  must stay warm; an instructions edit, a permissions edit and a tool-catalog edit must escalate)
-  and reports the `model` case rather than guessing at a deployment's connection shape. This is
-  the cell that would have caught the `cold1` rot described below.
+  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
+  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
+  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
+  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
+  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
+  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
+  that would have caught the `cold1` rot described below.
 - `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
   combination: an approval answered while a config change rides along in the SAME request. It is
   the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
@@ -363,12 +432,92 @@ lands on a pool miss and takes the cold decision-map path, which is exactly the 
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
 
+### The incident checks — born from the free-credits 401 of 2026-08-30
+
+A free-credits user on cloud hit a 401 because a fresh Daytona sandbox's first model call raced
+the asynchronous substitution of its Daytona Secret: the provider got the raw `dtn_secret_<id>`
+placeholder. The product then blamed the user's own key, which was wrong. The same release fixed a
+family of warm-session over-evictions caused by drift between two identity views in the runner.
+These four checks make each layer's failure loud instead of silent. Run all four on every gate.
+
+- `resources/matrix_c5_first_call_race.py` — **[mechanical]** the placeholder race, and whether it
+  is reported honestly. Mints a new workflow so the sandbox is necessarily cold, sends one short
+  message so the first model call lands as early as possible, and asserts the STORED turn row came
+  back. PASSes when the turn succeeds or when the failure carries the runner's
+  `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
+  while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
+  the incident itself. The assertion is deliberately body-INDEPENDENT: only the litellm proxy
+  echoes a placeholder, so on a direct provider (where BYO-key cloud users live) an echo test is
+  blind, and F6 shipped a user-blaming 401 straight through the first version of this cell. A
+  credential refusal on this cell's necessarily-fresh sandbox must never advise adding a key, echo
+  or no echo; with PR #6408 the honest classification is `credential_delivery_failed`. Against a
+  deployment predating #6408 that assertion fails by construction — pass `--pre-6408` to report it
+  as a SKIP naming the known gap instead of an unexplained failure. It also counts `Received=dtn_`
+  lines in the credits proxy and reports the
+  count as diagnostic, never as a verdict. The proxy is never guessed by name across the box: it
+  must be named with `--proxy-container`, or belong to the target stack's compose project
+  (`--compose-project`, else derived from whichever container publishes the port in
+  `AGENTA_BASE`). With no match it prints "no credits proxy in this deployment; count not
+  applicable" and carries on. Reading a foreign project's proxy invents evidence about a
+  deployment that was never under test, which is worse than reading none. A run that dies on an
+  exhausted provider key SKIPs with "environment: provider key out of credit" rather than
+  failing — but only when the stored error carries a credit or billing signature, and never
+  when a placeholder refusal is present, because that combination is the incident itself.
+- `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
+  the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
+  when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
+  That drift is the over-eviction signature and it is invisible from the wire — the turn still
+  succeeds, it just paid for a rebuild it did not need — so a log sweep is the only way to catch
+  it. `--since <iso-timestamp>` is required; `--container` defaults to autodetecting the local
+  stack's runner. Exits 0 PASS, 1 FAIL (printing the offending lines), 2 SKIP when the log is not
+  reachable. Three line shapes are excluded as known SHADOW-COMPARATOR gaps (triage 2026-08-31,
+  `f7-disagree-triage.md`): the coordinator is correct and pinned, only the shadow's model of it
+  disagrees, and the comparator fixes are a post-release follow-up — without the exceptions the
+  sweep fails on the runner's own expected behavior on every loaded window. They are never
+  silent: each excluded line is printed with its shape and the triage marker, the excluded count
+  is reported separately, each shape is anchored on both halves of the line so it cannot swallow
+  a real disagreement, and any line matching no shape still FAILS. Delete a shape when its fix
+  lands; `--no-exceptions` fails on every DISAGREE line and is how you prove one can go.
+- `resources/matrix_h1_bad_harness.py` — **[mechanical]** a malformed harness must fail closed.
+  Drives three unreadable `harness` blocks (a wrong-type value, an unknown string, a null kind) at
+  both the commit API and the live invoke, and records WHICH boundary refused (`commit_api`,
+  `invoke_http`, or `runner_stream`) rather than demanding a particular one — a refusal further
+  out is better, not worse. The invariant is that some boundary refuses attributably and no turn
+  ever runs on a defaulted harness. FAILs if a turn executes and stores output.
+- `resources/check_secrets_teardown.py` — **[mechanical]** a Daytona Secret must not outlive its
+  run. Inventories the Daytona organization's Secret NAMES (never values) before a short Daytona
+  journey, forces the teardown with a config-change eviction, then asserts every `agenta_*` Secret
+  the run created is gone within a bounded settle window. Needs a Daytona API key in the
+  environment (`DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`) and SKIPs with the exact
+  reason without one. Run it alone: a concurrent Daytona run against the same organization looks
+  the same as a leftover. The listing walks `GET /secret/paginated` by cursor to exhaustion —
+  `/secrets` does not exist, plain `/secret` is deprecated and fails above 1500 secrets, and a
+  `page` parameter is silently ignored, so anything less than real cursor pagination is noise
+  against an organization this size. The settle loop polls `GET /secret/{secretId}` per created
+  Secret rather than re-enumerating. `test_check_secrets_teardown_pagination.py` pins the walk.
+  A journey that dies on an exhausted provider key never creates a Secret, so it SKIPs with
+  "environment: provider key out of credit" instead of failing the teardown path it never
+  exercised.
+- `qa_matrix_lib.out_of_credit(error_text, codes)` — **[shared classification; no cell of its
+  own]** the SKIP reason when a run failed ONLY because the provider key has no credit left, and
+  `None` for everything else. An exhausted key is an environment condition: a cell that renders
+  it as FAIL spends a reviewer's attention on a topped-up balance, and teaches the reader that
+  this cell's FAIL is sometimes noise, which is how a real regression gets waved through later.
+  Recognition is narrow in both directions — the `starter_credits_*` codes plus the runner's own
+  credits copy and the provider's billing refusal, and deliberately NOT a bare 401, a rate limit,
+  or the placeholder refusal. Wired into `matrix_c5_first_call_race.py` and
+  `check_secrets_teardown.py`; `test_out_of_credit_skip.py` pins the boundary from both sides.
+
 ## Contributing
 
 Before committing any resource script, run the repo-pinned ruff (`uv run --no-sync ruff format`
 then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
 version has different defaults and produces a false block. Unformatted resource files break the
 repo-wide format CI job.
+
+When you add a cell, ask whether it is only meaningful for changes in one part of the tree. If it
+is, add the rule to `resources/path_triggers.py` in the same change. A cell whose subsystem can be
+rewritten without anyone remembering to run it is coverage on paper.
 
 Release-night findings and the full evidence history are archived in
 `docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).
