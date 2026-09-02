@@ -17,6 +17,7 @@ composing the individual reads already exposed here:
 """
 
 import re
+import time
 from functools import wraps
 from uuid import UUID
 
@@ -50,6 +51,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
+    CommandMode,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStreamCommandRequest,
@@ -62,6 +64,7 @@ from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionTurnInUse,
+    SessionTurnMismatch,
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
 )
@@ -195,6 +198,15 @@ def _handle_session_exceptions():
                     detail={
                         "message": e.message,
                         "liveness": e.liveness,
+                    },
+                ) from e
+            except SessionTurnMismatch as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": e.message,
+                        "expected_execution_id": e.expected_turn_id,
+                        "actual_execution_id": e.actual_turn_id,
                     },
                 ) from e
             except ConcurrencyLimitExceeded as e:
@@ -371,6 +383,13 @@ class SessionStreamsRouter:
         request: Request,
         payload: SessionStreamCommandRequest,
     ) -> SessionStreamCommandResponse:
+        # The earliest point this process can stamp the request. The stale-cancel guard compares a
+        # turn's start against it, and the permission check and the concurrency check below are
+        # both database round trips — stamping after them would shrink the guard's window to
+        # nothing. Even here it is later than the true arrival: it misses the client's network
+        # latency, which is the larger half of the race. See the slice document.
+        arrived_at_ms = int(time.time() * 1000)
+
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -384,11 +403,35 @@ class SessionStreamsRouter:
 
         await self._service.check_runner_concurrency_limit(project_id=project_id)
 
-        return await self._service.command(
+        response = await self._service.command(
+            arrived_at_ms=arrived_at_ms,
             project_id=project_id,
             user_id=user_id,
             request=payload,
         )
+
+        if response.mode == CommandMode.cancel:
+            # Stop cancels the stopped turn's pending gates, the same way kill does
+            # (`delete_session_stream` below). Without this a stopped session keeps showing an
+            # approval card whose buttons answer a turn that no longer exists (#6315). Scoped
+            # to the cancelled turns, so a gate that belongs to some other turn is left alone.
+            # `cancel_session_pending` publishes the interaction watch event itself, so an open
+            # browser refetches the rows and re-renders the card as closed.
+            for turn_id in response.cancelled_turn_ids:
+                await self._interactions_service.cancel_session_pending(
+                    project_id=UUID(str(project_id)),
+                    session_id=response.session_id,
+                    only_turn_id=turn_id,
+                )
+            if not response.cancelled_turn_ids:
+                # No turn held the session, so nothing can ever answer a gate that is still
+                # pending on it. Same reasoning as kill: cancel them all.
+                await self._interactions_service.cancel_session_pending(
+                    project_id=UUID(str(project_id)),
+                    session_id=response.session_id,
+                )
+
+        return response
 
     @intercept_exceptions()
     @_handle_session_exceptions()
