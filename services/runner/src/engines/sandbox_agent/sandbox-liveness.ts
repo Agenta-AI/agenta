@@ -13,11 +13,23 @@
  * `notePaused()` retires every one of them for good the moment the turn parks for a human, and a
  * sandbox that dies during a pause therefore has no deadline at all.
  *
- * So probe the sandbox directly. A cheap REST call on the daemon's own HTTP surface is
- * independent of the wedged ACP channel: it answers while the sandbox lives and fails once it is
- * gone. `failureThreshold` consecutive failures — not one — is what separates a dead sandbox from
- * a slow network, and each probe carries its own timeout because a vanished host can hang a
+ * So probe the sandbox directly, over its own HTTP surface, which is a different socket from the
+ * wedged ACP channel: it answers while the sandbox lives and refuses once it is gone.
+ * `failureThreshold` consecutive failures — not one — is what separates a dead sandbox from a
+ * slow network, and each probe carries its own timeout because a vanished host can hang a
  * request rather than refuse it.
+ *
+ * What counts as alive is deliberately weak: ANY HTTP response, including 401 or 404. The
+ * question is whether something is listening, not whether we are authorised or whether the
+ * route exists, and only a transport failure answers that with certainty. That also keeps the
+ * probe honest about its one blind spot: behind a remote provider's proxy, a deleted sandbox can
+ * still draw an HTTP error from the proxy itself, and this probe will read that as alive. The
+ * platform's execution watchdog is what covers that case.
+ *
+ * NOTE on what NOT to probe: `SandboxAgent.getSession()` looks like a liveness check and is not
+ * one. It reads the local persist driver and never touches the daemon, so it answers happily
+ * while the sandbox is dead — verified live on 2026-09-02, where a killed daemon logged
+ * `ECONNREFUSED` on the ACP socket while every `getSession` succeeded.
  *
  * The probe deliberately keeps running while the turn is paused. A pause is a legitimate wait for
  * a human; it is not a reason to stop noticing that the machine underneath is gone.
@@ -68,6 +80,34 @@ export function resolveSandboxLivenessLimits(
       min: 1,
       log,
     }),
+  };
+}
+
+/**
+ * The daemon's health URL, derived from the only public handle on the agent that carries its
+ * base address. `inspectorUrl` is `<base>/ui/`; the health route is `<base>/v1/health`.
+ *
+ * Returns undefined when the agent exposes no usable URL, which disables the probe rather than
+ * guessing — a probe pointed at the wrong host would end healthy turns.
+ */
+export function sandboxHealthUrl(sandbox: unknown): string | undefined {
+  const inspector = (sandbox as { inspectorUrl?: unknown } | undefined)?.inspectorUrl;
+  if (typeof inspector !== "string" || !inspector) return undefined;
+  const base = inspector.replace(/\/ui\/?$/, "").replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(base)) return undefined;
+  return `${base}/v1/health`;
+}
+
+/**
+ * The default probe: one unauthenticated GET at the daemon's health route.
+ *
+ * Resolves on any HTTP status. Rejects only when the request never became a response, which is
+ * what "nothing is listening any more" looks like from here.
+ */
+export function httpLivenessProbe(url: string): () => Promise<unknown> {
+  return async () => {
+    const response = await fetch(url, { method: "GET" });
+    return response.status;
   };
 }
 
