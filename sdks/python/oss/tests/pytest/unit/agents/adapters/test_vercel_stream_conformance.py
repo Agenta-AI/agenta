@@ -453,9 +453,11 @@ _TURN_EVENTS_RUN: List[Dict[str, Any]] = [
     {"type": "done", "stopReason": "stop"},
 ]
 
+_TURN_METADATA = {"type": "message-metadata", "messageMetadata": {"turnId": _TURN_ID}}
+
 
 @pytest.mark.asyncio
-async def test_live_projection_forwards_the_turn_id_unchanged() -> None:
+async def test_live_projection_puts_the_turn_id_on_message_metadata() -> None:
     parts = [
         part
         async for part in agent_stream_to_vercel_stream(
@@ -465,13 +467,13 @@ async def test_live_projection_forwards_the_turn_id_unchanged() -> None:
     for part in parts:
         assert_conforms(part)
 
-    turn_parts = [p for p in parts if p["type"] == "data-agent-turn"]
-    assert turn_parts == [{"type": "data-agent-turn", "data": {"turnId": _TURN_ID}}], (
-        "the egress must forward the runner's id verbatim, exactly once"
+    metadata_parts = [p for p in parts if p["type"] == "message-metadata"]
+    assert metadata_parts == [_TURN_METADATA], (
+        "the egress must forward the runner's id verbatim, exactly once, as message metadata"
     )
 
     # It must land before any content, so a client that Stops early already holds the id.
-    turn_index = next(i for i, p in enumerate(parts) if p["type"] == "data-agent-turn")
+    turn_index = next(i for i, p in enumerate(parts) if p["type"] == "message-metadata")
     first_text = next(
         (i for i, p in enumerate(parts) if p["type"].startswith("text-")), None
     )
@@ -479,12 +481,37 @@ async def test_live_projection_forwards_the_turn_id_unchanged() -> None:
 
 
 @pytest.mark.asyncio
-async def test_dev_twin_projection_forwards_the_turn_id_unchanged() -> None:
+async def test_the_finish_frames_metadata_does_not_displace_the_turn_id() -> None:
+    """The whole reason `message-metadata` is a safe carrier.
+
+    The AI SDK merges metadata rather than replacing it (`mergeObjects` in ai@6), so the
+    `finish` frame's own `messageMetadata` (traceId, usage) lands BESIDE the turn id rather than
+    over it. If that ever changed, a client would lose the id exactly when a late Stop needs it,
+    so pin that the two carry disjoint keys and the turn id is written first.
+    """
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(
+            _records(_TURN_EVENTS_LIVE), trace_id="t1"
+        )
+    ]
+    turn_index = next(i for i, p in enumerate(parts) if p["type"] == "message-metadata")
+    finish = next(p for p in parts if p["type"] == "finish")
+    finish_index = parts.index(finish)
+
+    assert turn_index < finish_index
+    assert "turnId" not in (finish.get("messageMetadata") or {}), (
+        "the finish frame must not restate the turn id; it merges beside it"
+    )
+
+
+@pytest.mark.asyncio
+async def test_dev_twin_projection_puts_the_turn_id_on_message_metadata() -> None:
     run = _run_with(_TURN_EVENTS_RUN, result={"output": "hello"})
     parts = [part async for part in agent_run_to_vercel_parts(run)]
     for part in parts:
         assert_conforms(part)
-    assert {"type": "data-agent-turn", "data": {"turnId": _TURN_ID}} in parts
+    assert _TURN_METADATA in parts
 
 
 @pytest.mark.asyncio
@@ -499,6 +526,6 @@ async def test_a_turn_event_with_no_usable_id_emits_nothing() -> None:
                 _records([{"type": "turn", "data": bad}]), trace_id="t1"
             )
         ]
-        assert not [p for p in parts if p["type"] == "data-agent-turn"], (
-            f"a turn event with data={bad!r} must emit no part"
+        assert not [p for p in parts if p["type"] == "message-metadata"], (
+            f"a turn event with data={bad!r} must emit no metadata frame"
         )
