@@ -8,6 +8,7 @@
  *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
+ *   POST /cancel              -> stop the CURRENT TURN of one session and keep it warm
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -16,6 +17,7 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
+import { USER_STOP_ABORT_REASON } from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -54,6 +56,7 @@ import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
   poolKeyFor,
+  projectScopeFor,
   readKeepaliveConfig,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
@@ -80,7 +83,17 @@ import {
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
 } from "./sessions/admission.ts";
-import { startAliveWatchdog } from "./sessions/alive.ts";
+import { REPLICA_ID, startAliveWatchdog } from "./sessions/alive.ts";
+import {
+  applyCommand,
+  holdsSession,
+  type ControlCommand,
+} from "./sessions/control-channel.ts";
+import {
+  noteExecutionProject,
+  registerExecution,
+  unregisterExecution,
+} from "./sessions/execution-registry.ts";
 import {
   awaitTurnOrAbandon,
   resolveTurnSettleLimits,
@@ -361,6 +374,14 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
     config,
     clientGone: options?.clientGone,
     credential: options?.credential,
+    // The coordinator is the first place that knows this run's project, because the scope can
+    // come from the signed mount rather than the request. A control command needs it to tell
+    // one tenant's session from another's.
+    onScopeResolved: (projectId) => {
+      const sessionId = request.sessionId?.trim();
+      const turnId = request.turnId?.trim();
+      if (sessionId && turnId) noteExecutionProject(sessionId, turnId, projectId);
+    },
   });
 };
 
@@ -485,6 +506,29 @@ async function runAndStreamWithApiBaseResolved(
     });
   }
 
+  // Make this execution reachable by a control command. Registered as early as the abort
+  // controller exists, so a Stop that arrives while the environment is still being acquired
+  // still aborts the run rather than waiting for the heartbeat to notice.
+  //
+  // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
+  // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
+  if (sessionOwned) {
+    registerExecution({
+      // Usually undefined here: `runContext.project.id` is empty on the live invoke path, and
+      // the real scope comes from the signed mount. The coordinator fills it in through
+      // `onScopeResolved` a moment later.
+      projectId: projectScopeFor(request, undefined)?.id,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      // Labelled, because a command from the control plane IS a cooperative user Stop and
+      // `shouldPark` parks only an abort the runner can prove was one. An unlabelled abort here
+      // would end the turn `cancelled` and then DESTROY the sandbox, which is the exact failure
+      // Stop exists to avoid. See `sessions/stop-signal.ts`.
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+  }
+
   const writeRecord = (record: StreamRecord): void => {
     if (res.writableEnded) return;
     res.write(JSON.stringify(record) + "\n");
@@ -546,11 +590,15 @@ async function runAndStreamWithApiBaseResolved(
       turnId,
       platformCredentialForRequest(request),
       () => {
+        // Tell `awaitTurnOrAbandon` the platform has retired this turn, so the request stops
+        // waiting on a run that may never return. See `sessions/turn-settle.ts`.
         markInterrupted?.(
           "the platform reported this turn is no longer current (stopped, taken over, or " +
             "declared lost)",
         );
-        controller.abort();
+        // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
+        // cooperative Stop. See `sessions/stop-signal.ts`.
+        controller.abort(USER_STOP_ABORT_REASON);
       },
       {
         name: proposeSessionName(request),
@@ -726,6 +774,10 @@ async function runAndStreamWithApiBaseResolved(
       }
     }
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
+    // Same `finally` as the watchdog release, so a run that threw still leaves the registry
+    // clean. Scoped to this turn id, so a turn that finishes after its successor registered
+    // cannot unregister the successor.
+    if (sessionOwned) unregisterExecution(sessionId, turnId);
   }
 
   // Streaming delivered the events live, so don't echo them in the terminal record.
@@ -790,6 +842,30 @@ function readBodyCapped(
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
+}
+
+/** `/cancel`'s payload is five short strings. */
+const CANCEL_BODY_MAX_BYTES = 16 * 1024;
+
+/** A non-empty trimmed string, or null. Used for every id `/cancel` reads. */
+function readRequiredId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Does the keep-alive pool hold this session parked awaiting an approval?
+ *
+ * A Stop against a parked approval has no entry in the execution registry, because no turn is
+ * running. Without this lookup the runner would answer 404 for exactly the case that has no
+ * control channel at all today: a parked session stops heartbeating, so the only existing Stop
+ * signal never reaches it.
+ */
+function isSessionParked(sessionId: string): boolean {
+  return Object.values(keepalivePools).some(
+    (pool) => pool.awaitingApproval(sessionId) !== undefined,
+  );
 }
 
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
@@ -859,6 +935,68 @@ export function createRequestListener(
           "kill",
         );
         return send(res, 200, { ok: true });
+      }
+
+      if (req.method === "POST" && req.url === "/cancel") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        // Stop the CURRENT TURN and keep the session warm. This is not `/kill`: the sandbox,
+        // the native harness session and the keep-alive pool entry all survive, and the next
+        // message continues the same conversation.
+        //
+        // The response is an ACKNOWLEDGEMENT, not an outcome. What happened to the execution
+        // goes to the API's outcome route, so settlement has one path on every transport.
+        let cancelBody: {
+          commandId?: unknown;
+          projectId?: unknown;
+          sessionId?: unknown;
+          targetTurnId?: unknown;
+          createdAt?: unknown;
+        };
+        try {
+          const raw = await readBodyCapped(req, CANCEL_BODY_MAX_BYTES);
+          cancelBody = raw.trim() ? JSON.parse(raw) : {};
+        } catch (err) {
+          if (err instanceof BodyTooLargeError) {
+            return send(res, 413, { ok: false, error: err.message });
+          }
+          return send(res, 400, {
+            ok: false,
+            error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        const commandId = readRequiredId(cancelBody.commandId);
+        const cancelSessionId = readRequiredId(cancelBody.sessionId);
+        const cancelProjectId = readRequiredId(cancelBody.projectId);
+        if (!commandId || !cancelSessionId || !cancelProjectId) {
+          return send(res, 400, {
+            ok: false,
+            error:
+              "commandId, sessionId and projectId are all required: a pool key is always project-scoped",
+          });
+        }
+        const command: ControlCommand = {
+          id: commandId,
+          projectId: cancelProjectId,
+          sessionId: cancelSessionId,
+          kind: "cancel",
+          target: {
+            turnId: readRequiredId(cancelBody.targetTurnId),
+            expectedTurnId: null,
+          },
+          createdAt:
+            typeof cancelBody.createdAt === "string" ? cancelBody.createdAt : "",
+        };
+        if (!holdsSession(cancelProjectId, cancelSessionId, isSessionParked)) {
+          // 404 is ambiguous on purpose and the API disambiguates it: a `not_held` for a
+          // session whose row is alive and beating means the call reached the wrong replica.
+          return send(res, 404, { ok: false, error: "session not held here" });
+        }
+        // Answer before the outcome. The applier reports it separately, and a Stop that takes
+        // seconds to settle must not hold this request open.
+        void applyCommand(command, { isParked: isSessionParked }).catch(() => {});
+        return send(res, 202, { ok: true, replicaId: REPLICA_ID });
       }
 
       // POST /stream is the productized name; /run is kept as a back-compat alias

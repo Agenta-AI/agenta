@@ -316,6 +316,19 @@ class SessionStreamsService:
                 state=state,
             )
 
+    async def publish_session_ended(self, *, project_id: UUID, session_id: str) -> None:
+        """Announce that a turn ended, on the channel every open browser already listens to.
+
+        Public because the durable-command plane settles a Stop and has to publish the same
+        notification the ordinary end-of-turn path publishes. There is one `ended` event, not a
+        Stop-shaped one and a turn-shaped one; a client cannot be asked to tell them apart.
+        """
+        await self._publish_lifecycle(
+            project_id=project_id,
+            session_id=session_id,
+            state=WATCH_LIFECYCLE_ENDED,
+        )
+
     async def _publish_changed(self, *, project_id: UUID, session_id: str) -> None:
         if self._watch is None:
             return

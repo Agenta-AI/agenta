@@ -807,6 +807,12 @@ export interface AgentRunResult {
   usage?: AgentUsage;
   /** Why the turn ended (harness-reported when available). */
   stopReason?: string;
+  /**
+   * Only on `stopReason: "cancelled"`. True when the harness was told to stop AND confirmed it
+   * stopped inside the settle budget, which is what lets the sandbox be parked warm instead of
+   * deleted. Absent or false means the harness never confirmed, so the environment is destroyed.
+   */
+  cancelSettled?: boolean;
   /** What the harness was probed to support this run. */
   capabilities?: HarnessCapabilities;
   sessionId?: string;

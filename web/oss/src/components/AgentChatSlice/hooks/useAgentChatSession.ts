@@ -23,7 +23,8 @@ import {
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
-    cancelSessionStream,
+    cancelSessionExecution,
+    fetchSessionStream,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
@@ -478,6 +479,44 @@ export const useAgentChatSession = ({
 
     const projectId = useAtomValue(projectIdAtom)
 
+    /**
+     * Send the Stop, naming the execution we mean.
+     *
+     * The execution id is read FRESH from the session row rather than from the liveness query,
+     * which is a project-wide poll up to 15 seconds stale. A stale id would be refused with a
+     * conflict and the user's Stop would do nothing. When the row names no turn we send no
+     * expectation and let the API resolve the target, which is the same behaviour as before.
+     *
+     * A conflict means the run this tab was watching had already ended, so refresh rather than
+     * retry: the session's own state is the answer, never this response.
+     */
+    const stopCurrentExecution = useCallback(async () => {
+        if (!projectId || !sessionId) return
+        const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+        const outcome = await cancelSessionExecution({
+            sessionId,
+            projectId,
+            expectedExecutionId: stream?.turn_id ?? undefined,
+        })
+        // Refresh on every answer, conflict included. A conflict means the run this tab was
+        // watching had already ended, and the session's own state is what says so.
+        void invalidateSessionInspector(queryClient, sessionId)
+        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+        // The outcome is read, not discarded. A Stop the server refused used to be invisible: the
+        // transcript said "Stopped" while the run kept going and billing. A conflict means the turn
+        // the user was watching had already ended and another turn holds the session, so withdraw
+        // the local "Stopped" marker and say so. `null` is a failed request, which is a different
+        // sentence: the run may well still be running.
+        if (outcome?.conflict) {
+            setStopped(false)
+            message.warning("That run had already ended. The session is running a newer turn.")
+            return
+        }
+        if (!outcome) {
+            message.warning("Could not stop the run. It may still be running.")
+        }
+    }, [projectId, sessionId, queryClient, setStopped])
+
     const handleStop = useCallback(() => {
         markStopped()
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
@@ -499,29 +538,16 @@ export const useAgentChatSession = ({
                 .catch(() => {})
             return
         }
-        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
-        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
-        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
-        // the client stream aborted but the runner kept running and billing.
+        // Default Stop: cancel the CURRENT EXECUTION and keep the session warm. The API records a
+        // durable command and reaches the runner directly, so the turn stops in seconds instead of
+        // on the next heartbeat, and the sandbox and native harness session survive for the next
+        // message. This is not a kill: the session stays open and resumable.
         //
-        // The outcome is read, not discarded. A Stop that the server refuses used to be invisible:
-        // the call was fire-and-forget and `callFern` swallowed the error, so the transcript said
-        // "Stopped" while the run kept going and billing. A refusal means the turn the user was
-        // watching had already ended and another turn holds the session, so the local "Stopped"
-        // marker is withdrawn and the liveness poll re-reads the truth.
-        void cancelSessionStream({sessionId, projectId})
-            .then((outcome) => {
-                if (outcome.status === "cancelled") return
-                if (outcome.status === "stale") setStopped(false)
-                message.warning(
-                    outcome.status === "stale"
-                        ? outcome.message
-                        : "Could not stop the run. It may still be running.",
-                )
-                queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-            })
-            .catch(() => {})
-    }, [markStopped, stop, projectId, sessionId, queryClient])
+        // `POST /sessions/streams/` with the cancel mode still works and still carries the same
+        // late-Stop guard, for callers that have not moved. The desktop uses the new route because
+        // it is the one that reaches the runner without waiting for a heartbeat.
+        void stopCurrentExecution()
+    }, [markStopped, stop, projectId, sessionId, queryClient, stopCurrentExecution])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it

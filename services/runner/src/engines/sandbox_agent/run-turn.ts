@@ -67,6 +67,7 @@ import {
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
+import { cancelHarnessTurn } from "./cancel-turn.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -153,6 +154,12 @@ export async function runTurn(
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
   const CANCELLED = Symbol("cancelled");
+  /**
+   * Did the harness confirm it stopped? Set only on the cancelled path, and only when the ACP
+   * cancel was sent AND the harness answered its open prompt inside the settle budget. It rides
+   * out on the result because it is the one fact that decides park versus delete for a Stop.
+   */
+  let cancelSettled = false;
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
   /**
    * Should a credential refusal this turn be reported as a delivery race rather than a bad key?
@@ -1189,10 +1196,16 @@ export async function runTurn(
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
-    // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
-    // clean cancel, not an error: resolve the race to CANCELLED both when the abort event lands first
-    // AND when the prompt rejection lands first while already aborted, so the outcome is deterministic
-    // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
+    // A user Stop aborts `signal`. That abort does NOT reach the harness: the signal is handed to
+    // `SandboxAgent.start` for its health wait only, never to the ACP transport or the prompt
+    // request, so the prompt promise below stays pending and the harness keeps working. (An earlier
+    // comment here claimed the abort severed the harness fetch. It does not, which is why the
+    // cancelled branch has to send a real `session/cancel` — see `cancel-turn.ts`.)
+    //
+    // So the race is won by the abort event itself. Resolve to CANCELLED both when the abort lands
+    // first AND when the prompt rejection lands first while already aborted, so the outcome is
+    // deterministic regardless of ordering. A real (non-abort) prompt rejection is re-thrown into
+    // the shared catch.
     const cancelled = new Promise<typeof CANCELLED>((resolve) => {
       if (signal?.aborted) resolve(CANCELLED);
       else
@@ -1289,6 +1302,21 @@ export async function runTurn(
       }
     }
     if (stopReason === "cancelled") {
+      // Tell the HARNESS to stop before anything else. The abort only made the runner stop
+      // waiting; without this the harness still holds an open prompt and a running tool, and the
+      // sandbox could never be parked. A settled cancel is what earns the warm park below; see
+      // `cancel-turn.ts`.
+      const cancel = await cancelHarnessTurn({
+        sandbox: env.sandbox,
+        sessionId: env.session?.id,
+        promptPromise,
+        log: logger,
+      });
+      cancelSettled = cancel.settled;
+      // The harness has been asked to stop, so the Pi trace port and the environment teardown must
+      // not ask again. Their `destroySession` also aborts `env.mcpAbort`, which belongs to the
+      // ENVIRONMENT and must survive a park (the approval-park path skips it for the same reason).
+      if (cancel.requested) env.sessionDestroyRequested = true;
       // The user Stopped the turn: let any in-flight frames settle, honor real completions that
       // already arrived, then settle every STILL-open tool call with the interrupt sentinel so the
       // transcript closes HONESTLY — no orphaned "running" parts, no synthetic success. A deliberate
@@ -1443,6 +1471,7 @@ export async function runTurn(
       events: emit ? [] : run.events(),
       usage,
       stopReason,
+      ...(stopReason === "cancelled" ? { cancelSettled } : {}),
       capabilities: {
         ...env.capabilities,
         streamingDeltas: !!emit && env.capabilities.streamingDeltas,

@@ -41,6 +41,11 @@ class SessionStream(Identifier, Header, Lifecycle):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # When `turn_id` started. Stamped only when the id changes, so repeated heartbeats never
+    # move it. The stale-Stop guard compares a cancel request's arrival time against this.
+    turn_started_at: Optional[datetime] = None
+    # The execution an accepted Stop is waiting on. Null when nothing is stopping.
+    stopping_turn_id: Optional[str] = None
     # What this session runs. Filled once, from the first beat that knows — turn appends
     # are fire-and-forget, so a session whose only reference carrier was a dropped append
     # is unopenable forever.

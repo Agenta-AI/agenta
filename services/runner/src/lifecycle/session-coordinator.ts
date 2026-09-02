@@ -194,6 +194,14 @@ export interface KeepaliveContext {
   /** Latest session credential accessor supplied by the alive watchdog. */
   credential?: () => string;
   /**
+   * Called once with this run's project scope, as soon as it is known.
+   *
+   * The scope can only be resolved here: `runContext.project.id` is empty on the live invoke
+   * path, so the project comes from the signed mount, which is signed inside this function. The
+   * transport needs it to route a control command to the right tenant's session.
+   */
+  onScopeResolved?: (projectId: string) => void;
+  /**
    * Test seam for the credential-propagation hold. Production waits for real: the hold is what
    * keeps applied state from advancing over a value the provider's egress layer has probably not
    * picked up yet, so it must never be skipped outside a test.
@@ -293,6 +301,10 @@ export async function runWithKeepalive(
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
+  // Tell the transport which project this run belongs to. Until this lands, a control command
+  // cannot tell one tenant's session from another's, because the request itself often carries
+  // no project and the scope was only just derived from the signed mount.
+  ctx.onScopeResolved?.(scope.key.slice(0, scope.key.lastIndexOf(":")));
 
   // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
   // sign attempt threw) when the run-context scope produced the key. A mount-less session still
@@ -558,6 +570,14 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The idle window a clean park gets. A user Stop gets the longer stopped window, because the
+   * user is about to type the next message; every other clean turn gets the ordinary one. See
+   * `KeepaliveConfig.stoppedTtlMs` for how to collapse the two.
+   */
+  const parkTtlMs = (stopped: boolean): number =>
+    stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -769,7 +789,12 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await seat(config.ttlMs, "idle"))) {
+      // A settled user Stop parks like any clean turn, but on the LONGER stopped window: the
+      // user is about to type. Logged so the live evidence shows the sandbox surviving a Stop
+      // rather than a `no-park:cancelled` eviction.
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await seat(parkTtlMs(stopped), "idle"))) {
         await drop("park-refused", "clean-resumable");
       } else {
         await notifyParkedLive(env);
@@ -827,7 +852,9 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.repark(live, update, config.ttlMs))) {
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await pool.repark(live, update, parkTtlMs(stopped)))) {
         await live.teardown("failed-turn");
       } else {
         await notifyParkedLive(env);
