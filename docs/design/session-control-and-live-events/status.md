@@ -25,6 +25,8 @@
 - Detailed API mechanics delegated to established conventions unless they affect architecture.
 - Durable acceptance defined independently from runner claim and execution start.
 - Sender-only visibility explicitly excluded from the target requirements.
+- Proposed snapshot and event routes explicitly marked as new contracts, not changed meanings of
+  current stream routes.
 
 ## Branch
 

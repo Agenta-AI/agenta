@@ -24,7 +24,8 @@ Pending discussion.
 
 ### Public interface boundary
 
-The working public interface separates four operations. This is a proposal, not an approved API.
+The working public interface separates four operations. Every route in this section is a proposed
+new public contract, not a description of an existing endpoint and not yet an approved API.
 
 1. Send intent to a session.
 2. Read the current session snapshot.
@@ -82,12 +83,19 @@ Read current state. This is an ordinary query, not an event endpoint:
 GET /sessions/{session_id}
 ```
 
+This is not the current `GET /sessions/streams/?session_id=...`, which returns only coordination
+and liveness data.
+
 Follow durable events and live frames:
 
 ```http
 GET /sessions/{session_id}/events?after=<cursor>
 Accept: text/event-stream
 ```
+
+This is not the current `GET /sessions/streams/watch`, which sends change notifications and asks
+the client to refetch records. The proposed endpoint sends replayable session events and then live
+events.
 
 Rename, archive, delete, and hard termination remain explicit session resource or lifecycle
 operations. Attach is replaced by reading the snapshot and event stream.
