@@ -83,12 +83,34 @@ export const useAgentChatQueue = ({
         queuedRef.current = queued
     }, [queued])
 
+    /**
+     * The message this mount sent immediately, held until something claims it.
+     *
+     * A QUEUED message survives a failed turn on its own — it is in `queued`, which the dock
+     * renders and the store mirrors. An immediately-sent one had nowhere to live: `submit` handed
+     * it to `sendQueued` and dropped the object, so a send the backend refuses lost the user's
+     * text with no trace. `takeLastSent` is how the host gets it back and puts it in the composer.
+     *
+     * NOT re-queued automatically: the queue releases on a settled `"error"` status, which for a
+     * refusal ("another turn is running") would re-send and be refused again in a tight loop. The
+     * user decides when to send again.
+     */
+    const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
+
+    /** Take back the last immediately-sent message, once. */
+    const takeLastSent = useCallback(() => {
+        const message = lastSentRef.current
+        lastSentRef.current = undefined
+        return message
+    }, [])
+
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
+                lastSentRef.current = message
                 sendQueued(message)
             } else {
                 setQueued((q) => [...q, message])
@@ -187,6 +209,9 @@ export const useAgentChatQueue = ({
         releasingRef.current = true
         const [head, ...rest] = queued
         setQueued(rest)
+        // Reclaimable for the same reason as the immediate path: the release removed it from the
+        // queue, so a refusal would otherwise lose it.
+        lastSentRef.current = head
         sendQueued(head)
     }, [settled, canReleaseNow, queued, sendQueued])
 
@@ -201,5 +226,7 @@ export const useAgentChatQueue = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        /** Reclaim the last immediately-sent message (e.g. the backend refused it). */
+        takeLastSent,
     }
 }

@@ -22,7 +22,12 @@ import {
     useVoiceComposer,
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
-import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
+import {
+    ignoreStreamRejection,
+    isEmptyAssistantTurn,
+    isSessionBusyRefusal,
+    isVisiblePart,
+} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
@@ -339,6 +344,7 @@ const AgentConversation = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        takeLastSent,
     } = useAgentChatQueue({
         status,
         messages,
@@ -421,6 +427,21 @@ const AgentConversation = ({
             }),
         [messages],
     )
+    // Single-turn admission (#6417, #5539, #5538): the backend refuses a message sent while
+    // another turn is already running on this session. Nothing ran and nothing was sent, so the
+    // user's text goes back into the composer instead of vanishing. Without this the refusal is
+    // worse than the bug for the person typing: they lose what they wrote and have no way to get
+    // it back.
+    //
+    // The rAF mirrors the edit-stash restore above it: `submitEditorAsMarkdown` clears the editor
+    // synchronously after `onSubmit` returns, so a restore has to land after that clear.
+    useEffect(() => {
+        if (!error || !isSessionBusyRefusal(error)) return
+        const sent = takeLastSent()
+        if (!sent?.text) return
+        requestAnimationFrame(() => richInputRef.current?.setMarkdown(sent.text))
+    }, [error, takeLastSent])
+
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
