@@ -135,6 +135,9 @@ Each can be overturned in the morning. The reason follows each one.
 
 ## Morning checklist
 
+The one-page version of this file is the artifact
+https://claude.ai/code/artifact/d44b1fc4-839c-497d-afd0-78d1d2b35836.
+
 1. Read `review-2026-09-02.md` (ten minutes) and answer its five decisions.
 2. Read the "Decisions I made for you" list above and say which to overturn.
 3. Open the package F stack at http://144.76.237.122:9180 (if still up) and press Stop on a
@@ -176,7 +179,7 @@ Each can be overturned in the morning. The reason follows each one.
 | `fix/records-worker-ack-after-commit` | https://github.com/Agenta-AI/agenta/pull/6502 | `agent/session-execution-rfc` |
 | `feat/session-durable-cancel` | https://github.com/Agenta-AI/agenta/pull/6503 | `spike/session-cancel-warm` |
 | `feat/session-stop-guard` | https://github.com/Agenta-AI/agenta/pull/6504 | `agent/session-execution-rfc` |
-| `agent/session-execution-overnight` (docs) | opened at the end | `agent/session-execution-rfc` |
+| `agent/session-execution-overnight` (docs) | https://github.com/Agenta-AI/agenta/pull/6505 | `agent/session-execution-rfc` |
 | `agent/session-execution-integration` | opened when the lane returns | `agent/session-execution-rfc` |
 | 00:16 | Package F corrections returned: tip `58bec4d382`, nine commits, rebased onto Spike A's final tip. Stack 9180 stays up. | The rebase caught a real bug: Spike A's park rule requires the user-stop label, and the command applier aborted bare, so every Stop through the command plane would have deleted the sandbox; fixed and pinned by two tests, re-verified live (abort 82 ms, harness 106 ms, settle 126 ms, park 993 ms, codeword recalled). The replica census is removed, not softened; the `not_held` detector names the owning replica and settles `lost`. `turn_started_at` verified live: twelve heartbeats passed and it never moved. Admission lane tore its stack down and stopped (eight commits, tip `141ebb73ad`). |
 | 00:17 | Stop guard browser half returned: commits `3f5271381d` (regenerated client), `2097a039e5` (browser sends the turn id with Stop), `76af1419d6` (doc); nine commits on `feat/session-stop-guard`. | Both chat engines keep the turn id per session in a Map and Stop sends it as `expected_execution_id`; kept past the end of the turn so a Stop on a parked approval names the right turn; omitted when unknown; the mobile running-elsewhere button sends none. Verified at the wire: 409 with both ids for a stale turn, 200 with `cancelled_turn_ids` for the live one. One mismatch: it reads a `data-agent-turn` part, but the admission lane's final shape is `message.metadata.turnId`; sent back for one more commit. Tests: 505 API sessions, 631 chat, 1472 entities. |
