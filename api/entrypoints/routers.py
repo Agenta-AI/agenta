@@ -1136,7 +1136,7 @@ session_commands_service = SessionCommandsService(
     streams_service=session_streams_service,
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
-    delivery=DirectControlDelivery(lock_engine=_lock_engine),
+    delivery=DirectControlDelivery(),
 )
 
 sessions = SessionsRouter(

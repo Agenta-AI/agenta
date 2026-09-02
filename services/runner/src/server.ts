@@ -502,7 +502,11 @@ async function runAndStreamWithApiBaseResolved(
       sessionId,
       turnId,
       startedAt: Date.now(),
-      abort: () => controller.abort(),
+      // Labelled, because a command from the control plane IS a cooperative user Stop and
+      // `shouldPark` parks only an abort the runner can prove was one. An unlabelled abort here
+      // would end the turn `cancelled` and then DESTROY the sandbox, which is the exact failure
+      // Stop exists to avoid. See `sessions/stop-signal.ts`.
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
     });
   }
 

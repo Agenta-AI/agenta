@@ -13,24 +13,23 @@ first and recording afterwards would give back every failure the record exists t
 between the call and the insert leaves an aborted execution with no terminal outcome written
 anywhere.
 
-WHERE IT FAILS. `env.runner.internal_url` is one service address. Behind a load balancer with
-two runner replicas the call reaches the right process only by luck. That failure is quiet at
-the transport level, because the wrong process honestly answers "I do not hold that session" —
-the same answer a session that really ended gives. Two things make it loud:
+WHERE IT FAILS, AND HOW THAT IS MADE LOUD. `env.runner.internal_url` is one service address.
+Behind a load balancer with two runner replicas the call reaches the right process only by luck.
+That failure is quiet at the transport level, because the wrong process honestly answers "I do
+not hold that session" — the same answer a session that really ended gives.
 
-  * Warn up front. When more than one replica has heartbeated inside the census window, this
-    adapter logs at error level, names the replicas, and DELIVERS ANYWAY.
-  * Disambiguate afterwards. A `not_held` for a session whose row says alive with a fresh
-    heartbeat is the wrong-replica failure and nothing else produces it. That test is exact and
-    it needs the session row, so it lives in the service, next to the settlement it decides.
+The detector is exact, and it is NOT in this file. A `not_held` for a session whose row says
+alive with a heartbeat younger than one interval means some process is running that session and
+it is not the one we just called; nothing else produces that. It needs the session row, so it
+lives in `SessionCommandsService._settle_not_held`, next to the settlement it decides: the
+command settles `lost` rather than `not_running`, so the user is told the Stop failed instead of
+being told the work had already finished.
 
-WHY THE CENSUS ONLY WARNS. It cannot tell two live replicas from one that restarted. A runner
-mints a fresh `replica_id` at boot when `AGENTA_RUNNER_REPLICA_ID` is unset
-(`services/runner/src/sessions/alive.ts`), so the id it used before a restart is still inside
-the window and the census counts two. Refusing on that count breaks Stop for the whole window
-after every ordinary deploy, which is a worse failure than the one it guards against, and it
-was observed doing exactly that. The `not_held` rule above is the exact detector and needs no
-census at all; this warning exists to put the replica ids in the log next to it.
+There is deliberately no replica census here. An earlier version counted the replica ids that
+had heartbeated recently and refused to deliver when it saw more than one. It refused after
+every ordinary runner restart, because a runner mints a fresh id at boot when
+`AGENTA_RUNNER_REPLICA_ID` is unset, so its own previous id was still inside the window. That
+broke Stop for the whole window after every deploy, which is worse than the failure it guarded.
 """
 
 from uuid import UUID
@@ -44,8 +43,6 @@ from oss.src.core.sessions.streams.runner_client import (
     RunnerCancelResult,
     cancel_runner_execution,
 )
-from oss.src.dbs.redis.shared.engine import LockEngine
-from oss.src.dbs.redis.sessions.replicas import recent_replicas
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -53,35 +50,14 @@ log = get_module_logger(__name__)
 
 
 class DirectControlDelivery(ControlDeliveryPort):
-    def __init__(
-        self,
-        *,
-        lock_engine: LockEngine,
-        timeout_seconds: float = None,
-        census_seconds: int = None,
-        single_replica_check: bool = None,
-    ) -> None:
-        commands = env.agenta.sessions.commands
-        self._lock = lock_engine
+    def __init__(self, *, timeout_seconds: float = None) -> None:
         self._timeout = (
             timeout_seconds
             if timeout_seconds is not None
-            else commands.delivery_timeout_seconds
-        )
-        self._census_seconds = (
-            census_seconds
-            if census_seconds is not None
-            else commands.replica_census_seconds
-        )
-        self._single_replica_check = (
-            single_replica_check
-            if single_replica_check is not None
-            else commands.single_replica_check
+            else env.agenta.sessions.commands.delivery_timeout_seconds
         )
 
     async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
-        await self._warn_multi_replica(command)
-
         answer = await cancel_runner_execution(
             command_id=str(command.id),
             project_id=str(command.project_id),
@@ -102,26 +78,3 @@ class DirectControlDelivery(ControlDeliveryPort):
         """A no-op: the claim compare-and-set in the DAO IS the acknowledgement, and the direct
         adapter keeps no delivery bookkeeping of its own."""
         return None
-
-    async def _warn_multi_replica(self, command: SessionCommand) -> None:
-        """Put the live replica ids in the log when there is more than one. Never refuses."""
-        if not self._single_replica_check:
-            return
-        replicas = await recent_replicas(
-            self._lock, window_seconds=self._census_seconds
-        )
-        if len(replicas) <= 1:
-            return
-        log.error(
-            "control delivery: %s runner replica ids have heartbeated in the last %ss (%s) "
-            "while the direct adapter is configured. A direct Stop reaches one address, so if "
-            "these are genuinely concurrent replicas it lands on the right process only by "
-            "luck. A restarted runner also shows up here, because it mints a new id at boot. "
-            "Delivering anyway; a wrong-replica delivery is caught exactly by the not_held "
-            "rule. command=%s session=%s",
-            len(replicas),
-            self._census_seconds,
-            ", ".join(sorted(replicas)),
-            command.id,
-            command.session_id,
-        )
