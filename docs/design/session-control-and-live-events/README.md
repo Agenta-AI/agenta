@@ -18,6 +18,24 @@ durable event replay, and durable commands.
 8. [Status](status.md) records current progress and the next discussion.
 9. [Tonight handoff](tonight-handoff.md) contains independent spike and implementation briefs.
 
+## Added on the night of 2026-09-02 (agent-generated, for morning review)
+
+Read `overnight-2026-09-02.md` first. It is the log of what was done, where every branch is,
+and how to revert each piece.
+
+10. [Review](review-2026-09-02.md) merges two reviews of the RFC and lists the decisions Mahmoud
+    must make. The full reviews are `review-architecture-2026-09-02.md` and
+    `review-product-2026-09-02.md`.
+11. [Implementation plan](implementation-plan.md) is the build plan for version one, the merge
+    order, and the gate cells.
+12. Spike results: [A, sandbox cancel](spike-a-sandbox-cancel.md),
+    [B, durable commands and long polling](spike-b-durable-commands-design.md) with its
+    [route contracts](api-design.md), [C, the current Stop map](spike-c-current-stop-map.md),
+    [D, stable record ids](spike-d-stable-record-ids.md).
+13. Code slices, each on its own branch: [admission](slice-admission.md),
+    [watchdog](slice-watchdog.md), [Stop guard](slice-stop-guard.md),
+    [records durability](slice-records-ack.md), [durable cancel](slice-durable-cancel.md).
+
 ## Terms under review
 
 - **Session:** One durable conversation and its workspace.

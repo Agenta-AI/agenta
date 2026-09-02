@@ -61,3 +61,22 @@ Start with **Stop and ownership**:
 5. Decide which current issues this track is expected to close.
 
 The **live-frame ingress** discussion can proceed independently after that or in parallel.
+
+## Overnight work, 2026-09-02 to 2026-09-03
+
+- Two reviews of the RFC written and merged into `review-2026-09-02.md`.
+- The four spikes from `tonight-handoff.md` completed: A (warm cancel proven live on Pi and
+  Codex), B (command design with the direct-call adapter as the recommended first transport),
+  C (Stop map), D (record-id semantics with characterization tests).
+- Five code slices built and verified live on standalone stacks, each on its own branch:
+  single-turn admission, execution watchdog, Stop guard, records durability, and the durable
+  Stop command with the direct-call adapter (Stop reaches the runner in 72 ms and the sandbox
+  stays warm).
+- Nothing merged, nothing pushed to main. The log is `overnight-2026-09-02.md`.
+
+## Next discussion (updated)
+
+1. Decide the five items in `review-2026-09-02.md` (transport adapter default, reject-only
+   version one, steer shape, park window after Stop, token-level relay).
+2. Decide the deviations listed in `overnight-2026-09-02.md`.
+3. Review the slice branches in the merge order of `implementation-plan.md`.
