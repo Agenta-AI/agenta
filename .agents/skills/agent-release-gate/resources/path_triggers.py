@@ -33,6 +33,17 @@ import subprocess
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
 
+# The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
+# engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
+# delivered, and the `burst` and `crosstalk` journeys are the only ones that see that path under
+# load (AGE-4249). Both run in every cell selected here, because a run without `--only` runs every
+# journey.
+#
+# P3 is deliberately NOT in this list even though it is a Daytona cell. It needs --custom-slug and
+# --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
+# would stop every release run that did not pass those flags.
+DAYTONA_CELLS = ("C2", "C4", "X2")
+
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
 # `**` for a subtree so the intent reads correctly, and name a file exactly when only that file
@@ -49,6 +60,13 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
+    # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
+    # credential preflight, and the one retry the runner does when a first model call is refused.
+    # A fault here shows up only when many sandboxes start at once, which is what `burst` and
+    # `crosstalk` do on these cells. Production hit it as one first message in five failing with
+    # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
+    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS,
+    "services/runner/src/providers/daytona*": DAYTONA_CELLS,
 }
 
 

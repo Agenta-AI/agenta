@@ -28,6 +28,7 @@ import re
 import subprocess
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, wait
 
 import httpx
 
@@ -429,6 +430,15 @@ class Turn:
         self._segments: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
+        # The CODED failure classes this turn streamed, read off the `data-agent-error` frames.
+        # The plain `error` frame carries display prose only; the code beside it is the runner's
+        # stable class (`RunErrorCode` in engines/sandbox_agent/errors.ts —
+        # `credential_delivery_failed`, `rate_limited`, `runner_error`, ...). A journey that
+        # records the code can name WHY a run failed instead of matching on a message that
+        # changes with the copy. Same source as `agent_error_frames` in
+        # matrix_c5_first_call_race.py.
+        self.error_codes: list[str] = []
+        self.error_texts: list[str] = []
         self.committed_revision: dict | None = None
         self.http_status: int = 0
         self.ms: int = 0
@@ -493,6 +503,7 @@ class Turn:
             "tools": [t.get("toolName") for t in self.tool_calls],
             "approval": bool(self.approval),
             "errors": self.errors,
+            "error_codes": self.error_codes,
             "reply": self.reply[:400],
         }
 
@@ -589,6 +600,18 @@ def invoke(
                             t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
                 elif ftype == "data-committed-revision":
                     t.committed_revision = f.get("data")
+                elif ftype == "data-agent-error":
+                    # The coded twin of the `error` frame below. The SDK emits both for one
+                    # failure (`_error_parts`, adapters/vercel/stream.py): this one carries the
+                    # runner's stable code, the next one carries the prose. Keep the code, so a
+                    # journey can report the CLASS of a failure.
+                    data = f.get("data") or {}
+                    code = data.get("code")
+                    if code:
+                        t.error_codes.append(str(code))
+                    text = data.get("errorText")
+                    if text:
+                        t.error_texts.append(str(text))
                 elif ftype == "error":
                     t.errors.append(json.dumps(f)[:300])
                 elif ftype == "finish":
@@ -692,6 +715,7 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
         return {
             "pass": False,
             "why": "expected a tool-approval-request frame; the gate never fired",
+            "session_id": s,
             "turn": t1.summary(),
         }
     # A paused turn finishes with reason "other", not "stop".
@@ -724,6 +748,9 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
         "pass": ok,
         "why": why,
         "paused_finish_other": paused_ok,
+        # The session id rides the result so a caller that runs several approval flows at the
+        # same time (the `crosstalk` journey) can name which conversation each record belongs to.
+        "session_id": s,
         "turn_paused": t1.summary(),
         "turn_resumed": t2.summary(),
     }
@@ -2161,6 +2188,390 @@ def j_builtin_grep(cell: dict) -> dict:
     }
 
 
+# --------------------------------------------------------------------------------------------
+# Concurrency: many runs at the same time (AGE-4249 / #6485)
+# --------------------------------------------------------------------------------------------
+# Every other journey in this file drives ONE run at a time, so the gate can only ever see faults
+# that reproduce on a quiet deployment. The production failure these two journeys exist for does
+# not: about one first message in five failed with "A temporary issue kept this run's credentials
+# from reaching the model", because a fresh Daytona sandbox sometimes starts without its Secret
+# substitution wiring. The fault needs MANY cold starts to show up, and it is stochastic, so a
+# single sequential run reproduces it about eight times in a hundred and the gate stayed green
+# through the whole incident.
+#
+# So these journeys buy cold starts in bulk. `burst` starts N fresh sessions at once. `crosstalk`
+# runs long conversations and approval flows side by side and checks that no stream carries
+# another session's data. Both are Daytona-only by default: the fault lives in the remote
+# credential path, and a local sandbox has no Secrets to lose. `--concurrency-everywhere` runs
+# them on local cells too, which is cheap and proves the journeys themselves.
+BURST_SIZE = 8
+CROSSTALK_CONVERSATIONS = 3
+CROSSTALK_APPROVALS = 2
+CONCURRENCY_EVERYWHERE = False
+# Per RUN, passed to invoke(). One hung run must not hang the journey, so the journey stops
+# waiting a margin after this and records the stragglers as hung.
+CONCURRENCY_TURN_TIMEOUT_SECONDS = 300.0
+CONCURRENCY_WAIT_MARGIN_SECONDS = 120.0
+# How many lines the `crosstalk` conversations ask for, and how many text-delta frames a reply
+# that long must have arrived in. The bar is "the reply STREAMED", never a claim about a
+# harness's chunking: measured on staging, Pi sends this reply in about 312 frames and Claude
+# sends the same reply in 4 to 7. A threshold of 10 read as a Claude failure while every product
+# property held, so the bar is 2 and the real frame counts ride in the evidence.
+CROSSTALK_LINES = 150
+CROSSTALK_MIN_TEXT_DELTAS = 2
+# The turn ledger is written after the stream closes. matrix_c5_first_call_race.py waits the same
+# second before reading it.
+LEDGER_SETTLE_SECONDS = 1.0
+
+# A failure whose text says the model refused the credentials. The CODE is the primary evidence
+# (`credential_delivery_failed`), and this regex is the backstop for a deployment whose runner is
+# older than the coded frame, so an auth failure can never read as an unexplained error.
+AUTH_FAILURE_RE = re.compile(
+    r"authentication failed|invalid[_ ]api[_ ]key|unauthorized|\b401\b|credentials",
+    re.I,
+)
+CREDENTIAL_DELIVERY_CODE = "credential_delivery_failed"
+
+
+def _concurrency_skip(cell: dict, what: str) -> dict | None:
+    """Concurrency journeys are Daytona-only unless the operator asks for more."""
+    if cell["sandbox"] == "daytona" or CONCURRENCY_EVERYWHERE:
+        return None
+    return {
+        "skip": True,
+        "why": (
+            f"{what} targets the remote credential path, which only a cloud sandbox has "
+            f"(cell sandbox={cell['sandbox']}). Run --cell C2, C4, P3 or X2, or pass "
+            "--concurrency-everywhere to run it on local cells too."
+        ),
+    }
+
+
+def _run_record(label: str, session_id: str, t: "Turn", **extra) -> dict:
+    """One run's evidence, in the shape both concurrency journeys report."""
+    text = " ".join(t.error_texts + t.errors)
+    return {
+        "label": label,
+        "session_id": session_id,
+        "finish_reason": t.finish_reason,
+        "error_code": t.error_codes[0] if t.error_codes else None,
+        "error_codes": t.error_codes,
+        "error_text": text[:300],
+        "ms": t.ms,
+        "http": t.http_status,
+        **extra,
+    }
+
+
+def _run_concurrently(jobs: list) -> list:
+    """Run every (label, callable) at the same time and always come back.
+
+    A job that outlives the bound is recorded as hung and its record fails the journey. The pool
+    is shut down without waiting, so one stuck HTTP stream delays the process at most until its
+    own timeout, and never the journey's verdict.
+    """
+    deadline = CONCURRENCY_TURN_TIMEOUT_SECONDS + CONCURRENCY_WAIT_MARGIN_SECONDS
+    ex = ThreadPoolExecutor(max_workers=max(1, len(jobs)))
+    try:
+        futures = {ex.submit(job): label for label, job in jobs}
+        _, pending = wait(list(futures), timeout=deadline)
+        records = []
+        for fut, label in futures.items():
+            if fut in pending:
+                fut.cancel()
+                records.append(
+                    {
+                        "label": label,
+                        "ok": False,
+                        "hung": True,
+                        "why": f"still running after {deadline:.0f}s",
+                    }
+                )
+                continue
+            try:
+                record = fut.result()
+            except Exception as e:  # a crash is one run's result, not the journey's
+                record = {
+                    "label": label,
+                    "ok": False,
+                    "why": f"driver exception: {type(e).__name__}: {e}",
+                }
+            record.setdefault("label", label)
+            records.append(record)
+        return sorted(records, key=lambda r: r["label"])
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+
+
+def _concurrency_verdict(runs: list, n: int, headline: str) -> dict:
+    """The shared summary: what failed, and the codes that say why."""
+    failed = [r for r in runs if not r.get("ok")]
+    codes = sorted({c for r in runs for c in (r.get("error_codes") or [])})
+    texts = " ".join(str(r.get("error_text") or "") for r in runs)
+    why = f"{headline}: {len(failed)}/{n} failed"
+    if codes:
+        why += f", runner error codes {codes}"
+    if CREDENTIAL_DELIVERY_CODE in codes:
+        why += (
+            f". CREDENTIAL DELIVERY FAILED on {sum(1 for r in runs if CREDENTIAL_DELIVERY_CODE in (r.get('error_codes') or []))} "
+            "run(s): the provider key never reached the model on a cold sandbox. This is "
+            "AGE-4249, and it is the fault this journey exists to catch"
+        )
+    elif failed and AUTH_FAILURE_RE.search(texts):
+        why += (
+            ". At least one run failed on an AUTHENTICATION refusal. Read error_text per run: a "
+            "cold sandbox that never got its credential wiring fails exactly this way"
+        )
+    return {
+        "pass": not failed,
+        "why": why,
+        "failed": len(failed),
+        "total": n,
+        "error_codes": codes,
+        "runs": runs,
+    }
+
+
+def j_burst(cell: dict) -> dict:
+    """N first messages, sent to N brand new sessions at the same time.
+
+    Every run must finish normally and reply with its OWN nonce. A fresh session id is a pool key
+    the runner has never seen, so each run creates a sandbox from cold. That is what makes this
+    journey a credential-delivery probe rather than a load test: N cold starts in one burst,
+    against a fault that only some cold starts hit.
+
+    The nonce does double duty. It proves the reply belongs to this run (the model cannot guess
+    it), and a nonce from another run appearing here would prove the streams crossed.
+    """
+    if skip := _concurrency_skip(cell, "a burst of cold starts"):
+        return skip
+    n = BURST_SIZE
+    if n < 1:
+        return {"pass": False, "why": "--burst-size must be at least 1"}
+    nonces = {i: f"QA-BURST-{uuid.uuid4().hex[:12].upper()}" for i in range(n)}
+    params = template(
+        cell,
+        instructions="Be terse. Reply with exactly what is asked and nothing else.",
+    )
+
+    def one(i: int) -> dict:
+        session = str(uuid.uuid4())
+        nonce = nonces[i]
+        t = invoke(
+            session,
+            [user_msg(f"Reply with exactly: {nonce}")],
+            params,
+            timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+        )
+        mine = nonce in t.reply
+        theirs = sorted(v for k, v in nonces.items() if k != i and v in t.reply)
+        record = _run_record(
+            f"burst-{i:02d}",
+            session,
+            t,
+            own_nonce_in_reply=mine,
+            other_nonces_in_reply=theirs,
+            reply=t.reply[:120],
+        )
+        record["ok"] = bool(
+            t.finish_reason == "stop"
+            and not t.errors
+            and not t.error_codes
+            and mine
+            and not theirs
+        )
+        return record
+
+    runs = _run_concurrently([(f"burst-{i:02d}", lambda i=i: one(i)) for i in range(n)])
+    result = _concurrency_verdict(
+        runs, n, f"{n} first messages sent at the same time on {n} fresh sessions"
+    )
+    bleed = [r["label"] for r in runs if r.get("other_nonces_in_reply")]
+    if bleed:
+        result["pass"] = False
+        result["why"] += f". Nonce bleed between sessions: {bleed}"
+    result["nonce_bleed"] = bleed
+    return result
+
+
+def j_crosstalk(cell: dict) -> dict:
+    """Long conversations and approval flows, all running at the same time.
+
+    Two shapes share the deployment. K conversations ask for a long deterministic output over two
+    turns on ONE session each, and M approval flows pause and resume beside them. Together they
+    hold several sandboxes, several streams and several parked gates open at once, which is the
+    state a single-run gate never reaches.
+
+    What each half asserts:
+
+      - Every turn streams many text-delta frames and ends with the nonce for THAT turn, so a
+        truncated or swapped stream cannot pass.
+      - No reply carries another conversation's nonce.
+      - Turn 2 continues on the same session and stays warm, using the same evidence the `warm`
+        continuity tier uses: the turn ledger must report exactly one harness session and one
+        sandbox. An empty ledger is missing evidence, never proof of stability.
+      - Every approval pauses and resumes. A gate that parks under load and never comes back is
+        the same defect class as a stream that never finishes.
+    """
+    if skip := _concurrency_skip(cell, "concurrent conversations and approvals"):
+        return skip
+    conversations = CROSSTALK_CONVERSATIONS
+    approvals = CROSSTALK_APPROVALS
+    if conversations < 1 and approvals < 1:
+        return {
+            "pass": False,
+            "why": "crosstalk needs at least one conversation or one approval",
+        }
+    # Every nonce in the run, so each conversation can check the others' as well as its own.
+    nonces = {
+        (i, turn): f"QA-XT{i:02d}{turn}-{uuid.uuid4().hex[:10].upper()}"
+        for i in range(conversations)
+        for turn in ("A", "B")
+    }
+    params = template(
+        cell,
+        instructions=(
+            "Be terse. Answer directly in text. Do not use any tool. Do exactly what is "
+            "asked and nothing more."
+        ),
+    )
+
+    def long_prompt(first: int, last: int, nonce: str) -> str:
+        return (
+            f"Print the numbers {first} to {last}, one per line, then print {nonce} "
+            "on its own line as the last line. Print nothing else."
+        )
+
+    def conversation(i: int) -> dict:
+        session = str(uuid.uuid4())
+        a, b = nonces[(i, "A")], nonces[(i, "B")]
+        others = [v for k, v in nonces.items() if k[0] != i]
+        msgs = [user_msg(long_prompt(1, CROSSTALK_LINES, a))]
+        t1 = invoke(session, msgs, params, timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS)
+        # Byte-faithful history, so the runner's history fingerprint still matches and turn 2 is
+        # genuinely served warm. A text-only replay would evict the session and this journey
+        # would measure a rebuild while claiming to measure reuse (see assistant_message()).
+        msgs = msgs + [
+            t1.assistant_message(),
+            user_msg(long_prompt(CROSSTALK_LINES + 1, CROSSTALK_LINES * 2, b)),
+        ]
+        t2 = invoke(session, msgs, params, timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS)
+        # The turn row is written after the stream closes, so read the ledger a moment later.
+        # An empty ledger fails this journey, and failing it on a write that had not landed yet
+        # would report a product fault that is really a race in the check.
+        time.sleep(LEDGER_SETTLE_SECONDS)
+        agents, sandboxes = _ledger_ids(session)
+        deltas = [t1.frames.count("text-delta"), t2.frames.count("text-delta")]
+        streamed = all(d >= CROSSTALK_MIN_TEXT_DELTAS for d in deltas)
+        # Recorded, never asserted on. A long reply is the point of the prompt, but how long the
+        # model makes it is prose, and this journey does not judge prose.
+        reply_chars = [len(t1.reply), len(t2.reply)]
+        mine = a in t1.reply and b in t2.reply
+        bled = sorted({v for v in others if v in t1.reply or v in t2.reply})
+        warm_ids_stable = len(agents) == 1 and len(sandboxes) == 1
+        clean = (
+            t1.finish_reason == "stop"
+            and t2.finish_reason == "stop"
+            and not t1.errors
+            and not t2.errors
+            and not t1.error_codes
+            and not t2.error_codes
+        )
+        record = _run_record(
+            f"conversation-{i:02d}",
+            session,
+            t2,
+            kind="conversation",
+            text_deltas=deltas,
+            reply_chars=reply_chars,
+            own_nonces_in_replies=mine,
+            other_nonces_in_replies=bled,
+            agent_session_ids=agents,
+            sandbox_ids=sandboxes,
+            warm_ids_stable=warm_ids_stable,
+            turn1=t1.summary(),
+            turn2=t2.summary(),
+        )
+        # Turn 1's codes belong in the record too: _run_record reads turn 2 only.
+        record["error_codes"] = sorted(set(t1.error_codes + t2.error_codes))
+        record["error_code"] = (
+            record["error_codes"][0] if record["error_codes"] else None
+        )
+        record["error_text"] = " ".join(
+            t1.error_texts + t1.errors + t2.error_texts + t2.errors
+        )[:300]
+        record["ok"] = bool(
+            clean and streamed and mine and not bled and warm_ids_stable
+        )
+        return record
+
+    def approval(i: int) -> dict:
+        r = _approval_flow(cell, approved=True)
+        summaries = [
+            s for s in (r.get("turn_paused"), r.get("turn_resumed"), r.get("turn")) if s
+        ]
+        codes = sorted({c for s in summaries for c in (s.get("error_codes") or [])})
+        errors = [e for s in summaries for e in (s.get("errors") or [])]
+        return {
+            "label": f"approval-{i:02d}",
+            "kind": "approval",
+            "ok": bool(r.get("pass")),
+            "session_id": r.get("session_id"),
+            "finish_reason": (summaries[-1].get("finish") if summaries else None),
+            "error_code": codes[0] if codes else None,
+            "error_codes": codes,
+            "error_text": " ".join(str(e) for e in errors)[:300],
+            "why": r.get("why"),
+            "paused_finish_other": r.get("paused_finish_other"),
+        }
+
+    jobs = [
+        (f"conversation-{i:02d}", lambda i=i: conversation(i))
+        for i in range(conversations)
+    ] + [(f"approval-{i:02d}", lambda i=i: approval(i)) for i in range(approvals)]
+    runs = _run_concurrently(jobs)
+    total = len(jobs)
+    result = _concurrency_verdict(
+        runs,
+        total,
+        (
+            f"{conversations} two-turn conversations with long output and {approvals} approval "
+            "flows, all at the same time"
+        ),
+    )
+    bleed = [r["label"] for r in runs if r.get("other_nonces_in_replies")]
+    thin = [
+        r["label"]
+        for r in runs
+        if r.get("kind") == "conversation"
+        and not all(
+            d >= CROSSTALK_MIN_TEXT_DELTAS for d in (r.get("text_deltas") or [0])
+        )
+    ]
+    cold = [
+        r["label"]
+        for r in runs
+        if r.get("kind") == "conversation" and not r.get("warm_ids_stable")
+    ]
+    if bleed:
+        result["pass"] = False
+        result["why"] += f". Nonce bleed between sessions: {bleed}"
+    if thin:
+        result["why"] += (
+            f". These conversations never streamed {CROSSTALK_MIN_TEXT_DELTAS} text-delta "
+            f"frames on both turns: {thin}"
+        )
+    if cold:
+        result["why"] += (
+            f". These conversations did not stay warm across their two turns (the turn ledger "
+            f"reports more than one harness session or sandbox, or no rows at all): {cold}"
+        )
+    result["nonce_bleed"] = bleed
+    result["not_streamed"] = thin
+    result["not_warm"] = cold
+    return result
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
@@ -2179,10 +2590,16 @@ JOURNEYS = {
     "builtin_grep": j_builtin_grep,
     "secret_opaque": j_secret_opaque,
     "rotate": j_rotate,
+    "burst": j_burst,
+    "crosstalk": j_crosstalk,
 }
 
 
 def main() -> int:
+    # Declared here, not beside the assignments below, because the flag help strings read these
+    # module defaults and a `global` statement must precede every use of the name in a function.
+    global BURST_SIZE, CROSSTALK_CONVERSATIONS, CROSSTALK_APPROVALS
+    global CONCURRENCY_EVERYWHERE, CONCURRENCY_TURN_TIMEOUT_SECONDS
     p = argparse.ArgumentParser()
     p.add_argument(
         "--cell",
@@ -2261,6 +2678,50 @@ def main() -> int:
         ),
     )
     p.add_argument(
+        "--burst-size",
+        type=int,
+        default=BURST_SIZE,
+        help=(
+            f"first messages the `burst` journey sends at the same time, each on a fresh "
+            f"session and therefore a cold sandbox (default {BURST_SIZE})"
+        ),
+    )
+    p.add_argument(
+        "--crosstalk-conversations",
+        type=int,
+        default=CROSSTALK_CONVERSATIONS,
+        help=(
+            "two-turn conversations with long output the `crosstalk` journey runs at the same "
+            f"time (default {CROSSTALK_CONVERSATIONS})"
+        ),
+    )
+    p.add_argument(
+        "--crosstalk-approvals",
+        type=int,
+        default=CROSSTALK_APPROVALS,
+        help=(
+            "approval flows the `crosstalk` journey interleaves with those conversations "
+            f"(default {CROSSTALK_APPROVALS})"
+        ),
+    )
+    p.add_argument(
+        "--concurrency-everywhere",
+        action="store_true",
+        help=(
+            "run `burst` and `crosstalk` on local cells too. They target the remote credential "
+            "path, so they are Daytona-only by default."
+        ),
+    )
+    p.add_argument(
+        "--concurrency-timeout",
+        type=float,
+        default=CONCURRENCY_TURN_TIMEOUT_SECONDS,
+        help=(
+            "seconds one concurrent run may take before it is recorded as hung (default "
+            f"{CONCURRENCY_TURN_TIMEOUT_SECONDS:.0f})"
+        ),
+    )
+    p.add_argument(
         "--env-file",
         help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
     )
@@ -2290,6 +2751,25 @@ def main() -> int:
 
     global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD, OWNER_TTL_SECONDS
     global PARK_IDLE_TTL_SECONDS, PARK_MARGIN_SECONDS
+    # A count of zero would make a concurrency journey pass on nothing, which is the one result
+    # this class of check must never produce. Stop before spending a single run. The two
+    # crosstalk halves may each be zero, because either half alone is a valid narrower run, but
+    # not both.
+    if args.burst_size < 1:
+        raise SystemExit(f"--burst-size must be at least 1 (got {args.burst_size}).")
+    if min(args.crosstalk_conversations, args.crosstalk_approvals) < 0:
+        raise SystemExit(
+            "--crosstalk-conversations and --crosstalk-approvals cannot be negative."
+        )
+    if args.crosstalk_conversations + args.crosstalk_approvals < 1:
+        raise SystemExit(
+            "crosstalk needs at least one conversation or one approval; both counts are 0."
+        )
+    BURST_SIZE = args.burst_size
+    CROSSTALK_CONVERSATIONS = args.crosstalk_conversations
+    CROSSTALK_APPROVALS = args.crosstalk_approvals
+    CONCURRENCY_EVERYWHERE = args.concurrency_everywhere
+    CONCURRENCY_TURN_TIMEOUT_SECONDS = args.concurrency_timeout
     REQUIRE_STORE = args.require_store
     STORE_SETTLE_SECONDS = args.store_settle
     COLD2_REPLACE_CMD = args.cold2_replace_cmd

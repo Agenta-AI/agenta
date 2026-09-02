@@ -69,6 +69,8 @@ cell — keep them in sync if a cell changes.
 | `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
 | `secret_opaque` | Ask the sandbox to classify its own provider key variable and echo back a verdict word carrying a nonce this run invented. | The verdict says the value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4, P3, X2); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
 | `rotate` | Change the provider key in the vault **mid-conversation** to a decoy no provider accepts, send a turn, then put the real key back and keep talking. | The turn under the decoy must FAIL (a success means the runner kept serving the old credential), and the turn after the restore must succeed with the durable working directory intact. Skips on subscription cells, which have no vault key, and custom-provider cells, whose write-only key cannot be safely restored. The vault is restored in a `finally`. |
+| `burst` | Send N first messages at the same time, each on a brand new session and therefore a cold sandbox. Default N is 8 (`--burst-size`). | Every run finishes with a stop reason and no error frame, and every reply carries its OWN nonce and no other run's. **Daytona only** unless `--concurrency-everywhere`. The result lists per run the session id, the finish reason, the runner error code, the error text and the duration, so a `credential_delivery_failed` names itself instead of hiding in prose. |
+| `crosstalk` | Run K two-turn conversations that ask for a long deterministic output and M approval flows, all at the same time. Defaults are 3 and 2 (`--crosstalk-conversations`, `--crosstalk-approvals`). | Every turn arrives as more than one `text-delta` frame and ends with that turn's nonce, no reply carries another conversation's nonce, each second turn stays warm on the same session (one harness session and one sandbox in the turn ledger, the `warm` tier's evidence), and every approval pauses and resumes. **Daytona only** unless `--concurrency-everywhere`. |
 
 The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
 active and are never listed in `tools`, so those three lists are the only lever over them: if they
@@ -90,6 +92,27 @@ on the codex harness, whose shell goes through native exec frames the tool-call 
 session config fingerprint and live only in a separate credential epoch, so that epoch check is the
 only thing standing between a rotated key and a warm sandbox that goes on using the old one. Nothing
 else in the gate would notice if it stopped working, because a stale key still answers.
+
+`burst` and `crosstalk` are the only journeys that run more than one thing at a time. Every other
+journey drives one run, so the gate could only ever see faults that reproduce on a quiet
+deployment. The fault that made these journeys necessary does not. In production about one first
+message in five failed with "A temporary issue kept this run's credentials from reaching the
+model": some fresh Daytona sandboxes start without their Secret substitution wiring, the runner's
+one retry is stuck again more often than not, and on a provider that does not echo the key
+(OpenRouter, Anthropic) the preflight is blind, so the first model call comes back 401. Per cold
+sandbox it is about an 8 percent fault, which is why a sequential matrix stayed green through the
+whole incident (AGE-4249 / #6485). A burst of 8 cold starts turns that into a result you can read.
+
+Both are **Daytona only** by default, because the fault lives in the remote credential path and a
+local sandbox has no Secrets to lose. Pass `--concurrency-everywhere` to run them on local cells
+too, which is cheap and exercises the journeys themselves. Both record the runner's stable error
+CODE per run, read off the `data-agent-error` frame, so triage starts from
+`credential_delivery_failed` or `rate_limited` rather than from a message that changes with the
+copy. The frame counts and reply sizes ride in the evidence but the bar stays at "the reply
+streamed", because chunking is a harness property: measured on staging, Pi sends the same 150-line
+reply in about 312 frames and Claude sends it in 4 to 7. One hung run cannot hang the journey:
+each run is bounded by `--concurrency-timeout` (default 300s), the journey stops waiting a margin
+later, and a straggler is recorded as hung and fails the journey.
 
 Triggers are deliberately **out of scope** for this gate.
 
