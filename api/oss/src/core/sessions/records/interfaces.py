@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
@@ -46,4 +46,14 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_ids: List[str],
     ) -> Dict[str, SessionMessagePreview]:
+        raise NotImplementedError
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        """Which of these `(session_id, turn_id)` pairs already carry a terminal record."""
+
         raise NotImplementedError

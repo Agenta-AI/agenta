@@ -157,6 +157,10 @@ const RETRYABLE_CODES = new Set([
     "credential_delivery_failed",
     "starter_credits_unavailable",
     "rate_limited",
+    // The run never produced an outcome of its own and was closed for it — by the runner when
+    // a turn would not unwind, or by the platform's execution watchdog when the runner itself
+    // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
+    "execution_lost",
 ])
 
 /**
