@@ -61,6 +61,12 @@ key, in the same shape as the existing tombstone key and with the same lifetime 
 
 An absent record means unknown, never old, so a turn from before this shipped stays stoppable.
 
+This branch adds **no migration and no column**. `feat/session-durable-cancel` owns
+`session_streams.turn_started_at`; when that lands it replaces this key and the two helpers in
+`locks.py` can go. The Redis key is here because the alternative offered, comparing the turn id read
+at the start of the cancel handler with the one read at the end, only catches a turn that changes
+inside the handler, which is microseconds wide and catches nothing real.
+
 ### 3. Stop cancels the stopped turn's pending interactions
 
 The cancel response now reports every turn it tombstoned (`cancelled_turn_ids` on
@@ -86,6 +92,44 @@ working buttons and hot keyboard shortcuts stayed up until a reload.
 both clients. Desktop reads it at `web/oss/src/components/AgentChatSlice/AgentConversation.tsx:378-387`
 and mobile at `web/mobile/src/features/chat/LiveConversation.tsx:191-196`. `stopped` clears on the next
 send, so a new turn's gates appear normally.
+
+### 5. The concurrency limit no longer refuses a Stop
+
+Added scope, raised after the first pass. `check_runner_concurrency_limit` gated every mode, so a
+project at its per-project run limit could not stop the very runs holding the limit: the one request
+that frees capacity was the one refused with 429. Cancel starts nothing, so it is now exempt
+(`api/oss/src/apis/fastapi/sessions/router.py:407-413`).
+
+The route needs the mode before the service runs, so the inputs-by-force matrix moved into
+`derive_command_mode` (`api/oss/src/core/sessions/streams/service.py:144-160`) and both the route and
+the service call it. One derivation, so the two cannot disagree about what a cancel is.
+
+### 6. A refused Stop reaches the user
+
+Added scope. The desktop Stop was fire-and-forget and `callFern` logs and returns null for every
+non-abort failure, so a Stop the server refused was invisible: the transcript said "Stopped" while
+the run continued and kept billing. Now the outcome is read.
+
+`cancelSessionStream` (`web/packages/agenta-entities/src/session/api/api.ts:629-690`) returns one of
+three answers, `cancelled`, `stale`, or `failed`, carrying the server's own 409 message. It is a
+separate function rather than a flag on `commandSessionStream` because the other callers of that
+function deliberately ignore the result and use a null check that widening would break.
+
+The desktop reads it at `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:505-524`:
+on a refusal it withdraws the local "Stopped" marker, shows a short notice, and invalidates the
+liveness query so the running-elsewhere strip tells the truth.
+
+### 7. The mobile composer Stop calls the server
+
+Added scope. Mobile had the server-calling Stop only on the running-elsewhere strip, the button that
+appears when the turn is NOT this device's. The composer's own Stop called `conversation.stop`, which
+aborts this device's fetch and nothing else, so stopping your own turn on mobile left the run going
+and billing.
+
+`stopHere` (`web/mobile/src/features/chat/LiveConversation.tsx:197-213`, wired at `:482`) now aborts
+locally and sends the same cancel the desktop sends, with the same refusal handling. The strip's
+`StopButton` moved to the same helper (`web/mobile/src/features/chat/StopButton.tsx:15-38`) and shows
+the stale message instead of "try again", which would have sent the user round the same refusal.
 
 ## The honest limit of the arrival-time guard
 
@@ -203,16 +247,40 @@ event: interaction   data: {"type": "interaction", "session_id": "...", "status"
 Not verified live: a gate raised by a real agent turn rather than by the same endpoint the runner
 posts to. The turn id the runner uses was checked in code, not on the wire.
 
+### (d) A project at its concurrency limit can still Stop
+
+The API was recreated with `AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT=1`, driven, then recreated with
+the setting removed. The stack is back on the default.
+
+```
+=== a SEND takes the one slot ===        HTTP=200
+=== a second SEND is refused ===         HTTP=429
+  {"detail":"Concurrency limit of 1 concurrent runs reached for this project."}
+=== STOP on the running session ===      HTTP=200
+  {"mode":"cancel", ... "cancelled_turn_ids":["01a06424-5758-7ac3-a4ea-fc03ff4e267c"]}
+=== the freed slot lets the next SEND through === HTTP=200
+```
+
+Before the change the third line was a 429.
+
+Not verified live: the desktop and mobile notices in a browser. Both need an agent run with a model
+key, which this stack has no key for. The three outcomes of `cancelSessionStream` are unit-tested,
+all four touched packages typecheck, and the web container compiled the chat route clean
+(`✓ Compiled /w`).
+
 ## Tests
 
 | Suite | File | Result |
 |---|---|---|
 | The guard, the start record, steer staying unguarded | `api/oss/tests/pytest/unit/sessions/test_cancel_stop_guard.py` | 12 passed |
-| The route cancelling pending gates | `api/oss/tests/pytest/unit/sessions/test_cancel_cancels_pending_interactions.py` | 5 passed |
+| The route: pending gates and the concurrency exemption | `api/oss/tests/pytest/unit/sessions/test_cancel_cancels_pending_interactions.py` | 11 passed |
 | The live approval rule | `web/packages/agenta-chat/tests/unit/model/liveApprovals.test.ts` | 3 passed |
+| The three Stop outcomes | `web/packages/agenta-entities/tests/unit/session-cancel-stream.test.ts` | 6 passed |
 
-`api/oss/tests/pytest/unit/sessions/` as a whole: 501 passed, 41 skipped. `pnpm lint-fix` in `web/`
-is clean, `ruff format` and `ruff check` in `api/` are clean.
+`api/oss/tests/pytest/unit/sessions/` as a whole: 505 passed, 41 skipped. The `@agenta/entities`
+suite is 1470 passed and `@agenta/chat` is 625 passed. `pnpm lint-fix` in `web/` is clean, `ruff
+format` and `ruff check` in `api/` are clean, and `@agenta/entities`, `@agenta/chat`,
+`@agenta/mobile` and `@agenta/oss` all typecheck.
 
 ## What is left
 
@@ -227,7 +295,10 @@ is clean, `ruff format` and `ruff check` in `api/` are clean.
 - The residual in-handler race: a turn that takes `alive` between `_displace_turns` reading the owners
   and clearing them is still tombstoned. Microseconds wide, and closing it needs a Lua script or the
   fencing that D-017 defers.
-- The Fern client was not regenerated, so the typed web client has no `expected_execution_id` field yet.
+- The Fern client was not regenerated, so the typed web client has no `expected_execution_id` field
+  yet. That regeneration is the first step whenever a turn id does reach the browser: the field
+  cannot be sent from the typed client until then.
+- The desktop and mobile notices were not seen in a browser, only unit-tested and typechecked.
 
 ## Open questions for Mahmoud
 
@@ -244,6 +315,7 @@ is clean, `ruff format` and `ruff check` in `api/` are clean.
 4. **Should Stop keep cancelling every pending gate when it ended no turn?** Recommendation: keep it.
    Reason: nothing holds the session in that state, so no gate can ever be answered, and leaving them
    pending reproduces #6315 for the case where the turn had already lapsed.
-5. **Does the turn-start key need its own TTL setting?** Recommendation: no, leave it equal to
-   `alive`. Reason: a turn with no `alive` cannot be cancelled, so a longer life buys nothing and a
-   shorter one silently disables the guard on long turns.
+5. **Should closing a chat tab keep sending a cancel?** Recommendation: no. Reason:
+   `AgentChatPanel.tsx:138` is now the only Stop that still discards its outcome, and it fires on tab
+   close, which contradicts `requirements.md:98` and surprises anyone who closes a tab to reopen the
+   session elsewhere. If it stays, it should say so in the requirements and use the same helper.
