@@ -142,21 +142,19 @@ The event stream announces changes:
 
 ```text
 input.queued
-input.updated
 input.removed
 input.promoted
 ```
 
-The smallest useful management interface is:
+Queued inputs are immutable. The management interface only needs removal:
 
 ```http
-PATCH /sessions/{session_id}/inputs/{input_id}
 DELETE /sessions/{session_id}/inputs/{input_id}
 ```
 
-PATCH edits pending content. DELETE removes pending input. Both reject changes after the input was
-promoted into active work. Reordering is an open choice. It can use `position` in PATCH if the
-product needs it.
+To change a pending message, the client removes it and submits a replacement. DELETE rejects the
+request after the input was promoted into active work. The server processes pending inputs in FIFO
+order, which means first in, first out. The initial interface does not support reordering.
 
 This keeps clients synchronized. A message is no longer hidden inside one browser's local queue.
 

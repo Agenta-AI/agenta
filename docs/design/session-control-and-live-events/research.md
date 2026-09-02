@@ -194,4 +194,4 @@ event.
 
 The proposed Agenta pending-input API therefore goes beyond these reviewed public interfaces. It
 addresses a product-specific need: Queue currently exists in browser state, and multiple clients
-need one visible and editable copy.
+need one visible shared copy. The initial design keeps queued inputs immutable.

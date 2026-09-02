@@ -21,6 +21,7 @@
 - Optional `expected_execution_id` guard recorded.
 - One public session API for first-party and external clients recorded.
 - Visible server-side pending inputs added to the interface discussion.
+- Queued inputs made immutable. Clients can remove and replace them, but cannot edit or reorder.
 
 ## Branch
 

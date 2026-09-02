@@ -83,6 +83,14 @@ A Cancel request can include `expected_execution_id`. When supplied, the API can
 execution and rejects a stale request. When omitted, the API cancels the session's current active
 execution.
 
+### D-011: Keep queued inputs immutable
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+Clients can view and remove a pending input. They cannot edit or reorder it. To change pending
+content, a client removes the old input and submits a replacement. The API rejects removal after
+the input has been promoted into active work.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
@@ -172,8 +180,7 @@ the current execution.
 Choose the public names and defaults for a message submitted while work is active. The current
 working set is `reject`, `queue`, and `steer` under an `on_busy` field.
 
-### O-010: Pending input management
+### O-010: Pending input ordering
 
-Decide whether clients can edit, remove, and reorder messages that the server accepted with
-`on_busy: queue`. Pending messages must at least be visible in the session snapshot and event
-stream so all clients show the same queue.
+Pending inputs remain visible in the session snapshot and event stream. The initial contract uses
+server-assigned FIFO order. Clients cannot edit or reorder queued inputs.
