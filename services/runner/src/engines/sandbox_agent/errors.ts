@@ -61,7 +61,12 @@ export type RunErrorCode =
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
   | "credential_delivery_failed"
-  | "rate_limited";
+  | "rate_limited"
+  // Not a failure: the turn was REFUSED before it started because another turn already owns
+  // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
+  // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
+  // Produced by `sessions/admission.ts`, not by this module's classifier.
+  | "session_turn_in_use";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
 export interface ClassifiedRunError {

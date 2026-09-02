@@ -780,7 +780,11 @@ describe("runWithKeepalive: never-park rules", () => {
 });
 
 describe("runWithKeepalive: races and failures", () => {
-  it("a busy session is superseded (destroyed, awaited) and the new turn cold-starts", async () => {
+  it("a busy session REFUSES the racing turn: no eviction, no cold acquire", async () => {
+    // Single-turn admission (#6417, #5539, #5538). This branch used to `evict` the busy entry
+    // and cold-start ("supersede-busy"), which tore the sandbox out from under the turn that was
+    // still streaming on it. Both turns then died and the session stayed locked until the lease
+    // expired. The racing turn is now refused and the live turn's environment is untouched.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1(), undefined, undefined, ctx);
@@ -790,12 +794,41 @@ describe("runWithKeepalive: races and failures", () => {
     ctx.pool.checkoutIdle(key);
     assert.equal(ctx.pool.get(key)!.state, "busy");
 
-    await runWithKeepalive(turn2(), undefined, undefined, ctx);
-    assert.equal(
-      env1.destroyed,
-      1,
-      "the busy (racing) session is superseded/destroyed (awaited, no flush needed)",
+    const refused = await runWithKeepalive(turn2(), undefined, undefined, ctx);
+
+    assert.equal(refused.ok, false, "the racing turn is refused");
+    assert.match(
+      String(refused.error),
+      /already running a turn/i,
+      "the refusal says a turn is already running, so the client can keep the text",
     );
+    assert.equal(env1.destroyed, 0, "the live turn keeps its warm environment");
+    assert.equal(calls.acquire, 1, "no rival environment is acquired");
+    assert.equal(
+      ctx.pool.get(key)!.state,
+      "busy",
+      "the live turn still owns the pool entry",
+    );
+  });
+
+  it("a DESTROYED pool entry is still evicted and the new turn cold-starts", async () => {
+    // The other half of the old `else if (existing)` branch. A destroyed entry (a drain, or a
+    // teardown that already ran) has nothing in flight on it, so clearing the key and
+    // cold-starting is correct and costs nothing warm. Only `busy` refuses.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1(), undefined, undefined, ctx);
+    const key = "proj-1:s1";
+    // Marked directly, because every public route that destroys a session also removes it from
+    // the map. A `destroyed` entry SEATED at its key is the residue of a race: `checkoutIdle`
+    // leaves its entry in the map while the turn runs, a teardown marks it destroyed underneath,
+    // and `repark` then refuses to resurrect it (`session-pool.ts`, the `destroyed` guard).
+    // Reproducing that race would test the pool, not this branch.
+    ctx.pool.get(key)!.state = "destroyed";
+
+    const r = await runWithKeepalive(turn2(), undefined, undefined, ctx);
+
+    assert.equal(r.ok, true, "the new turn runs");
     assert.equal(calls.acquire, 2, "the new turn cold-starts");
   });
 
