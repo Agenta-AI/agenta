@@ -43,6 +43,15 @@ system must deliver live frames to every connected reader.
 Live text fragments can have bounded retention. Completed messages, lifecycle facts, tools, and
 interactions require durable recovery. One raw ingress can feed both consumers.
 
+### D-006: Investigate sandbox-agent cancellation before selecting Stop semantics
+
+**Status:** Confirmed process decision on 2026-09-02.
+
+The Stop track starts with a focused sandbox-agent investigation. It must determine whether one
+execution can be cancelled while the harness session and sandbox remain resumable. It must also
+identify any required vendored patch and Daytona snapshot rebuild. This investigation can proceed
+in parallel with the API control-path design.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
@@ -99,3 +108,12 @@ Choose the Redis Stream layout, retention limit, redaction boundary, and browser
 ### O-005: Immediate runner control
 
 Choose direct runner HTTP, per-runner Redis control delivery, or a persistent runner connection.
+The current API knows the logical owner `replica_id`, but its configured runner URL is not a
+replica-specific route.
+
+### O-006: Command boundary
+
+Decide which actions enter a general command inbox. The working boundary is execution-affecting
+intent: Send, Cancel, interaction response, Queue, and Steer. Attach is a read operation. Kill,
+rename, archive, and delete remain explicit resource or lifecycle operations unless discussion
+shows a need to change that boundary.

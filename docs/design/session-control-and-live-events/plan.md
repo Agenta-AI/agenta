@@ -9,10 +9,11 @@ that one program finish before another starts.
 
 ### Program A: Immediate control
 
-1. Ownership and execution identity.
-2. Immediate Stop delivery.
-3. Stop settlement and sandbox preservation.
-4. Approval and Stop races.
+1. Sandbox-agent cancellation capability and Daytona rebuild impact.
+2. Ownership and execution identity.
+3. Immediate Stop delivery.
+4. Stop settlement and sandbox preservation.
+5. Approval and Stop races.
 
 ### Program B: Shared reading
 
@@ -67,3 +68,15 @@ Each track must contain:
 - The main rejected alternatives.
 - One live-stack test that proves the invariant.
 - Known harness or deployment limitations.
+
+## Initial parallel investigation
+
+The sandbox-agent investigation starts before the Stop interface is fixed. It must answer:
+
+1. Which protocol request currently ends a prompt or execution?
+2. Does that request also close the harness session?
+3. Can Pi and Claude Code resume the same native session after cancellation?
+4. Does the runner destroy or park the sandbox on each cancellation path?
+5. Which source repository owns the required change?
+6. Does Daytona need a new snapshot, and how is that snapshot version deployed?
+7. What automated test proves cancel followed by warm resume?

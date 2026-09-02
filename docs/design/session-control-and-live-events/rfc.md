@@ -24,11 +24,17 @@ Pending discussion.
 
 ### Execution identity and ownership
 
-Pending discussion.
+Current Redis state identifies a logical runner replica and the current `turn_id`. The API does
+not currently map that replica identifier to a replica-specific network address. The hard-kill
+path calls one configured runner service URL. The RFC must select an immediate-control routing
+mechanism before it can define fast Cancel delivery.
 
 ### Immediate control
 
-Pending discussion.
+The existing `/sessions/streams/` endpoint is a coordination-state edit, not a durable command
+inbox. It derives Send, Steer, Cancel, and Attach from inputs plus a `force` flag. Normal desktop
+Send does not use this endpoint. A future explicit command contract must replace the ambiguous
+shape without silently changing existing invoke behavior.
 
 ### Live frame ingress and relay
 
@@ -44,7 +50,16 @@ Pending discussion.
 
 ### Durable commands
 
-Pending discussion.
+Working scope for discussion:
+
+- Send a user message.
+- Cancel an expected execution.
+- Respond to an interaction.
+- Queue a message.
+- Steer with a saved message.
+
+Attach belongs to the read path. Kill, rename, archive, and delete remain separate lifecycle or
+resource operations in the working model.
 
 ### Queue and Steer
 

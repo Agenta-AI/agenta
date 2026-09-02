@@ -21,6 +21,11 @@ when a heartbeat returns `is_current_turn=false`, then aborts locally.
 `DELETE /sessions/streams/?session_id=...` is separate from normal Cancel. It contacts the runner
 and tears down the sandbox. The session remains resumable after Cancel but not after Kill.
 
+The direct kill client uses one configured `runner.internal_url`. Redis separately stores the
+logical owner `replica_id`. The current kill client does not resolve that identifier to a
+replica-specific address. Immediate Cancel cannot assume that logical owner identity already
+provides direct network routing.
+
 ### Heartbeat
 
 The runner posts `session_id`, `replica_id`, `turn_id`, and `is_running` to
@@ -53,6 +58,25 @@ uses a new append-only event log or changes the record model.
 Another design review reports that the vendored sandbox-agent cannot cancel an execution while
 preserving the harness session, and that a patch would require a Daytona snapshot rebuild. This
 has not yet been verified in this workspace. It is the first research task for the Stop track.
+
+## Current command endpoint is not a durable command system
+
+`POST /sessions/streams/` derives four modes from the presence of inputs and the `force` flag:
+
+| Inputs | `force` | Derived mode |
+|---|---:|---|
+| Present | `false` | Send |
+| Present | `true` | Steer |
+| Absent | `false` | Cancel |
+| Absent | `true` | Attach |
+
+The endpoint edits Redis coordination state and the session stream row. Its own DTO states that it
+runs nothing. Normal desktop Send still uses the workflow invoke path. Desktop Stop uses the Cancel
+mode. Attach acquires watcher bookkeeping but does not deliver live frames. Interaction responses
+use their own endpoint and worker path. Kill uses `DELETE /sessions/streams/`.
+
+This means the current endpoint does not provide a durable inbox, command status, retry handling,
+or a single route for all execution-affecting actions.
 
 ## Existing design references
 

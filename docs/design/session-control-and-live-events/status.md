@@ -10,6 +10,8 @@
 - Confirmed process decisions recorded.
 - Proposed architecture choices kept separate from confirmed decisions.
 - Living RFC created with empty sections for track-by-track discussion.
+- Current command endpoint and runner routing boundary verified.
+- Sandbox-agent cancellation investigation promoted to the first parallel task.
 
 ## Blockers
 
@@ -20,8 +22,8 @@
 
 Start with **Stop and ownership**:
 
-1. Confirm the user-visible Stop requirements and latency target.
-2. Verify the sandbox-agent cancellation limitation.
+1. Start the sandbox-agent capability investigation.
+2. Confirm the user-visible Stop requirements and latency target.
 3. Choose the immediate runner-control transport at a high level.
 4. Define terminal settlement and watchdog responsibility.
 5. Decide which current issues this track is expected to close.
