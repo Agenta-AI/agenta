@@ -154,6 +154,14 @@ it is written once per turn and read once, when Stop is pressed. It is deliberat
 of the turn. A turn parked on an approval has finished streaming and is still the turn a Stop means,
 which is exactly the state review finding H-2 is about.
 
+**Why an effect on the messages and not a callback.** The pinned `ai@6.0.0-beta.150` gives the
+client chat exactly four callbacks: `onError`, `onToolCall`, `onFinish` and `onData` (`ChatInit` in
+that package's `dist/index.d.ts:3121-3157`). There is no metadata callback. `onData` takes a
+`DataUIPart` (`:3101`), so it never sees a `message-metadata` chunk, and `onFinish` is too late for
+Stop, which happens mid-turn. `messageMetadataSchema` is a validation schema, not a hook. Reading
+the merged metadata off the streaming message is therefore the only channel this version exposes.
+Verified in the installed package, not assumed.
+
 It is in memory and never persisted with the messages, which is what makes it safe. Message metadata
 does round-trip through the browser's message cache, so reading `metadata.turnId` straight off the
 transcript at Stop time would name a turn from a previous page load. The Map starts empty after a
