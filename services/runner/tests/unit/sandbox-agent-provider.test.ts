@@ -278,8 +278,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
           {},
           undefined,
           undefined,
-          undefined,
-          localOnly,
+          { config: localOnly },
         ),
       /Unknown sandbox id 'typo-sandbox'/,
     );
@@ -295,8 +294,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         {},
         undefined,
         undefined,
-        undefined,
-        localOnly,
+        { config: localOnly },
       ),
     );
   });
@@ -312,8 +310,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
           {},
           undefined,
           undefined,
-          undefined,
-          localOnly,
+          { config: localOnly },
         ),
       /not enabled on this deployment/,
     );
@@ -329,8 +326,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         {},
         undefined,
         undefined,
-        undefined,
-        runnerConfig("local,daytona"),
+        { config: runnerConfig("local,daytona") },
       ),
     );
   });
@@ -360,8 +356,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         {},
         undefined,
         secretPlan,
-        undefined,
-        runnerConfig("local,daytona"),
+        { config: runnerConfig("local,daytona") },
       ) as { materializeMcpServers?: unknown };
 
     // A run with hiding switched off never carries a plan (buildRunPlan builds one only while

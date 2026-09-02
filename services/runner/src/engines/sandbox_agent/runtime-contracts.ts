@@ -36,7 +36,6 @@ import {
 } from "./mount.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
-import type { RetainedSecretAllocation } from "./daytona-secret-provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
 import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
@@ -408,13 +407,9 @@ export type AcquireEnvironmentResult =
        * The preflight proved this sandbox never got its Secret substitution wiring (the fault
        * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
        * already destroyed; the acquire wrapper rebuilds a fresh sandbox on the SAME Secret,
-       * which is the case Daytona support confirmed works.
+       * which is the case Daytona support confirmed works. The Secret lease that makes the
+       * rebuild possible never reaches this type: it is internal to the acquire loop, which
+       * owns it for the whole run and releases it before returning. See `AcquireAttemptResult`.
        */
       stuckSubstitution?: boolean;
-      /**
-       * The convicted sandbox's Secret allocation, kept rather than deleted so the next attempt
-       * can mount it. The acquire wrapper hands it to the retry and releases it when no further
-       * attempt follows. Undefined for a provider that allocates no Secrets.
-       */
-      retainedSecrets?: RetainedSecretAllocation;
     };

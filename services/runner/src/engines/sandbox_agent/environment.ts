@@ -73,10 +73,9 @@ import {
   daytonaCredentialDeliveryPort,
   materializeDaytonaMcpServers,
   retainDaytonaSecretsOnDestroy,
-  takeRetainedDaytonaSecrets,
-  type RetainedSecretAllocation,
+  takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
-import type { DaytonaSecretAllocation } from "./daytona-secrets.ts";
+import type { DaytonaSecretLease } from "./daytona-secrets.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -317,13 +316,13 @@ export async function acquireEnvironment(
   // confirmed that a new sandbox on the SAME Secret works. The runner used to delete the stuck
   // sandbox's Secret and allocate a new one within a second, so every rebuild tested a brand-new
   // Secret instead, and 4 of 7 observed rebuilds were stuck again. The convicted sandbox's
-  // allocation is therefore retained and handed to the next attempt, which mounts it as-is.
+  // allocation is therefore kept as a LEASE and handed to the next attempt, which mounts it.
   //
-  // Ownership: the retry's registry entry adopts the allocation and deletes it at its own
-  // teardown, exactly as an allocation of its own would be. `release` covers every path where no
-  // sandbox adopted it (attempts exhausted, an abort, or an attempt that failed before create),
-  // and is a no-op once a live sandbox holds it.
-  let retained: RetainedSecretAllocation | undefined;
+  // Ownership lives in the lease state, not here (see `DaytonaSecretLease`). This loop only holds
+  // the lease and releases it once on the way out. The release deletes when the lease is still
+  // detached, does nothing when a live sandbox attached it, and refuses when a create failed
+  // without proving the remote sandbox is absent.
+  let lease: DaytonaSecretLease | undefined;
   try {
     for (let attempt = 1; ; attempt++) {
       const result = await acquireEnvironmentOnce(
@@ -332,18 +331,16 @@ export async function acquireEnvironment(
         signal,
         presignedMount,
         emit,
-        retained?.allocation,
+        lease,
       );
-      if (!result.ok && result.retainedSecrets) {
-        retained = result.retainedSecrets;
-      }
+      if (!result.ok && result.lease) lease = result.lease;
       if (
         result.ok ||
         !result.stuckSubstitution ||
         attempt >= STUCK_ACQUIRE_ATTEMPTS ||
         signal?.aborted
       ) {
-        return result;
+        return publishAcquireResult(result);
       }
       process.stderr.write(
         `[sandbox-agent] stuck-substitution sandbox destroyed; rebuilding fresh ` +
@@ -351,8 +348,9 @@ export async function acquireEnvironment(
       );
     }
   } finally {
-    // Never throws: a failed Secret delete must not replace the acquire's own answer.
-    await retained?.release().catch((error: unknown) => {
+    // Never throws: a failed Secret delete must not replace the acquire's own answer. The lease
+    // stays releasable after a failed delete, so nothing is silently marked done.
+    await lease?.release().catch((error: unknown) => {
       process.stderr.write(
         `[sandbox-agent] retained Daytona Secret cleanup failed: ` +
           `${String(error instanceof Error ? error.message : error).slice(0, 200)}\n`,
@@ -361,15 +359,43 @@ export async function acquireEnvironment(
   }
 }
 
+/**
+ * One attempt's answer, including the Secret lease the loop threads between attempts.
+ *
+ * PRIVATE ON PURPOSE. The lease is an ownership token: whoever holds it may delete a live
+ * sandbox's credentials. Only the loop above holds one, and `publishAcquireResult` strips it
+ * before the result reaches any caller, so no consumer of `acquireEnvironment` can reach it.
+ */
+type AcquireAttemptResult =
+  | { ok: true; env: SessionEnvironment }
+  | {
+      ok: false;
+      error: string;
+      stuckSubstitution?: boolean;
+      lease?: DaytonaSecretLease;
+    };
+
+/** Build the caller-facing result: everything the attempt said, minus the lease. */
+function publishAcquireResult(
+  result: AcquireAttemptResult,
+): AcquireEnvironmentResult {
+  if (result.ok) return result;
+  return {
+    ok: false,
+    error: result.error,
+    ...(result.stuckSubstitution ? { stuckSubstitution: true } : {}),
+  };
+}
+
 async function acquireEnvironmentOnce(
   request: AgentRunRequest,
   deps: SandboxAgentDeps = {},
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
   emit?: EmitEvent,
-  /** Secrets kept from a sandbox the preflight convicted. See `acquireEnvironment`. */
-  inheritedSecrets?: DaytonaSecretAllocation,
-): Promise<AcquireEnvironmentResult> {
+  /** A detached lease from a sandbox the preflight convicted. See `acquireEnvironment`. */
+  inheritedLease?: DaytonaSecretLease,
+): Promise<AcquireAttemptResult> {
   emit?.({
     type: "data",
     name: "agent-status",
@@ -612,7 +638,7 @@ async function acquireEnvironmentOnce(
       plan.credentials.modelEnvironment,
       plan.sandboxPermission,
       plan.credentials.daytonaSecretPlan,
-      inheritedSecrets,
+      inheritedLease ? { inheritedLease } : {},
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -1231,8 +1257,12 @@ async function acquireEnvironmentOnce(
         // Keep the Secrets. The teardown below destroys the sandbox, and the next attempt
         // creates its sandbox against this same allocation, which is the case Daytona support
         // confirmed works. The destroy runs through the sandbox-agent handle, so the intent has
-        // to be set on the provider here rather than passed to the destroy call.
-        retainDaytonaSecretsOnDestroy(sandboxProvider);
+        // to be set on the provider here rather than passed to the destroy call. It is keyed by
+        // THIS sandbox's id, so it cannot change what any other cleanup does.
+        const convictedSandboxId = environment.sandbox?.sandboxId;
+        if (convictedSandboxId) {
+          retainDaytonaSecretsOnDestroy(sandboxProvider, convictedSandboxId);
+        }
         throw new SubstitutionStuckError();
       }
     }
@@ -1263,14 +1293,15 @@ async function acquireEnvironmentOnce(
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
     if (err instanceof SubstitutionStuckError) {
-      // Read AFTER the destroy above: the allocation is only handed back once Daytona has
-      // confirmed the sandbox is absent, which keeps the delete-order invariant intact.
-      const retainedSecrets = takeRetainedDaytonaSecrets(sandboxProvider);
+      // Read AFTER the destroy above: the lease is only handed back once Daytona has confirmed
+      // the sandbox is absent, which keeps the delete-order invariant intact. A destroy that
+      // failed for any other reason hands back nothing, so the next attempt allocates fresh.
+      const retainedLease = takeDaytonaSecretLease(sandboxProvider);
       return {
         ok: false,
         error,
         stuckSubstitution: true,
-        ...(retainedSecrets ? { retainedSecrets } : {}),
+        ...(retainedLease ? { lease: retainedLease } : {}),
       };
     }
     return { ok: false, error };

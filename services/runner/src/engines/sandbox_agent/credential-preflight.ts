@@ -115,6 +115,13 @@ export class SubstitutionStuckError extends Error {
  * the real defect (see `acquireEnvironment`). A rebuild on the SAME Secret is the case Daytona
  * support confirmed works, so the extra attempt is a cheap safety net behind that fix rather than
  * a substitute for it. Each attempt costs one sandbox create, so the ceiling stays low.
+ *
+ * WHAT THE 4/7 DOES NOT SAY. Every one of those seven rebuilds changed BOTH the sandbox and the
+ * Secret, so the number measures new-sandbox-plus-new-Secret retries. It is not an estimate of
+ * how often a same-Secret rebuild is still stuck, and nobody has that number yet. 3 is therefore
+ * a temporary safety net, not a tuned value. Re-measure it from the
+ * "rebuilding fresh on the same Secret (attempt N/M)" lines once the fix has run in production,
+ * and lower it to 2 if the second attempt almost always succeeds.
  */
 export const STUCK_ACQUIRE_ATTEMPTS = 3;
 

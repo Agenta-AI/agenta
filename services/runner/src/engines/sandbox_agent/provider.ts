@@ -18,7 +18,7 @@ import {
   daytonaWithLifecycle,
 } from "./daytona-provider.ts";
 import { daytonaWithProcessLocalSecrets } from "./daytona-secret-provider.ts";
-import type { DaytonaSecretAllocation } from "./daytona-secrets.ts";
+import type { DaytonaSecretLease } from "./daytona-secrets.ts";
 import {
   assertDaytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
@@ -145,10 +145,16 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
  * reached. A known-but-disabled provider is refused here too (defense-in-depth for callers that
  * bypass `buildRunPlan`).
  *
- * `inheritedSecrets` carries the Secret allocation of a sandbox the credential preflight convicted
+ * `options.inheritedLease` carries the Secret lease of a sandbox the credential preflight convicted
  * as stuck. The rebuild is created against that same allocation, which is the case Daytona support
  * confirmed works. See `acquireEnvironment`.
  */
+export interface BuildSandboxProviderOptions {
+  /** A detached lease from a sandbox this run already convicted. See `acquireEnvironment`. */
+  inheritedLease?: DaytonaSecretLease;
+  config?: RunnerConfig;
+}
+
 export function buildSandboxProvider(
   sandboxId: string,
   env: Record<string, string>,
@@ -157,9 +163,9 @@ export function buildSandboxProvider(
   modelEnvironment: Record<string, string>,
   sandboxPermission?: SandboxPermission,
   daytonaSecretPlan?: DaytonaSecretPlan,
-  inheritedSecrets?: DaytonaSecretAllocation,
-  config: RunnerConfig = loadRunnerConfig(),
+  options: BuildSandboxProviderOptions = {},
 ) {
+  const config = options.config ?? loadRunnerConfig();
   if (
     (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
     !config.providers.enabled.includes(sandboxId as SandboxProviderId)
@@ -224,8 +230,8 @@ export function buildSandboxProvider(
           createFingerprint,
           // Set only when the credential preflight convicted the previous sandbox of this run.
           // The rebuild then mounts the SAME Secret instead of allocating a new one.
-          ...(inheritedSecrets
-            ? { inheritedAllocation: inheritedSecrets }
+          ...(options.inheritedLease
+            ? { inheritedLease: options.inheritedLease }
             : {}),
           // Run slightly after Daytona's own auto-delete backstop. The timer first issues an
           // idempotent sandbox delete, then removes Secrets, preserving the hard deletion order.
