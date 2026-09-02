@@ -155,6 +155,9 @@ function providerFactory(events: string[], options: FakeProviderOptions = {}) {
 const secretEvents = (events: string[]) =>
   events.filter((event) => event.startsWith("secret:"));
 
+/** Let every already-queued microtask and immediate run, so an interleaving is deterministic. */
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
 describe("the provider destroys a stuck sandbox and keeps its Secrets", () => {
   it("hands back a detached lease instead of deleting", async () => {
     const events: string[] = [];
@@ -523,6 +526,90 @@ describe("the provider destroys a stuck sandbox and keeps its Secrets", () => {
       1,
       "a retried teardown must not read as several separate leaks",
     );
+  });
+
+  it("never lets a replacement cleanup timer destroy a reconnected sandbox", async () => {
+    // THE RACE. A cleanup retry clears its own timer handle before it awaits the destroy, so a
+    // reconnect arriving in that window finds nothing to cancel and queues behind it. If that
+    // destroy then fails, the cleanup arms a REPLACEMENT timer while the reconnect is still
+    // waiting. The reconnect then succeeds, and the replacement later deletes the sandbox it just
+    // reconnected, along with its Secrets.
+    const events: string[] = [];
+    const timers: Array<() => void> = [];
+    let destroyCalls = 0;
+    let releaseSecondDestroy: (() => void) | undefined;
+    const secondDestroyBlocked = new Promise<void>((resolve) => {
+      releaseSecondDestroy = resolve;
+    });
+
+    const provider = daytonaWithProcessLocalSecrets(
+      (): DaytonaProviderLike => ({
+        name: "daytona",
+        async create() {
+          events.push("sandbox:create:sandbox-1");
+          return "sandbox-1";
+        },
+        async destroy(id) {
+          destroyCalls += 1;
+          if (destroyCalls === 2) await secondDestroyBlocked;
+          if (destroyCalls <= 2) {
+            events.push(`sandbox:destroy-failed:${id}`);
+            throw new Error("daytona API is down");
+          }
+          events.push(`sandbox:destroy:${id}`);
+        },
+        async reconnect(id) {
+          events.push(`sandbox:reconnect:${id}`);
+        },
+      }),
+      plan,
+      secretApi(events),
+      {
+        registry: new Map(),
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+        setCleanupTimer: ((run: () => void) => {
+          timers.push(run);
+          return { unref() {} };
+        }) as never,
+        clearCleanupTimer: (() => {}) as never,
+      },
+    );
+
+    const id = await provider.create();
+    // Destroy #1 fails, so the first retry timer is armed.
+    await assert.rejects(() => provider.destroy(id));
+    assert.equal(timers.length, 1);
+
+    // The retry starts and blocks inside destroy #2, having already cleared its timer handle.
+    timers[0]();
+    await flush();
+
+    // The reconnect finds no timer to cancel and queues behind the running cleanup.
+    const reconnecting = provider.reconnect!(id);
+    await flush();
+
+    // Destroy #2 fails, which arms the replacement timer while the reconnect is still waiting.
+    releaseSecondDestroy!();
+    await flush();
+    assert.equal(timers.length, 2, "the failed retry arms a replacement");
+
+    await reconnecting;
+    assert.ok(
+      events.includes("sandbox:reconnect:sandbox-1"),
+      "the reconnect must succeed",
+    );
+
+    // The replacement fires. It must find itself invalidated by the reconnect that overtook it.
+    timers[1]();
+    await flush();
+
+    assert.deepEqual(
+      events.filter((event) => event.startsWith("sandbox:destroy:")),
+      [],
+      "the reconnected sandbox must never be destroyed by a stale timer",
+    );
+    assert.deepEqual(secretEvents(events), ["secret:create:secret-1"]);
   });
 
   it("hands back no lease when the retained destroy itself fails", async () => {

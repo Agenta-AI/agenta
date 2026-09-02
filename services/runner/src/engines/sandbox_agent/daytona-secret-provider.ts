@@ -237,6 +237,28 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   };
 
   /**
+   * Drop any pending cleanup for this entry, and invalidate one that already fired.
+   *
+   * CALLED TWICE BY EVERY LIFECYCLE OPERATION: once before it queues, and again after it owns the
+   * serialized lock. The second call is not redundant, and the bug it closes is easy to miss. A
+   * cleanup that was already running when the operation queued clears its own timer handle before
+   * it awaits the destroy, so the pre-lock call sees nothing to cancel. If that destroy then
+   * fails, the cleanup arms a REPLACEMENT timer while the operation is still waiting. Cancelling
+   * again here, where nothing else can arm behind us, is what keeps that replacement from later
+   * destroying a sandbox this operation just reconnected or parked.
+   *
+   * The generation bump invalidates a callback that fired but has not entered its own serialized
+   * section yet; cancelling alone cannot reach one of those.
+   */
+  const dropPendingCleanup = (entry: RegistryEntry): void => {
+    if (entry.cleanupTimer) {
+      cancel(entry.cleanupTimer);
+      entry.cleanupTimer = undefined;
+    }
+    entry.generation += 1;
+  };
+
+  /**
    * Give a failed cleanup a later attempt, instead of forgetting the sandbox and its Secrets.
    *
    * A cleanup can fail in two places and both used to end the same way: the caller swallowed the
@@ -416,13 +438,8 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
           "missing-process-local-secret-allocation",
         );
       }
-      if (entry.cleanupTimer) {
-        cancel(entry.cleanupTimer);
-        entry.cleanupTimer = undefined;
-      }
-      // Invalidate a timer callback that fired but has not entered its serialized operation yet.
       // If cleanup already owns the operation, reconnect waits and observes the deleted entry.
-      entry.generation += 1;
+      dropPendingCleanup(entry);
       await serialize(entry, async () => {
         if (registry.get(sandboxId) !== entry) {
           throw new DaytonaReconnectTerminalError(
@@ -430,6 +447,9 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
             "missing-process-local-secret-allocation",
           );
         }
+        // Again, now that this reconnect owns the lock. A cleanup that failed while this call
+        // waited has armed a replacement timer the call above could not have seen.
+        dropPendingCleanup(entry);
         if (!plansMatch(entry, createFingerprint)) {
           await cleanupAfterSandbox(sandboxId, entry, activeProvider);
           throw new DaytonaReconnectTerminalError(
@@ -480,11 +500,12 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         await activeProvider.pause?.(sandboxId);
         return;
       }
-      if (entry.cleanupTimer) cancel(entry.cleanupTimer);
-      entry.cleanupTimer = undefined;
-      entry.generation += 1;
+      dropPendingCleanup(entry);
       await serialize(entry, async () => {
         if (registry.get(sandboxId) !== entry) return;
+        // Again under the lock, or a replacement timer armed by a cleanup that failed while this
+        // pause waited would delete the sandbox it is about to park.
+        dropPendingCleanup(entry);
         await activeProvider.pause?.(sandboxId);
         const scheduledGeneration = entry.generation;
         entry.cleanupTimer = schedule(() => {
@@ -515,13 +536,12 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         await destroySandboxIdempotently(activeProvider, sandboxId);
         return;
       }
-      if (entry.cleanupTimer) {
-        cancel(entry.cleanupTimer);
-        entry.cleanupTimer = undefined;
-      }
-      entry.generation += 1;
+      dropPendingCleanup(entry);
       await serialize(entry, async () => {
         if (registry.get(sandboxId) !== entry) return;
+        // No second drop here: this call runs the cleanup itself, so a replacement armed while it
+        // waited is either superseded by its success (the entry leaves the registry) or is the
+        // very retry its own failure would have armed.
         await cleanupAfterSandbox(sandboxId, entry, activeProvider);
       });
     },
