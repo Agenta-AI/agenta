@@ -7,10 +7,25 @@
  * heartbeat to notice. A control command has to reach the running turn directly, and that needs
  * a lookup keyed by something the API knows.
  *
- * THE KEY IS THE POOL KEY. `<projectId>:<sessionId>`, the same shape `poolKeyFor` builds, so a
- * command that names a project and a session finds the execution the same way the keep-alive
- * pool finds an environment. `session_id` alone is not enough: two projects may use the same
- * one, and the project segment is the tenant boundary.
+ * THE KEY IS THE SESSION ID, AND THE PROJECT IS CHECKED SEPARATELY. Keying by
+ * `<projectId>:<sessionId>` would be tidier, but the project scope is NOT known when a run
+ * starts: `runContext.project.id` is empty on the live invoke path, and the scope actually used
+ * for the pool key comes from the signed mount, which the coordinator resolves after the run is
+ * already in flight (`session-coordinator.ts`, `poolKeyFor(request, signed?.projectId)`).
+ * Registering under a key that does not exist yet is what made the first version of this
+ * registry answer "I do not hold that session" for every Stop.
+ *
+ * So the entry goes in under the session id at once, and `noteExecutionProject` fills the
+ * project in as soon as the coordinator knows it. A lookup matches only when the stored project
+ * agrees, so a Stop from another tenant is REFUSED rather than misrouted. Until the project is
+ * known the entry matches any project: that window is a few hundred milliseconds at the very
+ * start of a run, and refusing every Stop in it would reintroduce the bug this comment
+ * describes.
+ *
+ * The limit worth knowing: one entry per session id per process. Two projects running the same
+ * session id on one runner at the same time keep only the later entry, and the earlier one's
+ * Stop is then refused with a 404. Refusal is the safe direction, and the keep-alive pool has
+ * the same shape of key.
  *
  * `startedAt` is the field that makes a late Stop safe. The API pins the target turn at
  * admission and compares its own clock, but the runner's comparison against its OWN memory is
@@ -21,7 +36,8 @@
  */
 
 export interface LiveExecution {
-  projectId: string;
+  /** Undefined until the coordinator resolves the run's project scope. */
+  projectId: string | undefined;
   sessionId: string;
   /** The execution id, which is the runner's `turn_id`. */
   turnId: string;
@@ -33,42 +49,54 @@ export interface LiveExecution {
 
 const executions = new Map<string, LiveExecution>();
 
-export function executionKey(projectId: string, sessionId: string): string {
-  return `${projectId}:${sessionId}`;
+/**
+ * Register a run as live. A second registration for the same session REPLACES the first,
+ * because the pool's own supersede path has already torn the previous environment down by the
+ * time a replacement turn starts.
+ */
+export function registerExecution(execution: LiveExecution): void {
+  executions.set(execution.sessionId, execution);
 }
 
 /**
- * Register a run as live. A second registration for the same key REPLACES the first, because
- * the pool's own supersede path has already torn the previous environment down by the time a
- * replacement turn starts.
+ * Fill in the project scope once the coordinator has resolved it. Scoped to the turn id, so a
+ * late callback from a finished run cannot relabel its successor.
  */
-export function registerExecution(execution: LiveExecution): void {
-  executions.set(
-    executionKey(execution.projectId, execution.sessionId),
-    execution,
-  );
+export function noteExecutionProject(
+  sessionId: string,
+  turnId: string,
+  projectId: string,
+): void {
+  const current = executions.get(sessionId);
+  if (current && current.turnId === turnId) current.projectId = projectId;
 }
 
 /**
  * Remove a run, but only if it is still the one registered. A turn that finishes after its
  * successor registered must not unregister the successor.
  */
-export function unregisterExecution(
-  projectId: string,
-  sessionId: string,
-  turnId: string,
-): void {
-  const key = executionKey(projectId, sessionId);
-  const current = executions.get(key);
-  if (current && current.turnId === turnId) executions.delete(key);
+export function unregisterExecution(sessionId: string, turnId: string): void {
+  const current = executions.get(sessionId);
+  if (current && current.turnId === turnId) executions.delete(sessionId);
 }
 
-/** The live execution for a session, whatever its turn id. */
+/**
+ * The live execution for a session, when it belongs to the asking project.
+ *
+ * A stored project that DISAGREES yields nothing, so a Stop from another tenant is refused.
+ * A stored project that is not known yet matches, because the run has genuinely not been
+ * scoped at that point and refusing would drop every Stop in the first moments of a run.
+ */
 export function findExecution(
   projectId: string,
   sessionId: string,
 ): LiveExecution | undefined {
-  return executions.get(executionKey(projectId, sessionId));
+  const current = executions.get(sessionId);
+  if (!current) return undefined;
+  if (current.projectId !== undefined && current.projectId !== projectId) {
+    return undefined;
+  }
+  return current;
 }
 
 /** Test/inspection snapshot. */

@@ -18,12 +18,19 @@ two runner replicas the call reaches the right process only by luck. That failur
 the transport level, because the wrong process honestly answers "I do not hold that session" —
 the same answer a session that really ended gives. Two things make it loud:
 
-  * Refuse up front. When more than one replica has heartbeated inside the census window, this
-    adapter answers `unreachable` with a reason instead of calling, so the command stays durable
-    and the settlement sweep gives the user a terminal state.
+  * Warn up front. When more than one replica has heartbeated inside the census window, this
+    adapter logs at error level, names the replicas, and DELIVERS ANYWAY.
   * Disambiguate afterwards. A `not_held` for a session whose row says alive with a fresh
-    heartbeat is the wrong-replica failure and nothing else produces it. That test needs the
-    session row, so it lives in the service, next to the settlement it decides.
+    heartbeat is the wrong-replica failure and nothing else produces it. That test is exact and
+    it needs the session row, so it lives in the service, next to the settlement it decides.
+
+WHY THE CENSUS ONLY WARNS. It cannot tell two live replicas from one that restarted. A runner
+mints a fresh `replica_id` at boot when `AGENTA_RUNNER_REPLICA_ID` is unset
+(`services/runner/src/sessions/alive.ts`), so the id it used before a restart is still inside
+the window and the census counts two. Refusing on that count breaks Stop for the whole window
+after every ordinary deploy, which is a worse failure than the one it guards against, and it
+was observed doing exactly that. The `not_held` rule above is the exact detector and needs no
+census at all; this warning exists to put the replica ids in the log next to it.
 """
 
 from uuid import UUID
@@ -73,11 +80,9 @@ class DirectControlDelivery(ControlDeliveryPort):
         )
 
     async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
-        refusal = await self._refuse_multi_replica()
-        if refusal is not None:
-            return refusal
+        await self._warn_multi_replica(command)
 
-        result = await cancel_runner_execution(
+        answer = await cancel_runner_execution(
             command_id=str(command.id),
             project_id=str(command.project_id),
             session_id=command.session_id,
@@ -85,9 +90,11 @@ class DirectControlDelivery(ControlDeliveryPort):
             created_at=command.created_at.isoformat() if command.created_at else "",
             timeout_seconds=self._timeout,
         )
-        if result == RunnerCancelResult.accepted:
-            return DeliveryReceipt(status="accepted")
-        if result == RunnerCancelResult.not_held:
+        if answer.status == RunnerCancelResult.accepted:
+            # The answering replica's own id, so the claim the service writes matches the id
+            # the runner reports its outcome with.
+            return DeliveryReceipt(status="accepted", replica_id=answer.replica_id)
+        if answer.status == RunnerCancelResult.not_held:
             return DeliveryReceipt(status="not_held")
         return DeliveryReceipt(status="unreachable")
 
@@ -96,25 +103,25 @@ class DirectControlDelivery(ControlDeliveryPort):
         adapter keeps no delivery bookkeeping of its own."""
         return None
 
-    async def _refuse_multi_replica(self):
-        """Refuse to guess which replica to call. Returns a receipt when it refuses."""
+    async def _warn_multi_replica(self, command: SessionCommand) -> None:
+        """Put the live replica ids in the log when there is more than one. Never refuses."""
         if not self._single_replica_check:
-            return None
+            return
         replicas = await recent_replicas(
             self._lock, window_seconds=self._census_seconds
         )
         if len(replicas) <= 1:
-            return None
+            return
         log.error(
-            "control delivery: the direct adapter is configured but %s runner replicas "
-            "heartbeated in the last %ss (%s). A direct Stop can only reach one address, so it "
-            "would land on the right process by luck. Switch AGENTA_SESSIONS_CONTROL_ADAPTER "
-            "to long_poll, or run one runner.",
+            "control delivery: %s runner replica ids have heartbeated in the last %ss (%s) "
+            "while the direct adapter is configured. A direct Stop reaches one address, so if "
+            "these are genuinely concurrent replicas it lands on the right process only by "
+            "luck. A restarted runner also shows up here, because it mints a new id at boot. "
+            "Delivering anyway; a wrong-replica delivery is caught exactly by the not_held "
+            "rule. command=%s session=%s",
             len(replicas),
             self._census_seconds,
             ", ".join(sorted(replicas)),
-        )
-        return DeliveryReceipt(
-            status="unreachable",
-            detail=f"{len(replicas)} runner replicas are live; direct delivery cannot route",
+            command.id,
+            command.session_id,
         )

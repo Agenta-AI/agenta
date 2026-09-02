@@ -193,6 +193,14 @@ export interface KeepaliveContext {
   /** Latest session credential accessor supplied by the alive watchdog. */
   credential?: () => string;
   /**
+   * Called once with this run's project scope, as soon as it is known.
+   *
+   * The scope can only be resolved here: `runContext.project.id` is empty on the live invoke
+   * path, so the project comes from the signed mount, which is signed inside this function. The
+   * transport needs it to route a control command to the right tenant's session.
+   */
+  onScopeResolved?: (projectId: string) => void;
+  /**
    * Test seam for the credential-propagation hold. Production waits for real: the hold is what
    * keeps applied state from advancing over a value the provider's egress layer has probably not
    * picked up yet, so it must never be skipped outside a test.
@@ -292,6 +300,10 @@ export async function runWithKeepalive(
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
+  // Tell the transport which project this run belongs to. Until this lands, a control command
+  // cannot tell one tenant's session from another's, because the request itself often carries
+  // no project and the scope was only just derived from the signed mount.
+  ctx.onScopeResolved?.(scope.key.slice(0, scope.key.lastIndexOf(":")));
 
   // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
   // sign attempt threw) when the run-context scope produced the key. A mount-less session still
