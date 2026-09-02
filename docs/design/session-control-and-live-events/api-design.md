@@ -177,14 +177,20 @@ Responses:
 |---|---|---|
 | 202 Accepted | An execution was running or parked. The command is durable and on its way | `command.state = "pending"`, `execution.state = "stopping"` |
 | 200 OK | Nothing was running and no `expected_execution_id` was sent | `command.state = "obsolete"`, `execution.state = "idle"`, `execution.id = null` |
+| 200 OK | The running execution started **after** this request arrived, and no `expected_execution_id` was sent | `command.state = "obsolete"`, `execution.state = "idle"`, `execution.id = null`. The newer execution is not touched. See the stale-Stop guard in section 4 of the design document |
 | 409 Conflict | `expected_execution_id` does not name the running execution | `detail: {"message": ..., "current_execution_id": <id or null>}` |
 | 422 | The session id fails the allowlist (`SessionIdInvalid`) | `detail: <message>` |
 | 403 | The caller lacks `RUN_SESSIONS` | `FORBIDDEN_EXCEPTION` |
 
+The two 200 cases are deliberately indistinguishable to the client. Both mean "there is nothing of
+yours left to stop", and a client that needs to know which one it hit is reading the wrong signal:
+it should read the session's execution state, not this response. The command row keeps the exact
+reason in `outcome` for anyone debugging afterwards.
+
 202 and not 200 for the accepted case, because the work is not done when the response returns. The
 caller learns the outcome from the session's own state, not from this response. **A delivery failure
-does not change the status**: the command is durable, so an unreachable runner still yields 202 and
-the watchdog settles it.
+does not change the status**: the command is inserted and committed before any adapter is called, so
+an unreachable runner still yields 202 and the watchdog settles the command.
 
 Repeating the request with the same `Idempotency-Key` returns the same `command.id` and the same
 status. Repeating it without a key also returns the same command while one is still open, because
@@ -328,9 +334,9 @@ class SessionExecutionOutcome(BaseModel):
     # The execution the runner acted on. Null when it held none.
     id: Optional[str] = None
     # stopped: cancelled as asked. not_running: no such execution here.
-    # superseded: the held execution started after the command was created.
+    # superseded_by_newer_turn: the held execution started after the command arrived.
     # failed: the cancel itself failed.
-    state: Literal["stopped", "failed", "not_running", "superseded"]
+    state: Literal["stopped", "failed", "not_running", "superseded_by_newer_turn"]
     # Short, human-readable, present only when `state` is "failed".
     error: Optional[str] = Field(default=None, max_length=2000)
 
@@ -348,7 +354,7 @@ class SessionControlOutcomeRequest(BaseModel):
 class SessionCommandSettlement(BaseModel):
     id: UUID
     state: Literal["applied", "obsolete"]
-    outcome: Literal["stopped", "not_running", "superseded", "failed", "lost"]
+    outcome: Literal["stopped", "not_running", "superseded_by_newer_turn", "failed", "lost"]
     settled_at: datetime
 
 
@@ -408,6 +414,19 @@ Responses:
 
 **The response is an acknowledgement, not an outcome.** The runner reports what happened to the
 execution through the outcome route in section 4, so both adapters settle through one path.
+
+**404 is ambiguous, and the API must disambiguate it.** `not_held` is the honest answer both when the
+session really has ended and when the call reached the wrong replica. The API tells them apart with
+data it already has: a `not_held` for a session whose row says `is_alive` with a heartbeat younger
+than one interval is the wrong-replica failure. It is logged at error level, counted, and settled as
+`lost` rather than `not_running`, so the user is told the Stop failed instead of being told the work
+had already finished. Section 9 of the design document has the rule and the optional preventive
+configuration check.
+
+**The runner resolves a parked session through the pool, not the execution registry.** A Stop against
+a parked approval has no in-flight execution, so `/cancel` falls back to
+`SessionPool.awaitingApproval(sessionId)`
+(`services/runner/src/engines/sandbox_agent/session-pool.ts:117`, verified) before answering 404.
 
 ---
 

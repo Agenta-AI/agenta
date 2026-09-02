@@ -125,7 +125,7 @@ The mixins are the house ones from `api/oss/src/dbs/postgres/shared/dbas.py`: `P
 | `claimed_by` | String, null | delivery | The replica that holds the current claim. Bookkeeping, not an address. |
 | `claim_expires_at` | TIMESTAMP tz, null | delivery | When the claim may be delivered again. |
 | `claim_count` | Integer, not null, default 0 | delivery | Deliveries so far. Caps re-delivery. |
-| `outcome` | String, null | result | What happened to the execution: `stopped`, `not_running`, `superseded`, `failed`, `lost`. Null while open. |
+| `outcome` | String, null | result | What happened to the execution: `stopped`, `not_running`, `superseded_by_newer_turn`, `failed`, `lost`. Null while open. |
 | `idempotency_key` | String, null | context | The caller's `Idempotency-Key` header, stored verbatim. |
 | `settled_at` | TIMESTAMP tz, null | metadata | When the command reached a terminal state. |
 | `flags`, `tags`, `meta` | JSONB / JSON, null | metadata | House mixins. Unused in version one, present for consistency. |
@@ -147,16 +147,45 @@ Four grouping rules from the interface review are applied here.
   identity at all, and an address in a durable record would be an implementation detail with a
   lifetime longer than the thing it points at.
 
-### One column added to `session_streams`
+### Two columns added to `session_streams`
 
-`stopping_turn_id`, String, nullable. It names the execution that an accepted Stop is waiting on. It
-is written in the same transaction as the command insert, and cleared at settlement.
+**`stopping_turn_id`**, String, nullable. It names the execution that an accepted Stop is waiting on.
+It is written in the same transaction as the command insert, and cleared at settlement.
 
-It is a column and not a bit inside `flags` because `flags` is the Redis mirror. Every heartbeat
-rewrites it (`api/oss/src/core/sessions/streams/service.py:618`), so a stopping bit stored there
-would be erased on the next beat. `SessionStreamEdit` carries only `flags`, `tags`, `meta` and
-`turn_id` (`api/oss/src/core/sessions/streams/dtos.py:73`), so the heartbeat path cannot touch a
-new column by accident.
+**`turn_started_at`**, TIMESTAMP tz, nullable. It records when the row's current `turn_id` started.
+It exists for one reason: the stale-Stop guard in section 4 needs to compare a command's arrival
+time with the current execution's start time, and **there is nowhere to read that today**. The
+options were checked, and none of them works:
+
+| Candidate | Why it does not serve |
+|---|---|
+| `session_streams.updated_at` | It is the heartbeat timestamp and moves every 30 seconds. Verified: the mirror write is unconditional (`api/oss/src/core/sessions/streams/service.py:618`). |
+| The turn id itself | API-minted turns use uuid7 and are time-ordered (`streams/service.py:940`), but the runner mints its own with `randomUUID()`, which is uuid4 and carries no time (`services/runner/src/server.ts:190`, verified). Every browser turn today is runner-minted. |
+| Redis `running` or `alive` | The value is the bare turn id, and the release-if-owner script compares the whole value (`api/oss/src/dbs/redis/sessions/contract.py:153`). Packing a timestamp into it would break that compare and the golden fixture the runner shares. |
+| `session_turns.start_time` | It is written, from `turnStartedAt` captured at `services/runner/src/engines/sandbox_agent/run-turn.ts:192` and sent at `:469`. But the append is fire-and-forget (`.catch(() => {})`) and it needs a stream id and a continuity index, so a turn can be running with no row at all. It is a good secondary source, not a guard. |
+
+So add the column. It is written wherever `turn_id` is written, in the same statement, and only when
+the id actually changes:
+
+```sql
+UPDATE session_streams
+   SET turn_id = :turn_id,
+       turn_started_at = CASE
+           WHEN turn_id IS DISTINCT FROM :turn_id THEN now()
+           ELSE turn_started_at
+       END,
+       ...
+```
+
+That form is idempotent under the repeated heartbeats that stamp the same id every 30 seconds, and
+it needs no new writer: both `_start_turn` (`streams/service.py:940`) and the heartbeat's
+`durable_turn_id` stamp already go through `SessionStreamEdit`.
+
+Both are columns and not bits inside `flags` because `flags` is the Redis mirror. Every heartbeat
+rewrites it (`api/oss/src/core/sessions/streams/service.py:618`), so a value stored there would be
+erased on the next beat. `SessionStreamEdit` carries only `flags`, `tags`, `meta` and `turn_id`
+(`api/oss/src/core/sessions/streams/dtos.py:73`), so the heartbeat path cannot touch
+`stopping_turn_id` by accident, and it touches `turn_started_at` only through the guarded `CASE`.
 
 ### Indexes and constraints
 
@@ -258,7 +287,7 @@ pattern `SessionInteractionsDAO.transition_interaction` already uses
 | `pending` to `claimed` | The API, serving a claim, a direct call, or a heartbeat | `WHERE state = 'pending'` |
 | `claimed` to `pending` | The command sweep, when a lease expired and the session is still beating | `WHERE state = 'claimed' AND claim_expires_at < now() AND claim_count < :max_deliveries` |
 | `claimed` to `applied` | The API, on the runner's outcome report | `WHERE state = 'claimed' AND claimed_by = :replica_id` |
-| `claimed` to `obsolete` | The API, on a report of `not_running` or `superseded` | Same guard |
+| `claimed` to `obsolete` | The API, on a report of `not_running` or `superseded_by_newer_turn` | Same guard |
 | `claimed` to `obsolete` (`lost`) | The command sweep, when the lease expired and the session stopped beating | `WHERE state = 'claimed' AND claim_expires_at < now()`, plus the heartbeat-age test of section 4 |
 | `pending` to `obsolete` (`lost`) | The command sweep, when nobody ever claimed it | `WHERE state = 'pending' AND created_at < :admission_deadline` |
 
@@ -375,17 +404,49 @@ apply a Stop a second time, and by then the session may be running a newer turn.
 A Stop that arrives after its turn ended must not touch the next turn. Three guards, in order of
 strength:
 
-1. **The target is pinned at admission.** The API resolves `target_turn_id` once, from the Redis
-   running owner or, when the session is parked, the alive owner. It never re-resolves. A turn that
-   starts later has a different id, so a pinned command cannot reach it.
-2. **The runner compares start times.** The command envelope carries `created_at`. The runner
-   refuses to abort an execution that started **after** that time, and settles the command
-   `obsolete` with `outcome='superseded'`. This closes the residual race where a new turn takes over
-   between the API's Redis read and its insert.
-3. **First-party clients always send `expected_execution_id`.** The field stays optional in the
+1. **The API compares arrival time with the current turn's start time.** This is the guard that
+   closes the reported race, so it is spelled out below.
+2. **The target is pinned at admission.** The API resolves `target_turn_id` once and never
+   re-resolves it. A turn that starts later has a different id, so a pinned command cannot reach it.
+3. **The runner repeats the comparison locally.** The envelope carries the command's arrival time.
+   The runner refuses to abort an execution that started after it, and settles the command
+   `obsolete` with `outcome='superseded_by_newer_turn'`. The runner holds its own execution's start
+   time in memory, so this check is exact even when the API's is not.
+4. **First-party clients always send `expected_execution_id`.** The field stays optional in the
    contract, as decision D-010 requires, but the desktop and mobile Stop buttons must send it. Today
    the desktop sends nothing (`useAgentChatSession.ts:505`, verified). Treat an omitted id from a
    first-party client as a bug, not as a supported mode.
+
+#### The arrival-time comparison, when no expected execution id was sent
+
+The race: the user presses Stop at t=0 while turn one is running. Turn one ends at t=0.1. Turn two
+starts at t=0.2. The request is applied at t=0.3, reads Redis, finds turn two, and targets a turn the
+user never meant to stop.
+
+The rule, applied at admission before anything is inserted:
+
+1. The service stamps `received_at = now()` as its **first** action, before it reads Redis. It later
+   writes that same value as the row's `created_at` rather than letting the server default fill it,
+   so the value it compared is the value it stored.
+2. It reads the current running owner from Redis and the session's row, which gives `turn_id` and
+   `turn_started_at` in one query the admission path already makes.
+3. If `turn_started_at > received_at`, the current execution began after the user pressed Stop.
+   Insert the command already settled: `state='obsolete'`,
+   `outcome='superseded_by_newer_turn'`, `settled_at=now()`, `target_turn_id=null`. Return 200 with
+   `execution.state = "idle"`. **Do not target that turn and do not touch Redis.**
+4. Otherwise proceed normally.
+
+This runs only when `expected_execution_id` is absent. When the caller sent one, the 409 comparison
+already settles the question and is stricter.
+
+**When `turn_started_at` is null, the guard does not fire.** A row written before this column
+existed, or a turn whose stamp was lost, yields no comparison. The API then targets the turn as it
+does today and leaves the decision to guard 3, which is exact because the runner reads its own
+memory. Failing this way round is deliberate: a guard that refuses to Stop whenever it lacks data
+would break the common case to protect a rare one.
+
+`session_turns.start_time` is a useful secondary source when the row exists, but the design does not
+depend on it, for the reasons in the table in section 2.
 
 The `expected_execution_id` check itself happens twice, for two different reasons. At admission the
 API compares it to the Redis running owner and answers 409 if they differ. At application the runner
@@ -510,7 +571,7 @@ Claim response, 200:
 `count` plus a list is the house response envelope (`SessionsResponse`,
 `api/oss/src/apis/fastapi/sessions/models.py:105`). A `cancel` carries no `input` and no `policy`;
 both appear only for the kinds that have them, so a reader never has to interpret an empty object.
-`created_at` is on the envelope because the runner needs it for guard 2 of section 4.
+`created_at` is on the envelope because the runner needs it for guard 3 of section 4.
 
 Claim response, 204: the hold expired with nothing to deliver. No body.
 
@@ -528,7 +589,7 @@ Outcome request:
 ```
 
 `result` is the command's terminal state, `applied` or `obsolete`. `execution.state` is one of
-`stopped`, `failed`, `not_running`, `superseded`. `execution.error` is a short string, present only
+`stopped`, `failed`, `not_running`, `superseded_by_newer_turn`. `execution.error` is a short string, present only
 when the state is `failed`. The two objects are separate because they answer different questions and
 have different owners: `result` is delivery bookkeeping the runner controls, `execution` is a
 product fact the user sees.
@@ -588,6 +649,24 @@ Three details are not optional:
 
 The client timeout must exceed the hold: set the fetch timeout to `hold_seconds + 10`.
 
+### After a reconnect, the runner asks again; it never resumes a position
+
+This is worth stating on its own, because getting it wrong loses commands silently.
+
+A claim is a **query over durable state**. The runner sends the sessions it currently holds and the
+API answers with whatever is pending for them at that moment. There is no cursor, no offset, no
+sequence number, no resume token and no server-side per-runner queue position.
+
+So after any break, whether the connection dropped, the API replica restarted, the runner process
+restarted, or the loop was switched off and on, the runner simply issues the next claim with its
+current session set. A command created while nothing was listening is `pending` in Postgres, and the
+next claim returns it like any other. Nothing has to be replayed, and nothing can be skipped by
+starting from the wrong place, because there is no place to start from.
+
+The one thing this requires: the session set must be rebuilt from what the process actually holds,
+not cached from before the break. After a runner restart the set comes from the rebuilt pool and the
+live execution registry, both of which reflect reality rather than history.
+
 ---
 
 ## 6. The heartbeat fallback
@@ -641,9 +720,12 @@ credential.
    and stops rendering. It does not abort anything server-side by itself.
 2. The API authorizes the caller with `Permission.RUN_SESSIONS`, the same permission the current
    cancel path uses (`api/oss/src/apis/fastapi/sessions/router.py:377`).
-3. The API resolves the target once: `get_running_owner`, falling back to `get_alive_owner`, both
-   already imported by the streams service (`api/oss/src/core/sessions/streams/service.py:39`).
-   Call it `turn_id`. If `expected_execution_id` was sent and differs, stop here with 409.
+3. The API resolves the target once. It stamps `received_at` first, then reads
+   `get_running_owner`, falling back to `get_alive_owner`, both already imported by the streams
+   service (`api/oss/src/core/sessions/streams/service.py:39`), and reads the session row for
+   `turn_started_at`. Call the result `turn_id`. Three outcomes: if `expected_execution_id` was sent
+   and differs, stop with 409; if no expected id was sent and `turn_started_at > received_at`, stop
+   with a settled `superseded_by_newer_turn` command and 200 (section 4); otherwise continue.
 4. **One transaction.** Insert the command with `state='pending'`, `kind='cancel'`,
    `target_turn_id=turn_id`, `expected_turn_id=<as sent>`, and set
    `session_streams.stopping_turn_id = turn_id` on the same session's row. The DAO method takes an
@@ -739,12 +821,30 @@ command against the new execution, which is what the user meant.
 
 ### Case 6: a Stop that arrives after its turn ended
 
-Guard 1 makes the common case harmless: the command names a turn that no longer exists, so the
-runner settles `obsolete` with `not_running`, and the new turn is untouched. If the new turn somehow
-took over between the API's Redis read and its insert, guard 2 catches it: the runner sees an
-execution that started after `created_at` and settles `obsolete` with `superseded` rather than
-aborting it. Neither guard writes a Redis tombstone, so nothing can be killed for an hour the way
-`_displace_turns` can today (`api/oss/src/dbs/redis/sessions/locks.py:147`).
+The user presses Stop at t=0 while turn one runs. Turn one ends at t=0.1, turn two starts at t=0.2,
+and the request is applied at t=0.3. Today `_displace_turns` would tombstone turn two before its
+first output, and that tombstone lasts an hour because every read refreshes it
+(`api/oss/src/dbs/redis/sessions/locks.py:147`, verified). The four guards of section 4 answer this
+case in order.
+
+1. **Guard 1, at admission.** The API compares `received_at` with the row's `turn_started_at`. Turn
+   two started after the request arrived, so the API inserts a command that is already settled,
+   `state='obsolete'` with `outcome='superseded_by_newer_turn'`, targets nothing, touches no Redis
+   key, and returns 200 with `execution.state = "idle"`. **Turn two never hears about it.** This is
+   the guard that closes the case; the rest are for what it cannot see.
+2. **Guard 2** covers the ordinary late Stop, where turn one simply ended and nothing replaced it.
+   The command names a turn that no longer exists, so the runner settles `obsolete` with
+   `not_running`.
+3. **Guard 3** covers the residual window where turn two took over between the API's Redis read and
+   its insert, or where `turn_started_at` was null and guard 1 could not fire. The runner sees an
+   execution that started after the command's arrival time and settles `obsolete` with
+   `superseded_by_newer_turn` rather than aborting it. This check is exact, because the runner reads
+   its own memory.
+4. **Guard 4** removes the whole class for first-party clients, which send `expected_execution_id`
+   and get a 409 naming the current execution.
+
+No guard writes a Redis tombstone, so nothing can be killed for an hour the way `_displace_turns`
+can today.
 
 ### Case 7: the runner is gone
 
@@ -835,7 +935,7 @@ export interface ControlOutcome {
   result: "applied" | "obsolete";
   execution: {
     id: string | null;
-    state: "stopped" | "failed" | "not_running" | "superseded";
+    state: "stopped" | "failed" | "not_running" | "superseded_by_newer_turn";
     error?: string;
   };
 }
@@ -856,17 +956,23 @@ The runner also needs an execution registry, because the abort controller is a l
 `runAndStreamWithApiBaseResolved` today (`services/runner/src/server.ts:450`, verified). Add a
 module-level map from `${projectId}:${sessionId}` to `{ turnId, startedAt, abort(): void }`,
 registered when the run starts and removed in the same `finally` that releases the watchdog
-(`services/runner/src/server.ts:618`). `startedAt` is what guard 2 of section 4 compares. This
+(`services/runner/src/server.ts:618`). `startedAt` is what guard 3 of section 4 compares. This
 mirrors `inFlightSandboxes` (`services/runner/src/engines/sandbox_agent/environment.ts:239`).
 
 ---
 
-## 9. The direct-call adapter
+## 9. The direct-call adapter as an alternative first adapter
+
+This is the section the architecture review asked for as 8b. It sits here, directly after the port,
+because that is what it is: the second adapter behind the same port, and a candidate for being the
+**first** one built.
 
 The product review argues that with one runner, the authenticated API-to-runner hop that already
 carries hard kill can carry Cancel today, and that long polling is machinery for a second runner that
-does not exist. That argument is correct on its own terms, and this design makes both adapters cheap
-so Mahmoud can pick either in the morning without changing anything else.
+does not exist. The RFC's own text agrees that direct managed-runner routing is a legitimate adapter
+behind the port (`rfc.md`, "Control delivery must sit behind an internal port"). That argument is
+correct on its own terms, and this design makes both adapters cheap so Mahmoud can pick either in
+the morning without changing anything else.
 
 ### What already exists
 
@@ -903,6 +1009,71 @@ anything else and every exception to `unreachable`. One file,
 `acknowledge` is a no-op, because the claim compare-and-set is the acknowledgement. `recover` runs
 the same query the claim route runs, and the service calls it from the sweep.
 
+**The durable command is still inserted first.** The order is not negotiable and it is the whole
+difference between this adapter and a bare remote call:
+
+1. Admit and insert the command, with `stopping_turn_id`, in one transaction. Commit.
+2. Only then call the runner.
+3. Whatever the call returns, the user's request has already succeeded. A `not_held` lets the
+   service settle at once; an `unreachable` leaves the command `pending` for the sweep or for a
+   later retry. **Neither changes the 202.**
+
+Inverting those two steps, calling first and recording afterwards, would give back every failure the
+record exists to close, because a crash between the call and the insert leaves an aborted execution
+with no terminal outcome written anywhere.
+
+### What it cannot do
+
+- **Reach a session it cannot resolve locally.** A Stop against a parked approval has no entry in the
+  execution registry, because no turn is running. The runner must fall back to the keep-alive pool,
+  which already has the lookup for exactly this: `SessionPool.awaitingApproval(sessionId)`
+  (`services/runner/src/engines/sandbox_agent/session-pool.ts:117`, verified). That is a few lines,
+  but it is not free, and it is needed by both adapters. Do not treat the parked case as covered
+  just because the process is reachable.
+- **Survive a second runner replica.** `env.runner.internal_url` is one service address
+  (`api/oss/src/core/sessions/streams/runner_client.py:44`, verified). Behind a load balancer the
+  call lands on whichever replica answers, which is the right one only by luck.
+- **Reach a user-operated runner.** It needs inbound reachability from the API to the runner. A
+  runner behind a firewall cannot be called at all. The RFC treats that deployment as a
+  consideration rather than a requirement, so this is a real but not yet binding limit.
+
+### Making the wrong-replica failure loud
+
+The silent-failure worry is fair, and there are two ways to close it. Build the first; the second is
+optional.
+
+**Primary, and exact: treat a contradictory `not_held` as an error.** A mis-routed call is not
+actually silent at the protocol level. The runner answers 404 `not_held` when it does not hold the
+session, so the API always learns that delivery did not land. What makes it dangerous is that
+`not_held` is also the **legitimate** answer when the session really has ended, so the two cases look
+alike. They are easy to tell apart with data the API already has:
+
+> A `not_held` for a session whose `session_streams` row says `is_alive` **and** whose heartbeat age
+> is under one interval means some process is running that session and it is not the one we just
+> called. That is the wrong-replica failure, and nothing else produces it.
+
+On that condition, log at error level with the session id, the target turn id and the replica id
+from the Redis `owner` key, count it on a metric, and settle the command `obsolete` with
+`outcome='lost'` rather than `not_running`, so the user is told the Stop failed instead of being
+told the work had already finished. This needs no new storage and no census.
+
+**Optional, preventive: refuse the configuration.** Two parts, both cheap:
+
+- A required flag. The direct adapter refuses to start unless
+  `AGENTA_SESSIONS_CONTROL_DIRECT_SINGLE_REPLICA=true` is set, so choosing it is a deliberate
+  statement about the deployment rather than a default someone inherited. Optionally let the operator
+  name the replica instead, `AGENTA_SESSIONS_CONTROL_DIRECT_REPLICA_ID=<id>`, and refuse delivery
+  when the session's owner key names a different one.
+- A replica census. The heartbeat handler already computes the owning `replica_id` on every beat
+  (`api/oss/src/core/sessions/streams/service.py:458`). Have it also run one `ZADD` into a sorted set
+  keyed by replica id and scored by timestamp. The sweep then reads `ZCOUNT` over the last 10
+  minutes and, if the direct adapter is configured and the count exceeds one, logs an error every
+  pass naming the replicas it saw. One write per beat, one read per sweep, no key scan.
+
+Do not add a retry across the load balancer in the hope of hitting the right process. It converts a
+diagnosable failure into a lottery, and it multiplies load exactly when a deployment is already
+misconfigured.
+
 ### What the durable command record adds beyond a bare direct call
 
 The direct call alone would be an HTTP request with no memory. The record buys four things, and each
@@ -916,7 +1087,7 @@ one is a bug the current system has:
    onto one command. A bare call would abort twice, and the second abort can land on a newer turn.
    That is review hole H-3 in its cheapest form.
 3. **One terminal outcome per execution.** The record is where `stopped`, `not_running`,
-   `superseded`, `failed` and `lost` are written down, and where the watchdog and the runner agree
+   `superseded_by_newer_turn`, `failed` and `lost` are written down, and where the watchdog and the runner agree
    on who wrote it. A bare call has nowhere to record that the execution really ended.
 4. **Audit and the next command kinds.** Who stopped what, when, and what happened. Steer and Queue
    need exactly this record, so building it now is not speculative: it is the part of version one
@@ -935,16 +1106,36 @@ transition.
 | | Direct call | Long poll |
 |---|---|---|
 | New code | One runner route, one API client, both small | A runner loop, an API route with a hold, a Redis channel |
-| Reaches a parked session | Yes, the process is reachable | Yes, the parked session is in the declared set |
-| Two or more runner replicas | **Breaks silently.** One configured URL plus a load balancer means the wrong process gets the call and the right one never hears | Correct, because the runner declares what it holds |
+| Reaches a parked session | Yes, with the pool lookup above | Yes, the parked session is in the declared set |
+| Two or more runner replicas | Wrong process gets the call. Loud with the `not_held` rule above, silent without it | Correct, because the runner declares what it holds |
 | Runner behind a firewall | Impossible | Works |
 | Runner restarting | The call fails, the sweep settles or a later claim delivers | The claim resumes on reconnect |
 | Held connections | None | One per runner process |
 
-**If `direct` is the default, PR 3 in section 10 is deferred** and the session-scoped loop is not
-built at all. H-2 is then closed by the direct route rather than by the loop, and the heartbeat
-fallback stays as the second path for a session with a live turn. Everything else in this design is
-unchanged, which is the point of the port.
+**If `direct` is the default, PR 3b in section 10 is deferred** and the session-scoped loop is not
+built at all. H-2 is then closed by the direct route plus the pool lookup rather than by the loop,
+and the heartbeat fallback stays as the second path for a session with a live turn. Everything else
+in this design is unchanged, which is the point of the port.
+
+### Recommendation
+
+**Build the direct adapter first.** Three reasons, in order of weight:
+
+1. **It removes the largest piece of new machinery from the first release.** No held connection, no
+   poll loop, no per-session Redis channel, no uvicorn shutdown interaction. The parts that carry the
+   correctness, the record, the state machine, the guards and the settlement rule, are identical
+   either way, and they are the parts worth reviewing carefully.
+2. **The deployment it fails on does not exist yet.** Agenta runs one runner. The failure mode is
+   real, and the `not_held` rule above makes it loud rather than silent, which is what turns a
+   dangerous limitation into a known one.
+3. **The port makes the switch small.** Long polling stays one file plus one runner module. When a
+   second replica or a user-operated runner becomes real, the change is a configuration value and a
+   module, not a redesign.
+
+The cost of being wrong is bounded and visible: if a second replica appears before the long-poll
+adapter is built, Stop starts failing loudly on the wrong-replica condition and the fix is already
+designed. The cost of building long polling first is a larger first release for a deployment that
+does not exist. Take the smaller one.
 
 ---
 
@@ -957,9 +1148,9 @@ constraints are stated; anything not constrained can go in any order.
 |---|---|---|---|
 | 1 | Add the session command record | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000022_add_session_commands.py`, `api/oss/src/dbs/postgres/sessions/commands/{dbas,dbes,dao,mappings}.py`, `api/oss/src/core/sessions/commands/{dtos,interfaces,service,types}.py`, `api/oss/src/utils/env.py`, `api/entrypoints/routers.py` (wiring only), `api/oss/tests/pytest/unit/sessions/test_session_commands_dao.py` | none |
 | 2 | Runner execution registry and applier | `services/runner/src/sessions/control-channel.ts`, `services/runner/src/sessions/execution-registry.ts`, `services/runner/src/sessions/applied-commands.ts`, `services/runner/src/server.ts` (register and unregister), runner unit tests | none |
-| 3a | Direct-call adapter | `services/runner/src/server.ts` (the `/cancel` route), `api/oss/src/dbs/http/sessions/control_delivery_direct.py` | 1, 2 |
+| 3a | Direct-call adapter | `services/runner/src/server.ts` (the `/cancel` route and the parked-pool lookup), `api/oss/src/dbs/http/sessions/control_delivery_direct.py` (including the wrong-replica detector of section 9) | 1, 2 |
 | 3b | Long-poll adapter | `api/oss/src/apis/fastapi/sessions/router.py` (`SessionControlRouter`), `api/oss/src/apis/fastapi/sessions/models.py`, `api/oss/src/middlewares/auth.py` (one prefix), `api/oss/src/dbs/redis/sessions/contract.py`, `api/oss/src/dbs/redis/sessions/control_delivery.py`, `services/runner/src/sessions/control-poll.ts` | 1, 2 |
-| 4 | Public Cancel creates a command | `api/oss/src/apis/fastapi/sessions/router.py`, `api/oss/src/apis/fastapi/sessions/models.py`, `api/oss/src/core/sessions/commands/service.py`, migration `oss000000023` for `session_streams.stopping_turn_id`, `api/oss/src/dbs/postgres/sessions/streams/{dbas,dbes,dao}.py` | 1 |
+| 4 | Public Cancel creates a command | `api/oss/src/apis/fastapi/sessions/router.py`, `api/oss/src/apis/fastapi/sessions/models.py`, `api/oss/src/core/sessions/commands/service.py`, migration `oss000000023` for `session_streams.stopping_turn_id` **and** `session_streams.turn_started_at`, `api/oss/src/dbs/postgres/sessions/streams/{dbas,dbes,dao}.py` (the `CASE` that stamps the start time), `api/oss/src/core/sessions/streams/service.py` (`_start_turn` and the heartbeat stamp) | 1 |
 | 5 | Heartbeat command discovery | `api/oss/src/core/sessions/streams/{dtos,service}.py`, `services/runner/src/sessions/alive.ts` | 3a or 3b, and 4 |
 | 6 | Command settlement in the watchdog | `api/oss/src/tasks/asyncio/sessions/command_sweep.py` or the equivalent file on `feat/session-execution-watchdog`, `api/entrypoints/routers.py` (lifespan) | 1, and agreement with the watchdog author |
 | 7 | Point the clients at the command | `web/packages/agenta-entities/src/session/api/api.ts`, `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts` (send `expected_execution_id`), `web/mobile/src/features/chat/StopButton.tsx`, `api/oss/src/core/sessions/streams/service.py` (the cancel branch becomes a wrapper) | 4, 5 |
@@ -1006,20 +1197,28 @@ revert restores one consistent behavior.
 | Commands DAO | Claim with a session set that excludes the command's session | Returns nothing |
 | Commands service | Admission with a stale `expected_execution_id` | Raises the conflict type; no row inserted |
 | Commands service | Admission with nothing running or parked | One row, `state='obsolete'`, `outcome='not_running'` |
+| Commands service | Admission when `turn_started_at` is later than `received_at` | One row, `state='obsolete'`, `outcome='superseded_by_newer_turn'`, `target_turn_id` null, no Redis write |
+| Commands service | Admission when `turn_started_at` is null | The guard does not fire; the command targets the current turn |
+| Commands service | Admission when `turn_started_at` is earlier than `received_at` | Normal admission, `state='pending'` |
+| Commands service | The stored `created_at` equals the `received_at` that was compared | The two values match exactly, not merely closely |
+| Streams DAO | The same `turn_id` stamped by ten heartbeats | `turn_started_at` is written once and never moves |
+| Streams DAO | A new `turn_id` stamped over an old one | `turn_started_at` moves to the new turn's time |
 | Commands service | Admission twice with no idempotency key | One row; the second call returns the first |
 | Commands service | Admission writes the command and `stopping_turn_id` | Both are visible after one commit, neither after a rollback |
 | Command sweep | Claim expired, session beating, attempts left | Back to `pending` |
 | Command sweep | Claim expired, session silent for 90 s | `obsolete`, `outcome='lost'`, keys force-cleared, `ended` published |
 | Command sweep | Claim expired, session parked with an open interaction | Not settled as lost; the admission deadline applies instead |
 | Command sweep | Redis `alive` still holds its 3600 s value | Settlement still happens, because the rule reads heartbeat age, not the key |
-| Direct adapter | Runner answers 404 | Receipt is `not_held`; the service settles at once |
-| Direct adapter | Runner unreachable | Receipt is `unreachable`; admission still succeeded |
+| Direct adapter | Runner answers 404 for a session whose row is not alive | Receipt is `not_held`; the command settles `obsolete` with `not_running` |
+| Direct adapter | Runner answers 404 for a session that is alive and beating | Logged at error level, counted, and settled `obsolete` with `lost`, never `not_running` |
+| Direct adapter | Runner unreachable | Receipt is `unreachable`; admission still succeeded and returned 202 |
+| Direct adapter | The command row exists before the runner is called | A crash injected between the two leaves a `pending` command, never an aborted execution with no record |
 | Long-poll adapter | `deliver` when Redis is down | Admission still succeeds; the failure is logged, not raised |
 | Runner claim loop | 204, then 200, then a network error | Immediate re-claim, apply, then the backoff sequence with jitter |
 | Runner claim loop | 401 | One error log, then a 60 second retry, no tight loop |
 | Runner claim loop | Session set includes a parked pool entry | The parked session appears in the request body |
 | Runner applier | A command for a `turnId` this process does not hold | Settles `obsolete` with `not_running`; nothing is aborted |
-| Runner applier | The held execution started after the command's `created_at` | Settles `obsolete` with `superseded`; nothing is aborted |
+| Runner applier | The held execution started after the command's `created_at` | Settles `obsolete` with `superseded_by_newer_turn`; nothing is aborted |
 | Runner applier | The same `command_id` delivered twice | Aborted once, acknowledged twice |
 | Runner applier | The deduplication set survives a loop restart | A command applied before the restart is not applied again |
 | Runner registry | The run's `finally` runs | The entry is removed even when the run threw |
@@ -1112,21 +1311,25 @@ machine needs to be correct. Because delivery sits behind the port in section 8,
 adapter rather than a rewrite.
 
 **Skip the durable record and make Stop a bare direct call.** This is the product review's position
-and it is the strongest alternative. It is rejected for the four reasons in section 9: no recovery
-when the runner is unreachable, no idempotency against a double Stop landing on a newer turn, no
-place to write the one terminal outcome the watchdog and the runner must agree on, and no foundation
-for Steer and Queue. The direct call is kept as the transport, which is where its real value is.
+and it is the strongest alternative. Note what is and is not rejected here. The **direct call** is
+not rejected at all: it is section 9, it is a first-class adapter behind the port, and it is the
+recommended first adapter. What is rejected is dropping the **record**, for the four reasons set out
+in section 9: no recovery when the runner is unreachable, no idempotency against a double Stop
+landing on a newer turn, no place to write the one terminal outcome the watchdog and the runner must
+agree on, and no foundation for Steer and Queue. Insert first, then call.
 
 ---
 
 ## 13. Open questions for Mahmoud
 
 1. **Which adapter is the default, `direct` or `long_poll`?** Recommendation: **`direct`** for
-   version one. Reason: you run one runner, the hop is authenticated and in production today, it
-   reaches a parked session, and it removes a held connection and a poll loop from the first release.
-   The port keeps long polling one file away for the day a second replica or a user-operated runner
-   is real. The one thing to accept knowingly: with two replicas the direct call goes to the wrong
-   process and fails silently, so this choice must be revisited before any runner scaling.
+   version one, with the wrong-replica detector from section 9 built in the same PR. Reason: you run
+   one runner, the hop is authenticated and in production today, it reaches a parked session once the
+   pool lookup is added, and it removes a held connection and a poll loop from the first release. The
+   port keeps long polling one file away for the day a second replica or a user-operated runner is
+   real. The condition on the recommendation: the detector is not optional, because without it the
+   two-replica failure is silent, and with it the choice is reversible on a metric rather than on a
+   bug report.
 
 2. **Who owns execution settlement, this design or the watchdog branch?** Recommendation: **the
    watchdog owns it, and the command rules move into it.** Reason: one execution must reach exactly
