@@ -390,17 +390,20 @@ docker logs -f agenta-ee-dev-session-watchdog-runner-1 2>&1 | grep -E "sandbox-l
 docker logs -f agenta-ee-dev-session-watchdog-api-1 2>&1 | grep -i watchdog
 ```
 
-The stack is left running. To tear it down:
+**The stack has been torn down.** It ran on port 8880 as `agenta-ee-dev-session-watchdog` while
+the scenarios above were recorded, and was stopped with `--down` once they were, to give the box
+back its memory. Volumes were kept, so a rebuild is a redeploy rather than a fresh database.
+
+To bring it back, from this worktree:
 
 ```bash
-cd /home/mahmoud/code/agenta-2-worktrees/slice-watchdog
 set -a && . hosting/docker-compose/ee/.env.ee.dev.watchdog && set +a
-bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.watchdog --no-tunnel --down
+bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.watchdog --no-tunnel
 ```
 
-The env file `hosting/docker-compose/ee/.env.ee.dev.watchdog` is gitignored and holds a
-stack-local `AGENTA_SERVICES_INTERNAL_KEY` and the QA OpenAI key is in the stack's vault, not in
-the repository.
+Two notes for whoever does. The env file is gitignored and carries a stack-local
+`AGENTA_SERVICES_INTERNAL_KEY`, which is not in the template and which the deploy refuses to
+start without. And the QA OpenAI key lives in that stack's vault, never in this repository.
 
 ## What this slice does not do
 
