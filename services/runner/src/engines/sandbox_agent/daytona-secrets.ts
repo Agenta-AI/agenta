@@ -135,7 +135,11 @@ export class DaytonaSecretLease {
       return Promise.resolve();
     }
     if (this.leaseState === "indeterminate") {
-      if (this.allocation.created.length > 0) {
+      // Once, however many callers ask. The refusal is one fact about one allocation, and the
+      // create catch has already said the same thing; repeating it per release would make a
+      // retried teardown look like several separate leaks.
+      if (this.allocation.created.length > 0 && !this.refusalLogged) {
+        this.refusalLogged = true;
         const hosts = [
           ...new Set(this.allocation.created.flatMap((s) => s.hosts ?? [])),
         ];
@@ -151,6 +155,8 @@ export class DaytonaSecretLease {
   }
 
   private pendingRelease?: Promise<void>;
+  /** Whether the `indeterminate` refusal has already been said. See `release`. */
+  private refusalLogged = false;
 
   /** The one delete every overlapping `release` awaits. Clears itself so a failure can retry. */
   private async deleteAndMarkReleased(): Promise<void> {

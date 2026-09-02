@@ -116,12 +116,13 @@ function secretApi(
 interface FakeProviderOptions {
   /** Reject `create` on the Nth call, after Daytona would have made the remote sandbox. */
   createRejectsOn?: number;
-  /** Reject `destroy` with a non-404, so the cleanup cannot confirm absence. */
-  destroyRejects?: boolean;
+  /** Reject the first N `destroy` calls with a non-404, so absence cannot be confirmed. */
+  destroyRejectsTimes?: number;
 }
 
 function providerFactory(events: string[], options: FakeProviderOptions = {}) {
   let created = 0;
+  let destroyFailures = options.destroyRejectsTimes ?? 0;
   return (_attachments: Record<string, string>): DaytonaProviderLike => ({
     name: "daytona",
     async create() {
@@ -135,7 +136,8 @@ function providerFactory(events: string[], options: FakeProviderOptions = {}) {
       return id;
     },
     async destroy(id) {
-      if (options.destroyRejects) {
+      if (destroyFailures > 0) {
+        destroyFailures -= 1;
         events.push(`sandbox:destroy-failed:${id}`);
         throw new Error("daytona API is down");
       }
@@ -443,6 +445,86 @@ describe("the provider destroys a stuck sandbox and keeps its Secrets", () => {
     assert.equal(lease.state, "released");
   });
 
+  it("both overlapping callers see a failed delete, and the next release succeeds", async () => {
+    const events: string[] = [];
+    const provider = daytonaWithProcessLocalSecrets(
+      providerFactory(events),
+      plan,
+      secretApi(events, { failDeletes: 1 }),
+      {
+        registry: new Map(),
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+      },
+    );
+    const id = await provider.create();
+    retainDaytonaSecretsOnDestroy(provider, id);
+    await provider.destroy(id);
+    const lease = takeDaytonaSecretLease(provider)!;
+
+    // One delete, one rejection, delivered to both callers. Neither may conclude it succeeded.
+    const first = lease.release();
+    const second = lease.release();
+    await assert.rejects(() => first);
+    await assert.rejects(() => second);
+    assert.equal(lease.state, "detached");
+
+    await lease.release();
+    assert.equal(lease.state, "released");
+    assert.deepEqual(secretEvents(events), [
+      "secret:create:secret-1",
+      "secret:delete-failed:secret-1",
+      "secret:delete:secret-1",
+    ]);
+  });
+
+  it("says the indeterminate refusal once, however many callers ask", async () => {
+    const events: string[] = [];
+    const logs: string[] = [];
+    const api = secretApi(events);
+    const registry = new Map();
+    const first = daytonaWithProcessLocalSecrets(
+      providerFactory(events),
+      plan,
+      api,
+      {
+        registry,
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+        log: (message) => logs.push(message),
+      },
+    );
+    const firstId = await first.create();
+    retainDaytonaSecretsOnDestroy(first, firstId);
+    await first.destroy(firstId);
+    const lease = takeDaytonaSecretLease(first)!;
+
+    const second = daytonaWithProcessLocalSecrets(
+      providerFactory(events, { createRejectsOn: 1 }),
+      plan,
+      api,
+      {
+        registry,
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+        inheritedLease: lease,
+        log: (message) => logs.push(message),
+      },
+    );
+    await assert.rejects(() => second.create());
+
+    await lease.release();
+    await lease.release();
+    await lease.release();
+
+    assert.equal(
+      logs.filter((line) => line.includes("reason=create-outcome-unknown"))
+        .length,
+      1,
+      "a retried teardown must not read as several separate leaks",
+    );
+  });
+
   it("hands back no lease when the retained destroy itself fails", async () => {
     // A destroy that rejects with anything but a 404 cannot prove the sandbox is gone, so the
     // cleanup re-raises before it reaches the lease. The Secret and the sandbox are stranded
@@ -450,7 +532,7 @@ describe("the provider destroys a stuck sandbox and keeps its Secrets", () => {
     // fresh rather than mounting Secrets that may still be attached to a live sandbox.
     const events: string[] = [];
     const provider = daytonaWithProcessLocalSecrets(
-      providerFactory(events, { destroyRejects: true }),
+      providerFactory(events, { destroyRejectsTimes: 1 }),
       plan,
       secretApi(events),
       {
@@ -554,6 +636,10 @@ interface AcquireFixtureOptions {
   sessionFailsOnAttempt?: number;
   /** Abort this signal as soon as an attempt is convicted stuck. */
   abortWhenStuck?: AbortController;
+  /** Reject the first N sandbox destroys, so teardown cannot confirm absence. */
+  destroyRejectsTimes?: number;
+  /** Reject the first N Secret deletes, so teardown cannot finish the cleanup. */
+  failDeletes?: number;
 }
 
 /**
@@ -572,14 +658,23 @@ function acquireFixture(
   options: AcquireFixtureOptions = {},
 ) {
   const events: string[] = [];
-  const api = secretApi(events);
+  const api = secretApi(events, {
+    ...(options.failDeletes ? { failDeletes: options.failDeletes } : {}),
+  });
   const registry = new Map();
-  const buildFake = providerFactory(events);
+  const buildFake = providerFactory(events, {
+    ...(options.destroyRejectsTimes
+      ? { destroyRejectsTimes: options.destroyRejectsTimes }
+      : {}),
+  });
   const preflightCalls: number[] = [];
+  const logs: string[] = [];
+  // The provider's cleanup-retry timer, captured instead of scheduled, so a test can run it.
+  const timers: Array<() => void> = [];
   let attempts = 0;
 
   const deps: SandboxAgentDeps = {
-    log: () => {},
+    log: (message) => logs.push(message),
     createDaytonaCwd: (durable?: string) =>
       durable ?? "/home/sandbox/agenta-fake-cwd",
     createLocalCwd: (durable?: string) => durable ?? "/tmp/agenta-fake-cwd",
@@ -598,6 +693,11 @@ function acquireFixture(
           registry,
           cleanupDelayMilliseconds: 1_000,
           createFingerprint: GENERATION,
+          log: (message) => logs.push(message),
+          setCleanupTimer: ((run: () => void) => {
+            timers.push(run);
+            return { unref() {} };
+          }) as never,
           ...(args[7] as { inheritedLease?: DaytonaSecretLease }),
         },
       )) as never,
@@ -658,7 +758,7 @@ function acquireFixture(
     }) as never,
   };
 
-  return { deps, events, preflightCalls };
+  return { deps, events, preflightCalls, logs, timers };
 }
 
 describe("acquireEnvironment rebuilds a stuck sandbox on the same Secret", () => {
@@ -784,6 +884,70 @@ describe("acquireEnvironment rebuilds a stuck sandbox on the same Secret", () =>
       "a recovered rebuild is not a failure the user should hear about",
     );
     if (result.ok) await result.env.destroy({ reason: "failed-turn" });
+  });
+
+  it("logs a failed sandbox delete at teardown and retries the whole cleanup", async () => {
+    // The environment is already marked destroyed and dropped from the in-flight map by the time
+    // the rejection is swallowed, so without the retry nothing is left holding the sandbox or its
+    // Secret. Both used to disappear here without a line in the log.
+    const { deps, events, logs, timers } = acquireFixture(["ok"], {
+      destroyRejectsTimes: 1,
+    });
+
+    const result = await acquireEnvironment(daytonaRequest, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    await result.env.destroy({ reason: "failed-turn" });
+
+    assert.ok(
+      logs.some((line) => line.startsWith("sandbox delete failed sandbox=")),
+      "the swallowed rejection must reach the operator log",
+    );
+    assert.equal(timers.length, 1, "the cleanup retry must be armed");
+    assert.deepEqual(secretEvents(events), ["secret:create:secret-1"]);
+
+    // The later attempt destroys the sandbox and deletes the Secret, exactly once each.
+    timers[0]();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(secretEvents(events), [
+      "secret:create:secret-1",
+      "secret:delete:secret-1",
+    ]);
+    assert.deepEqual(
+      events.filter((event) => event.startsWith("sandbox:destroy")),
+      ["sandbox:destroy-failed:sandbox-1", "sandbox:destroy:sandbox-1"],
+    );
+  });
+
+  it("logs a failed Secret delete at teardown and retries only the delete", async () => {
+    const { deps, events, logs, timers } = acquireFixture(["ok"], {
+      failDeletes: 1,
+    });
+
+    const result = await acquireEnvironment(daytonaRequest, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    await result.env.destroy({ reason: "failed-turn" });
+
+    assert.ok(
+      logs.some((line) => line.startsWith("sandbox delete failed sandbox=")),
+      "the swallowed rejection must reach the operator log",
+    );
+    assert.ok(
+      logs.some((line) =>
+        line.includes("cleanup failed sandbox=sandbox-1 reason=secret-delete"),
+      ),
+      "the provider names which half of the cleanup failed",
+    );
+    assert.equal(timers.length, 1, "the cleanup retry must be armed");
+
+    timers[0]();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(secretEvents(events), [
+      "secret:create:secret-1",
+      "secret:delete-failed:secret-1",
+      "secret:delete:secret-1",
+    ]);
   });
 
   it("never returns the lease to its caller", async () => {

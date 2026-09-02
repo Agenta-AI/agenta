@@ -236,6 +236,47 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     return provider;
   };
 
+  /**
+   * Give a failed cleanup a later attempt, instead of forgetting the sandbox and its Secrets.
+   *
+   * A cleanup can fail in two places and both used to end the same way: the caller swallowed the
+   * rejection, the environment was already marked destroyed and dropped from the in-flight map,
+   * and nothing was left holding the pair. The registry entry survives either failure, so the
+   * same timer the park path uses can run the whole cleanup again. Reuses the entry's generation
+   * counter, so a later explicit destroy, pause, or reconnect cancels this retry and wins.
+   */
+  const armCleanupRetry = (
+    sandboxId: string,
+    entry: RegistryEntry,
+    activeProvider: T,
+    reason: string,
+    error: unknown,
+  ): void => {
+    log(
+      `process-local Daytona cleanup failed sandbox=${sandboxId} reason=${reason}: ` +
+        `${String(error instanceof Error ? error.message : error).slice(0, 200)}; ` +
+        `retrying in ${dependencies.cleanupDelayMilliseconds}ms`,
+    );
+    if (entry.cleanupTimer) return;
+    entry.generation += 1;
+    const scheduledGeneration = entry.generation;
+    entry.cleanupTimer = schedule(() => {
+      void serialize(entry, async () => {
+        if (
+          registry.get(sandboxId) !== entry ||
+          entry.generation !== scheduledGeneration
+        ) {
+          return;
+        }
+        entry.cleanupTimer = undefined;
+        await cleanupAfterSandbox(sandboxId, entry, activeProvider);
+      }).catch(() => {
+        // The retry arms its own next attempt, so there is nothing to add here.
+      });
+    }, dependencies.cleanupDelayMilliseconds);
+    entry.cleanupTimer.unref?.();
+  };
+
   const cleanupAfterSandbox = async (
     sandboxId: string,
     entry: RegistryEntry,
@@ -243,10 +284,17 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   ): Promise<void> => {
     // A Secret remains mounted until Daytona confirms the sandbox is absent. Never reverse this
     // order, including timer cleanup and create compensation after an id was returned.
-    await destroySandboxIdempotently(activeProvider, sandboxId);
+    try {
+      await destroySandboxIdempotently(activeProvider, sandboxId);
+    } catch (error) {
+      // Absence is UNPROVEN, so the Secrets stay and the lease stays attached: the sandbox may
+      // still be running with them mounted. Keep the entry and try the whole cleanup again.
+      armCleanupRetry(sandboxId, entry, activeProvider, "destroy", error);
+      throw error;
+    }
     // The sandbox is gone, so the lease no longer belongs to it either way. What differs is who
     // deletes: a retained cleanup hands the detached lease to the caller, and every other cleanup
-    // releases it here. A failed delete re-raises, leaving the entry and the lease as they were.
+    // releases it here.
     entry.lease.detach();
     if (
       retainSecretsForSandbox !== undefined &&
@@ -255,7 +303,21 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       retainSecretsForSandbox = undefined;
       retainedLease = entry.lease;
     } else {
-      await entry.lease.release();
+      try {
+        await entry.lease.release();
+      } catch (error) {
+        // The sandbox is confirmed gone and the lease is detached, so it is still releasable.
+        // Keep the entry so the timer can retry the delete; the retried destroy answers 404 and
+        // is treated as success, which leaves the release as the only work left to do.
+        armCleanupRetry(
+          sandboxId,
+          entry,
+          activeProvider,
+          "secret-delete",
+          error,
+        );
+        throw error;
+      }
     }
     if (registry.get(sandboxId) === entry) registry.delete(sandboxId);
     if (currentAllocation === entry.lease.allocation) {
