@@ -31,9 +31,13 @@ export const composerDraftBySession = new Map<string, string>()
 export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
 /**
- * The turn id of the run this browser is watching, per session, read off the stream's
- * `data-agent-turn` part (see `turnIdFromDataPart`). Stop sends it as `expected_execution_id` so
- * the server cancels THAT turn or nothing.
+ * The turn id of the run this browser is watching, per session, read off the streaming message's
+ * metadata (see `latestTurnId`). Stop sends it as `expected_execution_id` so the server cancels
+ * THAT turn or nothing.
+ *
+ * In memory on purpose, not persisted with the messages. A reload starts empty, so Stop falls back
+ * to sending no guard rather than naming a turn from a past page load — a stale id would refuse a
+ * Stop that is correct, which is worse than the bug it guards.
  *
  * Here rather than in an atom because nothing renders it: it is written once per turn and read
  * once, when the user presses Stop. A new turn overwrites it, so the stored id is always the last

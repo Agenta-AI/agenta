@@ -4,7 +4,7 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     startupLabelFromDataPart,
-    turnIdFromDataPart,
+    latestTurnId,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -149,10 +149,6 @@ export const useAgentChatSession = ({
         onData: (part) => {
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
-            // The runner names the turn it just started. Remembering it is what lets Stop say
-            // WHICH turn to cancel instead of "whatever is running" (#6417).
-            const turnId = turnIdFromDataPart(part)
-            if (turnId) setSessionTurnId(sessionId, turnId)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
@@ -353,6 +349,15 @@ export const useAgentChatSession = ({
         !!lastMessage &&
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
+
+    // The runner names the turn it just started, in the streaming message's metadata. Remembering
+    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
+    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
+    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the

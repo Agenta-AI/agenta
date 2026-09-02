@@ -2,41 +2,66 @@
  * Reading the turn id off the stream, and keeping it per session.
  *
  * The runner mints a browser turn's id, so the client had no way to name the turn it was watching
- * and Stop could only say "cancel whatever is running" (#6417). The runner now emits
- * `{type: "turn", turnId}` first and the SDK forwards it as a `data-agent-turn` part.
+ * and Stop could only say "cancel whatever is running" (#6417). The runner now sends it as a
+ * `message-metadata` chunk, so it lands on `message.metadata.turnId` beside the `sessionId` the
+ * start frame sets, and the SDK merges metadata so the finish frame does not overwrite it.
  *
- * The reader must be strict: anything that is not that part, or carries no usable id, yields null,
- * because a wrong id would refuse a Stop that is correct.
+ * The readers must be strict, and must consult only the NEWEST assistant message: an older one
+ * carries an older turn's id, and naming a turn that has ended would refuse a correct Stop.
  */
+import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {turnIdFromDataPart} from "../../../src/assets/agentTurn"
+import {getMessageTurnId, latestTurnId} from "../../../src/assets/agentTurn"
 import {
     clearSessionEphemera,
     getSessionTurnId,
     setSessionTurnId,
 } from "../../../src/state/sessionEphemera"
 
-describe("turnIdFromDataPart", () => {
-    it("reads the id from the runner's turn part", () => {
-        expect(turnIdFromDataPart({type: "data-agent-turn", data: {turnId: "turn-1"}})).toBe(
-            "turn-1",
-        )
-    })
+const assistant = (metadata?: unknown): UIMessage =>
+    ({id: `m${Math.random()}`, role: "assistant", parts: [], metadata}) as unknown as UIMessage
 
-    it("ignores every other part the stream carries", () => {
-        expect(turnIdFromDataPart({type: "data-agent-status", data: {phase: "booting"}})).toBeNull()
-        expect(turnIdFromDataPart({type: "data-trace", data: {traceId: "t1"}})).toBeNull()
-        expect(turnIdFromDataPart({type: "text", text: "hello"})).toBeNull()
+const user = (): UIMessage =>
+    ({id: `u${Math.random()}`, role: "user", parts: []}) as unknown as UIMessage
+
+describe("getMessageTurnId", () => {
+    it("reads the id the runner put in the message metadata", () => {
+        expect(getMessageTurnId(assistant({turnId: "turn-1", sessionId: "s1"}))).toBe("turn-1")
     })
 
     it("yields null rather than a bad id", () => {
-        expect(turnIdFromDataPart({type: "data-agent-turn", data: {}})).toBeNull()
-        expect(turnIdFromDataPart({type: "data-agent-turn", data: {turnId: "   "}})).toBeNull()
-        expect(turnIdFromDataPart({type: "data-agent-turn", data: {turnId: 7}})).toBeNull()
-        expect(turnIdFromDataPart({type: "data-agent-turn"})).toBeNull()
-        expect(turnIdFromDataPart(null)).toBeNull()
-        expect(turnIdFromDataPart("data-agent-turn")).toBeNull()
+        expect(getMessageTurnId(assistant({sessionId: "s1", traceId: "t1"}))).toBeNull()
+        expect(getMessageTurnId(assistant({turnId: "   "}))).toBeNull()
+        expect(getMessageTurnId(assistant({turnId: 7}))).toBeNull()
+        expect(getMessageTurnId(assistant())).toBeNull()
+        expect(getMessageTurnId(undefined)).toBeNull()
+    })
+})
+
+describe("latestTurnId", () => {
+    it("takes the newest assistant turn's id, not an older one", () => {
+        expect(
+            latestTurnId([
+                user(),
+                assistant({turnId: "turn-1"}),
+                user(),
+                assistant({turnId: "turn-2"}),
+            ]),
+        ).toBe("turn-2")
+    })
+
+    it("does not fall back to an older turn when the newest carries no id", () => {
+        expect(latestTurnId([assistant({turnId: "turn-1"}), assistant({})])).toBeNull()
+    })
+
+    it("looks past a trailing user message", () => {
+        expect(latestTurnId([assistant({turnId: "turn-1"}), user()])).toBe("turn-1")
+    })
+
+    it("is null for an empty transcript and for one with no assistant turn", () => {
+        expect(latestTurnId([])).toBeNull()
+        expect(latestTurnId([user()])).toBeNull()
     })
 })
 

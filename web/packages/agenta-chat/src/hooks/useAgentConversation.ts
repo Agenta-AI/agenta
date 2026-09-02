@@ -39,7 +39,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
-import {turnIdFromDataPart} from "../assets/agentTurn"
+import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
@@ -271,9 +271,6 @@ export const useAgentConversation = ({
         onData: (part) => {
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
-            // The runner names the turn it just started, so Stop can say WHICH turn to cancel.
-            const turnId = turnIdFromDataPart(part)
-            if (turnId) setSessionTurnId(sessionId, turnId)
         },
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
@@ -342,6 +339,15 @@ export const useAgentConversation = ({
     const messagesRef = useRef(messages)
     messagesRef.current = messages
     busyRef.current = busy
+
+    // The runner names the turn it just started, in the streaming message's metadata. Remembering
+    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
+    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
+    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
     // the backend record log. Cache-first — when this session opens with no locally-cached
