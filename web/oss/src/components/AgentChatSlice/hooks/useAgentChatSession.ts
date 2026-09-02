@@ -23,7 +23,8 @@ import {
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
-    commandSessionStream,
+    cancelSessionExecution,
+    fetchSessionStream,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
@@ -477,6 +478,31 @@ export const useAgentChatSession = ({
 
     const projectId = useAtomValue(projectIdAtom)
 
+    /**
+     * Send the Stop, naming the execution we mean.
+     *
+     * The execution id is read FRESH from the session row rather than from the liveness query,
+     * which is a project-wide poll up to 15 seconds stale. A stale id would be refused with a
+     * conflict and the user's Stop would do nothing. When the row names no turn we send no
+     * expectation and let the API resolve the target, which is the same behaviour as before.
+     *
+     * A conflict means the run this tab was watching had already ended, so refresh rather than
+     * retry: the session's own state is the answer, never this response.
+     */
+    const stopCurrentExecution = useCallback(async () => {
+        if (!projectId || !sessionId) return
+        const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+        await cancelSessionExecution({
+            sessionId,
+            projectId,
+            expectedExecutionId: stream?.turn_id ?? undefined,
+        })
+        // Refresh on every answer, conflict included. A conflict means the run this tab was
+        // watching had already ended, and the session's own state is what says so.
+        void invalidateSessionInspector(queryClient, sessionId)
+        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+    }, [projectId, sessionId, queryClient])
+
     const handleStop = useCallback(() => {
         markStopped()
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
@@ -498,12 +524,12 @@ export const useAgentChatSession = ({
                 .catch(() => {})
             return
         }
-        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
-        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
-        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
-        // the client stream aborted but the runner kept running and billing.
-        commandSessionStream({sessionId, projectId}).catch(() => {})
-    }, [markStopped, stop, projectId, sessionId, queryClient])
+        // Default Stop: cancel the CURRENT EXECUTION and keep the session warm. The API records a
+        // durable command and reaches the runner directly, so the turn stops in seconds instead of
+        // on the next heartbeat, and the sandbox and native harness session survive for the next
+        // message. This is not a kill: the session stays open and resumable.
+        void stopCurrentExecution()
+    }, [markStopped, stop, projectId, sessionId, queryClient, stopCurrentExecution])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it
