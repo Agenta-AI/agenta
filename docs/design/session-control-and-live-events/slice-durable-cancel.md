@@ -2,10 +2,10 @@
 
 > AGENT-GENERATED, low weight. Built and verified live. Mahmoud makes final decisions.
 
-Branch `feat/session-durable-cancel`, on top of `spike/session-cancel-warm`. It implements
-[the durable command design](spike-b-durable-commands-design.md) and
-[the route contracts](api-design.md), with the direct-call adapter of that design's section 9.
-The long-poll adapter is not built.
+Branch `feat/session-durable-cancel`, rebased onto `spike/session-cancel-warm` at `f5b1ae6244`.
+It implements [the durable command design](spike-b-durable-commands-design.md) at `86281fa313`
+and [the route contracts](api-design.md), with the direct-call adapter of that design's
+section 9. The long-poll adapter is not built.
 
 Every claim below is marked **verified** (observed on the running stack, or read in this
 branch's code with a `path:line`) or **reported** (taken from a document).
@@ -14,17 +14,17 @@ branch's code with a `path:line`) or **reported** (taken from a document).
 
 ## What a Stop does now
 
-**Verified live.** A user Stop reaches the running turn in 72 milliseconds, ends it, and leaves
+**Verified live.** A user Stop reaches the running turn in 82 milliseconds, ends it, and leaves
 the sandbox and the native harness session warm. Before this branch it reached the runner on the
 next heartbeat, up to 30 seconds later.
 
 | Step | Observed at | After the Stop request |
 |---|---|---|
-| The browser's request arrives, the command row commits, the API calls the runner | 23:56:35.268 | 0 |
-| The runner aborts the execution | 23:56:35.340 | 72 ms |
-| The harness confirms it stopped | 23:56:35.358 | 90 ms |
-| The runner reports, and the API settles the command and the execution | 23:56:35.384 | 116 ms |
-| The sandbox is parked warm, not deleted | 23:56:36.236 | 968 ms |
+| The browser's request arrives, the command row commits, the API calls the runner | 00:12:45.624 | 0 |
+| The runner aborts the execution | 00:12:45.706 | 82 ms |
+| The harness confirms it stopped | 00:12:45.730 | 106 ms |
+| The runner reports, and the API settles the command and the execution | 00:12:45.750 | 126 ms |
+| The sandbox is parked warm, not deleted | 00:12:46.617 | 993 ms |
 
 The 5 second budget in the design is met with two orders of magnitude to spare. The next message
 on that session recalled a codeword from the stopped turn, which is warm resume measured from
@@ -86,7 +86,13 @@ runner is called, and a delivery failure never fails the request.
 `POST /cancel` sits beside `POST /kill` behind the same token gate
 (`services/runner/src/server.ts:821`). It resolves a live execution through a module-level
 registry (`services/runner/src/sessions/execution-registry.ts`), falls back to the keep-alive
-pool for a parked approval (`server.ts:746`), and answers 404 when it holds neither. The applier
+pool for a parked approval, and answers 404 when it holds neither.
+
+**The abort carries the user-stop label.** `shouldPark` parks only an abort the runner can prove
+was a cooperative Stop (`services/runner/src/sessions/stop-signal.ts`, from Spike A), so the
+registry aborts with `USER_STOP_ABORT_REASON`. Without it a Stop delivered as a command ends the
+turn `cancelled` and then DESTROYS the sandbox, which is the failure Stop exists to avoid. Two
+tests pin both directions, and the live run after the rebase logs `park-cancelled`. The applier
 sits above the transport (`services/runner/src/sessions/control-channel.ts`) with the
 deduplication set beside the session pool (`services/runner/src/sessions/applied-commands.ts`),
 so a long-poll loop would reuse every guard unchanged.
@@ -119,10 +125,10 @@ Fern client does not know the route yet. Mobile is untouched.
 
 ---
 
-## Three defects the live run found
+## Four defects the live run and the rebase found
 
-None of these were visible in unit tests. All three were found by pressing Stop against a real
-agent turn, and each is committed with its own fix.
+None were visible in unit tests. The first three were found by pressing Stop against a real
+agent turn; the fourth by rebasing onto Spike A's final tip. Each is committed with its own fix.
 
 1. **The execution registry never held the session, so every Stop got a 404 and the turn ran to
    completion.** The entry was keyed by `<projectId>:<sessionId>`, but the project scope is not
@@ -140,16 +146,24 @@ agent turn, and each is committed with its own fix.
 3. **The multi-replica census refused delivery for five minutes after every runner restart.** A
    runner mints a fresh replica id at boot when `AGENTA_RUNNER_REPLICA_ID` is unset
    (`services/runner/src/sessions/alive.ts:31`, verified), so its previous id is still inside the
-   window and the count reads two. **This is a deliberate deviation from the work package
-   brief**, which asked the adapter to fail loud and refuse when more than one replica has
-   heartbeated in five minutes. It now logs at error level, names the replicas, and delivers
-   anyway. The reason is that refusing on that count breaks Stop after every ordinary deploy,
-   which is a worse failure than the one it guards, and it was observed doing exactly that. The
-   exact detector was always the other one: a `not_held` for a session whose row is alive and
-   beating is the wrong-replica failure and nothing else produces it
-   (`api/oss/src/core/sessions/commands/service.py:320`).
+   window and the count reads two, which broke Stop after every ordinary deploy. **The census is
+   now removed entirely**, on the revised design's guidance that it is optional and the exact
+   detector is the one to build. That deletes a Redis write on every heartbeat, two settings and
+   a module. What remains is the detector that cannot be fooled: a `not_held` for a session whose
+   row says alive with a heartbeat younger than one interval means some process is running that
+   session and it is not the one we called. It logs at error level naming the owner replica from
+   the Redis `owner` key, and settles the command `lost` rather than `not_running`, so the user
+   is told the Stop failed instead of that the work had already finished
+   (`api/oss/src/core/sessions/commands/service.py`, `_settle_not_held`).
 
-A fourth, smaller one: two Stops **in the same instant** both inserted, because admission reads
+4. **The control-plane abort carried no label, so after the rebase every Stop would have
+   destroyed the sandbox.** Spike A's `96012e8d8e` made `shouldPark` require proof that an abort
+   was a cooperative Stop, because inferring it from the stop reason alone would let any future
+   `controller.abort()` park a sandbox nobody had checked. The registry handed the applier a bare
+   `controller.abort()`. It now aborts with `USER_STOP_ABORT_REASON`, and two tests pin both
+   directions of the contract.
+
+A fifth, smaller one: two Stops **in the same instant** both inserted, because admission reads
 for an open command and then inserts and neither request can see a row the other has not
 committed. Sequential Stops always collapsed. A unique partial index over the open states now
 makes the database decide, and the losing insert reads the winner back.
@@ -164,7 +178,7 @@ OpenAI model.
 
 | Scenario | Result | Evidence |
 |---|---|---|
-| 1. Stop during a 60 s tool call | **Pass.** Turn ends at 26.1 s instead of 77.6 s. Command `pending` to `applied`, outcome `stopped`, settled 116 ms after the request. Runner logs `aborted`, then `harness_cancel sent=true settled=true elapsed_ms=17`, then `park-cancelled`. Next message recalled the codeword. | command `01a0641f-b775-75c1-bfe1-32a80e85f85e` |
+| 1. Stop during a 60 s tool call | **Pass**, re-verified after the rebase. Turn ends at 26.2 s instead of 77.6 s. Command `pending` to `applied`, outcome `stopped`, settled 116 ms after the request. Runner logs `aborted`, then `harness_cancel sent=true settled=true elapsed_ms=17`, then `park-cancelled`. Next message recalled the codeword. | command `01a0641f-b775-75c1-bfe1-32a80e85f85e` |
 | 2. Stop when nothing runs | **Pass.** 200, one row inserted already settled: `obsolete` with outcome `not_running`, no target, no Redis write. | command `01a0641f-5535-7130-a6be-537d287b6d9b` |
 | 3. Stop with a stale `expected_execution_id` | **Pass.** 409 naming the current execution, and no row inserted. | `detail.current_execution_id` returned the live turn |
 | 4. Two Stops in a row | **Pass.** Two simultaneous requests return the same command id and one row exists. Sequentially, the second now correctly reports nothing running, because a Stop settles in about 100 ms. | command `01a06423-c067-7c80-9b68-636953655698` returned to both |
@@ -192,7 +206,7 @@ fixed.
 | `api/oss/tests/pytest/unit/sessions/test_session_cancel_admission.py` | 15 pass. Admission guards, the arrival-time stamp, the collapse, the settlement, and the assertion that pins warm resume: `alive` survives a Stop. |
 | `api/oss/tests/pytest/unit/sessions/test_session_commands_dao.py` | 17 pass against a real Postgres. Two concurrent claims yield one winner, two concurrent admissions yield one command, the settle guard refuses a foreign replica, a terminal command cannot be settled twice. |
 | `api/oss/tests/pytest/unit/sessions` (whole directory) | 553 pass. Four failures in `test_records_turn_span_dao.py` are a DNS failure reaching the tracing database from the host, unrelated to this branch. |
-| `cd services/runner && pnpm test` | 2666 pass, 4 fail. All four are `gateway-run-turn-composition.test.ts`, verified failing on the base commit `7d438802f6` before any change here. |
+| `cd services/runner && pnpm test` | 2663 pass, 4 fail. All four are `gateway-run-turn-composition.test.ts`, verified failing on the base commit before any change here. |
 | `cd web && pnpm lint-fix` | 25 tasks, no errors. |
 | `ruff format` and `ruff check` in `api/` | Clean, run with the CI-pinned 0.15.12. |
 
@@ -217,11 +231,11 @@ fixed.
 
 ## Open questions for Mahmoud
 
-1. **Should the census refuse delivery, or only warn?** Recommendation: **warn only**, as built.
-   Reason: a runner restart mints a new replica id, so refusing on the count breaks Stop for the
-   whole census window after every deploy, and that was observed live. The `not_held` rule
-   detects the real wrong-replica case exactly and needs no census. This deviates from the work
-   package brief, so it needs an explicit yes.
+1. **Is the exact `not_held` detector enough on its own, with no replica census?** Settled in
+   the revised design and built that way. Recommendation: **yes**. Reason: the census could not
+   tell two live replicas from one that had restarted and broke Stop after every deploy, while
+   the `not_held` condition is produced by nothing but the wrong-replica failure. Listed here
+   only so the removal is on the record.
 2. **Who owns settling an abandoned command?** Recommendation: **the execution watchdog**, using
    the DAO methods this slice exposes. Reason: one execution must reach exactly one terminal
    outcome from one writer, and two sweeps racing to write `lost` is worse than the bug. Until
