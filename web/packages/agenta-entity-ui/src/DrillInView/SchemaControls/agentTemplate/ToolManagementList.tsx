@@ -227,10 +227,16 @@ function markNonAgent(
     return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
 }
 
-/** Stable per-entry key: the saved reference's own identity, never its array position. */
-function subagentKey(item: unknown, index: number): string {
-    // A reference with no slug falls back to its position, rather than colliding.
-    return toolReferenceSlug(item) || `subagent-${index}`
+/** Stable per-entry keys: the saved reference's own slug, never its array position. A config
+ *  hand-authored to repeat a slug (or to omit one) falls back to position rather than colliding. */
+function subagentKeys(entries: IndexedTool[]): string[] {
+    const seen = new Set<string>()
+    return entries.map(({item, index}) => {
+        const slug = toolReferenceSlug(item)
+        if (!slug || seen.has(slug)) return `subagent-${index}`
+        seen.add(slug)
+        return slug
+    })
 }
 
 export function SubagentList({
@@ -245,6 +251,8 @@ export function SubagentList({
     emptyAdd,
     statusFor,
 }: SubagentListProps) {
+    const keys = subagentKeys(entries)
+
     if (entries.length === 0) {
         if (disabled) return null
         return <EmptyLine label="No subagents yet" add={emptyAdd} />
@@ -252,9 +260,9 @@ export function SubagentList({
 
     return (
         <div className="flex flex-col gap-2">
-            {entries.map(({item, index}) => (
+            {entries.map(({item, index}, position) => (
                 <ItemRow
-                    key={subagentKey(item, index)}
+                    key={keys[position]}
                     descriptor={markNonAgent(
                         describeSubagent(
                             item,

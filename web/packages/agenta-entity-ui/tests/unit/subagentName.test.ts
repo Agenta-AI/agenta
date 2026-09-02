@@ -2,8 +2,9 @@
  *
  * The stored reference used to carry a COPY of the target's name, taken when the subagent was
  * added. A rename never reached it, so the row, the drawer header and the tool the model sees all
- * kept the dead name until the subagent was removed and added again. The slug is now the only
- * identity stored, and the name is read live off the agent it points at. */
+ * kept the dead name until the subagent was removed and added again. A new write now stores the
+ * slug alone, and the current name is passed in from the agent the slug points at; a reference
+ * saved before this still shows its copy as a placeholder while that name resolves. */
 import {describe, expect, it} from "vitest"
 
 import {describeSubagent} from "../../src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"

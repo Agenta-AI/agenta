@@ -383,8 +383,9 @@ class ReferenceToolConfig(ToolConfigBase):
         min_length=1,
         description=(
             "Legacy: a copy of the target's display name, taken when the subagent was added. "
-            "Renaming the target never reached it, so nothing reads it any more (#6444). Kept "
-            "only so configurations saved before then still parse."
+            "Renaming the target never reached it, so no wire value derives from it any more "
+            "(#6444); the browser still reads it as a placeholder on a reference saved before "
+            "then. Kept so those configurations still parse."
         ),
     )
     description: Optional[str] = None
