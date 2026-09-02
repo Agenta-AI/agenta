@@ -97,6 +97,7 @@ import {
   type ControlCommand,
 } from "./sessions/control-channel.ts";
 import {
+  noteExecutionProject,
   registerExecution,
   unregisterExecution,
 } from "./sessions/execution-registry.ts";
@@ -373,6 +374,14 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
     config,
     clientGone: options?.clientGone,
     credential: options?.credential,
+    // The coordinator is the first place that knows this run's project, because the scope can
+    // come from the signed mount rather than the request. A control command needs it to tell
+    // one tenant's session from another's.
+    onScopeResolved: (projectId) => {
+      const sessionId = request.sessionId?.trim();
+      const turnId = request.turnId?.trim();
+      if (sessionId && turnId) noteExecutionProject(sessionId, turnId, projectId);
+    },
   });
 };
 
@@ -496,10 +505,12 @@ async function runAndStreamWithApiBaseResolved(
   //
   // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
   // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
-  const executionProjectId = projectScopeFor(request, undefined)?.id;
-  if (sessionOwned && executionProjectId) {
+  if (sessionOwned) {
     registerExecution({
-      projectId: executionProjectId,
+      // Usually undefined here: `runContext.project.id` is empty on the live invoke path, and
+      // the real scope comes from the signed mount. The coordinator fills it in through
+      // `onScopeResolved` a moment later.
+      projectId: projectScopeFor(request, undefined)?.id,
       sessionId,
       turnId,
       startedAt: Date.now(),
@@ -748,9 +759,7 @@ async function runAndStreamWithApiBaseResolved(
     // Same `finally` as the watchdog release, so a run that threw still leaves the registry
     // clean. Scoped to this turn id, so a turn that finishes after its successor registered
     // cannot unregister the successor.
-    if (sessionOwned && executionProjectId) {
-      unregisterExecution(executionProjectId, sessionId, turnId);
-    }
+    if (sessionOwned) unregisterExecution(sessionId, turnId);
   }
 
   // Streaming delivered the events live, so don't echo them in the terminal record.

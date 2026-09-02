@@ -105,6 +105,17 @@ def upgrade() -> None:
             name="uq_session_commands_idempotency",
         ),
     )
+    # One open command per target execution, enforced by the database because admission's
+    # read-then-insert races itself: two Stops in the same instant both find no open command.
+    op.create_index(
+        "uq_session_commands_open_target",
+        "session_commands",
+        ["project_id", "session_id", "kind", "target_turn_id"],
+        unique=True,
+        postgresql_where=sa.text(
+            "state IN ('pending', 'claimed') AND deleted_at IS NULL"
+        ),
+    )
     op.create_index(
         "ix_session_commands_open",
         "session_commands",
@@ -149,4 +160,5 @@ def downgrade() -> None:
     op.drop_index("ix_session_commands_project_session", table_name="session_commands")
     op.drop_index("ix_session_commands_claims", table_name="session_commands")
     op.drop_index("ix_session_commands_open", table_name="session_commands")
+    op.drop_index("uq_session_commands_open_target", table_name="session_commands")
     op.drop_table("session_commands")

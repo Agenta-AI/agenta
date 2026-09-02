@@ -79,18 +79,32 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 await session.refresh(dbe)
             return map_command_dbe_to_dto(dbe)
         except IntegrityError:
-            # uq_session_commands_idempotency — the caller retried with the same key. Return the
-            # row that exists rather than a second command for one intent.
-            if command.idempotency_key is None:
-                raise
-            existing = await self._fetch_by_idempotency_key(
+            # One of two unique constraints refused this insert, and both mean the same thing:
+            # a command for this intent already exists. Return it rather than a second command.
+            #
+            #   uq_session_commands_idempotency  — the caller retried with the same key.
+            #   uq_session_commands_open_target  — another request is already stopping this
+            #                                      execution, which is what makes two Stops in
+            #                                      the SAME INSTANT one command. Admission's own
+            #                                      read cannot see a row that has not committed
+            #                                      yet, so the database is the decider.
+            if command.idempotency_key is not None:
+                existing = await self._fetch_by_idempotency_key(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                    idempotency_key=command.idempotency_key,
+                )
+                if existing is not None:
+                    return existing
+            open_command = await self.fetch_open_command(
                 project_id=command.project_id,
                 session_id=command.session_id,
-                idempotency_key=command.idempotency_key,
+                kind=command.kind,
+                target_turn_id=command.target_turn_id,
             )
-            if existing is None:
+            if open_command is None:
                 raise
-            return existing
+            return open_command
 
     async def _fetch_by_idempotency_key(
         self,

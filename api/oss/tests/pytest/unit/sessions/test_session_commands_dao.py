@@ -176,16 +176,19 @@ async def test_a_repeated_idempotency_key_returns_the_first_row(command_scope):
     )
 
     assert second.id == first.id
-    assert await dao.count_open(
-        project_id=command_scope["project_id"],
-        session_id=command_scope["session_id"],
-    ) == 1
+    assert (
+        await dao.count_open(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        == 1
+    )
 
 
-async def test_commands_with_no_key_never_collide(command_scope):
-    # Postgres treats nulls as distinct in a unique index, so an unkeyed command is not blocked
-    # by another unkeyed one. The open-command collapse, not the constraint, is what makes two
-    # Stops in a row one command.
+async def test_two_open_commands_for_one_execution_collapse_to_one(command_scope):
+    # Two Stops for the same execution are one intent, even with no idempotency key and even
+    # when admission's own read cannot see the other because it has not committed yet. The
+    # database refuses the second insert and the DAO answers with the command that exists.
     dao = SessionCommandsDAO(engine=command_scope["engine"])
 
     first = await dao.create_command(
@@ -195,7 +198,60 @@ async def test_commands_with_no_key_never_collide(command_scope):
         user_id=command_scope["user_id"], command=_create(command_scope)
     )
 
-    assert first.id != second.id
+    assert second.id == first.id
+    assert (
+        await dao.count_open(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        == 1
+    )
+
+
+async def test_two_concurrent_admissions_still_yield_one_command(command_scope):
+    # The race the unique index exists for: both inserts run before either commits.
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+
+    first, second = await asyncio.wait_for(
+        asyncio.gather(
+            dao.create_command(
+                user_id=command_scope["user_id"], command=_create(command_scope)
+            ),
+            dao.create_command(
+                user_id=command_scope["user_id"], command=_create(command_scope)
+            ),
+            return_exceptions=True,
+        ),
+        timeout=30,
+    )
+
+    ids = {r.id for r in (first, second) if not isinstance(r, Exception)}
+    assert len(ids) == 1, f"expected one command, got {first!r} and {second!r}"
+
+
+async def test_a_settled_command_does_not_block_a_new_one(command_scope):
+    # The unique index is partial on the OPEN states, so once a Stop has settled the next Stop
+    # against the same execution is a fresh command, not a constraint violation.
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+    first = await dao.create_command(
+        user_id=command_scope["user_id"], command=_create(command_scope)
+    )
+    await dao.settle_command(
+        settle=SessionCommandSettle(
+            project_id=command_scope["project_id"],
+            command_id=first.id,
+            state=SessionCommandState.applied,
+            outcome=SessionCommandOutcome.stopped,
+            expected_state=SessionCommandState.pending,
+            replica_id=None,
+        )
+    )
+
+    second = await dao.create_command(
+        user_id=command_scope["user_id"], command=_create(command_scope)
+    )
+
+    assert second.id != first.id
 
 
 async def test_the_open_command_read_finds_only_the_same_target(command_scope):
@@ -274,7 +330,9 @@ async def test_two_concurrent_claims_of_one_command_yield_exactly_one_winner(
         timeout=30,
     )
 
-    assert len(first) + len(second) == 1, "a command is delivered to one replica, not two"
+    assert len(first) + len(second) == 1, (
+        "a command is delivered to one replica, not two"
+    )
 
 
 async def test_a_claim_ignores_sessions_the_caller_did_not_declare(command_scope):
@@ -476,8 +534,12 @@ async def test_expire_claims_returns_only_leases_that_have_passed(command_scope)
         lease_seconds=90,
     )
 
+    # The sweep is deliberately NOT project-scoped: it settles every abandoned claim in the
+    # deployment, so assert on this command's presence rather than on the whole result.
     now = datetime.now(timezone.utc)
-    assert await dao.expire_claims(now=now, max_deliveries=3) == []
+    assert fresh.id not in {
+        row.id for row in await dao.expire_claims(now=now, max_deliveries=3)
+    }, "a lease that has not passed is not swept"
     # An hour later the same lease has passed, and the settlement sweep sees it.
     later = await dao.expire_claims(now=now + timedelta(hours=1), max_deliveries=3)
-    assert [row.id for row in later] == [fresh.id]
+    assert fresh.id in {row.id for row in later}

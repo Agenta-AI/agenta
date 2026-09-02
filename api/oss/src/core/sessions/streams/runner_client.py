@@ -17,7 +17,7 @@ call failure is swallowed — `kill`'s Redis/row edit must still succeed and be 
 the runner's own orphan sweep / idle-TTL eviction is the fallback net for a missed signal.
 """
 
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import httpx
 
@@ -81,6 +81,20 @@ class RunnerCancelResult:
     unreachable = "unreachable"
 
 
+class RunnerCancelResponse(NamedTuple):
+    """The acknowledgement, and WHICH runner process gave it.
+
+    `replica_id` is what the API records as the claim holder, so the outcome route's guard
+    (`state='claimed' AND claimed_by=:replica_id`) matches the id the runner reports with. Take
+    it from the answer rather than assuming one: a claim written under a name the runner does
+    not use refuses the runner's own outcome report, which leaves the command open and the
+    session marked stopping forever.
+    """
+
+    status: str
+    replica_id: Optional[str] = None
+
+
 async def cancel_runner_execution(
     *,
     command_id: str,
@@ -89,8 +103,8 @@ async def cancel_runner_execution(
     target_turn_id: Optional[str],
     created_at: str,
     timeout_seconds: float = _CANCEL_TIMEOUT_SECONDS,
-) -> str:
-    """POST the runner's `/cancel`. Returns one of the `RunnerCancelResult` values.
+) -> RunnerCancelResponse:
+    """POST the runner's `/cancel`. Returns the acknowledgement and the answering replica.
 
     Never raises. The command row is already committed when this runs, so a failure here costs
     promptness, not the Stop: a later claim or the settlement sweep still reaches it.
@@ -104,7 +118,7 @@ async def cancel_runner_execution(
             "cancel: no runner internal_url/token configured; command %s cannot be delivered",
             command_id,
         )
-        return RunnerCancelResult.unreachable
+        return RunnerCancelResponse(RunnerCancelResult.unreachable)
 
     url = base_url.rstrip("/") + "/cancel"
     try:
@@ -127,10 +141,10 @@ async def cancel_runner_execution(
             command_id,
             e,
         )
-        return RunnerCancelResult.unreachable
+        return RunnerCancelResponse(RunnerCancelResult.unreachable)
 
     if response.status_code == 404:
-        return RunnerCancelResult.not_held
+        return RunnerCancelResponse(RunnerCancelResult.not_held)
     if response.status_code >= 300:
         log.warning(
             "cancel: runner /cancel returned %s for session=%s command=%s",
@@ -138,5 +152,17 @@ async def cancel_runner_execution(
             session_id,
             command_id,
         )
-        return RunnerCancelResult.unreachable
-    return RunnerCancelResult.accepted
+        return RunnerCancelResponse(RunnerCancelResult.unreachable)
+
+    replica_id = None
+    try:
+        replica_id = (response.json() or {}).get("replicaId")
+    except ValueError:
+        # A 2xx with no JSON body still means accepted; the claim then falls back to a
+        # placeholder and the runner's report is refused, so log it rather than hide it.
+        log.warning(
+            "cancel: runner /cancel answered %s with no JSON body for command=%s",
+            response.status_code,
+            command_id,
+        )
+    return RunnerCancelResponse(RunnerCancelResult.accepted, replica_id)

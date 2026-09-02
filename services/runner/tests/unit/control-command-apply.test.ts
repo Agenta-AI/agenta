@@ -26,6 +26,7 @@ import {
   findExecution,
   registerExecution,
   resetExecutionsForTest,
+  noteExecutionProject,
   unregisterExecution,
   type LiveExecution,
 } from "../../src/sessions/execution-registry.ts";
@@ -213,7 +214,7 @@ describe("applyCommand", () => {
 });
 
 describe("the execution registry", () => {
-  it("finds a run by its project and session, not by session alone", () => {
+  it("refuses a lookup from another project once the scope is known", () => {
     const { execution } = liveRun();
     registerExecution(execution);
 
@@ -225,13 +226,37 @@ describe("the execution registry", () => {
     );
   });
 
+  it("matches any project until the coordinator has resolved the scope", () => {
+    // `runContext.project.id` is empty on the live invoke path, so a run is registered before
+    // its project is known. Refusing every Stop in that window is what made the first version
+    // of this registry answer 404 for every real Stop.
+    registerExecution(liveRun({ projectId: undefined }).execution);
+
+    assert.equal(findExecution(PROJECT, SESSION)?.turnId, TURN);
+
+    noteExecutionProject(SESSION, TURN, PROJECT);
+    assert.equal(
+      findExecution("22222222-2222-4222-8222-222222222222", SESSION),
+      undefined,
+      "once the scope is known, another tenant is refused",
+    );
+  });
+
+  it("does not let a late scope callback relabel a successor turn", () => {
+    registerExecution(liveRun({ turnId: "turn-2", projectId: undefined }).execution);
+
+    noteExecutionProject(SESSION, "turn-1", "some-other-project");
+
+    assert.equal(findExecution(PROJECT, SESSION)?.projectId, undefined);
+  });
+
   it("does not let a finished turn unregister its successor", () => {
     const first = liveRun({ turnId: "turn-1" }).execution;
     const second = liveRun({ turnId: "turn-2" }).execution;
     registerExecution(first);
     registerExecution(second);
 
-    unregisterExecution(PROJECT, SESSION, "turn-1");
+    unregisterExecution(SESSION, "turn-1");
 
     assert.equal(findExecution(PROJECT, SESSION)?.turnId, "turn-2");
   });

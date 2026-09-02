@@ -24,7 +24,6 @@ import uuid_utils.compat as uuid
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
     SessionCommandCreate,
-    SessionCommandKind,
     SessionCommandOutcome,
     SessionCommandState,
 )
@@ -55,7 +54,9 @@ class _FakeCommandsDAO:
         self.stopping_turn_ids: List[Optional[str]] = []
         self.claims: List[Dict] = []
 
-    async def create_command(self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None):
+    async def create_command(
+        self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None
+    ):
         row = SessionCommand(
             id=uuid.uuid7(),
             project_id=command.project_id,
@@ -93,7 +94,9 @@ class _FakeCommandsDAO:
                 return row
         return None
 
-    async def claim_for_delivery(self, *, project_id, command_id, replica_id, lease_seconds):
+    async def claim_for_delivery(
+        self, *, project_id, command_id, replica_id, lease_seconds
+    ):
         # A copy, never a mutation of the object the caller holds — the real DAO returns a
         # fresh row from RETURNING *, so admission's own view of the command stays as it was.
         self.claims.append({"command_id": command_id, "replica_id": replica_id})
@@ -115,7 +118,10 @@ class _FakeCommandsDAO:
     async def settle_command(self, *, settle):
         for index, row in enumerate(self.rows):
             if row.id == settle.command_id and row.state == settle.expected_state:
-                if settle.replica_id is not None and row.claimed_by != settle.replica_id:
+                if (
+                    settle.replica_id is not None
+                    and row.claimed_by != settle.replica_id
+                ):
                     return None
                 settled = row.model_copy(
                     update={
@@ -153,7 +159,9 @@ class _FakeInteractionsService:
     def __init__(self) -> None:
         self.cancelled: List[Optional[str]] = []
 
-    async def cancel_session_pending(self, *, project_id, session_id, only_turn_id=None, **_):
+    async def cancel_session_pending(
+        self, *, project_id, session_id, only_turn_id=None, **_
+    ):
         self.cancelled.append(only_turn_id)
         return 1
 
@@ -171,7 +179,9 @@ class _RecordingDelivery:
         return None
 
 
-def _stream(turn_id: Optional[str], turn_started_at: Optional[datetime]) -> SessionStream:
+def _stream(
+    turn_id: Optional[str], turn_started_at: Optional[datetime]
+) -> SessionStream:
     return SessionStream(
         id=uuid4(),
         project_id=_PROJECT,
@@ -258,7 +268,9 @@ async def test_admission_does_not_touch_redis(lock_engine):
         == "turn-A"
     )
     assert (
-        await get_alive_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
         == "turn-A"
     )
 
@@ -384,7 +396,10 @@ async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine
     # A session awaiting an approval holds `alive` and not `running`, and it has stopped
     # heartbeating. This is the case with no control channel at all today.
     await acquire_alive(
-        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-parked"
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-parked",
     )
     delivery = _RecordingDelivery()
     svc = _service(
@@ -462,7 +477,9 @@ async def test_a_reachable_runner_that_does_not_hold_the_session_settles_at_once
 
 
 @pytest.mark.asyncio
-async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(lock_engine):
+async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(
+    lock_engine,
+):
     # The wrong-replica failure. The user must be told the Stop failed, never that the work had
     # already finished.
     await _run_turn(lock_engine, "turn-A")
@@ -537,7 +554,9 @@ async def test_settlement_releases_running_and_leaves_alive_alone(lock_engine):
     # THE assertion that pins warm resume. Force-deleting `alive` is what makes today's cancel
     # read as a session teardown; Stop must leave the session as a finished turn leaves it.
     assert (
-        await get_alive_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
         == "turn-A"
     )
     assert interactions.cancelled == ["turn-A"]

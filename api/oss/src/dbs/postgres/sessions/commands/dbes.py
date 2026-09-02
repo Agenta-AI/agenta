@@ -30,6 +30,24 @@ class SessionCommandDBE(Base, SessionCommandDBA):
             "state IN ('pending', 'claimed', 'applied', 'obsolete')",
             name="ck_session_commands_state",
         ),
+        # ONE open command per target execution. Two Stops are one intent, and admission's
+        # read-then-insert cannot enforce that on its own: two requests that arrive in the same
+        # instant both find no open command and both insert. The database decides instead, and
+        # the DAO turns the losing insert into a read of the winner.
+        #
+        # `target_turn_id` is NULL only on a command that is inserted already settled, which the
+        # predicate excludes, so the fact that Postgres treats NULLs as distinct costs nothing.
+        Index(
+            "uq_session_commands_open_target",
+            "project_id",
+            "session_id",
+            "kind",
+            "target_turn_id",
+            unique=True,
+            postgresql_where=text(
+                "state IN ('pending', 'claimed') AND deleted_at IS NULL"
+            ),
+        ),
         # The claim query's index, and the open-command collapse read at admission. Partial on
         # the open states because a settled command is never claimed again.
         Index(
