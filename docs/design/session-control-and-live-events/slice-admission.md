@@ -47,7 +47,7 @@ acting on the session.
 
 ## What changed
 
-Five commits on `feat/session-single-turn-admission`.
+Seven commits on `feat/session-single-turn-admission`.
 
 ### 1. The runner reads the admission answer (`7675eb0dc7`)
 
@@ -105,7 +105,7 @@ Mobile shares the queue hook and the error model, so it gets the refusal class. 
 composer and its own copy of the error effect, so it does not get the text restore. See the open
 questions.
 
-### 3. The client learns which execution it is watching (`ce0f1e12da`)
+### 3. The client learns which execution it is watching (`ce0f1e12da`, `ca600cb1e6`)
 
 Added on request from the Stop guard lane, which found that no first-party client can send
 `expected_execution_id` on the public Cancel: the runner mints the turn id per execution
@@ -126,26 +126,37 @@ The earliest frame that can carry it is the one right after:
 |---|---|
 | `services/runner/src/protocol.ts:479` | New `{type: "turn", turnId}` agent event. |
 | `services/runner/src/server.ts:579` | Emitted as the first event of a session-owned run, immediately after admission, through `liveEmit` and never the persisting emitter. It is transport correlation, not conversation, and must not become a session record. |
-| `sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:361` and `:653` | Forwarded unchanged as `data-agent-turn`, in both the live and dev-twin projections. |
+| `sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:361` and `:663` | Forwarded onto the MESSAGE METADATA, in both the live and dev-twin projections. |
 
-A missing, empty or non-string id emits no part, so a client is never handed a guard value that
+The client reads it as `message.metadata.turnId`, beside the `sessionId` the `start` frame already
+sets and the `traceId` and `usage` the `finish` frame adds, rather than scanning parts for it.
+A `message-metadata` chunk is a first-class chunk in the pinned `ai@6.0.0-beta.150`.
+
+That is safe **because the AI SDK merges metadata rather than replacing it** (`mergeObjects`), so
+the `finish` frame's own metadata lands beside the turn id rather than over it. A test pins that
+the two carry disjoint keys and the turn id is written first. If the SDK ever changed to replace,
+a client would lose the id exactly when a late Stop needs it.
+
+A missing, empty or non-string id emits no frame, so a client is never handed a guard value that
 names nothing. A refused turn emits none either: it runs nothing, so there is nothing to stop.
 
 Verified live on the stack below. The frame arrives third, after `start` and `start-step` and
 before any content:
 
 ```
-["start", "start-step", "data-agent-turn", "data-agent-status"]
+["start", "start-step", "message-metadata", "text-start"]
 ```
 
 and its id is the one holding the session's alive lock, cross-checked against the runner log:
 
 ```
-data-agent-turn  turnId=e741e416-6789-4679-b050-e205d549f73f
-[sessions/alive] heartbeat OK session=be8d2daa-… turn=e741e416-6789-4679-b050-e205d549f73f running=true
+message-metadata  turnId=6a49ff3f-2165-4e4b-bbe8-c9f7192fabb3
+[sessions] stream sessionOwned=true sessionId=2fa74edd-… turnId=6a49ff3f-2165-4e4b-bbe8-c9f7192fabb3
 ```
 
-The Stop guard lane adds the browser half on its own branch. Nothing here consumes the frame yet.
+The first version of this (`ce0f1e12da`) used a `data-agent-turn` part instead. `ca600cb1e6`
+replaced it rather than adding to it: one fact should travel one channel, and nothing consumed the
+part yet. The Stop guard lane adds the browser half on its own branch.
 
 ### 4. API tests only (`8b1a45e5a6`)
 
@@ -209,9 +220,9 @@ New tests:
 - `api/oss/tests/pytest/unit/sessions/test_heartbeat_is_current_turn.py` (+3).
 - `services/runner/tests/unit/session-admission.test.ts` (+3, the turn-id frame): it arrives
   first, it is the id the alive lock was acquired under, and a refused turn emits none.
-- `sdks/python/oss/tests/pytest/unit/agents/adapters/test_vercel_stream_conformance.py` (+3): the
-  egress forwards the id verbatim exactly once in both projections, before any content, and a
-  frame with no usable id emits no part.
+- `sdks/python/oss/tests/pytest/unit/agents/adapters/test_vercel_stream_conformance.py` (+4): the
+  egress forwards the id verbatim exactly once in both projections, before any content; the
+  `finish` frame's metadata does not displace it; and a frame with no usable id emits nothing.
 
 One rewritten test was found to be passing for the wrong reason. The `destroyed`-entry case in
 `session-keepalive-dispatch.test.ts` called `pool.destroyAll`, which clears the map, so the
