@@ -1,63 +1,36 @@
 # Status
 
-> AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
+> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This status was prepared autonomously on 2026-09-02 for
+> human review on the next working day.
 
 ## Current state
 
-- Isolated branch created: `agent/session-execution-rfc`.
-- Problem inventory created from 48 open GitHub issues.
-- Current Stop, heartbeat, records, and watch paths checked against the repository.
-- Confirmed process decisions recorded.
-- Proposed architecture choices kept separate from confirmed decisions.
-- Living RFC created with empty sections for track-by-track discussion.
-- Current command endpoint and runner routing boundary verified.
-- Sandbox-agent cancellation investigation promoted to the first parallel task.
-- Five seconds recorded as the provisional Stop delivery target.
-- Public resource API separated from the proposed internal command transport.
-- Current interaction response path documented.
-- Public APIs from Gumloop, OpenAI background Responses, and Claude Managed Agents compared.
-- Each current operation mapped to its proposed behavior and degree of change.
-- Stop and Delete distinction confirmed.
-- Optional `expected_execution_id` guard recorded.
-- One public session API for first-party and external clients recorded.
-- Visible server-side pending inputs added to the interface discussion.
-- Queued inputs made immutable. Clients can remove and replace them, but cannot edit or reorder.
-- Detailed API mechanics delegated to established conventions unless they affect architecture.
-- Durable acceptance defined independently from runner claim and execution start.
-- Sender-only visibility explicitly excluded from the target requirements.
-- Proposed snapshot and event routes explicitly marked as new contracts, not changed meanings of
-  current stream routes.
-- Side-by-side endpoint migration accepted as the first draft. Final naming deferred.
-- Existing record properties, violations, structural constraints, and repair options traced before
-  selecting a replay storage design.
-- Corrected the cursor analysis: plain Postgres sequences do not guarantee commit visibility order.
-- Added the repaired-records and separate-event-log options with trade-offs. Redis-only permanent
-  history excluded from the draft.
-- Added a mandatory stable-ID producer spike before immutable record changes.
-- Made single active execution and stale-writer fencing explicit requirements.
-- Kept the public Stop execution guard optional.
-- Added possible future user-operated runners as a control-transport consideration, not a
-  requirement.
-- Recorded long polling as the current control-transport preference behind a replaceable adapter.
-- Recorded warm sandbox and harness resume as the required Stop outcome.
-- Confirmed the minimal internal command lifecycle and its separation from public execution state.
-- Left the Stop settlement timeout for the sandbox cancellation spike.
-- Confirmed that the first version keeps current Redis execution ownership.
-- Kept durable commands and long polling in scope; deferred Postgres ownership and full fencing.
+- The RFC has a complete provisional architecture.
+- Confirmed founder decisions are separated from AI-selected defaults.
+- The first version keeps current Redis execution ownership.
+- Durable commands and runner-initiated long polling remain in scope.
+- Stop requires warm sandbox and harness resume.
+- Shared live frames use one canonical backend path in the target design.
+- The draft provisionally selects a separate append-only session event log.
+- Records-versus-event-log remains an explicit reviewer gate.
+- Final endpoint names remain open.
+
+## Work ready to start
+
+1. Sandbox cancellation spike.
+2. Current Stop implementation map.
+3. Durable command and long-poll implementation design.
+4. Stable record-ID spike.
+5. Live frame ingress spike.
+
+## Human review priorities
+
+1. Confirm that the first Stop release is small enough.
+2. Review the provisional session-event-table choice.
+3. Confirm manual Stop behavior for queued input.
+4. Review the public resource boundaries without focusing on final route spelling.
+5. Assign owners for the independent spikes.
 
 ## Branch
 
-- Branch: `agent/session-execution-rfc`
-- The branch is pushed to `Agenta-AI/agenta` after each design exchange.
-
-## Next discussion
-
-Start with **Stop and ownership**:
-
-1. Start the sandbox-agent capability investigation.
-2. Confirm the user-visible Stop requirements and latency target.
-3. Choose the immediate runner-control transport at a high level.
-4. Define terminal settlement and watchdog responsibility.
-5. Decide which current issues this track is expected to close.
-
-The **live-frame ingress** discussion can proceed independently after that or in parallel.
+`agent/session-execution-rfc`
