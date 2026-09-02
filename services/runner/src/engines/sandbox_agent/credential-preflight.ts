@@ -330,19 +330,36 @@ function sandboxProbeScript(
   apiKeyVar: string,
   timeoutSeconds: number,
 ): string {
+  // Headers stay DOUBLE-quoted on purpose: `$VAR` has to reach the shell unquoted enough to
+  // expand, because expanding it is how the key stays out of this string. Their names and
+  // values are this module's own constants plus a binding name already checked against
+  // `SHELL_SAFE_ENV_VAR`, so nothing here is caller-shaped.
   const headers = Object.entries(shape.buildHeaders(`$${apiKeyVar}`))
     .map(([name, value]) => `-H "${name}: ${value}" `)
     .join("");
   const method = shape.method === "POST" ? "-X POST " : "";
-  const body =
-    shape.body === undefined ? "" : `-d ${JSON.stringify(shape.body)} `;
+  const body = shape.body === undefined ? "" : `-d ${shellQuote(shape.body)} `;
   return (
     `curl -s -m ${timeoutSeconds} -w '\\n%{http_code}' ` +
     method +
     headers +
     body +
-    JSON.stringify(shape.url)
+    shellQuote(shape.url)
   );
+}
+
+/**
+ * Quote one operand for `sh -c`.
+ *
+ * `JSON.stringify` is not shell quoting. Inside double quotes a shell still expands `$VAR`,
+ * `$(...)` and a backtick, and the URL is built from a base URL the request supplies. A base
+ * URL carrying any of those would be rewritten before curl ever saw it, so the probe would
+ * call some other host and this instrument would go silently blind while still reporting a
+ * verdict. Single quotes suppress every expansion; a single quote inside the value is closed,
+ * escaped, and reopened.
+ */
+function shellQuote(value: string): string {
+  return `'${value.split("'").join(`'\\''`)}'`;
 }
 
 /** Split curl's output into the response body and the status `-w` appended. */

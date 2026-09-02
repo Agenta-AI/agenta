@@ -366,7 +366,7 @@ describe("provider shapes", () => {
       control: { status: 200 },
     });
     await run;
-    assert.match(commands[0], /"https:\/\/openrouter\.ai\/api\/v1\/key"/);
+    assert.match(commands[0], /'https:\/\/openrouter\.ai\/api\/v1\/key'/);
     assert.ok(!commands[0].includes("-X POST"), "the auth probe is a GET");
     assert.match(commands[0], /Authorization: Bearer \$OPENROUTER_API_KEY/);
     assert.equal(controlRequests[0].method, "GET");
@@ -391,7 +391,7 @@ describe("provider shapes", () => {
     await run;
     assert.match(
       commands[0],
-      /"https:\/\/api\.anthropic\.com\/v1\/models\?limit=1"/,
+      /'https:\/\/api\.anthropic\.com\/v1\/models\?limit=1'/,
     );
     assert.match(commands[0], /x-api-key: \$ANTHROPIC_API_KEY/);
     assert.match(commands[0], /anthropic-version: 2023-06-01/);
@@ -417,7 +417,7 @@ describe("provider shapes", () => {
       control: { status: 200 },
     });
     assert.equal(await run, "stuck");
-    assert.match(commands[0], /"https:\/\/api\.openai\.com\/v1\/models"/);
+    assert.match(commands[0], /'https:\/\/api\.openai\.com\/v1\/models'/);
     assert.equal(controlRequests[0].url, "https://api.openai.com/v1/models");
   });
 
@@ -450,6 +450,36 @@ describe("provider shapes", () => {
     const { run, commands } = harness([BARE_401], 3_000, OPENROUTER);
     await run;
     assert.match(commands[0], /http_code/);
+  });
+
+  it("single-quotes the URL, so the sandbox shell cannot rewrite it", async () => {
+    // Double quotes would let the shell expand `$USER` and run the backtick command before
+    // curl saw the URL. The probe would then call some other host and this instrument would
+    // report a verdict about a request it never made.
+    const { run, commands } = harness([BARE_401], 3_000, {
+      baseUrl: "https://gateway.example/$USER/`id`/v1",
+    });
+    await run;
+    assert.ok(
+      commands[0].includes(
+        "'https://gateway.example/$USER/`id`/v1/chat/completions'",
+      ),
+      commands[0],
+    );
+    assert.ok(commands[0].includes("-d '{}' "), commands[0]);
+  });
+
+  it("escapes a single quote inside the URL rather than closing the string", async () => {
+    const { run, commands } = harness([BARE_401], 3_000, {
+      baseUrl: "https://gateway.example/o'brien/v1",
+    });
+    await run;
+    assert.ok(
+      commands[0].includes(
+        "'https://gateway.example/o'\\''brien/v1/chat/completions'",
+      ),
+      commands[0],
+    );
   });
 
   it("fails open when the binding name is not a shell-safe variable name", async () => {
