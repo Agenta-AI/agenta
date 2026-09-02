@@ -352,6 +352,26 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             rows = result.scalars().all()
         return [map_command_dbe_to_dto(dbe) for dbe in rows]
 
+    async def expire_unclaimed(
+        self,
+        *,
+        older_than: datetime,
+    ) -> List[SessionCommand]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionCommandDBE)
+                .where(
+                    SessionCommandDBE.state == SessionCommandState.pending.value,
+                    SessionCommandDBE.deleted_at.is_(None),
+                    SessionCommandDBE.created_at < older_than,
+                )
+                .order_by(SessionCommandDBE.created_at)
+                .limit(200)
+            )
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+        return [map_command_dbe_to_dto(dbe) for dbe in rows]
+
     async def count_open(self, *, project_id: UUID, session_id: str) -> int:
         """Open commands for a session. Diagnostics and tests only."""
         async with self.engine.session() as session:

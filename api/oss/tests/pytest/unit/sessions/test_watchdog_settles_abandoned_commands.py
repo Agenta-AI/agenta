@@ -52,17 +52,28 @@ _TARGET_TURN = "turn-being-stopped"
 
 
 class _ExpiringDAO(_FakeCommandsDAO):
-    """A DAO holding one command whose claim has expired."""
+    """A DAO holding one command the sweep should find, claimed or merely pending."""
 
     def __init__(self, command: SessionCommand) -> None:
         super().__init__()
         self.rows = [command]
         self.expire_calls: List[dict] = []
+        self.unclaimed_calls: List[dict] = []
         self.cleared_turn_ids: List[Optional[str]] = []
 
     async def expire_claims(self, *, now, max_deliveries):
         self.expire_calls.append({"now": now, "max_deliveries": max_deliveries})
         return [row for row in self.rows if row.state == SessionCommandState.claimed]
+
+    async def expire_unclaimed(self, *, older_than):
+        self.unclaimed_calls.append({"older_than": older_than})
+        return [
+            row
+            for row in self.rows
+            if row.state == SessionCommandState.pending
+            and row.created_at is not None
+            and row.created_at < older_than
+        ]
 
     async def clear_stopping_turn(self, *, project_id, session_id, turn_id=None):
         self.cleared_turn_ids.append(turn_id)
@@ -135,6 +146,58 @@ async def test_a_claimed_command_whose_runner_still_beats_is_left_alone(lock_eng
     assert dao.cleared_turn_ids == []
     assert interactions.cancelled == []
     assert streams.ended == []
+
+
+@pytest.mark.asyncio
+async def test_a_command_no_runner_ever_claimed_settles_lost(lock_engine):  # noqa: F811
+    """The shape a runner restart actually produces: the delivery never reached a runner.
+
+    The claim is written only after a runner accepts the delivery, so a Stop sent while the
+    runner is down leaves the row `pending` with `claim_count` zero. `expire_claims` reads
+    `claimed` rows only, so without this the session read "stopping" for ever. Observed live
+    on the integration stack: command 01a0644c-63a1-70f1-b8a2-1e4c35fbc766 sat `pending` for
+    five minutes with no sweep able to see it.
+    """
+    command = _claimed_command().model_copy(
+        update={
+            "state": SessionCommandState.pending,
+            "claimed_by": None,
+            "claim_expires_at": None,
+            "claim_count": 0,
+        }
+    )
+    dao = _ExpiringDAO(command)
+    interactions = _FakeInteractionsService()
+    streams = _FakeStreamsService(_stream(beat_age_seconds=300))
+    svc = _service(lock_engine, dao=dao, streams=streams, interactions=interactions)
+
+    settled_count = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled_count == 1
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    assert dao.cleared_turn_ids == [_TARGET_TURN]
+    assert interactions.cancelled == [_TARGET_TURN]
+
+
+@pytest.mark.asyncio
+async def test_a_pending_command_younger_than_the_deadline_is_left_alone(lock_engine):  # noqa: F811
+    """A Stop admitted seconds ago may still be in delivery. Do not settle it."""
+    command = _claimed_command().model_copy(
+        update={
+            "state": SessionCommandState.pending,
+            "claimed_by": None,
+            "claim_expires_at": None,
+            "claim_count": 0,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    dao = _ExpiringDAO(command)
+    streams = _FakeStreamsService(_stream(beat_age_seconds=300))
+    svc = _service(lock_engine, dao=dao, streams=streams)
+
+    assert await svc.settle_abandoned_commands(now=datetime.now(timezone.utc)) == 0
+    assert dao.rows[0].state == SessionCommandState.pending
 
 
 class _RecordingCommandsService:

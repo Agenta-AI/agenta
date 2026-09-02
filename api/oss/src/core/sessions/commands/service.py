@@ -31,7 +31,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from uuid import UUID
 
@@ -395,11 +395,30 @@ class SessionCommandsService:
           so the claim is left alone and the next pass reconsiders. Settling here would tell
           the user the Stop failed while it was in fact still being applied.
 
+        A command that is still `pending` long after admission is the third shape, and it is
+        the one a runner restart actually produces: the delivery call never reached a runner,
+        so no claim was ever written. It gets the same treatment.
+
         Returns how many commands were settled, for the sweep's log line.
         """
-        expired = await self._dao.expire_claims(
-            now=now,
-            max_deliveries=env.agenta.sessions.commands.max_deliveries,
+        expired = list(
+            await self._dao.expire_claims(
+                now=now,
+                max_deliveries=env.agenta.sessions.commands.max_deliveries,
+            )
+        )
+        # And the commands NOBODY ever claimed. A claim is written only after a runner accepts
+        # the delivery, so a row still `pending` long after admission means the delivery never
+        # reached a runner at all: it was down, or unreachable. `expire_claims` cannot see
+        # these, and without them a Stop sent to a runner that is already gone leaves the
+        # session reading "stopping" for ever. Observed live on the integration stack.
+        expired.extend(
+            await self._dao.expire_unclaimed(
+                older_than=now
+                - timedelta(
+                    seconds=env.agenta.sessions.commands.admission_timeout_seconds
+                ),
+            )
         )
         settled = 0
         for command in expired:
@@ -414,7 +433,7 @@ class SessionCommandsService:
                 command_id=command.id,
                 project_id=command.project_id,
                 replica_id=None,
-                expected_state=SessionCommandState.claimed,
+                expected_state=command.state,
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.lost,
                 execution_id=command.target_turn_id,

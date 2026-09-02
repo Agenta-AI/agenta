@@ -149,3 +149,16 @@ class SessionCommandsDAOInterface(ABC):
     ) -> List[SessionCommand]:
         """Commands whose claim lease has passed. The settlement sweep reads this. Not called
         in this slice; the execution watchdog owns settlement (see the slice document)."""
+
+    @abstractmethod
+    async def expire_unclaimed(
+        self,
+        *,
+        older_than: datetime,
+    ) -> List[SessionCommand]:
+        """Commands still `pending` since before `older_than`, so no runner ever claimed them.
+
+        A claim is written only after a runner accepts the delivery, so a row that is still
+        `pending` long afterwards means the delivery never reached one. `expire_claims` cannot
+        see these: it reads `claimed` rows only.
+        """
