@@ -201,8 +201,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
     const alwaysOpenKeys = useMemo(() => findAlwaysOpenKeys(allItems), [allItems])
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
-    // The route decides what is SELECTED, never what is open: expanding a matched row's ancestors
-    // persisted over a group the user had collapsed, and creating an agent reopened Agents (#6460).
+    // The route decides what is SELECTED, never what is open — it reopened collapsed groups (#6460).
     const openKeys = useMemo(
         () => uniqueKeys([...persistedOrDefaultOpenGroups, ...alwaysOpenKeys]),
         [alwaysOpenKeys, persistedOrDefaultOpenGroups],

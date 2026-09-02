@@ -332,14 +332,9 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
- * Every agent the catalog still lists, or `null` while it is loading.
- *
- * The catalog excludes archived agents (`include_archived` is off), so "absent here" IS "archived"
- * — which is what lets the rail drop their sessions without paying for the archived rows.
- *
- * REQUIRES an unpaged catalog. `appWorkflowsListQueryAtom` sends no `windowing`, so the query
- * returns every agent in the project; add a limit there and an agent past the cap reads as
- * archived and loses its sessions off the rail.
+ * Every agent the catalog still lists, or `null` while it loads. It excludes archived agents, so
+ * "absent here" IS "archived". Requires an UNPAGED catalog: a limit on `appWorkflowsListQueryAtom`
+ * would make every agent past the cap read as archived and lose its sessions.
  */
 const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     const query = get(appWorkflowsListQueryAtom)
@@ -348,14 +343,12 @@ const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
 })
 
 /**
- * Drop sessions whose agent is no longer listed (#5944, #6457) — an archived agent's conversations
- * should not keep occupying the rail. A PIN is an explicit user request and is exempt, the same
- * exemption it gets from every other list rule.
+ * Drop sessions whose agent is no longer listed (#5944, #6457). A PIN is exempt, the same exemption
+ * it gets from every other list rule.
  */
 export const dropMissingAgentSessions = (
     refs: readonly SessionSidebarRef[],
-    // `null` = the catalog has not answered; keep everything rather than blank the rail on a
-    // pending or failed fetch, which an empty set would otherwise do to EVERY row.
+    // `null` = catalog unanswered; an empty set would read as "all gone" and blank the rail.
     liveAgentIds: ReadonlySet<string> | null,
 ): SessionSidebarRef[] =>
     liveAgentIds === null

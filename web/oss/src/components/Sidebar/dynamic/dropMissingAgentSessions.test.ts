@@ -45,8 +45,7 @@ describe("dropMissingAgentSessions", () => {
         expect(kept.map((r) => r.id)).toEqual(["orphan"])
     })
 
-    // The dangerous direction: an empty set would read as "every agent is gone" and blank the
-    // whole rail, so a pending or failed catalog fetch has to keep every row.
+    // The dangerous direction: an empty set would read as "all gone" and blank the whole rail.
     it("keeps everything until the catalog answers (null)", () => {
         const refs = [ref({id: "a", appId: "agent-archived"}), ref({id: "b", appId: "agent-live"})]
 

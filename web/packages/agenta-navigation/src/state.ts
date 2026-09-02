@@ -124,11 +124,8 @@ const getSidebarOpenGroupsStorageScope = (scopeId: string, projectId: string | n
     projectId ? `${scopeId}:${projectId}` : null
 
 /**
- * Which groups are expanded, per scope and project.
- *
- * Both sides no-op until the project id hydrates. A shared `__global__` bucket stood in for it,
- * which meant a first-paint write landed under a key the real project never reads — the preference
- * was lost, and every project in the browser shared the leftover.
+ * Which groups are expanded, per scope and project. Both sides no-op until the project id hydrates:
+ * the `__global__` bucket that stood in for it was written but never read back.
  */
 export const sidebarOpenGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
