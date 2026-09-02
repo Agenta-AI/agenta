@@ -124,8 +124,9 @@ uv run resources/qa_product.py --cell C3 --only crosstalk --concurrency-everywhe
 
 Each burst costs one Daytona sandbox per run, so raise `--burst-size` deliberately. The counts are
 `--burst-size` (default 8), `--crosstalk-conversations` (default 3) and `--crosstalk-approvals`
-(default 2); `--concurrency-timeout` (default 300s) bounds one run, and a run that outlives it is
-recorded as hung and fails the journey rather than hanging the gate. A release that changes
+(default 2); `--concurrency-timeout` (default 300s) bounds one TURN, so a two-turn crosstalk run
+gets twice that, and a run that outlives its bound is recorded as hung and fails the journey
+rather than hanging the gate. A release that changes
 `services/runner/src/engines/sandbox_agent/**` or `services/runner/src/providers/daytona*` makes
 the Daytona cells C2, C4 and X2 mandatory through `path_triggers.py`, which is how these journeys
 reach a release that needs them.

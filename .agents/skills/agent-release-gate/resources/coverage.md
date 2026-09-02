@@ -111,8 +111,9 @@ CODE per run, read off the `data-agent-error` frame, so triage starts from
 copy. The frame counts and reply sizes ride in the evidence but the bar stays at "the reply
 streamed", because chunking is a harness property: measured on staging, Pi sends the same 150-line
 reply in about 312 frames and Claude sends it in 4 to 7. One hung run cannot hang the journey:
-each run is bounded by `--concurrency-timeout` (default 300s), the journey stops waiting a margin
-later, and a straggler is recorded as hung and fails the journey.
+`--concurrency-timeout` (default 300s) bounds each TURN, the journey waits that many turns plus a
+margin (one turn for a burst run, two for a crosstalk conversation or approval), and a straggler
+is recorded as hung and fails the journey.
 
 Triggers are deliberately **out of scope** for this gate.
 

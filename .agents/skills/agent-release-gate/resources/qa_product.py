@@ -678,7 +678,7 @@ def j3_tool(cell: dict) -> dict:
     }
 
 
-def _approval_flow(cell: dict, approved: bool) -> dict:
+def _approval_flow(cell: dict, approved: bool, timeout: float = 300.0) -> dict:
     """J4: with permission `ask`, a tool call must PAUSE with a tool-approval-request, then
     resume on the user's decision — the same in-band protocol the browser uses.
 
@@ -691,6 +691,10 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
     `list_connections` platform tool with per-tool `permission: "ask"` — empty arguments, so the
     resume matches on input exactly. Verified across {local, daytona} x {warm, cold} in
     docs/design/codex-harness/reports/warm-approvals-qa.md.
+
+    `timeout` bounds EACH of the two turns, so a caller that runs this beside other work has to
+    budget two of them. The `crosstalk` journey passes its own per-run timeout here. A flow left
+    on the default while the flag said otherwise would be judged against a bound it never had.
     """
     s = str(uuid.uuid4())
     if cell["harness"] == "codex":
@@ -709,7 +713,7 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
             permission_default="ask",
         )
         msgs = [user_msg(MUTATE_PROMPT)]
-    t1 = invoke(s, msgs, params)
+    t1 = invoke(s, msgs, params, timeout=timeout)
 
     if not t1.approval:
         return {
@@ -727,7 +731,7 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
     )
     gated_input = gated_call.get("input") or {}
     msgs = msgs + [approval_reply(t1, approved)]
-    t2 = invoke(s, msgs, params)
+    t2 = invoke(s, msgs, params, timeout=timeout)
     outcome = outcome_for_input(t2, gated_input)
 
     # Require the turn to have actually paused (paused_ok) and the resume to have reached a
@@ -2263,14 +2267,22 @@ def _run_record(label: str, session_id: str, t: "Turn", **extra) -> dict:
     }
 
 
-def _run_concurrently(jobs: list) -> list:
+def _run_concurrently(jobs: list, turns_per_job: int = 1) -> list:
     """Run every (label, callable) at the same time and always come back.
 
     A job that outlives the bound is recorded as hung and its record fails the journey. The pool
     is shut down without waiting, so one stuck HTTP stream delays the process at most until its
     own timeout, and never the journey's verdict.
+
+    `turns_per_job` is how many SEQUENTIAL turns one job runs, and the bound is that many
+    per-turn timeouts plus one margin. A two-turn job judged against a one-turn bound would be
+    called hung for a limit it never had, which reports a product fault that is really an
+    arithmetic error in the check.
     """
-    deadline = CONCURRENCY_TURN_TIMEOUT_SECONDS + CONCURRENCY_WAIT_MARGIN_SECONDS
+    deadline = (
+        max(1, turns_per_job) * CONCURRENCY_TURN_TIMEOUT_SECONDS
+        + CONCURRENCY_WAIT_MARGIN_SECONDS
+    )
     ex = ThreadPoolExecutor(max_workers=max(1, len(jobs)))
     try:
         futures = {ex.submit(job): label for label, job in jobs}
@@ -2284,7 +2296,12 @@ def _run_concurrently(jobs: list) -> list:
                         "label": label,
                         "ok": False,
                         "hung": True,
-                        "why": f"still running after {deadline:.0f}s",
+                        "why": (
+                            f"still running after {deadline:.0f}s "
+                            f"({max(1, turns_per_job)} turn(s) at "
+                            f"{CONCURRENCY_TURN_TIMEOUT_SECONDS:.0f}s plus a "
+                            f"{CONCURRENCY_WAIT_MARGIN_SECONDS:.0f}s margin)"
+                        ),
                     }
                 )
                 continue
@@ -2506,7 +2523,11 @@ def j_crosstalk(cell: dict) -> dict:
         return record
 
     def approval(i: int) -> dict:
-        r = _approval_flow(cell, approved=True)
+        # The same per-run bound the conversations use. Without it the flow would run on
+        # _approval_flow's own 300s default while the executor waited on --concurrency-timeout.
+        r = _approval_flow(
+            cell, approved=True, timeout=CONCURRENCY_TURN_TIMEOUT_SECONDS
+        )
         summaries = [
             s for s in (r.get("turn_paused"), r.get("turn_resumed"), r.get("turn")) if s
         ]
@@ -2529,7 +2550,9 @@ def j_crosstalk(cell: dict) -> dict:
         (f"conversation-{i:02d}", lambda i=i: conversation(i))
         for i in range(conversations)
     ] + [(f"approval-{i:02d}", lambda i=i: approval(i)) for i in range(approvals)]
-    runs = _run_concurrently(jobs)
+    # Both halves run two sequential turns: a conversation writes then continues, and an
+    # approval pauses then resumes.
+    runs = _run_concurrently(jobs, turns_per_job=2)
     total = len(jobs)
     result = _concurrency_verdict(
         runs,
