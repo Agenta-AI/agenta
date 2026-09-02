@@ -194,13 +194,24 @@ API watchdog settles a turn whose runner request is still alive and later comple
 knows nothing about an ending the platform wrote.
 
 **Verified live, twice.** Freezing the runner with `docker pause` past the 90-second threshold
-and thawing it produced, for one turn:
+and thawing it produced this transcript for one turn, read straight from the records table of
+session `9a130493`, turn `99b83cc9`:
 
-| Writer | Records |
-|---|---|
-| The watchdog | `error` (`code: execution_lost`), then `done` |
-| The runner, on thaw | `done` (`stopReason: cancelled`), session `9a130493`, turn `99b83cc9` |
-| The runner, on a longer freeze | `error` (`runner_error`, "no first response within 120000ms"), then `done`, session `40dc5121`, turn `68c695c8` |
+| Time | Record | Written by |
+|---|---|---|
+| 22:56:44.756 | `message`, the user's prompt | the runner |
+| 22:58:39.534 | `error`, `code: execution_lost` | the watchdog |
+| 22:58:39.535 | `done` | the watchdog |
+| 22:58:40.226 | `tool_call` | the runner, on thaw |
+| 22:58:40.238 | `tool_result` | the runner, on thaw |
+| 22:58:41.088 | `usage` | the runner, on thaw |
+| 22:58:41.097 | `done`, `stopReason: cancelled` | the runner, on thaw |
+
+So it is not only a second ending. Four records land AFTER the turn has been given a terminal
+one, and the reader sees "The agent stopped responding and the run was closed" followed by the
+tool the agent then ran and a clean cancelled finish. A longer freeze produced the same shape
+with the runner's own run limit as the second error: `runner_error`, "no first response within
+120000ms", then `done`, on session `40dc5121`, turn `68c695c8`.
 
 A `docker restart` does NOT produce it, because the process dies and never unwinds; the plain
 runner-gone cell wrote exactly one pair. The real-world shape is a runner wedged or stalled past
@@ -382,11 +393,12 @@ Nothing was acknowledged before its batch committed, so nothing was lost.
 
 ## Open questions for Mahmoud
 
-1. **Who refuses a second terminal record for one execution?** *Recommendation: the records
-   ingest, using `settled_turns`, and do it with the records repair rather than tonight.*
+1. **Who refuses records for an execution the platform already ended?** *Recommendation: the
+   records ingest, using `settled_turns`, and do it with the records repair rather than tonight.*
    Reason: it is the only place that can tell the difference between the runner writing the one
    ending and the runner writing a second one, and the runner cannot. Until then a wedged runner
-   that thaws puts two endings in one transcript. This is the only known open defect.
+   that thaws appends its whole tail, tool calls included, after the ending the watchdog wrote.
+   This is the only known open defect.
 
 2. **Should the sweep re-deliver an expired claim before settling it `lost`?** *Recommendation:
    no, settle it, as built.* Reason: the design allows a redelivery when the runner is alive and
