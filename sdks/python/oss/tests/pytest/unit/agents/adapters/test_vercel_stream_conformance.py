@@ -423,3 +423,82 @@ def test_vendored_version_matches_package_pin() -> None:
     # CI-grep-able tripwire: bump this const (and re-audit the shape above) whenever
     # web/oss/package.json's "ai" pin changes.
     assert _AI_PACKAGE_VERSION == "6.0.0-beta.150"
+
+
+# ---------------------------------------------------------------------------
+# The turn id pass-through.
+#
+# The runner mints the turn id per execution and, until this, told no one. The `start` frame is
+# built and emitted before the runner replies at all, so it CANNOT carry a runner-minted id —
+# which is why `expected_execution_id` on the public Cancel had no first-party caller able to fill
+# it. The runner now emits a `turn` event as its first frame and the egress forwards it unchanged
+# as `data-agent-turn`, the earliest part that can carry it.
+# ---------------------------------------------------------------------------
+
+_TURN_ID = "d3b4a1c2-0000-4000-8000-abcdefabcdef"
+
+# The runner's AgentEvent is FLAT (`{type, turnId}`, like `{type, message, code}` for an error),
+# and each path wraps it differently. The live handler yields `{"type", "data"}` where `data` is
+# the whole flat runner event; `AgentStream` (the dev twin) hands the flat record through
+# `Event.from_wire`, which also sets `data` to the whole record. Both fixtures below are the real
+# shapes, not a convenient one — a fixture that reshapes the event tests nothing about the wire.
+_TURN_EVENTS_LIVE: List[Dict[str, Any]] = [
+    {"type": "turn", "data": {"type": "turn", "turnId": _TURN_ID}},
+    {"type": "message", "data": {"text": "hello"}},
+    {"type": "done", "data": {"stopReason": "stop"}},
+]
+_TURN_EVENTS_RUN: List[Dict[str, Any]] = [
+    {"type": "turn", "turnId": _TURN_ID},
+    {"type": "message", "text": "hello"},
+    {"type": "done", "stopReason": "stop"},
+]
+
+
+@pytest.mark.asyncio
+async def test_live_projection_forwards_the_turn_id_unchanged() -> None:
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(
+            _records(_TURN_EVENTS_LIVE), trace_id="t1"
+        )
+    ]
+    for part in parts:
+        assert_conforms(part)
+
+    turn_parts = [p for p in parts if p["type"] == "data-agent-turn"]
+    assert turn_parts == [{"type": "data-agent-turn", "data": {"turnId": _TURN_ID}}], (
+        "the egress must forward the runner's id verbatim, exactly once"
+    )
+
+    # It must land before any content, so a client that Stops early already holds the id.
+    turn_index = next(i for i, p in enumerate(parts) if p["type"] == "data-agent-turn")
+    first_text = next(
+        (i for i, p in enumerate(parts) if p["type"].startswith("text-")), None
+    )
+    assert first_text is None or turn_index < first_text
+
+
+@pytest.mark.asyncio
+async def test_dev_twin_projection_forwards_the_turn_id_unchanged() -> None:
+    run = _run_with(_TURN_EVENTS_RUN, result={"output": "hello"})
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    for part in parts:
+        assert_conforms(part)
+    assert {"type": "data-agent-turn", "data": {"turnId": _TURN_ID}} in parts
+
+
+@pytest.mark.asyncio
+async def test_a_turn_event_with_no_usable_id_emits_nothing() -> None:
+    # An older runner, or a malformed frame, must not put an empty id on the stream: a client
+    # would send it as `expected_execution_id` and cancel nothing, or worse, read it as "no
+    # guard". Dropping it leaves the client in the honest "I do not know the id" state.
+    for bad in ({}, {"turnId": None}, {"turnId": ""}, {"turnId": 7}):
+        parts = [
+            part
+            async for part in agent_stream_to_vercel_stream(
+                _records([{"type": "turn", "data": bad}]), trace_id="t1"
+            )
+        ]
+        assert not [p for p in parts if p["type"] == "data-agent-turn"], (
+            f"a turn event with data={bad!r} must emit no part"
+        )

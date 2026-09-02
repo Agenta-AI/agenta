@@ -819,10 +819,12 @@ describe("runWithKeepalive: races and failures", () => {
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1(), undefined, undefined, ctx);
     const key = "proj-1:s1";
-    // `destroyAll` is what leaves a `destroyed` entry seated at its key.
-    await ctx.pool.destroyAll("drain");
-    const stale = ctx.pool.get(key);
-    if (stale) assert.equal(stale.state, "destroyed");
+    // Marked directly, because every public route that destroys a session also removes it from
+    // the map. A `destroyed` entry SEATED at its key is the residue of a race: `checkoutIdle`
+    // leaves its entry in the map while the turn runs, a teardown marks it destroyed underneath,
+    // and `repark` then refuses to resurrect it (`session-pool.ts`, the `destroyed` guard).
+    // Reproducing that race would test the pool, not this branch.
+    ctx.pool.get(key)!.state = "destroyed";
 
     const r = await runWithKeepalive(turn2(), undefined, undefined, ctx);
 

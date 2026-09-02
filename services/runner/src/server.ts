@@ -566,6 +566,18 @@ async function runAndStreamWithApiBaseResolved(
       return;
     }
 
+    // Admitted. Tell the client which execution it is watching, before anything else streams.
+    //
+    // The runner mints the turn id (`resolveTurnId`), and until now it never told anyone: the
+    // client's `start` frame is built and sent before the runner replies at all, so it cannot
+    // carry a runner-minted id. That is why `expected_execution_id` on the public Cancel has had
+    // no first-party caller able to fill it — a Stop could only mean "whatever is running now",
+    // never "the turn I was watching". This is the earliest frame that can carry it.
+    //
+    // Deliberately on `liveEmit`, not the persisting emitter that replaces it below: this is
+    // transport correlation, not conversation, and it must never become a session record.
+    liveEmit({ type: "turn", turnId });
+
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
