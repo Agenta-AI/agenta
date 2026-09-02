@@ -310,6 +310,20 @@ and execution together. If the runner disappears, a watchdog records `lost`; ano
 claim that it stopped work on the missing machine. The settlement deadline will be selected after
 the sandbox cancellation spike.
 
+### First-version ownership scope
+
+The first version retains Redis as the execution ownership authority. It does not introduce a new
+Postgres execution table, ownership generation, or general fencing migration.
+
+When Stop is accepted, the API saves the durable command but does not immediately free the current
+`alive` lock. Long polling delivers the command. The heartbeat can discover the same pending
+command as a fallback. The runner releases owner-checked `running` and `alive` keys only after
+cancellation settles, so new work cannot start during normal cancellation.
+
+This scope accepts the current network-partition limitation. Full multi-runner correctness and
+stale-writer fencing remain future work. The command and control-delivery ports must not depend on
+Redis-specific ownership details, so that later work can replace the ownership adapter.
+
 ### Live frame ingress and relay
 
 The working model has one raw runner event ingress. The API acknowledges a frame only after it is

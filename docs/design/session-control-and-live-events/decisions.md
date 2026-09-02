@@ -139,6 +139,20 @@ Accepting Stop durably saves the command and moves the matching execution from `
 watchdog settles an execution whose runner disappears, but its timeout remains open until the
 sandbox cancellation spike.
 
+### D-017: Keep current Redis execution ownership for the first version
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+The first version keeps the existing Redis `alive`, `running`, `owner`, and `superseded` model.
+It does not add Postgres execution authority, ownership generations, or full stale-writer fencing.
+Those changes have low current value because Agenta operates one runner and does not plan near-term
+runner scaling.
+
+Durable commands and runner-initiated long polling remain in scope. Stop delivery no longer depends
+on deleting ownership and waiting for a heartbeat. The current execution keeps its Redis ownership
+while stopping and releases it after cancellation settles. Heartbeat command discovery remains a
+fallback if long polling is unavailable.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress

@@ -42,6 +42,8 @@
 - Recorded warm sandbox and harness resume as the required Stop outcome.
 - Confirmed the minimal internal command lifecycle and its separation from public execution state.
 - Left the Stop settlement timeout for the sandbox cancellation spike.
+- Confirmed that the first version keeps current Redis execution ownership.
+- Kept durable commands and long polling in scope; deferred Postgres ownership and full fencing.
 
 ## Branch
 

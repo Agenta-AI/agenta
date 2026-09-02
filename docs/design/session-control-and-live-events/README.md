@@ -16,6 +16,7 @@ durable event replay, and durable commands.
    options are compared.
 7. [RFC](rfc.md) is the living architecture proposal. It remains incomplete until each track is discussed.
 8. [Status](status.md) records current progress and the next discussion.
+9. [Tonight handoff](tonight-handoff.md) contains independent spike and implementation briefs.
 
 ## Terms under review
 
