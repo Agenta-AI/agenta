@@ -133,19 +133,19 @@ the stale message instead of "try again", which would have sent the user round t
 
 ### 8. The browser sends the guard
 
-The client half of the turn id. The runner emits `{type: "turn", turnId}` as its first event and the
-SDK forwards it verbatim as a `data-agent-turn` part, arriving third after `start` and `start-step`,
-before any content. It cannot ride on `start`, because the SDK egress emits `start` before the runner
-is consulted. The runner half is runner commit `ce0f1e12da` on
-`feat/session-single-turn-admission`; until it lands no part arrives, nothing is stored, and Stop
-sends no guard, exactly as before.
+The client half of the turn id. The runner sends it as a `message-metadata` chunk, so it lands on
+`message.metadata.turnId` beside the `sessionId` the start frame sets. It arrives third, before any
+content, and the SDK merges metadata, so the finish frame's `traceId` does not overwrite it. It
+cannot ride on the start frame itself: the SDK egress emits `start` before the runner is consulted.
+The runner half is runner commit `ca600cb1e6` on `feat/session-single-turn-admission`; until it
+lands no metadata arrives, nothing is stored, and Stop sends no guard, exactly as before.
 
 | Change | Where |
 |---|---|
-| `turnIdFromDataPart`, the strict reader | `web/packages/agenta-chat/src/assets/agentTurn.ts:16-23` |
-| The per-session store, cleared with the session's ephemera | `web/packages/agenta-chat/src/state/sessionEphemera.ts:33-52` |
-| Desktop reads the part and sends the id | `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:152-156`, `:519-526` |
-| Mobile reads the part (shared hook) and sends the id | `web/packages/agenta-chat/src/hooks/useAgentConversation.ts:273-276`, `web/mobile/src/features/chat/LiveConversation.tsx:200-207` |
+| `getMessageTurnId` and `latestTurnId`, the strict readers | `web/packages/agenta-chat/src/assets/agentTurn.ts:19-37` |
+| The per-session store, cleared with the session's ephemera | `web/packages/agenta-chat/src/state/sessionEphemera.ts:33-56` |
+| Desktop keeps the id and sends it | `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:353-360`, `:524-531` |
+| Mobile keeps it (shared hook) and sends it | `web/packages/agenta-chat/src/hooks/useAgentConversation.ts:343-350`, `web/mobile/src/features/chat/LiveConversation.tsx:200-207` |
 | `cancelSessionStream` carries it | `web/packages/agenta-entities/src/session/api/api.ts:629-680` |
 | The typed client gained the field | `web/packages/agenta-api-client/src/generated/.../SessionStreamCommandRequest.ts` |
 
@@ -154,23 +154,29 @@ it is written once per turn and read once, when Stop is pressed. It is deliberat
 of the turn. A turn parked on an approval has finished streaming and is still the turn a Stop means,
 which is exactly the state review finding H-2 is about.
 
+It is in memory and never persisted with the messages, which is what makes it safe. Message metadata
+does round-trip through the browser's message cache, so reading `metadata.turnId` straight off the
+transcript at Stop time would name a turn from a previous page load. The Map starts empty after a
+reload, so Stop then sends no guard, which is the old behavior rather than a wrong refusal.
+
 Three rules the code holds to, each because the wrong id refuses a Stop that is correct:
 
-- The reader is strict. A part of any other type, a missing id, a blank id, or a non-string yields
-  null, and null means send nothing.
+- The readers are strict. A missing id, a blank id, or a non-string yields null, and null means send
+  nothing. `latestTurnId` consults only the NEWEST assistant message and does not fall back to an
+  older one, because an older message carries an older turn's id.
 - The field is omitted, never sent as null, when the client never learned an id. The server then
   falls back to its own arrival-time check.
 - The running-elsewhere button on mobile sends no guard at all
   (`web/mobile/src/features/chat/StopButton.tsx:15-21`). That turn runs on another device, so this
-  device never saw its part, and naming a turn it watched earlier would refuse a correct Stop.
+  device never saw its metadata, and naming a turn it watched earlier would refuse a correct Stop.
 
 **The typed client was regenerated**, against this stack's own OpenAPI
 (`clients/scripts/generate.sh --language typescript --url http://144.76.237.122:8980/api/openapi.json`).
 The diff is two fields and nothing else: `expected_execution_id` on the request and
 `cancelled_turn_ids` on the response. The checked-in client was otherwise already in sync.
 
-One transition hazard, stated rather than guarded: if a session's first turn emitted the part and a
-later turn did not, the stored id would be stale and that Stop would be refused. It needs a runner
+One transition hazard, stated rather than guarded: if a session's first turn carried the metadata and
+a later turn did not, the stored id would be stale and that Stop would be refused. It needs a runner
 version change in the middle of one session, and the refusal is visible and says why. The code does
 not retry without the guard, because retrying unguarded is exactly the behavior #6417 is about.
 
@@ -320,18 +326,18 @@ all four touched packages typecheck, and the web container compiled the chat rou
 | The route: pending gates and the concurrency exemption | `api/oss/tests/pytest/unit/sessions/test_cancel_cancels_pending_interactions.py` | 11 passed |
 | The live approval rule | `web/packages/agenta-chat/tests/unit/model/liveApprovals.test.ts` | 3 passed |
 | The Stop outcomes and the guard on the wire | `web/packages/agenta-entities/tests/unit/session-cancel-stream.test.ts` | 8 passed |
-| The turn-id reader and its store | `web/packages/agenta-chat/tests/unit/assets/agentTurn.test.ts` | 6 passed |
+| The turn-id readers and their store | `web/packages/agenta-chat/tests/unit/assets/agentTurn.test.ts` | 9 passed |
 
 `api/oss/tests/pytest/unit/sessions/` as a whole: 505 passed, 41 skipped. The `@agenta/entities`
-suite is 1472 passed and `@agenta/chat` is 631 passed. `pnpm lint-fix` in `web/` is clean, `ruff
+suite is 1472 passed and `@agenta/chat` is 634 passed. `pnpm lint-fix` in `web/` is clean, `ruff
 format` and `ruff check` in `api/` are clean, and `@agenta/entities`, `@agenta/chat`,
 `@agenta/mobile` and `@agenta/oss` all typecheck.
 
 ## What is left
 
-- **The guard is inert until the runner emits `data-agent-turn`.** Both clients read it and send it;
-  no runner on this branch emits it. The runner half is commit `ce0f1e12da` on
-  `feat/session-single-turn-admission`. The stream row's `turn_id` was rejected as a source: it
+- **The guard is inert until the runner sends the turn id in the message metadata.** Both clients read it and send it;
+  no runner on this branch emits it. The runner half is commit `ca600cb1e6` on
+  `feat/session-single-turn-admission` (commit `ca600cb1e6`). The stream row's `turn_id` was rejected as a source: it
   reaches the browser through a 15 s liveness poll, and a stale id refuses a legitimate Stop of the
   current turn, which is worse than the bug.
 - The residual in-handler race: a turn that takes `alive` between `_displace_turns` reading the owners
