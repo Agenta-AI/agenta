@@ -108,6 +108,15 @@ identity, its session, and the intent to execute it. Acceptance does not wait fo
 the work, the harness to start, or the first output frame. If no runner is available, accepted work
 remains queued rather than disappearing.
 
+### D-014: Do not preserve sender-only live visibility as a requirement
+
+**Status:** Confirmed by Mahmoud on 2026-09-02.
+
+The shared session stream is available to authorized session viewers. The design does not treat
+raw live output as secret to the browser that started the execution. Existing configured
+redaction and authorization behavior must be understood, but sender-only visibility is not a
+target product rule.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
