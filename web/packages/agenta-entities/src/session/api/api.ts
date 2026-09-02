@@ -43,6 +43,7 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
     projectScopedRequest,
 } from "./client"
 
@@ -618,6 +619,70 @@ export async function killSession({
         ),
     )
     return data !== null
+}
+
+/**
+ * The three answers a Stop can get. `commandSessionStream` collapses all of them to `null`
+ * (`callFern` logs and swallows), which is why the desktop Stop could report "Stopped" for a run
+ * that was still going. A Stop is the one control call whose failure the user must see.
+ */
+export type CancelSessionOutcome =
+    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
+    /** The server refused: another turn holds the session, or the Stop arrived too late. */
+    | {status: "stale"; message: string}
+    | {status: "failed"}
+
+const STALE_CANCEL_FALLBACK =
+    "That run had already finished. The session is running something else now."
+
+/** The `detail.message` the streams route puts on a 409, when it is there. */
+const conflictMessage = (error: unknown): string => {
+    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
+    if (typeof detail === "string") return detail
+    const message = (detail as {message?: unknown} | null)?.message
+    return typeof message === "string" ? message : STALE_CANCEL_FALLBACK
+}
+
+/**
+ * Stop the session's current turn, and say what happened.
+ *
+ * Separate from `commandSessionStream` rather than a flag on it: the other callers of that
+ * function deliberately ignore the outcome, and widening its return type would break the null
+ * check they use. Aborts propagate, as everywhere else.
+ */
+export async function cancelSessionStream({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<CancelSessionOutcome> {
+    if (!projectId || !sessionId) return {status: "failed"}
+
+    try {
+        const data = await getSessionsClient().setSessionStream(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        return {
+            status: "cancelled",
+            response:
+                safeParseWithLogging(
+                    sessionStreamCommandResponseSchema,
+                    data,
+                    "[cancelSessionStream]",
+                ) ?? null,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if (isInteractionConflict(error)) {
+            return {status: "stale", message: conflictMessage(error)}
+        }
+        console.error(
+            "[cancelSessionStream] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return {status: "failed"}
+    }
 }
 
 /**

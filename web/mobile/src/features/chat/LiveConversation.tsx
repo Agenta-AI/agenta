@@ -20,9 +20,10 @@ import {
     useConnectionDock,
     useElicitationDock,
 } from "@agenta/chat/hooks"
-import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {getLivePendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {cancelSessionStream} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
-import {modal} from "@agenta/ui/app-message"
+import {message, modal} from "@agenta/ui/app-message"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
@@ -189,9 +190,31 @@ export const LiveConversation = ({
 
     // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
     // (same source function, same index-0 ordering) and acts through the engine.
+    // The composer's Stop must reach the SERVER, not just abort this device's fetch. It used to do
+    // only the latter, so the run kept going and billing and the only server-calling Stop was the
+    // one on the running-elsewhere strip — the button you see when the turn is NOT yours. Same call
+    // and same refusal handling as the desktop.
+    const stopHere = useCallback(() => {
+        conversation.stop()
+        if (!projectId || !sessionId) return
+        void cancelSessionStream({sessionId, projectId})
+            .then((outcome) => {
+                if (outcome.status === "cancelled") return
+                message.warning(
+                    outcome.status === "stale"
+                        ? outcome.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+            // An abort rethrows and needs no handling here: this device has already stopped.
+            .catch(() => undefined)
+    }, [conversation, projectId, sessionId])
+
+    // Emptied after a user stop, matching the desktop and the two docks below: Stop cancels the
+    // stopped turn's gates server-side, so an approve pressed after it answers a turn that is gone.
     const pendingApprovals = useMemo(
-        () => getPendingApprovals(conversation.messages),
-        [conversation.messages],
+        () => getLivePendingApprovals(conversation.messages, {stopped: conversation.stopped}),
+        [conversation.messages, conversation.stopped],
     )
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
@@ -456,7 +479,7 @@ export const LiveConversation = ({
                             disabled={conversation.isHydrating || modelBlocked}
                             waitingOnUser={conversation.hitlPending}
                             streaming={streamingHere}
-                            onStop={conversation.stop}
+                            onStop={stopHere}
                             inputRef={composerRef}
                         />
                     </div>

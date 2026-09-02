@@ -15,6 +15,9 @@ Key namespace — every key is project-scoped:
                                                — tombstone: this turn lost the nest and is
                                                  dead forever (API-side only; the runner
                                                  learns it through `is_current_turn`)
+  started:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — when this turn first took `alive`, in epoch
+                                                 milliseconds (API-side only; see below)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -45,6 +48,11 @@ HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_
 # deliberately absent from the shared golden fixture (like `watch_heartbeat_seconds`).
 SUPERSEDED_TTL_SECONDS: int = env.sessions.superseded_ttl_seconds
 
+# The turn-start key lives exactly as long as `alive` can: it answers "did this turn start
+# before that cancel arrived?", and a turn with no `alive` cannot be cancelled. Reusing
+# ALIVE_TTL keeps the two in step without a new setting.
+TURN_STARTED_TTL_SECONDS: int = ALIVE_TTL_SECONDS
+
 # ---------------------------------------------------------------------------
 # Key builders
 # ---------------------------------------------------------------------------
@@ -68,6 +76,18 @@ def owner_key(project_id: str, session_id: str) -> str:
 
 def superseded_key(project_id: str, session_id: str, turn_id: str) -> str:
     return f"superseded:{project_id}:session:{session_id}:turn:{turn_id}"
+
+
+def turn_started_key(project_id: str, session_id: str, turn_id: str) -> str:
+    """When this turn first took the alive lock, in epoch milliseconds.
+
+    API-side only, like the tombstone above: the runner never reads it, so it stays out of
+    the shared golden fixture. It exists because nothing else records a turn's start early
+    enough to be useful. `session_turns.start_time` is written by the runner some time after
+    the turn begins, and a browser turn's id is a runner-minted uuid4
+    (`services/runner/src/server.ts:188`), so no timestamp can be read out of the id either.
+    """
+    return f"started:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
 def displaced_channel(project_id: str, session_id: str) -> str:

@@ -28,7 +28,7 @@ import {
     isSessionBusyRefusal,
     isVisiblePart,
 } from "@agenta/chat/model"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {getLivePendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -382,7 +382,15 @@ const AgentConversation = ({
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach).
-    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    // Emptied after a user stop, for the same reason the two docks below are: Stop now cancels the
+    // stopped turn's gates server-side, so an approve/deny pressed after it answers a turn that no
+    // longer exists (#6315). Replay already renders a cancelled gate as closed
+    // (`settleApprovalPart` in @agenta/chat maps `cancelled` to `output-denied`); this is the live
+    // path catching up without waiting for a refetch. `stopped` clears on the next send.
+    const pendingApprovals = useMemo(
+        () => getLivePendingApprovals(messages, {stopped}),
+        [messages, stopped],
+    )
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).

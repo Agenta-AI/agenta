@@ -23,7 +23,7 @@ import {
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
-    commandSessionStream,
+    cancelSessionStream,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
@@ -44,6 +44,7 @@ import {
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
 import {useChat} from "@ai-sdk/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {type UIMessage} from "ai"
@@ -502,7 +503,24 @@ export const useAgentChatSession = ({
         // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
         // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
         // the client stream aborted but the runner kept running and billing.
-        commandSessionStream({sessionId, projectId}).catch(() => {})
+        //
+        // The outcome is read, not discarded. A Stop that the server refuses used to be invisible:
+        // the call was fire-and-forget and `callFern` swallowed the error, so the transcript said
+        // "Stopped" while the run kept going and billing. A refusal means the turn the user was
+        // watching had already ended and another turn holds the session, so the local "Stopped"
+        // marker is withdrawn and the liveness poll re-reads the truth.
+        void cancelSessionStream({sessionId, projectId})
+            .then((outcome) => {
+                if (outcome.status === "cancelled") return
+                if (outcome.status === "stale") setStopped(false)
+                message.warning(
+                    outcome.status === "stale"
+                        ? outcome.message
+                        : "Could not stop the run. It may still be running.",
+                )
+                queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            })
+            .catch(() => {})
     }, [markStopped, stop, projectId, sessionId, queryClient])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──

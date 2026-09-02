@@ -64,3 +64,19 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     }
     return out
 }
+
+/**
+ * The pending gates a LIVE transcript may still act on. Empty once the user stopped the turn.
+ *
+ * Stop cancels the stopped turn's interactions server-side (the cancel branch of
+ * `POST /sessions/streams/`), so an approve or deny pressed after a Stop answers a turn that no
+ * longer exists — #6315, "a stopped session keeps an approval card whose buttons do nothing".
+ * Replay already reaches the same conclusion from the stored rows (`settleApprovalPart` maps a
+ * `cancelled` interaction to `output-denied`); this is the live path reaching it without waiting
+ * for a refetch, and it is why the rule lives beside `getPendingApprovals` rather than in one
+ * client: the desktop and the mobile chat must not disagree about it.
+ */
+export const getLivePendingApprovals = (
+    messages: UIMessage[],
+    options?: {stopped?: boolean},
+): PendingApproval[] => (options?.stopped ? [] : getPendingApprovals(messages))

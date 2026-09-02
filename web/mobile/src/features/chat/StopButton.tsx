@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {commandSessionStream} from "@agenta/entities/session"
+import {cancelSessionStream} from "@agenta/entities/session"
 import {Button} from "@agenta/ui/ui"
 
 /**
@@ -12,11 +12,20 @@ import {Button} from "@agenta/ui/ui"
  */
 export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId: string}) => {
     const [state, setState] = useState<"idle" | "stopping" | "failed">("idle")
+    const [staleMessage, setStaleMessage] = useState<string | null>(null)
     const onStop = async () => {
         setState("stopping")
+        setStaleMessage(null)
         try {
-            const result = await commandSessionStream({sessionId, projectId})
-            if (!result) setState("failed")
+            const outcome = await cancelSessionStream({sessionId, projectId})
+            if (outcome.status === "failed") setState("failed")
+            // A refused Stop is not a broken Stop: the turn this button was offering to stop has
+            // already ended and another one holds the session. Say that instead of "try again",
+            // which would send the user round the same refusal.
+            if (outcome.status === "stale") {
+                setState("idle")
+                setStaleMessage(outcome.message)
+            }
         } catch {
             // A rejection (offline, 5xx) must land on "failed" like a null result. Without this
             // the button sits on "Stopping…" forever and the user has no way to retry.
@@ -41,6 +50,9 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
             </Button>
             {state === "failed" ? (
                 <span className="text-destructive text-xs">Stop failed — try again.</span>
+            ) : null}
+            {staleMessage ? (
+                <span className="text-muted-foreground text-xs">{staleMessage}</span>
             ) : null}
         </span>
     )

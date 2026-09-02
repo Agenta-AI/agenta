@@ -18,6 +18,8 @@ export {
     setSessionHeader,
     fetchSessionStream,
     commandSessionStream,
+    cancelSessionStream,
+    type CancelSessionOutcome,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
