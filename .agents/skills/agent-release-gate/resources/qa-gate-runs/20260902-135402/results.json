@@ -1,0 +1,541 @@
+{
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "agenta",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "burst": {
+        "pass": false,
+        "why": "16 first messages sent at the same time on 16 fresh sessions: 2/16 failed, runner error codes ['runner_error']. At least one run failed on an AUTHENTICATION refusal. Read error_text per run: a cold sandbox that never got its credential wiring fails exactly this way",
+        "failed": 2,
+        "total": 16,
+        "error_codes": [
+          "runner_error"
+        ],
+        "runs": [
+          {
+            "label": "burst-00",
+            "session_id": "accfebb0-e8da-40cc-8509-c990261a45b6",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 8592,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-B3C4B3FB81AA",
+            "ok": true
+          },
+          {
+            "label": "burst-01",
+            "session_id": "61afaab6-3820-408d-8d4a-7986e62f64af",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 25995,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-C83B994503C8",
+            "ok": true
+          },
+          {
+            "label": "burst-02",
+            "session_id": "98c88a9b-abe0-462f-b583-0110fbd64deb",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 25282,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-CC008EFE7EF7",
+            "ok": true
+          },
+          {
+            "label": "burst-03",
+            "session_id": "7483e1bb-d63f-46ac-9ed7-116bea270a3b",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 6696,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-235CEF0A5B7A",
+            "ok": true
+          },
+          {
+            "label": "burst-04",
+            "session_id": "0c2415e2-e4fc-4627-a111-d576b8120c5f",
+            "finish_reason": null,
+            "error_code": "runner_error",
+            "error_codes": [
+              "runner_error"
+            ],
+            "error_text": "claude: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth). {\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}",
+            "ms": 6889,
+            "http": 200,
+            "own_nonce_in_reply": false,
+            "other_nonces_in_reply": [],
+            "reply": "",
+            "ok": false
+          },
+          {
+            "label": "burst-05",
+            "session_id": "0b120783-89bc-47ef-a4bf-77026122d78e",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 27529,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-3DBC3C57C8D5",
+            "ok": true
+          },
+          {
+            "label": "burst-06",
+            "session_id": "1e7e1fb3-8979-4f6c-8a31-1818002673f5",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 7063,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-AC831736823C",
+            "ok": true
+          },
+          {
+            "label": "burst-07",
+            "session_id": "65f6f698-033e-436c-80aa-9df4cde769bd",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 46889,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-2A1CC445D5DD",
+            "ok": true
+          },
+          {
+            "label": "burst-08",
+            "session_id": "720db2e1-eba9-4062-ab2f-62d41dbcc805",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 10551,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-1CBDAA4D901B",
+            "ok": true
+          },
+          {
+            "label": "burst-09",
+            "session_id": "add12d8b-bb3e-4bda-a5e2-72c591d8d137",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 84637,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-C5F3356D2116",
+            "ok": true
+          },
+          {
+            "label": "burst-10",
+            "session_id": "225c5aee-0a31-45e8-a8ae-4fef882cf4c0",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 45540,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-840B55451D88",
+            "ok": true
+          },
+          {
+            "label": "burst-11",
+            "session_id": "750a7159-a9a5-463e-b34f-4f08881f3a38",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 19818,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-98D0CA24548A",
+            "ok": true
+          },
+          {
+            "label": "burst-12",
+            "session_id": "92967cc0-6439-4198-9849-d72f0d54dec3",
+            "finish_reason": null,
+            "error_code": "runner_error",
+            "error_codes": [
+              "runner_error"
+            ],
+            "error_text": "claude: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth). {\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}",
+            "ms": 6778,
+            "http": 200,
+            "own_nonce_in_reply": false,
+            "other_nonces_in_reply": [],
+            "reply": "",
+            "ok": false
+          },
+          {
+            "label": "burst-13",
+            "session_id": "8f3af9e8-88c2-47fc-adb3-77195ab5acf5",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 27120,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-E3F0E3395BD2",
+            "ok": true
+          },
+          {
+            "label": "burst-14",
+            "session_id": "cabc36ec-fa20-4050-8ead-b9a476076e7d",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 45843,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-0CEBAB94DC7A",
+            "ok": true
+          },
+          {
+            "label": "burst-15",
+            "session_id": "b340a624-c15a-4578-99b7-0f8daea5ad65",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 17613,
+            "http": 200,
+            "own_nonce_in_reply": true,
+            "other_nonces_in_reply": [],
+            "reply": "QA-BURST-253A61845924",
+            "ok": true
+          }
+        ],
+        "nonce_bleed": []
+      },
+      "crosstalk": {
+        "pass": false,
+        "why": "3 two-turn conversations with long output and 2 approval flows, all at the same time: 2/5 failed, runner error codes ['runner_error']. At least one run failed on an AUTHENTICATION refusal. Read error_text per run: a cold sandbox that never got its credential wiring fails exactly this way. These conversations never streamed 2 text-delta frames on both turns: ['conversation-00', 'conversation-02']. These conversations did not stay warm across their two turns (the turn ledger reports more than one harness session or sandbox, or no rows at all): ['conversation-00', 'conversation-02']",
+        "failed": 2,
+        "total": 5,
+        "error_codes": [
+          "runner_error"
+        ],
+        "runs": [
+          {
+            "label": "approval-00",
+            "kind": "approval",
+            "ok": true,
+            "session_id": "9fb2438c-5a9b-4ebf-acd1-288521282547",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+            "paused_finish_other": true
+          },
+          {
+            "label": "approval-01",
+            "kind": "approval",
+            "ok": true,
+            "session_id": "c3547643-771c-46c9-91ac-24dfe84700ee",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+            "paused_finish_other": true
+          },
+          {
+            "label": "conversation-00",
+            "session_id": "b4529fed-862f-458c-bea5-8f359e64bb3d",
+            "finish_reason": "stop",
+            "error_code": "runner_error",
+            "error_codes": [
+              "runner_error"
+            ],
+            "error_text": "claude: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth). {\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}",
+            "ms": 8508,
+            "http": 200,
+            "kind": "conversation",
+            "text_deltas": [
+              0,
+              5
+            ],
+            "reply_chars": [
+              0,
+              619
+            ],
+            "own_nonces_in_replies": false,
+            "other_nonces_in_replies": [],
+            "agent_session_ids": [
+              "96b68c14-1a4c-4555-9691-45c9bc96a50c",
+              "b3590193-00ae-4def-af40-513e97c0c49d"
+            ],
+            "sandbox_ids": [
+              "daytona/d3b9ff85-37a7-4d98-bad1-765f6120e51b",
+              "daytona/57ad8dcc-5e13-41e8-962c-709a45551459"
+            ],
+            "warm_ids_stable": false,
+            "turn1": {
+              "http": 200,
+              "ms": 5937,
+              "finish": null,
+              "frames": [
+                "start",
+                "start-step",
+                "data-agent-status",
+                "data-agent-status",
+                "data-agent-error",
+                "error",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [
+                "{\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}"
+              ],
+              "error_codes": [
+                "runner_error"
+              ],
+              "reply": ""
+            },
+            "turn2": {
+              "http": 200,
+              "ms": 8508,
+              "finish": "stop",
+              "frames": [
+                "start",
+                "start-step",
+                "data-agent-status",
+                "data-agent-status",
+                "text-start",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-end",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [],
+              "error_codes": [],
+              "reply": "151\n152\n153\n154\n155\n156\n157\n158\n159\n160\n161\n162\n163\n164\n165\n166\n167\n168\n169\n170\n171\n172\n173\n174\n175\n176\n177\n178\n179\n180\n181\n182\n183\n184\n185\n186\n187\n188\n189\n190\n191\n192\n193\n194\n195\n196\n197\n198\n199\n200\n201\n202\n203\n204\n205\n206\n207\n208\n209\n210\n211\n212\n213\n214\n215\n216\n217\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n235\n236\n237\n238\n239\n240\n241\n242\n243\n244\n245\n246\n247\n248\n249\n250\n"
+            },
+            "ok": false
+          },
+          {
+            "label": "conversation-01",
+            "session_id": "3a51bcd1-d3ce-40ff-9dcb-eb036cf1348e",
+            "finish_reason": "stop",
+            "error_code": null,
+            "error_codes": [],
+            "error_text": "",
+            "ms": 13717,
+            "http": 200,
+            "kind": "conversation",
+            "text_deltas": [
+              4,
+              6
+            ],
+            "reply_chars": [
+              511,
+              619
+            ],
+            "own_nonces_in_replies": true,
+            "other_nonces_in_replies": [],
+            "agent_session_ids": [
+              "16f9fce8-1e57-4307-a21b-706c781c3e7f"
+            ],
+            "sandbox_ids": [
+              "daytona/9b53be9c-3f74-4493-aa44-7c2dbaa99317"
+            ],
+            "warm_ids_stable": true,
+            "turn1": {
+              "http": 200,
+              "ms": 10356,
+              "finish": "stop",
+              "frames": [
+                "start",
+                "start-step",
+                "data-agent-status",
+                "data-agent-status",
+                "text-start",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-end",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [],
+              "error_codes": [],
+              "reply": "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n44\n45\n46\n47\n48\n49\n50\n51\n52\n53\n54\n55\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88\n89\n90\n91\n92\n93\n94\n95\n96\n97\n98\n99\n100\n101\n102\n103\n104\n105\n106\n107\n108\n109\n110\n111\n112\n113\n114\n115\n116\n117\n118\n119\n120\n121\n122\n123\n124\n125\n126\n127\n"
+            },
+            "turn2": {
+              "http": 200,
+              "ms": 13717,
+              "finish": "stop",
+              "frames": [
+                "start",
+                "start-step",
+                "text-start",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-end",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [],
+              "error_codes": [],
+              "reply": "151\n152\n153\n154\n155\n156\n157\n158\n159\n160\n161\n162\n163\n164\n165\n166\n167\n168\n169\n170\n171\n172\n173\n174\n175\n176\n177\n178\n179\n180\n181\n182\n183\n184\n185\n186\n187\n188\n189\n190\n191\n192\n193\n194\n195\n196\n197\n198\n199\n200\n201\n202\n203\n204\n205\n206\n207\n208\n209\n210\n211\n212\n213\n214\n215\n216\n217\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n235\n236\n237\n238\n239\n240\n241\n242\n243\n244\n245\n246\n247\n248\n249\n250\n"
+            },
+            "ok": true
+          },
+          {
+            "label": "conversation-02",
+            "session_id": "b5d14c75-cb73-4aaf-907e-277bbd1ee98e",
+            "finish_reason": "stop",
+            "error_code": "runner_error",
+            "error_codes": [
+              "runner_error"
+            ],
+            "error_text": "claude: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth). {\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}",
+            "ms": 28216,
+            "http": 200,
+            "kind": "conversation",
+            "text_deltas": [
+              0,
+              5
+            ],
+            "reply_chars": [
+              0,
+              619
+            ],
+            "own_nonces_in_replies": false,
+            "other_nonces_in_replies": [],
+            "agent_session_ids": [
+              "1a9d465a-d537-4053-a24c-6a2511408a4e",
+              "3e74d59b-07e6-4bb6-b618-85fe7459dd42"
+            ],
+            "sandbox_ids": [
+              "daytona/e7e28cc1-4862-45e3-a6d3-398f222b15b8",
+              "daytona/da770a7e-7a7f-4c41-b67c-155ce6e46b0d"
+            ],
+            "warm_ids_stable": false,
+            "turn1": {
+              "http": 200,
+              "ms": 6074,
+              "finish": null,
+              "frames": [
+                "start",
+                "start-step",
+                "data-agent-status",
+                "data-agent-status",
+                "data-agent-error",
+                "error",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [
+                "{\"type\": \"error\", \"errorText\": \"claude: model authentication failed \\u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}"
+              ],
+              "error_codes": [
+                "runner_error"
+              ],
+              "reply": ""
+            },
+            "turn2": {
+              "http": 200,
+              "ms": 28216,
+              "finish": "stop",
+              "frames": [
+                "start",
+                "start-step",
+                "data-agent-status",
+                "data-agent-status",
+                "text-start",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-delta",
+                "text-end",
+                "finish-step",
+                "finish"
+              ],
+              "tools": [],
+              "approval": false,
+              "errors": [],
+              "error_codes": [],
+              "reply": "151\n152\n153\n154\n155\n156\n157\n158\n159\n160\n161\n162\n163\n164\n165\n166\n167\n168\n169\n170\n171\n172\n173\n174\n175\n176\n177\n178\n179\n180\n181\n182\n183\n184\n185\n186\n187\n188\n189\n190\n191\n192\n193\n194\n195\n196\n197\n198\n199\n200\n201\n202\n203\n204\n205\n206\n207\n208\n209\n210\n211\n212\n213\n214\n215\n216\n217\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n235\n236\n237\n238\n239\n240\n241\n242\n243\n244\n245\n246\n247\n248\n249\n250\n"
+            },
+            "ok": false
+          }
+        ],
+        "nonce_bleed": [],
+        "not_streamed": [
+          "conversation-00",
+          "conversation-02"
+        ],
+        "not_warm": [
+          "conversation-00",
+          "conversation-02"
+        ]
+      }
+    }
+  }
+}
