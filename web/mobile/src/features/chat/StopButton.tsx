@@ -18,7 +18,7 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
         setStaleMessage(null)
         try {
             // No guard here on purpose. This button stops a turn running on ANOTHER device, so
-            // this device never saw its `data-agent-turn` part and has no id to name. Sending the
+            // this device never saw its turn metadata and has no id to name. Sending the
             // id of some turn this device watched earlier would refuse a Stop that is correct.
             const outcome = await cancelSessionStream({sessionId, projectId})
             if (outcome.status === "failed") setState("failed")

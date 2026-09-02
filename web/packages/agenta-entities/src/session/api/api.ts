@@ -629,7 +629,7 @@ export async function killSession({
  */
 export interface CancelSessionStreamParams extends SessionScopedParams {
     /**
-     * The turn this client believes it is stopping, read off the stream's `data-agent-turn` part
+     * The turn this client believes it is stopping, read off the streaming message's metadata
      * (`getSessionTurnId` in @agenta/chat). The server cancels that turn or nothing. Absent means
      * this client never learned the id, which is every client until the runner emits the part.
      */
