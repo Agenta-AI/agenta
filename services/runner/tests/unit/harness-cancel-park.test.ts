@@ -222,17 +222,32 @@ describe("the cancelled teardown reason", () => {
 });
 
 describe("the stopped-session park window", () => {
-  it("gives a local stopped session the longer approval window, not the idle one", () => {
+  // The field exists so the value is one named setting when somebody moves it. It defaults to
+  // the ordinary idle window, so introducing it changed no timing. The open recommendation is
+  // the 600 s approval window on the local provider, because a user who stops is about to type.
+  it("defaults a local stopped session to the ordinary idle window", () => {
     const config = readKeepaliveConfig("local");
     assert.equal(config.ttlMs, 60_000);
+    assert.equal(config.stoppedTtlMs, 60_000);
+    // The recommended alternative, for the reader who comes to change it.
     assert.equal(config.approvalTtlMs, 600_000);
-    assert.equal(config.stoppedTtlMs, 600_000);
   });
 
-  it("keeps a Daytona stopped session on its billed idle window by default", () => {
+  it("defaults a Daytona stopped session to its billed idle window", () => {
     const config = readKeepaliveConfig("daytona");
     assert.equal(config.ttlMs, 120_000);
     assert.equal(config.stoppedTtlMs, 120_000);
+  });
+
+  it("moves with its own env var, without touching the ordinary idle window", () => {
+    process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS = "600000";
+    try {
+      const config = readKeepaliveConfig("local");
+      assert.equal(config.stoppedTtlMs, 600_000);
+      assert.equal(config.ttlMs, 60_000);
+    } finally {
+      delete process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS;
+    }
   });
 });
 
