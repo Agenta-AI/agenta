@@ -22,7 +22,7 @@ import {
 } from "@agenta/chat/hooks"
 import {getLivePendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
-import {cancelSessionStream} from "@agenta/entities/session"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
@@ -198,18 +198,21 @@ export const LiveConversation = ({
     const stopHere = useCallback(() => {
         conversation.stop()
         if (!projectId || !sessionId) return
+        // The durable cancel route, the same one the desktop uses. It records the Stop, reaches
+        // the runner directly instead of waiting for a heartbeat, and keeps the sandbox warm.
+        //
         // Name the turn when the stream told this device which one it is. Absent means the runner
         // did not emit it, and the server falls back to its own arrival-time check.
-        void cancelSessionStream({
+        void cancelSessionExecution({
             sessionId,
             projectId,
             expectedExecutionId: getSessionTurnId(sessionId),
         })
             .then((outcome) => {
-                if (outcome.status === "cancelled") return
+                if (outcome && !outcome.conflict) return
                 message.warning(
-                    outcome.status === "stale"
-                        ? outcome.message
+                    outcome?.conflict
+                        ? "That run had already ended. The session is running a newer turn."
                         : "Could not stop the run. It may still be running.",
                 )
             })
