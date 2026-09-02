@@ -231,8 +231,9 @@ The recommended routing pattern for discussion is:
 4. The runner acknowledges and applies the command.
 5. Heartbeat or periodic recovery finds commands whose wake-up was lost.
 
-The runner initiates the control connection to the API. This supports future user-operated runners
-behind firewalls and keeps Redis credentials behind the API boundary.
+The runner can initiate the control connection to the API. This would support possible future
+user-operated runners behind firewalls and keep Redis credentials behind the API boundary. That
+future deployment model is a consideration, not a confirmed requirement.
 
 The simplest first implementation is durable long polling. The runner makes an authenticated
 request that the API holds briefly until a command is available. The runner receives the command,
@@ -244,6 +245,20 @@ A persistent WebSocket or bidirectional stream can later reduce repeated request
 runner status. It is not required for the first contract. Direct API calls into runner pods and
 per-runner Redis subscriptions are poor fits for user-operated runners because they require inbound
 reachability or infrastructure credentials.
+
+Control delivery must sit behind an internal port. Session command handling depends on this port,
+not on a particular transport:
+
+```text
+deliver(owner, command)
+acknowledge(command_id, owner)
+recover(owner)
+```
+
+Initial adapter: authenticated long polling. Possible later adapters: persistent WebSocket,
+private Redis delivery, or direct managed-runner routing. Durable command state, authorization,
+idempotency, execution fencing, and terminal settlement remain outside the adapter. Replacing the
+adapter must not change the public session API or command state machine.
 
 The required invariant is stronger than “the second start usually gets a conflict”: at most one
 execution is active for a session, and only the current owner can write or cause external effects.

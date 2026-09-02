@@ -36,7 +36,9 @@
 - Added a mandatory stable-ID producer spike before immutable record changes.
 - Made single active execution and stale-writer fencing explicit requirements.
 - Kept the public Stop execution guard optional.
-- Added future user-operated runners as a control-transport constraint.
+- Added possible future user-operated runners as a control-transport consideration, not a
+  requirement.
+- Recorded long polling as the current control-transport preference behind a replaceable adapter.
 - Recorded warm sandbox and harness resume as the required Stop outcome.
 
 ## Branch

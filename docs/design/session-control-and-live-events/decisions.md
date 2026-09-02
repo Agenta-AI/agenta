@@ -202,9 +202,14 @@ and harness reconstruction.
 ### O-006: Immediate runner control
 
 Choose runner-initiated long polling or a persistent runner connection. Future user-operated
-runners can be behind firewalls, so the design must not require inbound API access or direct Redis
-access from the runner. The current API knows the logical owner `replica_id`, but its configured
-runner URL is not a replica-specific route.
+runners are possible but not confirmed. Treat their firewall and credential constraints as one
+consideration, not a binding requirement. The current API knows the logical owner `replica_id`,
+but its configured runner URL is not a replica-specific route.
+
+The current preference is durable long polling because it uses ordinary HTTP, supports prompt
+delivery, and keeps commands recoverable during disconnection. The implementation should place
+transport behind a control-delivery port so Stop and command logic do not depend on long polling,
+Redis, WebSockets, or direct runner routing.
 
 ### O-007: Command boundary
 
