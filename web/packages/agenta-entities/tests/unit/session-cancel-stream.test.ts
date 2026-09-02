@@ -45,6 +45,25 @@ describe("cancelSessionStream", () => {
         expect(setSessionStream).toHaveBeenCalledWith({session_id: "s1"}, expect.anything())
     })
 
+    it("sends the turn id as expected_execution_id when the client knows it", async () => {
+        setSessionStream.mockResolvedValue({mode: "cancel", session_id: "s1"})
+
+        await cancelSessionStream({...params, expectedExecutionId: "turn-7"})
+
+        expect(setSessionStream).toHaveBeenCalledWith(
+            {session_id: "s1", expected_execution_id: "turn-7"},
+            expect.anything(),
+        )
+    })
+
+    it("omits the field entirely when the client never learned the turn id", async () => {
+        setSessionStream.mockResolvedValue({mode: "cancel", session_id: "s1"})
+
+        await cancelSessionStream({...params, expectedExecutionId: undefined})
+
+        expect(setSessionStream).toHaveBeenCalledWith({session_id: "s1"}, expect.anything())
+    })
+
     it("reports a 409 as stale, carrying the server's own message", async () => {
         setSessionStream.mockRejectedValue(
             apiError(409, {

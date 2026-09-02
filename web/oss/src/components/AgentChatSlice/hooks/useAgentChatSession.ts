@@ -4,6 +4,7 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     startupLabelFromDataPart,
+    turnIdFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -15,11 +16,13 @@ import {
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
+    getSessionTurnId,
     isChatBusy,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    setSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
@@ -146,6 +149,10 @@ export const useAgentChatSession = ({
         onData: (part) => {
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
+            // The runner names the turn it just started. Remembering it is what lets Stop say
+            // WHICH turn to cancel instead of "whatever is running" (#6417).
+            const turnId = turnIdFromDataPart(part)
+            if (turnId) setSessionTurnId(sessionId, turnId)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
@@ -509,7 +516,14 @@ export const useAgentChatSession = ({
         // "Stopped" while the run kept going and billing. A refusal means the turn the user was
         // watching had already ended and another turn holds the session, so the local "Stopped"
         // marker is withdrawn and the liveness poll re-reads the truth.
-        void cancelSessionStream({sessionId, projectId})
+        // Name the turn when this browser knows it. An absent id means the stream never carried
+        // one (a runner without the admission change), and the server falls back to its own
+        // arrival-time check — the behavior before this existed.
+        void cancelSessionStream({
+            sessionId,
+            projectId,
+            expectedExecutionId: getSessionTurnId(sessionId),
+        })
             .then((outcome) => {
                 if (outcome.status === "cancelled") return
                 if (outcome.status === "stale") setStopped(false)
