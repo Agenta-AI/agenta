@@ -30,8 +30,9 @@ function queryTimeoutMs(): number {
 
 /**
  * Fetch a session's durable record log, ordered for reconstruction (the endpoint returns records
- * by ingest time, then per-turn `record_index`). Returns `null` on failure so the caller can fall
- * back to the inbound history rather than run with an empty context.
+ * by producer `timestamp`, then ingest `created_at`, then per-turn `record_index`). Returns
+ * `null` on failure so the caller can fall back to the inbound history rather than run with an
+ * empty context.
  */
 export async function fetchSessionRecords(
   sessionId: string,

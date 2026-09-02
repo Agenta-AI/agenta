@@ -27,10 +27,13 @@ import type {UIMessage} from "ai"
  * `UIMessage[]`; this rebuilds the assembled messages directly so replayed history renders
  * identically to a turn this browser streamed live.
  *
- * Grouping: rows arrive ordered (uuid7 `id`). A contiguous run of non-user rows folds into
- * one assistant message; each user row opens a user message. Within an assistant message,
- * tool parts are keyed by `toolCallId` so a later `tool_result` settles the earlier
- * `tool_call`, and a `interaction_request` (permission) marks it awaiting approval.
+ * Grouping: rows arrive ordered by the backend on (timestamp, created_at, record_index) —
+ * NOT by `id`, which is a uuid5 for tool-family rows and a uuid4 otherwise and carries no
+ * time order (`api/oss/src/dbs/postgres/sessions/records/dao.py:151-161`). A contiguous run
+ * of non-user rows folds into one assistant message; each user row opens a user message.
+ * Within an assistant message, tool parts are keyed by `toolCallId` so a later `tool_result`
+ * settles the earlier `tool_call`, and a `interaction_request` (permission) marks it awaiting
+ * approval.
  */
 
 type Part = Record<string, unknown>

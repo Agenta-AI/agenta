@@ -4,10 +4,11 @@
  * send only the newest user message: the runner rebuilds prior turns from records instead of
  * trusting a full inbound history.
  *
- * The fold is chronological (records already arrive ordered by ingest time, then per-turn
- * `record_index`) and keyed on `record_source`: a "user" record flushes the assistant turn in
- * progress and starts a user turn; "agent" records accumulate into the current assistant turn as
- * ACP content blocks. The output matches the vercel adapter's `ChatMessage`/`ContentBlock` shape
+ * The fold is chronological (records already arrive ordered by producer `timestamp`, then
+ * ingest `created_at`, then per-turn `record_index`) and keyed on `record_source`: a "user"
+ * record flushes the assistant turn in progress and starts a user turn; "agent" records
+ * accumulate into the current assistant turn as ACP content blocks. The output matches the
+ * vercel adapter's `ChatMessage`/`ContentBlock` shape
  * exactly (`sdks/python/agenta/sdk/agents/adapters/vercel/messages.py`), so `buildTurnText`,
  * `priorMessages`, and the responder's tool_call↔tool_result binding consume it unchanged.
  *
@@ -83,8 +84,8 @@ function finalizeAssistant(blocks: ContentBlock[]): ChatMessage {
 
 /**
  * Fold ordered session records into the conversation's `ChatMessage[]`. Pure; no I/O. Records
- * MUST be in conversation order (the query endpoint returns them by `created_at`, then
- * `record_index`) — this fold preserves that order and does not re-sort.
+ * MUST be in conversation order (the query endpoint returns them by `timestamp`, then
+ * `created_at`, then `record_index`) — this fold preserves that order and does not re-sort.
  */
 export function reconstructMessages(
   records: readonly SessionRecordRow[],
