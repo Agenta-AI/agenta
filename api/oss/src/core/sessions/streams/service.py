@@ -145,6 +145,24 @@ def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
     return normalize_session_name(_first_user_message_text(messages))
 
 
+def derive_command_mode(request: SessionStreamCommandRequest) -> CommandMode:
+    """The inputs x force matrix, as one function.
+
+    Module-level because the route needs the mode BEFORE the service runs: a cancel must not be
+    refused by the per-project concurrency limit, and that check happens at the route. Keeping the
+    derivation in one place is what stops the two from disagreeing about what a cancel is.
+    """
+    has_inputs = bool(request.data and request.data.inputs)
+
+    if has_inputs and not request.force:
+        return CommandMode.send
+    if has_inputs and request.force:
+        return CommandMode.steer
+    if not has_inputs and not request.force:
+        return CommandMode.cancel
+    return CommandMode.attach
+
+
 class SessionStreamsService:
     def __init__(
         self,
@@ -392,16 +410,7 @@ class SessionStreamsService:
         if arrived_at_ms is None:
             arrived_at_ms = int(time.time() * 1000)
 
-        has_inputs = bool(request.data and request.data.inputs)
-
-        if has_inputs and not request.force:
-            mode = CommandMode.send
-        elif has_inputs and request.force:
-            mode = CommandMode.steer
-        elif not has_inputs and not request.force:
-            mode = CommandMode.cancel
-        else:
-            mode = CommandMode.attach
+        mode = derive_command_mode(request)
 
         session_id = request.session_id
         proposed_name = derive_session_name(
