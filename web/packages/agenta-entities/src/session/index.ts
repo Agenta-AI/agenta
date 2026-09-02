@@ -20,6 +20,7 @@ export {
     commandSessionStream,
     cancelSessionStream,
     type CancelSessionOutcome,
+    type CancelSessionStreamParams,
     cancelSessionExecution,
     killSession,
     deleteSession as deleteSessionRemote,

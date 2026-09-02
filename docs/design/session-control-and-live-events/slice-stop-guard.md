@@ -131,10 +131,60 @@ locally and sends the same cancel the desktop sends, with the same refusal handl
 `StopButton` moved to the same helper (`web/mobile/src/features/chat/StopButton.tsx:15-38`) and shows
 the stale message instead of "try again", which would have sent the user round the same refusal.
 
+### 8. The browser sends the guard
+
+The client half of the turn id. The runner sends it as a `message-metadata` chunk, so it lands on
+`message.metadata.turnId` beside the `sessionId` the start frame sets. It arrives third, before any
+content, and the SDK merges metadata, so the finish frame's `traceId` does not overwrite it. It
+cannot ride on the start frame itself: the SDK egress emits `start` before the runner is consulted.
+The runner half is runner commit `ca600cb1e6` on `feat/session-single-turn-admission`; until it
+lands no metadata arrives, nothing is stored, and Stop sends no guard, exactly as before.
+
+| Change | Where |
+|---|---|
+| `getMessageTurnId` and `latestTurnId`, the strict readers | `web/packages/agenta-chat/src/assets/agentTurn.ts:19-37` |
+| The per-session store, cleared with the session's ephemera | `web/packages/agenta-chat/src/state/sessionEphemera.ts:33-56` |
+| Desktop keeps the id and sends it | `web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts:353-360`, `:524-531` |
+| Mobile keeps it (shared hook) and sends it | `web/packages/agenta-chat/src/hooks/useAgentConversation.ts:343-350`, `web/mobile/src/features/chat/LiveConversation.tsx:200-207` |
+| `cancelSessionStream` carries it | `web/packages/agenta-entities/src/session/api/api.ts:629-680` |
+| The typed client gained the field | `web/packages/agenta-api-client/src/generated/.../SessionStreamCommandRequest.ts` |
+
+The store is a Map beside the composer drafts rather than an atom, because nothing renders the id:
+it is written once per turn and read once, when Stop is pressed. It is deliberately kept past the end
+of the turn. A turn parked on an approval has finished streaming and is still the turn a Stop means,
+which is exactly the state review finding H-2 is about.
+
+It is in memory and never persisted with the messages, which is what makes it safe. Message metadata
+does round-trip through the browser's message cache, so reading `metadata.turnId` straight off the
+transcript at Stop time would name a turn from a previous page load. The Map starts empty after a
+reload, so Stop then sends no guard, which is the old behavior rather than a wrong refusal.
+
+Three rules the code holds to, each because the wrong id refuses a Stop that is correct:
+
+- The readers are strict. A missing id, a blank id, or a non-string yields null, and null means send
+  nothing. `latestTurnId` consults only the NEWEST assistant message and does not fall back to an
+  older one, because an older message carries an older turn's id.
+- The field is omitted, never sent as null, when the client never learned an id. The server then
+  falls back to its own arrival-time check.
+- The running-elsewhere button on mobile sends no guard at all
+  (`web/mobile/src/features/chat/StopButton.tsx:15-21`). That turn runs on another device, so this
+  device never saw its metadata, and naming a turn it watched earlier would refuse a correct Stop.
+
+**The typed client was regenerated**, against this stack's own OpenAPI
+(`clients/scripts/generate.sh --language typescript --url http://144.76.237.122:8980/api/openapi.json`).
+The diff is two fields and nothing else: `expected_execution_id` on the request and
+`cancelled_turn_ids` on the response. The checked-in client was otherwise already in sync.
+
+One transition hazard, stated rather than guarded: if a session's first turn carried the metadata and
+a later turn did not, the stored id would be stale and that Stop would be refused. It needs a runner
+version change in the middle of one session, and the refusal is visible and says why. The code does
+not retry without the guard, because retrying unguarded is exactly the behavior #6417 is about.
+
 ## The honest limit of the arrival-time guard
 
-**The arrival-time check does not close #6417 on its own. `expected_execution_id` does, and no
-first-party client can send it today.**
+**The arrival-time check does not close #6417 on its own. `expected_execution_id` does.** Both
+first-party clients now send it, and the id reaches them only once the runner half lands on
+`feat/session-single-turn-admission`. Until then the measurement below is what Stop does.
 
 Measured, not argued. Fourteen runs of the real race against the live stack: turn one takes the
 session, then a Stop with no id and the next Send are fired together, Stop first. Results below.
@@ -275,30 +325,28 @@ all four touched packages typecheck, and the web container compiled the chat rou
 | The guard, the start record, steer staying unguarded | `api/oss/tests/pytest/unit/sessions/test_cancel_stop_guard.py` | 12 passed |
 | The route: pending gates and the concurrency exemption | `api/oss/tests/pytest/unit/sessions/test_cancel_cancels_pending_interactions.py` | 11 passed |
 | The live approval rule | `web/packages/agenta-chat/tests/unit/model/liveApprovals.test.ts` | 3 passed |
-| The three Stop outcomes | `web/packages/agenta-entities/tests/unit/session-cancel-stream.test.ts` | 6 passed |
+| The Stop outcomes and the guard on the wire | `web/packages/agenta-entities/tests/unit/session-cancel-stream.test.ts` | 8 passed |
+| The turn-id readers and their store | `web/packages/agenta-chat/tests/unit/assets/agentTurn.test.ts` | 9 passed |
 
 `api/oss/tests/pytest/unit/sessions/` as a whole: 505 passed, 41 skipped. The `@agenta/entities`
-suite is 1470 passed and `@agenta/chat` is 625 passed. `pnpm lint-fix` in `web/` is clean, `ruff
+suite is 1472 passed and `@agenta/chat` is 634 passed. `pnpm lint-fix` in `web/` is clean, `ruff
 format` and `ruff check` in `api/` are clean, and `@agenta/entities`, `@agenta/chat`,
 `@agenta/mobile` and `@agenta/oss` all typecheck.
 
 ## What is left
 
-- **No first-party client sends the guard.** The API half is done and the browser half is not
-  possible today. The runner mints a browser turn's id and the client never composes one
-  (`services/runner/src/server.ts:183-189`). No response or frame the browser receives carries it:
-  the send goes through the transport's invoke, not through `commandSessionStream`, and the `start`
-  frame's metadata is `{sessionId}` (`web/packages/agenta-chat/src/transport/AgentChatTransport.ts:146`).
-  That frame is where a `turnId` would have to go. The stream row's `turn_id` reaches the browser
-  through the 15 s liveness poll, which is too stale to send as a guard: a stale id would refuse a
-  legitimate Stop of the current turn, which is worse than the bug.
+- **The guard is inert until the runner sends the turn id in the message metadata.** Both clients read it and send it;
+  no runner on this branch emits it. The runner half is commit `ca600cb1e6` on
+  `feat/session-single-turn-admission` (commit `ca600cb1e6`). The stream row's `turn_id` was rejected as a source: it
+  reaches the browser through a 15 s liveness poll, and a stale id refuses a legitimate Stop of the
+  current turn, which is worse than the bug.
 - The residual in-handler race: a turn that takes `alive` between `_displace_turns` reading the owners
   and clearing them is still tombstoned. Microseconds wide, and closing it needs a Lua script or the
   fencing that D-017 defers.
-- The Fern client was not regenerated, so the typed web client has no `expected_execution_id` field
-  yet. That regeneration is the first step whenever a turn id does reach the browser: the field
-  cannot be sent from the typed client until then.
-- The desktop and mobile notices were not seen in a browser, only unit-tested and typechecked.
+- The desktop and mobile notices, and the guard actually travelling from a browser, were not seen in
+  a browser. All of it is unit-tested and typechecked, and the wire body the client now sends was
+  driven by hand against the live API. Seeing it end to end needs the runner half plus an agent run
+  with a model key, and this stack has no key.
 
 ## Open questions for Mahmoud
 
@@ -306,9 +354,10 @@ format` and `ruff check` in `api/` are clean, and `@agenta/entities`, `@agenta/c
    optional integer. Reason: it is the only thing that closes #6417 before a turn id reaches the
    browser, it needs no clock agreement between client and server, and the measurement above shows the
    server-side arrival stamp catches nothing on its own.
-2. **Should the `start` frame carry the turn id?** Recommendation: yes, and it is the better long-term
-   fix. Reason: the guard is exact with it and heuristic without it, and the same id then serves the
-   interaction responses (`rfc.md:68-75`), which also want `expected_execution_id`.
+2. **Should the same turn id also guard the interaction responses?** Recommendation: yes, once the
+   runner half lands. Reason: `rfc.md:68-75` already asks for `expected_execution_id` on a response,
+   the browser will now have the id in hand, and an approval answered against a turn that has ended is
+   the same class of bug as a stale Stop.
 3. **Should a refused Stop be a 409 or a quiet success?** Recommendation: 409 with both ids, as built.
    Reason: the browser can retry with the id in the body, and a silent success would tell the user the
    run stopped when it did not.

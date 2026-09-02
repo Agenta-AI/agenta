@@ -4,6 +4,7 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     startupLabelFromDataPart,
+    latestTurnId,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -15,11 +16,13 @@ import {
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
+    getSessionTurnId,
     isChatBusy,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    setSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
@@ -348,6 +351,15 @@ export const useAgentChatSession = ({
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
 
+    // The runner names the turn it just started, in the streaming message's metadata. Remembering
+    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
+    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
+    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
+
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the
     // effect below), instead of a transient top banner + a generic "no response". FE-only — it
@@ -492,11 +504,21 @@ export const useAgentChatSession = ({
      */
     const stopCurrentExecution = useCallback(async () => {
         if (!projectId || !sessionId) return
-        const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+        // Name the turn this browser was actually watching. The runner streams its id on the
+        // `turn` frame and the SDK carries it as `message.metadata.turnId`, which the
+        // conversation stores; that is the id the user means when they press Stop, and it costs
+        // no request. Fall back to the session row for a stream that never named one (a runner
+        // without the admission change), and to no expectation at all when even that read fails,
+        // which is the behaviour before any of this existed.
+        let expectedExecutionId = getSessionTurnId(sessionId)
+        if (!expectedExecutionId) {
+            const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+            expectedExecutionId = stream?.turn_id ?? undefined
+        }
         const outcome = await cancelSessionExecution({
             sessionId,
             projectId,
-            expectedExecutionId: stream?.turn_id ?? undefined,
+            expectedExecutionId,
         })
         // Refresh on every answer, conflict included. A conflict means the run this tab was
         // watching had already ended, and the session's own state is what says so.
