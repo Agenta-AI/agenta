@@ -29,7 +29,11 @@
 #   RW_NO_TRANSIENT_RETRY Set to 1 around a NON-idempotent mutation (e.g.
 #                         serviceCreate, volumeCreate) so an ambiguous timeout
 #                         is not blind-retried; the caller must reconcile by
-#                         querying (check-then-act).
+#                         querying (check-then-act). A 429 and a workspace
+#                         rate-limit rejection are still retried under it:
+#                         both reject the request before any work happens.
+#   RW_RATE_LIMIT_WAIT    Seconds to wait after a workspace rate-limit
+#                         rejection (default: 35, past Railway's 30s window).
 
 # Call counter. A file, not a shell variable: callers invoke rw_graphql inside
 # command substitutions (subshells), where a variable increment would be lost.
@@ -94,6 +98,7 @@ rw_graphql() {
     local max_attempts="${RW_RETRY_MAX:-5}"
     [ "$max_attempts" -ge 1 ] 2>/dev/null || max_attempts=1
     local delay="${RW_RETRY_DELAY:-5}"
+    local RW_RATE_LIMIT_WAIT="${RW_RATE_LIMIT_WAIT:-35}"
     local attempt=1
 
     local payload
@@ -133,6 +138,18 @@ rw_graphql() {
             wait_s="$(_rw_retry_after "$RW_LAST_HEADERS_FILE" "$delay")"
         elif printf '%s' "$http" | grep -qE '^5[0-9][0-9]$'; then
             [ "${RW_NO_TRANSIENT_RETRY:-0}" = "1" ] || retryable=1
+        elif [ "$http" = "200" ] \
+            && grep -qiE 'too quickly|allows [0-9]+ [a-z]+ per [0-9]+ seconds' "$body_file"; then
+            # A workspace rate limit comes back as HTTP 200 with a GraphQL
+            # error, not as a 429: "You are creating environments too quickly.
+            # This workspace allows 1 environment per 30 seconds." Nothing was
+            # created, so this is a clean rejection and is safe to retry even
+            # for a non-idempotent mutation. The windows are 30s
+            # (projectCreate, environmentCreate, volumeCreate), so wait past
+            # the window instead of using the short default backoff.
+            retryable=1
+            wait_s=$(( delay > RW_RATE_LIMIT_WAIT ? delay : RW_RATE_LIMIT_WAIT ))
+            printf 'rw_graphql: workspace rate limit hit; nothing was created.\n' >&2
         fi
 
         if [ "$retryable" -eq 1 ] && [ "$attempt" -lt "$max_attempts" ]; then
