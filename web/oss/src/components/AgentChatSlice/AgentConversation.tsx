@@ -8,7 +8,7 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
-import {ConnectionFocusProvider} from "@agenta/chat/components"
+import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
     useComposerAttachments,
@@ -24,7 +24,7 @@ import {
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
-import {sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
+import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
     contextWindowForModel,
@@ -41,7 +41,6 @@ import {isOverlayOpen} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
-import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -57,6 +56,7 @@ import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import {Inspector} from "./components/Inspector/Inspector"
+import MessageAttachmentViewer from "./components/MessageAttachmentViewer"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
@@ -83,8 +83,8 @@ import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequest
  * Messages persist to localStorage (seeded on mount, written when the stream settles) so the
  * tab survives a reload / revision swap.
  *
- * Design decisions baked in (docs/design/agent-workflows/playground-agent-generation.md):
- *  - D9  teardown: abort the in-flight stream on unmount (tab close / revision swap).
+ * Design decisions baked in (docs/design/agent-workflows/projects/session-chat-registry/decisions.md):
+ *  - D9  teardown: release the chat on unmount; it is preserved while its session tab is open.
  *  - DT3 cancelled state: a stopped stream tags its partial bubble "Stopped" + offers Resend.
  *  - DT4 autoscroll: stick to bottom while streaming; pause when scrolled up; "jump to latest".
  *  - DT5 a11y: the message log is an aria-live region; controls are keyboard-operable.
@@ -330,7 +330,16 @@ const AgentConversation = ({
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
     // orphaned restored resume shape (reload mid-approval-resume) voids it the same way.
-    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {
+        queued,
+        submit,
+        removeQueued,
+        hitlPending,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+    } = useAgentChatQueue({
         status,
         messages,
         stopped,
@@ -395,8 +404,7 @@ const AgentConversation = ({
     })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
-    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
-    // tab keeps no stale dot and stops claiming it's the live watcher.
+    // Precedence error > awaiting approval > running > idle.
     // `hitlPending` reads only the LAST assistant message, so the moment a new turn starts
     // streaming (or hydration reshapes the transcript) a still-pending interaction in an
     // EARLIER message stops counting — status collapses to idle, the settle stamp lands, and
@@ -423,8 +431,14 @@ const AgentConversation = ({
                 : "idle"
         setSessionStatus({id: sessionId, status})
     }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
+    // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount
+    // (route change with the tab still open) is still this browser's run to report, so it keeps its
+    // status until it settles — `useAgentChatSession`'s `onFinish` retires it then. The session hook
+    // releases the chat in an earlier cleanup, so the registry is already authoritative here.
     useEffect(
-        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        () => () => {
+            if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+        },
         [sessionId, setSessionStatus],
     )
 
@@ -502,13 +516,20 @@ const AgentConversation = ({
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
     ) => {
-        // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
-        // with the answer streaming below. Park during the glide, follow again on settle. Clear any
-        // prior "stopped" marker — it's resolved by asking again.
-        scrollIntent.armGlide()
-        setStopped(false)
-        // One path: `submit` sends now or queues behind held messages via the shared release gate.
-        submit({text: trimmed, fileParts})
+        if (editingId) {
+            // A rewrite of a held message: nothing is sent, so the transcript must not move.
+            // The input clears itself on submit, so the displaced draft goes back after that.
+            const draft = commitEdit({text: trimmed, fileParts})
+            if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
+        } else {
+            // Glide to the bottom; the min-h-full active turn makes that show the new question at the
+            // top with the answer streaming below. Park during the glide, follow again on settle.
+            // Clear any prior "stopped" marker — it's resolved by asking again.
+            scrollIntent.armGlide()
+            setStopped(false)
+            // One path: `submit` sends now or queues behind held messages via the shared release gate.
+            submit({text: trimmed, fileParts})
+        }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
@@ -544,7 +565,6 @@ const AgentConversation = ({
                                 reason: "couldn't be read — remove it and attach it again",
                             })),
                         )
-                        attachments.setAttachmentsOpen(true)
                         return
                     }
                     fileParts = parts
@@ -704,12 +724,16 @@ const AgentConversation = ({
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
             {/* Wraps transcript AND dock: a parked "Connect to X below" row links to X's card. */}
             <ConnectionFocusProvider connects={connects}>
+                {/* The whole conversation ACCEPTS a drop; only the composer shows it (below).
+                Aiming at a 100px dock to attach a file is a needless demand. */}
                 <div
                     className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
                     {...dropTarget}
                 >
                     {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                     {quickLookHost}
+                    {/* Previews a SENT attachment; the tray's own drawer is below. */}
+                    <MessageAttachmentViewer />
                     {uploadsEnabled ? (
                         <AttachmentViewerDrawer
                             uploads={files}
@@ -742,36 +766,6 @@ const AgentConversation = ({
                             that read as the transcript being cut short. Docked chrome below carries
                             its own `mb-2`, so nothing here depended on the gap for separation. */}
                             <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                                {/* At the limit the overlay says so rather than inviting a drop it is
-                            about to reject wholesale. */}
-                                {isDragging && (
-                                    <div
-                                        className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                                            atMax
-                                                ? "border-colorError bg-[var(--ant-color-error-bg)]"
-                                                : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-                                        }`}
-                                    >
-                                        <UploadSimple
-                                            size={26}
-                                            className={
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }
-                                        />
-                                        <span
-                                            className={`text-sm font-medium ${
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }`}
-                                        >
-                                            {atMax ? "Attachment limit reached" : "Drop files here"}
-                                        </span>
-                                        <span className="text-xs text-colorTextSecondary">
-                                            {atMax
-                                                ? `Remove one to add another (${limits.maxCount} max)`
-                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
-                                        </span>
-                                    </div>
-                                )}
                                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                                 <AgentTranscript
@@ -806,34 +800,54 @@ const AgentConversation = ({
                                     }
                                 />
 
-                                <AgentComposerDock
-                                    entityId={entityId}
-                                    messages={messages}
-                                    busy={busy}
-                                    runningElsewhere={runningElsewhere}
-                                    hitlPending={hitlPending}
-                                    queue={{queued, removeQueued, clearQueue}}
-                                    modelKey={{...modelKey, entityId}}
-                                    modelBlocked={modelBlocked}
-                                    contextMaxTokens={contextMaxTokens}
-                                    showContextBudget={showContextBudget}
-                                    showTemplateStrip={showTemplateStrip}
-                                    pendingApprovals={pendingApprovals}
-                                    onApprovalResponse={handleApprovalResponse}
-                                    connects={connects}
-                                    elicits={elicits}
-                                    onClientToolOutput={handleClientToolOutput}
-                                    onSubmit={handleSubmit}
-                                    onStop={handleStop}
-                                    richInputRef={richInputRef}
-                                    composer={composer}
-                                    attachments={attachments}
-                                    onboardingChat={onboardingChat}
-                                    voice={voice}
-                                    audioPerceivable={audioPerceivable}
-                                    composerDisabled={composerDisabled}
-                                    attachmentsBlocked={attachmentsBlocked}
-                                />
+                                {/* The highlight is the composer alone: lighting the whole
+                                transcript to accept a file the composer will hold read as the
+                                page itself being the target. */}
+                                <div className="relative">
+                                    <AttachmentDropOverlay
+                                        active={isDragging}
+                                        atMax={atMax}
+                                        hint={
+                                            atMax
+                                                ? `Remove one to add another (${limits.maxCount} max)`
+                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`
+                                        }
+                                    />
+                                    <AgentComposerDock
+                                        entityId={entityId}
+                                        messages={messages}
+                                        busy={busy}
+                                        runningElsewhere={runningElsewhere}
+                                        hitlPending={hitlPending}
+                                        queue={{
+                                            queued,
+                                            removeQueued,
+                                            editingId,
+                                            beginEdit,
+                                            cancelEdit,
+                                        }}
+                                        modelKey={{...modelKey, entityId}}
+                                        modelBlocked={modelBlocked}
+                                        contextMaxTokens={contextMaxTokens}
+                                        showContextBudget={showContextBudget}
+                                        showTemplateStrip={showTemplateStrip}
+                                        pendingApprovals={pendingApprovals}
+                                        onApprovalResponse={handleApprovalResponse}
+                                        connects={connects}
+                                        elicits={elicits}
+                                        onClientToolOutput={handleClientToolOutput}
+                                        onSubmit={handleSubmit}
+                                        onStop={handleStop}
+                                        richInputRef={richInputRef}
+                                        composer={composer}
+                                        attachments={attachments}
+                                        onboardingChat={onboardingChat}
+                                        voice={voice}
+                                        audioPerceivable={audioPerceivable}
+                                        composerDisabled={composerDisabled}
+                                        attachmentsBlocked={attachmentsBlocked}
+                                    />
+                                </div>
                             </div>
                             {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
                             pinned on top. Always mounted so hide/show SLIDES (width transition) —

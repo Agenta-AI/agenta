@@ -3,6 +3,7 @@
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {humanizeActionKey} from "@agenta/shared/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {integrationPermissionSummary} from "../integrationPolicy"
@@ -25,11 +26,6 @@ type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
 interface IndexedTool {
     item: unknown
     index: number
-}
-
-function prettifyIntegration(key: string): string {
-    if (!key) return "Other"
-    return key.charAt(0).toUpperCase() + key.slice(1)
 }
 
 // Blocking problems outrank draft markers, mirroring the section-header rollup.
@@ -99,7 +95,7 @@ function IntegrationListRow({
     // Selected-integration metadata must not come from the searchable browse query: typing in the
     // open catalog changes that query's pages and would make existing rows lose their logos.
     const {integration} = useToolIntegrationDetail(row.integration)
-    const name = integration?.name || prettifyIntegration(row.integration)
+    const name = integration?.name || humanizeActionKey(row.integration) || "Other"
     const indices = useMemo(() => integrationRowIndices(row), [row])
     const status = useMemo(
         () => rollupRowStatus(tools, indices, statusFor),

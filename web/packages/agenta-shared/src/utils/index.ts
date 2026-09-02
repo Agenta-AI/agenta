@@ -230,7 +230,12 @@ export {
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+export {
+    buildGatewayToolSlug,
+    humanizeActionKey,
+    isGatewayToolSlug,
+    parseGatewayToolSlug,
+} from "./toolSlug"
 
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {

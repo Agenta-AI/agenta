@@ -1,4 +1,9 @@
-import {dropSessionMessagesAtom, sessionMessagesAtom} from "@agenta/chat/state"
+import {
+    dropSessionChat,
+    dropSessionMessagesAtom,
+    sessionMessagesAtom,
+    setSessionStatusAtom,
+} from "@agenta/chat/state"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     archiveSessionRemote,
@@ -9,13 +14,43 @@ import {
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
-import {atom, type Getter} from "jotai"
+import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {clearSessionEphemera} from "./sessionEphemera"
+
+/**
+ * This session is gone from this browser: stop its chat and retire its run-state dot. Both are
+ * needed because either can outlive the pane — the chat when the user navigated away with the tab
+ * open, and the dot because a torn-down chat's `onFinish` is suppressed and can't retire it itself.
+ */
+const dropSessionRuntime = (set: Setter, id: string): void => {
+    dropSessionChat(id)
+    set(setSessionStatusAtom, {id, status: "idle"})
+}
+
+/**
+ * Retire an archived session from this scope's tabs: close its tab, tear its runtime down, and
+ * re-point the active tab if it was the one archived. Shared by the local archive writer and the
+ * reconciler's remote-archive branch — archiving on another device has to leave this device in the
+ * same state as archiving here, or the tab list hides the session while `activeByAppAtom` still
+ * names it and the pane renders an archived session as active.
+ */
+const retireArchivedSession = (get: Getter, set: Setter, key: string, id: string): void => {
+    const open = currentOpenIds(get, key)
+    const nextOpen = open.filter((x) => x !== id)
+    if (open.includes(id)) {
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+    }
+    dropSessionRuntime(set, id)
+    const active = get(activeByAppAtom)
+    if (active[key] === id) {
+        set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
+    }
+}
 
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
@@ -304,6 +339,8 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
         const open = currentOpenIds(get, key)
         const nextOpen = open.filter((x) => x !== id)
         set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+        // Its pane unmounts and releases too, but only if it was ever mounted on this route.
+        dropSessionRuntime(set, id)
 
         const active = get(activeByAppAtom)
         if (active[key] === id) {
@@ -469,6 +506,7 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         set(dropSessionMessagesAtom, [id])
 
         clearSessionEphemera(id)
+        dropSessionRuntime(set, id)
 
         // Tombstone BEFORE the request: it is what keeps the reconciler from re-adopting the row
         // if the delete fails or an in-flight server list still carries it, and it carries the
@@ -510,14 +548,7 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: true} : s)),
         })
 
-        const open = currentOpenIds(get, key)
-        if (open.includes(id)) {
-            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
-        }
-        const active = get(activeByAppAtom)
-        if (active[key] === id) {
-            set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
-        }
+        retireArchivedSession(get, set, key, id)
 
         // Ungated and returned for the same reasons as the delete path above (#5543).
         const projectId = get(projectIdAtom)
@@ -606,6 +637,10 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         for (const s of existing) {
             const remote = serverById.get(s.id)
             if (remote) {
+                // Archived on another device: the tab list hides it from here on, so this is its
+                // only teardown signal — mirror the local archive exactly, tab and active pointer
+                // included, or the pane keeps rendering an archived session as the active one.
+                if (remote.archived && !s.archived) retireArchivedSession(get, set, key, s.id)
                 merged.push({
                     ...s,
                     serverKnown: true,
@@ -670,7 +705,10 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
             }
             set(dropSessionMessagesAtom, dropped)
-            for (const id of dropped) clearSessionEphemera(id)
+            for (const id of dropped) {
+                clearSessionEphemera(id)
+                dropSessionRuntime(set, id)
+            }
         }
     }),
 )
@@ -744,7 +782,10 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, next)
         }
         set(dropSessionMessagesAtom, ids)
-        for (const id of ids) clearSessionEphemera(id)
+        for (const id of ids) {
+            clearSessionEphemera(id)
+            dropSessionRuntime(set, id)
+        }
     }),
 )
 
