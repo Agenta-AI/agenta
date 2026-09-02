@@ -7,7 +7,6 @@ const SIDEBAR_OPEN_GROUPS_STORAGE_KEY = "agenta:sidebar:open-groups"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "agenta:sidebar:collapsed"
 const SIDEBAR_WIDTH_STORAGE_KEY = "agenta:sidebar:width"
 const LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY = "sidebarCollapsed"
-const NO_PROJECT_SCOPE = "__global__"
 
 export const SIDEBAR_COLLAPSED_WIDTH = 48
 export const SIDEBAR_DEFAULT_WIDTH = 255
@@ -120,18 +119,28 @@ const sidebarOpenGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
     {},
 )
 
+/** `null` until a project resolves — there is no bucket to read or write before then. */
 const getSidebarOpenGroupsStorageScope = (scopeId: string, projectId: string | null) =>
-    `${scopeId}:${projectId || NO_PROJECT_SCOPE}`
+    projectId ? `${scopeId}:${projectId}` : null
 
+/**
+ * Which groups are expanded, per scope and project.
+ *
+ * Both sides no-op until the project id hydrates. A shared `__global__` bucket stood in for it,
+ * which meant a first-paint write landed under a key the real project never reads — the preference
+ * was lost, and every project in the browser shared the leftover.
+ */
 export const sidebarOpenGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const storageScope = getSidebarOpenGroupsStorageScope(scopeId, get(projectIdAtom))
+            if (!storageScope) return undefined
             const storage = get(sidebarOpenGroupsStorageAtom)
             return storage[storageScope]
         },
         (get, set, nextOpenKeys: string[]) => {
             const storageScope = getSidebarOpenGroupsStorageScope(scopeId, get(projectIdAtom))
+            if (!storageScope) return
             const storage = get(sidebarOpenGroupsStorageAtom)
             set(sidebarOpenGroupsStorageAtom, {...storage, [storageScope]: nextOpenKeys})
         },
