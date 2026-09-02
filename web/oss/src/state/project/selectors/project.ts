@@ -15,11 +15,11 @@ import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 import {
-    NEUTRAL_WORKSPACE_CONTEXT,
-    resolveWorkspaceContext,
-    shouldRunWorkspaceGuard,
-    type WorkspaceContext,
-} from "./workspaceContext"
+    NEUTRAL_ROUTE_CONTEXT,
+    resolveRouteContext,
+    shouldRunRouteGuard,
+    type RouteContext,
+} from "./routeContext"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
@@ -166,25 +166,25 @@ const projectMatchesWorkspace = (
 }
 
 /**
- * Backs the `/w/:workspace_id[/p]` gates and Layout's bare-route check.
+ * Backs the route-level id guard: does the address name a workspace and project that exist?
  *
  * Unscoped on purpose: the workspace-scoped request 401s for an id that does not exist and then
- * never settles, so the membership check has to ride on a call that always answers. The handler
- * returns every membership either way.
+ * never settles, so the check has to ride on a call that always answers. The handler returns every
+ * membership either way, so one response settles both ids.
  *
- * Keyed by the workspace even though the response is not, so a workspace this tab has not checked
- * before always starts empty and fetches. One shared key would judge a just-created workspace
- * against a list fetched before it existed and 404 it — org creation refetches orgs, not projects.
+ * Keyed by the ids it judges even though the response is not. A shared key would answer from a
+ * list fetched before the workspace or project existed and 404 it: creating an org refetches only
+ * orgs, and creating a project navigates before its refetch lands.
  */
-const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
+const routeGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const {routeLayer} = get(appStateSnapshotAtom)
-    const {workspaceId} = get(appIdentifiersAtom)
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
     const userId = (get(userAtom) as {id?: string} | null)?.id
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     return {
         // Account-scoped like orgsQueryAtom: a sign-out that skips useSession.logout leaves this
         // membership answer in the cache, and the next account must not be judged by it.
-        queryKey: ["projects", "workspace-guard", userId ?? "", workspaceId ?? ""],
+        queryKey: ["projects", "route-guard", userId ?? "", workspaceId ?? "", projectId ?? ""],
         queryFn: async () => fetchAllProjects(),
         staleTime: 60_000,
         refetchOnWindowFocus: false,
@@ -196,7 +196,7 @@ const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) 
             return failureCount < 2
         },
         enabled:
-            shouldRunWorkspaceGuard(routeLayer) &&
+            shouldRunRouteGuard(routeLayer) &&
             !!workspaceId &&
             !!userId &&
             get(sessionExistsAtom) &&
@@ -204,25 +204,29 @@ const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) 
     }
 })
 
-/** Route-gated before the query is read, so no other route subscribes to it. */
-export const workspaceContextAtom = atom<WorkspaceContext>((get) => {
+/** Route-gated before the query is read, so routes carrying no ids never subscribe to it. */
+export const routeContextAtom = atom<RouteContext>((get) => {
     const {routeLayer} = get(appStateSnapshotAtom)
-    if (!shouldRunWorkspaceGuard(routeLayer)) return NEUTRAL_WORKSPACE_CONTEXT
+    if (!shouldRunRouteGuard(routeLayer)) return NEUTRAL_ROUTE_CONTEXT
 
-    const {workspaceId} = get(appIdentifiersAtom)
-    const query = get(workspaceGuardProjectsQueryAtom) as {
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const query = get(routeGuardProjectsQueryAtom) as {
         isPending?: boolean
         error?: unknown
         data?: ProjectsResponse[]
     }
+    // The raw list, not projectsAtom: a workspace holding only demo projects is still real.
+    const rows = query.data ?? []
 
-    return resolveWorkspaceContext({
+    return resolveRouteContext({
         routeLayer,
         workspaceId,
+        projectId,
         isPending: query.isPending ?? true,
         failed: Boolean(query.error),
-        belongsToWorkspace: (query.data ?? []).some((project) =>
-            projectMatchesWorkspace(project, workspaceId),
+        workspaceHoldsProject: rows.some((row) => projectMatchesWorkspace(row, workspaceId)),
+        projectInWorkspace: rows.some(
+            (row) => row.project_id === projectId && projectMatchesWorkspace(row, workspaceId),
         ),
     })
 })
