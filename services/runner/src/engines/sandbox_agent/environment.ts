@@ -64,6 +64,7 @@ import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
 import {
   awaitCredentialSubstitution,
+  buildCredentialPreflightInput,
   deliversModelSecretOnCreate,
   STUCK_ACQUIRE_ATTEMPTS,
   SubstitutionStuckError,
@@ -457,6 +458,11 @@ async function acquireEnvironmentOnce(
   } = setup;
   let runAgentDir = setup.runAgentDir;
 
+  // The credential preflight is kicked off mid-acquire and awaited at the very end, so an
+  // acquire that fails in between would leave it running with nothing observing it. This is
+  // how the failure path ends it; see the kickoff and the catch below.
+  const preflightAbort = new AbortController();
+
   // ---- MountLifecycle ------------------------------------------------------------------ //
   // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
   // recursive closures over this scope; they now take `ctx` and capture nothing. `ctx` is the
@@ -719,8 +725,8 @@ async function acquireEnvironmentOnce(
     const preflightBaseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
     // Record the delivery moment for the 401 classifier. Same condition as the preflight below,
     // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
-    // but the preflight can only SEE it where the provider echoes what it received. A direct
-    // Anthropic endpoint echoes nothing, so on that path the classifier is the only guard.
+    // but the preflight can only SEE it on a provider whose request shape it knows. Gemini is
+    // not one of those, so on that path the classifier is still the only guard.
     if (
       deliversModelSecretOnCreate({
         isDaytona: plan.isDaytona,
@@ -737,9 +743,33 @@ async function acquireEnvironmentOnce(
       preflightBaseUrl
         ? (deps.awaitCredentialSubstitution ?? awaitCredentialSubstitution)({
             sandbox: environment.sandbox,
-            baseUrl: preflightBaseUrl,
-            apiKeyVar: modelSecretCandidate.binding.name,
+            // The candidate's real value rides in as the credential for the runner's own
+            // auth call and nowhere else. See `buildCredentialPreflightInput`.
+            ...buildCredentialPreflightInput({
+              baseUrl: preflightBaseUrl,
+              candidate: modelSecretCandidate,
+              ...(request.modelConnection?.provider
+                ? { provider: request.modelConnection.provider }
+                : {}),
+              ...(request.modelConnection?.deployment
+                ? { deployment: request.modelConnection.deployment }
+                : {}),
+            }),
+            // Cancel the runner's own auth call with the run, and with an acquire that fails
+            // before the await below ever runs.
+            signal: signal
+              ? AbortSignal.any([signal, preflightAbort.signal])
+              : preflightAbort.signal,
             log: logger,
+          }).catch((error: unknown) => {
+            // `awaitCredentialSubstitution` is written not to throw. If it ever does, the
+            // acquire must not inherit the rejection from a promise nobody is awaiting yet.
+            // The error's name only: nothing from a credential path is interpolated here.
+            logger(
+              `[credential-preflight] preflight itself failed (` +
+                `${error instanceof Error ? error.name : "unknown"}); proceeding`,
+            );
+            return "ok" as const;
           })
         : undefined;
 
@@ -1299,6 +1329,10 @@ async function acquireEnvironmentOnce(
     });
     return { ok: true, env: environment };
   } catch (err) {
+    // End the preflight first. Acquire failed somewhere between its kickoff and its await, so
+    // nothing downstream will ever read it, and its runner-side auth call must not outlive the
+    // acquire that started it.
+    preflightAbort.abort();
     // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
     // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
     // to the turn. The one credential-shaped failure this path can raise is the preflight's
