@@ -148,27 +148,6 @@ export const projectsAtom = atom((get) => {
     return filterOutDemoProjects(projects)
 })
 
-/**
- * Whether the workspace the URL names can be entered, for the `/w/:workspace_id[/p]` gates and
- * Layout's bare-route check. Route-gated before the query is read, so nothing else subscribes.
- */
-export const workspaceContextAtom = atom<WorkspaceContext>((get) => {
-    const {routeLayer} = get(appStateSnapshotAtom)
-    if (!shouldRunWorkspaceGuard(routeLayer)) return NEUTRAL_WORKSPACE_CONTEXT
-
-    const {workspaceId} = get(appIdentifiersAtom)
-    const query = get(projectsQueryAtom) as {isPending?: boolean; error?: unknown}
-    const error = query.error as {response?: {status?: number}} | null | undefined
-
-    return resolveWorkspaceContext({
-        routeLayer,
-        workspaceId,
-        sessionExists: get(sessionExistsAtom),
-        isPending: query.isPending ?? true,
-        failure: error ? {status: error.response?.status ?? null} : null,
-    })
-})
-
 const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
     if (project.workspace_id && project.workspace_id === workspaceId) return true
     if (project.organization_id && project.organization_id === workspaceId) return true
@@ -184,6 +163,60 @@ const projectMatchesWorkspace = (
     if (project.organization_id && project.organization_id === workspaceId) return true
     return false
 }
+
+/**
+ * Backs the `/w/:workspace_id[/p]` gates and Layout's bare-route check.
+ *
+ * Unscoped on purpose: the workspace-scoped request 401s for an id that does not exist and then
+ * never settles, so the membership check has to ride on a call that always answers. The handler
+ * returns every membership either way.
+ */
+const workspaceGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
+    const {routeLayer} = get(appStateSnapshotAtom)
+    const {workspaceId} = get(appIdentifiersAtom)
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
+    return {
+        queryKey: ["projects", "workspace-guard"],
+        queryFn: async () => fetchAllProjects(),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        retry: (failureCount, error: any) => {
+            const status = error?.response?.status
+            if (status && status >= 400 && status < 500) return false
+            return failureCount < 2
+        },
+        enabled:
+            shouldRunWorkspaceGuard(routeLayer) &&
+            !!workspaceId &&
+            get(sessionExistsAtom) &&
+            jwtReady,
+    }
+})
+
+/** Route-gated before the query is read, so no other route subscribes to it. */
+export const workspaceContextAtom = atom<WorkspaceContext>((get) => {
+    const {routeLayer} = get(appStateSnapshotAtom)
+    if (!shouldRunWorkspaceGuard(routeLayer)) return NEUTRAL_WORKSPACE_CONTEXT
+
+    const {workspaceId} = get(appIdentifiersAtom)
+    const query = get(workspaceGuardProjectsQueryAtom) as {
+        isPending?: boolean
+        error?: unknown
+        data?: ProjectsResponse[]
+    }
+
+    return resolveWorkspaceContext({
+        routeLayer,
+        workspaceId,
+        isPending: query.isPending ?? true,
+        failed: Boolean(query.error),
+        belongsToWorkspace: (query.data ?? []).some((project) =>
+            projectMatchesWorkspace(project, workspaceId),
+        ),
+    })
+})
 
 /**
  * Exported for unit-test access (projectAtom.race.test.ts). Internal to this

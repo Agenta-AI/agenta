@@ -24,36 +24,30 @@ export const shouldRunWorkspaceGuard = (routeLayer: RouteLayer): boolean =>
 export interface WorkspaceContextInput {
     routeLayer: RouteLayer
     workspaceId: string | null
-    sessionExists: boolean
-    /** The projects query before it settles. A disabled query counts as pending, which is right. */
+    /** The guard query before it settles. A disabled query counts as pending, which is right. */
     isPending: boolean
-    /** How the projects query failed, or null when it succeeded. */
-    failure: {status: number | null} | null
+    /** The guard query settled with an error — the network, not the address. */
+    failed: boolean
+    /** Some project in the account's list sits in the workspace the URL names. */
+    belongsToWorkspace: boolean
 }
 
 /**
  * Which state `/w/:workspace_id` and `/w/:workspace_id/p` are in.
  *
- * The auth middleware resolves `workspace_id` before the projects handler and answers 4xx when
- * no such workspace exists, so that status is the only thing separating a bad id from an empty
- * workspace. A failure carrying no status is the network, not the address.
+ * Membership, not a status code: the workspace-scoped projects request 401s for an id that does
+ * not exist and then never settles, so only the unscoped list can answer. A guard query that
+ * failed outright says nothing about the address and must never reach the 404.
  */
 export const resolveWorkspaceContext = ({
     routeLayer,
     workspaceId,
-    sessionExists,
     isPending,
-    failure,
+    failed,
+    belongsToWorkspace,
 }: WorkspaceContextInput): WorkspaceContext => {
     if (!shouldRunWorkspaceGuard(routeLayer) || !workspaceId) return NEUTRAL_WORKSPACE_CONTEXT
     if (isPending) return RESOLVING
-    if (!failure) return NEUTRAL_WORKSPACE_CONTEXT
-
-    const {status} = failure
-    if (status !== null && status >= 400 && status < 500) {
-        // Without a live session the 401 is about the session, and ProtectedRoute owns that.
-        return sessionExists ? NOT_FOUND : RESOLVING
-    }
-
-    return ERRORED
+    if (failed) return ERRORED
+    return belongsToWorkspace ? NEUTRAL_WORKSPACE_CONTEXT : NOT_FOUND
 }
