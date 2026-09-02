@@ -170,6 +170,28 @@ class SessionStreamCommandRequest(BaseModel):
             return None
         return value.strip() or None
 
+    # Cancel guard (RFC D-010). Public name; internally this IS a turn id — the coordination
+    # plane's word for one execution of a session. The RFC calls it an execution id, so the
+    # public DTO keeps that name and the service maps it onto `turn_id` at the boundary.
+    # Optional by decision: external callers may cancel blind. When present, cancel touches
+    # that turn or nothing.
+    expected_execution_id: Optional[str] = None
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        """A whitespace-only guard is a client bug, not a request to cancel a turn named "".
+
+        Reading it as "no guard" is the safe failure: the caller falls back to the arrival-time
+        check instead of matching a turn id nothing can hold.
+        """
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
 
 class SessionStreamCommandResponse(BaseModel):
     mode: CommandMode

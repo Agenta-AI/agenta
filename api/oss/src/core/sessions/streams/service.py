@@ -12,6 +12,8 @@ Command matrix (inputs/data × force):
   detach / kill      → explicit lifecycle edits (see methods)
 """
 
+import time
+
 import uuid_utils.compat as uuid
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID
@@ -41,8 +43,10 @@ from oss.src.dbs.redis.sessions.locks import (
     get_owner,
     get_running_owner,
     get_session_liveness,
+    get_turn_start,
     is_turn_superseded,
     mark_turn_superseded,
+    record_turn_start,
     refresh_alive,
     refresh_running,
     release_alive,
@@ -171,12 +175,61 @@ class SessionStreamsService:
                 turn_id=turn_id,
             )
 
+    async def _guard_displacement(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        holders: Iterable[Optional[str]],
+        expected_turn_id: Optional[str],
+        arrived_at_ms: Optional[int],
+    ) -> None:
+        """Refuse a displacement that would hit a turn the caller did not mean to hit.
+
+        Two guards, checked in this order, because the first is exact and the second is a
+        backstop for callers that cannot use it.
+
+        1. `expected_turn_id` names the turn. Any other turn holding the nest means the turn
+           the caller meant is already gone, so refuse and touch nothing.
+        2. No id: refuse if a holding turn started after this request arrived. A turn that
+           began after the user asked to stop cannot be the turn the user was watching.
+
+        A holder whose start time is unknown never triggers guard 2 (see `get_turn_start`).
+        """
+        held = [t for t in holders if t]
+        if not held:
+            return
+
+        if expected_turn_id is not None:
+            other = next((t for t in held if t != expected_turn_id), None)
+            if other is not None:
+                raise SessionTurnMismatch(
+                    session_id,
+                    actual_turn_id=other,
+                    expected_turn_id=expected_turn_id,
+                )
+            return
+
+        if arrived_at_ms is None:
+            return
+
+        for turn_id in dict.fromkeys(held):
+            started_at_ms = await get_turn_start(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            if started_at_ms is not None and started_at_ms > arrived_at_ms:
+                raise SessionTurnMismatch(session_id, actual_turn_id=turn_id)
+
     async def _displace_turns(
         self,
         *,
         project_id: UUID,
         session_id: str,
         expected_turn_id: Optional[str] = None,
+        arrived_at_ms: Optional[int] = None,
         running_only: bool = False,
     ) -> List[str]:
         """Tombstone and release the selected turn owners.
@@ -186,6 +239,11 @@ class SessionStreamsService:
         cancelled session then reads as alive for a whole ALIVE_TTL. Tombstoning first makes
         that beat refuse itself. Broad displacement re-reads the keys after clearing them;
         running-only cancellation uses owner-checked releases so it cannot touch another turn.
+
+        `expected_turn_id` and `arrived_at_ms` are the cancel guards (see
+        `_guard_displacement`); steer and kill pass neither, because both mean "take this
+        session from whoever has it". Returns every turn id this call tombstoned, so the
+        caller can cancel exactly that turn's pending interactions.
         """
         alive_owner = await get_alive_owner(
             self._lock,
@@ -196,6 +254,14 @@ class SessionStreamsService:
             self._lock,
             project_id=str(project_id),
             session_id=session_id,
+        )
+        guarded_holders = (running_owner,) if running_only else (alive_owner, running_owner)
+        await self._guard_displacement(
+            project_id=project_id,
+            session_id=session_id,
+            holders=guarded_holders,
+            expected_turn_id=expected_turn_id,
+            arrived_at_ms=arrived_at_ms,
         )
         if running_only:
             if running_owner is None:
@@ -219,22 +285,8 @@ class SessionStreamsService:
             )
             return [running_owner]
 
-        if expected_turn_id is not None:
-            actual = next(
-                (
-                    owner
-                    for owner in (running_owner, alive_owner)
-                    if owner is not None and owner != expected_turn_id
-                ),
-                None,
-            )
-            if actual is not None:
-                raise SessionTurnMismatch(
-                    session_id,
-                    expected_turn_id=expected_turn_id,
-                    actual_turn_id=actual,
-                )
-
+        # A named turn is tombstoned even when it holds nothing: it may be a turn whose beat
+        # is in flight, and the tombstone is what stops that beat re-taking the session.
         await self._supersede_turns(
             project_id=project_id,
             session_id=session_id,
@@ -329,8 +381,16 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         request: SessionStreamCommandRequest,
+        arrived_at_ms: Optional[int] = None,
     ) -> SessionStreamCommandResponse:
         _validate_session_id(request.session_id)
+
+        # When the request reached the process, for the stale-cancel guard. The router stamps it
+        # before its permission and concurrency checks, which are database round trips; stamping
+        # here instead would leave the guard almost no window. Defaulted so a caller that does not
+        # stamp still gets a check, just a narrower one.
+        if arrived_at_ms is None:
+            arrived_at_ms = int(time.time() * 1000)
 
         has_inputs = bool(request.data and request.data.inputs)
 
@@ -387,6 +447,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 session_id=session_id,
                 expected_turn_id=request.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
                 running_only=request.expected_execution_id is None,
             )
             if cancelled_turn_ids:
@@ -403,6 +464,10 @@ class SessionStreamsService:
             return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
+                # The turn this cancel actually ended. The caller (the router) needs it to
+                # cancel that turn's pending gates, and it is the id a client should echo back
+                # as `expected_execution_id` on a retry.
+                turn_id=cancelled_turn_ids[0] if cancelled_turn_ids else None,
                 detached=True,
                 cancelled_turn_ids=cancelled_turn_ids,
             )
@@ -733,6 +798,17 @@ class SessionStreamsService:
         is_current_turn = True
 
         if request.turn_id and request.is_running:
+            # A browser turn is minted by the RUNNER, not by `_start_turn`
+            # (`services/runner/src/server.ts:188`), so this beat is the first moment the
+            # coordination plane sees it. Stamp its start here. Write-once, so the stamp is
+            # the first beat's time for the whole life of the turn, and re-stamping on later
+            # beats only refreshes the TTL.
+            await record_turn_start(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+                turn_id=request.turn_id,
+            )
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
             # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
             # A failed nx acquire is NOT by itself a takeover: nx fails whenever ANY value
@@ -1208,6 +1284,15 @@ class SessionStreamsService:
                 self._lock, project_id=str(project_id), session_id=session_id
             )
             raise SessionTurnInUse(session_id=session_id, liveness=liveness)
+
+        # Stamp the start before anything else can cancel this turn: the stale-cancel guard
+        # compares against this, and a turn with no recorded start is treated as cancellable.
+        await record_turn_start(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
 
         await acquire_running(
             self._lock,
