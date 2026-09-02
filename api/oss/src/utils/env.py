@@ -610,24 +610,36 @@ class SessionsCommandsConfig(BaseModel):
 class SessionWatchdogConfig(BaseModel):
     """The execution watchdog: how long a running turn may go silent before it is settled.
 
-    A turn is declared lost when its stream row still claims `is_running` and its heartbeat
-    (`session_streams.updated_at`) is older than
-    `heartbeat_interval_seconds + running_grace_seconds`. The runner beats every 30 seconds,
-    so the default of 90 seconds of grace means three missed beats, and a turn is settled
-    about two minutes after its runner stops.
+    The rule is HEARTBEAT AGE, not lease expiry. The Redis `alive` and `running` keys carry a
+    one-hour TTL, so "shortly after the lease expires" would mean an hour after the runner
+    died. The runner beats every `heartbeat_interval_seconds` (30) and the beat is mirrored
+    onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
 
-    Raise `running_grace_seconds` if a healthy deployment settles live turns. Lower it to
+    A turn is declared lost when its stream row still claims `is_running` and its last
+    heartbeat is older than `stale_heartbeat_seconds`. The default of 90 seconds is three
+    missed beats.
+
+    Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
+    final beat with `is_running: false` and then stops beating on purpose; that state is
+    resumable, not lost, and the watchdog must never end it.
+
+    Raise `stale_heartbeat_seconds` if a healthy deployment settles live turns. Lower it to
     settle a dead turn sooner. It is a plain restart-time setting; nothing else changes.
     """
 
-    # Extra silence, on top of one heartbeat interval, before a RUNNING turn is declared lost.
-    running_grace_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_GRACE_SECONDS") or 90
+    # Maximum age of the last heartbeat before a RUNNING turn is declared lost.
+    stale_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
+        )
+        or 90
     )
 
-    # An ALIVE-but-not-running row (between turns, or parked awaiting a human) gets a much
-    # longer grace: the runner stops beating while a turn is parked and keeps that sandbox
-    # warm for the approval TTL. Settling those at two minutes would end a resumable session.
+    # An ALIVE-but-not-running row (between turns, or parked awaiting a human) is not the
+    # watchdog's business: it owes no ending, because its last turn already reached one. It is
+    # still reclaimed here after a much longer silence, which is the pre-existing orphan-sweep
+    # behaviour and is keyed to the 30-minute approval TTL. No terminal record is ever written
+    # for these rows.
     idle_grace_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
         or 1_800

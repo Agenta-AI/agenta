@@ -20,9 +20,17 @@ the flags first would hide the row forever with no ending ever written.
 
 Two thresholds, not one. A RUNNING row beats every 30 seconds, so a short silence means the
 runner died. An ALIVE-but-idle row is a different animal: between turns, and while a turn is
-parked awaiting a human, the runner stops beating entirely but keeps the sandbox warm for the
-approval TTL. Settling those on the short threshold would end a session the user was about to
-resume. Both thresholds are settings; see `SessionWatchdogConfig` in `oss/src/utils/env.py`.
+parked awaiting a human, the runner sends a final beat with `is_running: false` and then stops
+beating on purpose. That state is resumable, so it is never given a terminal record here.
+Both thresholds are settings; see `SessionWatchdogConfig` in `oss/src/utils/env.py`.
+
+WHAT THIS PASS CANNOT SEE, and why the runner needs its own detector. This scan keys off
+heartbeat age, and a turn whose SANDBOX died keeps beating perfectly well: the runner is
+healthy, only the machine under it is gone. Such a row never becomes stale and is invisible
+here for ever. That case is issue #6418 and it is closed on the runner side, by the sandbox
+liveness probe in `services/runner/src/engines/sandbox_agent/sandbox-liveness.ts`. This pass
+covers the complementary case, where the RUNNER is what disappeared and nothing on that side
+can write anything at all.
 
 Called from the FastAPI lifespan; runs as a background asyncio task.
 """
@@ -56,18 +64,23 @@ from sqlalchemy import and_, func, not_, or_, select
 
 log = get_module_logger(__name__)
 
-# A RUNNING stream whose heartbeat (updated_at) is older than this is lost: a live turn beats
-# every `heartbeat_interval_seconds`, so one interval plus the configured grace of silence
-# means the owning runner is gone. 30 + 90 = 120 seconds by default, which is three missed
-# beats. Raise AGENTA_SESSIONS_WATCHDOG_GRACE_SECONDS if healthy turns are being settled.
-ORPHAN_THRESHOLD_SECONDS: int = (
-    env.sessions.heartbeat_interval_seconds
-    + env.agenta.sessions.watchdog.running_grace_seconds
-)
+# A RUNNING stream whose heartbeat is older than this is lost.
+#
+# The rule is HEARTBEAT AGE, deliberately, and not the Redis lease. The `alive` and `running`
+# keys carry a one-hour TTL (`env.sessions.alive_ttl_seconds`), so waiting for a lease to
+# expire would mean waiting an hour. The runner beats every 30 seconds and the beat is
+# mirrored onto `session_streams.updated_at`, so the age of that column is what actually says
+# whether anyone is still running the turn. 90 seconds is three missed beats.
+#
+# Raise AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS if healthy turns are being settled.
+ORPHAN_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.stale_heartbeat_seconds
 
-# Alive-but-idle rows (between turns, or parked awaiting approval) get a longer grace: the
-# runner stops beating while a turn is parked, and it keeps that sandbox warm for the
-# approval TTL (30 min). Sweeping those at two minutes would declare a resumable session dead.
+# Alive-but-NOT-running rows are a different thing and owe no ending. Between turns, and while
+# a turn is parked awaiting a human, the runner sends one final beat with `is_running: false`
+# and then stops beating on purpose; that state is resumable and its last turn already reached
+# its own terminal record. Such a row is still reclaimed after a much longer silence — the
+# pre-existing orphan-sweep behaviour, keyed to the 30-minute approval TTL — but the watchdog
+# never writes a terminal record for it. See `_lost_turn_records` callers below.
 IDLE_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.idle_grace_seconds
 
 # How often the watchdog runs.
