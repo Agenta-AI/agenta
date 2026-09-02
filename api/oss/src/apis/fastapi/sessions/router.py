@@ -18,6 +18,7 @@ composing the individual reads already exposed here:
 
 import re
 from functools import wraps
+from secrets import compare_digest
 from uuid import UUID
 
 from fastapi import (
@@ -66,6 +67,12 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamNotFound,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.types import (
+    ExecutionExpectationFailed,
+    SessionCommandNotClaimable,
+    SessionCommandNotFound,
+)
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import publish_record
@@ -118,6 +125,13 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.apis.fastapi.sessions.models import (
+    SessionCancelRequest,
+    SessionCancelResponse,
+    SessionCommandRef,
+    SessionCommandSettlement,
+    SessionControlOutcomeRequest,
+    SessionControlOutcomeResponse,
+    SessionExecutionRef,
     # streams
     SessionDetachRequest,
     SessionStreamQueryRequest,
@@ -1846,6 +1860,195 @@ class SessionsRootRouter:
 
 
 # ---------------------------------------------------------------------------
+# Session control — durable commands (Stop)
+# ---------------------------------------------------------------------------
+
+
+def _handle_command_exceptions():
+    """Map the commands plane's domain errors onto status codes.
+
+    A separate decorator from `_handle_session_exceptions` so the two planes' error vocabularies
+    stay apart: a conflict here means "the execution you named is not the one running", which is
+    a different thing from the streams plane's "this session is already busy".
+    """
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except SessionIdInvalid as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except ExecutionExpectationFailed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": e.message,
+                        "current_execution_id": e.current,
+                    },
+                ) from e
+            except SessionCommandNotFound as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except SessionCommandNotClaimable as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"message": e.message, "state": e.state},
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+class SessionControlRouter:
+    """The Stop plane: one public route and one internal one.
+
+    `POST /sessions/{session_id}/cancel` is the product's Stop. It is deliberately NOT behind
+    the runner concurrency limit: refusing to STOP work because a project is at its run limit
+    would be the exact wrong answer to a busy project.
+
+    `POST /sessions/control/commands/{command_id}/outcome` is how the runner reports what
+    happened. It authenticates with the shared runner token rather than a project credential,
+    because the runner holds no project credential of its own for a command it was handed. The
+    command id resolves the project, so a caller still cannot reach across tenants: it can only
+    settle a command whose id it already knows and that it currently holds the claim on.
+    """
+
+    def __init__(
+        self,
+        *,
+        commands_service: SessionCommandsService,
+    ) -> None:
+        self._service = commands_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/sessions/{session_id}/cancel",
+            self.cancel_session_execution,
+            methods=["POST"],
+            operation_id="cancel_session_execution",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/control/commands/{command_id}/outcome",
+            self.report_command_outcome,
+            methods=["POST"],
+            operation_id="report_session_command_outcome",
+            tags=["Sessions"],
+            include_in_schema=False,
+        )
+
+    @intercept_exceptions()
+    @_handle_command_exceptions()
+    async def cancel_session_execution(
+        self,
+        request: Request,
+        session_id: str,
+        payload: Optional[SessionCancelRequest] = None,
+    ) -> JSONResponse:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        idempotency_key = request.headers.get("Idempotency-Key")
+        if idempotency_key is not None:
+            idempotency_key = (
+                idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
+            )
+
+        admission = await self._service.request_cancel(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)) if user_id else None,
+            session_id=session_id,
+            expected_execution_id=payload.expected_execution_id if payload else None,
+            idempotency_key=idempotency_key,
+        )
+
+        body = SessionCancelResponse(
+            command=SessionCommandRef(
+                id=admission.command.id,
+                state=admission.command.state.value,
+            ),
+            execution=SessionExecutionRef(
+                id=admission.execution_id,
+                state="stopping" if admission.accepted else "idle",
+            ),
+        )
+        # 202 and not 200 for the accepted case: the work is not done when the response
+        # returns. The caller learns the outcome from the session's own state.
+        return JSONResponse(
+            status_code=(
+                status.HTTP_202_ACCEPTED if admission.accepted else status.HTTP_200_OK
+            ),
+            content=body.model_dump(mode="json"),
+        )
+
+    @intercept_exceptions()
+    @_handle_command_exceptions()
+    async def report_command_outcome(
+        self,
+        request: Request,
+        command_id: UUID,
+        payload: SessionControlOutcomeRequest,
+    ) -> SessionControlOutcomeResponse:
+        _assert_runner_token(request)
+
+        settled = await self._service.report_outcome(
+            command_id=command_id,
+            replica_id=payload.replica_id,
+            result=payload.result,
+            execution_id=payload.execution.id,
+            execution_state=payload.execution.state,
+            error=payload.execution.error,
+        )
+        return SessionControlOutcomeResponse(
+            command=SessionCommandSettlement(
+                id=settled.id,
+                state=settled.state.value,
+                outcome=settled.outcome.value if settled.outcome else "failed",
+                settled_at=settled.settled_at,
+            )
+        )
+
+
+def _assert_runner_token(request: Request) -> None:
+    """The runner proves it is the platform runtime with the shared secret both sides hold.
+
+    Constant-time compare, so a wrong token leaks no length or prefix through timing. A missing
+    configured token fails closed: an unset secret must never mean "let everyone in".
+    """
+    expected = env.runner.token
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="runner token is not configured on this deployment",
+        )
+    presented = request.headers.get("X-Agenta-Runner-Token") or ""
+    if not presented:
+        authorization = request.headers.get("Authorization") or ""
+        if authorization.lower().startswith("bearer "):
+            presented = authorization[7:].strip()
+    if not compare_digest(presented, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Top-level composer
 # ---------------------------------------------------------------------------
 
@@ -1861,6 +2064,11 @@ class SessionsRouter:
       sessions_router.mounts.router                → prefix /sessions
       sessions_router.turns.router                 → prefix /sessions/turns
       sessions_router.root.router                  → no prefix (paths include /sessions/query, /sessions/, /sessions/archive, /sessions/unarchive)
+      sessions_router.control.router               → no prefix (paths include /sessions/{session_id}/cancel and /sessions/control/…)
+
+    `control` MUST be mounted AFTER `root`. `/sessions/{session_id}/cancel` is a two-segment
+    path and `/sessions/query` is one, so they cannot actually collide — but mounting the
+    literal routes first keeps that true for any two-segment literal added later.
     """
 
     def __init__(
@@ -1875,6 +2083,7 @@ class SessionsRouter:
         mounts_service: MountsService,
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
+        commands_service: SessionCommandsService,
         respond_task: Optional[Any] = None,
         interactions_dispatcher: Optional[Any] = None,
     ) -> None:
@@ -1898,3 +2107,4 @@ class SessionsRouter:
         )
         self.turns = SessionTurnsRouter(turns_service=turns_service)
         self.root = SessionsRootRouter(sessions_service=sessions_service)
+        self.control = SessionControlRouter(commands_service=commands_service)
