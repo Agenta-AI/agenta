@@ -13,16 +13,28 @@
  */
 import {Wrench} from "@phosphor-icons/react"
 
-import {humanizeActionKey, type ItemDescriptor} from "./itemDescriptors"
+import type {ItemDescriptor} from "./itemDescriptors"
 
 interface BuildKitCopy {
     name: string
     description: string
 }
 
-/** Copy for the platform ops the build kit ships (`build_kit.py`'s `DEFAULT_BUILD_KIT_OPS`). An op
- * missing from here still renders — it falls back to a humanized `op` — so adding one server-side
- * costs plain wording, not a broken row. */
+/** The reserved prefix on an Agenta-owned embed slug, dropped before the slug is read out. */
+const AGENTA_SLUG_PREFIX = "__ag__"
+
+/** Sentence-case a `verb_noun` key: `pause_schedule` -> "Pause schedule". Deliberately not
+ * `humanizeActionKey`, which is for provider action keys and carries their acronym table. */
+function humanizeKey(key: string): string {
+    const words = key
+        .replace(AGENTA_SLUG_PREFIX, "")
+        .split(/[_\s]+/)
+        .filter(Boolean)
+    if (words.length === 0) return key
+    return [words[0][0].toUpperCase() + words[0].slice(1), ...words.slice(1)].join(" ")
+}
+
+/** Copy for the ops the build kit ships. A missing op falls back to a humanized `op`. */
 const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
     discover_tools: {
         name: "Find tools",
@@ -115,8 +127,7 @@ const buildKitDescriptor = ({name, description}: BuildKitCopy): ItemDescriptor =
     mono: "",
     color: "#0d9488",
     icon: <Wrench size={15} weight="fill" />,
-    // No type tag: "platform" and "@ag.embed" are internal vocabulary (#6025). A row that cannot
-    // be switched off says so with ItemRow's "Locked" tag instead.
+    // No type tag: "platform" and "@ag.embed" are internal vocabulary (#6025).
     tags: [],
     typeLabel: "playground tool",
     subtitle: "Playground-only tool",
@@ -126,7 +137,7 @@ const buildKitDescriptor = ({name, description}: BuildKitCopy): ItemDescriptor =
 export function describeBuildKitPlatformTool(op: string): ItemDescriptor {
     return buildKitDescriptor(
         BUILD_KIT_TOOL_COPY[op] ?? {
-            name: humanizeActionKey(op),
+            name: humanizeKey(op),
             description: "Playground-only tool provided by Agenta.",
         },
     )
@@ -141,7 +152,8 @@ export function describeBuildKitEmbed(
     const copy = slug ? BUILD_KIT_EMBED_COPY[slug] : undefined
     return buildKitDescriptor(
         copy ?? {
-            name: name ?? slug ?? "Playground tool",
+            // A bare slug would put `__ag__future` on screen, which is the wire name again.
+            name: name ?? (slug ? humanizeKey(slug) : "Playground tool"),
             description: "Playground-only tool provided by Agenta.",
         },
     )

@@ -44,7 +44,7 @@ function isEmbedRefEntry(entry: unknown): entry is Record<string, unknown> {
     )
 }
 
-/** One always-on row for an `@ag.embed` overlay entry; `fallbackKey` covers an embed with no slug. */
+/** One always-on row for an `@ag.embed` overlay entry. */
 function embedRow(entry: Record<string, unknown>, fallbackKey: string): BuildKitTool {
     const slug = staticEmbedSlug(entry)
     return {

@@ -46,8 +46,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-// The pre-migration antd half renders the raw ops the rows used to show, so the two columns are
-// comparable as MARKUP; the agenta half runs them through the copy table (#6025).
+// The antd half keeps the raw ops the rows used to show, so the columns compare as markup.
 const platformDescriptor = (name: string): ItemDescriptor => ({
     name,
     description: "Platform-owned playground tool",

@@ -27,11 +27,7 @@ export function formatPermissionValue(value: unknown): string {
     }
 }
 
-/**
- * One row of the build kit. `toggle` marks a tool the user may switch off; a row without it is
- * Agenta-owned and always on. They render as ONE list (#6025) — the split between platform tools
- * and embedded tools/skills is an implementation detail the reader has no use for.
- */
+/** One build-kit row. `toggle` marks a tool the user may switch off; without it the row is locked. */
 export interface BuildKitTool {
     /** Stable React key: the `op` for a platform tool, the embed slug or index otherwise. */
     key: string
@@ -68,8 +64,7 @@ export function BuildKitSection({
 }: BuildKitSectionProps) {
     // Per-tool switches only mean anything while the kit as a whole is on.
     const toolsDisabled = Boolean(disabled) || !enabled
-    // Counted over every row, not just the switchable ones: a count that skipped the locked rows
-    // would not add up against the list the reader is looking at.
+    // Counted over every row, so the number adds up against the list on screen.
     const enabledCount = tools.filter((tool) => tool.toggle?.enabled ?? true).length
     const allEnabled = tools.every((tool) => tool.toggle?.enabled ?? true)
     // Nothing to switch means no bulk action — the button would be a dead control.
@@ -131,7 +126,7 @@ export function BuildKitSection({
                             key={`build-kit-tool-${key}`}
                             descriptor={descriptor}
                             locked={!toggle}
-                            inactive={toggle ? !toggle.enabled || !enabled : false}
+                            inactive={!enabled || (toggle ? !toggle.enabled : false)}
                             extra={
                                 toggle ? (
                                     <Switch
@@ -139,8 +134,7 @@ export function BuildKitSection({
                                         checked={toggle.enabled}
                                         disabled={toolsDisabled}
                                         onCheckedChange={(next) => onToggleTool(toggle.op, next)}
-                                        // The readable name, not the wire `op`: a screen reader
-                                        // gets the same words the row shows.
+                                        // The readable name, not the wire `op`.
                                         aria-label={descriptor.name}
                                     />
                                 ) : undefined

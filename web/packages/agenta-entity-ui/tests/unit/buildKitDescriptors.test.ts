@@ -38,8 +38,9 @@ describe("describeBuildKitEmbed", () => {
         )
     })
 
-    it("falls back to the wire name, then the slug, for an embed it does not know", () => {
+    it("falls back to the wire name, then a humanized slug, for an embed it does not know", () => {
         expect(describeBuildKitEmbed("__ag__future", "Future thing").name).toBe("Future thing")
-        expect(describeBuildKitEmbed("__ag__future", undefined).name).toBe("__ag__future")
+        // Never the bare slug: `__ag__future_thing` on screen is the wire name again.
+        expect(describeBuildKitEmbed("__ag__future_thing", undefined).name).toBe("Future thing")
     })
 })
