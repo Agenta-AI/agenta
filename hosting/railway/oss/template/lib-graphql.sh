@@ -88,6 +88,23 @@ _rw_retry_after() {
 # prints the full response body (with .data) to stdout and returns 0. On
 # failure prints a redacted diagnostic to stderr and returns 1. GraphQL-level
 # errors (HTTP 200 + "errors") are deterministic and never retried.
+# _rw_is_rate_limit_rejection <body-file>: true only for a response that
+# rejected the whole operation on a workspace rate limit and produced NO
+# result. Both halves matter, because the caller retries on this even under
+# RW_NO_TRANSIENT_RETRY: a partial response (some data plus an error), or an
+# unrelated message that happens to carry the words, must never send a
+# non-idempotent mutation a second time. The match reads .errors[].message
+# rather than the raw body, so a rate-limit phrase sitting inside returned
+# data cannot trigger a retry either.
+_rw_is_rate_limit_rejection() {
+    jq -e '
+        ((.data == null) or ([.data[]? | select(. != null)] | length == 0))
+        and (((.errors // []) | map(.message // "")
+              | map(test("too quickly|allows [0-9]+ [a-z]+ per [0-9]+ seconds"; "i"))
+              | any) // false)
+    ' "$1" >/dev/null 2>&1
+}
+
 rw_graphql() {
     local query="$1"
     local variables="${2:-}"
@@ -138,8 +155,7 @@ rw_graphql() {
             wait_s="$(_rw_retry_after "$RW_LAST_HEADERS_FILE" "$delay")"
         elif printf '%s' "$http" | grep -qE '^5[0-9][0-9]$'; then
             [ "${RW_NO_TRANSIENT_RETRY:-0}" = "1" ] || retryable=1
-        elif [ "$http" = "200" ] \
-            && grep -qiE 'too quickly|allows [0-9]+ [a-z]+ per [0-9]+ seconds' "$body_file"; then
+        elif [ "$http" = "200" ] && _rw_is_rate_limit_rejection "$body_file"; then
             # A workspace rate limit comes back as HTTP 200 with a GraphQL
             # error, not as a 429: "You are creating environments too quickly.
             # This workspace allows 1 environment per 30 seconds." Nothing was
