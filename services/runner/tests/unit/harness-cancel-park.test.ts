@@ -21,6 +21,7 @@ import {
   isUserStopAbort,
   USER_STOP_ABORT_REASON,
 } from "../../src/sessions/stop-signal.ts";
+import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import { teardownDisposition } from "../../src/engines/sandbox_agent/teardown.ts";
 import type { AgentRunResult } from "../../src/protocol.ts";
 
@@ -232,5 +233,39 @@ describe("the stopped-session park window", () => {
     const config = readKeepaliveConfig("daytona");
     assert.equal(config.ttlMs, 120_000);
     assert.equal(config.stoppedTtlMs, 120_000);
+  });
+});
+
+describe("the terminal done record", () => {
+  /** Finish a runner-traced turn and hand back the terminal `done` event it recorded. */
+  const doneRecordFor = (stopReason?: string): Record<string, unknown> => {
+    const run = createSandboxAgentOtel({
+      harness: "pi",
+      model: "openai/x",
+      emitSpans: false,
+    });
+    run.start({ prompt: "hi" });
+    run.finish(stopReason);
+    const done = run.events().find((event) => event.type === "done");
+    assert.ok(done, "the turn must record exactly one terminal done event");
+    return done as unknown as Record<string, unknown>;
+  };
+
+  it("carries the stop reason for a user Stop", () => {
+    // Without this, a stopped turn is indistinguishable from a completed one in Postgres, so
+    // neither the frontend nor the release gate can tell a Stop from a finish.
+    assert.equal(doneRecordFor("cancelled").stopReason, "cancelled");
+  });
+
+  it("still carries a pause, which is what this field originally existed for", () => {
+    assert.equal(doneRecordFor("paused").stopReason, "paused");
+  });
+
+  it("omits the field for a completed turn and for every harness-reported reason", () => {
+    // An explicit two-value allowlist, so `end_turn` / `max_tokens` / a future harness string
+    // cannot start appearing on the terminal record by accident.
+    assert.equal(doneRecordFor("end_turn").stopReason, undefined);
+    assert.equal(doneRecordFor("max_tokens").stopReason, undefined);
+    assert.equal(doneRecordFor(undefined).stopReason, undefined);
   });
 });
