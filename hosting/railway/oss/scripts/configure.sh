@@ -541,7 +541,11 @@ main() {
         SSL_CERT_DAYS=820 \
         RAILWAY_DEPLOYMENT_DRAINING_SECONDS=60
 
-    set_healthcheck gateway "/"
+    # No healthcheck on the gateway: it proxies / to web, and the web app
+    # answers / with a 308 redirect to /w (web/oss/next.config.ts). Railway
+    # counts a 308 as a failed probe, so the deployment never goes green. Give
+    # the gateway a healthcheck again only once the wrapper image serves its
+    # own 200 endpoint (for example location = /healthz).
     set_healthcheck api "/health"
     set_healthcheck services "/health"
     set_healthcheck runner "/health"
