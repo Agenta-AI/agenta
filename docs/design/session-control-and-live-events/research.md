@@ -78,6 +78,21 @@ use their own endpoint and worker path. Kill uses `DELETE /sessions/streams/`.
 This means the current endpoint does not provide a durable inbox, command status, retry handling,
 or a single route for all execution-affecting actions.
 
+## Current interaction response path
+
+The frontend calls `POST /sessions/interactions/{interaction_id}/respond`. The API checks that the
+interaction is pending and atomically changes it to `responded`. The winning responder enqueues a
+TaskIQ job. The interaction dispatcher reconstructs the resume conversation from durable records
+and calls the workflow invoke service in detached mode. Approval response therefore already uses a
+resource-specific public endpoint followed by an internal invoke.
+
+## Current runner routing information
+
+Redis stores a logical `replica_id` for the runner that owns a session. The API hard-kill client
+does not resolve this identifier to an address. It calls one configured runner service URL with
+`project_id` and `session_id`. A normal load-balanced request is not sufficient when only one
+replica holds the live sandbox, unless the runner service provides its own owner routing.
+
 ## Existing design references
 
 - `docs/design/agent-workflows/projects/sessions-takeover/architecture.md`

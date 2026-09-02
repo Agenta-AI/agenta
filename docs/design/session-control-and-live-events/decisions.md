@@ -52,6 +52,14 @@ execution can be cancelled while the harness session and sandbox remain resumabl
 identify any required vendored patch and Daytona snapshot rebuild. This investigation can proceed
 in parallel with the API control-path design.
 
+### D-007: Use five seconds as the provisional Stop delivery target
+
+**Status:** Provisional product direction from Mahmoud on 2026-09-02.
+
+Within five seconds of an accepted Stop request, the active execution must stop starting new model
+requests and new tool actions. The exact deadline for terminating an already-running provider or
+tool operation remains open until harness and tool cancellation capabilities are verified.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
@@ -117,3 +125,9 @@ Decide which actions enter a general command inbox. The working boundary is exec
 intent: Send, Cancel, interaction response, Queue, and Steer. Attach is a read operation. Kill,
 rename, archive, and delete remain explicit resource or lifecycle operations unless discussion
 shows a need to change that boundary.
+
+### O-007: Public resource API versus internal command transport
+
+Decide whether public callers submit every execution action to one command collection or use
+clear resource endpoints that translate into internal commands. The current proposal favors clear
+public resources with one internal command envelope.

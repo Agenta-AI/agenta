@@ -12,6 +12,9 @@
 - Living RFC created with empty sections for track-by-track discussion.
 - Current command endpoint and runner routing boundary verified.
 - Sandbox-agent cancellation investigation promoted to the first parallel task.
+- Five seconds recorded as the provisional Stop delivery target.
+- Public resource API separated from the proposed internal command transport.
+- Current interaction response path documented.
 
 ## Blockers
 

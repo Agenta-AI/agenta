@@ -58,6 +58,10 @@ The first two discussions can happen in parallel.
 7. **Shared client engine:** desktop and mobile state application after the server contracts are
    stable.
 
+Before finalizing the command contract, review the proposed public interface as a whole. The
+review must distinguish user-facing resource endpoints from the private command transport used to
+reach runners.
+
 ## Definition of a completed track
 
 Each track must contain:
