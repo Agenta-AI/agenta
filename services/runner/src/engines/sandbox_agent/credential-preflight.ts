@@ -297,15 +297,22 @@ const CANONICAL_DIRECT_BASE_URLS: Record<string, string> = {
  * Undefined for anything unparseable, and for a URL carrying a query, a fragment, or embedded
  * credentials: those parts would be lost by the comparison while still being part of the real
  * request, so a URL that has them is simply not one of the canonical bases.
+ *
+ * The query and fragment are rejected on the RAW string, not on `url.search` and `url.hash`.
+ * Those two are empty strings for a URL ending in a bare `?` or `#`, so reading them would let
+ * `https://api.openai.com/v1?` through as canonical while the connection's real requests carry
+ * that character. A `?` or a `#` anywhere in the input is enough to disqualify it.
  */
 function normalizeBaseUrl(baseUrl: string): string | undefined {
+  const trimmed = baseUrl.trim();
+  if (trimmed.includes("?") || trimmed.includes("#")) return undefined;
   let url: URL;
   try {
-    url = new URL(baseUrl.trim());
+    url = new URL(trimmed);
   } catch {
     return undefined;
   }
-  if (url.search || url.hash || url.username || url.password) return undefined;
+  if (url.username || url.password) return undefined;
   const path = url.pathname.replace(/\/+$/, "");
   return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}`;
 }
@@ -526,8 +533,12 @@ export async function awaitCredentialSubstitution(
   // it the deciding evidence. One call per preflight, and none at all on a connection whose
   // shape carries no differential. It never rejects, so an unawaited rejection cannot escape
   // when the sandbox answers cleanly.
+  //
+  // The remaining-time check is part of the gate, not an optimization. This runs BEFORE the
+  // loop's own deadline check, so without it a preflight with no grace left would still send
+  // the real key to the provider for an answer nothing would ever read.
   const control: Promise<RunnerAuthProbeResult> | undefined =
-    controlKey && shape.differential
+    controlKey && shape.differential && remainingMs() > 0
       ? (
           input.controlProbe ??
           createFetchControlProbe(input.fetchImpl ?? fetch)

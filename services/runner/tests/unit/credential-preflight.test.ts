@@ -350,6 +350,20 @@ describe("the one deadline", () => {
     assert.match(logs[0], /grace spent after 0 probes/);
   });
 
+  it("sends no key to the provider when there is no grace to spend", async () => {
+    // The runner's call is started before the loop's own deadline check, so it needs the
+    // same gate. Otherwise a preflight with no time left would still put the real key on the
+    // wire for an answer nothing would read.
+    const { run, commands, controlRequests } = harness(
+      ["Received=dtn_****9maz"],
+      0,
+      { ...OPENROUTER, control: { status: 200 } },
+    );
+    assert.equal(await run, "ok");
+    assert.equal(controlRequests.length, 0, "no key leaves the runner");
+    assert.equal(commands.length, 0);
+  });
+
   it("a slow probe cannot push the total past the budget", async () => {
     const { run, commands } = harness(["Received=dtn_****9maz"], 10_000, {
       probeCostMs: 9_000,
@@ -496,8 +510,13 @@ describe("provider shapes", () => {
   });
 
   it("does not match a canonical base carrying a query or credentials", async () => {
+    // The bare `?` and `#` cases matter because `url.search` and `url.hash` are both empty
+    // strings for them, so a check that read those two properties would let them through.
     for (const baseUrl of [
       "https://api.openai.com/v1?tenant=acme",
+      "https://api.openai.com/v1?",
+      "https://api.openai.com/v1#",
+      "https://api.openai.com/v1#frag",
       "https://user:pass@api.openai.com/v1",
     ]) {
       const { run, controlRequests } = harness([BARE_401], 3_000, {
