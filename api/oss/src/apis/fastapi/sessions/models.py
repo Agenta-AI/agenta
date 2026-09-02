@@ -346,3 +346,77 @@ class SessionRecordIngestRequest(BaseModel):
     # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+
+
+# ---------------------------------------------------------------------------
+# Session control: durable commands (Stop)
+# ---------------------------------------------------------------------------
+
+
+class SessionCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Optional stale-request guard. When present, the API cancels only this execution and
+    # refuses the request if another one is running. When absent, it cancels whichever
+    # execution is active when the request is applied. A person never types this: the browser
+    # fills it from the session's own state, and a first-party client always sends it.
+    expected_execution_id: Optional[str] = None
+
+
+class SessionCommandRef(BaseModel):
+    """The durable command an accepted request created. Identity and DELIVERY state only.
+
+    A client must not read execution state from it. `state` says where the command is; the
+    session's own state says what the execution is doing.
+    """
+
+    id: UUID
+    state: Literal["pending", "claimed", "applied", "obsolete"]
+
+
+class SessionExecutionRef(BaseModel):
+    """What the caller should render. `id` is null when the session was idle."""
+
+    id: Optional[str] = None
+    state: Literal["stopping", "idle"]
+
+
+class SessionCancelResponse(BaseModel):
+    command: SessionCommandRef
+    execution: SessionExecutionRef
+
+
+class SessionExecutionOutcome(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # The execution the runner acted on. Null when it held none.
+    id: Optional[str] = None
+    # stopped: cancelled as asked. not_running: no such execution on this runner.
+    # superseded_by_newer_turn: the held execution started after the command arrived.
+    # failed: the cancel itself failed.
+    state: Literal["stopped", "failed", "not_running", "superseded_by_newer_turn"]
+    # Short and human-readable, present only when `state` is "failed".
+    error: Optional[str] = Field(default=None, max_length=2000)
+
+
+class SessionControlOutcomeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    replica_id: str = Field(min_length=1, max_length=128)
+    # The command's terminal state. `applied` means the runner did the work; `obsolete` means
+    # there was nothing to do.
+    result: Literal["applied", "obsolete"]
+    execution: SessionExecutionOutcome
+
+
+class SessionCommandSettlement(BaseModel):
+    id: UUID
+    state: Literal["applied", "obsolete"]
+    outcome: Literal[
+        "stopped", "not_running", "superseded_by_newer_turn", "failed", "lost"
+    ]
+    settled_at: Optional[datetime] = None
+
+
+class SessionControlOutcomeResponse(BaseModel):
+    command: SessionCommandSettlement

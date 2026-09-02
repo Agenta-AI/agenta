@@ -182,6 +182,10 @@ from oss.src.apis.fastapi.mounts.router import MountsRouter
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
@@ -1115,6 +1119,26 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
+# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
+# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
+# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
+# back to a transport the operator did not choose.
+_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
+if _control_adapter != "direct":
+    raise RuntimeError(
+        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
+        "Only 'direct' is implemented; the long-poll adapter is a later change."
+    )
+
+session_commands_dao = SessionCommandsDAO()
+session_commands_service = SessionCommandsService(
+    commands_dao=session_commands_dao,
+    streams_service=session_streams_service,
+    interactions_service=interactions_service,
+    lock_engine=_lock_engine,
+    delivery=DirectControlDelivery(lock_engine=_lock_engine),
+)
+
 sessions = SessionsRouter(
     streams_service=session_streams_service,
     records_service=records_service,
@@ -1125,6 +1149,7 @@ sessions = SessionsRouter(
     mounts_service=mounts_service,
     turns_service=session_turns_service,
     sessions_service=sessions_service,
+    commands_service=session_commands_service,
     respond_task=_interactions_worker.respond_interaction,
     interactions_dispatcher=_interactions_dispatcher,
 )
@@ -1596,6 +1621,12 @@ app.include_router(
 
 app.include_router(
     router=sessions.root.router,
+    tags=["Sessions"],
+)
+
+# After `root`, so the literal /sessions/<verb> routes always win a path match.
+app.include_router(
+    router=sessions.control.router,
     tags=["Sessions"],
 )
 

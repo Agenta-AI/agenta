@@ -71,6 +71,12 @@ _PUBLIC_ENDPOINTS = (
     "/api/tools/connections/callback",
     "/preview/tools/connections/callback",
     "/api/preview/tools/connections/callback",
+    # SESSIONS CONTROL — the runner reports a command's outcome with the shared runner token,
+    # not a project credential: it holds none for a command it was handed. The route checks the
+    # token itself and resolves the project from the command id, so this exemption widens no
+    # tenant boundary.
+    "/sessions/control/",
+    "/api/sessions/control/",
     # TRIGGERS — inbound provider events arrive from Composio with no auth token
     "/triggers/composio/events/",
     "/api/triggers/composio/events/",
