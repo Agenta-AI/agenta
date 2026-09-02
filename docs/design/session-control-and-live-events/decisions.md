@@ -152,6 +152,19 @@ The existing records specification decided to use UUIDv7 ordering and no stored 
 sequence. The new replay requirement may need an append-only event log with a per-session cursor.
 The design must either reopen the existing decision or introduce a separate event-log concept.
 
+### P-004: Require one active execution and fence stale writers
+
+**Status:** Proposed. Direction confirmed, mechanism not approved.
+
+At most one execution can be active for a session. Admission must be atomic. Each accepted owner
+receives an increasing ownership generation, also called a fencing token. Every durable write and
+effect-producing command carries that generation. The API rejects a write from an older
+generation even if the old runner is still alive.
+
+Redis heartbeats remain useful for leases and crash detection. A lease alone is not the final
+correctness guarantee because it can expire during a network partition while the old runner keeps
+working.
+
 ## Open decision gates
 
 ### O-001: Vocabulary
@@ -177,6 +190,13 @@ Do not add a sequence column to mutable upserts and call the result append-only.
 ### O-004: Raw live transport
 
 Choose the Redis Stream layout, retention limit, redaction boundary, and browser fan-out model.
+
+### O-005: Stable record-ID semantics spike
+
+Before immutable event insertion is implemented, inventory every runner and backend path that
+reuses a `record_id`. Separate exact delivery retries from progressive updates and resume
+re-emissions. Add regression tests for the final state of tools, interactions, terminal events,
+and harness reconstruction.
 
 ### O-005: Immediate runner control
 

@@ -156,6 +156,34 @@ The durable model can append distinct facts such as `tool.started` and `tool.com
 one final `tool_call` fact. Reusing one ID and replacing its payload is a chosen projection model,
 not a storage necessity.
 
+### The current stable-ID behavior needs a spike before immutability work
+
+The same `record_id` can currently mean two different things:
+
+1. **Delivery retry.** The producer sends the same logical fact and payload again because it did
+   not receive an acknowledgement. The second insert should be an idempotent no-op.
+2. **Progressive update.** The producer sends a later payload for the same logical object. Treating
+   this as a duplicate no-op would discard the later state and can cause a regression.
+
+Current runner tests deliberately reuse stable IDs for repeated `tool_result` and
+`interaction_response` events. Tool-call argument snapshots share an identity but are currently
+coalesced into one final persisted record. The records DAO also documents later snapshots that
+replace earlier payloads. These behaviors must be reconciled before changing upserts to immutable
+inserts.
+
+The implementation plan therefore requires a producer-semantics spike. It must inventory every
+stable-ID producer, retry path, resume path, and progressive-update path. For each case, it must
+classify the repeated write as one of:
+
+- an identical retry that becomes a no-op;
+- a temporary live update that stays outside durable history;
+- a new durable fact that receives a new event ID and refers to the same stable tool, message, or
+  interaction ID.
+
+The spike is complete when tests cover each classified case and prove that immutable insertion
+does not lose a final tool result, interaction response, terminal outcome, or reconstructed
+conversation state. Immutable storage changes must not start before this gate passes.
+
 ### A dense per-session counter is not required, but commit order is required
 
 The earlier design rejected a dense per-session sequence because concurrent writers would need a

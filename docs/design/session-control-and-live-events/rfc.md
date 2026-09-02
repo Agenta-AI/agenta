@@ -236,6 +236,25 @@ Redis credentials behind the API boundary. In a multi-API deployment, Redis can 
 the API instance that holds the runner connection. A per-runner Redis channel is simpler but
 couples the runner directly to Redis. Direct pod addresses are the least portable option.
 
+The required invariant is stronger than “the second start usually gets a conflict”: at most one
+execution is active for a session, and only the current owner can write or cause external effects.
+The current Redis `alive` lease, owner affinity, heartbeat refresh, and superseded markers reduce
+overlap. They do not fully enforce this invariant after lease expiry or a network partition because
+record ingest does not reject a stale ownership generation.
+
+The target design therefore separates two jobs:
+
+1. **Admission and fencing.** The API atomically accepts one execution and assigns an increasing
+   ownership generation. Every runner event carries the execution ID and generation. The API
+   rejects stale generations. Settlement releases ownership only when both values match.
+2. **Failure detection.** A heartbeat renews the active lease. If it expires, recovery can mark the
+   execution lost and assign a newer generation. The heartbeat detects failure, but it is not the
+   only protection against two writers.
+
+The RFC does not yet choose whether admission state belongs in Postgres, Redis with a durable
+command record, or a transaction across projections. The selected design must prove atomic
+concurrent admission and stale-write rejection.
+
 ### Immediate control
 
 The existing `/sessions/streams/` endpoint is a coordination-state edit, not a durable command
@@ -281,6 +300,11 @@ Costs and risks:
 - Expands a conversation-oriented tracing record into the public session event contract.
 - Requires a migration story for old rows without cursors and current record retention.
 - Requires commit-safe ordering and reliable delivery changes regardless of table reuse.
+
+This option has a mandatory discovery gate. Today a repeated stable `record_id` can be an exact
+transport retry or a later snapshot with changed payload. Only the exact retry becomes a no-op.
+The producer-semantics spike in `records-invariants.md` must classify every reuse and add regression
+tests before the upsert contract changes.
 
 #### Option B: Keep records as a transcript projection and add a session event log
 

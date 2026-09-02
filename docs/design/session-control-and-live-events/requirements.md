@@ -59,7 +59,8 @@ Observed examples:
 
 Draft requirements:
 
-- At most one execution writes to a session at one time.
+- At most one execution is active for a session at one time.
+- Only the current execution ownership generation can append events or cause external effects.
 - A second message uses an explicit `reject`, `queue`, or `steer` policy.
 - The API saves an accepted queue or steer message before interrupting current work.
 - Every control command names the execution it expects.
