@@ -76,6 +76,10 @@ import {
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
+import {
+  SESSION_TURN_IN_USE_CODE,
+  SESSION_TURN_IN_USE_MESSAGE,
+} from "./sessions/admission.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import {
   buildWorkflowReferenceList,
@@ -526,6 +530,42 @@ async function runAndStreamWithApiBaseResolved(
     // The heartbeat response already carries the session_streams row id — free, no extra
     // round-trip. Thread it onto the request so the engine's turn-append write has it.
     request.streamId = watchdog.streamId();
+
+    // ADMISSION. That first beat asked the platform's atomic `nx` acquire whether this turn may
+    // run, and `admitted: false` means a DIFFERENT turn already holds the session. Stop here.
+    //
+    // Everything below this point has a side effect that a refused turn must not have:
+    // `cancelStaleInteractions` would cancel the LIVE turn's unanswered approval gate, the
+    // persisting emitter would write this message into the durable transcript, and `run()` would
+    // reach the keepalive pool and destroy the live turn's warm environment. That last one is
+    // the double-send bug (#6417, #5539, #5538): the arbiter's answer was already correct, the
+    // runner simply never read it before acting.
+    //
+    // The refusal travels as an `error` EVENT with a stable code plus a failed terminal result,
+    // which is the path every runner failure already takes to the browser. Nothing is persisted,
+    // so the refused message never appears in the session's history — the client keeps the text.
+    if (!watchdog.admitted) {
+      process.stderr.write(
+        `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
+          `another turn owns this session. No pool resolve, no eviction.\n`,
+      );
+      // Stops the heartbeat interval and releases the credential lease. Its final
+      // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
+      // turn's `running` lock or stamp its own turn id on the session row.
+      await watchdog.release().catch(() => {});
+      liveEmit({
+        type: "error",
+        message: SESSION_TURN_IN_USE_MESSAGE,
+        code: SESSION_TURN_IN_USE_CODE,
+      });
+      writeRecord({
+        kind: "result",
+        result: { ok: false, error: SESSION_TURN_IN_USE_MESSAGE, events: [] },
+      });
+      res.end();
+      return;
+    }
+
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
