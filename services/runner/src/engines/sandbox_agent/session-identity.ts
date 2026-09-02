@@ -27,17 +27,22 @@ export interface KeepaliveConfig {
   ttlMs: number;
   approvalTtlMs: number;
   /**
-   * The idle window for a session PARKED BY A USER STOP, which is longer than the ordinary one.
+   * The idle window for a session PARKED BY A USER STOP.
    *
-   * The ordinary idle window asks "how long might a conversation keep going by itself". A Stop
-   * asks a different question, and the answer is known: the user just pressed a button and is
-   * about to type. Reusing the 60 s local window would throw the sandbox away while they are
-   * still writing the next message, which is exactly the cold start the Stop was changed to
-   * avoid. It therefore defaults to the approval window, which already encodes "a human is
-   * about to act".
+   * DEFAULTS TO THE ORDINARY IDLE WINDOW, so this change alters no timing on its own. It exists
+   * so the value is one named field with one env var when somebody decides to move it.
    *
-   * To revert to the ordinary window, set AGENTA_RUNNER_SESSION_STOPPED_TTL_MS to the same
-   * value as the idle TTL, or have `readKeepaliveConfig` return `ttlMs` here.
+   * THE OPEN RECOMMENDATION, for Mahmoud. Make it the APPROVAL window instead
+   * (`DEFAULT_APPROVAL_TTL_MS`, 600 s local). The ordinary idle window asks "how long might a
+   * conversation keep going by itself". A Stop asks a different question and the answer is
+   * known: the user just pressed a button and is about to type. On the 60 s local window the
+   * sandbox can be thrown away while they are still writing, which is the cold start the Stop
+   * change exists to remove. The approval window already encodes "a human is about to act",
+   * which is the same situation. Set AGENTA_RUNNER_SESSION_STOPPED_TTL_MS to try it, or change
+   * the fallback below to `positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS)`.
+   *
+   * The counter-argument, and why Daytona would not follow: a parked Daytona sandbox is billed
+   * compute, and its 120 s idle window is already the compute-budget decision.
    *
    * Optional so a hand-built config (every test fixture) keeps meaning what it always meant:
    * omitted reads as "same as the idle window". `readKeepaliveConfig`, the only production
@@ -116,9 +121,8 @@ export function readKeepaliveConfig(
       // pool never sees an awaiting_approval park for Daytona today because parkedApproval is
       // only set by ACP gates.
       approvalTtlMs: ttlMs,
-      // A stopped Daytona session holds a BILLED sandbox, so it does not inherit the local
-      // provider's longer stopped window by default; the operator opts in with the env var.
-      // The 120 s Daytona idle window is already the compute budget decision.
+      // A stopped Daytona session holds a BILLED sandbox, and the 120 s idle window is already
+      // the compute-budget decision, so it stays on that window unless an operator opts out.
       stoppedTtlMs: nonNegativeIntEnv(STOPPED_TTL_ENV, ttlMs),
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
@@ -129,9 +133,11 @@ export function readKeepaliveConfig(
     enabled: boolEnv(KEEPALIVE_ENV, true),
     ttlMs: positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
     approvalTtlMs: positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS),
+    // Defaults to the ordinary idle window: this field changes no timing until somebody
+    // decides it should. See the recommendation on `KeepaliveConfig.stoppedTtlMs`.
     stoppedTtlMs: positiveIntEnv(
       STOPPED_TTL_ENV,
-      positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS),
+      positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
     ),
     poolMax: positiveIntEnv(POOL_MAX_ENV, DEFAULT_POOL_MAX),
   };

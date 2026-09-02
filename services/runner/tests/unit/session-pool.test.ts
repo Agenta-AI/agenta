@@ -191,8 +191,9 @@ describe("readKeepaliveConfig", () => {
       enabled: true,
       ttlMs: 60_000,
       approvalTtlMs: 600_000,
-      // A user Stop parks on the approval window, not the idle one: the user is about to type.
-      stoppedTtlMs: 600_000,
+      // Defaults to the idle window, so the stopped-session field changes no timing on its own.
+      // The open recommendation is to move it to the approval window; Mahmoud picks.
+      stoppedTtlMs: 60_000,
       poolMax: 8,
     });
   });
