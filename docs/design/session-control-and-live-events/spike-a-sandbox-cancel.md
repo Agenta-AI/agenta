@@ -23,6 +23,27 @@ notification, waits for the harness to answer its open prompt, and parks when it
 answered in 14 ms and Codex in 22 ms, and the next message reused the same sandbox and the same
 native harness session.
 
+## What was tested, and on what
+
+One table for the whole spike, so nobody has to infer coverage from the prose. "Live" means the
+scenario in "The live test" ran against a real deployment; everything else is a code read.
+
+| Harness | Live test | What `session/cancel` does to the in-flight tool | Evidence |
+| --- | --- | --- | --- |
+| Pi (`pi_core`) | yes, local sandbox | harness answers the prompt in 14 to 31 ms, and the shell child is GONE | live, process probe returned `NO_SLEEP_PROCESS` |
+| Codex | yes, local sandbox | harness answers the prompt in 22 ms, but the shell child KEEPS RUNNING | live, process probe returned the original `sleep` still alive |
+| Claude Code | no, this stack has no Anthropic key | not measured | expected to match, from code: the runner branches on capabilities, never on harness name, and sends the same ACP notification to all three |
+
+| Sandbox provider | Live test | Note |
+| --- | --- | --- |
+| local | yes, every run | The "sandbox" is a process tree in the runner container. |
+| Daytona | no | The park-versus-delete decision costs real money here, so it belongs in the release gate. No snapshot rebuild is needed for the runner-side cancel; a Codex bridge fix would need one. |
+
+Before this change, the abort sent NO cancel to Claude Code or Codex at all: it resolved a local
+promise and left the harness working (`services/runner/src/engines/sandbox_agent/run-turn.ts`, the
+cancel race). Only Pi sent one, and only as a side effect of its trace-flush path calling
+`destroySession`. All three now get a real cancel.
+
 ## The six questions
 
 ### 1. Which request cancels a running prompt, and where is the guard?
@@ -241,9 +262,10 @@ Two deliberate non-changes:
 
 A Stop asks a different question from an ordinary idle park. The ordinary window asks how long a
 conversation might keep going by itself. A Stop is a button the user just pressed, so the answer is
-known: they are about to type. Parking a stopped session on the 60 second local idle window would
-throw the sandbox away while they were still writing, which is the cold start this whole change
-exists to remove.
+known: they are about to type. On the 60 second local idle window the sandbox can be thrown away
+while they are still writing, which is the cold start this whole change exists to remove. That is
+an argument for a longer window, not a decision this spike should make on its own, so the window is
+now its own named setting and the value is unchanged.
 
 Current windows, all from `services/runner/src/engines/sandbox_agent/session-identity.ts`:
 
@@ -251,16 +273,17 @@ Current windows, all from `services/runner/src/engines/sandbox_agent/session-ide
 | --- | --- | --- | --- |
 | Idle (a clean finished turn) | 60 s | 120 s | `AGENTA_RUNNER_SESSION_TTL_MS`, `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` |
 | Awaiting approval | 600 s | 120 s | `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` |
-| Stopped by the user (new) | 600 s | 120 s | `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS` |
+| Stopped by the user (new) | 60 s, recommended 600 s | 120 s | `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS` |
 
-The stopped window defaults to the approval window on the local provider, because the approval
-window already encodes "a human is about to act", which is the same situation. On Daytona it
-defaults to the ordinary idle window instead: a parked Daytona sandbox is billed compute, and the
-120 second idle window is already the compute-budget decision, so an operator opts in rather than
-inheriting a five-times-longer bill by accident.
+**The stopped window ships defaulting to the ordinary idle window, so this change alters no timing
+on its own.** It exists so the value is one named field with one env var when somebody decides to
+move it.
 
-It is one named field with one env var, so reverting is one value. Live evidence of it working:
-`park-cancelled key=... ttl=600000ms`. **Mahmoud decides whether 600 s is the right local number.**
+**The recommendation, which is Mahmoud's call: make it the approval window on the local provider,
+600 seconds.** The approval window already encodes "a human is about to act", which is the same
+situation. Daytona should not follow: a parked Daytona sandbox is billed compute, and its 120 second
+idle window is already that decision. Try it with `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS`, which was
+exercised live at 600 s and logged `park-cancelled key=... ttl=600000ms`.
 
 ## The settlement timeout (RFC D-016)
 
@@ -336,12 +359,21 @@ path is fine, but any test driver must replay it.
 - `shouldPark` parking a labelled settled Stop, destroying an unsettled one, destroying an
   UNLABELLED abort even when the cancel settled, destroying a failed turn, and still destroying on
   client disconnect.
-- The park windows, local and Daytona, and the teardown reason stopping rather than deleting.
+- The park windows, their env override, and the teardown reason stopping rather than deleting.
+- The terminal `done` record: a Stop carries `cancelled`, a pause still carries `paused`, and a
+  completed turn plus every harness-reported reason carry nothing. The last case is the point of
+  the two-value allowlist.
 
 `services/runner/tests/unit/teardown.test.ts` gains the `cancelled` row, and
 `services/runner/tests/unit/session-pool.test.ts` gains the new config field.
 
-Full suite: `cd services/runner && pnpm test` gives 159 files passed, 2647 tests passed.
+On the frontend, `web/packages/agenta-chat/tests/unit/assets/transcriptToMessages.test.ts` pins that
+a cancelled `done` closes the turn like a completed one and does not mark it paused. Reconstruction
+reads only `"paused"` (`transcriptToMessages.ts`), so the new value is inert there, which is a claim
+worth a test rather than a comment.
+
+Full suite: `cd services/runner && pnpm test` gives 159 files passed, 2651 tests passed. The
+agenta-chat transcript suite gives 52 passed.
 
 ## What is not done
 
@@ -391,9 +423,10 @@ scenario must log `settled=false` and `no-park:cancelled`. That proves the guard
    window closes, the window is 120 s on Daytona where the compute is billed, and holding Codex back
    means Codex users keep paying a cold start on every Stop. The alternative, an env flag that
    excludes one harness from parking, is machinery for a decision we would reverse within the week.
-2. **600 seconds for the local stopped-session window?** Recommendation: yes. It matches the
-   approval window, which already encodes "a human is about to act", and the local provider is host
-   memory rather than billed compute. Daytona deliberately keeps its 120 s.
+2. **Move the local stopped-session window from 60 s to 600 s?** It ships on 60 s, the ordinary
+   idle window, so nothing changed yet. Recommendation: move it. It would match the approval
+   window, which already encodes "a human is about to act", and the local provider is host memory
+   rather than billed compute. Daytona should keep its 120 s either way.
 3. **Ten seconds for the settle budget?** Recommendation: yes, ship it. The measured cost is
    14 to 31 ms, so the budget is not a latency cost in the normal case, and it only ever delays a
    Stop that is already going badly.
