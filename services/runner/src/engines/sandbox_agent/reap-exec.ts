@@ -202,7 +202,14 @@ export async function reapLeakedExecChildren(
     return { killed: 0, skipped: "no-app-server" };
   }
 
-  const turnElapsedSeconds = Math.ceil(Math.max(0, input.turnElapsedMs) / 1000);
+  // FLOOR, not round or ceil. Every rounding error must make the reap kill LESS. On a cold first
+  // turn the session's own helpers (Codex clones its plugin repo) start barely a second before
+  // the prompt, so one second of generosity here is one second of overlap with processes the
+  // session owns. A child born in the first second of a turn is not physically possible: the
+  // model has to emit a tool call first.
+  const turnElapsedSeconds = Math.floor(
+    Math.max(0, input.turnElapsedMs) / 1000,
+  );
   const pids = selectLeakedExecPids(rows, {
     appServerPid,
     turnElapsedSeconds,
