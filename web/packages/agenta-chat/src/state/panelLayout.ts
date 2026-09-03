@@ -55,6 +55,17 @@ export const configPanelCollapsedPreferenceAtom = atomWithStorage<boolean | null
 )
 
 /**
+ * The same answer asked separately at phone width (#6378) — one shared key let a desktop
+ * `false` open the pane over the whole phone screen. The wide side keeps the original key.
+ */
+export const configPanelCollapsedPhonePreferenceAtom = atomWithStorage<boolean | null>(
+    "agenta:chat:config-panel-collapsed-phone",
+    null,
+    undefined,
+    {getOnInit: true},
+)
+
+/**
  * The default when nothing is stored: hidden on a phone, visible everywhere else — and hidden
  * anywhere a surface asks for it via `hostCollapsed` (first run, which leads with the question
  * rather than a form for an agent that does not exist yet).
@@ -69,15 +80,45 @@ export const resolveConfigPanelCollapsed = (
     hostCollapsed = false,
 ): boolean => stored ?? (phoneViewport || hostCollapsed)
 
-/** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
- * in Build is not the same as switching to Chat. */
+/** The stored preference for the CURRENT viewport; reading either atom directly picks the
+ * wrong breakpoint's answer. */
+export const configPanelCollapsedViewportPreferenceAtom = atom((get) =>
+    get(
+        get(phoneViewportAtom)
+            ? configPanelCollapsedPhonePreferenceAtom
+            : configPanelCollapsedPreferenceAtom,
+    ),
+)
+
+/** Build mode's config pane collapsed to 0, separate from the maximize flag. Reads and writes
+ * the current viewport's preference so neither breakpoint overwrites the other (#6378). */
 export const configPanelCollapsedAtom = atom(
-    (get) =>
-        resolveConfigPanelCollapsed(
-            get(configPanelCollapsedPreferenceAtom),
-            get(phoneViewportAtom),
-        ),
-    (_get, set, collapsed: boolean) => {
-        set(configPanelCollapsedPreferenceAtom, collapsed)
+    (get) => {
+        const phoneViewport = get(phoneViewportAtom)
+        return resolveConfigPanelCollapsed(
+            get(
+                phoneViewport
+                    ? configPanelCollapsedPhonePreferenceAtom
+                    : configPanelCollapsedPreferenceAtom,
+            ),
+            phoneViewport,
+        )
+    },
+    (get, set, collapsed: boolean) => {
+        set(
+            get(phoneViewportAtom)
+                ? configPanelCollapsedPhonePreferenceAtom
+                : configPanelCollapsedPreferenceAtom,
+            collapsed,
+        )
     },
 )
+
+/**
+ * "Show me the configuration": clears BOTH things that hide the pane — the maximize flag and
+ * the collapse preference — since either one alone leaves nothing to edit (#6381).
+ */
+export const revealConfigPaneAtom = atom(null, (_get, set) => {
+    set(chatPanelMaximizedAtom, false)
+    set(configPanelCollapsedAtom, false)
+})
