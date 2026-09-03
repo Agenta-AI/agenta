@@ -152,6 +152,25 @@ describe("reapLeakedExecChildren", () => {
     };
   }
 
+  it("rounds the turn's age DOWN, so a session helper a hair older survives", async () => {
+    // The `git fetch` Codex runs to sync its plugins starts about a second before the prompt on
+    // a cold turn. At 28.9 s of turn, a 29 s-old helper must not be a candidate.
+    const { sandbox, calls } = sandboxWith(
+      [
+        "68029 68022 116 /x/bin/codex app-server",
+        "68100 68029  29 git -C /w/.codex/.tmp/plugins-clone fetch --depth 1",
+        "68164 68029  22 sleep 300",
+      ].join("\n"),
+    );
+    const result = await reapLeakedExecChildren({
+      sandbox,
+      turnElapsedMs: 28_900,
+      log: vi.fn(),
+    });
+    expect(result).toEqual({ killed: 1 });
+    expect(calls[1]).toMatchObject({ command: "kill", args: ["-9", "68164"] });
+  });
+
   it("lists, then kills exactly the leaked pid", async () => {
     const { sandbox, calls } = sandboxWith(LIVE_PS);
     const log = vi.fn();
