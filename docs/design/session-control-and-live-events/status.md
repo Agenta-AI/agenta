@@ -60,17 +60,24 @@ The lead decision record is `reviews/decision-list-2026-09-03.md`. Track C measu
 - Daytona Stop responses took 70 to 104 milliseconds.
 - Record recovery after a Postgres outage passed on the integration tip.
 - Thirteen control and recovery cells passed with the current quarantine behavior.
-- Integrated head `3c9ce08a29` passed the local Claude Code, Daytona Pi, and Daytona Codex HTTP
-  cells. Hook-cell results follow.
+- Integrated head `3c9ce08a29` passed the full hook matrix on local Pi and the HTTP matrix on Pi
+  Daytona. It also passed the local Claude Code and Daytona Codex HTTP cells.
+- PR #6496 fixes Codex child reaping at `cce2b21bc35091`. The integration branch needs to re-merge
+  that fix.
 
 The `Proven` columns in `qa.md` distinguish full, partial, and missing evidence.
 
 ## Known gaps
 
-Under the `ask` permission, Claude Code's built-in shell and Codex's shell tool run without an
-approval request. Their frames go from `tool-input-available` straight to `tool-output-available`.
-Only Pi asks for shell approval, as the Daytona run
+Claude Code and Codex have no approval gate because their shell tools are not gated by `ask`.
+Their frames go from `tool-input-available` straight to `tool-output-available`. Only Pi asks for
+shell approval, as the Daytona run
 `~/agenta-qa-evidence/20260903-233439-3632265-session-control` showed.
+
+The local provider exposes one shared process table to all sandboxes. The Codex reap disabled
+itself when it saw more than one Codex app-server. PR #6496 fixed this at `cce2b21bc35091` by
+anchoring on the daemon port for that sandbox. Daytona was never affected. The integration branch still
+needs that fix re-merged.
 
 ## Pull request roles and bases
 

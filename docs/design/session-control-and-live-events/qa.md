@@ -14,6 +14,13 @@ Tonight's HTTP cells ran on integrated head `3c9ce08a29` from stack
 sandbox ID before and after. The table marks these results as proven (HTTP cells). The hook rows
 retain the stored-state checks.
 
+The local Pi hook run at `~/agenta-qa-evidence/20260903-235010-3823500-session-control` passed all
+13 cells. Each stopped session had one `session_executions` row with
+`terminal_outcome=stopped` and `settled_by=runner`. Each also had one applied
+`session_commands` row. No command remained claimed or pending. The `sandbox-gone` cell read
+`is_running=false` and `is_alive=true`. The `stale-tail` cell quarantined its late `done`
+record. It left the three on-time records unquarantined.
+
 The final candidate reruns every applicable row after selected packages are integrated.
 
 ## Invariants
@@ -33,33 +40,39 @@ Each `Proven` column records prior evidence. It does not prove a future release 
 
 | Provider and harness | Requirement | Proven: commit, provider, harness, evidence path |
 |---|---|---|
-| Local, Pi | Full Stop, approval, restart, and child-cleanup set | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
+| Local, Pi | Full Stop, approval, restart, and child-cleanup set | Proven at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control`; all 13 hook cells passed |
 | Local, Claude Code | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, local, Claude Code, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`; six applicable cells passed, and the built-in shell requested no approval |
-| Local, Codex | Full set on candidate | Partly proven at `9e21fba4ee` and `e6a033063a`, local, Codex, `child-process-cleanup.md` and `integration-refresh.md` |
+| Local, Codex | Full set on candidate | Partly proven at `3c9ce08a29`, local, Codex, `~/agenta-qa-evidence/20260904-003056-143305-session-control`; `codex-child`, `repeat-stop`, and `stop-during-completion` passed one cell at a time with a one-sandbox pool on a healthy runner. `stale-tail` did not apply because Codex produced no late record after the pause |
 | Daytona, Pi | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; all seven cells passed |
 | Daytona, Claude Code | Full set on candidate | Partly proven at `9110c08000`, Daytona, Claude Code, `daytona-pi-claude.md` |
 | Daytona, Codex | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Codex, `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; six applicable cells passed, the warm resume recalled the codeword, and the shell tool requested no approval |
 | Codex 1.1.7 versus 1.8.0 | Full Codex matrix on both pins | Not proven; no 1.8.0 run or evidence path |
 
+The earlier local Codex hook run at
+`~/agenta-qa-evidence/20260904-000419-session-control` reported four failures. The runner entered a
+cgroup freeze after the restart cell. The driver also hit one `KeyError`. The healthy one-cell
+reruns resolved all failures.
+
 ## Stop and recovery
 
 | Scenario | Expected result | Proven: commit, provider, harness, evidence path |
 |---|---|---|
-| Stop during output | One stopped outcome; warm continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
+| Stop during output | One stopped outcome; warm continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
 | Stop during a long tool | Tool child ends; one stopped outcome; warm continuation succeeds | Partly proven at `9110c08000`, local and Daytona, Pi and Claude Code, `daytona-pi-claude.md` and `local-claude-and-restart.md` |
-| Stop while approval waits | Interaction cancels; late answer conflicts; continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; Stop cancelled the parked approval, the late answer returned `409`, and continuation recalled the codeword in the same sandbox. Before PR #6501, this failed in five of five local and Daytona Pi attempts across `~/agenta-qa-evidence/20260903-214848-2179056-session-control`, `~/agenta-qa-evidence/20260903-214916-2186506-session-control`, `~/agenta-qa-evidence/20260903-215100-2212560-session-control`, and `~/agenta-qa-evidence/20260903-215210-2229665-session-control`: the runner kept the gate after Stop, and the next message took the approval-resume path. PR #6501 fixed the defect. Claude Code and Codex have no applicable interaction because their built-in shell tools do not ask for approval. |
-| Two Sends arrive together | One admits; one returns busy; first execution stays healthy | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
-| Stale execution guard | Conflict; current work remains untouched | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
-| Repeated Stop | One command effect and one terminal outcome | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
-| Stop immediately after completion | `not_running`; warm sandbox remains available | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
-| Stop while execution completes | One committed winner; never both completed and stopped | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
-| Runner dies while Stop is claimed | Watchdog settles command and execution; next Send succeeds within 150 seconds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`, 137.5 seconds |
-| Sandbox disappears | Explicit failure; next Send succeeds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`, 101.5 seconds |
+| Stop while approval waits | Interaction cancels; late answer conflicts; continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; Stop cancelled the parked approval, the late answer returned `409`, and continuation recalled the codeword in the same sandbox. Before PR #6501, this failed in five of five local and Daytona Pi attempts across `~/agenta-qa-evidence/20260903-214848-2179056-session-control`, `~/agenta-qa-evidence/20260903-214916-2186506-session-control`, `~/agenta-qa-evidence/20260903-215100-2212560-session-control`, and `~/agenta-qa-evidence/20260903-215210-2229665-session-control`: the runner kept the gate after Stop, and the next message took the approval-resume path. PR #6501 fixed the defect. Claude Code and Codex have no applicable interaction because their built-in shell tools do not ask for approval; proven hooks at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
+| Two Sends arrive together | One admits; one returns busy; first execution stays healthy | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
+| Stale execution guard | Conflict; current work remains untouched | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
+| Repeated Stop | One command effect and one terminal outcome | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi and Codex, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` and `~/agenta-qa-evidence/20260904-003056-143305-session-control` |
+| Stop immediately after completion | `not_running`; warm sandbox remains available | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
+| Restart after Stop | The harness restores its native session; continuation succeeds | Proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control`; the native session rehydrated |
+| Stop while execution completes | One committed winner; never both completed and stopped | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; proven hooks at `3c9ce08a29`, local, Pi and Codex, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` and `~/agenta-qa-evidence/20260904-003056-143305-session-control` |
+| Runner dies while Stop is claimed | Watchdog settles command and execution; next Send succeeds within 150 seconds | Not run at `3c9ce08a29`; every settled Stop tonight had a live runner. Prior evidence passed at `e6a033063a`, local, Pi, `integration-refresh.md`, in 137.5 seconds |
+| Sandbox disappears | Explicit failure; next Send succeeds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`, 101.5 seconds; proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control`; `session_streams` read `is_running=false` and `is_alive=true` |
 | Normal runner shutdown | Claims release before process exit | Partly proven at `5a10e6b100`, local, Pi, `cancel-continuity.md` |
 | Forced runner kill | Lease and watchdog recover inside the accepted bound | Partly proven at `5a10e6b100`, local, Pi, `cancel-continuity.md` |
-| Runner sends a stale tail | Output stays out of canonical history for every terminal cause | Partly proven at `e6a033063a`, local, Pi, `integration-refresh.md` and `watchdog-stale-tail.md`; only watchdog quarantine ran |
-| Post-Stop state | Redis and Postgres show `running=false`; `alive=true` only during safe park | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` and `post-stop-mirror.md` |
-| Postgres outage during record ingest | Entries remain pending and commit once after recovery | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
+| Runner sends a stale tail | Output stays out of canonical history for every terminal cause | Partly proven at `e6a033063a`, local, Pi, `integration-refresh.md` and `watchdog-stale-tail.md`; only watchdog quarantine ran; proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control`; the late `done` record had `quarantined_at`, and the three on-time records did not. Not applicable for Codex at `3c9ce08a29`, local hooks, `~/agenta-qa-evidence/20260904-003056-143305-session-control`; Codex produced no late record after the pause |
+| Post-Stop state | Redis and Postgres show `running=false`; `alive=true` only during safe park | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` and `post-stop-mirror.md`; proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control`; `is_running` became false 0.18 seconds after Stop |
+| Postgres outage during record ingest | Entries remain pending and commit once after recovery | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`; proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
 | Desktop failed Stop request | UI restores `running` and observation | Not proven; client cell required |
 | Recovery UI | Client shows `recovering` until watchdog settlement | Not proven; client cell required |
 
@@ -74,7 +87,7 @@ Each `Proven` column records prior evidence. It does not prove a future release 
 | API death after command commit | Sweep redelivers with same ID or settles bounded `lost` | Not proven; required failure injection |
 | API death during settlement | Postgres facts stay atomic; Redis sweep repairs state | Not proven; required failure injection |
 | Unguarded idle Stop | `already_idle` success | Partly proven at `38cbc92201`, local, Pi, `post-stop-mirror.md`; test observed `not_running` after a turn |
-| Guarded stale Stop | `execution_mismatch`; new execution untouched | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
+| Guarded stale Stop | `execution_mismatch`; new execution untouched | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`; proven at `3c9ce08a29`, local, Pi hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` |
 | Stop and approval response in one window | One transaction wins; loser conflicts; session continues | Not proven; prior runs were sequential |
 | Approval continuation delivery fails | Accepted answer remains durable and recoverable | Not proven; no run |
 | Queue promotion | Normal completion promotes one input in order | Not proven; Queue not implemented |
@@ -119,7 +132,7 @@ Each `Proven` column records prior evidence. It does not prove a future release 
 | Scenario | Expected result | Proven: commit, provider, harness, evidence path |
 |---|---|---|
 | Runner shutdown grace | Grace exceeds bounded cleanup and owner releases before kill | Not proven; no configured value or run |
-| Codex child cleanup | No child remains after Stop on local and Daytona | Partly proven at `9e21fba4ee` and `e6a033063a`, local, Codex, `child-process-cleanup.md` and `integration-refresh.md` |
+| Codex child cleanup | No child remains after Stop on local and Daytona | Partly proven at `9e21fba4ee` and `e6a033063a`, local, Codex, `child-process-cleanup.md` and `integration-refresh.md`; proven on local at `3c9ce08a29`, Pi and Codex hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` and `~/agenta-qa-evidence/20260904-003056-143305-session-control`; the Pi run reaped the child in 1.0 seconds |
 | Failed cleanup | Unsafe sandbox never reports warm resume | Partly proven at `38cbc92201`, local, Pi, `post-stop-mirror.md`; no deliberate injection |
 | Bounded sweep pass | Timed-out pass logs; a later pass settles stale work | Not proven; required watchdog cell |
 | Failed notification | Committed record remains readable | Not proven; required failure injection |
@@ -128,6 +141,13 @@ Each `Proven` column records prior evidence. It does not prove a future release 
 | Log privacy | Captured logs contain no message content or tokens | Not proven; grep captured logs for seeded secret prefix |
 | Minimal metrics | Required counters and histograms emit without high-cardinality labels | Not proven; metrics not implemented |
 | Claude Code shell permission | Dedicated Linear security issue contains repro and status | Partly documented at `9110c08000`, local and Daytona, Claude Code, `local-claude-and-restart.md` and `daytona-pi-claude.md`; exact issue link missing |
+
+On the local provider, every sandbox shares one process table. The Codex reap disabled itself when
+it saw more than one Codex app-server. PR #6496 fixed this at `cce2b21bc35091` by anchoring the reap
+to the daemon port for that sandbox. Daytona was never affected.
+
+Tonight did not drive the lost-outcome case where a runner dies while a Stop is claimed. Every
+settled Stop had a live runner.
 
 ## Required metrics
 
