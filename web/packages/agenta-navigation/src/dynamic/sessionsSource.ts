@@ -638,7 +638,7 @@ export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
  * that memo. Date and flat groupings offer nothing — their order MEANS something (a calendar, an
  * activity run), and overriding it would make the heading lie.
  */
-const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
+export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
     agent: {
         // The headings arrange the SHARED agent zone — the Agents group's own list.
         groupZone: SIDEBAR_AGENT_ORDER_ZONE,

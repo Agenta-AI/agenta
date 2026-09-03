@@ -8,6 +8,11 @@ import {
 } from "../../src/reorder/applyOrder"
 import {withRefsByRecency} from "../../src/dynamic/groups"
 import type {SidebarEntityRef, SidebarEntitySource} from "../../src/dynamic/types"
+import {SESSION_REORDER_ZONES} from "../../src/dynamic/sessionsSource"
+import {
+    SIDEBAR_AGENT_ORDER_ZONE,
+    SIDEBAR_STATUS_GROUP_ZONE,
+} from "../../src/reorder/manualOrder"
 
 const id = (row: {id: string}) => row.id
 const rows = (...ids: string[]) => ids.map((value) => ({id: value}))
@@ -123,5 +128,39 @@ describe("movedManualOrder", () => {
 
     it("refuses an id the zone does not hold", () => {
         expect(movedManualOrder(["a", "b"], "z", 1)).toBeNull()
+    })
+})
+
+describe("SESSION_REORDER_ZONES", () => {
+    it("offers no zones under date or flat grouping", () => {
+        // Those orders MEAN something — a calendar, an activity run — so overriding them would
+        // make the heading lie.
+        expect(SESSION_REORDER_ZONES.date).toBeUndefined()
+        expect(SESSION_REORDER_ZONES.none).toBeUndefined()
+    })
+
+    it("arranges agent headings in the Agents group's own zone", () => {
+        expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_ORDER_ZONE)
+    })
+
+    it("saves an agent heading under the bare agent id", () => {
+        // The Agents group writes workflow ids into this same zone; a prefixed key here would
+        // make the two surfaces disagree about what they arranged.
+        expect(SESSION_REORDER_ZONES.agent?.groupId?.("agent:abc123")).toBe("abc123")
+    })
+
+    it("gives each agent heading its own row zone, and none to pins or the unassigned bucket", () => {
+        const rowZone = SESSION_REORDER_ZONES.agent?.rowZone
+        expect(rowZone?.("agent:abc123")).toBe("sessions:agent:abc123")
+        expect(rowZone?.("pinned")).toBeUndefined()
+        expect(rowZone?.("agent:none")).toBeUndefined()
+    })
+
+    it("arranges status headings and their rows, but leaves pins alone", () => {
+        expect(SESSION_REORDER_ZONES.status?.groupZone).toBe(SIDEBAR_STATUS_GROUP_ZONE)
+        expect(SESSION_REORDER_ZONES.status?.rowZone?.("status:running")).toBe(
+            "sessions:status:running",
+        )
+        expect(SESSION_REORDER_ZONES.status?.rowZone?.("pinned")).toBeUndefined()
     })
 })
