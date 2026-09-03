@@ -1,4 +1,6 @@
 ---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
 import Site from "../layouts/Site.astro";
 import SectionTitle from "../components/SectionTitle.astro";
 import HostingToggle from "../components/HostingToggle.tsx";
@@ -48,17 +50,14 @@ const linkStyle =
        the page is correct before hydration / without JS. -->
   <div id="pricing-root" data-hosting={hostingToggle.defaultMode === "selfHosted" ? "selfhosted" : "cloud"}>
     <!-- ============ HERO + HOSTING TOGGLE ============ -->
-    <section class="pricing-hero" data-screen-label="Pricing hero">
+    <Section tone="flat" class="pricing-hero" data-screen-label="Pricing hero">
       <div
         style="display:flex;flex-direction:column;align-items:center;gap:28px;"
       >
         <div
           style="display:flex;flex-direction:column;align-items:center;gap:22px;"
         >
-          <span
-            style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--th-badge-bg);box-shadow:0 0 0 1px var(--th-badge-ring);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--pp-eyebrow-text);"
-            >{hero.eyebrow}</span
-          >
+          <Badge>{hero.eyebrow}</Badge>
           <h1
             class="ag-h1"
             style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);max-width:760px;text-wrap:pretty;"
@@ -79,24 +78,24 @@ const linkStyle =
           options={hostingToggle.options as { mode: "cloud" | "selfHosted"; label: string; sublabel?: string }[]}
         />
       </div>
-    </section>
+    </Section>
 
     <!-- ============ PLAN CARDS ============ -->
-    <section class="cards-section" data-screen-label="Plan cards">
+    <Section tone="flat" class="cards-section" data-screen-label="Plan cards">
       <div class="plan-grid plan-grid-cloud mode-cloud">
         {plansByMode.cloud.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
       </div>
       <div class="plan-grid plan-grid-self mode-selfhosted">
         {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
       </div>
-    </section>
+    </Section>
 
     <!-- ============ COMPARISON TABLE ============ -->
     <!-- One comparison table per hosting mode, both server-rendered and swapped by the
          same data-hosting CSS as the plan grids. Cloud has 4 plan columns, self-hosted
          has 2 — each uses its own grid template so the 2-column table fills the width
          cleanly instead of leaving empty plan columns. -->
-    <section class="cmp-section" data-screen-label="Comparison">
+    <Section tone="flat" class="cmp-section" data-screen-label="Comparison">
       {
         comparisonModes.map(({ cls, data }) => {
           const cols = data.columns.length;
@@ -192,10 +191,10 @@ const linkStyle =
           );
         })
       }
-    </section>
+    </Section>
 
     <!-- ============ FAQ ============ -->
-    <section class="faq-section" data-screen-label="FAQ">
+    <Section tone="flat" class="faq-section" data-screen-label="FAQ">
       <div class="faq-wrap">
         <SectionTitle
           badge="FAQ"
@@ -231,7 +230,7 @@ const linkStyle =
           }
         </div>
       </div>
-    </section>
+    </Section>
   </div>
 </Site>
 
@@ -239,27 +238,19 @@ const linkStyle =
   /* ── section shells (backgrounds + responsive padding) ── */
   .pricing-hero {
     background: var(--pp-sec-a);
-    border: 1px solid var(--th-section-border);
-    margin-top: -1px;
     text-align: center;
     padding: 80px 24px 56px;
   }
   .cards-section {
     background: var(--pp-sec-cards);
-    border: 1px solid var(--th-section-border);
-    margin-top: -1px;
     padding: 56px 0 96px;
   }
   .cmp-section {
     background: var(--pp-sec-a);
-    border: 1px solid var(--th-section-border);
-    margin-top: -1px;
     padding: 112px 0;
   }
   .faq-section {
     background: var(--pp-sec-faq);
-    border: 1px solid var(--th-section-border);
-    margin-top: -1px;
     padding: 112px 0;
   }
 
@@ -479,7 +470,6 @@ const linkStyle =
     --pp-sec-a: var(--th-bg-1);
     --pp-sec-cards: var(--th-bg-1);
     --pp-sec-faq: var(--th-bg-1);
-    --pp-eyebrow-text: var(--ink-600);
     --pp-cmp-headrule: var(--th-border);
     --pp-cmp-mut: var(--ink-500);
     --pp-cmp-group: var(--ink-900);
@@ -499,7 +489,6 @@ const linkStyle =
     --pp-sec-a: #0e0d0f;
     --pp-sec-cards: #0a090a;
     --pp-sec-faq: #161518;
-    --pp-eyebrow-text: rgba(255, 255, 255, 0.7);
     --pp-cmp-headrule: rgba(255, 255, 255, 0.12);
     --pp-cmp-mut: rgba(255, 255, 255, 0.5);
     --pp-cmp-group: var(--yellow-400);

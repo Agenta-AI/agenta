@@ -1,4 +1,6 @@
 ---
+import Badge from "./Badge.astro";
+import Section from "./Section.astro";
 // Hero — dark landing. Copy = the approved pivot rev-5 headline.
 import HeroVideo from "./HeroVideo.astro";
 
@@ -17,18 +19,14 @@ const heroSub =
 const SHOW_HERO_VIDEO = false;
 ---
 
-<section
+<Section
   data-screen-label="Hero"
   class="ag-hero"
-  style="background:var(--th-bg-1);border:1px solid var(--th-section-border);margin-top:-1px;padding:128px 0 136px;text-align:center;"
+  style="background:var(--th-bg-1);padding:128px 0 136px;text-align:center;"
 >
   <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
-      <a
-        href="/blog/introducing-agenta-2-0"
-        style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 12px;border-radius:999px;background:var(--th-badge-bg);box-shadow:0 0 0 1px var(--th-badge-ring);font:var(--text-caption);letter-spacing:0.03em;color:var(--th-badge-text);text-decoration:none;"
-        >Agenta 2.0 — read the announcement →</a
-      >
+      <Badge href="/blog/introducing-agenta-2-0">Agenta 2.0 — read the announcement →</Badge>
       <h1
         class="ag-h1"
         style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:920px;text-wrap:pretty;"
@@ -48,26 +46,24 @@ const SHOW_HERO_VIDEO = false;
 
     <div style="display:flex;gap:12px;">
       <a
-        class="ag-key"
+        class="ag-btn ag-btn--primary"
         href={GET_STARTED}
         target="_blank"
         rel="noopener"
-        style="--key-alpha:0.9;display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
         >Start building</a
       >
       <a
-        class="ag-ghost"
+        class="ag-btn ag-btn--outline"
         href={READ_DOCS}
         target="_blank"
         rel="noopener"
-        style="display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);cursor:pointer;text-decoration:none;"
         >Read the docs</a
       >
     </div>
 
     {SHOW_HERO_VIDEO && <HeroVideo />}
   </div>
-</section>
+</Section>
 
 <style is:global>
   /* Highlighted-word chip: light = grey keycap chip with ink text (mockup);

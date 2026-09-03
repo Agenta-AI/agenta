@@ -1,4 +1,5 @@
 ---
+import Section from "../../components/Section.astro";
 import type { GetStaticPaths } from "astro";
 import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
@@ -67,8 +68,6 @@ const articleJsonLd = {
   },
 };
 
-const sectionBorder =
-  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
@@ -76,7 +75,6 @@ const sectionBorder =
   description={description}
   ogType="article"
   ogImage={ogPath}
-  whiteChrome
 >
   <Fragment slot="head">
     <script
@@ -86,7 +84,7 @@ const sectionBorder =
     />
   </Fragment>
 
-  <article style={`background:var(--bp-sec-1);${sectionBorder}padding:0 0 24px;`}>
+  <Section as="article" tone="flat" style="background:var(--bp-sec-1);padding:0 0 24px;">
     <!-- header -->
     <div
       class="ag-pad ag-post-head"
@@ -201,14 +199,14 @@ const sectionBorder =
     >
       <Content components={{ InlineCTA, img: BlogImage }} />
     </div>
-  </article>
+  </Section>
 
   <!-- More from the blog -->
   {
     related.length > 0 && (
-      <section
+      <Section tone="flat"
         class="ag-pad"
-        style={`background:var(--bp-sec-0);${sectionBorder}padding:72px 64px 88px;`}
+        style="background:var(--bp-sec-0);padding:72px 64px 88px;"
       >
         <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
           <div style="display:flex;flex-direction:column;gap:8px;">
@@ -221,7 +219,7 @@ const sectionBorder =
           </div>
           <a
             href="/blog"
-            style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);text-decoration:none;"
+            class="ag-btn ag-btn--outline"
           >
             View all blogs
             <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
@@ -244,7 +242,7 @@ const sectionBorder =
             <PostCard post={p} variant="related" />
           ))}
         </div>
-      </section>
+      </Section>
     )
   }
 

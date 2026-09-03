@@ -1,4 +1,6 @@
 ---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
 import Site from "../layouts/Site.astro";
 
 // Legal data confirmed by the founder on 2026-07-22 (register HRB 254081 B,
@@ -11,16 +13,13 @@ import Site from "../layouts/Site.astro";
   showCta={false}
 >
   <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
-  <section
+  <Section tone="flat"
     style="background:var(--im-hero-bg);border-bottom:1px solid var(--th-section-border);"
   >
     <div
       style="max-width:860px;margin:0 auto;padding:96px 32px 80px;"
     >
-      <span
-        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--th-badge-bg);box-shadow:0 0 0 1px var(--th-badge-ring);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--im-eyebrow-text);margin-bottom:24px;"
-        >Legal</span
-      >
+      <Badge style="margin-bottom:24px;">Legal</Badge>
       <h1
         class="ag-h1"
         style="margin:0 0 16px;font:var(--text-display-lg);color:var(--th-text-hi);text-wrap:pretty;"
@@ -34,10 +33,10 @@ import Site from "../layouts/Site.astro";
         This page also serves as the contact page for Agenta.
       </p>
     </div>
-  </section>
+  </Section>
 
   <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
-  <section style="background:var(--im-body-bg);padding:64px 32px 96px;">
+  <Section tone="flat" style="background:var(--im-body-bg);padding:64px 32px 96px;">
     <div
       style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
     >
@@ -137,7 +136,7 @@ import Site from "../layouts/Site.astro";
       </div>
 
     </div>
-  </section>
+  </Section>
 </Site>
 
 <style is:global>
@@ -148,12 +147,10 @@ import Site from "../layouts/Site.astro";
     --im-hero-bg: var(--th-bg-1);
     --im-body-bg: var(--th-bg-1);
     --im-panel-bg: var(--paper-50);
-    --im-eyebrow-text: var(--ink-600);
   }
   [data-theme="dark"] {
     --im-hero-bg: #0e0d0f;
     --im-body-bg: #0a0a0b;
     --im-panel-bg: #100f11;
-    --im-eyebrow-text: rgba(255, 255, 255, 0.7);
   }
 </style>

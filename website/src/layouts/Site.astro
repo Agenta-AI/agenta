@@ -1,14 +1,15 @@
 ---
-// Site — the shared page layout for the marketing site.
+// Site — the shared page layout for the marketing site. Every page uses it,
+// the landing included.
 //
 // Wraps Base (html/head: fonts, tokens, global CSS, meta/OG + a `head` slot) and
 // renders the shared chrome around the page body: SiteNav, the page <slot/>, an
-// optional yellow CTA band, and SiteFooter — all inside the 1440-wide frame that
-// shows the page background as a 12px gutter (same as the landing).
+// optional yellow CTA band, and SiteFooter, all inside the 1440 column
+// (`.ag-wrap` in global.css). Framer's column is flat: the page ground shows
+// only outside it, on windows wider than 1440.
 //
-// Chrome is unified with the landing: the same SiteNav (hover dropdowns, button
-// hover) and SiteFooter render everywhere. SiteNav is passed WITHOUT `sticky`
-// here, so inner pages get a static top bar; only the landing sticks + pills.
+// `sticky` turns on the nav's scroll-pill behaviour. The landing passes it;
+// inner pages get the identical bar as a static top bar.
 import Base from "./Base.astro";
 import SiteNav from "../components/SiteNav.astro";
 import CtaBand from "../components/CtaBand.astro";
@@ -30,12 +31,10 @@ interface Props {
   // Blog posts set ogType="article" and an ogImage; everything else defaults.
   ogType?: "website" | "article";
   ogImage?: string;
+  // Scroll-pill nav (landing only).
+  sticky?: boolean;
   // Show the shared yellow CTA band before the footer (default: true).
   showCta?: boolean;
-  // Blog/authors pages are ALL-WHITE in the light theme (nav, footer, gutter
-  // included) — they pass whiteChrome to opt the wrap into .th-page-white
-  // (see theme.css). No visual effect in dark.
-  whiteChrome?: boolean;
   // Optional copy/destinations for the CTA band; omitted keys fall back to the
   // landing defaults baked into CtaBand.astro.
   cta?: CtaProps;
@@ -46,8 +45,8 @@ const {
   description,
   ogType,
   ogImage,
+  sticky = false,
   showCta = true,
-  whiteChrome = false,
   cta = {},
 } = Astro.props;
 ---
@@ -55,12 +54,8 @@ const {
 <Base title={title} description={description} ogType={ogType} ogImage={ogImage}>
   <slot name="head" slot="head" />
 
-  <!-- The page bg shows as a 12px frame around the 1440-wide section stack. -->
-  <div
-    class:list={["ag-wrap", whiteChrome && "th-page-white"]}
-    style="width:100%;max-width:1440px;margin:0 auto;background:var(--th-page);padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
-  >
-    <SiteNav />
+  <div class="ag-wrap">
+    <SiteNav sticky={sticky} />
     <main>
       <slot />
     </main>

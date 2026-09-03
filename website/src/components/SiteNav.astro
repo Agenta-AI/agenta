@@ -1,4 +1,5 @@
 ---
+import Button from "./Button.astro";
 // SiteNav — the single nav for the whole site (landing + inner pages).
 // `sticky` gates the scroll-pill machinery (rAF loop + .nav-scrolled styles +
 // wordmark clip): the landing passes it; every other page renders the identical
@@ -66,8 +67,10 @@ const chevron = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><pa
 const icoMonitor = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>`;
 const icoSun = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
 const icoMoon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
+// Framer's nav item: 36px tall, 8px/12px padding, 8px radius, 14px/500 Inter
+// with 0.02em tracking, in ink-900.
 const linkStyle =
-  "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:var(--th-nav-text);cursor:pointer;text-decoration:none;";
+  "display:inline-flex;align-items:center;gap:5px;height:36px;padding:8px 12px;border-radius:8px;font:var(--text-label);letter-spacing:0.02em;color:var(--th-nav-text);cursor:pointer;text-decoration:none;";
 const triggerStyle = linkStyle + "border:none;background:transparent;";
 ---
 
@@ -78,6 +81,8 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
      on scroll they ride down by the same inset (dy only, dx stays 0) so they
      never shift horizontally. See the nav-pill block in global.css. -->
 <nav class="ag-navshell" data-pill={sticky ? "" : undefined}>
+  <span class="ag-nav-rule ag-nav-rule-l" aria-hidden="true"></span>
+  <span class="ag-nav-rule ag-nav-rule-r" aria-hidden="true"></span>
   <div class="ag-nav-inner">
     <a class="ag-brand" href="/" aria-label="Agenta home">
       <img
@@ -105,18 +110,8 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
         <span data-ico="light" set:html={icoSun} />
         <span data-ico="dark" set:html={icoMoon} />
       </button>
-      <a
-        class="ag-ghost"
-        href={BOOK_DEMO}
-        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);cursor:pointer;text-decoration:none;"
-        >Book a demo</a
-      >
-      <a
-        class="ag-key"
-        href={GET_STARTED}
-        style="--key-alpha:0.9;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
-        >Get started</a
-      >
+      <Button variant="outline" href={BOOK_DEMO}>Book a demo</Button>
+      <Button variant="primary" href={GET_STARTED}>Get started</Button>
     </div>
 
     <button
@@ -235,18 +230,8 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       <span data-ico="light" set:html={icoSun} />
       <span data-ico="dark" set:html={icoMoon} />
     </button>
-    <a
-      class="ag-ghost"
-      href={BOOK_DEMO}
-      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);cursor:pointer;text-decoration:none;"
-      >Book a demo</a
-    >
-    <a
-      class="ag-key"
-      href={GET_STARTED}
-      style="--key-alpha:0.9;flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
-      >Get started</a
-    >
+    <Button variant="outline" href={BOOK_DEMO} block>Book a demo</Button>
+    <Button variant="primary" href={GET_STARTED} block>Get started</Button>
   </div>
 </div>
 

@@ -1,4 +1,6 @@
 ---
+import Badge from "./Badge.astro";
+import Section from "./Section.astro";
 // Open standards — the marquee stack. Copy left, card right (.ag-interop grid,
 // stacks to one column <=1100px via global.css). Each of the 5 rows is a label +
 // an auto-scrolling chip strip whose direction alternates; hovering a row pauses
@@ -144,20 +146,17 @@ const labelStyle =
 const isExternal = (href?: string) => !!href && href.startsWith("http");
 ---
 
-<section
+<Section
   data-screen-label="Open standards"
   class="ag-secpad ag-ios"
-  style="background:var(--th-bg-1);border:1px solid var(--th-section-border);margin-top:-1px;padding:var(--section-pad-y) 0;display:flex;justify-content:center;"
+  style="background:var(--th-bg-1);padding:var(--section-pad-y) 0;display:flex;justify-content:center;"
 >
   <div
     class="ag-interop"
     style="width:min(1120px,100%);display:grid;grid-template-columns:360px 1fr;gap:64px;padding:0 28px;box-sizing:border-box;text-align:left;align-items:center;"
   >
     <div style="display:flex;flex-direction:column;gap:20px;">
-      <span
-        style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;background:var(--ios-pill-bg);box-shadow:var(--ios-pill-shadow);font:500 12px/1 var(--font-sans);letter-spacing:0.03em;color:var(--ios-pill-text);"
-        >Open standards</span
-      >
+      <Badge style="align-self:flex-start;">Open standards</Badge>
       <span
         class="ag-bighead"
         style="font:300 44px/1.1 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);"
@@ -232,15 +231,12 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
       }
     </div>
   </div>
-</section>
+</Section>
 
 <style is:global>
   /* Theme vars: light = the spec's Open-standards recipes (white section, white
      card, white/terracotta chips); dark = the original literals, verbatim. */
   .ag-ios {
-    --ios-pill-bg: #ffffff;
-    --ios-pill-shadow: 0 0 0 1px var(--paper-200);
-    --ios-pill-text: var(--ink-600);
     --ios-body: var(--ink-600);
     --ios-note-rule: var(--paper-150);
     --ios-card-bg: var(--paper-0);
@@ -260,9 +256,6 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
     --ios-soontag-text: var(--ink-500);
   }
   [data-theme="dark"] .ag-ios {
-    --ios-pill-bg: rgba(255, 255, 255, 0.06);
-    --ios-pill-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    --ios-pill-text: rgba(255, 255, 255, 0.7);
     --ios-body: rgba(255, 255, 255, 0.55);
     --ios-note-rule: rgba(255, 255, 255, 0.08);
     --ios-card-bg: var(--ag-d-bg-2);

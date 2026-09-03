@@ -24,22 +24,33 @@
   color-scheme: light;
 
   /* ── page + elevation ladder ─────────────────────────────── */
-  --th-page: var(--paper-100); /* body + 12px frame gutter        */
+  --th-page: var(--paper-120); /* body + 12px frame gutter        */
   --th-bg-0: var(--paper-100); /* deepest band                    */
   --th-bg-1: var(--paper-0); /* raised section / hero band      */
   --th-bg-2: var(--paper-50); /* card, panel                     */
   --th-bg-3: var(--paper-0); /* elevated card, popover          */
   --th-bg-4: var(--paper-150); /* highest — tooltip, active row   */
-  --th-tint: #f0eeeb; /* tinted panel (How it works)     */
-  --th-chrome: var(--paper-100); /* nav / footer chrome             */
-  --th-glass: rgba(235, 233, 230, 0.94); /* scrolled nav pill fill  */
+  --th-tint: var(--paper-150); /* tinted panel (How it works)     */
+  --th-chrome: var(--paper-0); /* footer chrome — white in Framer  */
+  /* The nav bar BEFORE it collapses. Framer draws it flat and full width in
+     the page-ground colour, with no radius and no shadow. Only the scrolled
+     pill gets the glass fill and the two-layer border. */
+  --th-nav-rest-bg: var(--paper-120);
+  /* Scrolled nav pill: paper-0 at 72%, so the backdrop blur behind it reads.
+     The previous #EBE9E6 is not a palette value and sat darker than the bands
+     it floats over. */
+  --th-glass: rgba(255, 255, 255, 0.85);
   --th-menu-bg: var(--paper-0); /* dropdown / mobile menu panel    */
 
   /* ── borders ─────────────────────────────────────────────── */
   --th-border-subtle: var(--paper-150);
   --th-border: var(--paper-200);
-  --th-border-strong: #d8d6d3;
-  --th-section-border: var(--paper-200); /* the -1px section hairline */
+  /* The grid: a hairline under the header and down both edges of the content
+     column, running the whole page and binding the bands. Drawn only through
+     components/Section.astro (and the nav shell at rest). Bands Framer draws
+     without a line (blog, author and pricing bodies) use Section tone="flat". */
+  --th-section-border: var(--paper-line);
+  --th-nav-rule: var(--paper-line); /* the rules either side of the pill */
 
   /* ── text ────────────────────────────────────────────────── */
   --th-text-hi: var(--ink-900); /* headings / high emphasis       */
@@ -47,7 +58,7 @@
   --th-text-prose: var(--ink-600); /* long-form reading body         */
   --th-text-mut: var(--ink-500); /* secondary / captions           */
   --th-text-dim: var(--ink-300); /* faint labels / disabled        */
-  --th-nav-text: var(--ink-600); /* nav links                      */
+  --th-nav-text: var(--ink-900); /* nav links                      */
 
   /* ── interaction overlays ────────────────────────────────── */
   --th-hover: rgba(36, 36, 36, 0.04);
@@ -61,13 +72,16 @@
   /* ── ghost / outline button (nav "Book a demo", hero secondary,
         "Load more", …). Light = the white keycap the mockups draw
         everywhere (stronger ring than the token outline recipe). */
-  --th-btn-ghost-bg: linear-gradient(180deg, #ffffff 0%, #f1eeec 100%);
-  --th-btn-ghost-shadow:
-    0 0 0 1px rgba(36, 36, 36, 0.18), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+  /* Framer's outline button: the paper gradient, a 1px hairline border and an
+     inset white highlight. There is no outer ring and no hover change. */
+  --th-btn-ghost-bg: linear-gradient(180deg, var(--paper-80) 0%, var(--paper-120) 100%);
+  --th-btn-ghost-shadow: inset 0 3px 6px #ffffff;
+  --th-btn-ghost-border: var(--paper-line);
   --th-btn-ghost-text: var(--ink-900);
 
-  /* ── badges / eyebrow pills ──────────────────────────────── */
-  --th-badge-bg: var(--paper-0);
+  /* ── badge / eyebrow (components/Badge.astro) ────────────── */
+  /* Framer: transparent inside, a 1px paper-200 outline, ink-600 text. */
+  --th-badge-bg: transparent;
   --th-badge-ring: var(--paper-200);
   --th-badge-text: var(--ink-600);
 
@@ -87,13 +101,21 @@
   --th-pre-text: var(--ink-450);
 
   /* ── always-dark sections, theme-tuned surfaces ──────────── */
-  --th-darksec-reliability: #3c3a38; /* carbon-700 — warm mid-dark  */
-  --th-darksec-oss: var(--carbon-900); /* #1E1C1D                    */
+  --th-darksec-reliability: var(--carbon-750);
+  --th-darksec-oss: var(--carbon-950);
+  /* Hairline for the always-dark sections. It must NOT use the paper
+     --th-section-border: a light line between two dark bands (Reliability →
+     Open source) reads as a bright seam. Same faint white in both themes. */
+  --th-darksec-border: rgba(255, 255, 255, 0.07);
 
   /* ── chrome extras ───────────────────────────────────────── */
+  /* Straight off Framer: a 1px ink ring, a 4px soft glow, then the two-layer
+     border — a 7px halo in the page paper tone with a 1px rule at its edge.
+     The handoff's version used pure white for the halo, which read as a
+     cut-out over the tinted bands. */
   --th-pill-shadow:
-    0 0 0 7px #ffffff, 0 0 0 8px rgba(36, 36, 36, 0.08),
-    0 18px 44px rgba(36, 36, 36, 0.16);
+    0 0 0 1px rgba(72, 70, 68, 0.16), 0 0 4px rgba(72, 70, 68, 0.08),
+    0 0 0 7px #f6f4f2, 0 0 0 8px #e7e5e3;
   --th-menu-shadow:
     0 0 0 1px rgba(36, 34, 32, 0.08), 0 20px 48px rgba(36, 34, 32, 0.18);
   --th-scrollbar: rgba(36, 36, 36, 0.18);
@@ -112,13 +134,14 @@
   --th-bg-4: var(--ag-d-bg-4);
   --th-tint: var(--ag-d-bg-1);
   --th-chrome: var(--ag-d-chrome);
+  --th-nav-rest-bg: var(--ag-d-chrome);
   --th-glass: var(--ag-d-glass);
   --th-menu-bg: var(--ag-d-chrome);
 
   --th-border-subtle: rgba(255, 255, 255, 0.07);
   --th-border: rgba(255, 255, 255, 0.1);
-  --th-border-strong: rgba(255, 255, 255, 0.14);
   --th-section-border: rgba(255, 255, 255, 0.07);
+  --th-nav-rule: rgba(255, 255, 255, 0.12);
 
   --th-text-hi: #f7f6f4;
   --th-text-body: rgba(255, 255, 255, 0.6);
@@ -136,10 +159,11 @@
 
   --th-btn-ghost-bg: rgba(255, 255, 255, 0.04);
   --th-btn-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  --th-btn-ghost-border: transparent;
   --th-btn-ghost-text: #ffffff;
 
   --th-badge-bg: rgba(255, 255, 255, 0.06);
-  --th-badge-ring: rgba(255, 255, 255, 0.14);
+  --th-badge-ring: rgba(229, 229, 227, 0.18);
   --th-badge-text: rgba(255, 255, 255, 0.8);
 
   --th-accent: var(--yellow-400);
@@ -155,28 +179,20 @@
 
   --th-darksec-reliability: var(--ag-d-bg-2);
   --th-darksec-oss: var(--ag-d-bg-1);
+  --th-darksec-border: rgba(255, 255, 255, 0.07);
 
+  /* Same four layers as the light pill: a 1px ring, the soft drop shadow, then
+     a 7px halo in the page canvas and a 1px rule at its edge. The rule uses the
+     dark grid colour (--th-nav-rule) so the side rules meet a visible edge; a
+     halo alone vanishes against the canvas and leaves a gap before the caps. */
   --th-pill-shadow:
-    0 0 0 1px rgba(250, 247, 242, 0.09), 0 12px 36px rgba(0, 0, 0, 0.55);
+    0 0 0 1px rgba(250, 247, 242, 0.09), 0 12px 36px rgba(0, 0, 0, 0.55),
+    0 0 0 7px var(--ag-d-bg-0), 0 0 0 8px rgba(255, 255, 255, 0.12);
   --th-menu-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 48px rgba(0, 0, 0, 0.55);
   --th-scrollbar: rgba(255, 255, 255, 0.2);
   --th-scrollbar-hover: rgba(255, 255, 255, 0.26);
   --th-scrim: rgba(0, 0, 0, 0.6);
-}
-
-/* Blog + blog-post + authors pages are ALL-WHITE in the light design (nav,
-   footer, and gutter included), unlike the paper-100 chrome elsewhere. Pages
-   opt in by putting this class on their .ag-wrap. No-op in dark. */
-.th-page-white {
-  --th-page: var(--paper-0);
-  --th-chrome: var(--paper-0);
-  --th-bg-0: var(--paper-0);
-}
-[data-theme="dark"] .th-page-white {
-  --th-page: var(--ag-d-bg-0);
-  --th-chrome: var(--ag-d-chrome);
-  --th-bg-0: var(--ag-d-bg-0);
 }
 
 /* Theme-conditional visibility (e.g. the light/dark logo variants).

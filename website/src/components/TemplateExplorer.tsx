@@ -203,7 +203,7 @@ export default function TemplateExplorer() {
           padding: 4,
           borderRadius: 12,
           background: "var(--tplx-tabs-bg)",
-          boxShadow: "inset 0 0 0 1px var(--tplx-tabs-ring)",
+          border: "1px solid var(--tplx-tabs-border)",
           maxWidth: "calc(100% - 32px)",
         }}
       >
@@ -222,8 +222,8 @@ export default function TemplateExplorer() {
               alignItems: "center",
               height: 36,
               padding: "0 16px",
-              borderRadius: 9,
-              border: "none",
+              borderRadius: 8,
+              border: "1px solid transparent",
               background: "transparent",
               cursor: "pointer",
               font: "var(--text-label)",
@@ -231,7 +231,8 @@ export default function TemplateExplorer() {
               ...(i === sel
                 ? {
                     background: "var(--tplx-tab-on-bg)",
-                    boxShadow: "inset 0 0 0 1px var(--tplx-tab-on-ring)",
+                    borderColor: "var(--tplx-tab-on-border)",
+                    boxShadow: "var(--tplx-tab-on-shadow)",
                     color: "var(--tplx-tab-on-text)",
                   }
                 : { color: "var(--tplx-tab-text)" }),
@@ -546,23 +547,10 @@ export default function TemplateExplorer() {
             }}
           >
             <a
+              className="ag-btn ag-btn--primary"
               href={`${CLOUD_URL}?template=${current.key}`}
               target="_blank"
               rel="noopener"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                height: 38,
-                padding: "0 18px",
-                borderRadius: 8,
-                background: "var(--grad-btn-primary)",
-                boxShadow: "var(--shadow-btn-primary)",
-                color: "var(--ink-900)",
-                font: "var(--text-label)",
-                cursor: "pointer",
-                textDecoration: "none",
-              }}
             >
               Use this template
               <svg width="13" height="13" viewBox="0 0 12 12" fill="none">

@@ -1,4 +1,5 @@
 ---
+import Section from "../../components/Section.astro";
 import type { GetStaticPaths } from "astro";
 import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
@@ -26,19 +27,16 @@ export const getStaticPaths = (async () => {
 const { author, posts } = Astro.props;
 const { name, role, avatar, bio, socials } = author.data;
 
-const sectionBorder =
-  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
   title={`${name} — Agenta Blog`}
   description={bio ?? `${name} — ${role}. Posts on the Agenta blog.`}
-  whiteChrome
 >
   <!-- Author hero -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:var(--au-sec-1);${sectionBorder}padding:64px 24px 48px;`}
+    style="background:var(--au-sec-1);padding:64px 24px 48px;"
   >
     <div
       style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;"
@@ -95,28 +93,28 @@ const sectionBorder =
         )
       }
     </div>
-  </section>
+  </Section>
 
   <!-- Bio -->
   {
     bio && (
-      <section
+      <Section tone="flat"
         class="ag-prose ag-pad"
-        style={`background:var(--au-sec-0);${sectionBorder}padding:48px 24px;`}
+        style="background:var(--au-sec-0);padding:48px 24px;"
       >
         <div style="max-width:720px;margin:0 auto;">
           <p style="margin:0;font:400 19px/1.7 var(--font-sans);color:var(--au-bio);">
             {bio}
           </p>
         </div>
-      </section>
+      </Section>
     )
   }
 
   <!-- Posts from the author -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:var(--au-sec-0);${sectionBorder}padding:24px 64px 88px;`}
+    style="background:var(--au-sec-0);padding:24px 64px 88px;"
   >
     <div
       style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;"
@@ -131,7 +129,7 @@ const sectionBorder =
       </div>
       <a
         href="/blog"
-        style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:var(--th-btn-ghost-bg);box-shadow:var(--th-btn-ghost-shadow);color:var(--th-btn-ghost-text);font:var(--text-label);text-decoration:none;"
+        class="ag-btn ag-btn--outline"
       >
         View all blogs
         <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
@@ -160,7 +158,7 @@ const sectionBorder =
         </p>
       )
     }
-  </section>
+  </Section>
 
   <style is:global>
     /* Author-page theme vars. The mockups don't cover authors pages; light

@@ -721,25 +721,9 @@ function Header() {
         maxWidth: 560,
       }}
     >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          height: 22,
-          padding: "0 12px",
-          borderRadius: "var(--radius-pill)",
-          font: "var(--text-caption)",
-          letterSpacing: "var(--tracking-caption)",
-          whiteSpace: "nowrap",
-          boxSizing: "border-box",
-          background: "var(--hiw-pill-bg)",
-          color: "var(--hiw-pill-text)",
-          boxShadow: "var(--hiw-pill-shadow)",
-        }}
-      >
-        How it works
-      </span>
+      {/* The shared eyebrow (components/Badge.astro) by its CSS class: this is a
+          React island, so it cannot render the Astro component itself. */}
+      <span className="ag-badge ag-badge--default">How it works</span>
       <h2
         style={{
           margin: 0,

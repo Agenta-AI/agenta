@@ -1,17 +1,18 @@
 ---
+import Section from "./Section.astro";
 import HowItWorks from "./HowItWorks.tsx";
 ---
 
 {/* padding:0 lets the desktop 500vh scroll layout own its spacing; the
     .ag-secpad media query restores vertical padding at <=860px, where the
     island renders the static two-panel fallback. */}
-<section
+<Section
   data-screen-label="How it works"
   class="ag-secpad ag-hiw"
-  style="background:var(--th-tint);border:1px solid var(--th-section-border);margin-top:-1px;padding:0;"
+  style="background:var(--th-tint);padding:0;"
 >
   <HowItWorks client:visible />
-</section>
+</Section>
 
 <style is:global>
   /* HowItWorks island theme vars. Light values follow the light-theme spec's
@@ -19,9 +20,6 @@ import HowItWorks from "./HowItWorks.tsx";
      the island's original literals, verbatim. */
   .ag-hiw {
     /* header pill + heading */
-    --hiw-pill-bg: #ffffff;
-    --hiw-pill-text: var(--ink-600);
-    --hiw-pill-shadow: var(--shadow-badge);
     --hiw-h2: var(--text-heading);
     --hiw-sub: var(--ink-600);
     /* beat list */
@@ -88,9 +86,6 @@ import HowItWorks from "./HowItWorks.tsx";
     --hiw-send-arrow: var(--ink-600);
   }
   [data-theme="dark"] .ag-hiw {
-    --hiw-pill-bg: rgba(255, 255, 255, 0.06);
-    --hiw-pill-text: rgba(255, 255, 255, 0.8);
-    --hiw-pill-shadow: 0 0 0 1px rgba(229, 229, 227, 0.18);
     --hiw-h2: #ffffff;
     --hiw-sub: var(--text-on-dark-muted);
     --hiw-beat-border: rgba(255, 255, 255, 0.12);

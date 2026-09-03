@@ -1,4 +1,5 @@
 ---
+import Section from "../../components/Section.astro";
 import Site from "../../layouts/Site.astro";
 import { getCollection } from "astro:content";
 import { authorPosts, socialIcon } from "../../lib/blog";
@@ -11,25 +12,19 @@ const posts = await getCollection("posts");
 // Count includes posts where the author is primary OR a co-author.
 const postCount = (id: string) => authorPosts(id, posts).length;
 
-const sectionBorder =
-  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
   title="Authors — Agenta Blog"
   description="The people writing on the Agenta blog about prompt management, evaluation, and LLM observability."
-  whiteChrome
 >
   <!-- Header -->
-  <section
+  <Section tone="flat"
     class="ag-headpad ag-pad"
-    style={`background:var(--au-sec-1);${sectionBorder}padding:72px 24px 56px;text-align:center;`}
+    style="background:var(--au-sec-1);padding:72px 24px 56px;text-align:center;"
   >
     <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
-      <span
-        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--au-eyebrow);"
-        >Our authors</span
-      >
+      <span class="ag-eyebrow">Our authors</span>
       <h1
         class="ag-h1"
         style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:760px;text-wrap:pretty;"
@@ -37,12 +32,12 @@ const sectionBorder =
         The people behind the blog
       </h1>
     </div>
-  </section>
+  </Section>
 
   <!-- Authors grid -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:var(--au-sec-0);${sectionBorder}padding:48px 64px 88px;`}
+    style="background:var(--au-sec-0);padding:48px 64px 88px;"
   >
     <div
       class="ag-grid ag-authors-grid"
@@ -90,7 +85,7 @@ const sectionBorder =
         ))
       }
     </div>
-  </section>
+  </Section>
 
   <style is:global>
     /* Authors-index theme vars. The mockups don't cover authors pages; light
@@ -101,7 +96,6 @@ const sectionBorder =
     :root {
       --au-sec-1: var(--paper-0); /* header band */
       --au-sec-0: var(--paper-0); /* grid band   */
-      --au-eyebrow: var(--ink-900); /* "Our authors" */
       --au-card-bg: var(--paper-50);
       --au-card-ring: inset 0 0 0 1px var(--paper-150);
       --au-avatar-ring: inset 0 0 0 1px var(--paper-150);
@@ -114,7 +108,6 @@ const sectionBorder =
     [data-theme="dark"] {
       --au-sec-1: #0e0d0f;
       --au-sec-0: #0a0a0b;
-      --au-eyebrow: var(--yellow-400);
       --au-card-bg: rgba(255, 255, 255, 0.02);
       --au-card-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
       --au-avatar-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.1);

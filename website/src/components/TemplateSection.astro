@@ -1,12 +1,13 @@
 ---
+import Section from "./Section.astro";
 import SectionTitle from "./SectionTitle.astro";
 import TemplateExplorer from "./TemplateExplorer.tsx";
 ---
 
-<section
+<Section
   data-screen-label="Templates"
   class="ag-secpad ag-tplsec"
-  style="background:var(--tplsec-bg);border:1px solid var(--th-section-border);margin-top:-1px;padding:var(--section-pad-y) 0;"
+  style="background:var(--tplsec-bg);padding:var(--section-pad-y) 0;"
 >
   <div
     style="display:flex;flex-direction:column;align-items:center;gap:48px;"
@@ -19,7 +20,7 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
     <!-- React island — hydrates when scrolled into view. -->
     <TemplateExplorer client:visible />
   </div>
-</section>
+</Section>
 
 <style is:global>
   /* Section surface: light = white section panel; dark = the original
@@ -37,12 +38,15 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
      are the island's original literals, verbatim. */
   .ag-tplx {
     /* area tabs */
-    --tplx-tabs-bg: var(--paper-100);
-    --tplx-tabs-ring: var(--paper-150);
-    --tplx-tab-on-bg: rgba(242, 242, 92, 0.35);
-    --tplx-tab-on-ring: rgba(36, 36, 36, 0.12);
+    /* Framer's segmented switch: a paper track with a WHITE raised chip for
+       the selected item, not a yellow tint. Every label keeps ink-900. */
+    --tplx-tabs-bg: var(--paper-80);
+    --tplx-tabs-border: var(--paper-line);
+    --tplx-tab-on-bg: var(--paper-0);
+    --tplx-tab-on-border: var(--paper-line);
+    --tplx-tab-on-shadow: 0 1px 2px rgba(72, 70, 68, 0.06);
     --tplx-tab-on-text: var(--ink-900);
-    --tplx-tab-text: var(--ink-600);
+    --tplx-tab-text: var(--ink-900); /* Framer keeps every label at ink-900 */
     /* featured panel frame */
     --tplx-panel-bg: var(--surface-app);
     --tplx-panel-shadow: var(--shadow-frame);
@@ -92,9 +96,10 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
   }
   [data-theme="dark"] .ag-tplx {
     --tplx-tabs-bg: rgba(255, 255, 255, 0.04);
-    --tplx-tabs-ring: rgba(255, 255, 255, 0.08);
+    --tplx-tabs-border: rgba(255, 255, 255, 0.08);
     --tplx-tab-on-bg: rgba(242, 242, 92, 0.12);
-    --tplx-tab-on-ring: rgba(242, 242, 92, 0.3);
+    --tplx-tab-on-border: rgba(242, 242, 92, 0.3);
+    --tplx-tab-on-shadow: none;
     --tplx-tab-on-text: #f7f6f4;
     --tplx-tab-text: rgba(255, 255, 255, 0.55);
     --tplx-panel-bg: var(--ag-d-bg-2);

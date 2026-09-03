@@ -1,4 +1,6 @@
 ---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
 import Site from "../layouts/Site.astro";
 
 // Contact page — the live site has no standalone /contact (returns 404; footer
@@ -24,16 +26,13 @@ const DEMO_URL =
   }}
 >
   <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
-  <section
+  <Section tone="flat"
     style="background:var(--ct-hero-bg);border-bottom:1px solid var(--th-section-border);"
   >
     <div
       style="max-width:860px;margin:0 auto;padding:96px 32px 80px;"
     >
-      <span
-        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--th-badge-bg);box-shadow:0 0 0 1px var(--th-badge-ring);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--ct-eyebrow-text);margin-bottom:24px;"
-        >Contact</span
-      >
+      <Badge style="margin-bottom:24px;">Contact</Badge>
       <h1
         class="ag-h1"
         style="margin:0 0 16px;font:var(--text-display-lg);color:var(--th-text-hi);text-wrap:pretty;"
@@ -46,10 +45,10 @@ const DEMO_URL =
         Book a demo, reach us by email, or find us on the channels below.
       </p>
     </div>
-  </section>
+  </Section>
 
   <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
-  <section style="background:var(--ct-body-bg);padding:64px 32px 96px;">
+  <Section tone="flat" style="background:var(--ct-body-bg);padding:64px 32px 96px;">
     <div
       style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
     >
@@ -75,7 +74,8 @@ const DEMO_URL =
           href={DEMO_URL}
           target="_blank"
           rel="noopener noreferrer"
-          style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 24px;width:fit-content;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);text-decoration:none;cursor:pointer;"
+          class="ag-btn ag-btn--primary"
+          style="align-self:flex-start;"
         >
           Book a 30-minute demo
         </a>
@@ -141,7 +141,7 @@ const DEMO_URL =
             href="https://github.com/Agenta-AI/agenta"
             target="_blank"
             rel="noopener noreferrer"
-            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid var(--ct-ghost-border);background:var(--ct-ghost-bg);box-shadow:var(--ct-ghost-glow);color:var(--ct-ghost-text);font:var(--text-label);text-decoration:none;cursor:pointer;"
+            class="ag-btn ag-btn--outline"
           >
             GitHub
           </a>
@@ -149,7 +149,7 @@ const DEMO_URL =
             href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
             target="_blank"
             rel="noopener noreferrer"
-            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid var(--ct-ghost-border);background:var(--ct-ghost-bg);box-shadow:var(--ct-ghost-glow);color:var(--ct-ghost-text);font:var(--text-label);text-decoration:none;cursor:pointer;"
+            class="ag-btn ag-btn--outline"
           >
             Slack Community
           </a>
@@ -157,7 +157,7 @@ const DEMO_URL =
             href="https://www.linkedin.com/company/agenta-ai"
             target="_blank"
             rel="noopener noreferrer"
-            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid var(--ct-ghost-border);background:var(--ct-ghost-bg);box-shadow:var(--ct-ghost-glow);color:var(--ct-ghost-text);font:var(--text-label);text-decoration:none;cursor:pointer;"
+            class="ag-btn ag-btn--outline"
           >
             LinkedIn
           </a>
@@ -165,31 +165,22 @@ const DEMO_URL =
       </div>
 
     </div>
-  </section>
+  </Section>
 </Site>
 
 <style is:global>
   /* Theme-conditional values where the dark literal has no matching --th-*
-     token. Light per the light-theme spec (white panels, paper-scale cards,
-     ghost keycap buttons); dark = this page's previous literals, verbatim. */
+     token. Light per the light-theme spec (white panels, paper-scale cards);
+     dark = this page's previous literals, verbatim. Buttons are the shared
+     .ag-btn. */
   :root {
     --ct-hero-bg: var(--th-bg-1);
     --ct-body-bg: var(--th-bg-1);
     --ct-panel-bg: var(--paper-50);
-    --ct-eyebrow-text: var(--ink-600);
-    --ct-ghost-border: rgba(36, 36, 36, 0.18);
-    --ct-ghost-bg: var(--th-btn-ghost-bg);
-    --ct-ghost-glow: inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    --ct-ghost-text: var(--ink-900);
   }
   [data-theme="dark"] {
     --ct-hero-bg: #0e0d0f;
     --ct-body-bg: #0a0a0b;
     --ct-panel-bg: #100f11;
-    --ct-eyebrow-text: rgba(255, 255, 255, 0.7);
-    --ct-ghost-border: rgba(255, 255, 255, 0.14);
-    --ct-ghost-bg: rgba(255, 255, 255, 0.04);
-    --ct-ghost-glow: none;
-    --ct-ghost-text: rgba(255, 255, 255, 0.7);
   }
 </style>

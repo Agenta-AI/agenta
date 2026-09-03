@@ -1,4 +1,6 @@
 ---
+import Badge from "../components/Badge.astro";
+import Section from "../components/Section.astro";
 import Site from "../layouts/Site.astro";
 import Button from "../components/Button.astro";
 
@@ -8,8 +10,6 @@ import Button from "../components/Button.astro";
 // and clear ways back. No CTA band here — the links below are the next action.
 //
 // noindex: a 404 must never be indexed even if a crawler reaches it.
-const sectionBorder =
-  "border:1px solid var(--th-section-border);margin-top:-1px;";
 ---
 
 <Site
@@ -21,17 +21,14 @@ const sectionBorder =
     <meta name="robots" content="noindex, follow" />
   </Fragment>
 
-  <section
+  <Section
     class="ag-pad"
-    style={`background:var(--nf-bg);${sectionBorder}padding:120px 24px 132px;text-align:center;`}
+    style="background:var(--nf-bg);padding:120px 24px 132px;text-align:center;"
   >
     <div
       style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:24px;"
     >
-      <span
-        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--nf-badge-bg);box-shadow:var(--nf-badge-ring);font:var(--text-caption);letter-spacing:0.04em;color:var(--nf-badge-text);"
-        >404</span
-      >
+      <Badge variant="yellow">404</Badge>
       <h1
         class="ag-h1"
         style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);text-wrap:pretty;"
@@ -48,31 +45,23 @@ const sectionBorder =
       <div
         style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;"
       >
-        <Button href="/" variant="primary" size="lg">Back to home</Button>
-        <Button href="/blog" variant="outline" size="lg">Read the blog</Button>
-        <Button href="https://agenta.ai/docs" variant="dark" size="lg" external
+        <Button href="/" variant="primary">Back to home</Button>
+        <Button href="/blog" variant="outline">Read the blog</Button>
+        <Button href="https://agenta.ai/docs" variant="dark" external
           >Browse the docs</Button
         >
       </div>
     </div>
-  </section>
+  </Section>
 </Site>
 
 <style is:global>
-  /* Theme-conditional values where the dark literal has no matching --th-*
-     token. Light: white band + the spec's yellow-tint chip recipe (yellow
-     tint bg, ink ring + ink text — yellow-on-white text is unreadable);
-     dark = this page's previous literals, verbatim. */
+  /* The band colour is the only page-local token; the chip is the shared
+     yellow Badge. Dark = this page's previous literal, verbatim. */
   :root {
     --nf-bg: var(--th-bg-1);
-    --nf-badge-bg: rgba(242, 242, 92, 0.35);
-    --nf-badge-ring: inset 0 0 0 1px rgba(36, 36, 36, 0.12);
-    --nf-badge-text: var(--ink-900);
   }
   [data-theme="dark"] {
     --nf-bg: #0e0d0f;
-    --nf-badge-bg: rgba(242, 242, 92, 0.12);
-    --nf-badge-ring: inset 0 0 0 1px rgba(242, 242, 92, 0.3);
-    --nf-badge-text: var(--yellow-400);
   }
 </style>

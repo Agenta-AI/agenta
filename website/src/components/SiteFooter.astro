@@ -1,4 +1,5 @@
 ---
+import Section from "./Section.astro";
 // SiteFooter — dark footer. Content + links from the design's content/site.json
 // (inlined to keep the website package self-contained). External links are real;
 // internal routes point at their intended path (some 404 until those pages ship).
@@ -77,9 +78,9 @@ const columns: { heading: string; links: Link[] }[] = [
 const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech UG`;
 ---
 
-<footer
+<Section as="footer"
   class="ag-foot"
-  style="background:var(--th-chrome);border:1px solid var(--th-section-border);margin-top:-1px;box-sizing:border-box;"
+  style="background:var(--th-chrome);"
 >
   <div
     class="ag-foot-top"
@@ -165,7 +166,7 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
       >Privacy policy</a
     >
   </div>
-</footer>
+</Section>
 
 <style is:global>
   /* Footer text/tile values whose dark literals don't match any --th-* dark
