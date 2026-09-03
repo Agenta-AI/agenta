@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -56,6 +56,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
+import {isStoppingPhase, reduceStopPhase} from "../assets/stopState"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -113,6 +114,8 @@ export const useAgentChatSession = ({
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
     const [stopped, setStopped] = useState(false)
+    const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
+    const stopping = isStoppingPhase(stopPhase)
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -212,7 +215,6 @@ export const useAgentChatSession = ({
         messages,
         sendMessage,
         status,
-        stop,
         regenerate,
         setMessages,
         addToolApprovalResponse,
@@ -482,36 +484,44 @@ export const useAgentChatSession = ({
         }
     }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
 
-    // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
-    const markStopped = useCallback(() => {
-        const last = messages[messages.length - 1]
-        if (last && last.role === "assistant") setStopped(true)
-    }, [messages])
-
     const projectId = useAtomValue(projectIdAtom)
 
     const handleStop = useCallback(() => {
-        markStopped()
-        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
-        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
-        liveGateInteractionRef.current = null
-        stop() // abort the client stream immediately
-        if (!projectId || !sessionId) return
+        if (stopping) return
+        dispatchStop({type: "request"})
+        if (!projectId || !sessionId) {
+            dispatchStop({type: "failed"})
+            message.warning("Could not stop the run. It may still be running.")
+            return
+        }
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
         if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
+                        dispatchStop({type: "accepted"})
+                        liveGateInteractionRef.current = null
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                         // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
                         // kill immediately (mirrors the panel's own Kill button).
                         void invalidateSessionInspector(queryClient, sessionId)
+                    } else {
+                        dispatchStop({type: "failed"})
+                        message.warning("Could not stop the run. It may still be running.")
                     }
                 })
-                .catch(() => {})
+                .catch((error: unknown) => {
+                    dispatchStop({type: "failed"})
+                    message.warning(
+                        error instanceof Error
+                            ? error.message
+                            : "Could not stop the run. It may still be running.",
+                    )
+                })
             return
         }
-        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
+        // Keep this stream attached until a terminal event proves cancellation completed.
+        // The control-plane `cancel` command
         // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
         // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
         // the client stream aborted but the runner kept running and billing.
@@ -530,17 +540,41 @@ export const useAgentChatSession = ({
             expectedExecutionId: getSessionTurnId(sessionId),
         })
             .then((outcome) => {
-                if (outcome.status === "cancelled") return
-                if (outcome.status === "stale") setStopped(false)
-                message.warning(
-                    outcome.status === "stale"
-                        ? outcome.message
-                        : "Could not stop the run. It may still be running.",
-                )
+                if (outcome.status === "cancelled") {
+                    dispatchStop({type: "accepted"})
+                    liveGateInteractionRef.current = null
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                if (outcome.status === "idle") {
+                    dispatchStop({type: "already_idle"})
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                dispatchStop({type: "failed"})
+                message.warning(outcome.message)
                 queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             })
-            .catch(() => {})
-    }, [markStopped, stop, projectId, sessionId, queryClient])
+            .catch((error: unknown) => {
+                dispatchStop({type: "failed"})
+                message.warning(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+    }, [stopping, projectId, sessionId, queryClient])
+
+    useEffect(() => {
+        if (!busy) dispatchStop({type: "terminal"})
+    }, [busy])
+
+    useEffect(() => {
+        if (stopPhase !== "stopped") return
+        const last = messagesRef.current[messagesRef.current.length - 1]
+        if (last?.role === "assistant") setStopped(true)
+        dispatchStop({type: "reset"})
+    }, [stopPhase])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it
@@ -583,6 +617,7 @@ export const useAgentChatSession = ({
         hydratedEmpty,
         runningElsewhere,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,

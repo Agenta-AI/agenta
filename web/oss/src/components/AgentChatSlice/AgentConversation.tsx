@@ -132,6 +132,7 @@ const AgentConversation = ({
         isHydrating,
         hydratedEmpty,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,
@@ -846,6 +847,7 @@ const AgentConversation = ({
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onStop={handleStop}
+                                        stopping={stopping}
                                         richInputRef={richInputRef}
                                         composer={composer}
                                         attachments={attachments}

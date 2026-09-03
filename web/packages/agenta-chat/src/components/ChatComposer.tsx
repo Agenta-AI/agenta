@@ -52,6 +52,8 @@ export interface ChatComposerProps {
     onChange?: (markdown: string) => void
     /** A run is streaming — the send button becomes Stop. */
     streaming?: boolean
+    /** The Stop request is pending or accepted, awaiting the stream's terminal event. */
+    stopping?: boolean
     onStop?: () => void
     /** Read at event time — attachments are refused right now (a voice take in flight…). */
     attachmentsBlocked?: () => boolean
@@ -84,6 +86,7 @@ export const ChatComposer = ({
     initialMarkdown,
     onChange,
     streaming,
+    stopping,
     onStop,
     attachmentsBlocked,
     composerDisabled,
@@ -165,6 +168,7 @@ export const ChatComposer = ({
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 streaming={streaming}
+                stopping={stopping}
                 onStop={onStop}
                 prefix={
                     <div className="flex items-center gap-2">

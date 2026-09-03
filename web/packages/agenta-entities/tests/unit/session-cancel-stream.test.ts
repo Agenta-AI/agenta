@@ -45,6 +45,16 @@ describe("cancelSessionStream", () => {
         expect(setSessionStream).toHaveBeenCalledWith({session_id: "s1"}, expect.anything())
     })
 
+    it("reports idle when the server accepted but found no running turn", async () => {
+        setSessionStream.mockResolvedValue({
+            mode: "cancel",
+            session_id: "s1",
+            cancelled_turn_ids: [],
+        })
+
+        expect(await cancelSessionStream(params)).toEqual({status: "idle"})
+    })
+
     it("sends the turn id as expected_execution_id when the client knows it", async () => {
         setSessionStream.mockResolvedValue({mode: "cancel", session_id: "s1"})
 
@@ -92,9 +102,12 @@ describe("cancelSessionStream", () => {
     })
 
     it("reports any other error as failed, never as stale", async () => {
-        setSessionStream.mockRejectedValue(apiError(500))
+        setSessionStream.mockRejectedValue(apiError(500, {detail: {message: "Runner unavailable"}}))
 
-        expect((await cancelSessionStream(params)).status).toBe("failed")
+        expect(await cancelSessionStream(params)).toEqual({
+            status: "failed",
+            message: "Runner unavailable",
+        })
     })
 
     it("rethrows an abort so a cancelled query settles as cancelled", async () => {
