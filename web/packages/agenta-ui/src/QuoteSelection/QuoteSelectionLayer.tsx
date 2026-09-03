@@ -68,10 +68,7 @@ export const QuoteSelectionLayer = ({
     })
 
     // The draft paints too, so the span stays marked while the note is being written.
-    const painted = useMemo(
-        () => (draft ? [...toPaint, draft.quote] : toPaint),
-        [toPaint, draft],
-    )
+    const painted = useMemo(() => (draft ? [...toPaint, draft.quote] : toPaint), [toPaint, draft])
     useQuoteHighlights(rootRef, painted, enabled)
 
     // Esc closes the pill, matching the note box's own handler.
