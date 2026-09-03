@@ -141,6 +141,11 @@ version, a reconnect fetches a fresh snapshot and follows after its returned seq
 session, execution, message, tool, interaction, and record IDs identify objects. The sequence only
 orders durable session facts.
 
+Use a row lock on `session_streams` to allocate the next sequence in the same transaction as the
+record insert. Add nullable sequence fields and do not rewrite legacy records. The replay endpoint
+subscribes to notifications before its first history read; notifications wake another Postgres
+query after the last sent sequence and do not carry durable truth.
+
 ### Default busy sends to reject during migration
 
 The first public default remains `reject` until every first-party client displays the server queue.

@@ -33,6 +33,9 @@
   private. Existing routes remain during migration; final route spelling is deferred.
 - Temporary frames have bounded age and size. A slow reader is disconnected and reloads the
   durable snapshot; it never slows the runner. Measurements set the numeric limits.
+- Postgres assigns per-session sequence under a `session_streams` row lock in the record-insert
+  transaction. Legacy records stay unsequenced. Replay subscribes before reading and treats Redis
+  notifications only as wake-up signals.
 
 ## Work in review
 

@@ -619,10 +619,14 @@ A progressive update uses a new event ID while retaining the same message, tool,
 
 ### Ordering
 
-The projector assigns `session_sequence` in the same Postgres transaction that inserts the event.
-It serializes assignment per session, for example by locking one session cursor row. A plain global
-database sequence is insufficient because sequence allocation can happen before transactions
-commit in another order.
+Add nullable `session_streams.latest_sequence` and `session_records.session_sequence` fields. For
+each new durable write, the records service locks the session stream row, increments its latest
+sequence, inserts the record with that value, and commits both changes in one Postgres transaction.
+A batch receives consecutive values in the same transaction. Writers for one session serialize on
+that row; different sessions remain independent.
+
+Existing records keep a null sequence and are not rewritten. A plain global database sequence is
+insufficient because allocation can happen before transactions commit in another order.
 
 ### Snapshot
 
@@ -635,17 +639,20 @@ messages
 current execution state
 pending inputs
 pending interactions
-cursor
+latest_sequence
 history completeness
 ```
 
-The cursor is opaque to clients.
+The snapshot includes legacy and ordered records. `latest_sequence` describes the new ordered
+portion and comes from the same consistent database view as the snapshot.
 
 ### Replay and live handoff
 
-The event endpoint registers its live wake-up before reading historical events. It then reads all
-committed events after the requested cursor and follows new commits. A lost notification causes
-another database read. It cannot create a permanent gap.
+The event endpoint subscribes to the session notification source before reading history. It then
+queries Postgres after the supplied sequence and sends every result in order. Each notification is
+only a wake-up signal: the endpoint queries Postgres again after its last sent sequence. This
+registration order prevents a commit between replay and subscription from being lost, and
+collapsed notifications cannot hide committed records.
 
 ### Record delivery and incomplete history
 
