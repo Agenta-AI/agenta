@@ -6,7 +6,7 @@
  *
  * With `enabled` false this binds nothing and renders nothing.
  */
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {findInSource, type Quote} from "@agenta/shared/quotes"
 import {generateId} from "@agenta/shared/utils"
@@ -15,8 +15,8 @@ import {hasCoarsePointer} from "../hooks/useVisualViewport"
 
 import {QuoteNote} from "./QuoteNote"
 import {QuoteToolbar} from "./QuoteToolbar"
-import {setQuoteRange} from "./sources"
-import {addQuote, useSessionQuotes} from "./store"
+import {dropQuoteRange, setQuoteRange} from "./sources"
+import {addQuote, useQuotesToPaint, useSessionQuotes} from "./store"
 import {useQuoteHighlights} from "./useQuoteHighlights"
 import {useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
 
@@ -48,11 +48,16 @@ export const QuoteSelectionLayer = ({
     const [draft, setDraft] = useState<{quote: Quote; candidate: QuoteCandidate} | null>(null)
     const [announced, setAnnounced] = useState("")
     const quotes = useSessionQuotes(sessionId)
+    const toPaint = useQuotesToPaint(sessionId)
     const returnFocusRef = useRef<HTMLElement | null>(null)
 
     const beginReply = useCallback((candidate: QuoteCandidate) => {
         returnFocusRef.current = document.activeElement as HTMLElement | null
-        setDraft({quote: draftFrom(candidate), candidate})
+        const quote = draftFrom(candidate)
+        // Highlight the span the moment Reply is pressed — the native selection is gone by then,
+        // and the note box has to point at something.
+        setQuoteRange(quote.id, candidate.range)
+        setDraft({quote, candidate})
     }, [])
 
     const {candidate, dismiss} = useQuoteSelection({
@@ -62,7 +67,12 @@ export const QuoteSelectionLayer = ({
         onReply: beginReply,
     })
 
-    useQuoteHighlights(rootRef, quotes, enabled)
+    // The draft paints too, so the span stays marked while the note is being written.
+    const painted = useMemo(
+        () => (draft ? [...toPaint, draft.quote] : toPaint),
+        [toPaint, draft],
+    )
+    useQuoteHighlights(rootRef, painted, enabled)
 
     // Esc closes the pill, matching the note box's own handler.
     useEffect(() => {
@@ -80,6 +90,8 @@ export const QuoteSelectionLayer = ({
     const bounds = {width: root?.clientWidth ?? 0, height: root?.clientHeight ?? 0}
 
     const closeDraft = () => {
+        // A cancelled draft leaves no highlight behind.
+        if (draft) dropQuoteRange(draft.quote.id)
         setDraft(null)
         returnFocusRef.current?.focus?.()
         window.getSelection()?.removeAllRanges()
@@ -88,12 +100,12 @@ export const QuoteSelectionLayer = ({
     const stage = (note: string) => {
         if (!draft) return
         const quote: Quote = {...draft.quote, note, staged: true}
-        // The highlight anchors on the range the selection had; it survives re-render because it is
-        // a Range, not a DOM node we injected.
-        setQuoteRange(quote.id, draft.candidate.range)
         addQuote(sessionId, quote)
         setAnnounced(`Quote added. ${quotes.filter((q) => q.staged).length + 1} attached.`)
-        closeDraft()
+        // The staged quote keeps the draft's id, so its highlight range carries straight over.
+        setDraft(null)
+        returnFocusRef.current?.focus?.()
+        window.getSelection()?.removeAllRanges()
     }
 
     return (
