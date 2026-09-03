@@ -2,7 +2,7 @@
  * useModelHarness — the Model + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
@@ -21,12 +21,13 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, ShieldCheck} from "@phosphor-icons/react"
+import {Cube, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
-import {RailField} from "../../../drawers/shared/RailField"
+import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
+import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
 import type {PickerSelection} from "../connectionPicker"
 import {
@@ -68,6 +69,13 @@ import {useBuildKit} from "./useBuildKit"
 const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
+
+/** One Advanced rail panel: its nav item, an optional header, and the controls it shows. */
+interface AdvancedPanel {
+    item: SectionRailItem
+    header?: {title: string; caption: string; extra?: ReactNode}
+    body: ReactNode
+}
 
 export function useModelHarness({
     schema,
@@ -377,12 +385,13 @@ export function useModelHarness({
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
-    const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
-        revisionId: revisionId ?? null,
-        sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
-        disabled,
-        stateOverride: buildKitOverride,
-    })
+    const {hasBuildKitOverlay, buildKitEnabled, buildKitSection, permissionOverrideHint} =
+        useBuildKit({
+            revisionId: revisionId ?? null,
+            sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
+            disabled,
+            stateOverride: buildKitOverride,
+        })
 
     // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
     // `defaultOpen` so a drawer opened from a "something changed" indicator lands with the changed
@@ -755,12 +764,110 @@ export function useModelHarness({
         </>
     )
 
-    // The stacked sections carry their own dividers; drop the trailing one on whichever section
-    // renders last (they're conditional, so target the last child rather than a fixed section).
-    const advancedDrawerBody = (
+    // Rail panels: one per Advanced group, in the order the drawer nav lists them. Schema-gated, so
+    // a template without a group shows neither the rail item nor its panel.
+    const advancedPanels: AdvancedPanel[] = (
+        [
+            hasPermissionsGroup && {
+                item: {
+                    value: "permissions",
+                    label: "Permissions",
+                    icon: <ShieldCheck size={14} />,
+                    status: permissionsChanged ? ("warning" as const) : undefined,
+                },
+                header: {
+                    title: "Permissions",
+                    caption: "What the agent may do on its own before it must ask.",
+                    extra: revertAction(permissionsChanged ? revertPermissions : null),
+                },
+                body: permissionsBody,
+            },
+            hasExecutionGroup && {
+                item: {
+                    value: "execution",
+                    label: "Execution",
+                    icon: <Cube size={14} />,
+                    status: sandboxChanged ? ("warning" as const) : undefined,
+                },
+                header: {
+                    title: "Execution environment",
+                    caption:
+                        "Where the agent's tools and code run, and what that sandbox may touch.",
+                    extra: revertAction(revertSandbox),
+                },
+                body: executionBody,
+            },
+            hasBuildKitOverlay && {
+                // Amber while the kit is on, for the same reason the group carried "Removed on commit":
+                // what this panel adds is playground-only and never reaches the committed agent.
+                item: {
+                    value: "build-kit",
+                    label: "Build kit",
+                    icon: <Wrench size={14} />,
+                    status: buildKitEnabled ? ("warning" as const) : undefined,
+                },
+                // The block carries its own title + enable switch, so it needs no panel header.
+                body: buildKitSection,
+            },
+        ] as (AdvancedPanel | false)[]
+    ).filter((panel): panel is AdvancedPanel => Boolean(panel))
+
+    // Land on the first panel that owns an uncommitted change, else the first one.
+    const initialAdvancedPanel =
+        advancedPanels.find((panel) => panel.item.status === "warning" && panel.header)?.item
+            .value ??
+        advancedPanels[0]?.item.value ??
+        ""
+    const [advancedPanelValue, setAdvancedPanelValue] = useState(initialAdvancedPanel)
+    const activeAdvancedPanel =
+        advancedPanels.find((panel) => panel.item.value === advancedPanelValue) ?? advancedPanels[0]
+
+    const activeAdvancedPanelBody = (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3 pr-1">
+            {activeAdvancedPanel?.header ? (
+                <div className="flex items-start gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-xs font-medium">
+                            {activeAdvancedPanel.header.title}
+                        </span>
+                        <span className="text-xs leading-snug text-colorTextDescription">
+                            {activeAdvancedPanel.header.caption}
+                        </span>
+                    </div>
+                    {activeAdvancedPanel.header.extra}
+                </div>
+            ) : null}
+            {activeAdvancedPanel?.body}
+        </div>
+    )
+
+    // One panel needs no nav — a single-item rail is chrome around nothing.
+    const advancedRailBody =
+        advancedPanels.length > 1 ? (
+            <SectionRail
+                fill
+                // Wider than the default rail: these labels carry an icon as well.
+                railWidth="w-[132px]"
+                items={advancedPanels.map((panel) => panel.item)}
+                value={activeAdvancedPanel?.item.value ?? ""}
+                onChange={setAdvancedPanelValue}
+            >
+                {activeAdvancedPanelBody}
+            </SectionRail>
+        ) : (
+            activeAdvancedPanelBody
+        )
+
+    // A focus filter narrows the body to the changed properties, where a nav would be noise — that
+    // path keeps the flat/grouped stack. Otherwise the rail is the drawer's shape.
+    const advancedDrawerBody = focus.active ? (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}
         </div>
+    ) : (
+        <FieldLayoutProvider layout="stacked">
+            <div className="flex h-full min-h-0 flex-col">{advancedRailBody}</div>
+        </FieldLayoutProvider>
     )
 
     return {
@@ -779,5 +886,7 @@ export function useModelHarness({
         hasAdvanced,
         advancedSummary,
         advancedDrawerBody,
+        // Rail + one panel at a time: no wider than the Model drawer.
+        advancedDrawerWidth: 560,
     }
 }

@@ -16,6 +16,8 @@ import clsx from "clsx"
 export interface SectionRailItem {
     value: string
     label: string
+    /** Optional leading glyph, sized by the caller (14-15px matches the drawer rails). */
+    icon?: ReactNode
     /** Optional trailing count (e.g. a schema's field count). */
     count?: number
     /**
@@ -74,7 +76,14 @@ export function SectionRail({
                                     : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)] disabled:text-[var(--ag-colorTextSecondary)]"
                             }`}
                         >
-                            <span className="truncate">{item.label}</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                {item.icon ? (
+                                    <span className="flex shrink-0 items-center opacity-75">
+                                        {item.icon}
+                                    </span>
+                                ) : null}
+                                <span className="truncate">{item.label}</span>
+                            </span>
                             {item.status ? (
                                 <span
                                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${
