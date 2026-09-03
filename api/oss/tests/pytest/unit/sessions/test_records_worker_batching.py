@@ -16,7 +16,11 @@ import zlib
 import pytest
 from orjson import dumps
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent, SessionRecord
+from oss.src.core.sessions.records.dtos import (
+    SessionRecord,
+    SessionRecordEvent,
+    SessionRecordsAppendResult,
+)
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 
@@ -40,10 +44,14 @@ async def test_process_batch_appends_once_per_project_not_per_event():
 
     records_dao = AsyncMock()
     records_dao.append_many = AsyncMock(
-        return_value=[
-            SessionRecord(record_id=uuid4(), session_id="sess-1", project_id=project_id)
-            for _ in range(3)
-        ]
+        return_value=SessionRecordsAppendResult(
+            records=[
+                SessionRecord(
+                    record_id=uuid4(), session_id="sess-1", project_id=project_id
+                )
+                for _ in range(3)
+            ]
+        )
     )
     records_dao.append = AsyncMock()
 
@@ -85,7 +93,7 @@ async def test_process_batch_groups_by_project_one_append_many_per_project():
     project_b = uuid4()
 
     records_dao = AsyncMock()
-    records_dao.append_many = AsyncMock(return_value=[])
+    records_dao.append_many = AsyncMock(return_value=SessionRecordsAppendResult())
     records_dao.append = AsyncMock()
 
     service = RecordsService(records_dao=records_dao)

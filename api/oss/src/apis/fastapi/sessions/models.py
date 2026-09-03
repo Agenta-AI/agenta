@@ -337,6 +337,8 @@ class SessionRecordIngestRequest(BaseModel):
     session_id: str
     # Optional stable id (uuid5) from the producer; absent when it has no stable key.
     record_id: Optional[UUID] = None
+    # Additive retry key. APIs predating immutable history ignore this field.
+    producer_id: Optional[UUID] = None
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
     record_type: Optional[str] = None

@@ -10,6 +10,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsAppendResult,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.sessions.records.types import (
@@ -23,10 +24,6 @@ from oss.src.dbs.postgres.sessions.records.mappings import (
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
 from oss.src.utils.env import env
-from oss.src.utils.logging import get_module_logger
-
-
-log = get_module_logger(__name__)
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -55,8 +52,8 @@ class RecordsDAO(RecordsDAOInterface):
         event: SessionRecordEvent,
         session: AsyncSession,
     ) -> Optional[SessionRecord]:
-        values = RecordsDAO._values(event=event)
         immutable = env.sessions.history_writes
+        values = RecordsDAO._values(event=event, immutable=immutable)
         stmt = (
             RecordsDAO._immutable_stmt(values_list=[values])
             if immutable
@@ -68,12 +65,6 @@ class RecordsDAO(RecordsDAOInterface):
         row = result.scalars().first()
         if row is None and immutable:
             conflict = RecordsDAO._conflict_details(values)
-            log.error(
-                "[RECORDS] Rejected stable-id retry with different content",
-                project_id=str(conflict.project_id),
-                record_id=str(conflict.record_id),
-                session_id=conflict.session_id,
-            )
             raise RecordContentConflict([conflict])
         if row is None:
             return None
@@ -83,19 +74,23 @@ class RecordsDAO(RecordsDAOInterface):
         self,
         *,
         events: List[SessionRecordEvent],
-    ) -> List[SessionRecord]:
+    ) -> SessionRecordsAppendResult:
         """Upsert all events via one batched statement in one session, not one
         connection (or one round trip) per event."""
         if not events:
-            return []
+            return SessionRecordsAppendResult()
 
         immutable = env.sessions.history_writes
-        raw_values = [self._values(event=event) for event in events]
-        values_list = (
-            self._dedupe_immutable_values(values_list=raw_values)
-            if immutable
-            else self._dedupe_values(values_list=raw_values)
-        )
+        raw_values = [
+            self._values(event=event, immutable=immutable) for event in events
+        ]
+        conflicting_record_ids: List[UUID] = []
+        if immutable:
+            values_list, conflicting_record_ids = self._dedupe_immutable_values(
+                values_list=raw_values
+            )
+        else:
+            values_list = self._dedupe_values(values_list=raw_values)
 
         async with self.engine.session() as session:
             stmt = (
@@ -108,26 +103,26 @@ class RecordsDAO(RecordsDAOInterface):
 
             if immutable and len(rows) != len(values_list):
                 returned_keys = {(row.project_id, row.record_id) for row in rows}
-                conflicts = [
-                    self._conflict_details(values)
+                database_conflicts = [
+                    values["record_id"]
                     for values in values_list
                     if (values["project_id"], values["record_id"]) not in returned_keys
                 ]
-                for conflict in conflicts:
-                    log.error(
-                        "[RECORDS] Rejected stable-id retry with different content",
-                        project_id=str(conflict.project_id),
-                        record_id=str(conflict.record_id),
-                        session_id=conflict.session_id,
-                    )
-                raise RecordContentConflict(conflicts)
+                conflicting_record_ids.extend(database_conflicts)
 
             await session.commit()
-            return [map_record_dbe_to_dto(dbe=row) for row in rows]
+            return SessionRecordsAppendResult(
+                records=[map_record_dbe_to_dto(dbe=row) for row in rows],
+                conflicting_record_ids=list(dict.fromkeys(conflicting_record_ids)),
+            )
 
     @staticmethod
-    def _values(*, event: SessionRecordEvent) -> dict:
-        dbe = map_record_event_to_dbe(event=event)
+    def _values(*, event: SessionRecordEvent, immutable: Optional[bool] = None) -> dict:
+        immutable = env.sessions.history_writes if immutable is None else immutable
+        record_id = event.record_id or (event.producer_id if immutable else None)
+        dbe = map_record_event_to_dbe(
+            event=event.model_copy(update={"record_id": record_id})
+        )
         return {
             c.name: getattr(dbe, c.name)
             for c in RecordDBE.__table__.columns
@@ -170,8 +165,11 @@ class RecordsDAO(RecordsDAOInterface):
         )
 
     @staticmethod
-    def _dedupe_immutable_values(*, values_list: List[dict]) -> List[dict]:
+    def _dedupe_immutable_values(
+        *, values_list: List[dict]
+    ) -> tuple[List[dict], List[UUID]]:
         deduped: dict = {}
+        conflicting_record_ids: List[UUID] = []
         for values in values_list:
             key = (values["project_id"], values["record_id"])
             previous = deduped.get(key)
@@ -179,15 +177,8 @@ class RecordsDAO(RecordsDAOInterface):
                 deduped[key] = values
                 continue
             if not RecordsDAO._same_immutable_content(previous, values):
-                conflict = RecordsDAO._conflict_details(values)
-                log.error(
-                    "[RECORDS] Rejected in-batch stable-id retry with different content",
-                    project_id=str(conflict.project_id),
-                    record_id=str(conflict.record_id),
-                    session_id=conflict.session_id,
-                )
-                raise RecordContentConflict([conflict])
-        return list(deduped.values())
+                conflicting_record_ids.append(values["record_id"])
+        return list(deduped.values()), list(dict.fromkeys(conflicting_record_ids))
 
     @staticmethod
     def _dedupe_values(*, values_list: List[dict]) -> List[dict]:

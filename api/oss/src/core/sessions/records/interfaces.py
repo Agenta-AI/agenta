@@ -5,6 +5,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsAppendResult,
 )
 
 
@@ -21,7 +22,7 @@ class RecordsDAOInterface:
         self,
         *,
         events: List[SessionRecordEvent],
-    ) -> List[SessionRecord]:
+    ) -> SessionRecordsAppendResult:
         raise NotImplementedError
 
     async def get_records(

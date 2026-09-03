@@ -7,14 +7,19 @@ from orjson import dumps
 from sqlalchemy.dialects import postgresql
 
 from ee.src.core.sessions.records.service import RecordsRetentionService
+from oss.src.core.sessions.records.dtos import SessionRecord, SessionRecordsAppendResult
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.types import (
+    RecordContentConflict,
+    RecordContentConflictDetails,
+)
 from oss.src.dbs.postgres.sessions.streams import dao as streams_dao_module
 from oss.src.tasks.asyncio.sessions import records_worker as records_worker_module
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.utils.env import env
 
 
-def _payload(*, organization_id, project_id, session_id):
+def _payload(*, organization_id, project_id, session_id, record_id=None):
     return zlib.compress(
         dumps(
             {
@@ -23,6 +28,7 @@ def _payload(*, organization_id, project_id, session_id):
                 "record_event": {
                     "project_id": str(project_id),
                     "session_id": session_id,
+                    "record_id": str(record_id) if record_id else None,
                     "record_index": 0,
                 },
             }
@@ -50,7 +56,17 @@ async def test_records_worker_never_checks_tracing_quota(monkeypatch):
     )
     project_id = uuid4()
     records_dao = AsyncMock()
-    records_dao.append_many = AsyncMock(return_value=[object()])
+    records_dao.append_many = AsyncMock(
+        return_value=SessionRecordsAppendResult(
+            records=[
+                SessionRecord(
+                    record_id=uuid4(),
+                    session_id="sess-quota-exempt",
+                    project_id=project_id,
+                )
+            ]
+        )
+    )
 
     appended, processed = await _worker(records_dao=records_dao).process_batch(
         [
@@ -71,6 +87,101 @@ async def test_records_worker_never_checks_tracing_quota(monkeypatch):
     assert processed == [b"1-0"]
     entitlement_check.assert_not_awaited()
     records_dao.append_many.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_conflicting_duplicates_are_acked_without_marking_history_incomplete():
+    project_id = uuid4()
+    record_id = uuid4()
+    records_dao = AsyncMock()
+    records_dao.append_many = AsyncMock(
+        return_value=SessionRecordsAppendResult(
+            records=[
+                SessionRecord(
+                    record_id=uuid4(),
+                    session_id="sess-valid",
+                    project_id=project_id,
+                )
+            ],
+            conflicting_record_ids=[record_id],
+        )
+    )
+    streams_dao = AsyncMock()
+
+    appended, processed = await _worker(
+        records_dao=records_dao,
+        streams_dao=streams_dao,
+    ).process_batch(
+        [
+            (
+                b"1-0",
+                {
+                    b"data": _payload(
+                        organization_id=uuid4(),
+                        project_id=project_id,
+                        session_id="sess-conflict",
+                        record_id=record_id,
+                    )
+                },
+            ),
+            (
+                b"2-0",
+                {
+                    b"data": _payload(
+                        organization_id=uuid4(),
+                        project_id=project_id,
+                        session_id="sess-valid",
+                    )
+                },
+            ),
+        ]
+    )
+
+    assert appended == 1
+    assert processed == [b"1-0", b"2-0"]
+    streams_dao.mark_history_incomplete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_typed_conflict_never_enters_the_destructive_worker_path():
+    project_id = uuid4()
+    record_id = uuid4()
+    records_dao = AsyncMock()
+    records_dao.append_many = AsyncMock(
+        side_effect=RecordContentConflict(
+            [
+                RecordContentConflictDetails(
+                    project_id=project_id,
+                    record_id=record_id,
+                    session_id="sess-conflict",
+                )
+            ]
+        )
+    )
+    streams_dao = AsyncMock()
+
+    appended, processed = await _worker(
+        records_dao=records_dao,
+        streams_dao=streams_dao,
+    ).process_batch(
+        [
+            (
+                b"1-0",
+                {
+                    b"data": _payload(
+                        organization_id=uuid4(),
+                        project_id=project_id,
+                        session_id="sess-conflict",
+                        record_id=record_id,
+                    )
+                },
+            )
+        ]
+    )
+
+    assert appended == 0
+    assert processed == [b"1-0"]
+    streams_dao.mark_history_incomplete.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from redis.asyncio import Redis
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.types import RecordContentConflict
 from oss.src.core.sessions.records.streaming import deserialize_record
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.logging import get_module_logger
@@ -181,10 +182,17 @@ class RecordsWorker(StreamConsumer):
 
         for project_batch in batches:
             try:
-                results = await self.service.append_many(
+                result = await self.service.append_many(
                     events=[msg.record_event for msg in project_batch["events"]],
                 )
-                total_appended += len(results)
+                total_appended += len(result.records)
+            except RecordContentConflict as exc:
+                log.error(
+                    "[RECORDS] Rejected conflicting stable record ids",
+                    project_id=str(project_batch["project_id"]),
+                    record_ids=[str(item.record_id) for item in exc.conflicts],
+                )
+                continue
             except Exception:
                 log.error(
                     "[RECORDS] Failed to append event batch",

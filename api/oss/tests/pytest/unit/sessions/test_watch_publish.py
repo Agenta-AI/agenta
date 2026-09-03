@@ -20,7 +20,7 @@ from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.streams.dtos import SessionStreamHeaderEdit
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import SessionRecord, SessionRecordsAppendResult
 from oss.src.core.workflows.dtos import Workflow, WorkflowEdit
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
@@ -82,12 +82,14 @@ async def test_worker_publishes_once_per_session_after_append():
 
     async def _append_many(*, events):
         journal.append(("append", len(events)))
-        return [
-            SessionRecord(
-                record_id=uuid4(), session_id=e.session_id, project_id=project_id
-            )
-            for e in events
-        ]
+        return SessionRecordsAppendResult(
+            records=[
+                SessionRecord(
+                    record_id=uuid4(), session_id=e.session_id, project_id=project_id
+                )
+                for e in events
+            ]
+        )
 
     records_dao.append_many = AsyncMock(side_effect=_append_many)
 
@@ -148,7 +150,13 @@ async def test_worker_survives_publisher_failure():
     project_id = uuid4()
 
     records_dao = AsyncMock()
-    records_dao.append_many = AsyncMock(return_value=[object()])
+    records_dao.append_many = AsyncMock(
+        return_value=SessionRecordsAppendResult(
+            records=[
+                SessionRecord(record_id=uuid4(), session_id="s", project_id=project_id)
+            ]
+        )
+    )
 
     worker = _worker(records_dao, _RecordingPublisher(fail=True))
 

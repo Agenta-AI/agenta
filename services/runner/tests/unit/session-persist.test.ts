@@ -53,7 +53,8 @@ describe("buildPersistingEmitter", () => {
     assert.equal(body["record_type"], "message");
     assert.equal(body["record_index"], 0);
     assert.equal(body["record_source"], "agent");
-    assert.ok(typeof body["record_id"] === "string");
+    assert.equal("record_id" in body, false);
+    assert.ok(typeof body["producer_id"] === "string");
   });
 
   it("forwards transient status data without persisting it", async () => {
@@ -284,7 +285,7 @@ describe("buildPersistingEmitter", () => {
     assert.notEqual(bodies[0]["record_id"], bodies[1]["record_id"]);
   });
 
-  it("a different tool id flushes the previous open call", async () => {
+  it("keeps one open slot per tool id until a complete checkpoint", async () => {
     const { emit, flush } = buildPersistingEmitter(
       "sess-tc2",
       () => "Secret t",
@@ -302,16 +303,18 @@ describe("buildPersistingEmitter", () => {
       name: "read",
       input: { path: "/y" },
     });
+    assert.equal(postedBodies.length, 0);
+    emit({ type: "message", text: "both reads completed" });
     await flush();
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
-    const inputs = bodies.map(
+    const inputs = bodies.slice(0, 2).map(
       (b) => (b["attributes"] as Record<string, unknown>)["input"],
     );
     assert.deepEqual(inputs, [{ path: "/x" }, { path: "/y" }]);
     assert.deepEqual(
       bodies.map((b) => b["record_index"]),
-      [0, 1],
+      [0, 1, 2],
     );
   });
 
@@ -335,6 +338,38 @@ describe("buildPersistingEmitter", () => {
     assert.equal(
       (bodies[0]["attributes"] as Record<string, unknown>)["type"],
       "tool_call",
+    );
+  });
+
+  it("checkpoints a completed tool call before the turn-end flush", async () => {
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-mid-turn",
+      () => "Secret t",
+    );
+
+    emit({
+      type: "tool_call",
+      id: "call-complete",
+      name: "bash",
+      input: { command: "pwd" },
+    });
+    emit({ type: "tool_result", id: "call-complete", output: "/workspace" });
+    await drainPersist("sess-mid-turn");
+
+    assert.deepEqual(
+      (postedBodies as Array<Record<string, unknown>>).map(
+        (body) => (body["attributes"] as Record<string, unknown>)["type"],
+      ),
+      ["tool_call"],
+    );
+
+    emit({ type: "message", text: "The workspace is ready." });
+    await flush();
+    assert.deepEqual(
+      (postedBodies as Array<Record<string, unknown>>).map(
+        (body) => (body["attributes"] as Record<string, unknown>)["type"],
+      ),
+      ["tool_call", "tool_result", "message"],
     );
   });
 
@@ -517,9 +552,10 @@ describe("buildPersistingEmitter API contract", () => {
         assert.match(String(body.span_id), OTEL_SPAN_ID);
       for (const body of accepted)
         assert.match(
-          String(body.record_id),
+          String(body.producer_id),
           /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
         );
+      for (const body of accepted) assert.equal("record_id" in body, false);
     } finally {
       globalThis.fetch = prior;
     }
@@ -656,7 +692,7 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
 
     assert.equal(attempts.length, 2);
     assert.equal(attempts[0], attempts[1]);
-    assert.ok(JSON.parse(attempts[0]).record_id);
+    assert.ok(JSON.parse(attempts[0]).producer_id);
   });
 });
 

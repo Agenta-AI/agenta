@@ -89,6 +89,7 @@ async function postEvent(
   turnId?: string,
   spanId?: string,
   timestamp: string = new Date().toISOString(),
+  producerId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   const durable = durableRecordsEnabled();
@@ -96,6 +97,7 @@ async function postEvent(
   const body = JSON.stringify({
     session_id: sessionId,
     ...(recordId ? { record_id: recordId } : {}),
+    ...(producerId ? { producer_id: producerId } : {}),
     record_index: eventIndex,
     timestamp,
     record_source: sender,
@@ -160,6 +162,7 @@ export function persistEvent(
   turnId?: string,
   spanId?: string,
   timestamp?: string,
+  producerId?: string,
 ): void {
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
@@ -175,6 +178,7 @@ export function persistEvent(
       turnId,
       spanId,
       timestamp,
+      producerId,
     ),
   );
   persistChains.set(sessionId, tail);
@@ -233,9 +237,10 @@ export function recordsIncomplete(sessionId: string): boolean {
  * Coalescing keeps one durable record per streamed family, while the live stream gets
  * every raw event unchanged:
  *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
- *  - tool_call/tool_result snapshots accumulate by tool id (latest payload wins) until the
- *    turn-end flush. That flush is the complete checkpoint: no partial tool state becomes
- *    durable. Every record gets a producer-generated id before its first delivery attempt.
+ *  - tool_call/tool_result snapshots keep one open slot per tool id. A type transition for that
+ *    id, the next non-tool event, or the turn-end flush is its complete checkpoint.
+ *  - Every emitted record keeps its legacy record_id behavior and adds a retry-stable producer_id.
+ *    An older API ignores the additive field; immutable-history mode can consume it.
  */
 export function buildPersistingEmitter(
   sessionId: string,
@@ -257,7 +262,6 @@ export function buildPersistingEmitter(
   const coalescedMessages = new Map<string, { id: string; text: string }>();
 
   type PendingToolRecord = {
-    id: string;
     index: number;
     event: AgentEvent;
     timestamp: string;
@@ -268,8 +272,13 @@ export function buildPersistingEmitter(
     event: AgentEvent,
     index: number,
     sender: string = "agent",
-    recordId: string = stableRecordIdForIndex(sessionId, index, recordScope),
+    recordId?: string,
     timestamp: string = new Date().toISOString(),
+    producerId: string = stableRecordIdForIndex(
+      sessionId,
+      index,
+      recordScope,
+    ),
   ): void => {
     persistEvent(
       sessionId,
@@ -282,6 +291,25 @@ export function buildPersistingEmitter(
       turnId,
       spanId,
       timestamp,
+      producerId,
+    );
+  };
+
+  const flushPendingTool = (toolId: string): void => {
+    const pending = pendingTools.get(toolId);
+    if (!pending) return;
+    pendingTools.delete(toolId);
+    enqueue(
+      pending.event,
+      pending.index,
+      "agent",
+      stableRecordId(
+        sessionId,
+        toolId,
+        pending.event.type,
+        recordScope,
+      ),
+      pending.timestamp,
     );
   };
 
@@ -292,14 +320,15 @@ export function buildPersistingEmitter(
     ) {
       return false;
     }
-    const key = `${event.type}:${event.id}`;
-    const pending = pendingTools.get(key);
+    const pending = pendingTools.get(event.id);
     if (pending) {
-      pending.event = event;
-      return true;
+      if (pending.event.type === event.type) {
+        pending.event = event;
+        return true;
+      }
+      flushPendingTool(event.id);
     }
-    pendingTools.set(key, {
-      id: stableRecordId(sessionId, event.id, event.type, recordScope),
+    pendingTools.set(event.id, {
       index: eventIndex++,
       event,
       timestamp: new Date().toISOString(),
@@ -308,18 +337,11 @@ export function buildPersistingEmitter(
   };
 
   const flushPendingTools = (): void => {
-    for (const pending of [...pendingTools.values()].sort(
-      (a, b) => a.index - b.index,
+    for (const [toolId] of [...pendingTools.entries()].sort(
+      ([, a], [, b]) => a.index - b.index,
     )) {
-      enqueue(
-        pending.event,
-        pending.index,
-        "agent",
-        pending.id,
-        pending.timestamp,
-      );
+      flushPendingTool(toolId);
     }
-    pendingTools.clear();
   };
 
   const emit = (event: AgentEvent): void => {
@@ -331,9 +353,8 @@ export function buildPersistingEmitter(
 
     if (stageTool(event)) return;
 
-    // A terminal event is an explicit complete checkpoint. Queue finalized tool state
-    // first so delivery order agrees with the record ordinals as well as read order.
-    if (event.type === "done") flushPendingTools();
+    // Advancing beyond tool traffic is a complete checkpoint for every open tool id.
+    flushPendingTools();
 
     // Coalesce delta families: accumulate text; persist only on *_end.
     if (event.type === "message_start") {
@@ -404,6 +425,7 @@ export function buildPersistingEmitter(
   };
 
   const persist = (event: AgentEvent, sender: string): void => {
+    flushPendingTools();
     enqueue(event, eventIndex++, sender);
   };
 

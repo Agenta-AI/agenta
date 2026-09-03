@@ -9,9 +9,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI, Request
+from fastapi import HTTPException
 
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
 from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
+from oss.src.core.sessions.records.types import (
+    RecordContentConflict,
+    RecordContentConflictDetails,
+)
 
 
 def _make_authed_request(app: FastAPI, project_id, user_id, organization_id) -> Request:
@@ -110,6 +115,7 @@ async def test_record_ingest_threads_turn_id_and_span_id():
     user_id = uuid4()
     organization_id = uuid4()
     session_id = uuid4()
+    producer_id = uuid4()
     # The runner posts a 16-hex OTel span id, NOT a UUID (regression: it was typed as UUID
     # and every ingest 422'd — see FINDING-record-ingest-422.md).
     span_id = uuid4().hex[:16]
@@ -119,6 +125,7 @@ async def test_record_ingest_threads_turn_id_and_span_id():
         record_index=0,
         record_source="agent",
         attributes={"type": "message"},
+        producer_id=producer_id,
         turn_id="turn-abc",
         span_id=span_id,
     )
@@ -143,6 +150,46 @@ async def test_record_ingest_threads_turn_id_and_span_id():
     event = mock_publish.await_args.kwargs["record_event"]
     assert event.turn_id == "turn-abc"
     assert event.span_id == span_id
+    assert event.producer_id == producer_id
+
+
+async def test_record_ingest_maps_record_conflict_to_409():
+    records_service = AsyncMock()
+    router = RecordsRouter(records_service=records_service)
+    project_id = uuid4()
+    record_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="sess-conflict",
+        producer_id=record_id,
+    )
+    conflict = RecordContentConflict(
+        [
+            RecordContentConflictDetails(
+                project_id=project_id,
+                record_id=record_id,
+                session_id="sess-conflict",
+            )
+        ]
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            side_effect=conflict,
+        ),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == conflict.to_detail()
 
 
 async def test_record_ingest_defaults_turn_id_and_span_id_to_none():
