@@ -522,11 +522,26 @@ The event endpoint registers its live wake-up before reading historical events. 
 committed events after the requested cursor and follows new commits. A lost notification causes
 another database read. It cannot create a permanent gap.
 
-### Incomplete history
+### Record delivery and incomplete history
 
-The API marks history incomplete when retention, truncation, quota rejection, or unrecoverable
-delivery loss prevents full reconstruction. It does not silently present partial history as
-complete.
+The runner assigns a stable ID before sending each durable checkpoint. It retries timeouts,
+disconnects, overload responses, and backend failures with the same ID. Identical duplicates count
+as success. A conflicting payload under the same ID and output after terminal settlement are
+non-retryable correctness responses.
+
+The runner does not block model streaming on each database commit. It holds unconfirmed durable
+checkpoints in a bounded in-memory buffer. Before submitting a successful terminal outcome, it
+stops accepting new output and waits for a bounded final flush. It never reports successful
+completion when durability remains unknown.
+
+The first version does not add a persistent runner spool. A runner crash may lose the unconfirmed
+tail. The watchdog records `lost`, marks history incomplete, releases the session for new input,
+and preserves every previously committed record. The user can continue from the last committed
+history.
+
+The API also marks history incomplete when retention, truncation, quota rejection, or other
+unrecoverable delivery loss prevents full reconstruction. It does not silently present partial
+history as complete.
 
 ### Reviewer gate: stable record IDs
 
@@ -722,9 +737,11 @@ These points remain deliberately open even though this RFC provides provisional 
 7. Confirm interaction behavior when Stop, Steer, and an answer race.
 8. Confirm final public endpoint names.
 9. Map each implementation phase to the issue inventory before claiming an issue fixed.
-10. Confirm Spike D found every intentional progressive record update.
-11. Decide whether output after watchdog terminal settlement is rejected or quarantined.
-12. Verify every current liveness consumer implements the confirmed post-Stop `running` and
+10. Confirm the exact API response contract for retryable delivery failure, duplicate success,
+    conflicting payload, and output after terminal settlement.
+11. Confirm Spike D found every intentional progressive record update.
+12. Decide whether output after watchdog terminal settlement is rejected or quarantined.
+13. Verify every current liveness consumer implements the confirmed post-Stop `running` and
     `alive` contract.
 
 ## Approval
