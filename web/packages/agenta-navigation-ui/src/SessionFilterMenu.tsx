@@ -180,8 +180,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [measureAlign],
     )
 
-    // Clears the hand-arranged order alongside the filters: both are things this menu set, and
-    // both are what "defaults" means here.
+    // Clears the arrangement alongside the filters: both are defaults this menu set.
     const onReset = useCallback(() => {
         setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS)
         clearManualOrder()

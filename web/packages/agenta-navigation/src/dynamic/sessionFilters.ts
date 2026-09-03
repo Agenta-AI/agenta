@@ -148,9 +148,7 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
 /**
  * Does the filter menu's Reset have anything to do?
  *
- * SEPARATE from `sidebarSessionFiltersDirtyAtomFamily`, which also picks the empty-state copy —
- * widening that one would make a hand-arranged rail with no filters on claim "No sessions match
- * these filters". Two readers, two meanings.
+ * Separate from `sidebarSessionFiltersDirtyAtomFamily`: that one also picks the empty-state copy.
  */
 export const sidebarSessionMenuDirtyAtomFamily = atomFamily((scopeId: string) =>
     atom(

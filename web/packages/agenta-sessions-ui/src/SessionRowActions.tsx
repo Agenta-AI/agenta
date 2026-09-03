@@ -45,9 +45,8 @@ const RENAME = "rename"
  * shared modal, because a rail row is already the thing you are naming. Every other surface keeps
  * the modal — this intercepts the action here instead of changing the shared verb.
  *
- * The kebab is the only way in — no right-click menu, so a rail row keeps the browser's own.
- * It hides until hover ON A POINTER DEVICE only: `hover` never fires on touch, so
- * `pointer-coarse` keeps it visible there, which is also what makes a long press free to drag.
+ * The kebab is the only way in; no right-click menu, so a rail row keeps the browser's own.
+ * It shows on hover on a pointer device, and stays visible on touch (`pointer-coarse`).
  */
 const SessionRowActions = ({
     session,
@@ -185,8 +184,7 @@ const SessionRowActions = ({
                 if (!session.archived) rename.start()
             }}
         >
-            {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and
-                overriding it here keeps every other rail untouched. */}
+            {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
             <span className="min-w-0 flex-1 truncate font-normal">{linkWithHeldNavigation}</span>
             <span
                 // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
