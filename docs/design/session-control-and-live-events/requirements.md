@@ -124,8 +124,8 @@ The system must meet these requirements:
 - One visible conversation turn remains traceable across approval continuations.
 
 Claude Code's built-in shell may bypass the general `ask` permission. A dedicated Linear security
-issue must own that defect and its reproduction. The decision list did not provide the issue URL,
-so this document cannot link the exact issue yet.
+issue must own that defect and its reproduction. The issue link is recorded in `status.md` under
+work before implementation.
 
 ## Session list and identity
 

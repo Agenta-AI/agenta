@@ -59,8 +59,7 @@ continuation, and Daytona testing.
 **Recommendation:** Choose Option 1 because the reap is the smaller release dependency and the pin
 bump deserves an independent regression matrix.
 
-**Reviewer holding the other view:** No reviewer recommends bump-first. The earlier draft preferred
-the bump only if the full matrix passed; Fable explicitly recommends Option 1.
+**Reviewer holding the other view:** No reviewer recommends bump-first. Fable recommends Option 1.
 
 ## O4. Rollout granularity
 

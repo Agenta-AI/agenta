@@ -46,9 +46,9 @@ the same batch.
 ## Per-session ordering
 
 The proposed baseline adds a small `session_cursors` row to the analytics engine. The records
-domain alone owns this row. For each durable write, the records data access object locks the cursor,
-increments `latest_sequence`, inserts the record with that sequence, and commits both changes in one
-analytics transaction.
+domain alone owns this row. For each durable write, the records data access object locks the cursor
+and increments `latest_sequence`. It inserts the record with that sequence and commits both changes
+in one analytics transaction.
 
 Different sessions write concurrently. Writers for one session serialize only at this commit
 boundary. Mahmoud must still choose this additive design or move records to the core engine before

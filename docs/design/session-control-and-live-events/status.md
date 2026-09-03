@@ -4,7 +4,7 @@
 
 ## Current milestone
 
-The RFC head after this edit is the contract-baseline candidate. This status does not approve an
+The current RFC head is the contract-baseline candidate. This status does not approve an
 implementation package or claim release proof on a future code commit.
 
 ## Settled contracts
@@ -88,7 +88,7 @@ The `Proven` columns in `qa.md` distinguish full, partial, and missing evidence.
 5. Build the Stop stack in the listed base order.
 6. Run all required `qa.md` rows, including rollback and missing failure injections.
 
-## Current branch record
+## Design branch and baseline commit
 
-The prior document named `agent/session-execution-rfc`, draft PR #6495. This edit did not run Git,
-so it does not assert a current branch name or commit hash.
+Design branch `agent/session-execution-rfc`, draft pull request #6495. Record the exact baseline
+commit here after the documents land.

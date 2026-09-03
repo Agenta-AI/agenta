@@ -38,7 +38,7 @@ boundaries live under [`work-packages/`](work-packages/), and release proof live
 - Closing, refreshing, or changing clients does not stop execution after sender migration.
 - Every failure leaves committed history readable and the session able to accept another message.
 
-## System shape
+## Runtime paths
 
 ```text
 Input          Client -> existing invoke -> API and agent service -> Runner

@@ -73,7 +73,7 @@ durable terminal events.
 - A `pending` command whose runner is gone settles `lost`.
 - Duplicate delivery returns the existing receipt and applies no second effect.
 - A target execution that already settled makes the command `obsolete` or `lost` according to the
-  open teardown decision.
+  open teardown decision, O7 in [`../open-questions.md`](../open-questions.md).
 - Normal shutdown releases claims. Forced shutdown relies on lease expiry and the sweep.
 - Each sweep pass has a time bound. A timeout is logged and does not stop later passes.
 

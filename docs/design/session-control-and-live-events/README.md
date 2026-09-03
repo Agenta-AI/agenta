@@ -35,7 +35,6 @@ history, shared reading, durable approvals, Queue, and Steer.
 17. [`status.md`](status.md) records the current candidate, review record, and implementation state.
 18. [`open-questions.md`](open-questions.md) presents the seven choices that remain for Mahmoud.
 19. [`evidence/README.md`](evidence/README.md) indexes spikes, pull requests, and live runs.
-20. [`handoff.md`](handoff.md) explains where the design session stopped.
 
 ## Terms
 
@@ -51,10 +50,17 @@ history, shared reading, durable approvals, Queue, and Steer.
 - **Durable event:** A committed fact used for snapshots, recovery, and replay.
 - **Sequence:** A database-assigned number that orders new durable facts within one session.
 - **Lease:** Time-limited evidence that a runner remains healthy and owns current work.
+- **Watchdog:** The service that settles an execution when its runner cannot.
+- **Sweep:** One bounded watchdog pass over pending commands and stale executions.
+- **Snapshot:** One consistent read of session, execution, pending, and read state.
+- **Relay:** The consumer that forwards temporary frames to client connections.
+- **Quarantine:** Storage that keeps late output out of canonical reads.
+- **Superseded:** Replaced by a newer execution or state that now governs the session.
 - **Increment:** One ordered release step with its own activation and rollback rule.
 
 ## Supporting history
 
 [`context.md`](context.md), [`research.md`](research.md), [`records-invariants.md`](records-invariants.md),
-and [`tonight-handoff.md`](tonight-handoff.md) preserve research and pre-spike history. Current
-contracts and plans take precedence when those files describe an older proposal.
+[`handoff.md`](handoff.md), and [`tonight-handoff.md`](tonight-handoff.md) preserve research,
+design-session handoffs, and pre-spike history. Current contracts and plans take precedence when
+those files describe an older proposal.

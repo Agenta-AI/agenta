@@ -8,8 +8,7 @@ Every run records the exact commit, provider, harness, session ID, execution ID,
 timings, terminal records, Redis ownership, Postgres state, client state, and runner logs. A row is
 proven only when one run checks visible behavior, durable state, and a successful continuation.
 
-The final candidate reruns every applicable row after selected packages are integrated. Historical
-proof below records prior evidence, not proof for a future release commit.
+The final candidate reruns every applicable row after selected packages are integrated.
 
 ## Invariants
 
@@ -23,6 +22,8 @@ proof below records prior evidence, not proof for a future release commit.
 8. A committed command survives API death and retries with the same command ID.
 
 ## Provider and harness matrix
+
+Each `Proven` column records prior evidence. It does not prove a future release commit.
 
 | Provider and harness | Requirement | Proven: commit, provider, harness, evidence path |
 |---|---|---|
@@ -135,6 +136,8 @@ metric labels.
 |---|---:|---|
 | Heartbeat interval | 30 seconds | Configuration reference only |
 | Runner owner lease | 120 seconds | Partly measured in `cancel-continuity.md` |
+| Alive and running key TTL | 3600 seconds | Configuration reference only |
+| Park window | 60 seconds local, 120 seconds Daytona | Measured live in the round-two reports |
 | Watchdog stale threshold | 90 seconds | Configuration reference only |
 | Watchdog sweep interval | 60 seconds | Configuration reference only |
 | Abandoned settlement | At most 150 seconds | 137.5 seconds runner-gone and 107 seconds stale-tail at `e6a033063a`, local, Pi, `integration-refresh.md` |
