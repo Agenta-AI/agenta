@@ -181,6 +181,55 @@ cell, promoted after the platform-guidance fix closed that exact gap; it reuses 
 the same way the separate one-shot benchmark (Tier B) does — check there before writing a new
 mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 
+## Session control cells
+
+`resources/session_control.py` is a second, standalone driver: thirteen cells that cover Stop,
+durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
+quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
+own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
+`resources/path_triggers.py` for the exact mandatory-cell mechanism.
+
+**These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
+touches any of:
+
+- `services/runner/src/sessions/**`
+- `services/runner/src/engines/sandbox_agent/**`
+- `api/oss/src/core/sessions/**`
+- `api/oss/src/tasks/asyncio/sessions/**`
+- `api/oss/src/apis/fastapi/sessions/**`
+
+Run every cell with one line:
+
+```bash
+uv run resources/session_control.py --cells all --harness pi_core --sandbox local
+```
+
+Add `--project <docker-compose project name>` to also run the seven cells that need direct
+Docker and Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`,
+`post-stop-row`, `codex-child`, `stale-tail`, plus the abort-log check inside
+`stop-after-finish`). Without `--project` those cells SKIP with a named reason; the other six
+(`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
+`repeat-stop`, `stop-during-completion`) run over HTTP alone against any deployment. Add
+`--resume <path to a prior run's results.json>` to pick a lost run back up: any cell already
+recorded there is loaded instead of re-run.
+
+Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
+`AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md` — the same PASS/FAIL/SKIP shape as the
+rest of the gate.
+
+**Environment, by name.** Same three-variable discipline as the rest of the gate, no env-file
+fallback:
+
+- `AGENTA_BASE` — the deployment origin.
+- `AGENTA_ADMIN_KEY` — mints the ephemeral account this driver runs under. Lives in
+  `~/.agenta-qa-secrets.env`.
+- `QA_OPENAI_API_KEY` — stocked into that account's vault so the `pi_core` and `codex` harnesses
+  have a provider key. Lives in `~/.agenta-qa-openai.env`.
+
+A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
+session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
+result.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
