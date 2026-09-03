@@ -5,4 +5,6 @@ import type * as AgentaApi from "../index.js";
 export interface StandardProviderDto {
     kind: AgentaApi.StandardProviderKind;
     provider: AgentaApi.StandardProviderSettingsDto;
+    models?: (AgentaApi.CustomModelSettingsDto[] | null) | undefined;
+    harnesses?: (string[] | null) | undefined;
 }

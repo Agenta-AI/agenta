@@ -23,6 +23,7 @@ from agenta.sdk.engines.running.utils import (
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -123,6 +124,7 @@ from oss.src.core.workflows.interfaces import StaticWorkflowProvider
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    InvalidAgentHarnessError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -141,7 +143,7 @@ from oss.src.core.embeds.utils import (
     find_string_embeds,
 )
 
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (
@@ -207,6 +209,34 @@ class RevisionConflictError(Exception):
             ),
             "details": details,
         }
+
+
+def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
+    """Refuse a commit whose agent template names a harness that does not exist.
+
+    Deliberately narrow. It reads ONE field, and only when the commit actually carries it, so
+    a workflow that is not an agent (and an agent commit that leaves the harness alone) takes
+    exactly the path it took before. An absent or null kind means "use the default" and is
+    left to the runtime, which is the behaviour every existing config relies on.
+    """
+    if not isinstance(data, dict):
+        return
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict):
+        return
+    agent = parameters.get("agent")
+    if not isinstance(agent, dict):
+        return
+    harness = agent.get("harness")
+    if not isinstance(harness, dict):
+        return
+    kind = harness.get("kind")
+    if kind is None or not str(kind).strip():
+        return
+    try:
+        HarnessKind.coerce(kind)
+    except InvalidHarnessKindError as e:
+        raise InvalidAgentHarnessError(value=kind, message=e.message) from e
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -2171,6 +2201,11 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
+        # Checked on the CANDIDATE, so both commit forms are covered by one call: the delta arm
+        # has already merged its operations onto the head by here, and a full-data commit is
+        # the data as sent. An unrunnable agent config must not become a revision.
+        _reject_unreadable_harness_kind(candidate.data)
+
         # The no-change answer belongs to the ordered-operations surface. With the flag off
         # the commit path stays exactly today's: a legacy delta or a full-data commit that
         # produces the stored configuration still creates a revision, because callers in
@@ -2804,11 +2839,15 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
+        # The grant lets the run's vault reads receive write-only secret values in
+        # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
+        # but a service running with auth middleware disabled uses this token directly.
         secret_token = await sign_secret_token(
             user_id=str(user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
@@ -2929,6 +2968,7 @@ class WorkflowsService:
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"

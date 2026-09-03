@@ -202,7 +202,7 @@ def model_input_modalities(
 ) -> Optional[List[str]]:
     """Look up input modalities using the model id form accepted by ``harness``."""
     entry: Optional[ModelCatalogEntry]
-    if harness in ("pi_core", "pi_agenta"):
+    if harness == "pi_core":
         catalog = pi_model_catalog()
         catalog_id = _catalog_id(provider, model_id)
     elif harness == "claude":
@@ -235,7 +235,7 @@ def model_catalog_entries(harness: str) -> List[Dict[str, object]]:
     uses its curated model catalog. An unknown harness has an empty catalog (like the ``models``
     map default).
     """
-    if harness in ("pi_core", "pi_agenta"):
+    if harness == "pi_core":
         catalog = pi_model_catalog()
     elif harness == "claude":
         catalog = claude_model_catalog()

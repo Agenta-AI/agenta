@@ -65,11 +65,12 @@ What works right now: `cd web && pnpm dev-mobile` → http://localhost:3000/m re
 shell (light+dark from the bridged palette); `pnpm build-mobile` produces a standalone server;
 `pnpm --filter @agenta/mobile lint` enforces the bans + token sync; the dev compose stacks have
 a routable `web-mobile` service (needs a dev-image rebuild to pick up the Dockerfile changes).
-Opt-in in dev too, from the repo root (swap `--oss` for `--ee` to match the loaded env file):
-`bash ./hosting/docker-compose/run.sh --oss --dev --with-mobile`. Originally it rode `with-web`
-and auto-started, but a live dev run showed the second Next dev server pushes an 8GB Docker VM
-into OOM-killing the main web app's first big Turbopack compile — dmesg-confirmed `next-server`
-kills at ~4.5GB RSS. Running both dev servers comfortably wants a 12GB+ VM.
+Since v0.113.0 the dev stack starts it by default, from the repo root (swap `--oss` for `--ee`
+to match the loaded env file): `bash ./hosting/docker-compose/run.sh --oss --dev`. It was opt-in
+(`--with-mobile`) for one release because a live dev run showed the second Next dev server pushes
+an 8GB Docker VM into OOM-killing the main web app's first big Turbopack compile — dmesg-confirmed
+`next-server` kills at ~4.5GB RSS. Running both dev servers comfortably wants a 12GB+ VM, so on a
+small VM pass `--no-mobile`.
 
 ### WP0 residual — COMPLETE (2026-07-25, 9 commits, all dual-reviewed)
 
@@ -154,8 +155,17 @@ image build and `@agenta/mobile` typecheck needed a new job.
 
 ### WP5 device gate — EXECUTED (2026-07-26, 5 commits)
 
+> **STATUS UPDATE (2026-08-22, v0.113.0):** the gate now ships **DEFAULT ON**, and the
+> `web-mobile` compose service starts with every stack (the `with-web-mobile` profile is
+> gone). Both keys became opt-OUTs: only the exact value `false` turns a gate off, and
+> `AGENTA_MOBILE_ENABLED=false` (or `run.sh --no-mobile`) holds the service back and forces
+> the desktop gate off; `--no-web` implies the same opt-out. The Helm chart deploys `web-mobile`
+> and routes `/m` by default; `webMobile.enabled=false` removes both and disables the desktop gate.
+> v0.113.0 shipped to production without `/m` because no deployment set the keys — that is what the
+> flip fixes. The section below records the original default-off design; read it as history.
+
 Ships the mobile device gate (design.md "Gate and routing") behind a runtime flag,
-`AGENTA_MOBILE_GATE`, **default off**: with the flag off, request behavior is byte-identical to
+`AGENTA_MOBILE_GATE`, **default off** (see the status update above): with the flag off, request behavior is byte-identical to
 today. A second flag, `AGENTA_MOBILE_REVERSE_GATE` (**default on**, mobile app only), turns off
 the reverse direction alone: mobile devices still get sent to `/m`, but nothing is bounced back
 out of `/m`. Set it to `false` to test `/m` from a tablet or a desktop browser — iPadOS Safari
@@ -301,14 +311,15 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
   ordering:** `17 - check mobile` no longer publishes `latest` — there is no `push_latest` input,
   and `image_tag=latest` is rejected outright. Publication is owned by `43 - Release to GHCR` in
   the private `agenta_cloud` repo, the same as api, web, services and runner; only after that
-  pipeline has published `agenta-web-mobile` once can operators pass `--with-mobile` to
-  `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). Until then, the `with-web-mobile`
-  compose profile stays opt-in on purpose — `docker compose up`/`pull` would fail the whole stack
-  against a `ghcr.io/agenta-ai/agenta-web-mobile:latest` that doesn't exist yet.
+  pipeline has published `agenta-web-mobile` once can operators start it from
+  `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). That first publication happened
+  (the image starts at v0.111.0), so the opt-in `with-web-mobile` profile was removed in
+  v0.113.0 and `web-mobile` now starts with every stack; `run.sh --no-mobile` holds it back.
 - **Design-doc staleness:** `docs/designs/sessions/**` predates the streams-merge/turns model;
   don't trust it over the code. The memory file `project_agenta_mobile_discovery` (assistant
   memory) mirrors this handoff.
-- **WP5 device gate flag-flip runbook (not yet run):** once WP2 (mobile auth) and WP4 (product
+- **WP5 device gate flag-flip runbook (SUPERSEDED — the gate is default-on since v0.113.0, so
+  there is nothing to flip):** once WP2 (mobile auth) and WP4 (product
   pages) are live, per deployment: set `AGENTA_MOBILE_GATE=true` in that deployment's env file,
   recreate the `web`/`web-mobile` services, run the T6 Playwright smoke
   (`web/oss/tests/playwright/acceptance/mobile-gate/gate.spec.ts`) against it to confirm 6

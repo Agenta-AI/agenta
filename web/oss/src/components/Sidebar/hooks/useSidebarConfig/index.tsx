@@ -7,7 +7,8 @@ import {
     TESTSETS_SIDEBAR_KEY,
 } from "@agenta/navigation"
 import {SidebarConfig} from "@agenta/navigation"
-import {HOME_SIDEBAR_KEY, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {advancedNavHiddenAtom} from "@agenta/shared/state"
 import {
     ChartLineUpIcon,
@@ -77,6 +78,10 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Prompts",
                 link: `${projectURL}/prompts`,
                 icon: getEntityKindIcon("app"),
+                // Collapsed rail: navigate to the section instead of flyout-ing the list. A
+                // 15-row popover is a list to read, not a menu to pick from, and the icon's
+                // obvious meaning is "take me to this section".
+                hideChildrenWhenCollapsed: true,
                 isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
             },
@@ -86,6 +91,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
+                hideChildrenWhenCollapsed: true,
                 // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
                 matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
@@ -97,9 +103,17 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Sessions",
                 link: `${projectURL}/sessions`,
                 icon: <ChatsCircleIcon size={14} />,
+                hideChildrenWhenCollapsed: true,
                 // Sessions only exist once an agent has run — a dead-end during onboarding.
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
+                // No collapse caret: the rows are grouped and individually collapsible, and the
+                // filter is this group's affordance.
+                alwaysOpen: true,
+                // The rail does not scroll; THIS group does. Sessions is the only list that grows
+                // without bound, so the entries after it stay on screen.
+                scrollChildren: true,
+                groupAction: <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />,
             },
             {
                 key: "evaluation-group",

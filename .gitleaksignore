@@ -291,3 +291,14 @@ a00f015276504fbf7a4820b26d17eb725c63635b:bench_bulk_insert.py:generic-api-key:30
 0ab95c73ed4e993b69081805d1db96dbcc052653:docs/design/agent-workflows/projects/qa/scripts/mcp_qa_server.mjs:generic-api-key:13
 0e69cc62f45a348f96239249870d2660cd504402:.github/workflows/16-website-production.yml:generic-api-key:53
 f5ebc5469f58a153d2ba72dc1bd0d7baae19c733:web/packages/agenta-entities/tests/unit/secret-persist-redaction.test.ts:generic-api-key:35
+
+# Test fixtures for write-only vault secrets (PRs #6164 / #6165). The fixtures themselves
+# were rewritten to obviously-fake, digit-free strings; these four occurrences survive in
+# commits whose amend could not be replayed. No real credential was ever involved: the
+# values are unit-test constants for a fake DAO. Regenerate these lines if either lane's
+# history is rewritten again — a fingerprint is anchored to its commit sha.
+ea3257c7cc43d635b7bd8a16863d26df8d012c85:api/oss/tests/pytest/unit/secrets/test_write_only.py:generic-api-key:343
+84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:241
+84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:248
+84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:303
+e30afd32abeb0b51f22a0590b5bf44899978712b:.agents/skills/agent-release-gate/resources/test_out_of_credit_skip.py:generic-api-key:50

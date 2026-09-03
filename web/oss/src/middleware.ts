@@ -1,10 +1,15 @@
-import {GATE_COOKIE_MAX_AGE, decideDesktopGate} from "@agenta/shared/utils/mobileGate"
+import {
+    GATE_COOKIE_MAX_AGE,
+    decideDesktopGate,
+    resolveGateEnabled,
+} from "@agenta/shared/utils/mobileGate"
 import {NextRequest, NextResponse} from "next/server"
 
 /**
  * Forward gate: desktop routes are redirected into the /m app, for two independent reasons.
  *
- * - AGENTA_MOBILE_GATE — the device gate (agenta-mobile WP5): mobile devices. DEFAULT OFF.
+ * - AGENTA_MOBILE_GATE — the device gate: mobile devices. DEFAULT ON; a deployment opts out
+ *   with AGENTA_MOBILE_GATE=false (resolveGateEnabled owns that rule).
  * - AGENTA_CLASSIC_MODE_GATE — the preference gate: users whose "Classic mode" is off, on any
  *   device, for the routes /m covers. DEFAULT ON; set it to "false" to disable.
  *
@@ -26,7 +31,7 @@ export function middleware(request: NextRequest) {
         method: request.method,
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
-        gateEnabled: process.env.AGENTA_MOBILE_GATE === "true",
+        gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
         classicGateEnabled: process.env.AGENTA_CLASSIC_MODE_GATE !== "false",
     })
 

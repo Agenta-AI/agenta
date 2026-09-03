@@ -3,14 +3,14 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * A `/sessions/query` row, enriched at READ time with the session's HIGHEST
- * `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
+ * A `/sessions/query` row, enriched at READ time with the session's last message.
  *
- * Also carries the session's last message, so a row can say what happened rather than only
- * when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+ * `references` prefers the stream row's own (filled once at run time) and falls back to
+ * the HIGHEST `turn_index` turn's — the agent/workflow that produced the latest turn.
+ * The fallback is what keeps rows written before the stream column existed openable.
+ * Both enrichments are batch lookups keyed on the whole page; never one call per row.
  *
- * Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
- * (see that method's docstring).
+ * Hydrated by `SessionsService.query_sessions`.
  */
 export interface SessionListItem {
     created_at?: (string | null) | undefined;
@@ -28,10 +28,10 @@ export interface SessionListItem {
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
+    references?: (AgentaApi.SessionReference[] | null) | undefined;
     archived_at?: (string | null) | undefined;
     origin?: (AgentaApi.SessionOrigin | null) | undefined;
     trigger?: (AgentaApi.SessionTrigger | null) | undefined;
     delivery?: (AgentaApi.SessionDelivery | null) | undefined;
-    references?: (AgentaApi.Reference[] | null) | undefined;
     last_message?: (AgentaApi.SessionMessagePreview | null) | undefined;
 }

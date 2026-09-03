@@ -15,7 +15,7 @@
  * none`, which `outline-2` then reads back (`outline-style: var(--tw-outline-style)`), so the
  * pair alone renders NO ring at all. This restores the style at focus time.
  */
-const FOCUS_RING =
+export const FOCUS_RING =
     "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
 
 /** A full-width tappable list row (agent roster, session list): the whole row tints. */

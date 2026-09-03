@@ -3,13 +3,17 @@ import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef
 import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
+    sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
+    sidebarRouteOpenGroupsAtomFamily,
     type SidebarConfig,
     type SidebarScope,
     type SidebarSection,
     type SidebarShellProps,
     useSidebarResize,
 } from "@agenta/navigation"
+import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 
 import {NavMenu} from "./NavMenu"
@@ -83,6 +87,27 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
     return {selectedKey: matched?.key, openKeys}
 }
 
+/** Whether any row carries this key. */
+const hasItemKey = (items: SidebarConfig[], key: string): boolean =>
+    items.some((item) => item.key === key || (item.submenu ? hasItemKey(item.submenu, key) : false))
+
+/**
+ * Which key is selected, given a scope's optional pin and the route match.
+ *
+ * A pinned key that names an UNRENDERED row selects nothing — never the route match. The rail
+ * pins the open session, whose row shares its agent's playground URL, so the route match is that
+ * agent; collapsing the session's group (or filtering it out) would otherwise jump the highlight
+ * onto the agent, falsely saying you are viewing it. With no pin, the route match is honest.
+ */
+export const resolveSelectedKey = (
+    overrideKey: string | undefined,
+    overrideRendered: boolean,
+    routeSelectedKey: string | undefined,
+): string | undefined => {
+    if (!overrideKey) return routeSelectedKey
+    return overrideRendered ? overrideKey : undefined
+}
+
 const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     if (!selectedKey) return []
 
@@ -100,6 +125,23 @@ const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     }
 
     return visit(items, []) ?? []
+}
+
+/** Groups that render no collapse control — their key must stay in the open set, or a gated
+ * dynamic source would never subscribe and the group would sit empty with no way to expand it. */
+const findAlwaysOpenKeys = (items: SidebarConfig[]) => {
+    const keys: string[] = []
+
+    const visit = (nodes: SidebarConfig[]) => {
+        nodes.forEach((item) => {
+            if (!item.submenu?.length) return
+            if (item.alwaysOpen) keys.push(item.key)
+            visit(item.submenu)
+        })
+    }
+
+    visit(items)
+    return keys
 }
 
 const findDefaultOpenKeys = (items: SidebarConfig[]) => {
@@ -127,9 +169,10 @@ const renderSlot = (
     Slot: SidebarSection["before"] | SidebarScope["header"] | SidebarScope["footer"],
     collapsed: boolean,
     lastPath?: string,
+    onDismiss?: () => void,
 ) => {
     if (!Slot) return null
-    return <Slot collapsed={collapsed} lastPath={lastPath} />
+    return <Slot collapsed={collapsed} lastPath={lastPath} onDismiss={onDismiss} />
 }
 
 const SidebarShell: React.FC<SidebarShellProps> = ({
@@ -141,7 +184,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     theme,
     className,
     onNavigate,
+    onDismiss,
 }) => {
+    // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
+    const isOverlay = Boolean(onDismiss)
     const [collapsed] = useAtom(collapsedAtom)
     const railRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, disabled: collapsed})
@@ -151,6 +197,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
     const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
     const setDefaultOpenGroups = useSetAtom(sidebarDefaultOpenGroupsAtomFamily(scope.id))
+    const setAlwaysOpenGroups = useSetAtom(sidebarAlwaysOpenGroupsAtomFamily(scope.id))
+    const setCollapsedScope = useSetAtom(sidebarCollapsedScopeAtomFamily(scope.id))
+    const setRouteOpenGroups = useSetAtom(sidebarRouteOpenGroupsAtomFamily(scope.id))
     const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
@@ -162,44 +211,73 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [visibleSections],
     )
 
-    const {selectedKey, routeOpenKeys} = useMemo(() => {
+    const {selectedKey, routeOpenKeys, pinned} = useMemo(() => {
         if (selection.mode === "controlled") {
-            return {selectedKey: selection.selectedKey, routeOpenKeys: [] as string[]}
+            return {selectedKey: selection.selectedKey, routeOpenKeys: [] as string[], pinned: true}
         }
 
         const match = findSelectedRoute(allItems, currentPath)
         // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
-        // the ephemeral playground). The override wins over the route match; open keys still follow it.
+        // the ephemeral playground, or the rail pins the open session whose row shares its agent's
+        // URL). The override wins over the route match.
+        const overrideKey = selection.selectedKeyOverride
+        const overrideRendered = overrideKey ? hasItemKey(allItems, overrideKey) : false
         return {
-            selectedKey: selection.selectedKeyOverride ?? match.selectedKey,
+            selectedKey: resolveSelectedKey(overrideKey, overrideRendered, match.selectedKey),
             routeOpenKeys: match.openKeys,
+            pinned: overrideRendered,
         }
     }, [allItems, currentPath, selection])
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
     const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
+    const alwaysOpenKeys = useMemo(() => findAlwaysOpenKeys(allItems), [allItems])
+    // `routeOpenKeys` are the MATCHED row's ancestors, and a pinned key is by definition not the
+    // row the route matched — the session rail pins a row whose group the route never names. Walk
+    // to the pinned row instead, or its group stays folded around the selection.
     const activeAncestorKeys = useMemo(
-        () =>
-            selection.mode === "controlled"
-                ? findAncestorKeys(allItems, selectedKey)
-                : routeOpenKeys,
-        [allItems, routeOpenKeys, selectedKey, selection.mode],
+        () => (pinned ? findAncestorKeys(allItems, selectedKey) : routeOpenKeys),
+        [allItems, pinned, routeOpenKeys, selectedKey],
     )
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
     const openKeys = useMemo(
-        () => uniqueKeys(persistedOrDefaultOpenGroups),
-        [persistedOrDefaultOpenGroups],
+        () => uniqueKeys([...persistedOrDefaultOpenGroups, ...alwaysOpenKeys]),
+        [alwaysOpenKeys, persistedOrDefaultOpenGroups],
     )
 
     // A `defaultOpen` group renders expanded off `defaultOpenKeys` alone, but the gated entity
     // sources read the open-groups atoms — unpublished, a visibly expanded group stays "idle"
     // and shows "Open to load" forever. Publish (never persist: the persisted atom is empty
     // until localStorage hydrates, so writing there would wipe the real open groups).
+    // `alwaysOpen` groups go in for the same reason: they are expanded on screen with nothing
+    // persisted and no way to toggle, so the gate has to count them open too.
     useEffect(() => {
         setDefaultOpenGroups((current) =>
             haveSameKeys(current, defaultOpenKeys) ? current : defaultOpenKeys,
         )
     }, [defaultOpenKeys, setDefaultOpenGroups])
+
+    // Published separately from the defaults: the gate falls back to defaults only while a scope
+    // has NO persisted record, and an always-open group has to count as open regardless.
+    useEffect(() => {
+        setAlwaysOpenGroups((current) =>
+            haveSameKeys(current, alwaysOpenKeys) ? current : alwaysOpenKeys,
+        )
+    }, [alwaysOpenKeys, setAlwaysOpenGroups])
+
+    // The gate has to know the rail is collapsed: nothing renders inline there, so an open (or
+    // always-open) group must not keep its query subscribed.
+    useEffect(() => {
+        setCollapsedScope(collapsed)
+    }, [collapsed, setCollapsedScope])
+
+    // Same contract for the route: these ancestors render expanded without touching the persisted
+    // set, so the gate would otherwise hold their queries idle under an already-open group.
+    useEffect(() => {
+        setRouteOpenGroups((current) =>
+            haveSameKeys(current, activeAncestorKeys) ? current : activeAncestorKeys,
+        )
+    }, [activeAncestorKeys, setRouteOpenGroups])
 
     useEffect(() => {
         if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return
@@ -266,6 +344,11 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const topSections = visibleSections.filter((section) => section.placement !== "bottom")
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
+    // Derived, not a second flag to keep in step with the group that sets it.
+    const scrollsWithinAGroup = topSections.some((section) =>
+        section.items.some((item) => item.scrollChildren),
+    )
+
     // Navigation notifies the host (the drawer closes itself); expand toggles and group
     // headers must not — hence the anchor check rather than a blanket click handler.
     const handleFrameClick = onNavigate
@@ -281,6 +364,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
             className={[
                 "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
+                // Claim the sheet's height; left to its content the frame collapses to the column.
+                isOverlay ? "h-full" : "",
                 className ?? "",
             ]
                 .join(" ")
@@ -295,19 +380,44 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             <aside
                 data-theme={theme}
                 className={[
-                    // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
-                    // document-scrolling routes; 0px everywhere else.
-                    "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                    // The surface fills the sheet, so it still bleeds behind a phone's toolbar.
+                    isOverlay
+                        ? "h-full w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
+                        : // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
+                          // document-scrolling routes; 0px everywhere else.
+                          "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
                 ].join(" ")}
             >
-                <div className="flex flex-col h-full w-[var(--ag-sidebar-w)] transition-all duration-300">
-                    {renderSlot(scope.header, collapsed, scope.lastPath)}
+                <div
+                    className={clsx(
+                        "flex flex-col w-[var(--ag-sidebar-w)] transition-all duration-300",
+                        // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
+                        isOverlay ? "h-[var(--ag-viewport-height,100dvh)]" : "h-full",
+                    )}
+                >
+                    {renderSlot(scope.header, collapsed, scope.lastPath, onDismiss)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
-                            <div className="flex-1 min-h-0 w-full overflow-y-auto">
+                            <div
+                                className={clsx(
+                                    "w-full min-h-0 flex-1",
+                                    // A group that scrolls its own rows owns the scrolling: the
+                                    // rail must NOT scroll too, or the entries after that group
+                                    // still leave the screen. Every other scope is unchanged.
+                                    scrollsWithinAGroup
+                                        ? "flex flex-col overflow-hidden"
+                                        : "overflow-y-auto",
+                                )}
+                            >
                                 {topSections.map(renderSection)}
                             </div>
-                            <div className="w-full flex flex-col shrink-0">
+                            <div
+                                className={clsx(
+                                    "w-full flex flex-col shrink-0",
+                                    // The home indicator sits inside `dvh`; reserve it.
+                                    isOverlay && "pb-[env(safe-area-inset-bottom)]",
+                                )}
+                            >
                                 {renderSlot(scope.footer, collapsed, scope.lastPath)}
                                 {bottomSections.map(renderSection)}
                                 {renderSlot(scope.afterBottom, collapsed, scope.lastPath)}
@@ -316,7 +426,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     </SidebarErrorBoundary>
                 </div>
             </aside>
-            {!collapsed && (
+            {/* No resizer in an overlay mount: the sheet is a fixed width, so the handle would
+                drag the rail out of alignment with the sheet that frames it. */}
+            {!collapsed && !onDismiss && (
                 <div
                     // Invisible 9px grab strip straddling the hairline; the ::after IS the
                     // hairline, tinted only while hovering or dragging.

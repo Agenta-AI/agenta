@@ -128,8 +128,11 @@ export {
 } from "./state/mounts"
 export {
     detectFileActivity,
+    drivePathFromToolPath,
+    PATH_KEYS,
     fileRecencyFromRecords,
     mountPathMatchesToolPath,
+    type DriveToolPath,
     type FileActivity,
     type FileActivityOp,
 } from "./core/fileActivity"

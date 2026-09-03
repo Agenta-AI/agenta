@@ -1,10 +1,6 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {
-    agentVoiceInputEnabledAtom,
-    classicModeEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "@agenta/shared/state"
-import {useAtom} from "jotai"
+import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -16,7 +12,6 @@ const Preferences = () => {
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
-    const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
 
     return (
         <PreferencesPage
@@ -32,13 +27,6 @@ const Preferences = () => {
                     description: "Show all platform areas in the navigation.",
                     enabled: classicModeEnabled,
                     onChange: setClassicModeEnabled,
-                },
-                {
-                    key: "voice-input",
-                    title: "Voice input",
-                    description: "Dictate messages in the agent chat.",
-                    enabled: agentVoiceInputEnabled,
-                    onChange: setAgentVoiceInputEnabled,
                 },
                 {
                     key: "playground-inspector",

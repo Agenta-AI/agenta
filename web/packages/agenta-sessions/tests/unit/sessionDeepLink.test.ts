@@ -22,6 +22,11 @@ describe("playgroundSessionPath", () => {
     it("falls back to the bare playground with no session", () => {
         expect(playgroundSessionPath(BASE, APP)).toBe(`${BASE}/${APP}/playground`)
     })
+
+    it("gives nothing rather than a path missing its middle", () => {
+        expect(playgroundSessionPath("", APP, "sess-1")).toBe("")
+        expect(playgroundSessionPath(BASE, "", "sess-1")).toBe("")
+    })
 })
 
 describe("sessionRoutePath", () => {
@@ -29,6 +34,11 @@ describe("sessionRoutePath", () => {
         expect(sessionRoutePath("/w/ws-1/p/proj-1", "sess-1")).toBe(
             "/w/ws-1/p/proj-1/sessions/sess-1",
         )
+    })
+
+    it("gives nothing without a base or a session", () => {
+        expect(sessionRoutePath("", "sess-1")).toBe("")
+        expect(sessionRoutePath("/w/ws-1/p/proj-1", "")).toBe("")
     })
 })
 

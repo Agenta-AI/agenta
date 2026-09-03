@@ -21,7 +21,6 @@ Standalone usage::
 """
 
 from .adapters import (
-    AgentaHarness,
     ClaudeHarness,
     CodexHarness,
     LocalBackend,
@@ -55,7 +54,6 @@ from .connections import (
     UnsupportedProviderError,
 )
 from .dtos import (
-    AgentaAgentTemplate,
     AgentTemplate,
     AgentTemplateShapeError,
     Event,
@@ -68,6 +66,7 @@ from .dtos import (
     HarnessCapabilities,
     HarnessIdentity,
     HarnessKind,
+    InvalidHarnessKindError,
     InvalidPermissionDefaultError,
     Message,
     NetworkEgress,
@@ -127,6 +126,7 @@ from .tools import (
     CodeToolSpec,
     DuplicateToolNameError,
     EnvironmentToolSecretProvider,
+    GatewayConnectionResolver,
     GatewayToolResolver,
     GatewayToolConfig,
     GatewayToolResolution,
@@ -165,7 +165,6 @@ __all__ = [
     "PiAgentTemplate",
     "ClaudeAgentTemplate",
     "CodexAgentTemplate",
-    "AgentaAgentTemplate",
     "HarnessKind",
     "HarnessIdentity",
     "HARNESS_IDENTITIES",
@@ -207,6 +206,7 @@ __all__ = [
     "GatewayToolResolution",
     "ToolResolver",
     "ToolSecretProvider",
+    "GatewayConnectionResolver",
     "GatewayToolResolver",
     "WorkflowToolResolver",
     "EnvironmentToolSecretProvider",
@@ -274,6 +274,7 @@ __all__ = [
     "LocalSandboxNotAllowedError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
+    "InvalidHarnessKindError",
     "InvalidPermissionDefaultError",
     "AgentTemplateShapeError",
     # Adapters
@@ -282,6 +283,5 @@ __all__ = [
     "PiHarness",
     "ClaudeHarness",
     "CodexHarness",
-    "AgentaHarness",
     "make_harness",
 ]

@@ -85,11 +85,16 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
             ),
         [sessionActions, handleOpen, automation],
     )
+    // Rename happens IN the row, so the page only supplies the commit — the list owns the edit.
+    const onRenameRow = useCallback(
+        (vm: SessionRowVm, name: string) => sessionActions.commitRename(targetFor(vm), name),
+        [sessionActions],
+    )
+
     const onMenuSelect = useCallback(
         (vm: SessionRowVm, key: string) => {
             const target = targetFor(vm)
             if (key === "open") handleOpen(vm)
-            if (key === "rename") sessionActions.rename(target)
             if (key === "pin") togglePin(vm.id)
             if (key === "copy-link") void sessionActions.copyShareLink(target)
             if (key === "archive") void sessionActions.setArchived(target)
@@ -122,6 +127,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                         scopedAgentId={scopedAgentId}
                         onOpenRow={handleOpen}
                         menuFor={menuFor}
+                        onRenameRow={onRenameRow}
                         onMenuSelect={onMenuSelect}
                         className="min-h-0 flex-1 overflow-y-auto"
                     />

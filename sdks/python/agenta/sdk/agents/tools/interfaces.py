@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Mapping, Protocol, Sequence
 
 from .models import (
+    GatewayConnectionResolution,
+    GatewayConnectionToolConfig,
     GatewayToolConfig,
     GatewayToolResolution,
+    PermissionMode,
     PlatformToolConfig,
     ReferenceToolConfig,
 )
@@ -22,7 +25,21 @@ class GatewayToolResolver(Protocol):
         self,
         tools: Sequence[GatewayToolConfig],
     ) -> GatewayToolResolution:
-        """Resolve gateway declarations into callback specifications."""
+        """Resolve legacy per-tool gateway declarations into callback specifications."""
+
+
+class GatewayConnectionResolver(Protocol):
+    async def resolve_connections(
+        self,
+        tools: Sequence[GatewayConnectionToolConfig],
+        *,
+        mode: PermissionMode,
+    ) -> GatewayConnectionResolution:
+        """Resolve ``gateway_connection`` declarations into the two runtime tools.
+
+        Returns a fixed pair of specifications plus the compiled policy the runner enforces.
+        ``mode`` is the agent-wide permission default the compiler applies to an ``inherit``
+        value."""
 
 
 class WorkflowToolResolver(Protocol):

@@ -6,15 +6,26 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {shareUrl} from "@agenta/sessions/link"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
+import {
+    ArchiveIcon,
+    ArrowSquareOutIcon,
+    LinkSimpleIcon,
+    PencilSimpleIcon,
+    PushPinIcon,
+    PushPinSlashIcon,
+    TrashIcon,
+} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {SessionMenuEntry} from "./menu"
+import {NAMED_SESSION_QUERY_KEYS, withRenamedSession} from "./renameCache"
 
 export interface SessionActionTarget {
     sessionId: string
@@ -35,20 +46,25 @@ export interface SessionActionTarget {
  */
 export interface SessionLocalCache {
     has: (target: SessionActionTarget) => boolean
-    rename: (target: SessionActionTarget, title: string) => void
-    setArchived: (target: SessionActionTarget) => void
-    remove: (target: SessionActionTarget) => void
+    /** Awaited before the lists revalidate: these verbs own the server call for a cached
+     * session, and a refetch that overtakes it brings the old row straight back. */
+    rename: (target: SessionActionTarget, title: string) => void | Promise<unknown>
+    setArchived: (target: SessionActionTarget) => void | Promise<unknown>
+    remove: (target: SessionActionTarget) => void | Promise<unknown>
 }
 
 export interface UseSessionActionsOptions {
     /** Omit on a surface with no local tab cache — every action then goes straight to the server. */
     localCache?: SessionLocalCache
     /**
-     * Absolute link to a session, or "" where this app cannot address one. Supplying it adds
+     * The path a session is linked at, or "" where this app cannot address one. Supplying it adds
      * "Copy share link" to the menu; an app whose sessions have no URL of their own omits it and
      * the entry never appears.
+     *
+     * A path, not a URL, because the menu asks on every render whether a session can be linked.
+     * Keeping that answer pure means it never reads `window` outside the click.
      */
-    shareLinkFor?: (target: SessionActionTarget) => string
+    sharePathFor?: (target: SessionActionTarget) => string
 }
 
 /**
@@ -58,7 +74,7 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -67,6 +83,10 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
         void queryClient.invalidateQueries({queryKey: ["session-list"]})
+        // The sidebar keeps its own narrower window under its own keys; without these an
+        // archive or delete driven from the rail leaves the row sitting there.
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+        void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
     }, [queryClient])
 
     const isCached = useCallback(
@@ -74,50 +94,45 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
         [localCache],
     )
 
-    const rename = useCallback(
-        (target: SessionActionTarget) => {
-            let next = target.name ?? ""
-            modal.confirm({
-                title: "Rename session",
-                content: (
-                    <Input
-                        autoFocus
-                        defaultValue={next}
-                        aria-label="Session name"
-                        className="mt-2"
-                        onChange={(event) => {
-                            next = event.target.value
-                        }}
-                    />
-                ),
-                okText: "Rename",
-                onOk: async () => {
-                    const title = next.trim()
-                    if (!title) return
-                    if (isCached(target)) {
-                        localCache?.rename(target, title)
-                    } else {
-                        const ok = await setSessionHeader({
-                            sessionId: target.sessionId,
-                            projectId,
-                            name: title,
-                        })
-                        if (!ok) {
-                            message.error("Couldn't rename this session")
-                            return
-                        }
-                    }
-                    revalidate()
-                },
-            })
+    /**
+     * Commits a rename: writes to the local cache when the session is open there and to the
+     * server otherwise. Every surface renames in place through `useInlineRename`, and they all
+     * land here so a rename from any list also retitles an open chat tab.
+     */
+    const commitRename = useCallback(
+        async (target: SessionActionTarget, title: string) => {
+            const name = title.trim()
+            if (!name) return false
+            if (isCached(target)) {
+                await localCache?.rename(target, name)
+            } else {
+                const ok = await setSessionHeader({
+                    sessionId: target.sessionId,
+                    projectId,
+                    name,
+                })
+                if (!ok) return false
+            }
+            // Rename is the one verb whose write the list read does not see straight away: the
+            // refetch an invalidation kicks off comes back carrying the OLD name and would undo
+            // what you just typed, leaving the row stale until the next poll. So patch the cached
+            // rows and mark the queries stale WITHOUT refetching — the next poll, focus or mount
+            // takes the server's copy once it agrees.
+            for (const key of NAMED_SESSION_QUERY_KEYS) {
+                queryClient.setQueriesData({queryKey: [key]}, (data: unknown) =>
+                    withRenamedSession(data, target.sessionId, name),
+                )
+                void queryClient.invalidateQueries({queryKey: [key], refetchType: "none"})
+            }
+            return true
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, queryClient],
     )
 
     const setArchived = useCallback(
         async (target: SessionActionTarget) => {
             if (isCached(target)) {
-                localCache?.setArchived(target)
+                await localCache?.setArchived(target)
             } else {
                 const call = target.archived ? unarchiveSessionRemote : archiveSessionRemote
                 const ok = await call({sessionId: target.sessionId, projectId})
@@ -134,6 +149,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
     const remove = useCallback(
         (target: SessionActionTarget) => {
             modal.confirm({
+                centered: true,
                 title: "Delete session",
                 // Delete is a hard fan-out across turns, streams, interactions and mounts. Say so:
                 // archive sits right next to it in the menu and looks like the same kind of verb.
@@ -142,7 +158,10 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     if (isCached(target)) {
-                        localCache?.remove(target)
+                        // AWAITED: the local verb fires the server call itself, and revalidating
+                        // ahead of it refetches a list the row is still in — which puts the row
+                        // back until the next poll.
+                        await localCache?.remove(target)
                     } else {
                         const ok = await deleteSessionRemote({
                             sessionId: target.sessionId,
@@ -162,7 +181,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
 
     const copyShareLink = useCallback(
         async (target: SessionActionTarget) => {
-            const link = shareLinkFor?.(target)
+            const link = shareUrl(sharePathFor?.(target) ?? "")
             if (!link) {
                 message.error("This session has no link yet")
                 return
@@ -170,7 +189,7 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
             if (await copyToClipboard(link)) message.success("Share link copied")
             else message.error("Couldn't copy the link")
         },
-        [shareLinkFor],
+        [sharePathFor],
     )
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
@@ -182,41 +201,70 @@ export const useSessionActions = ({localCache, shareLinkFor}: UseSessionActionsO
             options?: {onOpen?: () => void; openLabel?: string},
         ): SessionMenuEntry[] => [
             ...(options?.onOpen
-                ? [{key: "open", label: options.openLabel ?? "Open", disabled: !target.appId}]
-                : []),
-            {key: "rename", label: "Rename"},
-            {key: "pin", label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin"},
-            ...(shareLinkFor
                 ? [
                       {
-                          key: "copy-link",
-                          label: "Copy share link",
-                          disabled: !shareLinkFor(target),
+                          key: "open",
+                          label: options.openLabel ?? "Open",
+                          icon: <ArrowSquareOutIcon size={14} />,
+                          disabled: !target.appId,
                       },
                   ]
                 : []),
-            {type: "divider" as const},
-            {key: "archive", label: target.archived ? "Unarchive" : "Archive"},
-            {key: "delete", label: "Delete", danger: true},
+            // An archived session is out of the way on purpose: renaming or pinning it would put
+            // it back in your face without unarchiving it. Unarchive first, then rename.
+            ...(target.archived
+                ? []
+                : [
+                      {
+                          key: "rename",
+                          label: "Rename",
+                          icon: <PencilSimpleIcon size={14} />,
+                      },
+                      {
+                          key: "pin",
+                          label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
+                          icon: pinnedSet.has(target.sessionId) ? (
+                              <PushPinSlashIcon size={14} />
+                          ) : (
+                              <PushPinIcon size={14} />
+                          ),
+                      },
+                      ...(sharePathFor
+                          ? [
+                                {
+                                    key: "copy-link",
+                                    label: "Copy share link",
+                                    icon: <LinkSimpleIcon size={14} />,
+                                    disabled: !sharePathFor(target),
+                                },
+                            ]
+                          : []),
+                      {type: "divider" as const},
+                  ]),
+            {
+                key: "archive",
+                label: target.archived ? "Unarchive" : "Archive",
+                icon: <ArchiveIcon size={14} />,
+            },
+            {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
         ],
-        [pinnedSet, shareLinkFor],
+        [pinnedSet, sharePathFor],
     )
 
     const onMenuClick = useCallback(
         (target: SessionActionTarget, options?: {onOpen?: () => void}) =>
             ({key}: {key: string}) => {
                 if (key === "open") options?.onOpen?.()
-                if (key === "rename") rename(target)
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "copy-link") void copyShareLink(target)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [copyShareLink, remove, rename, setArchived, togglePin],
+        [copyShareLink, remove, setArchived, togglePin],
     )
 
     return {
-        rename,
+        commitRename,
         setArchived,
         remove,
         togglePin,

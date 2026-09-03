@@ -60,6 +60,11 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     description?: React.ReactNode
     /** Error / help line under the control, in `colorError`. */
     error?: React.ReactNode
+    /**
+     * Marks the field invalid without a message: reddens the label, pairing with the control's own
+     * `aria-invalid` border. For "this is missing" states where a text error would just be noise.
+     */
+    invalid?: boolean
     /** Layout direction. `vertical` (default) stacks; `horizontal` puts the label beside the control. */
     direction?: "vertical" | "horizontal"
     /**
@@ -86,6 +91,7 @@ function Field({
     tooltipPlacement = "right",
     description,
     error,
+    invalid = false,
     direction = "vertical",
     gap = "xs",
     size,
@@ -105,6 +111,12 @@ function Field({
 
     const isHorizontal = direction === "horizontal"
 
+    const errorLine = error != null && (
+        <span data-slot="field-error" className="text-xs text-error">
+            {error}
+        </span>
+    )
+
     const header = (label != null || description != null) && (
         <div data-slot="field-header" className="flex flex-col gap-0.5">
             {label != null && (
@@ -112,7 +124,11 @@ function Field({
                     <Label
                         htmlFor={controlId}
                         data-slot="field-label"
-                        className={cn(fieldLabelVariants({size}), isHorizontal && "flex-shrink-0")}
+                        className={cn(
+                            fieldLabelVariants({size}),
+                            isHorizontal && "flex-shrink-0",
+                            invalid && "text-error",
+                        )}
                     >
                         <span data-slot="field-label-text">
                             {label}
@@ -152,12 +168,6 @@ function Field({
                 </span>
             )}
         </div>
-    )
-
-    const errorLine = error != null && (
-        <span data-slot="field-error" className="text-xs text-error">
-            {error}
-        </span>
     )
 
     if (isHorizontal) {

@@ -1,4 +1,4 @@
-import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
+import {useMemo, useState} from "react"
 
 import {
     AGENT_TEMPLATES,
@@ -8,6 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import {HeightCollapse} from "@agenta/ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
+import {Button, type ButtonProps} from "@agenta/ui/ui"
 import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
@@ -48,31 +49,16 @@ export interface TemplateStripProps {
     className?: string
 }
 
-/** 32px square header button (arrows + menu) — plain button so the spec's disabled colors apply.
- * Spreads rest props so antd Dropdown can inject its trigger handlers via cloneElement. */
-const HeaderButton = ({
-    label,
-    disabled,
-    children,
-    className,
-    ...rest
-}: {
-    label: string
-    disabled?: boolean
-    children: ReactNode
-    className?: string
-} & ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button
+/** Icon-only header control (arrows + menu); spreads rest props for antd Dropdown's trigger. */
+const HeaderButton = ({label, className, ...rest}: {label: string} & ButtonProps) => (
+    <Button
         type="button"
+        variant="outline"
+        size="icon-sm"
         aria-label={label}
-        disabled={disabled}
         {...rest}
-        className={`flex size-8 items-center justify-center rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] p-0 ${
-            disabled ? "" : "cursor-pointer"
-        } ${className ?? ""}`}
-    >
-        {children}
-    </button>
+        className={`flex-none ${className ?? ""}`}
+    />
 )
 
 /**
@@ -230,16 +216,17 @@ const TemplateStrip = ({
     return (
         <div className={className}>
             {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
-            <div className="flex items-center gap-[14px]">
+            <div className="flex min-w-0 items-center gap-[14px]">
                 <span
-                    className={`font-semibold text-[var(--ag-colorText)] ${
+                    className={`shrink-0 font-semibold text-[var(--ag-colorText)] ${
                         isList ? "text-[13px]" : "text-base"
                     }`}
                 >
                     {STRIP_COPY.label}
                 </span>
                 {isList ? null : (
-                    <div className="flex items-center">
+                    /* Tabs scroll in the leftover width instead of squeezing the pager; mask fades the cut. */
+                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%_-_24px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {categories.map((category) => {
                             const active = category === activeCategory
                             return (
@@ -252,7 +239,7 @@ const TemplateStrip = ({
                                         setGridPage(0)
                                         resetScroll()
                                     }}
-                                    className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
+                                    className={`shrink-0 cursor-pointer whitespace-nowrap rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
                                         active
                                             ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
                                             : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
@@ -267,21 +254,17 @@ const TemplateStrip = ({
                         })}
                     </div>
                 )}
-                <div className="ml-auto flex items-center gap-[7px]">
+                <div className="ml-auto flex shrink-0 items-center gap-[7px]">
                     {showPager ? (
                         <>
-                            <span className="mr-0.5 text-xs text-[var(--ag-colorTextTertiary)]">
+                            <span className="mr-0.5 whitespace-nowrap text-xs text-[var(--ag-colorTextTertiary)]">
                                 {counterLabel}
                             </span>
                             <HeaderButton
                                 label="Previous templates"
                                 disabled={atStart}
                                 onClick={() => pageBy(-1)}
-                                className={
-                                    atStart
-                                        ? "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextQuaternary)]"
-                                        : "border-[var(--ag-colorPrimary)] text-[var(--ag-colorPrimary)]"
-                                }
+                                className="border-primary text-primary"
                             >
                                 <ChevronLeft size={14} strokeWidth={2} />
                             </HeaderButton>
@@ -289,11 +272,7 @@ const TemplateStrip = ({
                                 label="Next templates"
                                 disabled={atEnd}
                                 onClick={() => pageBy(1)}
-                                className={
-                                    atEnd
-                                        ? "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextQuaternary)]"
-                                        : "border-[var(--ag-colorPrimary)] text-[var(--ag-colorPrimary)]"
-                                }
+                                className="border-primary text-primary"
                             >
                                 <ChevronRight size={14} strokeWidth={2} />
                             </HeaderButton>
@@ -318,7 +297,8 @@ const TemplateStrip = ({
                         >
                             <HeaderButton
                                 label="Strip options"
-                                className="border-transparent text-[var(--ag-colorTextTertiary)] hover:bg-[var(--ag-colorFillTertiary)]"
+                                variant="ghost"
+                                className="text-[var(--ag-colorTextTertiary)]"
                             >
                                 <DotsThree size={16} weight="bold" />
                             </HeaderButton>

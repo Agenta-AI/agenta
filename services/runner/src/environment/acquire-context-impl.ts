@@ -186,9 +186,6 @@ export function createAcquireContext(
     setRunAgentDir(dir) {
       environment.runAgentDir = dir;
     },
-    setOtlpAuthFilePath(path) {
-      environment.otlpAuthFilePath = path;
-    },
     setCodexSqliteHome(dir) {
       environment.codexSqliteHome = dir;
     },

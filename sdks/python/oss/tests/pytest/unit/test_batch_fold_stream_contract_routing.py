@@ -122,9 +122,7 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
-    )
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     def __init__(self, *, events: List[Event]) -> None:
         self._events = events
@@ -143,6 +141,7 @@ class _FakeBackend(Backend):
         run_context=None,
         session_id=None,
         effective_parameters=None,
+        gateway_policy=None,
     ) -> _FakeSession:
         # Fresh session per call: stream and batch requests each get their own iterator.
         return _FakeSession(AgentResult(output="here you go", events=self._events))

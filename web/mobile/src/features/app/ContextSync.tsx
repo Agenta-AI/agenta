@@ -2,7 +2,7 @@ import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {useClassicModeCookieSync} from "@agenta/shared/hooks"
-import {activeUserIdAtom, setProjectIdAtom, setUserAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, setProjectIdAtom, setSessionAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -14,6 +14,7 @@ export const ContextSync = () => {
     const setProjectId = useSetAtom(setProjectIdAtom)
     const setActiveUserId = useSetAtom(activeUserIdAtom)
     const setSharedUser = useSetAtom(setUserAtom)
+    const setSession = useSetAtom(setSessionAtom)
     const {user, isPending: profilePending} = useProfile()
 
     // The identity half of the app context, and this app's answer to the desktop's
@@ -38,6 +39,23 @@ export const ContextSync = () => {
     // Classic mode is toggled here as well as on the desktop, and the desktop's middleware reads
     // it as a cookie — so this app publishes it too, or a switch flipped here would not stick.
     useClassicModeCookieSync()
+
+    // The auth half of the same context, and the other half of the desktop's `SessionListener`.
+    // `sessionAtom` defaults to FALSE and every entity query gates on it, so a host that never
+    // sets it leaves those queries permanently disabled — and a disabled TanStack v5 query reports
+    // `isPending: true` forever, with no request and no error. That is what left the agent's
+    // Configuration panel on its skeleton on `/m`: `workflowQueryAtomFamily` never ran, so the
+    // revision resolved to `data: null, isPending: true` and the panel's loading gate never
+    // cleared. The operational sections below it render from other atoms, which is why only the
+    // config rows looked stuck.
+    //
+    // Driven off the SETTLED profile rather than the route: desktop can pre-set it from a
+    // ProtectedRoute-guarded URL, but a project id in a mobile URL is not proof of auth, and
+    // optimistically claiming a session would 401-storm every gated query behind it.
+    useEffect(() => {
+        if (profilePending) return
+        setSession(!!user)
+    }, [profilePending, user, setSession])
 
     const {workspace_id, project_id} = router.query
     const workspaceId = typeof workspace_id === "string" ? workspace_id : null

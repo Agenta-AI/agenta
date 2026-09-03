@@ -226,7 +226,6 @@ const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
  * Memoized on `content`/`className`: within the one message that re-renders per streamed token
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-highlighting them each token. */
-/** Word-level fade-in for freshly streamed tokens — chunks type in instead of popping. */
 const Markdown = ({
     content,
     className,
@@ -234,12 +233,10 @@ const Markdown = ({
 }: {
     content: string
     className?: string
-    /** The part is being generated right now: keep incomplete-markdown healing on. The typing
-     * feel comes from the transport's word-paced deltas (AgentChatTransport smoothTextStream) —
-     * streamdown's own fade animator is deliberately OFF: it re-animates a part's entire
-     * initial content on mount (fresh reasoning parts arrive with text) and its shared-counter
-     * bookkeeping re-animates settled blocks on paragraph splits, so several paragraphs "type"
-     * at once. Paced data + instant render is strictly serial by construction. */
+    /** Text is still growing OR still being revealed: keep incomplete-markdown healing on. The
+     * typing feel comes from `StreamingMarkdown` below; streamdown's own animator stays off (it
+     * is gated on an `isAnimating` prop we never pass, and its shared per-instance character
+     * counter re-animates settled blocks on paragraph splits). */
     streaming?: boolean
 }) => (
     <Streamdown

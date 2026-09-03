@@ -28,7 +28,7 @@ interface ApprovalLike {
     approved?: boolean
 }
 
-import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
+import {CLIENT_TOOL_NAMES, canonicalClientToolName} from "@agenta/shared/clientTools"
 
 import {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 
@@ -69,7 +69,11 @@ const toolPartName = (part: ToolPartLike): string =>
  * message-scoped map is consulted alongside the inline field and the known-name set.
  */
 const isClientTool = (part: ToolPartLike, renderMap?: Map<string, RenderHintLike>): boolean =>
-    renderKindFor(part, renderMap) !== undefined || CLIENT_TOOL_NAMES.has(toolPartName(part))
+    renderKindFor(part, renderMap) !== undefined ||
+    // Canonicalized: the wire name carries a harness wrapper (`__ag__request_input`,
+    // `mcp__agenta-tools__…`) while the set holds bare names. Matching raw made the name axis
+    // dead, so a client tool only qualified once its sibling `data-render` part had landed.
+    CLIENT_TOOL_NAMES.has(canonicalClientToolName(toolPartName(part)))
 
 /**
  * A PARKED client tool still awaiting the user (its widget is live in the transcript). Gates the
@@ -142,8 +146,17 @@ export function agentShouldResumeAfterApproval({
             }
         }
     } else {
-        const last = messages[messages.length - 1]
-        if (last?.role === "assistant") message = last
+        // A failed turn stamps a run-error carrier — an assistant message with NO parts — onto the
+        // tail, which would otherwise hide the turn that owns the gate. Look past it, but stop at
+        // the first non-assistant message so this never reaches back into an earlier user turn.
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const candidate = messages[i]
+            if (candidate.role !== "assistant") break
+            if ((candidate.parts ?? []).length > 0) {
+                message = candidate
+                break
+            }
+        }
     }
     if (!message) return false
 

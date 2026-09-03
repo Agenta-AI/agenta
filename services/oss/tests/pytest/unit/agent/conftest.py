@@ -90,7 +90,6 @@ class FakeBackend(Backend):
         supported: Sequence[HarnessKind] = (
             HarnessKind.PI,
             HarnessKind.CLAUDE,
-            HarnessKind.AGENTA,
         ),
     ) -> None:
         self.supported_harnesses = frozenset(supported)
@@ -125,6 +124,7 @@ class FakeBackend(Backend):
         # Interface parity: the SDK passes this through on every session run. These tests
         # assert on the config and run context, not on the stamped parameters.
         effective_parameters=None,
+        gateway_policy=None,
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)

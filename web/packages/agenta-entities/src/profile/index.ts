@@ -41,6 +41,23 @@ export const deleteAccount = async (): Promise<void> => {
     await getUsersClient().deleteUserAccount()
 }
 
+/** The backend answers with the bare link, so the schema is the string itself. */
+const resetPasswordLinkSchema = z.string()
+
+/**
+ * Mint a password reset link for another member of the organization — an admin action, gated
+ * server-side by the RESET_PASSWORD permission and refused outright for the organization owner.
+ * The link is shown once and never returned again, so the caller must surface it immediately.
+ */
+export const resetPassword = async (userId: string): Promise<string> => {
+    const data = await getUsersClient().resetUserPassword({user_id: userId})
+    const link = safeParseWithLogging(resetPasswordLinkSchema, data, "[resetPassword]")
+    if (link === null) {
+        throw new Error("Received an unexpected response while generating the reset link.")
+    }
+    return link
+}
+
 export interface UseProfileOptions {
     /** Skip the request until the host knows a session exists. */
     enabled?: boolean

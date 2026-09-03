@@ -9,7 +9,7 @@
     "system-variables": "Railway injects RAILWAY_* variables (RAILWAY_ENVIRONMENT*, RAILWAY_PROJECT_*, RAILWAY_SERVICE_*, RAILWAY_PRIVATE_DOMAIN, ...) into every service. The diff ignores any RAILWAY_* name UNLESS it is declared here (declared ones, e.g. redis's RAILWAY_RUN_UID, are managed and diffed like any other).",
     "start-command-policy": "Services whose image owns its entrypoint (Postgres, supertokens, and the three WP1 wrapper images gateway/redis/seaweedfs) MUST have startCommand empty/unset. The nine app services carry explicit startCommands because one image backs several services (agenta-api alone backs api, worker-streams, worker-queues, cron, and alembic), and because web/web-mobile share an entrypoint but run different servers. API fact: startCommand null in serviceInstanceUpdate is a NO-OP; \"\" clears the override (findings.md close-out addendum).",
     "tag-policy": "Template image tags must NEVER equal a PR image tag (pr-<n>-<sha>) and must NEVER be 'latest': environmentPatchCommit silently no-ops when a patched tag equals the template's tag, which strands a clone on template images (findings.md, deploy-mode section). apply.sh enforces this.",
-    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The standalone deployment path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a deliberate change to this file, not silent drift.",
+    "healthchecks": "healthcheckPath is set only on api and services, both of which serve /health. Two services are unset on purpose, and scripts/configure.sh clears the same two. The gateway proxies / to web, and the web app answers / with a 308 redirect to /w (web/oss/next.config.ts), which Railway counts as a failed probe, so a healthcheck on / can never go green and every clone's gateway deployment ends FAILED; a gateway healthcheck can come back once the wrapper image serves its own 200 endpoint (for example location = /healthz), which needs a new gateway_tag. The runner serves /health, but on AGENTA_RUNNER_PORT (8765) rather than the port Railway probes, so Railway cannot reach it (dropped in 9fcbcec9d6). Adding a healthcheck to any other service is a deliberate change to this file, not silent drift.",
     "mobile-app": "The mobile app is the web-mobile service, served at /m by the gateway (location ~ ^/m(/|$) -> web-mobile, NO prefix strip: the Next app is built with basePath /m and owns the prefix). Its image ships web/entrypoint.sh, so it takes the same runtime config as web and writes the same __env.js. Preview gate policy: web carries AGENTA_MOBILE_GATE=true so a phone landing on a desktop route is redirected to /m, and web-mobile carries AGENTA_MOBILE_REVERSE_GATE=false so a reviewer on a laptop can open /m directly instead of being bounced back."
   },
   "parameters": {
@@ -64,6 +64,10 @@
       "from_env": "AGENTA_CRYPT_KEY",
       "generate": "openssl-rand-hex-32"
     },
+    "AGENTA_SERVICES_INTERNAL_KEY": {
+      "from_env": "AGENTA_SERVICES_INTERNAL_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
     "AGENTA_RUNNER_TOKEN": {
       "from_env": "AGENTA_RUNNER_TOKEN",
       "generate": "openssl-rand-hex-32"
@@ -93,7 +97,7 @@
     "gateway": {
       "image": "ghcr.io/agenta-ai/agenta-preview-gateway:{gateway_tag}",
       "startCommand": "",
-      "healthcheckPath": "/",
+      "healthcheckPath": null,
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -171,6 +175,9 @@
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
         },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
+        },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
@@ -219,6 +226,9 @@
         "AGENTA_CRYPT_KEY": {
           "secret": "AGENTA_CRYPT_KEY"
         },
+        "AGENTA_SERVICES_INTERNAL_KEY": {
+          "secret": "AGENTA_SERVICES_INTERNAL_KEY"
+        },
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
@@ -258,6 +268,8 @@
       "variables": {
         "AGENTA_RUNNER_HOST": "0.0.0.0",
         "AGENTA_RUNNER_PORT": "8765",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
         "AGENTA_RUNNER_TOKEN": {
           "secret": "AGENTA_RUNNER_TOKEN"
         },
@@ -276,7 +288,6 @@
         }
       },
       "optionalVariables": [
-        "AGENTA_API_URL",
         "AGENTA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_KEY",
         "AGENTA_RUNNER_DAYTONA_API_URL",

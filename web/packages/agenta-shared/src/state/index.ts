@@ -5,11 +5,7 @@
 export {projectIdAtom, setProjectIdAtom} from "./project"
 export {sessionAtom, setSessionAtom} from "./session"
 export {userAtom, setUserAtom} from "./user"
-export {
-    activeUserIdAtom,
-    agentVoiceInputEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "./featureFlags"
+export {activeUserIdAtom, playgroundInspectorEnabledAtom} from "./featureFlags"
 export {
     advancedNavHiddenAtom,
     classicModeEnabledAtom,
@@ -20,6 +16,7 @@ export {simulatedAgentRunAtomFamily} from "./simulatedAgentRun"
 export type {SimulatedAgentRunRequest} from "./simulatedAgentRun"
 export {openAgentConfigSectionAtom} from "./openConfigSection"
 export type {AgentConfigSection} from "./openConfigSection"
+export {openProviderDrawerRequestAtom} from "./openProviderDrawer"
 export {agentSelfCommitSignalAtom} from "./agentCommitSignal"
 export type {AgentSelfCommitSignal} from "./agentCommitSignal"
 export {draftConfigChangeSignalAtom} from "./draftConfigChangeSignal"

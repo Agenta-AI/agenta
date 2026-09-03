@@ -13,35 +13,31 @@ export {SESSION_QUERY_PARAM}
 
 /** `<base>/sessions/<id>` — the session's own page, on a host that routes to one. */
 export const sessionRoutePath = (base: string, sessionId: string): string =>
-    `${base}/sessions/${encodeURIComponent(sessionId)}`
+    base && sessionId ? `${base}/sessions/${encodeURIComponent(sessionId)}` : ""
 
-/** A path made absolute, for the clipboard. Empty outside the browser, or with nothing to link. */
+/**
+ * A path made absolute, for the clipboard. Empty outside the browser, or with nothing to link.
+ *
+ * The only part of this module that reads `window`, and it runs on the copy itself. Building a
+ * link stays pure, so a surface can ask "is this session linkable?" while rendering.
+ */
 export const shareUrl = (path: string): string =>
     typeof window === "undefined" || !path ? "" : `${window.location.origin}${path}`
 
-/** `<baseAppURL>/<appId>/playground?session_id=<id>` — the path a session is linked as. */
+/**
+ * `<baseAppURL>/<appId>/playground?session_id=<id>` — the path a session is linked as. Empty
+ * without a base or an agent, so a caller that asks too early gets nothing rather than a path
+ * missing its middle. Omitting `sessionId` still gives the agent's bare playground.
+ */
 export const playgroundSessionPath = (
     baseAppURL: string,
     appId: string,
     sessionId?: string | null,
 ): string => {
+    if (!baseAppURL || !appId) return ""
     const path = `${baseAppURL}/${encodeURIComponent(appId)}/playground`
     return sessionId ? `${path}?${SESSION_QUERY_PARAM}=${encodeURIComponent(sessionId)}` : path
 }
-
-/** The same link, absolute, for the clipboard. Empty without a target to link at. */
-export const playgroundSessionUrl = (
-    baseAppURL: string,
-    appId: string,
-    sessionId: string,
-): string =>
-    baseAppURL && appId && sessionId
-        ? shareUrl(playgroundSessionPath(baseAppURL, appId, sessionId))
-        : ""
-
-/** The session page's link, absolute, for the clipboard. Empty without a target to link at. */
-export const sessionRouteUrl = (base: string, sessionId: string): string =>
-    base && sessionId ? shareUrl(sessionRoutePath(base, sessionId)) : ""
 
 /** The linked session id in a query string, or "" when there is none. */
 export const readSessionParam = (search: string): string =>

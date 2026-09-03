@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {useAtomValue} from "jotai"
 
 import {
+    drivePathFromToolPath,
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
     mountRootQueryFamily,
@@ -10,6 +11,7 @@ import {
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
+    type DriveToolPath,
     type Mount,
     type MountFile,
 } from "@agenta/entities/session"
@@ -396,16 +398,29 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // Recents: the agent's own write/edit events from the durable record log (0 object-store scan).
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
-    // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
-    // "recent changes" list would be empty even though the drive has files — so fall back to the
-    // top-level listing below. Same predicate as that list uses, so the gate can't withhold the
-    // fallback over a row the list then drops. Computed here (cheap — records are few) to GATE the
-    // queries off when records already carry the list, so an active conversation pays nothing extra.
-    const hasVisibleRecords = useMemo(
-        // Wrapped, not passed by reference: `some` would hand the index in as the options arg.
-        () => [...recordRecency.keys()].some((p) => isListableDrivePath(p)),
+    // The record log's tool paths AS DRIVE PATHS: sandbox workspace root stripped, mount origin
+    // tagged, anything naming no drive file dropped (see `drivePathFromToolPath`). Filtered on the
+    // mount-relative path, before the fold prefix, exactly as the root listing filters its own.
+    // ONE derivation, shared with the gate below, so the gate can't withhold the root-listing
+    // fallback over a row the list then drops.
+    const recordFiles = useMemo(
+        () =>
+            [...recordRecency.entries()]
+                .map(([toolPath, at]) => ({resolved: drivePathFromToolPath(toolPath), at}))
+                .filter(
+                    (entry): entry is {resolved: DriveToolPath; at: number} =>
+                        entry.resolved !== null &&
+                        isListableDrivePath(entry.resolved.path, {
+                            fromAgentMount: entry.resolved.origin === "agent",
+                        }),
+                ),
         [recordRecency],
     )
+    // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
+    // "recent changes" list would be empty even though the drive has files — so fall back to the
+    // top-level listing below. Computed here (cheap — records are few) to GATE the queries off when
+    // records already carry the list, so an active conversation pays nothing extra.
+    const hasVisibleRecords = recordFiles.length > 0
 
     // Count only (limit=0): a bounded scan → `total` (+ `total_capped` when it hit the cap).
     const cwdCount = useAtomValue(latestMountFilesQueryFamily({mountId: mount?.id ?? "", limit: 0}))
@@ -440,10 +455,23 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
 
     const data = useMemo(() => {
-        // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
-        const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
-            .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
-            .filter((f) => isListableDrivePath(f.path))
+        // Both lists below present an agent-mount path the way the full drive does — folded under
+        // `agent-files/`, or at the root when the agent mount IS the drive; `resolveMount` maps
+        // either back to the mount it came from.
+        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
+        const agentOwnsFold =
+            agentOnly && ownsAgentFilesEntry((agentRootQuery.data ?? []).map((f) => f.path))
+        // Newest write/edit per path. The record map dedups by TOOL path, and one file can be named
+        // by more than one of those (`notes.md` from a cwd-relative call, `/tmp/agenta/…/notes.md`
+        // from an absolute one) — so re-dedup on the resolved drive path, newest touch winning.
+        const touchedAt = new Map<string, number>()
+        for (const {resolved, at} of recordFiles) {
+            const path =
+                resolved.origin === "agent" ? `${agentPrefix}${resolved.path}` : resolved.path
+            touchedAt.set(path, Math.max(touchedAt.get(path) ?? 0, at))
+        }
+        const recordRecents: DriveRecentFile[] = [...touchedAt.entries()]
+            .map(([path, at]) => ({path, touchedAt: at}))
             .sort((a, b) =>
                 b.touchedAt !== a.touchedAt
                     ? b.touchedAt - a.touchedAt
@@ -452,11 +480,6 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             .slice(0, SUMMARY_LATEST_LIMIT)
         // No in-conversation changes → present the top-level entries (files carry the store mtime;
         // folders sort after, alphabetically) so the surface reflects the drive's real contents.
-        // The agent mount's entries are presented exactly as the full drive presents them (folded
-        // under `agent-files/`, or at the root when it IS the drive); `resolveMount` maps them back.
-        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
-        const agentOwnsFold =
-            agentOnly && ownsAgentFilesEntry((agentRootQuery.data ?? []).map((f) => f.path))
         // Filtered per SOURCE, before the fold prefix, so provenance is still known: a bare
         // `agent-files` from the session mount is the fold marker and goes, the same name from the
         // agent mount is a real directory and stays.
@@ -602,7 +625,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         agentOnly,
         mount,
         agentMount,
-        recordRecency,
+        recordFiles,
         hasVisibleRecords,
         rootQuery.data,
         rootQuery.isPending,

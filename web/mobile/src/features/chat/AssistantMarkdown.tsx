@@ -1,3 +1,4 @@
+import {useTypewriter} from "@agenta/chat/hooks"
 import {Streamdown, type Components} from "streamdown"
 
 /**
@@ -42,17 +43,35 @@ const proseClassName = [
     "[&_[data-streamdown=table-wrapper]]:bg-muted",
 ].join(" ")
 
-/** Assistant message text rendered as markdown (desktop parity). User text stays literal. */
-export const AssistantMarkdown = ({streaming, text}: {streaming: boolean; text: string}) => (
-    <Streamdown
-        animated={false}
-        className={proseClassName}
-        components={markdownComponents}
-        controls={{code: {copy: true, download: false}, mermaid: false, table: false}}
-        lineNumbers={false}
-        mode={streaming ? "streaming" : "static"}
-        parseIncompleteMarkdown={streaming}
-    >
-        {text}
-    </Streamdown>
-)
+/**
+ * Assistant message text rendered as markdown (desktop parity). User text stays literal.
+ *
+ * Text is revealed on the frame clock, so incomplete-markdown repair has to outlive the last
+ * delta — until the reveal drains, what is on screen is a truncated prefix.
+ */
+export const AssistantMarkdown = ({
+    streaming,
+    text,
+    urgent = false,
+}: {
+    streaming: boolean
+    text: string
+    /** The item is no longer last: finish fast so a tool line below never outruns its prose. */
+    urgent?: boolean
+}) => {
+    const {text: revealed, settled} = useTypewriter(text, {urgent})
+    const healing = streaming || !settled
+    return (
+        <Streamdown
+            animated={false}
+            className={proseClassName}
+            components={markdownComponents}
+            controls={{code: {copy: true, download: false}, mermaid: false, table: false}}
+            lineNumbers={false}
+            mode={healing ? "streaming" : "static"}
+            parseIncompleteMarkdown={healing}
+        >
+            {revealed}
+        </Streamdown>
+    )
+}

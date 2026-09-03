@@ -17,6 +17,7 @@ import {AppShell} from "../nav/AppShell"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {conversationKey} from "./conversationKey"
 import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
@@ -89,11 +90,9 @@ export const ChatScreen = ({
         <ChatLoading />
     ) : heldEntityId ? (
         <LiveConversation
-            // The CONVERSATION re-keys per session (and per pinned revision) — it owns the chat
-            // engine, and reusing one across sessions left the previous transcript on screen under
-            // the new session's tab. Keying it here and not the page is the whole point: the shell,
-            // the split and the config pane stay mounted while only the transcript is rebuilt.
-            key={`${sessionId}:${heldEntityId}`}
+            // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
+            // shell, the split and the config pane mounted while the transcript is rebuilt.
+            key={conversationKey({sessionId, revisionId: heldEntityId})}
             embedded
             entityId={heldEntityId}
             sessionId={sessionId}
@@ -186,7 +185,12 @@ const ReplayScreen = ({
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow key={turn.message.id} turn={turn} sessionId={sessionId} />
+                        <TurnRow
+                            workflowId={agentId}
+                            key={turn.message.id}
+                            turn={turn}
+                            sessionId={sessionId}
+                        />
                     ))}
                 <TurnStatusLine working={running} waitingForInput={pendingCount > 0} />
             </ContentRail>

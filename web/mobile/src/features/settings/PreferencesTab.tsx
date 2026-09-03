@@ -1,10 +1,6 @@
 import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
-import {
-    agentVoiceInputEnabledAtom,
-    classicModeEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "@agenta/shared/state"
+import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 /**
@@ -17,7 +13,6 @@ import {useAtom} from "jotai"
  */
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
-    const [voiceInput, setVoiceInput] = useAtom(agentVoiceInputEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {
@@ -39,13 +34,6 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
                     description: "Use the full desktop app, with all platform areas.",
                     enabled: classicMode,
                     onChange: onClassicModeChange,
-                },
-                {
-                    key: "voice-input",
-                    title: "Voice input",
-                    description: "Dictate messages, or record one, in the agent chat.",
-                    enabled: voiceInput,
-                    onChange: setVoiceInput,
                 },
                 {
                     key: "playground-inspector",

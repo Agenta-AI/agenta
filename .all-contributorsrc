@@ -771,6 +771,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "AJ-ing",
+      "name": "Aayush Jain",
+      "avatar_url": "https://avatars.githubusercontent.com/u/226107146?v=4",
+      "profile": "https://github.com/AJ-ing",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "MFA-G",
+      "name": "Mochammad Fadhlan Al-Ghiffari",
+      "avatar_url": "https://avatars.githubusercontent.com/u/136257088?v=4",
+      "profile": "https://github.com/MFA-G",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "uchiha-suraj",
+      "name": "suraj ✨ ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46050946?v=4",
+      "profile": "https://www.heysuraj.dev/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

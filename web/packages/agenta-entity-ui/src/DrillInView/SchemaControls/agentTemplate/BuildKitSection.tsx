@@ -27,31 +27,48 @@ export function formatPermissionValue(value: unknown): string {
     }
 }
 
+/** One build-kit row. `toggle` marks a tool the user may switch off; without it the row is locked. */
+export interface BuildKitTool {
+    /** Stable React key: the `op` for a platform tool, the embed slug or index otherwise. */
+    key: string
+    descriptor: ItemDescriptor
+    toggle?: {op: string; enabled: boolean}
+}
+
 export interface BuildKitSectionProps {
-    /** Build-kit on/off (the persisted atom, or a drawer's draft buffer). */
+    /** Build-kit master on/off (the persisted atom, or a drawer's draft buffer). */
     enabled: boolean
     onEnabledChange: (value: boolean) => void
     disabled?: boolean
-    platformTools: ItemDescriptor[]
-    embeddedTools: ItemDescriptor[]
-    embeddedSkills: ItemDescriptor[]
+    tools: BuildKitTool[]
+    /** Switch one tool on or off. */
+    onToggleTool: (op: string, next: boolean) => void
+    /** Switch every switchable tool on or off at once. */
+    onSetAllTools: (next: boolean) => void
     /** Sandbox permission overlay, rendered read-only as `key → value` rows. */
     permissions?: Record<string, unknown> | null
     /** Collapsed in the app (it is background information); stories open it. @default false */
     defaultOpen?: boolean
 }
 
-/** The read-only build-kit block: enable switch, caption, and the overlay's items/permissions. */
+/** The build-kit block. Switchable tools get a switch each; the rest, and permissions, are read-only. */
 export function BuildKitSection({
     enabled,
     onEnabledChange,
     disabled,
-    platformTools,
-    embeddedTools,
-    embeddedSkills,
+    tools,
+    onToggleTool,
+    onSetAllTools,
     permissions,
     defaultOpen = false,
 }: BuildKitSectionProps) {
+    // Per-tool switches only mean anything while the kit as a whole is on.
+    const toolsDisabled = Boolean(disabled) || !enabled
+    // Counted over every row, so the number adds up against the list on screen.
+    const enabledCount = tools.filter((tool) => tool.toggle?.enabled ?? true).length
+    const allEnabled = tools.every((tool) => tool.toggle?.enabled ?? true)
+    // Nothing to switch means no bulk action — the button would be a dead control.
+    const hasSwitchableTools = tools.some((tool) => tool.toggle)
     return (
         <ConfigAccordionSection
             size="compact"
@@ -74,49 +91,60 @@ export function BuildKitSection({
             }
         >
             <span className="text-xs leading-snug text-colorTextDescription">
-                These playground-only tools, skills, and permissions help the assistant build and
-                revise this agent. None of this is part of the published agent.
+                These playground-only tools and permissions help the assistant build and revise this
+                agent. None of this is part of the published agent.
             </span>
             {!enabled ? (
                 <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-xs leading-snug text-[var(--ant-color-info-text)]">
                     The assistant can no longer create files, run code, or edit the agent here.
                 </div>
             ) : null}
-            {platformTools.length > 0 ? (
-                <RailField label="Platform tools">
-                    {platformTools.map((descriptor, index) => (
+            {tools.length > 0 ? (
+                <RailField
+                    wide
+                    label={
+                        <span className="flex flex-col items-start gap-1">
+                            <span>Tools</span>
+                            <span className="text-[11px] leading-tight text-colorTextDescription">
+                                {enabledCount} of {tools.length} enabled
+                            </span>
+                            {hasSwitchableTools ? (
+                                <button
+                                    type="button"
+                                    disabled={toolsDisabled}
+                                    onClick={() => onSetAllTools(!allEnabled)}
+                                    className="cursor-pointer border-0 bg-transparent p-0 text-[11px] underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {allEnabled ? "Disable all" : "Enable all"}
+                                </button>
+                            ) : null}
+                        </span>
+                    }
+                >
+                    {tools.map(({key, descriptor, toggle}) => (
                         <ItemRow
-                            key={`build-kit-platform-tool-${index}`}
+                            key={`build-kit-tool-${key}`}
                             descriptor={descriptor}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedTools.length > 0 ? (
-                <RailField label="Embedded tools">
-                    {embeddedTools.map((descriptor, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-tool-${index}`}
-                            descriptor={descriptor}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedSkills.length > 0 ? (
-                <RailField label="Embedded skills">
-                    {embeddedSkills.map((descriptor, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-skill-${index}`}
-                            descriptor={descriptor}
-                            locked
+                            locked={!toggle}
+                            inactive={!enabled || (toggle ? !toggle.enabled : false)}
+                            extra={
+                                toggle ? (
+                                    <Switch
+                                        size="sm"
+                                        checked={toggle.enabled}
+                                        disabled={toolsDisabled}
+                                        onCheckedChange={(next) => onToggleTool(toggle.op, next)}
+                                        // The readable name, not the wire `op`.
+                                        aria-label={descriptor.name}
+                                    />
+                                ) : undefined
+                            }
                         />
                     ))}
                 </RailField>
             ) : null}
             {permissions && Object.keys(permissions).length > 0 ? (
-                <RailField label="Sandbox permissions">
+                <RailField wide label="Sandbox permissions">
                     <div className="flex flex-col gap-1.5 opacity-70">
                         {Object.entries(permissions).map(([key, value]) => (
                             <div

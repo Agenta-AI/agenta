@@ -27,7 +27,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Server name / MCP URL / authentication. Picking `Secret header` reveals the header-name field and the project-secret picker (atom-backed).",
+                    "Server name / MCP URL / authentication. Picking `Secret header` reveals the header-name field and the project-secret picker (atom-backed). The picker pins a `Create secret` action under its options (present whether the list is empty or full) that opens the shared `CreateSecretDrawer`; on save the new secret is written to the project vault and selected here.",
             },
         },
     },

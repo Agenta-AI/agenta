@@ -1,10 +1,6 @@
-import {type RefObject, useState} from "react"
+import {type RefObject, useCallback, useRef, useState} from "react"
 
-import {agentVoiceInputEnabledAtom} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useAtomValue} from "jotai"
-
-import {isAgentVoiceInputAvailable} from "../assets/voice"
 
 import {useAudioRecorder} from "./useAudioRecorder"
 
@@ -38,10 +34,6 @@ export const useVoiceComposer = ({
      * Decided when recording STARTS: the composer is covered by the recording bar and drops are
      * blocked while capturing, so neither the text nor the tray can change in between.
      */
-    // Experimental: off until the person turns it on in Settings, or the deployment forces it on
-    // with `NEXT_PUBLIC_AGENT_VOICE_INPUT`.
-    const voiceSettingEnabled = useAtomValue(agentVoiceInputEnabledAtom)
-    const voiceEnabled = isAgentVoiceInputAvailable(voiceSettingEnabled)
     const [voiceWillSend, setVoiceWillSend] = useState(false)
     const voiceRecorder = useAudioRecorder((file) => {
         if (voiceWillSend) onSendVoiceMessage(file)
@@ -53,7 +45,11 @@ export const useVoiceComposer = ({
         voiceRecorder.start()
     }
     // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
-    // it reports failures up for the shared notice.
+    // it reports failures up for the shared notice and leaves its stopper here.
+    const dictationStopRef = useRef<() => void>(() => {})
+    // A send finishes the message, so the mic has nothing left to hear. Stable: the composer's
+    // memoized submit handler depends on it.
+    const endDictation = useCallback(() => dictationStopRef.current(), [])
     const [dictationError, setDictationError] = useState<string | null>(null)
     // Locks the editor while speech is coming in, so typing can't interleave with the transcript.
     const [dictating, setDictating] = useState(false)
@@ -64,10 +60,11 @@ export const useVoiceComposer = ({
     }
 
     return {
-        voiceEnabled,
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
+        endDictation,
         dictating,
         setDictating,
         setDictationError,

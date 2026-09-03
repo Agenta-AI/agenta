@@ -14,6 +14,7 @@ import {
     mapDesktopToMobile,
     mapMobileToDesktop,
     mobileRouteFor,
+    resolveGateEnabled,
     type GateInput,
 } from "../../src/utils/mobileGate"
 
@@ -228,6 +229,27 @@ describe("mapMobileToDesktop", () => {
     })
 })
 
+describe("resolveGateEnabled", () => {
+    // The gate ships ON so that no deployment needs an env key to give phones /m.
+    // Only the exact string "false" opts out.
+    it("is on when the key is unset", () => {
+        expect(resolveGateEnabled(undefined)).toBe(true)
+    })
+    it('is on for "true"', () => {
+        expect(resolveGateEnabled("true")).toBe(true)
+    })
+    it('is off for "false"', () => {
+        expect(resolveGateEnabled("false")).toBe(false)
+    })
+    it("stays on for an empty or unrecognized value", () => {
+        // An empty value comes from a compose `KEY=` line; anything else is a typo.
+        // Neither may silently hide the mobile app.
+        for (const raw of ["", "0", "off", "no", "FALSE", null]) {
+            expect(resolveGateEnabled(raw)).toBe(true)
+        }
+    })
+})
+
 describe("decideDesktopGate — classic mode", () => {
     /** A desktop browser whose user has Classic mode off, with the device gate switched off. */
     const classicOff = (
@@ -414,8 +436,9 @@ describe("decideDesktopGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
-    // The gate ships DEFAULT OFF, so a mobile SSO sign-in only ever completes if the handback
-    // runs regardless of the flag. It used to sit below the gate-disabled return.
+    // A deployment that opts out with AGENTA_MOBILE_GATE=false still runs /m, so a mobile SSO
+    // sign-in only ever completes if the handback runs regardless of the flag. It used to sit
+    // below the gate-disabled return.
     it("hands a mobile-started callback to /m even when the gate is disabled", () => {
         const i = input({
             pathname: "/auth/callback/google",
