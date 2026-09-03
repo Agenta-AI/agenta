@@ -11,6 +11,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -67,10 +68,10 @@ class RecordsService:
             return []
 
         return await self.records_dao.append_many(
-            events=await self._quarantine_late_events(events=events)
+            events=await self._handle_late_events(events=events)
         )
 
-    async def _quarantine_late_events(
+    async def _handle_late_events(
         self,
         *,
         events: List[SessionRecordEvent],
@@ -147,14 +148,18 @@ class RecordsService:
                 guarded.append(event)
                 continue
 
+            action = env.agenta.sessions.late_output
             log.warning(
-                "[RECORDS] Quarantined a record for a turn the watchdog had already ended",
+                "[RECORDS] %s a record for a turn the watchdog had already ended",
+                "Rejected" if action == "reject" else "Quarantined",
                 project_id=str(event.project_id),
                 session_id=event.session_id,
                 turn_id=event.turn_id,
                 record_type=event.record_type,
                 record_id=str(event.record_id) if event.record_id else None,
             )
+            if action == "reject":
+                continue
             guarded.append(event.model_copy(update={"quarantined_at": now}))
 
         return guarded
