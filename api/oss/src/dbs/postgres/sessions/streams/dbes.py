@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     Column,
     ForeignKeyConstraint,
     Index,
@@ -62,6 +63,10 @@ class SessionStreamDBE(
     # Archive is distinct from kill: `deleted_at` (LifecycleDBA) marks a killed/ended session
     # (resumable, still listed); `archived_at` marks a deliberately-hidden one (restorable).
     archived_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Null/false means no loss has been observed; true is permanent because an
+    # acknowledged record gap cannot be repaired from this table.
+    history_incomplete = Column(Boolean, nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

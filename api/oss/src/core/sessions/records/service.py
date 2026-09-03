@@ -7,11 +7,17 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 
 
 class RecordsService:
-    def __init__(self, records_dao: RecordsDAOInterface):
+    def __init__(
+        self,
+        records_dao: RecordsDAOInterface,
+        streams_dao: Optional[SessionStreamsDAOInterface] = None,
+    ):
         self.records_dao = records_dao
+        self.streams_dao = streams_dao
 
     async def append(
         self,
@@ -27,6 +33,19 @@ class RecordsService:
         events: List[SessionRecordEvent],
     ) -> List[SessionRecord]:
         return await self.records_dao.append_many(events=events)
+
+    async def mark_history_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> int:
+        if self.streams_dao is None:
+            return 0
+        return await self.streams_dao.mark_history_incomplete(
+            project_id=project_id,
+            session_ids=session_ids,
+        )
 
     async def get_records(
         self,

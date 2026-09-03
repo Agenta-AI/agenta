@@ -7,16 +7,10 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
-
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
-    from ee.src.core.access.entitlements.types import Counter
-
 
 # The runner's terminal per-turn record, and the marker it stamps on that record when the turn
 # stopped to wait for a human instead of finishing (services/runner/src/tracing/otel.ts: the
@@ -55,10 +49,9 @@ class RecordsWorker(StreamConsumer):
     1. Read batch from stream (XREADGROUP) — StreamConsumer
     2. Deserialize messages
     3. Group by project_id
-    4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
-    5. Append record events to DB
-    6. Reconcile HITL gates orphaned by a finished turn
-    7. ACK + DEL messages — StreamConsumer
+    4. Append record events to DB (session history is quota-exempt)
+    5. Reconcile HITL gates orphaned by a finished turn
+    6. ACK + DEL messages — StreamConsumer
     """
 
     log_prefix = "[RECORDS]"
@@ -151,7 +144,7 @@ class RecordsWorker(StreamConsumer):
         self,
         batch: List[Tuple[bytes, Dict[bytes, bytes]]],
     ) -> Tuple[int, List[bytes]]:
-        """Process batch — deserialize, group by org for EE quota, append to DB."""
+        """Process batch and append session history without tracing quota checks."""
         groups: Dict[UUID, Dict[str, Any]] = {}
         processed_ids: List[bytes] = []
         batch_bytes = 0
@@ -186,54 +179,7 @@ class RecordsWorker(StreamConsumer):
         batches = list(groups.values())
         total_appended = 0
 
-        org_allowed: Dict[UUID, bool] = {}
-        events_per_org: Dict[UUID, int] = {}
-
-        if is_ee():
-            for project_batch in batches:
-                org_id = project_batch["organization_id"]
-                if org_id is None:
-                    continue
-                events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
-                    project_batch["events"]
-                )
-
-            for org_id, delta in events_per_org.items():
-                if delta <= 0:
-                    org_allowed[org_id] = True
-                    continue
-
-                try:
-                    quota_allowed, _, _ = await check_entitlements(  # type: ignore
-                        key=Counter.RECORDS_INGESTED,  # type: ignore
-                        delta=delta,
-                        scope=scope_from(organization_id=org_id),  # type: ignore
-                    )
-                except Exception:
-                    log.error(
-                        "[RECORDS] L2 quota check failed",
-                        organization_id=str(org_id),
-                        exc_info=True,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
-                if not quota_allowed:
-                    log.warning(
-                        "[RECORDS] Quota exceeded, dropping org batch",
-                        organization_id=str(org_id),
-                        delta=delta,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
-                org_allowed[org_id] = True
-
         for project_batch in batches:
-            org_id = project_batch["organization_id"]
-            if is_ee() and org_id and not org_allowed.get(org_id, True):
-                continue
-
             try:
                 results = await self.service.append_many(
                     events=[msg.record_event for msg in project_batch["events"]],
@@ -245,6 +191,21 @@ class RecordsWorker(StreamConsumer):
                     project_id=str(project_batch["project_id"]),
                     exc_info=True,
                 )
+                session_ids = sorted(
+                    {msg.record_event.session_id for msg in project_batch["events"]}
+                )
+                try:
+                    await self.service.mark_history_incomplete(
+                        project_id=project_batch["project_id"],
+                        session_ids=session_ids,
+                    )
+                except Exception:
+                    log.error(
+                        "[RECORDS] Failed to mark dropped session history incomplete",
+                        project_id=str(project_batch["project_id"]),
+                        session_ids=session_ids,
+                        exc_info=True,
+                    )
                 continue
 
             # Strictly post-append, and BEFORE the relay tee: a client woken by the records

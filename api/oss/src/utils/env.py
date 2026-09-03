@@ -1406,12 +1406,19 @@ class RedisConfig(BaseModel):
 
 
 class SessionsRedisConfig(BaseModel):
-    """TTLs and caps for the session coordination-plane Redis keys.
+    """Session history and coordination-plane settings.
 
-    Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
-    redis_contract.json) shared with the TypeScript runner. Do not change a default
+    Redis defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
+    redis_contract.json) shared with the TypeScript runner. Do not change a Redis default
     without updating that fixture and the TS side in lockstep.
     """
+
+    # None means keep session history indefinitely. This is deliberately independent of
+    # tracing-plan retention: records are conversation history even though their table
+    # currently lives in the tracing database.
+    history_retention_days: int | None = _parse_optional_positive_int_env(
+        "AGENTA_SESSIONS_HISTORY_RETENTION_DAYS"
+    )
 
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
