@@ -1499,11 +1499,23 @@ class WorkflowsRouter:
             windowing=workflow_revision_query_request.windowing,
         )
 
-        next_windowing = compute_next_windowing(
-            entities=workflow_revisions,
-            attribute="id",
-            windowing=workflow_revision_query_request.windowing,
-            order="descending",
+        # A latest-per-workflow result is COMPLETE — one row per matching workflow, not a window
+        # into a longer list — so there is no next page, and handing back a cursor built from the
+        # last row would invite a caller to page through a set that has already ended.
+        latest_per_workflow = bool(
+            workflow_revision_query_request.workflow_revision
+            and workflow_revision_query_request.workflow_revision.latest_per_artifact
+        )
+
+        next_windowing = (
+            None
+            if latest_per_workflow
+            else compute_next_windowing(
+                entities=workflow_revisions,
+                attribute="id",
+                windowing=workflow_revision_query_request.windowing,
+                order="descending",
+            )
         )
 
         await publish_revision_event(
