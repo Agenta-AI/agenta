@@ -176,7 +176,9 @@ export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
             .map((line) => `> ${line}`)
             .join("\n")
         const note = quote.note.trim()
-        return [`> ${head}`, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
+        // Two trailing spaces: a hard break, so the origin line does not run into the excerpt
+        // when the renderer folds the blockquote's lines into one paragraph.
+        return [`> ${head}  `, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
     })
     const trimmed = text.trim()
     return trimmed ? `${blocks.join("\n\n")}\n\n${trimmed}` : blocks.join("\n\n")
