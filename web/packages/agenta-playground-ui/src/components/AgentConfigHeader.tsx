@@ -19,6 +19,8 @@ export interface AgentConfigHeaderProps {
      * them on the classic prompt playground only.
      */
     trailing?: ReactNode
+    /** The surface saves itself (#6126), so drop the manual commit control. */
+    autoSave?: boolean
     /** `grow` instead of sticky, for an embedded drawer or a pane that scrolls with its content. */
     embedded?: boolean
     className?: string
@@ -41,6 +43,7 @@ export const AgentConfigHeader = ({
     appId,
     onAfterCommit,
     onCommitted,
+    autoSave = false,
     trailing,
     embedded = false,
     className,
@@ -56,16 +59,18 @@ export const AgentConfigHeader = ({
             <span className="text-[13px] font-semibold text-colorText">Configuration</span>
         </div>
         <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
-            <CommitVariantChangesButton
-                variantId={revisionId}
-                label="Commit"
-                type="primary"
-                size="small"
-                appId={appId}
-                onAfterCommit={onAfterCommit}
-                onCommitted={onCommitted}
-                data-tour="commit-button"
-            />
+            {autoSave ? null : (
+                <CommitVariantChangesButton
+                    variantId={revisionId}
+                    label="Commit"
+                    type="primary"
+                    size="small"
+                    appId={appId}
+                    onAfterCommit={onAfterCommit}
+                    onCommitted={onCommitted}
+                    data-tour="commit-button"
+                />
+            )}
             {trailing}
         </div>
     </section>

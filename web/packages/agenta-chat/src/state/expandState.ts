@@ -19,6 +19,8 @@ import {atomFamily} from "jotai-family"
 export const reasoningKey = (messageId: string, partIndex: number) =>
     `${messageId}::reason::${partIndex}`
 export const errorKey = (messageId: string) => `${messageId}::error`
+/** A long message body clamped behind "Show more" (see `CollapsibleMessageBody`). */
+export const messageBodyKey = (messageId: string) => `${messageId}::body`
 export const toolRowKey = (toolCallId: string) => `tool::row::${toolCallId}`
 export const toolGroupKey = (toolCallId: string) => `tool::group::${toolCallId}`
 
@@ -46,6 +48,7 @@ export const expandedKeysForMessages = (messages: UIMessage[]): Set<string> => {
     const keys = new Set<string>()
     for (const m of messages) {
         keys.add(errorKey(m.id))
+        keys.add(messageBodyKey(m.id))
         m.parts.forEach((p, i) => {
             const type = (p as {type?: string}).type
             if (type === "reasoning") keys.add(reasoningKey(m.id, i))

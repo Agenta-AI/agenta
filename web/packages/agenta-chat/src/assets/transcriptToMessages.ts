@@ -69,6 +69,8 @@ interface DraftMessage {
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
+    /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
+    runErrorCode?: string
 }
 
 interface TranscriptIndex {
@@ -502,7 +504,12 @@ function applyEvent(
             // the same red bubble as a live one. First non-empty wins — a cascading later error
             // must not mask the root cause.
             const message = str(payload.message).trim()
-            if (message && !draft.runError) draft.runError = message
+            if (message && !draft.runError) {
+                draft.runError = message
+                // Code rides the same event; an older runner omits it (protocol.ts `error.code`).
+                if (typeof payload.code === "string" && payload.code.trim())
+                    draft.runErrorCode = payload.code
+            }
             return
         }
         case "usage": {
@@ -587,19 +594,22 @@ export function transcriptToMessages(
         applyEvent(current, p, index, row.session_id)
     }
 
+    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
+    applyInteractionRowStates(index, options?.interactionRowStates)
+
     // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
     // once the user responded (a deny settles its own part via `tool_result denied`). The durable
     // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
     // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
+    // Runs AFTER the rows on purpose: this sweep knows only THAT a gate was answered, never how, so
+    // ahead of them it consumed the `approval-requested` state the row's verdict is applied to, and
+    // every denied gate replayed as approved.
     for (const d of drafts) {
         if (!d.resumed) continue
         for (const part of d.parts) {
             if (part.state === "approval-requested") part.state = "approval-responded"
         }
     }
-
-    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
-    applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
         // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
@@ -612,7 +622,11 @@ export function transcriptToMessages(
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
-            if (d.runError) metadata.runError = {message: d.runError}
+            if (d.runError)
+                metadata.runError = {
+                    message: d.runError,
+                    ...(d.runErrorCode ? {code: d.runErrorCode} : {}),
+                }
             return {
                 id: d.id,
                 role: d.role,

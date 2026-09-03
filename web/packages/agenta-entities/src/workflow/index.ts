@@ -76,6 +76,13 @@ export {
 } from "./state/subscriptionStatus"
 
 export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./state/agentModelCandidates"
+
+export {
     type SubscriptionStatusResponse,
     type SubscriptionRunnerState,
     type SubscriptionHarnessState,
@@ -84,6 +91,8 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
 } from "./state"
@@ -268,6 +277,8 @@ export {
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -290,6 +301,9 @@ export {
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     agTypeSchemaAtomFamily,
+    // Agent icon (per-agent glyph + colour, persisted client-side)
+    agentIconAtomFamily,
+    type AgentIconRecord,
     readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,

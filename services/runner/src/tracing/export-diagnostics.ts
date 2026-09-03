@@ -153,7 +153,11 @@ export function logExportProblem(problem: {
   traceId: string;
   endpoint: string;
   authorization?: string;
-  spans: number;
+  spans?: number;
+  source?: "pi-spool" | "runner";
+  placement?: "local" | "daytona";
+  turnId?: string;
+  bytes?: number;
   error?: unknown;
   redactors?: Iterable<Redactor>;
 }): void {
@@ -175,6 +179,10 @@ export function logExportProblem(problem: {
     OUTCOME_MESSAGES[problem.outcome],
     JSON.stringify({
       traceId: problem.traceId,
+      source: problem.source,
+      placement: problem.placement,
+      turnId: problem.turnId,
+      bytes: problem.bytes,
       endpoint: endpointHost(problem.endpoint),
       status,
       statusClass,

@@ -1,5 +1,6 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
+import {toSafeIdSegment} from "./idSegments"
 import type {
     Org,
     OrgDetails,
@@ -46,8 +47,13 @@ export const fetchSingleOrg = async ({
 }: {
     organizationId: string
 }): Promise<OrgDetails | null> => {
+    const segment = toSafeIdSegment(organizationId)
+    if (segment === null) {
+        console.error("Refused to fetch organization with an unsafe id", organizationId)
+        return null
+    }
     try {
-        const {data} = await axios.get(`${getAgentaApiUrl()}/organizations/${organizationId}`)
+        const {data} = await axios.get(`${getAgentaApiUrl()}/organizations/${segment}`)
         return data ?? null
     } catch (error) {
         if ((error as {response?: {status?: number}})?.response?.status === 401) return null

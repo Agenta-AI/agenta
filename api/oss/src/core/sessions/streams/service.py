@@ -640,6 +640,7 @@ class SessionStreamsService:
         proposed_name = normalize_session_name(request.name)
         proposed_references = request.references or None
 
+        created = False
         if prior_stream is None:
             try:
                 stream = await self._dao.create(
@@ -653,6 +654,7 @@ class SessionStreamsService:
                         references=proposed_references,
                     ),
                 )
+                created = True
             except SessionStreamAlreadyExists:
                 # `_start_turn` won the first-touch race; fall through and update its row.
                 stream = None
@@ -705,6 +707,15 @@ class SessionStreamsService:
                 project_id=project_id,
                 session_id=request.session_id,
                 state=WATCH_LIFECYCLE_RUNNING,
+            )
+
+        # A create is the session entering the project's lists, and `lifecycle` above rides the
+        # SESSION channel, which no list subscribes to. Without this a runner-first session
+        # reached no open list until that tab reloaded.
+        if created:
+            await self._publish_changed(
+                project_id=project_id,
+                session_id=request.session_id,
             )
 
         return SessionHeartbeatResult(
@@ -874,10 +885,13 @@ class SessionStreamsService:
         """Hard delete the merged stream row (S7 delete fan-out, WP5). Distinct
         from `kill`, which only soft-deletes via `delete_by_session_id`."""
         _validate_session_id(session_id)
-        return await self._dao.hard_delete_by_session_id(
+        deleted = await self._dao.hard_delete_by_session_id(
             project_id=project_id,
             session_id=session_id,
         )
+        if deleted:
+            await self._publish_changed(project_id=project_id, session_id=session_id)
+        return deleted
 
     async def archive(
         self,
@@ -889,11 +903,14 @@ class SessionStreamsService:
         """Soft-archive the stream row: set `archived_at` (hidden but restorable), distinct from
         kill's `deleted_at` so a killed session stays listed. Returns the archived confirmation."""
         _validate_session_id(session_id)
-        return await self._dao.set_archived_by_session_id(
+        archived = await self._dao.set_archived_by_session_id(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
         )
+        if archived is not None:
+            await self._publish_changed(project_id=project_id, session_id=session_id)
+        return archived
 
     async def unarchive(
         self,
@@ -904,11 +921,14 @@ class SessionStreamsService:
     ) -> Optional[SessionStream]:
         """Reverse of `archive`: clears `archived_at`, restoring the session to the list."""
         _validate_session_id(session_id)
-        return await self._dao.clear_archived_by_session_id(
+        restored = await self._dao.clear_archived_by_session_id(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
         )
+        if restored is not None:
+            await self._publish_changed(project_id=project_id, session_id=session_id)
+        return restored
 
     async def check_runner_concurrency_limit(self, *, project_id: UUID) -> None:
         """Raise ConcurrencyLimitExceeded if the per-project limit is reached."""
@@ -950,6 +970,10 @@ class SessionStreamsService:
             session_id=session_id,
         )
         created = False
+        # Set by every branch that puts the row back in front of a list: a fresh create, a killed
+        # tombstone re-nested, an archived row un-hidden. Each is once-per-session, unlike the
+        # per-turn `lifecycle` below.
+        listed = False
         if stream is None:
             try:
                 await self._dao.create(
@@ -963,6 +987,7 @@ class SessionStreamsService:
                     ),
                 )
                 created = True
+                listed = True
             except SessionStreamAlreadyExists:
                 # The unique slot is held by either a concurrent first touch (live row) or a
                 # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
@@ -983,6 +1008,7 @@ class SessionStreamsService:
                     user_id=user_id,
                     session_id=session_id,
                 )
+                listed = True
                 updated = await self._dao.update(
                     project_id=project_id,
                     user_id=user_id,
@@ -997,6 +1023,7 @@ class SessionStreamsService:
                     user_id=user_id,
                     session_id=session_id,
                 )
+                listed = True
             # Same fill-once proposal the runner's beat makes, so a browser session is
             # titled even when the client's auto-title effect never runs.
             if name and updated is not None and updated.name is None:
@@ -1010,6 +1037,8 @@ class SessionStreamsService:
             session_id=session_id,
             state=WATCH_LIFECYCLE_RUNNING,
         )
+        if listed:
+            await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
 
     async def _mirror_flags(

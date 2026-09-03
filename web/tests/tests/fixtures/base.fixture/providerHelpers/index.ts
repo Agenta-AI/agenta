@@ -15,11 +15,10 @@ import type {
     TestProviderProfileInfo,
 } from "./types"
 
-// Header of the custom-providers ("OpenAI-compatible endpoints") section, and the
-// label of the button that opens its create form. Both are product copy; keep them
-// here so a rename is a one-line fix rather than a hunt through the helpers.
-const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
-const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
+// Settings now presents one table of provider connections. Keep the page and action
+// copy here so future wording changes stay local to this fixture.
+const PROVIDERS_PAGE_HEADING = "AI providers"
+const PROVIDER_ADD_BUTTON_LABEL = "Add provider"
 
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
@@ -30,6 +29,10 @@ const MOCK_API_BASE_URL = "https://mockgpt.wiremockapi.cloud/v1"
 interface VaultSecretRecord {
     id: string
     kind: string
+    value_status?: {
+        configured?: boolean
+        preview?: string | null
+    }
     header?: {
         name?: string
     }
@@ -134,7 +137,7 @@ function readTestProjectMetadata(): TestProjectMetadata | null {
 }
 
 async function waitForModelsPageReady(page: Page): Promise<void> {
-    const customProvidersSection = getCustomProvidersSection(page)
+    const providersSection = getProvidersSection(page)
 
     await page.waitForLoadState("networkidle", {timeout: 10000}).catch(() => {})
 
@@ -144,23 +147,16 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
                 const headingVisible = await pollLocatorState(() =>
-                    page.getByRole("heading", {name: "LLMs"}).isVisible(),
+                    page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING}).isVisible(),
                 )
-                const sectionVisible = await pollLocatorState(() =>
-                    customProvidersSection.isVisible(),
-                )
+                const sectionVisible = await pollLocatorState(() => providersSection.isVisible())
                 const hasVisibleSpinner = await pollLocatorState(() =>
-                    customProvidersSection.locator(".ant-spin-spinning").isVisible(),
+                    providersSection.locator(".ant-spin-spinning").isVisible(),
                 )
-                // `.first()` matters: the section renders this button twice (once in the
-                // header, once in the empty-state row). Without it the locator is strict-mode
-                // ambiguous and `isEnabled()` throws — pollLocatorState lets that throw
-                // through instead of swallowing it, so a future selector regression fails
-                // loudly instead of timing out with a "never reached a stable ready state"
-                // message that names no real cause.
+                // The empty state renders a second Add provider button.
                 const createButtonEnabled = await pollLocatorState(() =>
-                    customProvidersSection
-                        .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
+                    providersSection
+                        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
                         .first()
                         .isEnabled(),
                 )
@@ -196,31 +192,29 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
     await page.goto(`${projectBasePath}/settings?tab=llms`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "LLMs"})).toBeVisible({
+    await expect(page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING})).toBeVisible({
         timeout: 15000,
     })
-    await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
+    await expect(getProvidersSection(page)).toBeVisible({timeout: 15000})
     await waitForModelsPageReady(page)
 }
 
-function getCustomProvidersSection(page: Page): Locator {
-    // Anchored on the section's own header text. This used to key off the
-    // "OpenAI-compatible endpoint" trigger button, but that button is now labelled
-    // "Add endpoint", so the old anchor matched nothing and the section could never
-    // be found. The header reads "OpenAI-compatible endpoints" (plural).
+function getProvidersSection(page: Page): Locator {
+    // The unified connections table has no section heading of its own. Its primary
+    // action is the stable accessible anchor, including while the table is empty.
     return page
-        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
+        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
+        .first()
         .locator("xpath=ancestor::section[1]")
         .first()
 }
 
 async function getCustomProviderRow(page: Page, providerName: string): Promise<Locator | null> {
-    const customProvidersSection = getCustomProvidersSection(page)
-    const table = customProvidersSection.getByRole("table").first()
-
-    const row = table
-        .getByRole("row")
-        .filter({has: page.getByRole("cell", {name: providerName, exact: true})})
+    // Start from the exact Name cell; its table row is the clickable control.
+    const section = getProvidersSection(page)
+    const row = section
+        .getByRole("cell", {name: providerName, exact: true})
+        .locator("xpath=ancestor::tr[1]")
         .first()
 
     return (await row.count()) > 0 ? row : null
@@ -262,7 +256,8 @@ function assertMockProviderSecret(secret: VaultSecretRecord): void {
     expect(secret.header?.name).toBe(MOCK_PROVIDER_NAME)
     expect(secret.data?.kind).toBe(MOCK_PROVIDER_KIND)
     expect(secret.data?.provider?.url).toBe(MOCK_API_BASE_URL)
-    expect(secret.data?.provider?.extras?.api_key).toBe(MOCK_API_KEY)
+    expect(secret.value_status?.configured).toBe(true)
+    expect(secret.data?.provider?.extras?.api_key).toBeUndefined()
     expect(secret.data?.models?.some((model) => model.slug === MOCK_MODEL_NAME)).toBe(true)
 }
 
@@ -313,16 +308,12 @@ async function createMockProvider(page: Page, uiHelpers: UIHelpers): Promise<voi
     await page.reload({waitUntil: "domcontentloaded"})
     await waitForModelsPageReady(page)
 
-    const providerNameCell = getCustomProvidersSection(page).getByRole("cell", {
-        name: MOCK_PROVIDER_NAME,
-        exact: true,
-    })
-
-    const providerVisible = await pollLocatorState(() =>
-        providerNameCell.isVisible({timeout: 5000}),
-    )
-    if (providerVisible) {
-        await expect(providerNameCell).toBeVisible({timeout: 15000})
+    const providerRow = await getCustomProviderRow(page, MOCK_PROVIDER_NAME)
+    const providerVisible =
+        providerRow !== null &&
+        (await pollLocatorState(() => providerRow.isVisible({timeout: 5000})))
+    if (providerRow && providerVisible) {
+        await expect(providerRow).toBeVisible({timeout: 15000})
     }
 }
 

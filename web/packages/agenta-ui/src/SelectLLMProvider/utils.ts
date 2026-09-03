@@ -15,6 +15,9 @@ export function capitalize(str: string): string {
  * Map normalized (lowercase, `_`-separated) provider keys to LLMIcons display labels.
  */
 export const PROVIDER_ICON_MAP: Record<string, string> = {
+    // Not a vendor: the mark a connection Agenta provisioned carries, since no vendor mark is
+    // honest for one.
+    agenta: "Agenta",
     anthropic: "Anthropic",
     openai: "OpenAI",
     // OpenAI's ChatGPT/Codex subscription provider — reuses the OpenAI mark (no distinct icon
@@ -72,7 +75,6 @@ export const getProviderIcon = (key: string): React.FC<{className?: string}> | n
  */
 const HARNESS_ICON_MAP: Record<string, React.FC<{className?: string}>> = {
     pi_core: Pi,
-    pi_agenta: Pi,
     codex: OpenAi,
     claude: Anthropic,
 }

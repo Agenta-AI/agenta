@@ -252,7 +252,9 @@ describe("process-local Daytona Secret provider", () => {
       false,
     );
     assert.equal(events.includes("sandbox:destroy"), false);
-    assert.match(logs[0], /retaining 2 Secret allocation/);
+    // logs[0] is now the allocation timing line; the retention notice follows it.
+    assert.match(logs[0], /\[daytona-secrets\] allocated n=2/);
+    assert.match(logs[1], /retaining 2 Secret allocation/);
   });
 
   it("deletes Secrets when provider construction proves no remote create started", async () => {

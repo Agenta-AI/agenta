@@ -24,12 +24,15 @@ export interface TranscriptAdoptionInput {
     /** This client is streaming the turn, so it — not the log — is the authority. */
     busy: boolean
     /**
-     * A card on screen is still awaiting THIS user (#5942).
+     * A card ON SCREEN is still awaiting THIS user (#5942).
      *
      * Adopting over a parked card discards whatever they have half-typed into its form. The local
      * copy is authoritative until the interaction row says the card ended, because a card replayed
      * from the durable log carries its harness-wrapped tool name with no `data-render` sibling —
      * so "the client no longer recognises it as waiting" is NOT evidence that it settled.
+     *
+     * It protects a RENDERED transcript, so it only applies when there is one — see the
+     * `localMessageCount` pairing below.
      */
     awaitingUser?: boolean
 }
@@ -46,8 +49,13 @@ export const shouldAdoptServerTranscript = ({
     if (serverMessageCount === 0) return false
     // A live local stream outranks the log until it settles.
     if (busy) return false
-    // A card still waiting on the user outranks it too — see `awaitingUser`.
-    if (awaitingUser) return false
+    // A card still waiting on the user outranks it too — but only a card that EXISTS. The guard
+    // preserves a rendered transcript; with nothing rendered there is no half-typed form to
+    // protect, and refusing here leaves a cold open (a session this browser never ran, opened
+    // from the sessions list or Home's "waiting on you") permanently blank — the pane paints its
+    // empty hero over a session the log has turns for, and the pending approval it is telling the
+    // user about becomes unreachable. So pair it with `localMessageCount`.
+    if (awaitingUser && localMessageCount > 0) return false
     // THE trigger: the log grew past what we render. An absent watermark reads as 0, so a
     // locally-streamed or pre-#5530 cache re-syncs from the server once on its next open.
     if (serverRecordCount <= (watermark ?? 0)) return false

@@ -17,6 +17,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    invalidateSessionListQueries,
+    invalidateSessionLivenessQueries,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -25,7 +28,10 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
     buildAgentRequest,
+    isResumeSend,
+    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -50,6 +56,12 @@ import {
 } from "../model/turnViewModel"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
+import {
+    dropSessionChat,
+    hasSessionChat,
+    isChatBusy,
+    type SessionChatHooks,
+} from "../state/sessionChats"
 import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -58,10 +70,10 @@ import {
     setSessionStatusAtom,
 } from "../state/sessionMessages"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
-import {AgentChatTransport} from "../transport/AgentChatTransport"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import {useSessionChat} from "./useSessionChat"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
@@ -140,7 +152,15 @@ export interface AgentConversation {
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
     removeQueued: (id: string) => void
-    clearQueue: () => void
+    /** Id of the held message the composer is editing, or null. */
+    editingId: string | null
+    /** Borrow the composer for `id`, stashing the draft it currently holds. */
+    beginEdit: (id: string, draft?: string) => void
+    /** Drop the edit and hand the stashed draft back. */
+    cancelEdit: () => string
+    /** Rewrite the edited message with the composer's content (or queue it anew if it drained).
+     *  Returns the draft the session displaced, for the host to put back. */
+    commitEdit: (item: {text: string; fileParts?: FileUIPart[]}) => string
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
@@ -194,65 +214,49 @@ export const useAgentConversation = ({
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
 
-    // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
-    // NOT recreated when `entityId` changes. So the request builder must read the CURRENT entity
-    // through a ref — capturing `entityId` by value would send every turn with the revision that
-    // was displayed when the session first mounted.
+    // The registry owns the `Chat` and its transport for the life of the session, so the request
+    // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
+    // with the revision displayed when the session first mounted.
     const entityIdRef = useRef(entityId)
     entityIdRef.current = entityId
 
-    // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
-    // placeholder that `prepareSendMessagesRequest` overrides per request.
-    const transport = useMemo(
-        () =>
-            new AgentChatTransport({
-                api: "",
-                prepareSendMessagesRequest: async ({messages, id}) => {
-                    // Bounded, not instant. A null build means the workflow entity has not loaded
-                    // its invocation URL YET — the first send to a freshly created agent races
-                    // that fetch, and failing on the first null made a new user's first message
-                    // fail (#6042 on the desktop; the same race reached /m through this hook).
-                    const req = await buildRequestWithinDeadline(() =>
-                        buildAgentRequest(entityIdRef.current, messages, {
-                            sessionId: id ?? sessionId,
-                        }),
-                    )
-                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
-                },
-            }),
-        [sessionId],
-    )
+    // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
+    // "still mine to report" from "running on in the background".
+    const mountedRef = useRef(false)
 
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
+    // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
-    const {
-        messages,
-        sendMessage,
-        status,
-        stop,
-        regenerate,
-        setMessages,
-        addToolApprovalResponse,
-        addToolOutput,
-        error,
-    } = useChat({
-        id: sessionId,
-        messages: initialMessages,
-        transport,
-        // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
-        // render per token; caps commit frequency independently of the per-commit memo win.
-        experimental_throttle: 50,
+    // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
+    const busyRef = useRef(false)
+
+    const hooks: SessionChatHooks = {
+        prepareRequest: async ({messages, id}) => {
+            // Bounded, not instant. A null build means the workflow entity has not loaded its
+            // invocation URL YET — the first send to a freshly created agent races that fetch, and
+            // failing on the first null made a new user's first message fail (#6042 on the desktop;
+            // the same race reached /m through this hook).
+            const req = await buildRequestWithinDeadline(() =>
+                buildAgentRequest(entityIdRef.current, messages, {
+                    sessionId: id ?? sessionId,
+                }),
+            )
+            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+        },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) => {
-            const shouldDispatch = agentShouldResumeAfterApproval({
+        // Side-effect-free on purpose: the SDK reads `predicate(...) && !isError`, so a `true` here
+        // is a proposal it can still refuse. Consuming anything from inside would spend the gate on
+        // a request that never left. The marker is consumed where a send is a fact — see the effect
+        // on `status` below.
+        sendAutomaticallyWhen: ({messages}) =>
+            agentShouldResumeAfterApproval({
                 messages,
                 liveInteraction: liveGateInteractionRef.current,
-            })
-            if (shouldDispatch) liveGateInteractionRef.current = null
-            return shouldDispatch
-        },
+            }),
         // The turn's trace may not be ingested yet when a row asks for its summary — marking it
         // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
         // have written files: mark the session's drive data stale so every mount surface refetches.
@@ -266,24 +270,68 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            // The first turn is what creates the durable session row; every later one changes its
+            // title, preview and activity. Nothing else tells the session lists, so a brand-new
+            // session surfaced only on their next remount past the stale time.
+            invalidateSessionListQueries()
+            // Nothing else invalidates liveness at turn end either, so the project-wide poll's
+            // cached `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch
+            // immediately — the runner awaits its `is_running: false` heartbeat BEFORE closing
+            // this stream (services/runner/src/server.ts `aliveWatchdog.release()`).
+            invalidateSessionLivenessQueries()
+            // Mobile keeps a chat only while its run streams (no tab model bounds it), so a run
+            // that settles with nobody mounted retires its own dot and releases the instance. A
+            // LIVE mount publishes its own status from `runStatus`, so writing here would flicker.
+            if (!mountedRef.current) {
+                setSessionStatus({id: sessionId, status: "idle"})
+                dropSessionChat(sessionId)
+            }
         },
-        onError: (err) => {
-            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
-            // set freezes records adoption for this mount and can resume a stale gate much later.
-            liveGateInteractionRef.current = null
-            // The error is stamped in-chat (effect below); swallow it here so an aborted/errored
-            // stream doesn't bubble unhandled to a dev overlay (F-033).
-            console.warn("[useAgentConversation] useChat error (rendered in-chat):", err)
+        onError: () => {
+            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
+            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
+            // stream ends — often by erroring, right here. `null` made that last evaluation return
+            // false and stranded the answer; `undefined` lets the tail heuristics decide.
+            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
+            // The registry logs the error for the dev overlay (F-033) before calling this.
+            liveGateInteractionRef.current = undefined
         },
+    }
+
+    // The registry owns the `Chat`, so re-entering the route re-binds to the SAME instance
+    // mid-turn instead of aborting the run (#5724). Mobile has no tab model — the active session
+    // is the URL — so a chat is preserved only while its run is actually streaming; an idle one
+    // is released with the mount, and `onFinish` releases a run that settles unmounted.
+    const chat = useSessionChat({
+        sessionId,
+        initialMessages,
+        hooks,
+        shouldPreserve: () => busyRef.current,
     })
 
-    const busy = status === "submitted" || status === "streaming"
+    const {
+        messages,
+        sendMessage,
+        status,
+        stop,
+        regenerate,
+        setMessages,
+        addToolApprovalResponse,
+        addToolOutput,
+        error,
+    } = useChat({
+        chat,
+        // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
+        // render per token; caps commit frequency independently of the per-commit memo win.
+        experimental_throttle: 50,
+    })
+
+    const busy = isChatBusy(status)
 
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     const messagesRef = useRef(messages)
     messagesRef.current = messages
-    const busyRef = useRef(busy)
     busyRef.current = busy
 
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
@@ -291,8 +339,14 @@ export const useAgentConversation = ({
     // messages (never ran here, or after a storage clear), hydrate once from the server and seed.
     // A to-be-hydrated session (empty local cache, not brand-new) reports `isHydrating` so the
     // skin shows a transcript skeleton instead of the empty-state hero.
+    // Did a PREVIOUS mount leave a live chat behind? Read once, during the first render — this
+    // mount publishes its own chat at commit, so reading it later would always say yes. A preserved
+    // run is still streaming into the chat we just re-bound to, and a transcript is only persisted
+    // on SETTLE, so `initialMessages` is empty mid-stream and hydration would otherwise put the
+    // loading screen over the very run we kept alive (#5724).
+    const [resumedLiveChat] = useState(() => hasSessionChat(sessionId))
     const [isHydrating, setIsHydrating] = useState(
-        () => initialMessages.length === 0 && !isSessionFresh(sessionId),
+        () => initialMessages.length === 0 && !isSessionFresh(sessionId) && !resumedLiveChat,
     )
     // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records —
     // its durable history was pruned by retention or never persisted.
@@ -338,7 +392,7 @@ export const useAgentConversation = ({
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
-        if (initialMessages.length > 0 || isSessionFresh(sessionId)) {
+        if (initialMessages.length > 0 || isSessionFresh(sessionId) || resumedLiveChat) {
             setIsHydrating(false)
             return
         }
@@ -434,7 +488,16 @@ export const useAgentConversation = ({
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval).
-    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {
+        queued,
+        submit,
+        removeQueued,
+        hitlPending,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+    } = useAgentChatQueue({
         status,
         messages,
         stopped,
@@ -449,10 +512,31 @@ export const useAgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            addToolApprovalResponse(args)
+            // Ordered, not raced: the DECISION lands on the interaction row first, and only then
+            // does the part flip that lets the SDK dispatch its resume. Flipped first, that
+            // resume's stale sweep cancelled the row being answered. No resume from here either —
+            // the park stream finishes cleanly, so the SDK is the only sender.
+            void recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: args.id,
+                        resolution: approvalResolution(args.id, args.approved),
+                    }),
+                release: () => addToolApprovalResponse(args),
+            })
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
     )
+
+    // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
+    // send is a fact, and never in the predicate, whose `true` the SDK can still refuse.
+    const previousStatusRef = useRef(status)
+    useEffect(() => {
+        const from = previousStatusRef.current
+        previousStatusRef.current = status
+        if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
+    }, [status])
 
     // `render.kind` rides as a sibling `data-render` part (AI SDK tool chunks are strict), so the
     // widget dispatch needs a toolCallId → hint map. Built across the WHOLE conversation rather
@@ -472,33 +556,55 @@ export const useAgentConversation = ({
     const sendToolOutput = useCallback(
         ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered like the approval half: the resume starts a turn whose sweep cancels every
+            // `pending` row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenRelease({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                release: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Publish this session's run state (single source of truth for session-list status dots).
-    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a
-    // closed session keeps no stale dot.
+    // Precedence error > awaiting approval > running > idle.
     const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
+    // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount is
+    // still this browser's run to report, so it keeps its status until it settles — `onFinish`
+    // retires it then. The release above already ran, so the registry is authoritative here.
     useEffect(
-        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        () => () => {
+            if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+        },
         [sessionId, setSessionStatus],
     )
 
@@ -597,12 +703,16 @@ export const useAgentConversation = ({
         stop()
     }, [stop])
 
-    // ── D9 teardown: abort the in-flight stream on unmount (session close / swap) ──
+    // ── D9 teardown: `useSessionChat` releases this mount's claim on the session's chat ──
+    // No `stop()` here: a streaming run is preserved past the unmount on purpose (#5724), and
+    // aborting would kill the run the registry is keeping alive. `releaseSessionChat` stops the
+    // stream for the sessions that are NOT preserved.
     useEffect(() => {
+        mountedRef.current = true
         return () => {
-            stop()
+            mountedRef.current = false
         }
-    }, [sessionId, stop])
+    }, [sessionId])
 
     const send = useCallback(
         async ({text, files, parts}: SendInput) => {
@@ -700,7 +810,10 @@ export const useAgentConversation = ({
         queued,
         hitlPending,
         removeQueued,
-        clearQueue,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
         approvals,
         sendToolOutput,
         revalidate,

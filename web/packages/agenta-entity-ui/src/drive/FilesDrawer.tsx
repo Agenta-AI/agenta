@@ -101,7 +101,6 @@ export function FilesDrawer({
             // Two-pane (tree + preview) needs the room; expand for near-full width.
             width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             destroyOnClose
-            closeOnLayoutClick={false}
             // Headerless: DriveExplorer renders the one header (with its own close button).
             closable={false}
             title={null}

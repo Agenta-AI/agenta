@@ -9,11 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
-from jwt import encode
+from jwt import decode, encode
 from starlette.requests import Request
 
 from oss.src.middlewares import auth
-from oss.src.utils.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import InternalServerErrorException, UnauthorizedException
 
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
@@ -61,10 +61,17 @@ def _request() -> Request:
     )
 
 
-def _token(expires_in_seconds: int) -> str:
-    expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
+def _token(expires_in_seconds: int, issued_in_seconds: int = 0) -> str:
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(seconds=expires_in_seconds)
+    issued_at = now + timedelta(seconds=issued_in_seconds)
     return encode(
-        payload={"user_id": "u", "project_id": "p", "exp": int(expiry.timestamp())},
+        payload={
+            "user_id": "u",
+            "project_id": "p",
+            "iat": int(issued_at.timestamp()),
+            "exp": int(expiry.timestamp()),
+        },
         key=SECRET_KEY,
         algorithm="HS256",
     )
@@ -112,6 +119,83 @@ async def test_live_token_authenticates_and_logs_nothing(log):
     assert request.state.user_id == "u"
     assert request.state.project_id == "p"
     assert log.calls == []
+
+
+@pytest.mark.asyncio
+async def test_clock_skewed_token_is_unauthorized_not_internal(log):
+    # `iat` turns on PyJWT's "not issued in the future" check, which raises
+    # `ImmatureSignatureError` — an `InvalidTokenError` that is neither a `DecodeError` nor an
+    # `ExpiredSignatureError`. Without a handler for it a skewed signer clock would 500.
+    with pytest.raises(UnauthorizedException) as raised:
+        await auth.verify_secret_token(
+            request=_request(),
+            secret_token=_token(expires_in_seconds=600, issued_in_seconds=300),
+        )
+
+    assert raised.value.status_code == 401
+    assert raised.value.detail["reason"] == "invalid_token"
+
+    (_, event, fields) = log.of("debug")[0]
+    assert event == "[auth] secret token unauthorized"
+    assert fields["reason"] == "invalid_token"
+    assert fields["error"] == "ImmatureSignatureError"
+
+
+@pytest.mark.asyncio
+async def test_small_clock_skew_still_authenticates(log):
+    # Signer and verifier can be different replicas; drift under the leeway must not fail auth.
+    request = _request()
+
+    await auth.verify_secret_token(
+        request=request,
+        secret_token=_token(expires_in_seconds=600, issued_in_seconds=10),
+    )
+
+    assert request.state.user_id == "u"
+    assert log.calls == []
+
+
+@pytest.mark.asyncio
+async def test_signed_token_records_exact_issued_at_lifetime(log):
+    token = await auth.sign_secret_token(user_id="u", project_id="p")
+
+    claims = decode(
+        jwt=token,
+        key=SECRET_KEY,
+        algorithms=["HS256"],
+    )
+
+    assert isinstance(claims["iat"], int)
+    assert isinstance(claims["exp"], int)
+    assert claims["exp"] - claims["iat"] == auth._SECRET_EXP
+
+
+@pytest.mark.asyncio
+async def test_intentional_http_exception_survives_verification(log, monkeypatch):
+    expected = HTTPException(status_code=401, detail="Intentional denial")
+
+    def reject(*args, **kwargs):
+        raise expected
+
+    monkeypatch.setattr(auth, "decode", reject)
+
+    with pytest.raises(HTTPException) as raised:
+        await auth.verify_secret_token(request=_request(), secret_token="unused")
+
+    assert raised.value is expected
+
+
+@pytest.mark.asyncio
+async def test_unexpected_verification_error_stays_internal(log, monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(auth, "decode", fail)
+
+    with pytest.raises(InternalServerErrorException) as raised:
+        await auth.verify_secret_token(request=_request(), secret_token="unused")
+
+    assert raised.value.status_code == 500
 
 
 def test_unauthorized_reason_reads_the_raiser_s_reason():

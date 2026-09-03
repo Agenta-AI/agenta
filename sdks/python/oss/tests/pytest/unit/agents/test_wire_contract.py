@@ -10,7 +10,7 @@ purpose. Regenerate the golden deliberately, and update ``protocol.ts`` and ``KN
 to match.
 
 There is no engine selector on the wire: the runner drives one engine (the sandbox-agent ACP
-path) and ``harness`` (``pi_core`` / ``pi_agenta`` / ``claude``) picks the agent.
+path) and ``harness`` (``pi_core`` / ``claude`` / ``codex``) picks the agent.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
-    AgentaAgentTemplate,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -45,6 +44,13 @@ from agenta.sdk.agents import (
     ToolCallback,
     ToolResolver,
     TraceContext,
+)
+from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance_field
+from agenta.sdk.agents.platform.gateway import _derived_tool_specs
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
 )
 from agenta.sdk.agents.utils.effective_config import MAX_STAMPED_BYTES
 from agenta.sdk.agents.utils.wire import (
@@ -86,6 +92,8 @@ KNOWN_REQUEST_KEYS = {
     "mcpServers",
     "toolCallback",
     "permissions",
+    "gatewayPolicy",
+    "gatewayGuidance",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -134,6 +142,11 @@ _DIRECT_CALL_TOOL = {
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
+# The other tool fixtures in this file are hand-written because the API produces them. The two
+# derived gateway tools are OURS — `_derived_tool_specs()` is their only producer — so the
+# golden is built from that function rather than from a copy of it. A hand-written copy would
+# pin a payload production never sends, and the one artifact meant to anchor Python-to-
+# TypeScript drift could then not catch a change to the real specifications.
 # One resolved inline skill package (the post-embed shape that rides the wire). A bundled
 # file is included so the `files[]` wire shape (camelCase `executable`) is exercised too.
 _SKILL = {
@@ -283,20 +296,47 @@ def _codex_payload():
     )
 
 
-def _agenta_payload():
-    config = AgentaAgentTemplate(
-        agents_md="Agenta preamble + project rules.",
+def _gateway_connection_payload():
+    """A Pi run whose agent configures one gateway connection.
+
+    The smallest config that exercises the new field: the two derived tools the resolver
+    builds, and the private policy they read. ``RUN_WORKFLOW`` carries no catalog read-only
+    hint, so it pins the tri-state null form on the wire (qa.md case C27).
+    """
+    gateway_policy = ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                toolkit_version="20250827_00",
+                tools={
+                    "GET_ISSUE": CompiledTool(permission="allow", read_only=True),
+                    "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
+                    "RUN_WORKFLOW": CompiledTool(permission="deny"),
+                },
+            )
+        }
+    )
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
         model="gpt-5.5",
-        custom_tools=[dict(_CUSTOM_TOOL)],
+        # Straight from the producer, so the golden records what a real resolve emits.
+        custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
-        append_system="You are an Agenta agent.",
-        skills=[dict(_SKILL)],
+        # Straight from the same producer path the adapters use, so the golden pins the
+        # separate-field form (the guidance is spliced runner-side at environment build).
+        gateway_guidance=gateway_guidance_field(
+            list(gateway_policy.integrations), "appendSystemPrompt"
+        ),
     )
     return request_to_wire(
-        harness=HarnessKind.AGENTA,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
-        messages=[Message(role="user", content="hi")],
+        messages=[Message(role="user", content="close issue 12")],
+        trace=None,
+        session_id=None,
+        gateway_policy=gateway_policy,
     )
 
 
@@ -334,16 +374,52 @@ def _attachment_payload():
     )
 
 
-def test_request_to_wire_agenta_carries_skills_and_pi_shape():
-    payload = _agenta_payload()
+def test_request_to_wire_gateway_connection_matches_golden(golden):
+    """The connection run's whole payload, including ``gatewayPolicy`` (contracts section 5)."""
+    payload = _gateway_connection_payload()
+    assert payload == golden("run_request.gateway_connection.json")
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
-    assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
-    assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
-    assert payload["skills"][0]["name"] == "release-notes"
-    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
+
+
+def test_gateway_policy_read_only_null_survives_the_round_trip(golden):
+    """qa.md case C27, the Python half.
+
+    An unknown read-only hint must ride the wire as an explicit null, not as a dropped key: a
+    missing key and a null value would otherwise come to mean different things to the runner,
+    whose mirror declares ``boolean | null``. The golden file is read back from disk, so this
+    also proves the null survives JSON serialization rather than only the in-memory dict.
+    """
+    fixture = golden("run_request.gateway_connection.json")
+    tools = fixture["gatewayPolicy"]["integrations"]["github"]["tools"]
+    assert "readOnly" in tools["RUN_WORKFLOW"]
+    assert tools["RUN_WORKFLOW"]["readOnly"] is None
+    # And the model accepts the same object back, tri-state intact.
+    parsed = WireRunRequest.model_validate(fixture)
+    assert (
+        parsed.gateway_policy.integrations["github"].tools["RUN_WORKFLOW"].read_only
+        is None
+    )
+    assert (
+        parsed.gateway_policy.integrations["github"].tools["GET_ISSUE"].read_only
+        is True
+    )
+
+
+def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
+    """A run with no connection entry keeps its exact payload — the four goldens prove it.
+
+    The subset guard cannot catch a field that is emitted as null, so assert the key's
+    absence directly on every existing golden and on the producer output.
+    """
+    for name, payload in (
+        ("run_request.pi_core.json", _pi_payload()),
+        ("run_request.claude.json", _claude_payload()),
+        ("run_request.codex.json", _codex_payload()),
+        ("run_request.attachment.json", _attachment_payload()),
+    ):
+        assert "gatewayPolicy" not in payload
+        assert "gatewayPolicy" not in golden(name)
+        assert payload == golden(name)
 
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():

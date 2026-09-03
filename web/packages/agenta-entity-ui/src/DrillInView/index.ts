@@ -118,8 +118,6 @@ export type {
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
-    WorkflowRevisionUI,
-    WorkflowEnvironmentUI,
     WorkflowReferencePayload,
     WorkflowConfigPart,
     WorkflowConfigPayload,
@@ -299,12 +297,18 @@ export {
     allowedProviders,
     buildModelOptionGroups,
     harnessAllowsModel,
+    bareConnectionModelId,
+    modelDisplayName,
     modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
     buildConnectionPickerRows,
+    firstPickerSelectionForConnection,
     pickerSelectionFrom,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
+    resolvePickerSelection,
     selectionFromModelRow,
     describeMcp,
     describeSkill,
@@ -426,6 +430,17 @@ export type {SkillTemplateControlProps} from "./SchemaControls/SkillTemplateCont
 export {ToolFormView} from "./SchemaControls/ToolFormView"
 export type {ToolFormViewProps} from "./SchemaControls/ToolFormView"
 export {ReferenceToolFormView} from "./SchemaControls/ReferenceToolFormView"
+export {
+    SubagentList,
+    ToolManagementList,
+    selectSubagentTools,
+} from "./SchemaControls/agentTemplate/ToolManagementList"
+export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export type {
+    SubagentOption,
+    SubagentIntegration,
+} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
 export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
