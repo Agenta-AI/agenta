@@ -38,6 +38,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_running_owner,
     get_session_liveness,
 )
+from oss.src.utils.env import env
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -54,6 +55,7 @@ class _FakeCommandsDAO:
         self.rows: List[SessionCommand] = []
         self.stopping_turn_ids: List[Optional[str]] = []
         self.claims: List[Dict] = []
+        self.abandoned: List[SessionCommand] = []
 
     async def create_command(
         self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None
@@ -113,6 +115,29 @@ class _FakeCommandsDAO:
                 return claimed
         return None
 
+    async def record_delivery_attempt(
+        self, *, project_id, command_id, now, max_deliveries
+    ):
+        for index, row in enumerate(self.rows):
+            if (
+                row.id == command_id
+                and row.state
+                in (SessionCommandState.pending, SessionCommandState.claimed)
+                and row.claim_count < max_deliveries
+            ):
+                attempted = row.model_copy(
+                    update={
+                        "state": SessionCommandState.pending,
+                        "claimed_by": None,
+                        "claim_expires_at": None,
+                        "claim_count": row.claim_count + 1,
+                        "updated_at": now,
+                    }
+                )
+                self.rows[index] = attempted
+                return attempted
+        return None
+
     async def claim_commands(self, **_):
         return []
 
@@ -141,8 +166,8 @@ class _FakeCommandsDAO:
     async def clear_stopping_turn(self, *, project_id, session_id, turn_id=None):
         self.stopping_turn_ids.append(None)
 
-    async def expire_claims(self, *, now, max_deliveries):
-        return []
+    async def expire_claims(self, *, now, max_deliveries, pending_before=None):
+        return self.abandoned
 
 
 class _FakeStreamsService:
@@ -892,6 +917,92 @@ async def test_a_second_outcome_report_changes_nothing(lock_engine):
         )
 
     assert interactions.cancelled == ["turn-A"], "the side effects run exactly once"
+
+
+def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
+    return SessionCommand(
+        id=uuid.uuid7(),
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        kind="cancel",
+        target_turn_id="turn-A",
+        state=SessionCommandState.pending,
+        claim_count=claim_count,
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_pending_command_is_redelivered_while_the_session_beats(lock_engine):
+    command = _abandoned_command()
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        delivery=delivery,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 0
+    assert [row.id for row in delivery.delivered] == [command.id]
+    assert dao.rows[0].claim_count == command.claim_count + 1
+
+
+@pytest.mark.asyncio
+async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_engine):
+    command = _abandoned_command()
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream(
+                "turn-A",
+                datetime.now(timezone.utc) - timedelta(minutes=5),
+            ).model_copy(
+                update={"updated_at": datetime.now(timezone.utc) - timedelta(minutes=5)}
+            )
+        ),
+        delivery=delivery,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 1
+    assert delivery.delivered == []
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+
+
+@pytest.mark.asyncio
+async def test_redelivery_stops_at_the_configured_maximum(lock_engine, monkeypatch):
+    maximum = 2
+    monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
+    command = _abandoned_command(claim_count=maximum)
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        delivery=delivery,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 1
+    assert delivery.delivered == []
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
 
 
 @pytest.mark.asyncio

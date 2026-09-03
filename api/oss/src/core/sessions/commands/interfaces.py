@@ -121,6 +121,17 @@ class SessionCommandsDAOInterface(ABC):
         `claim_commands`; both exist so the outcome route's guard reads the same either way."""
 
     @abstractmethod
+    async def record_delivery_attempt(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        now: datetime,
+        max_deliveries: int,
+    ) -> Optional[SessionCommand]:
+        """Reserve one bounded delivery attempt and return the updated command."""
+
+    @abstractmethod
     async def settle_command(
         self,
         *,
@@ -146,6 +157,6 @@ class SessionCommandsDAOInterface(ABC):
         *,
         now: datetime,
         max_deliveries: int,
+        pending_before: Optional[datetime] = None,
     ) -> List[SessionCommand]:
-        """Commands whose claim lease has passed. The settlement sweep reads this. Not called
-        in this slice; the execution watchdog owns settlement (see the slice document)."""
+        """Pending or claimed commands old enough for recovery."""
