@@ -11,7 +11,7 @@ minutes and 100,000 frames per session. The runner sends frames through the exis
 stream. The relay forwards them to API SSE connections.
 
 Late output disposition remains open. O2 in `open-questions.md` holds the choice between quarantine
-and rejection. The current code quarantines behind `AGENTA_SESSIONS_HISTORY_WRITES`.
+and rejection. The current code quarantines. The setting `AGENTA_SESSIONS_LATE_OUTPUT` selects quarantine or reject.
 
 `open-questions.md` holds the seven remaining choices: sequence home, late output, Codex child
 cleanup, rollout granularity, Stop spelling, shutdown grace, and teardown result. The next actor
