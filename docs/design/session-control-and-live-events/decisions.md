@@ -50,7 +50,9 @@ runner uses a private protocol for trusted execution work.
 ### Make the expected execution guard optional
 
 Stop can include `expected_execution_id`. When omitted, it targets the current execution at API
-acceptance. When supplied, a mismatch prevents an old request from stopping newer work.
+acceptance. When supplied, a mismatch prevents an old request from stopping newer work. First-party
+clients must send the guard whenever they know the active execution. A mismatch returns a conflict
+and leaves the current execution untouched.
 
 ### Make accepted input durable
 
@@ -67,11 +69,12 @@ and replace. The initial interface does not reorder pending input.
 Internal commands use `pending`, `claimed`, `applied`, and `obsolete`. Claims can expire and retry.
 Public clients follow execution state and durable outcomes rather than transport acknowledgements.
 
-### Use long polling behind an adapter
+### Use direct delivery behind an adapter
 
-The runner initiates authenticated HTTP long polling to claim commands. The command service does
-not depend on that transport. A future adapter can use a persistent connection, broker, or direct
-managed-runner routing.
+The first version uses a direct authenticated API-to-runner call. The command service depends on a
+delivery port, not on this transport. Runner-initiated HTTP long polling remains a designed,
+parked adapter for a future runner that cannot accept inbound calls. See
+[Linear AGE-4253](https://linear.app/agenta/issue/AGE-4253/parked-add-runner-initiated-long-polling-for-session-commands).
 
 ### Keep Redis ownership in the first version
 
@@ -81,9 +84,10 @@ has one runner and does not plan near-term runner scaling.
 
 ### Keep ownership while Stop settles
 
-Accepting Stop does not immediately free the current `alive` lock. Long polling delivers the
-command. Heartbeat command discovery provides fallback. The runner releases owner-checked locks
-after cancellation settles.
+Accepting Stop does not immediately free current ownership. Direct delivery sends the command.
+Heartbeat remains a health and ownership signal, and recovery can reconcile a pending durable
+command after direct delivery fails. The exact post-Stop `alive` rule remains open: the candidate
+is to clear `running` after settlement and retain `alive` while the sandbox remains parked.
 
 ### Add new read contracts beside old endpoints
 
@@ -98,11 +102,13 @@ The runner emits one ordered frame sequence to the backend. A bounded Redis Stre
 relay and durable projector. Existing sender streaming and record persistence remain during
 migration.
 
-### Add a separate session event log
+### Keep the durable-history storage choice open
 
-The draft selects a separate append-only `session_events` table as the target because current
-records are mutable, follow tracing retention, and omit several session lifecycle facts. This is a
-reviewer gate. Repairing records remains a valid alternative.
+Spike D found that immutable records mainly require producer changes for progressive tool calls and
+tool results, plus stable producer IDs for terminal events. This makes repaired records more viable
+than the original draft assumed. Records still follow tracing retention and omit some session
+lifecycle facts. A separate `session_events` table and repaired records therefore remain equal
+review alternatives until retention and lifecycle coverage are decided.
 
 ### Use an opaque per-session cursor
 
@@ -132,14 +138,18 @@ Durable checkpoints replace those previews.
 ## Reviewer gates
 
 1. Warm cancellation behavior in each harness and sandbox.
-2. Long-poll authentication, timeout, and claim-expiry values.
+2. Confirm direct-delivery failure recovery. Keep long-poll authentication and claim-expiry design
+   parked in Linear AGE-4253.
 3. Manual Stop behavior for pending input.
 4. Separate session events versus repaired records.
 5. Per-session commit-order implementation.
 6. Temporary frame retention and slow-reader limits.
 7. Stop, Steer, and interaction-response races.
 8. Final public endpoint names.
-9. Stable record-ID behavior before any immutable-record migration.
+9. Confirm Spike D covered every intentional progressive record update before any immutable-record
+   migration.
+10. Decide whether late output after watchdog settlement is rejected or quarantined.
+11. Define `running` and `alive` after warm Stop against every current liveness consumer.
 
 ## Deferred decisions
 
@@ -147,6 +157,7 @@ Durable checkpoints replace those previews.
 - Ownership generations and full stale-writer rejection.
 - Multiple-runner guarantees beyond current behavior.
 - User-operated runner requirements.
+- Runner-initiated command long polling, tracked in Linear AGE-4253.
 - WebSocket or gRPC control transport.
 - Queue editing and reordering.
 - Permanent token storage.
