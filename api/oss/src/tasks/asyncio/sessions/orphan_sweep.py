@@ -44,7 +44,11 @@ from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    RECORD_SETTLED_BY_ATTRIBUTE,
+    SETTLED_BY_WATCHDOG,
+    SessionRecordEvent,
+)
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import publish_record
 from oss.src.core.sessions.streams.dtos import (
@@ -102,6 +106,13 @@ LOST_ERROR_MESSAGE = "The agent stopped responding and the run was closed. Send 
 
 # Records are attributed to the agent, matching every record the runner writes for a turn.
 RECORD_SOURCE_AGENT = "agent"
+
+# Both records carry this marker, and it is the ONLY thing that distinguishes the watchdog's
+# ending from a runner's. That matters twice at ingest: a record arriving for a turn this
+# marker has already closed is quarantined rather than appended, and the watchdog's own two
+# records are exempt from that rule so a redelivery cannot quarantine the ending itself. See
+# `RecordsService.append_many`.
+SETTLED_BY = {RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG}
 
 
 def _watchdog_record_id(
@@ -161,6 +172,7 @@ def _lost_turn_records(
                 "type": "error",
                 "message": LOST_ERROR_MESSAGE,
                 "code": LOST_ERROR_CODE,
+                **SETTLED_BY,
             },
             turn_id=turn_id,
         ),
@@ -177,7 +189,7 @@ def _lost_turn_records(
             record_index=1,
             record_type="done",
             record_source=RECORD_SOURCE_AGENT,
-            attributes={"type": "done"},
+            attributes={"type": "done", **SETTLED_BY},
             turn_id=turn_id,
         ),
     ]
