@@ -18,7 +18,7 @@
 import { apiBase } from "../apiBase.ts";
 import { randomUUID } from "node:crypto";
 
-import { HEARTBEAT_INTERVAL_SECONDS } from "./contract.ts";
+import { HEARTBEAT_INTERVAL_SECONDS, OWNER_TTL_SECONDS } from "./contract.ts";
 import { envTimerMs } from "../env.ts";
 
 const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
@@ -77,9 +77,28 @@ function log(msg: string): void {
 // The credential is the run's own ephemeral platform token, the same one every beat already
 // carries; it never leaves this process and is never logged. An entry that outlives its token
 // simply fails its release call and falls back to the lease, exactly as a killed runner does.
+//
+// BOUNDED BY THE LEASE ITSELF. Every beat records, so without a bound a long-lived runner would
+// accumulate one entry per session it ever served, hold each of their credentials for the
+// process lifetime, and fire a useless release for every one of them at shutdown. An entry
+// whose last beat is older than `OWNER_TTL_SECONDS` cannot still hold the key, so it is pruned:
+// the registry holds only what this replica can plausibly still own.
 
-/** Sessions this replica has claimed, with the freshest credential seen for each. */
-const ownedSessions = new Map<string, string>();
+interface OwnedSession {
+  authorization: string;
+  /** When the API last confirmed this replica owns the session. */
+  claimedAt: number;
+}
+
+const ownedSessions = new Map<string, OwnedSession>();
+
+/** Drop entries whose affinity lease cannot still be held. */
+function pruneExpiredClaims(now: number): void {
+  const cutoff = now - OWNER_TTL_SECONDS * 1000;
+  for (const [sessionId, entry] of ownedSessions) {
+    if (entry.claimedAt < cutoff) ownedSessions.delete(sessionId);
+  }
+}
 
 /**
  * Note that this replica holds (or has just refreshed) the affinity key for `sessionId`, so
@@ -89,9 +108,11 @@ const ownedSessions = new Map<string, string>();
 export function recordOwnedSession(
   sessionId: string,
   authorization: string,
+  now: number = Date.now(),
 ): void {
   if (!sessionId || !authorization) return;
-  ownedSessions.set(sessionId, authorization);
+  pruneExpiredClaims(now);
+  ownedSessions.set(sessionId, { authorization, claimedAt: now });
 }
 
 /** Forget a session (a test hook, and the successful-release path). */
@@ -99,8 +120,9 @@ export function forgetOwnedSession(sessionId: string): void {
   ownedSessions.delete(sessionId);
 }
 
-/** How many sessions this replica believes it owns. Test/inspection hook. */
-export function ownedSessionCount(): number {
+/** How many sessions this replica could still own. Test/inspection hook. */
+export function ownedSessionCount(now: number = Date.now()): number {
+  pruneExpiredClaims(now);
   return ownedSessions.size;
 }
 
@@ -402,12 +424,13 @@ export const DEFAULT_OWNERSHIP_RELEASE_TIMEOUT_MS = 5_000;
 export async function releaseOwnedSessions(
   timeoutMs: number = DEFAULT_OWNERSHIP_RELEASE_TIMEOUT_MS,
 ): Promise<void> {
+  pruneExpiredClaims(Date.now());
   const held = [...ownedSessions.entries()];
   if (held.length === 0) return;
   log(`releasing ${held.length} session ownership claim(s) on shutdown`);
   const releases = Promise.all(
-    held.map(([sessionId, authorization]) =>
-      releaseSessionOwnership(sessionId, authorization, timeoutMs),
+    held.map(([sessionId, entry]) =>
+      releaseSessionOwnership(sessionId, entry.authorization, timeoutMs),
     ),
   );
   const deadline = new Promise<void>((resolve) => {

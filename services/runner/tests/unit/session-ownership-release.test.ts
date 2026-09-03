@@ -32,10 +32,12 @@ const {
   claimSessionOwnership,
   forgetOwnedSession,
   ownedSessionCount,
+  recordOwnedSession,
   releaseOwnedSessions,
   releaseSessionOwnership,
   REPLICA_ID,
 } = await import("../../src/sessions/alive.ts");
+const { OWNER_TTL_SECONDS } = await import("../../src/sessions/contract.ts");
 
 /** The API answers a claim beat with the winning replica. */
 const ownedBy = (replica: string) => async () =>
@@ -74,6 +76,30 @@ describe("learning which sessions this replica owns", () => {
     fetchImpl = async () => new Response("nope", { status: 503 });
     await claimSessionOwnership("sess-1", "Bearer tok-1");
     assert.equal(ownedSessionCount(), 0);
+  });
+
+  it("forgets a claim older than the affinity lease", async () => {
+    // Every beat records, so a long-lived runner would otherwise hold one entry (and one
+    // credential) per session it ever served. A claim older than the lease cannot still be held.
+    const t0 = 1_000_000;
+    recordOwnedSession("sess-1", "Bearer tok-1", t0);
+    assert.equal(ownedSessionCount(t0), 1);
+
+    const expired = t0 + OWNER_TTL_SECONDS * 1000 + 1;
+    assert.equal(ownedSessionCount(expired), 0);
+  });
+
+  it("keeps a claim a later beat refreshed", async () => {
+    const t0 = 1_000_000;
+    recordOwnedSession("sess-1", "Bearer tok-1", t0);
+    const later = t0 + OWNER_TTL_SECONDS * 1000 - 1;
+    recordOwnedSession("sess-1", "Bearer tok-2", later);
+
+    assert.equal(
+      ownedSessionCount(later + 10),
+      1,
+      "a refreshed claim must not expire on its FIRST beat's age",
+    );
   });
 });
 
