@@ -138,6 +138,8 @@ const AgentComposerDock = ({
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
+        endDictation,
         dictating,
         setDictating,
         setDictationError,
@@ -181,6 +183,17 @@ const AgentComposerDock = ({
             return result
         },
         [onSubmit, richInputRef],
+    )
+
+    // Onboarding: submit = commit the ephemeral — Enter creates the agent (matching the
+    // composer's "↵ Send" hint). Either way the message is written, so anything the mic is still
+    // hearing belongs to no draft.
+    const handleComposerSubmit = useCallback(
+        (text: string) => {
+            endDictation()
+            return onboardingActive ? handleCreateAgent() : submitMessage(text)
+        },
+        [endDictation, handleCreateAgent, onboardingActive, submitMessage],
     )
 
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
@@ -417,9 +430,7 @@ const AgentComposerDock = ({
                         dictating={dictating}
                         className={CHAT_COLUMN}
                         fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
-                        // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                        // (matching the composer's "↵ Send" hint).
-                        onSubmit={onboardingActive ? () => handleCreateAgent() : submitMessage}
+                        onSubmit={handleComposerSubmit}
                         disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                         hideSendButton={onboardingActive}
                         placeholder={
@@ -456,6 +467,7 @@ const AgentComposerDock = ({
                                     attachmentsFull={atMax}
                                     onDictationError={setDictationError}
                                     onDictatingChange={setDictating}
+                                    stopRef={dictationStopRef}
                                     disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                                 />
                                 {/* Context-budget meter temporarily hidden from the UI.

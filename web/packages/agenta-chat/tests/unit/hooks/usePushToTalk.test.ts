@@ -32,8 +32,13 @@ const waitOutArmDelay = () =>
 const setup = (enabled = true) => {
     const onStart = vi.fn()
     const onStop = vi.fn()
-    const view = renderHook(() => usePushToTalk({enabled, onStart, onStop}))
-    return {onStart, onStop, view}
+    // The mic's own root, as the composer mounts it — the hook reads it to tell a session on
+    // screen from one the chat surface keeps mounted behind `display: none`.
+    const root = document.createElement("div")
+    document.body.append(root)
+    const rootRef = {current: root}
+    const view = renderHook(() => usePushToTalk({enabled, rootRef, onStart, onStop}))
+    return {onStart, onStop, view, root}
 }
 
 beforeEach(() => {
@@ -146,6 +151,25 @@ describe("usePushToTalk", () => {
         const modal = document.createElement("div")
         modal.className = "ant-modal-wrap"
         document.body.append(modal)
+        waitOutArmDelay()
+        expect(onStart).not.toHaveBeenCalled()
+    })
+
+    it("stays out of it for a session that is mounted but off screen", () => {
+        const {onStart, root} = setup()
+        root.style.display = "none"
+        holdChord()
+        waitOutArmDelay()
+        expect(onStart).not.toHaveBeenCalled()
+    })
+
+    it("yields when the session is switched away during the arm delay", () => {
+        const {onStart, root} = setup()
+        holdChord()
+        act(() => {
+            vi.advanceTimersByTime(PUSH_TO_TALK_ARM_MS - 1)
+        })
+        root.style.display = "none"
         waitOutArmDelay()
         expect(onStart).not.toHaveBeenCalled()
     })
