@@ -20,7 +20,7 @@ const groupedChildren = (
     entity: SidebarEntity,
     source: SidebarEntitySource,
     refs: SidebarEntityRef[],
-    toRow: (ref: SidebarEntityRef, reorder?: RowReorder) => SidebarConfig,
+    toRow: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
 ): SidebarConfig[] => {
     const rowsByGroup = new Map<string, SidebarEntityRef[]>()
     for (const ref of refs) {
@@ -54,12 +54,7 @@ const groupedChildren = (
         })
         if (isCollapsed) continue
         const rowZone = source.reorder?.rowZone?.(group.key)
-        const ids = rowZone ? groupRefs.map((ref) => ref.id) : undefined
-        children.push(
-            ...groupRefs.map((ref, index) =>
-                toRow(ref, rowZone && ids ? {zone: rowZone, ids, index} : undefined),
-            ),
-        )
+        children.push(...groupRefs.map((ref) => toRow(ref, rowZone)))
     }
     return children
 }
@@ -79,19 +74,8 @@ export type SidebarRowIcons = Record<string, (ref: SidebarEntityRef) => ReactEle
 
 export type SidebarRowWrappers = Record<
     string,
-    (ref: SidebarEntityRef, node: ReactNode, reorder?: RowReorder) => ReactElement
+    (ref: SidebarEntityRef, node: ReactNode) => ReactElement
 >
-
-/**
- * Where a row sits in its arrangeable zone, for the non-drag path (the row menu's Move verbs).
- * Third argument, so a host that has not opted in keeps its two-arg wrapper.
- */
-export interface RowReorder {
-    zone: string
-    /** The zone's row ids in render order — the Move verb's input. */
-    ids: string[]
-    index: number
-}
 
 /**
  * Maps one entity's gated source to menu children. Always returns ≥1 child — an
@@ -172,9 +156,9 @@ export const resolveChildren = (
     // not quietly render more rows than an ungrouped one.
     const visibleRefs = refs.slice(0, entity.maxItems)
 
-    const toRow = (ref: SidebarEntityRef, reorder?: RowReorder): SidebarConfig => ({
+    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
         key: `${entity.parentKey}-${ref.id}`,
-        dragItem: reorder ? {kind: "row", id: ref.id, zone: reorder.zone} : undefined,
+        dragItem: dragZone ? {kind: "row", id: ref.id, zone: dragZone} : undefined,
         title: entity.getLabel(ref),
         // Context the label cannot carry (#5945) — e.g. which agent a session belongs to.
         tooltip: entity.getTooltip?.(ref),
@@ -186,25 +170,17 @@ export const resolveChildren = (
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),
         wrapRow: wrapRow
-            ? (node) => wrapRow(ref, node, reorder)
+            ? (node) => wrapRow(ref, node)
             : entity.wrapRow
               ? (node) => entity.wrapRow!(ref, node)
               : undefined,
     })
 
-    // An ungrouped entity arranges its whole list in one zone.
-    const flatIds = entity.dragZone ? visibleRefs.map((ref) => ref.id) : undefined
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
             ? groupedChildren(entity, source, visibleRefs, toRow)
-            : visibleRefs.map((ref, index) =>
-                  toRow(
-                      ref,
-                      entity.dragZone && flatIds
-                          ? {zone: entity.dragZone, ids: flatIds, index}
-                          : undefined,
-                  ),
-              )
+            : // An ungrouped entity arranges its whole list in one zone.
+              visibleRefs.map((ref) => toRow(ref, entity.dragZone))
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {
         children.push({

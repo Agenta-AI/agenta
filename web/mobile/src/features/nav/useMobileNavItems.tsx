@@ -6,9 +6,7 @@ import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
     defineSidebarEntity,
-    moveSidebarManualOrderAtom,
     SIDEBAR_AGENT_ORDER_ZONE,
-    type RowReorder,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
     sidebarAgentRanksAtomFamily,
@@ -25,7 +23,7 @@ import {
 } from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {unwrap} from "jotai/utils"
 import {
     Activity,
@@ -146,22 +144,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
-    const moveOrder = useSetAtom(moveSidebarManualOrderAtom)
     const wrapSessionRow = useCallback(
-        (ref: SidebarEntityRef, node: ReactNode, reorder?: RowReorder) =>
+        (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
                 session: ref as SessionSidebarRef,
                 chrome,
-                // The touch path: a long press opens this menu, so it cannot also start a drag.
-                reorder: reorder && {
-                    canUp: reorder.index > 0,
-                    canDown: reorder.index < reorder.ids.length - 1,
-                    onMove: (delta: -1 | 1) =>
-                        moveOrder({zone: reorder.zone, ids: reorder.ids, id: ref.id, delta}),
-                },
                 children: node,
             }),
-        [chrome, moveOrder],
+        [chrome],
     )
 
     return useMemo(

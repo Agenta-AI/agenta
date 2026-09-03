@@ -23,7 +23,7 @@ import {DotsThreeVerticalIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import InlineRenameInput from "./InlineRenameInput"
-import {isMenuDivider, type SessionMenuEntry} from "./menu"
+import {isMenuDivider} from "./menu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
@@ -37,25 +37,6 @@ export interface SessionRowTarget {
 }
 
 const RENAME = "rename"
-
-/**
- * Reserved keys — intercepted here and never forwarded to the shared verbs, which know nothing
- * about the sidebar's order.
- *
- * They exist because touch cannot drag AND long-press this menu at once, so moving a row by hand
- * has to be sayable in words too. They are equally the keyboard path.
- */
-const MOVE_UP = "__rail-move-up"
-const MOVE_DOWN = "__rail-move-down"
-
-const moveEntries = (reorder?: {canUp: boolean; canDown: boolean}): SessionMenuEntry[] =>
-    reorder
-        ? [
-              {type: "divider"},
-              {key: MOVE_UP, label: "Move up", disabled: !reorder.canUp},
-              {key: MOVE_DOWN, label: "Move down", disabled: !reorder.canDown},
-          ]
-        : []
 
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.
@@ -72,14 +53,11 @@ const moveEntries = (reorder?: {canUp: boolean; canDown: boolean}): SessionMenuE
 const SessionRowActions = ({
     session,
     chrome,
-    reorder,
     children,
 }: {
     session: SessionRowTarget
     /** The verbs, resolved once for the whole rail — see `useSessionRowChrome`. */
     chrome: SessionRowChrome
-    /** Where this row sits in its arrangeable zone. Absent leaves the Move verbs off. */
-    reorder?: {canUp: boolean; canDown: boolean; onMove: (delta: -1 | 1) => void}
     children: ReactNode
 }) => {
     const {menuItems, onMenuClick, renameSession} = chrome
@@ -128,10 +106,7 @@ const SessionRowActions = ({
     }, [rename.renaming])
 
     // The row IS a link — offering "Open" in its own menu restates the click.
-    const entries = useMemo(
-        () => [...menuItems(target), ...moveEntries(reorder)],
-        [menuItems, reorder, target],
-    )
+    const entries = useMemo(() => menuItems(target), [menuItems, target])
     const runAction = useMemo(() => onMenuClick(target), [onMenuClick, target])
 
     const onSelect = useCallback(
@@ -141,14 +116,9 @@ const SessionRowActions = ({
                 rename.start()
                 return
             }
-            if (key === MOVE_UP || key === MOVE_DOWN) {
-                setOpen(false)
-                reorder?.onMove(key === MOVE_UP ? -1 : 1)
-                return
-            }
             runAction({key})
         },
-        [rename, reorder, runAction],
+        [rename, runAction],
     )
 
     // The row's link stretches a ::before over the whole item — swallow presses on the controls
