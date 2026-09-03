@@ -12,6 +12,9 @@
 - Runner-initiated long polling is designed but parked in Linear AGE-4253.
 - Stop requires warm sandbox and harness resume.
 - Shared live frames use one canonical backend path in the target design.
+- The read contract uses one JSON snapshot plus one long-lived event connection. A new session
+  starts at sequence zero. Only committed durable events advance the database-assigned per-session
+  sequence; temporary frames do not.
 - Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
   must change first.
 - Records-versus-event-log remains an explicit reviewer gate.

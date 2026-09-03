@@ -52,7 +52,7 @@ The issue inventory and evidence are in [requirements.md](requirements.md).
 - **Input:** Durable user content that can be pending, promoted, or removed.
 - **Live frame:** Temporary output such as a text delta or tool progress update.
 - **Durable event:** An immutable saved fact used for replay and recovery.
-- **Cursor:** An opaque value that identifies a committed point in durable session history.
+- **Cursor:** The latest committed per-session sequence a reader has received.
 - **Lease:** Temporary evidence that a runner remains alive and owns current work.
 
 Existing `turn_id` fields often identify an execution. Existing `turn_index` fields identify
@@ -225,17 +225,78 @@ GET /sessions/{session_id}
 ```
 
 The response contains messages, current execution state, pending inputs, pending interactions, and
-an opaque cursor.
+the latest committed per-session sequence. A new empty session returns sequence `0`:
+
+```json
+{
+  "session_id": "session-1",
+  "latest_sequence": 0,
+  "messages": [],
+  "current_execution": null,
+  "pending_inputs": [],
+  "pending_interactions": []
+}
+```
+
+An existing session can return any later sequence. For example, `latest_sequence: 41` means that
+the snapshot includes durable history through event 41. It does not mean that every newly opened
+session starts at 41.
 
 ### Follow a session
 
 ```http
-GET /sessions/{session_id}/events?after=<opaque-cursor>
+GET /sessions/{session_id}/events?after=<latest-sequence>
 Accept: text/event-stream
 ```
 
 The endpoint replays committed durable events after the cursor, then follows new durable events and
-temporary live frames.
+temporary live frames. The client opens this connection when it opens the session and keeps it open
+while the session is active in the client. It does not reopen the connection for every Send.
+
+For a new session, the client follows after `0`. If an accepted Send creates `execution-123`, the
+connection can carry:
+
+```text
+id: 1
+event: execution.started
+data: {"execution_id":"execution-123"}
+
+event: message.delta
+data: {"execution_id":"execution-123","message_id":"message-456","delta":"The"}
+
+id: 2
+event: message.completed
+data: {"execution_id":"execution-123","message_id":"message-456","text":"The error..."}
+
+id: 3
+event: execution.completed
+data: {"execution_id":"execution-123"}
+```
+
+Only committed durable events carry a sequence and advance the cursor. Temporary frames such as
+`message.delta` refer to stable object IDs but do not advance the durable cursor. On reconnection,
+the first version fetches a fresh snapshot and follows after its `latest_sequence`. It does not try
+to replay temporary token animation.
+
+### Identifier responsibilities
+
+The identifiers are separate because they name different objects or properties:
+
+- `session_id` identifies the complete conversation and workspace.
+- `execution_id` identifies one attempt by a runner to advance the session. Stop can use it as an
+  optional guard against cancelling newer work.
+- `message_id` identifies one user-visible message. Temporary deltas and the completed durable
+  message use the same message ID so the client can replace the preview instead of adding a second
+  copy.
+- `record_id` identifies one durable producer fact. A retry uses the same record ID, allowing
+  ingestion to recognize a duplicate without creating another fact.
+- `sequence` is not an object ID. It orders committed durable facts within one session and lets a
+  reader ask for everything committed after a known point.
+
+One execution can create several messages, tool calls, interactions, and durable records. One
+execution ID therefore cannot replace their individual IDs. The database assigns the per-session
+sequence when the durable record commits. The producer assigns stable object and record IDs before
+submitting their first frames or durable writes.
 
 ### Manage pending input
 

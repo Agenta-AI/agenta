@@ -125,10 +125,16 @@ Session-history retention must be separated from tracing quota and retention bef
 serve as permanent session history. A separate `session_events` table remains a fallback only if
 that separation or lifecycle representation proves structurally unsafe.
 
-### Use an opaque per-session cursor
+### Use a database-assigned per-session sequence as the cursor
 
-The event store assigns commit-safe per-session order. Clients treat cursors as opaque values. A
-snapshot and its cursor come from one consistent database view.
+The snapshot returns `latest_sequence`. The event route accepts `after=<latest_sequence>`. A new
+empty session starts at `0`. The database assigns the next sequence when a durable record commits,
+and a snapshot and its sequence come from one consistent database view.
+
+Temporary live frames do not receive a sequence and do not advance the cursor. In the first
+version, a reconnect fetches a fresh snapshot and follows after its returned sequence. Stable
+session, execution, message, tool, interaction, and record IDs identify objects. The sequence only
+orders durable session facts.
 
 ### Default busy sends to reject during migration
 
