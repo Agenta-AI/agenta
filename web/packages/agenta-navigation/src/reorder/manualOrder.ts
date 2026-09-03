@@ -47,8 +47,11 @@ const orderByZoneAtom = atomWithStorage<Record<string, string[]>>(
  */
 const zoneKey = (projectId: string, zone: string) => `${projectId}:${zone}`
 
-/** Agents, shared by the Agents group and the agent headings under Sessions. */
+/** The Agents nav group's own rows. */
 export const SIDEBAR_AGENT_ORDER_ZONE = "agents"
+/** The agent headings under Sessions. SEPARATE from the Agents group: the two lists answer
+ * different questions, so arranging one is not a statement about the other. */
+export const SIDEBAR_AGENT_GROUP_ZONE = "session-groups:agent"
 /** The status headings themselves. Their rows live in a `sessions:` zone each. */
 export const SIDEBAR_STATUS_GROUP_ZONE = "session-groups:status"
 /** One zone per heading — arranging one agent's sessions says nothing about another's. */

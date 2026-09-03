@@ -10,6 +10,7 @@ import {withRefsByRecency} from "../../src/dynamic/groups"
 import type {SidebarEntityRef, SidebarEntitySource} from "../../src/dynamic/types"
 import {SESSION_REORDER_ZONES} from "../../src/dynamic/sessionsSource"
 import {
+    SIDEBAR_AGENT_GROUP_ZONE,
     SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
 } from "../../src/reorder/manualOrder"
@@ -60,9 +61,9 @@ describe("mergeManualOrder", () => {
         expect(mergeManualOrder(["a", "b", "c"], ["c", "a"])).toEqual(["c", "b", "a"])
     })
 
-    it("leaves a longer arrangement intact when a capped surface writes a shorter one", () => {
-        // The Agents group renders 5 rows; the agent headings render every agent with sessions.
-        // A visible-only write from the capped group would truncate the other seven.
+    it("leaves a longer arrangement intact when a filtered view writes a shorter one", () => {
+        // Rows are filtered, windowed and capped before render, so a drop routinely sees a subset
+        // of what has been arranged. A visible-only write would discard the rest.
         const saved = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12"]
         const merged = mergeManualOrder(saved, ["a5", "a1", "a2", "a3", "a4"])
         expect(merged).toHaveLength(12)
@@ -139,8 +140,11 @@ describe("SESSION_REORDER_ZONES", () => {
         expect(SESSION_REORDER_ZONES.none).toBeUndefined()
     })
 
-    it("arranges agent headings in the Agents group's own zone", () => {
-        expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_ORDER_ZONE)
+    it("arranges agent headings apart from the Agents nav group", () => {
+        // The two agent lists answer different questions, so arranging one says nothing about
+        // the other. Sharing a zone made a drag in the rail silently reorder the nav group.
+        expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_GROUP_ZONE)
+        expect(SESSION_REORDER_ZONES.agent?.groupZone).not.toBe(SIDEBAR_AGENT_ORDER_ZONE)
     })
 
     it("leaves every heading that is not an agent out of the agent order", () => {
@@ -158,10 +162,22 @@ describe("SESSION_REORDER_ZONES", () => {
         expect(groupId?.("pinned")).toBeUndefined()
     })
 
-    it("saves an agent heading under the bare agent id", () => {
-        // The Agents group writes workflow ids into this same zone; a prefixed key here would
-        // make the two surfaces disagree about what they arranged.
-        expect(SESSION_REORDER_ZONES.agent?.groupId?.("agent:abc123")).toBe("abc123")
+    it("saves an agent heading under its heading key", () => {
+        // Nothing else writes this zone, so the key needs no shape to agree with.
+        expect(SESSION_REORDER_ZONES.agent?.groupId?.("agent:abc123")).toBe("agent:abc123")
+    })
+
+    it("keeps every zone it offers distinct from every other", () => {
+        // One shared zone is how the Agents nav group and the Sessions headings ended up
+        // reordering together.
+        const zones = [
+            SIDEBAR_AGENT_ORDER_ZONE,
+            SESSION_REORDER_ZONES.agent?.groupZone,
+            SESSION_REORDER_ZONES.status?.groupZone,
+            SESSION_REORDER_ZONES.agent?.rowZone?.("agent:abc123"),
+            SESSION_REORDER_ZONES.status?.rowZone?.("status:running"),
+        ]
+        expect(new Set(zones).size).toBe(zones.length)
     })
 
     it("gives each agent heading its own row zone, and none to pins or the unassigned bucket", () => {

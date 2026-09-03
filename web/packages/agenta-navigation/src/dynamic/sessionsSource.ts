@@ -14,6 +14,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
     applyManualOrder,
+    SIDEBAR_AGENT_GROUP_ZONE,
     SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
     sidebarManualOrderAtomFamily,
@@ -640,14 +641,12 @@ export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
  */
 export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
     agent: {
-        // The headings arrange the SHARED agent zone — the Agents group's own list.
-        groupZone: SIDEBAR_AGENT_ORDER_ZONE,
-        // Saved as the BARE agent id: the Agents group writes workflow ids into this same zone,
-        // and a prefixed key here would make the two surfaces disagree about what they arranged.
+        // Its OWN zone, not the Agents group's: the two agent lists arrange independently.
+        groupZone: SIDEBAR_AGENT_GROUP_ZONE,
+        // Keyed as the heading is, like the status headings. Nothing else writes this zone, so
+        // there is no id shape to agree with.
         groupId: (key) =>
-            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
-                ? key.slice("agent:".length)
-                : undefined,
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY ? key : undefined,
         rowZone: (key) =>
             key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
                 ? sidebarSessionZone(key)
@@ -682,7 +681,7 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
         // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
         if (groupBy === "agent") {
-            const ranks = get(sidebarAgentRanksAtomFamily(scopeId))
+            const ranks = get(sidebarAgentCountsAtomFamily(scopeId))
             for (const [key, bucket] of labels) {
                 if (!key.startsWith("agent:") || key === UNASSIGNED_GROUP_KEY) continue
                 // NEGATED so more sessions sorts first, in the one ascending order compareGroups uses.
@@ -696,18 +695,19 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             .map(([key, {label}]) => ({key, label}))
         // Only the status headings are hand-arrangeable. Pinned is not a status and never moves;
         // agent headings arrange through the shared agent rank instead, so they are already sorted.
-        const all =
-            groupBy === "status"
-                ? [
-                      ...sorted.filter((group) => group.key === PINNED_GROUP_KEY),
-                      ...applyManualOrder(
-                          sorted.filter((group) => group.key !== PINNED_GROUP_KEY),
-                          (group) => group.key,
-                          get(sidebarManualOrderAtomFamily(SIDEBAR_STATUS_GROUP_ZONE)),
-                          "trail",
-                      ),
-                  ]
-                : sorted
+        const headingZone = SESSION_REORDER_ZONES[groupBy]?.groupZone
+        const all = headingZone
+            ? [
+                  // Pinned leads under every grouping and is not the user's to move.
+                  ...sorted.filter((group) => group.key === PINNED_GROUP_KEY),
+                  ...applyManualOrder(
+                      sorted.filter((group) => group.key !== PINNED_GROUP_KEY),
+                      (group) => group.key,
+                      get(sidebarManualOrderAtomFamily(headingZone)),
+                      "trail",
+                  ),
+              ]
+            : sorted
         // "None" still separates the pins — a pinned conversation is one you keep coming back to,
         // and burying it in the run of recent rows is what the heading exists to prevent. With no
         // pins there is nothing to separate, so the list goes fully flat.
@@ -832,12 +832,21 @@ export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<
     return counts
 }
 
+/** Chat-session counts alone — the DEFAULT order, before anyone has arranged anything. */
+const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+)
+
+/**
+ * Ranks for the Agents NAV GROUP: counts, with that group's own arrangement on top.
+ *
+ * The agent headings under Sessions deliberately do NOT read this — they carry their own zone, so
+ * arranging one list leaves the other alone.
+ */
 export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
     atom((get) =>
-        // A hand-arranged agent outranks any count. Folded in HERE, not at each call site: the
-        // Agents group and the agent headings both read this atom, so they cannot disagree.
         withManualAgentRanks(
-            agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? []),
+            get(sidebarAgentCountsAtomFamily(scopeId)),
             get(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_ORDER_ZONE)),
         ),
     ),

@@ -35,11 +35,10 @@ export const applyManualOrder = <T>(
  *
  * Ids the saved order holds but the rail is not showing — filtered out, past the row cap, on the
  * other host — keep their saved slot; the visible ids refill the slots they occupied, in their new
- * order. This is load-bearing, not defensive: the agent zone is written from two surfaces with
- * different visible sets (the Agents group renders 5 rows, the agent headings render every agent
- * with sessions), so a visible-only write from the capped group would truncate a longer
- * arrangement on the first drop. Same rule as `reorderSessionsAtomFamily`: a drop rearranges, it
- * never deletes.
+ * order. This is load-bearing, not defensive: a zone's rows are filtered, windowed by the fetch,
+ * and capped before render, so what is on screen is routinely a subset of what has been arranged.
+ * A visible-only write would discard the rest on the first drop made under a filter. Same rule as
+ * `reorderSessionsAtomFamily`: a drop rearranges, it never deletes.
  */
 export const mergeManualOrder = (
     saved: readonly string[],
