@@ -349,9 +349,10 @@ return the existing pending or terminal result.
 The first version keeps current ownership while cancellation runs. It does not free the session
 when Stop is merely accepted. This prevents a normal second start before the old runner settles.
 
-After settlement, `running` must be false. The exact `alive` rule remains open. The candidate rule
-retains `alive` while the warm sandbox is parked, then lets normal idle expiry clear it. Reviewers
-must verify this against every current liveness consumer.
+After settlement, clear `running`. Retain `alive` only when the runner confirms that the
+harness, all tool child processes, and the sandbox are safely parked. Normal idle expiry later
+clears `alive`. A failed or unsafe park clears both flags. Reviewers must verify every current
+liveness consumer implements this contract.
 
 ### Delivery
 
@@ -723,7 +724,8 @@ These points remain deliberately open even though this RFC provides provisional 
 9. Map each implementation phase to the issue inventory before claiming an issue fixed.
 10. Confirm Spike D found every intentional progressive record update.
 11. Decide whether output after watchdog terminal settlement is rejected or quarantined.
-12. Define `running` and `alive` after warm Stop against every current liveness consumer.
+12. Verify every current liveness consumer implements the confirmed post-Stop `running` and
+    `alive` contract.
 
 ## Approval
 
