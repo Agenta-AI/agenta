@@ -144,6 +144,7 @@ export const AgentCard = ({
 
     // The card's default open affordance is the playground where there is one; otherwise the
     // overview is the only thing this surface can open.
+    const open = isGrid ? onOpenOverview : (onOpenPlayground ?? onOpenOverview)
     const hasMenu = Boolean(onOpenPlayground || onRename || onArchive)
 
     const menu = (
@@ -193,15 +194,15 @@ export const AgentCard = ({
         <div
             role="button"
             tabIndex={0}
-            // Agents page opens the overview; the home rail keeps opening the playground.
-            onClick={isGrid ? onOpenOverview : onOpenPlayground}
+            // Agents page opens the overview; the home rail keeps opening the playground, and
+            // falls back to the overview on a surface that has no playground (mobile).
+            onClick={open}
             onKeyDown={(event) => {
                 // Only the card itself: the menu trigger is a child with its own Enter/Space.
                 if (event.target !== event.currentTarget) return
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
-                    if (isGrid) onOpenOverview()
-                    else onOpenPlayground?.()
+                    open()
                 }
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${

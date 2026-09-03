@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
+from hashlib import sha1
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (
@@ -18,6 +20,90 @@ from pydantic import (
 
 def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
+
+
+#: The character class every major provider accepts for a tool name (`^[a-zA-Z0-9_.-]+$`).
+#: OpenAI rejects the whole request when any tool violates it — not the one tool, the whole
+#: `tools` array — so a single bad name breaks every run of the agent that owns it.
+_TOOL_NAME_ALLOWED = re.compile(r"[^a-zA-Z0-9_.-]+")
+
+
+def sanitize_tool_name(raw: Optional[str], *, fallback: str) -> str:
+    """Coerce an authored name into the provider's tool-name pattern.
+
+    A subagent's model-visible name is a DISPLAY name the user typed, so it can carry spaces,
+    slashes, or anything else a person writes. Sending it unchanged made the provider refuse the
+    entire tool list with `Invalid 'tools[N].name'`, which bricks every run of the parent agent
+    until the child is renamed. Names like "Support Router" are an ordinary thing to type.
+
+    The mapping is deterministic and stable, because the model sees this name and a name that
+    changed between turns would strand a conversation mid-tool-call: every disallowed run of
+    characters becomes one `_`, leading and trailing separators are trimmed, and an input that
+    survives none of that falls back to `fallback` (itself sanitized). Only the WIRE name is
+    touched; the display name is never rewritten.
+    """
+    collapsed = _TOOL_NAME_ALLOWED.sub("_", (raw or "").strip())
+    # Trim separators the collapse may have produced at either end. `.` and `-` are legal
+    # characters but a leading or trailing one reads as debris rather than a name.
+    trimmed = collapsed.strip("_.-")
+    if trimmed:
+        return trimmed
+    if raw is not None or fallback:
+        cleaned_fallback = _TOOL_NAME_ALLOWED.sub("_", fallback.strip()).strip("_.-")
+        if cleaned_fallback:
+            return cleaned_fallback
+    return "tool"
+
+
+def disambiguate_tool_names(pairs: List[tuple]) -> Dict[str, str]:
+    """Map each `(identity, sanitized_name)` to a name unique across the list.
+
+    Sanitizing can merge two distinct children onto one name — "Support Router" and
+    "Support/Router" both become `Support_Router` — and a duplicate tool name silently shadows
+    the earlier tool rather than erroring, so the second subagent would simply never be callable.
+
+    Only colliding names are decorated, so the common case keeps the name the user recognizes.
+    The discriminator is a digest of the tool's own stable identity (its `call_ref`), NOT its
+    position: an ordinal would renumber when the author reorders or removes a tool, changing a
+    name the model may already have used earlier in the conversation.
+
+    The digest starts short for readability and LENGTHENS until every name in the colliding group
+    is distinct. Six hex characters is only 24 bits, so two `call_ref` values can share a prefix;
+    if their base names also matched, the function would hand back one name for both entries and
+    the final uniqueness check would reject a configuration this helper promises is unique. Growing
+    the digest keeps the guarantee without reintroducing an ordinal: the length depends on the set
+    of colliding identities, never on their order, so the same configuration always yields the same
+    names. Two distinct identities cannot share the FULL digest, so the loop always terminates.
+    """
+    counts: Dict[str, int] = {}
+    for _identity, name in pairs:
+        counts[name] = counts.get(name, 0) + 1
+
+    resolved: Dict[str, str] = {}
+    for name, count in counts.items():
+        group = [identity for identity, item_name in pairs if item_name == name]
+        if count == 1:
+            resolved[group[0]] = name
+            continue
+        digests = {identity: _identity_digest(identity) for identity in group}
+        # Sorting makes the width a property of the SET, not of iteration order.
+        width = _shortest_distinct_prefix(sorted(digests.values()))
+        for identity in group:
+            resolved[identity] = f"{name}_{digests[identity][:width]}"
+    return resolved
+
+
+def _identity_digest(identity: str) -> str:
+    return sha1(identity.encode("utf-8")).hexdigest()
+
+
+def _shortest_distinct_prefix(digests: List[str], start: int = 6) -> int:
+    """The smallest prefix length (from `start`) at which every digest differs."""
+    longest = max((len(digest) for digest in digests), default=start)
+    for width in range(start, longest + 1):
+        if len({digest[:width] for digest in digests}) == len(digests):
+            return width
+    return longest
 
 
 # Layer-3 per-tool permission: ``allow`` runs with no prompt, ``ask`` raises a
@@ -317,8 +403,15 @@ class ReferenceToolConfig(ToolConfigBase):
 
     @property
     def tool_name(self) -> str:
-        """The model-visible name; defaults to the workflow slug when none is authored."""
-        return self.name or self.slug
+        """The model-visible name; defaults to the workflow slug when none is authored.
+
+        Sanitized to the provider's tool-name pattern, because the authored `name` is a DISPLAY
+        name a person typed and may contain spaces or punctuation the provider refuses. The
+        display name itself is never rewritten — only this wire value. Collisions between two
+        children that sanitize alike are resolved by the caller building the tool list, which is
+        the only place that can see siblings.
+        """
+        return sanitize_tool_name(self.name, fallback=self.slug)
 
     @property
     def call_ref(self) -> str:

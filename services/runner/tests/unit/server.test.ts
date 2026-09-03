@@ -290,7 +290,6 @@ describe("createAgentServer", () => {
         claude: { state: "login_missing", provider: "anthropic" },
         // One Pi mount, one login: both Pi harnesses read it.
         pi_core: { state: "ready" },
-        pi_agenta: { state: "ready" },
       });
       // The fake credential sitting in the login file the route just read is not on the wire,
       // and neither is any path.

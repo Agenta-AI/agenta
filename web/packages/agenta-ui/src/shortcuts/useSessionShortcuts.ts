@@ -1,5 +1,7 @@
 import {useEffect} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
+
 /** How many open sessions the digit row can reach. */
 export const SESSION_SHORTCUT_MAX = 9
 
@@ -15,21 +17,13 @@ export interface UseSessionShortcutsParams {
     onCloseSession: (id: string) => void
     onSearch: () => void
     onToggleConfigPanel: () => void
+    onToggleFilesPane: () => void
 }
 
 /** A bare Alt chord: no AltGr (Ctrl+Alt), no Cmd or Shift, not a repeat or an IME keystroke.
  * Exported because the run-level shortcuts live with the conversation that owns the run. */
 export const isAltChord = (e: KeyboardEvent): boolean =>
     e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat && !e.isComposing
-
-/** True while an antd confirm/modal or a Radix dialog owns the screen. No global open-dialog state
- * exists to ask, and these dialogs come from `modal.confirm`, so the DOM is the only witness. */
-export const isOverlayOpen = (): boolean =>
-    Boolean(
-        document.querySelector(
-            '.ant-modal-wrap:not([style*="display: none"]), [role="dialog"][data-state="open"]',
-        ),
-    )
 
 /** Physical keys that step through the strip, one session at a time. Z and X sit directly above
  * Alt/Option, so the whole set stays under one resting hand — the reason they're positions
@@ -50,16 +44,26 @@ const steppedSession = <T extends {id: string}>(
 }
 
 /**
- * Session shortcuts for the agent playground: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
- * `Alt+X` step to the previous/next one (wrapping), `Alt+C` opens a new session, `Alt+W` closes the
- * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+F` searches, `Alt+B` toggles the config
- * panel. Stop and approve live with the conversation that owns the run, not here.
+ * Session shortcuts for a chat surface that keeps sessions in a strip. Every action arrives as a
+ * callback, so the hook knows nothing about its host: the desktop playground drives it today, and
+ * `/m` can drive the same one when it grows a keyboard surface. A phone never sends an Alt chord,
+ * so mounting it there is inert rather than harmful.
+ *
+ * The bindings: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
+ * `Alt+X` step to the previous/next one (wrapping), `Alt++` opens a new session, `Alt+W` closes the
+ * active one, `Alt+R` renames it, `Alt+A` archives it, `Alt+K` searches, `Alt+C` toggles the config
+ * panel, `Alt+O` toggles the files pane. Stop and approve live with the conversation that owns the
+ * run, not here.
  *
  * Alt alone, because ⌘/Ctrl+digit is browser tab switching on every OS, and one binding for all
  * platforms (the label differs, the keys don't). Matched on `event.code`: macOS Option+1 reports
  * `event.key` as `¡`. Excluding `ctrlKey` keeps European AltGr (which reports as Ctrl+Alt) typing
  * normally. These fire from any focus context, the composer included — that's the point of a
  * modifier combo here, and no plain-key binding is introduced that could swallow typed text.
+ *
+ * The letters avoid every browser menu mnemonic: Chrome and Edge open their menu on `Alt+F`/`Alt+E`,
+ * Firefox opens File/Edit/View/History/Bookmarks/Tools/Help on `Alt+F/E/V/S/B/T/H`, and both focus
+ * the address bar on `Alt+D`. Search moved off `F` and the config panel off `B` for that reason.
  */
 export function useSessionShortcuts({
     sessions,
@@ -72,6 +76,7 @@ export function useSessionShortcuts({
     onCloseSession,
     onSearch,
     onToggleConfigPanel,
+    onToggleFilesPane,
 }: UseSessionShortcutsParams) {
     useEffect(() => {
         if (!enabled) return
@@ -104,19 +109,29 @@ export function useSessionShortcuts({
                 return
             }
 
-            if (e.code === "KeyC") {
+            // The `+` key, matching the button in the tab strip. Not a letter: macOS makes
+            // Option+N the tilde dead key, so binding N would eat `ñ` in the composer.
+            if (e.code === "Equal") {
                 claim()
                 onNewSession()
                 return
             }
-            if (e.code === "KeyF") {
+            if (e.code === "KeyK") {
                 claim()
                 onSearch()
                 return
             }
-            if (e.code === "KeyB") {
+            if (e.code === "KeyC") {
                 claim()
                 onToggleConfigPanel()
+                return
+            }
+            // The files pane is per-session: with no active session the panel renders none, so
+            // toggling would flip a state nothing shows.
+            if (e.code === "KeyO") {
+                if (!activeId) return
+                claim()
+                onToggleFilesPane()
                 return
             }
 
@@ -150,5 +165,6 @@ export function useSessionShortcuts({
         onCloseSession,
         onSearch,
         onToggleConfigPanel,
+        onToggleFilesPane,
     ])
 }

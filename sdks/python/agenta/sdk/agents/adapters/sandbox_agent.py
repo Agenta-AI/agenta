@@ -125,14 +125,13 @@ class SandboxAgentSession(Session):
 
 
 class SandboxAgentBackend(Backend):
-    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, Codex, and Agenta."""
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Codex."""
 
     supported_harnesses = frozenset(
         {
             HarnessKind.PI,
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
-            HarnessKind.AGENTA,
         }
     )
 

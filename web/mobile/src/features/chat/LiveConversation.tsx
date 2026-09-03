@@ -10,8 +10,10 @@ import {
     ConnectionDock,
     ElicitationDock,
     ConnectionFocusProvider,
+    QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
+import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
     useAgentConversation,
     useAgentModelKeyStatus,
@@ -111,6 +113,23 @@ export const LiveConversation = ({
     // The composer's input handle. Declared here because the released task puts its text back in
     // the composer, and rewind (far below) refills it the same way.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+
+    // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
+    const {beginEdit, cancelEdit} = conversation
+    const editQueued = useCallback(
+        (message: QueuedMessage) => {
+            const input = composerRef.current
+            beginEdit(message.id, input?.getMarkdown() ?? "")
+            input?.setMarkdown(message.text)
+            input?.focus()
+        },
+        [beginEdit],
+    )
+    const cancelQueuedEdit = useCallback(() => {
+        const input = composerRef.current
+        input?.setMarkdown(cancelEdit())
+        input?.focus()
+    }, [cancelEdit])
 
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
@@ -225,6 +244,9 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
+    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
+    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
@@ -334,6 +356,24 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
+                        {/* What you have lined up. Yields to the gate docks entirely: those are
+                        blocked runs wanting an answer, and stacking a second card above one
+                        buries the composer. It comes back when the gate clears. */}
+                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <QueuedMessagesDock
+                                        queued={conversation.queued}
+                                        held={conversation.hitlPending}
+                                        onRemove={conversation.removeQueued}
+                                        onEdit={editQueued}
+                                        onCancelEdit={cancelQueuedEdit}
+                                        editingId={conversation.editingId}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
                         {/* A run this device is not driving. Docked with the other strips above the
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
@@ -400,7 +440,19 @@ export const LiveConversation = ({
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => conversation.send({text, parts})}
+                            onSend={({text, parts}) => {
+                                // An open edit rewrites its held message instead of sending. The
+                                // input clears on submit, so the displaced draft goes back after.
+                                if (!conversation.editingId) {
+                                    conversation.send({text, parts})
+                                    return
+                                }
+                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                if (draft)
+                                    requestAnimationFrame(() =>
+                                        composerRef.current?.setMarkdown(draft),
+                                    )
+                            }}
                             disabled={conversation.isHydrating || modelBlocked}
                             waitingOnUser={conversation.hitlPending}
                             streaming={streamingHere}

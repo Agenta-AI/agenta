@@ -2,7 +2,7 @@
     "name": "@agenta/storybook",
     "private": true,
     "version": "0.0.0",
-    "description": "Storybook workbench for the antd \u2192 @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
+    "description": "Storybook workbench for the antd → @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
     "scripts": {
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build -o storybook-static",
@@ -11,6 +11,7 @@
         "a11y": "node parity/a11y.mjs"
     },
     "dependencies": {
+        "@agenta/chat": "workspace:*",
         "@agenta/entities": "workspace:*",
         "@agenta/entity-ui": "workspace:*",
         "@agenta/oss": "workspace:*",

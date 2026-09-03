@@ -12,7 +12,12 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessKind, Message
+from agenta.sdk.agents import (
+    AgentResult,
+    HarnessKind,
+    InvalidHarnessKindError,
+    Message,
+)
 from agenta.sdk.agents.connections import (
     ConnectionResolutionError,
     ResolvedConnection,
@@ -83,9 +88,7 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
-    )
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
@@ -383,6 +386,66 @@ async def test_default_composition_fails_closed_on_connection_resolution_failure
                 "pi_core", model={"provider": "openai", "model": "gpt-5.5"}
             ),
         )
+
+
+async def test_a_config_persisted_with_an_unreadable_harness_is_refused_with_a_shape():
+    """F4: a config stored before the commit boundary existed must still fail with a code.
+
+    The gate's H1 cell persisted `harness.kind` as `12345` and the invoke that followed died on
+    the enum's bare `ValueError`, which the remap turned into a 500 whose body was the Python
+    repr. The refusal now happens where the handler reads the template, before it selects a
+    backend or resolves anything, and it carries the field, the value, and the harnesses that
+    exist.
+    """
+    backend = _FakeBackend()
+
+    async def _must_not_run(*, model, context):
+        raise AssertionError("resolution must not run on an unreadable harness")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_must_not_run,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(InvalidHarnessKindError) as caught:
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(12345, model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+    assert caught.value.code == 400
+    assert "harness.kind" in caught.value.message
+    # Nothing ran: no session was created, so no turn can be stored for a config that cannot run.
+    assert backend.created_configs == []
+
+
+async def test_a_run_configured_with_the_harness_enum_itself_actually_runs():
+    """The SDK's own `HarnessKind` member must be usable as input, end to end.
+
+    `HarnessKind` is a `str` Enum, so `str(member)` is "HarnessKind.CLAUDE". Stringifying the
+    caller's value lower-cased that to "harnesskind.claude", which `make_harness` then refused —
+    valid input, rejected by the parser that was supposed to accept it.
+    """
+    backend = _FakeBackend(output="hi")
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(HarnessKind.CLAUDE),
+    )
+
+    # It reached the backend, which is what a mangled value never did.
+    assert len(backend.created_configs) == 1
+    assert backend.created_effective_parameters[0]["agent"]["harness"]["kind"] == (
+        HarnessKind.CLAUDE
+    )
 
 
 async def test_composition_override_replaces_default_gating():

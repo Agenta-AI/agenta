@@ -13,8 +13,6 @@ from __future__ import annotations
 import pytest
 
 from agenta.sdk.agents import (
-    AgentaAgentTemplate,
-    AgentaHarness,
     AgentTemplate,
     ClaudeAgentTemplate,
     ClaudeHarness,
@@ -29,14 +27,7 @@ from agenta.sdk.agents import (
     UnsupportedHarnessError,
     make_harness,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import (
-    AGENTA_FORCED_APPEND_SYSTEM,
-    AGENTA_FORCED_SKILLS,
-    GETTING_STARTED_WITH_AGENTA_SKILL,
-    AGENTA_PREAMBLE,
-    force_skills,
-    gateway_guidance,
-)
+from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -97,24 +88,6 @@ def test_pi_threads_model_ref_so_connection_reaches_resolver(make_env):
     assert result.wire_model_connection() == {}
 
 
-def test_agenta_threads_model_ref_so_connection_reaches_resolver(make_env):
-    """Same guarantee as Pi for the ``pi_agenta`` harness (it also runs Pi)."""
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    agent = AgentTemplate(
-        instructions="hi",
-        model={
-            "model": "gpt-4o-mini",
-            "connection": {"mode": "agenta", "slug": "my-compat"},
-        },
-    )
-
-    result = harness._to_harness_config(_session_config(agent=agent))
-
-    assert result.model_ref is not None
-    assert result.model_ref.connection.slug == "my-compat"
-    assert result.wire_model_connection() == {}
-
-
 def test_pi_reads_its_harness_extras_slice(make_env):
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
@@ -146,110 +119,6 @@ def test_pi_drops_blank_harness_extras(make_env):
     assert result.system is None
     assert result.append_system is None
     assert result.wire_prompt() == {}
-
-
-# ------------------------------------------------------------------------- Agenta
-
-
-def test_agenta_forces_preamble_and_persona_and_carries_skills(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    skill = {
-        "name": "release-notes",
-        "description": "Draft release notes.",
-        "body": "Read the changelog, then write notes.",
-    }
-    config = _session_config(
-        agent=AgentTemplate(
-            instructions="My project rules.", model="m", skills=[skill]
-        ),
-        custom_tools=[{"name": "t", "callRef": "ref"}],
-        tool_callback=_CALLBACK,
-    )
-
-    result = harness._to_harness_config(config)
-
-    assert isinstance(result, AgentaAgentTemplate)
-    # AGENTS.md is the base preamble with the author's instructions appended after it.
-    assert result.agents_md.startswith(AGENTA_PREAMBLE)
-    assert result.agents_md.endswith("My project rules.")
-    # The author's resolved inline skills ride the config, plus the forced platform skill(s) the
-    # harness always injects. The author's skill comes first; the platform skill is appended.
-    skill_names = [s.name for s in result.skills]
-    assert skill_names[0] == "release-notes"
-    assert GETTING_STARTED_WITH_AGENTA_SKILL.name in skill_names
-    assert "skills" not in result.wire_tools()
-    assert result.wire_skills()["skills"][0]["name"] == "release-notes"
-    # The persona is forced onto append_system; custom tools and callback pass through.
-    assert result.append_system.startswith(AGENTA_FORCED_APPEND_SYSTEM)
-    assert result.custom_tools[0]["name"] == "t"
-    assert result.tool_callback is _CALLBACK
-
-
-def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
-    # The actually-forced behavior: a custom pi_agenta config with NO skills (the default
-    # template's `_agenta` embed dropped) still carries the platform skill on every run.
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    config = _session_config(
-        agent=AgentTemplate(instructions="My project rules.", model="m", skills=[])
-    )
-
-    result = harness._to_harness_config(config)
-
-    assert [s.name for s in result.skills] == [GETTING_STARTED_WITH_AGENTA_SKILL.name]
-
-
-def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
-    # A config that already carries the resolved platform skill (e.g. via the default template's
-    # embed) is not doubled: the author's copy wins on the name clash.
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    existing = GETTING_STARTED_WITH_AGENTA_SKILL.model_dump(mode="json")
-    config = _session_config(
-        agent=AgentTemplate(instructions="hi", model="m", skills=[existing])
-    )
-
-    result = harness._to_harness_config(config)
-
-    names = [s.name for s in result.skills]
-    assert names.count(GETTING_STARTED_WITH_AGENTA_SKILL.name) == 1
-
-
-def test_force_skills_unions_forced_after_author_skills():
-    from agenta.sdk.agents.skills import SkillTemplate
-
-    author = SkillTemplate(
-        name="release-notes", description="Draft notes.", body="Do it."
-    )
-
-    out = force_skills([author])
-
-    assert out[0] is author
-    assert {s.name for s in out} == {"release-notes"} | {
-        s.name for s in AGENTA_FORCED_SKILLS
-    }
-
-
-def test_agenta_passes_through_user_pi_options(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    agent = AgentTemplate(
-        instructions="hi",
-        harness_extras={"system": "You are Pi.", "append_system": "Be terse."},
-    )
-
-    result = harness._to_harness_config(_session_config(agent=agent))
-
-    # `system` passes through; the author's `append_system` is appended after the forced persona.
-    assert result.system == "You are Pi."
-    assert result.append_system.startswith(AGENTA_FORCED_APPEND_SYSTEM)
-    assert result.append_system.endswith("Be terse.")
-
-
-def test_agenta_is_sandbox_agent_supported():
-    # Agenta is Pi with an opinion, so the sandbox-agent backend drives it too (on the `pi` ACP
-    # agent, with the runner laying the forced skills into the sandbox). This is what lets
-    # `agenta` run on a non-local sandbox (e.g. daytona) instead of raising.
-    from agenta.sdk.agents import SandboxAgentBackend
-
-    assert SandboxAgentBackend(url="http://runner").supports(HarnessKind.AGENTA)
 
 
 # ------------------------------------------------------------------------- Claude
@@ -415,7 +284,6 @@ def test_make_harness_maps_string_to_class(make_env):
             HarnessKind.PI,
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
-            HarnessKind.AGENTA,
         ]
     )
     assert isinstance(make_harness("pi_core", env), PiHarness)
@@ -426,8 +294,8 @@ def test_make_harness_maps_string_to_class(make_env):
     assert isinstance(make_harness(HarnessKind.CLAUDE, env), ClaudeHarness)
     assert isinstance(make_harness("codex", env), CodexHarness)
     assert isinstance(make_harness(HarnessKind.CODEX, env), CodexHarness)
-    assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
-    assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
+    # The removed experiment's spelling still resolves (to plain Pi) for old stored configs.
+    assert isinstance(make_harness("pi_agenta", env), PiHarness)
 
 
 # ------------------------------------------------- gateway connection prompt guidance
@@ -456,10 +324,9 @@ _GATEWAY_POLICY = ResolvedGatewayPolicy(
 _AUTHOR_APPEND = "Be terse."
 _AUTHOR_INSTRUCTIONS = "My project rules."
 _HARNESS_CASES = [
-    (PiHarness, HarnessKind.PI, "append_system", _AUTHOR_APPEND),
-    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", _AUTHOR_INSTRUCTIONS),
-    (CodexHarness, HarnessKind.CODEX, "agents_md", _AUTHOR_INSTRUCTIONS),
-    (AgentaHarness, HarnessKind.AGENTA, "agents_md", _AUTHOR_INSTRUCTIONS),
+    (PiHarness, HarnessKind.PI, "append_system", "appendSystemPrompt", _AUTHOR_APPEND),
+    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
+    (CodexHarness, HarnessKind.CODEX, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
 ]
 
 
@@ -471,7 +338,9 @@ def test_every_registered_harness_declares_a_guidance_carrier():
     """
     from agenta.sdk.agents.adapters.harnesses import _HARNESSES
 
-    assert {kind for _cls, kind, _carrier, _author in _HARNESS_CASES} == set(_HARNESSES)
+    assert {kind for _cls, kind, _field, _carrier, _author in _HARNESS_CASES} == set(
+        _HARNESSES
+    )
 
 
 def _guidance_agent() -> AgentTemplate:
@@ -482,33 +351,43 @@ def _guidance_agent() -> AgentTemplate:
     )
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_gateway_guidance_reaches_every_harness(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """Every harness gets the same two derived tools, so every one gets the instructions.
 
-    A section added to the Agenta preamble alone would leave Pi, Claude, and Codex holding
-    `search_tools` and `run_tool` with nothing telling them how to use them.
+    The guidance now rides its own `gatewayGuidance` wire field (spliced by the runner at
+    environment build, so integration adds stop evicting warm sessions); the adapter's job
+    is to emit the field with the right carrier and keep the prompt strings purely authored.
     """
     harness = harness_cls(make_env(supported=[kind]))
     config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
 
     result = harness._to_harness_config(config)
 
-    text = getattr(result, carrier)
-    assert "search_tools" in text
-    assert "run_tool" in text
-    # The configured integration names, and only those.
-    assert "github, slack" in text
-    # The author's own text on that layer still comes last: the guidance is the platform half.
-    assert text.endswith(author_text)
-    assert text.index("search_tools") < text.index(author_text)
+    guidance = result.gateway_guidance
+    assert guidance is not None
+    assert guidance.carrier == carrier
+    assert "search_tools" in guidance.text
+    assert "run_tool" in guidance.text
+    # The configured integration names read as EXAMPLES, so a stale list stays honest.
+    assert "github, slack" in guidance.text
+    assert "Others may exist" in guidance.text
+    # The prompt strings stay purely authored: the runner does the splice, not the adapter.
+    assert getattr(result, prompt_field) == author_text
+    assert result.wire_gateway_guidance() == {
+        "gatewayGuidance": {"text": guidance.text, "carrier": carrier}
+    }
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_no_gateway_guidance_without_a_connection(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """G6's prompt half: an agent with no connection entry gets no gateway section."""
     harness = harness_cls(make_env(supported=[kind]))
@@ -516,41 +395,25 @@ def test_no_gateway_guidance_without_a_connection(
 
     result = harness._to_harness_config(config)
 
-    text = getattr(result, carrier) or ""
+    assert result.gateway_guidance is None
+    assert result.wire_gateway_guidance() == {}
+    text = getattr(result, prompt_field) or ""
     assert "search_tools" not in text
-    assert "run_tool" not in text
 
 
-def test_pi_agents_md_stays_purely_authored(make_env):
-    """Pi's carrier is ``append_system``; AGENTS.md keeps only what the author wrote.
-
-    AGENTS.md is the project-conventions layer and a bare Pi run has no platform half of it,
-    so injecting there would put platform text in a file the author owns outright.
-    """
+def test_pi_prompt_strings_stay_purely_authored(make_env):
+    """Pi's guidance carrier is ``appendSystemPrompt``, but the SDK no longer splices it:
+    both prompt strings leave the adapter exactly as the author wrote them, and the field
+    carries the platform half for the runner to splice at build time."""
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
 
     result = harness._to_harness_config(config)
 
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
-    assert "search_tools" in result.append_system
-
-
-def test_agenta_keeps_its_preamble_first_with_guidance(make_env):
-    """The existing prefix rule survives: preamble, then guidance, then the author."""
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    config = _session_config(
-        agent=AgentTemplate(instructions="My project rules.", model="m"),
-        gateway_policy=_GATEWAY_POLICY,
-    )
-
-    result = harness._to_harness_config(config)
-
-    assert result.agents_md.startswith(AGENTA_PREAMBLE)
-    assert result.agents_md.endswith("My project rules.")
-    assert result.agents_md.index(AGENTA_PREAMBLE) < result.agents_md.index(
-        "search_tools"
-    )
+    assert result.append_system == _AUTHOR_APPEND
+    assert result.gateway_guidance is not None
+    assert result.gateway_guidance.carrier == "appendSystemPrompt"
 
 
 def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
@@ -561,7 +424,8 @@ def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert "search_tools" in result.append_system
+    assert result.gateway_guidance is not None
+    assert "search_tools" in result.gateway_guidance.text
     assert agent.instructions == _AUTHOR_INSTRUCTIONS
     assert agent.harness_extras == {"append_system": _AUTHOR_APPEND}
 
@@ -575,8 +439,9 @@ def test_gateway_guidance_carries_all_six_prompt_items():
     """
     section = gateway_guidance(["github", "slack"])
 
-    # 1. The configured integration names.
-    assert "Configured integrations: github, slack." in section
+    # 1. The configured integration names, framed as examples so a stale list stays honest.
+    assert "some of the integrations you have: github, slack" in section
+    assert "Others may exist" in section
     # 2. Search once per task, with a concrete description, and no equivalent repeats.
     assert "Search once per task, with a concrete description" in section
     assert "Never repeat an\n  equivalent query" in section
@@ -606,9 +471,11 @@ def test_gateway_guidance_is_absent_for_an_empty_policy():
     assert gateway_guidance([]) is None
 
 
-@pytest.mark.parametrize("harness_cls,kind,carrier,author_text", _HARNESS_CASES)
+@pytest.mark.parametrize(
+    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
+)
 def test_gateway_policy_stays_out_of_every_harness_config(
-    make_env, harness_cls, kind, carrier, author_text
+    make_env, harness_cls, kind, prompt_field, carrier, author_text
 ):
     """Runner policy stays neutral while harnesses receive only names for guidance."""
     harness = harness_cls(make_env(supported=[kind]))
