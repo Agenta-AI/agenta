@@ -86,8 +86,11 @@ has one runner and does not plan near-term runner scaling.
 
 Accepting Stop does not immediately free current ownership. Direct delivery sends the command.
 Heartbeat remains a health and ownership signal, and recovery can reconcile a pending durable
-command after direct delivery fails. The exact post-Stop `alive` rule remains open: the candidate
-is to clear `running` after settlement and retain `alive` while the sandbox remains parked.
+command after direct delivery fails.
+
+After cancellation settles, clear `running`. Retain `alive` only when the runner confirms that
+the harness, all tool child processes, and the sandbox are safely parked. Normal idle expiry later
+clears `alive`. A failed or unsafe park clears both flags.
 
 ### Add new read contracts beside old endpoints
 
@@ -149,7 +152,8 @@ Durable checkpoints replace those previews.
 9. Confirm Spike D covered every intentional progressive record update before any immutable-record
    migration.
 10. Decide whether late output after watchdog settlement is rejected or quarantined.
-11. Define `running` and `alive` after warm Stop against every current liveness consumer.
+11. Verify every current liveness consumer implements the confirmed post-Stop `running` and
+   `alive` contract.
 
 ## Deferred decisions
 
