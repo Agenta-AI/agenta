@@ -24,9 +24,9 @@ describe("setupFootnote", () => {
     })
 
     it("names both when two block", () => {
-        expect(
-            setupFootnote("blocked", [account("github", true), account("slack", true)], 0),
-        ).toBe("Connect Github and Slack to create.")
+        expect(setupFootnote("blocked", [account("github", true), account("slack", true)], 0)).toBe(
+            "Connect Github and Slack to create.",
+        )
     })
 
     it("counts them past two", () => {

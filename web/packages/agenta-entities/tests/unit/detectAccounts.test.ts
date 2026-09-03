@@ -83,7 +83,9 @@ describe("detectAccountsFromTemplate", () => {
     it("marks every declared integration required and carries its scope line", () => {
         expect(template).toBeDefined()
         const accounts = detectAccountsFromTemplate(template as AgentStarterTemplate)
-        expect(accounts).toHaveLength((template as AgentStarterTemplate).requiredIntegrations.length)
+        expect(accounts).toHaveLength(
+            (template as AgentStarterTemplate).requiredIntegrations.length,
+        )
         for (const [index, account] of accounts.entries()) {
             const declared = (template as AgentStarterTemplate).requiredIntegrations[index]
             expect(account.required).toBe(true)
@@ -106,9 +108,7 @@ describe("detectAccountsFromTemplate", () => {
 describe("detectAccounts", () => {
     const template: AgentStarterTemplate = {
         ...(AGENT_TEMPLATES[0] as AgentStarterTemplate),
-        requiredIntegrations: [
-            {slug: "github", scope: "Read issues and comment", tools: []},
-        ],
+        requiredIntegrations: [{slug: "github", scope: "Read issues and comment", tools: []}],
     }
 
     it("puts template accounts first and text matches after", () => {
