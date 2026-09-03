@@ -3,9 +3,8 @@ import {createElement, useEffect, useMemo, useRef, type ReactElement, type React
 import {ArrowRight} from "@phosphor-icons/react"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import type {SidebarConfig} from "../types"
-
 import {sidebarReorderActiveAtom} from "../reorder"
+import type {SidebarConfig} from "../types"
 
 import {SIDEBAR_ENTITIES, sidebarEntitySourcesAtom} from "./registry"
 import {getSidebarSourceStatusLabel} from "./status"
@@ -38,19 +37,17 @@ const groupedChildren = (
         if (!groupRefs?.length) continue
         const isCollapsed = collapsed.has(group.key)
         const groupZone = source.reorder?.groupZone
+        // A heading opts out by resolving to no id — Pinned is a heading like any other, but it
+        // is not an agent and must never be written into the agent order.
+        const groupId = source.reorder?.groupId ? source.reorder.groupId(group.key) : group.key
         children.push({
             key: `${entity.parentKey}-group-${group.key}`,
             title: group.label,
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
-            dragItem: groupZone
-                ? {
-                      kind: "group",
-                      id: source.reorder?.groupId?.(group.key) ?? group.key,
-                      zone: groupZone,
-                  }
-                : undefined,
+            dragItem:
+                groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
                 ? () => getDefaultStore().set(entity.toggleGroupAtom!, group.key)
                 : undefined,

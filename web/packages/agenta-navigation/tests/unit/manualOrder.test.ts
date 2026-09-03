@@ -143,6 +143,21 @@ describe("SESSION_REORDER_ZONES", () => {
         expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_ORDER_ZONE)
     })
 
+    it("leaves every heading that is not an agent out of the agent order", () => {
+        // Pinned is a heading like any other. Slicing "agent:" off it yielded an EMPTY id, which
+        // made it draggable and would have written "" into the agent order.
+        const groupId = SESSION_REORDER_ZONES.agent?.groupId
+        expect(groupId?.("pinned")).toBeUndefined()
+        expect(groupId?.("agent:none")).toBeUndefined()
+        expect(groupId?.("recent")).toBeUndefined()
+    })
+
+    it("leaves Pinned out of the status heading order", () => {
+        const groupId = SESSION_REORDER_ZONES.status?.groupId
+        expect(groupId?.("status:running")).toBe("status:running")
+        expect(groupId?.("pinned")).toBeUndefined()
+    })
+
     it("saves an agent heading under the bare agent id", () => {
         // The Agents group writes workflow ids into this same zone; a prefixed key here would
         // make the two surfaces disagree about what they arranged.

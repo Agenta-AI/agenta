@@ -41,7 +41,10 @@ export const applyManualOrder = <T>(
  * arrangement on the first drop. Same rule as `reorderSessionsAtomFamily`: a drop rearranges, it
  * never deletes.
  */
-export const mergeManualOrder = (saved: readonly string[], visible: readonly string[]): string[] => {
+export const mergeManualOrder = (
+    saved: readonly string[],
+    visible: readonly string[],
+): string[] => {
     if (!saved.length) return [...visible]
     const onScreen = new Set(visible)
     const queue = [...visible]

@@ -145,7 +145,6 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
     ),
 )
 
-
 /**
  * Does the filter menu's Reset have anything to do?
  *
@@ -156,7 +155,6 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
 export const sidebarSessionMenuDirtyAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) =>
-            get(sidebarSessionFiltersDirtyAtomFamily(scopeId)) ||
-            get(sidebarHasManualOrderAtom),
+            get(sidebarSessionFiltersDirtyAtomFamily(scopeId)) || get(sidebarHasManualOrderAtom),
     ),
 )

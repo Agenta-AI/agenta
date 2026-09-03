@@ -25,7 +25,7 @@ const ZONE_CAP = 200
  * localStorage WITHOUT jotai's cross-tab `storage` subscription. An incoming write from another
  * browser tab would otherwise reshuffle the rail live, under the pointer.
  */
-const railStorage = <T,>() => {
+const railStorage = <T>() => {
     const storage = createJSONStorage<T>(() => localStorage)
     delete storage.subscribe
     return storage

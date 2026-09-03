@@ -152,6 +152,23 @@ describe("resolveChildren grouping", () => {
         ])
     })
 
+    it("leaves a heading that resolves to no id undraggable", () => {
+        const opted = {
+            ...reorder,
+            groupId: (key: string) => (key.startsWith("agent:") ? key.slice(6) : undefined),
+        }
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder: opted}),
+            "/w/w1/p/p1",
+        )
+
+        const pinnedHeading = children.find((child) => child.title === "Pinned")
+        const agentHeading = children.find((child) => child.title === "Ops Assistant")
+        expect(pinnedHeading?.dragItem).toBeUndefined()
+        expect(agentHeading?.dragItem?.id).toBe("a1")
+    })
+
     it("marks nothing when the source offers no zones", () => {
         const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
 

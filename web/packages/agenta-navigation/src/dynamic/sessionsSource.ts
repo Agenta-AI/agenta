@@ -644,7 +644,10 @@ export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, Sideba
         groupZone: SIDEBAR_AGENT_ORDER_ZONE,
         // Saved as the BARE agent id: the Agents group writes workflow ids into this same zone,
         // and a prefixed key here would make the two surfaces disagree about what they arranged.
-        groupId: (key) => key.slice("agent:".length),
+        groupId: (key) =>
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+                ? key.slice("agent:".length)
+                : undefined,
         rowZone: (key) =>
             key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
                 ? sidebarSessionZone(key)
@@ -652,6 +655,8 @@ export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, Sideba
     },
     status: {
         groupZone: SIDEBAR_STATUS_GROUP_ZONE,
+        // Pinned leads under every grouping and is not a status; it is not the user's to move.
+        groupId: (key) => (key.startsWith("status:") ? key : undefined),
         rowZone: (key) => (key.startsWith("status:") ? sidebarSessionZone(key) : undefined),
     },
 }

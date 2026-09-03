@@ -14,8 +14,10 @@ export interface ReorderOverlay {
 
 // No type utilities here: the chip copies the dragged row's computed type instead (see below),
 // so a heading chip reads like a heading and a session chip like a session.
+// flex + items-center: the chip is given the row's exact height, so the label has to be centred
+// in it rather than sitting on the row's own asymmetric padding.
 const CHIP_CLASS =
-    "fixed left-0 top-0 z-[1100] box-border pointer-events-none truncate rounded-md bg-colorBgElevated px-3 text-colorText shadow-overlay opacity-90"
+    "fixed left-0 top-0 z-[1100] box-border pointer-events-none flex items-center rounded-md bg-colorBgElevated px-3 text-colorText shadow-overlay opacity-90"
 
 /** The type properties the chip lifts off the row it came from. */
 const TYPE_PROPS = [
@@ -59,7 +61,10 @@ export const createOverlay = (label: string, source: HTMLElement): ReorderOverla
     const rowType = getComputedStyle(source)
     const chip = document.createElement("div")
     chip.className = CHIP_CLASS
-    chip.textContent = label
+    const text = document.createElement("span")
+    text.className = "min-w-0 truncate"
+    text.textContent = label
+    chip.appendChild(text)
     for (const prop of TYPE_PROPS) chip.style[prop] = rowType[prop]
     chip.style.width = `${size.width}px`
     chip.style.height = `${size.height}px`
@@ -68,10 +73,11 @@ export const createOverlay = (label: string, source: HTMLElement): ReorderOverla
     document.body.append(chip, line)
 
     return {
-        moveChip: (x, y) => {
-            // Centred on the pointer vertically and held at the row's left inset, so a full-width
-            // chip tracks the pointer without its far edge swinging around.
-            chip.style.transform = `translate3d(${x - 16}px, ${y - size.height / 2}px, 0)`
+        moveChip: (_x, y) => {
+            // Vertical only, pinned to the row's own left edge. A row-width chip that also
+            // tracked the pointer horizontally hung out of the rail and over the page whenever
+            // the drag did not start at the row's far left.
+            chip.style.transform = `translate3d(${size.left}px, ${y - size.height / 2}px, 0)`
         },
         moveLine: (left, top, width) => {
             line.style.width = `${width}px`
