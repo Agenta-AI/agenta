@@ -87,9 +87,7 @@ describe("buildSetupPreamble", () => {
     const accounts = [account("github", true), account("slack", false), account("gmail", false)]
 
     it("names the connected accounts", () => {
-        const text = buildSetupPreamble(
-            selection({accounts, connectedSlugs: ["github", "slack"]}),
-        )
+        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["github", "slack"]}))
         expect(text).toContain("I've connected Github and Slack.")
         expect(text).toContain("Ask me before you write or send anything.")
     })
@@ -103,9 +101,7 @@ describe("buildSetupPreamble", () => {
     })
 
     it("keeps the order of the account list, not the slug list", () => {
-        const text = buildSetupPreamble(
-            selection({accounts, connectedSlugs: ["slack", "github"]}),
-        )
+        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["slack", "github"]}))
         expect(text).toContain("I've connected Github and Slack.")
     })
 
