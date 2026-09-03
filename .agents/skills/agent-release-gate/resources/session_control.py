@@ -1662,8 +1662,11 @@ def main() -> int:
             )
         return built[permission]
 
+    # PID, not just the second-resolution timestamp: two invocations started in the same second
+    # (e.g. two harnesses smoke-tested in parallel) would otherwise share a folder and the
+    # second writer silently clobbers the first one's results.json mid-run.
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    outdir = RUNS / f"{stamp}-session-control"
+    outdir = RUNS / f"{stamp}-{os.getpid()}-session-control"
     outdir.mkdir(parents=True, exist_ok=True)
 
     results: dict = {
