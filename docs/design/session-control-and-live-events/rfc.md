@@ -1,9 +1,6 @@
 # RFC: Session control and shared live events
 
-> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This RFC contains decisions confirmed by Mahmoud and
-> provisional choices made by an AI agent on 2026-09-02. Nothing in this document is approved for
-> implementation until a human reviews it. Sections marked **Reviewer gate** require explicit
-> review before implementation.
+> **AGENT-GENERATED, low weight.**
 
 ## Status
 
