@@ -16,6 +16,7 @@ import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
+import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
@@ -65,6 +66,11 @@ export interface ChatComposerProps {
     trailing?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
+    /**
+     * Enable the `@` file palette. Needs an enclosing `DriveSessionProvider`; off by default so the
+     * surfaces that run before a session exists (onboarding, the home task composer) are untouched.
+     */
+    fileMentions?: boolean
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -91,6 +97,7 @@ export const ChatComposer = ({
     extraPrefix,
     trailing,
     slashCommands,
+    fileMentions,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -113,9 +120,12 @@ export const ChatComposer = ({
     // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
     // iPhone was being shown the `⌘` variant specifically.
     const hasKeyboard = useHardwareKeyboard()
+    const filePalette = useFilePalette({enabled: fileMentions})
 
     return (
         <Suspense fallback={fallback ?? null}>
+            {/* Renders null; it holds the `@` palette's per-directory listings. */}
+            {filePalette.subscribers}
             <input
                 ref={fileInputRef}
                 type="file"
@@ -157,6 +167,7 @@ export const ChatComposer = ({
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
+                filePalette={filePalette.spec}
                 onChange={onChange}
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))

@@ -445,6 +445,7 @@ const AgentComposerDock = ({
                         waitingOnUser={hitlPending}
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
+                        fileMentions={!onboardingActive}
                         onChange={composer.handleComposerChange}
                         streaming={busy}
                         onStop={onStop}
