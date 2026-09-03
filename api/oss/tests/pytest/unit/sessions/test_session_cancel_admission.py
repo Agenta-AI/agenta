@@ -14,7 +14,7 @@ run they meant, and it can kill a run they never meant. These pin the rules that
 
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -29,6 +29,7 @@ from oss.src.core.sessions.commands.dtos import (
 )
 from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
 from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands import service as commands_service_module
 from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
@@ -49,6 +50,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_session_liveness,
 )
 from oss.src.utils.env import env
+from oss.src.tasks.asyncio.sessions.orphan_sweep import _repair_terminal_redis
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -261,6 +263,8 @@ class _RecordingDelivery:
 class _FakeExecutionsDAO:
     def __init__(self) -> None:
         self.rows: Dict[tuple[str, str], SessionExecutionSettlement] = {}
+        self.commands = None
+        self.interactions = None
 
     async def settle(
         self,
@@ -287,6 +291,62 @@ class _FakeExecutionsDAO:
         )
         self.rows[key] = row
         return SessionExecutionSettlementResult(settlement=row, won=True)
+
+    async def settle_command_execution(
+        self,
+        *,
+        settle,
+        session_id,
+        execution_id,
+        terminal_outcome,
+        settled_by,
+        mirror_stopped,
+        cancel_interactions,
+    ):
+        if execution_id and terminal_outcome and settled_by:
+            result = await self.settle(
+                project_id=settle.project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                terminal_outcome=terminal_outcome,
+                settled_by=settled_by,
+            )
+            winner = result.settlement
+            if not result.won and (
+                winner.terminal_outcome != terminal_outcome
+                or winner.settled_by != settled_by
+            ):
+                return None
+        command = await self.commands.settle_command(settle=settle)
+        if command is None:
+            return None
+        await self.commands.clear_stopping_turn(
+            project_id=settle.project_id,
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        if cancel_interactions and execution_id:
+            await self.interactions.cancel_session_pending(
+                project_id=settle.project_id,
+                session_id=session_id,
+                only_turn_id=execution_id,
+            )
+        return command
+
+    async def list_redis_unreconciled(self, *, limit):
+        return [
+            row
+            for row in self.rows.values()
+            if row.settled_by == "runner"
+            and row.terminal_outcome == "stopped"
+            and row.redis_reconciled_at is None
+        ][:limit]
+
+    async def mark_redis_reconciled(self, *, project_id, session_id, execution_id):
+        key = (session_id, execution_id)
+        self.rows[key] = self.rows[key].model_copy(
+            update={"redis_reconciled_at": datetime.now(timezone.utc)}
+        )
 
 
 def _stream(
@@ -325,10 +385,15 @@ def _service(
     # The fake mirrors from Redis, so it reads the same engine the service writes through.
     if streams.lock_engine is None:
         streams.lock_engine = lock_engine
+    commands = dao or _FakeCommandsDAO()
+    interactions = interactions or _FakeInteractionsService()
+    if executions is not None:
+        executions.commands = commands
+        executions.interactions = interactions
     return SessionCommandsService(
-        commands_dao=dao or _FakeCommandsDAO(),
+        commands_dao=commands,
         streams_service=streams,
-        interactions_service=interactions or _FakeInteractionsService(),
+        interactions_service=interactions,
         lock_engine=lock_engine,
         delivery=delivery or _RecordingDelivery(),
         executions_dao=executions,
@@ -1066,6 +1131,44 @@ async def test_watchdog_cannot_replace_the_runners_terminal_outcome(lock_engine)
 
     assert won is False
     assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_next_sweep_repairs_a_post_commit_redis_failure(lock_engine, monkeypatch):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        executions=executions,
+    )
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    supersede = AsyncMock(side_effect=RuntimeError("injected after commit"))
+    monkeypatch.setattr(commands_service_module, "mark_turn_superseded", supersede)
+
+    with pytest.raises(RuntimeError, match="injected after commit"):
+        await svc.report_outcome(
+            command_id=admission.command.id,
+            replica_id="runner-1",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.applied
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is None
+
+    supersede.side_effect = None
+    repaired = await _repair_terminal_redis(svc)
+
+    assert repaired == 1
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is not None
 
 
 def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
