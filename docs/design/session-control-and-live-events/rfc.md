@@ -76,7 +76,8 @@ code can map existing fields without renaming every stored column in the first r
 ### Execution
 
 1. At most one execution owns a session under the current Redis ownership contract.
-2. Every accepted execution reaches one terminal outcome: completed, stopped, failed, or lost.
+2. Every accepted execution reaches one terminal outcome: completed, waiting, stopped, failed, or
+   lost. `waiting` ends that execution at an interaction boundary; it does not keep a runner active.
 3. After that terminal outcome, later non-terminal output for the execution is rejected or
    quarantined.
 3. Stop prevents new model and tool work within five seconds under normal operation.
@@ -474,6 +475,19 @@ server queue. This avoids silently changing existing concurrent-send behavior. T
 change the default to `queue` after the shared pending-input interface ships.
 
 ## Approvals and pauses
+
+The current runner already ends an execution when the harness requests approval. It creates a
+durable pending interaction, persists an `interaction_request` record, and parks the harness in its
+process-local keepalive pool as `awaiting_approval`. An answer later invokes the workflow again with
+a new execution ID. The runner resumes the parked harness when possible and otherwise reconstructs
+the conversation from durable records.
+
+The new contract preserves that behavior. It adds an explicit durable `execution.waiting` fact
+that names the pending interaction IDs. `waiting` means that this execution has ended normally at
+an interaction boundary and that the session can continue after an answer. It does not mean the
+execution remains live, owns a runner, or keeps heartbeating. This removes the need for a client to
+infer waiting from a pending interaction, records, Redis liveness, and process-local keepalive
+state.
 
 An interaction response uses a resource-specific public endpoint and the internal command path.
 The API durably records one winning response before reporting success. A continuation command then

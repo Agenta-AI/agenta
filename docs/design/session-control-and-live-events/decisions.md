@@ -177,6 +177,14 @@ and the session remains available for a new message.
 Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
 Durable checkpoints replace those previews.
 
+### Preserve approval continuation and make waiting explicit
+
+The current approval path already ends the requesting execution, stores a pending interaction,
+parks the harness when possible, and starts a later continuation under a new execution ID. Keep
+that mechanism. Add a durable `execution.waiting` fact that names the blocking interaction IDs.
+Waiting is terminal for that execution but resumable for the session. It does not require a live
+runner or heartbeat.
+
 ## Reviewer gates
 
 1. Warm cancellation behavior in each harness and sandbox.
