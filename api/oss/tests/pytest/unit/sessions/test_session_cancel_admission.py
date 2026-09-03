@@ -36,6 +36,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_running,
     get_alive_owner,
     get_running_owner,
+    get_session_liveness,
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
@@ -142,17 +143,39 @@ class _FakeCommandsDAO:
 
 
 class _FakeStreamsService:
-    """Only the two reads admission and settlement make."""
+    """The reads admission makes, plus the row settlement writes.
 
-    def __init__(self, stream: Optional[SessionStream] = None) -> None:
+    `mirrored` stands in for the `session_streams` row. It records the nest exactly as the real
+    `_mirror_flags` would read it — from Redis, at the moment settlement calls — so a test can
+    assert what the ROW says and not merely that a call happened. `query_streams`, which is what
+    the product's liveness polls read, serves that row and never looks at Redis.
+    """
+
+    def __init__(
+        self, stream: Optional[SessionStream] = None, lock_engine=None
+    ) -> None:
         self.stream = stream
         self.ended: List[str] = []
+        self.lock_engine = lock_engine
+        self.mirrored: List[Dict[str, bool]] = []
 
     async def fetch_header(self, *, project_id: UUID, session_id: str):
         return self.stream
 
     async def publish_session_ended(self, *, project_id: UUID, session_id: str):
         self.ended.append(session_id)
+
+    async def mirror_liveness(self, *, project_id: UUID, session_id: str, user_id=None):
+        snap = await get_session_liveness(
+            self.lock_engine, project_id=str(project_id), session_id=session_id
+        )
+        self.mirrored.append(
+            {
+                "is_alive": snap["alive"],
+                "is_running": snap["running"],
+                "is_attached": snap["attached"],
+            }
+        )
 
 
 class _FakeInteractionsService:
@@ -203,9 +226,13 @@ async def lock_engine():
 
 
 def _service(lock_engine, *, dao=None, streams=None, interactions=None, delivery=None):
+    streams = streams or _FakeStreamsService()
+    # The fake mirrors from Redis, so it reads the same engine the service writes through.
+    if streams.lock_engine is None:
+        streams.lock_engine = lock_engine
     return SessionCommandsService(
         commands_dao=dao or _FakeCommandsDAO(),
-        streams_service=streams or _FakeStreamsService(),
+        streams_service=streams,
         interactions_service=interactions or _FakeInteractionsService(),
         lock_engine=lock_engine,
         delivery=delivery or _RecordingDelivery(),
@@ -561,6 +588,66 @@ async def test_settlement_releases_running_and_leaves_alive_alone(lock_engine):
     )
     assert interactions.cancelled == ["turn-A"]
     assert streams.ended == [_SESSION]
+
+
+@pytest.mark.asyncio
+async def test_settlement_writes_the_row_as_alive_and_not_running(lock_engine):
+    """The ROW, not only Redis — the row is the only thing the product's liveness polls read.
+
+    Redis is already right the moment settlement returns, and the test above pins that. The row
+    is a separate write, and nothing else performs it: settlement tombstones the execution first,
+    so the runner's own final `is_running=false` heartbeat is refused before it reaches the
+    heartbeat's mirror write. Left unwritten, the row says `is_running: true` until the orphan
+    sweep collapses it minutes later, and the tab that pressed Stop shows its own session as
+    running somewhere else for that whole time.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    streams = _FakeStreamsService(
+        _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+    svc = _service(lock_engine, streams=streams)
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    # Written once, and written AFTER `running` was released — a mirror taken before the release
+    # would have recorded `is_running: True` and been exactly the bug.
+    assert streams.mirrored == [
+        {"is_alive": True, "is_running": False, "is_attached": False}
+    ]
+    # And the mirror is the state a normally finished turn leaves behind, which is what makes
+    # the session read as resumable rather than as torn down.
+    assert streams.mirrored[-1]["is_alive"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_settlement_that_stops_nothing_does_not_touch_the_row(lock_engine):
+    """`not_running` changes no lock, so it must not write the row either.
+
+    An obsolete Stop lands here: the turn it named had already finished, a NEWER turn may hold
+    the nest, and a mirror write from this path would be a write the settlement has no business
+    making. The row is left to the live turn's own heartbeats.
+    """
+    dao = _FakeCommandsDAO()
+    streams = _FakeStreamsService(None)
+    svc = _service(lock_engine, dao=dao, streams=streams)
+
+    # Nothing running and nothing parked: admission settles the command at insert.
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+
+    assert admission.accepted is False
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    assert streams.mirrored == []
 
 
 @pytest.mark.asyncio
