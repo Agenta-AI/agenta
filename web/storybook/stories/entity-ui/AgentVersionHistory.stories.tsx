@@ -87,10 +87,14 @@ export const ListError: ListStory = {
     args: {...listArgs, isError: true},
 }
 
-/** A brand-new agent: one commit, so there is nothing to compare or restore. */
+/** A brand-new agent: v1 lists as a normal row, disabled the way the latest always is. */
 export const ListSingleVersion: ListStory = {
     ...List,
-    args: {...listArgs, rows: [rows[0]], selectedId: null},
+    args: {
+        ...listArgs,
+        rows: [{...rows[3], isCurrent: true, isLatest: true}],
+        selectedId: null,
+    },
 }
 
 export const ListEmpty: ListStory = {

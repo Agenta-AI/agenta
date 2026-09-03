@@ -1,8 +1,8 @@
 /**
  * The drawer's left rail: every version of the agent, newest first.
  *
- * Four states, all drawn in the design: loading, load error (retryable), a single version
- * (nothing to compare yet), and the list.
+ * Three states: loading, load error (retryable), and the list. A lone first version is a normal
+ * row — it lists like any other, disabled the way the latest always is.
  */
 import type {AgentVersionRow} from "@agenta/playground/state"
 import {timeAgo} from "@agenta/shared/utils"
@@ -80,11 +80,6 @@ export const VersionList = ({
             <Notice
                 title="No versions yet"
                 body="This agent has nothing committed to compare or restore."
-            />
-        ) : rows.length === 1 ? (
-            <Notice
-                title="Only one version"
-                body={`v${rows[0].version} is the first commit, so there is nothing to compare or restore yet.`}
             />
         ) : (
             rows.map((row) => (
