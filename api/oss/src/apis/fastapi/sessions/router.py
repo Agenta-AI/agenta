@@ -1963,6 +1963,20 @@ class SessionControlRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
+        if not env.agenta.sessions.durable_stop:
+            await self._service.request_cancel_legacy(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)),
+                session_id=session_id,
+            )
+            body = SessionCancelResponse(
+                execution=SessionExecutionRef(id=None, state="idle")
+            )
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=body.model_dump(mode="json"),
+            )
+
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
             idempotency_key = (
