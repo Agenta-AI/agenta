@@ -1054,6 +1054,12 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         "stop": stop,
         "late_answer": late,
         "resume_recalled_marker": marker in (t2.get("text") or ""),
+        # Without the actual reply, a FAIL here cannot be told apart from a driver replay bug
+        # (the reconstructed `output-denied` part shaped wrong) versus the model genuinely not
+        # recalling the codeword -- keep enough of the wire to tell the two apart after the fact.
+        "resume_text": (t2.get("text") or "")[:400],
+        "resume_frames": t2.get("frames", [])[:20],
+        "resume_errors": t2.get("errors"),
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
