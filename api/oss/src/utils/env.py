@@ -1419,6 +1419,10 @@ class SessionsRedisConfig(BaseModel):
     history_retention_days: int | None = _parse_optional_positive_int_env(
         "AGENTA_SESSIONS_HISTORY_RETENTION_DAYS"
     )
+    history_writes: bool = _parse_bool_env(
+        "AGENTA_SESSIONS_HISTORY_WRITES",
+        default=False,
+    )
 
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")

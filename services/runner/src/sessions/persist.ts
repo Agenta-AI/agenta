@@ -24,10 +24,11 @@
  */
 
 import { apiBase } from "../apiBase.ts";
-import { envInt, envTimerMs } from "../env.ts";
+import { randomUUID } from "node:crypto";
+import { envInt } from "../env.ts";
 import type { AgentEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
-import { stableRecordId } from "./record-id.ts";
+import { stableRecordId, stableRecordIdForIndex } from "./record-id.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
@@ -87,10 +88,22 @@ async function postEvent(
   recordId?: string,
   turnId?: string,
   spanId?: string,
+  timestamp: string = new Date().toISOString(),
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   const durable = durableRecordsEnabled();
   const maxRetries = durable ? durableMaxRetries() : INGEST_MAX_RETRIES;
+  const body = JSON.stringify({
+    session_id: sessionId,
+    ...(recordId ? { record_id: recordId } : {}),
+    record_index: eventIndex,
+    timestamp,
+    record_source: sender,
+    record_type: event.type,
+    attributes: event,
+    ...(turnId ? { turn_id: turnId } : {}),
+    ...(spanId ? { span_id: spanId } : {}),
+  });
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -100,21 +113,7 @@ async function postEvent(
           "content-type": "application/json",
           authorization: auth(),
         },
-        body: JSON.stringify({
-          session_id: sessionId,
-          // Present only for tool-family records (stable uuid5); the backend mints a
-          // uuid4 when omitted. A re-sent id upserts the same row.
-          ...(recordId ? { record_id: recordId } : {}),
-          record_index: eventIndex,
-          timestamp: new Date().toISOString(),
-          record_source: sender,
-          record_type: event.type,
-          attributes: event,
-          // Tags the record for turn-grouping; span_id bridges to observability when
-          // the run has one in scope (both forward-fill only, absent is expected).
-          ...(turnId ? { turn_id: turnId } : {}),
-          ...(spanId ? { span_id: spanId } : {}),
-        }),
+        body,
       });
       // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
       // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
@@ -160,6 +159,7 @@ export function persistEvent(
   redactor?: Redactor,
   turnId?: string,
   spanId?: string,
+  timestamp?: string,
 ): void {
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
@@ -174,6 +174,7 @@ export function persistEvent(
       recordId,
       turnId,
       spanId,
+      timestamp,
     ),
   );
   persistChains.set(sessionId, tail);
@@ -225,16 +226,6 @@ export function recordsIncomplete(sessionId: string): boolean {
 }
 
 /**
- * A tool call streams as many `tool_call` events with a growing partial-args snapshot for
- * one id. Idle window after which an open, un-closed tool call is flushed as-is — the
- * substitute for a close signal the harness may never send (a call that streams then
- * stalls without a `tool_result`).
- */
-const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, {
-  log,
-});
-
-/**
  * Build an emitter that persists every event via the ingest chain AND calls the
  * original emitter (for live streaming). Returns a stateful counter so record_index
  * increments per turn (the in-session ordering key; the DB tiebreaks with ingest time).
@@ -242,10 +233,9 @@ const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, {
  * Coalescing keeps one durable record per streamed family, while the live stream gets
  * every raw event unchanged:
  *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
- *  - tool_call snapshots for one id accumulate (latest args win) into a single open slot,
- *    persisted once when a non-continuation event arrives, the TTL fires, or the turn
- *    drains. The record carries a turn-scoped stable uuid5 id so retries upsert within
- *    one execution without overwriting the same tool call from another execution.
+ *  - tool_call/tool_result snapshots accumulate by tool id (latest payload wins) until the
+ *    turn-end flush. That flush is the complete checkpoint: no partial tool state becomes
+ *    durable. Every record gets a producer-generated id before its first delivery attempt.
  */
 export function buildPersistingEmitter(
   sessionId: string,
@@ -262,35 +252,74 @@ export function buildPersistingEmitter(
   flush: () => Promise<void>;
 } {
   let eventIndex = 0;
+  const recordScope = turnId ?? randomUUID();
   // Coalescing state: accumulate delta families into a single durable event.
   const coalescedMessages = new Map<string, { id: string; text: string }>();
 
-  // At most one open tool call at a time: its index is claimed when the call first
-  // appears (so it sorts ahead of whatever flushes it), args are overwritten in place
-  // while snapshots for the same id keep arriving, and it is persisted exactly once.
-  let openTool: {
+  type PendingToolRecord = {
     id: string;
     index: number;
     event: AgentEvent;
-    timer: NodeJS.Timeout;
-  } | null = null;
+    timestamp: string;
+  };
+  const pendingTools = new Map<string, PendingToolRecord>();
 
-  const flushOpenTool = (): void => {
-    if (!openTool) return;
-    const { id, index, event, timer } = openTool;
-    clearTimeout(timer);
-    openTool = null;
+  const enqueue = (
+    event: AgentEvent,
+    index: number,
+    sender: string = "agent",
+    recordId: string = stableRecordIdForIndex(sessionId, index, recordScope),
+    timestamp: string = new Date().toISOString(),
+  ): void => {
     persistEvent(
       sessionId,
       auth,
       event,
       index,
-      "agent",
-      stableRecordId(sessionId, id, "tool_call", turnId),
+      sender,
+      recordId,
       redactor,
       turnId,
       spanId,
+      timestamp,
     );
+  };
+
+  const stageTool = (event: AgentEvent & { id?: string }): boolean => {
+    if (
+      !event.id ||
+      (event.type !== "tool_call" && event.type !== "tool_result")
+    ) {
+      return false;
+    }
+    const key = `${event.type}:${event.id}`;
+    const pending = pendingTools.get(key);
+    if (pending) {
+      pending.event = event;
+      return true;
+    }
+    pendingTools.set(key, {
+      id: stableRecordId(sessionId, event.id, event.type, recordScope),
+      index: eventIndex++,
+      event,
+      timestamp: new Date().toISOString(),
+    });
+    return true;
+  };
+
+  const flushPendingTools = (): void => {
+    for (const pending of [...pendingTools.values()].sort(
+      (a, b) => a.index - b.index,
+    )) {
+      enqueue(
+        pending.event,
+        pending.index,
+        "agent",
+        pending.id,
+        pending.timestamp,
+      );
+    }
+    pendingTools.clear();
   };
 
   const emit = (event: AgentEvent): void => {
@@ -300,28 +329,11 @@ export function buildPersistingEmitter(
     // Transient data describes the current live turn. It must not become transcript history.
     if (event.type === "data" && event.transient) return;
 
-    // Accumulate tool_call snapshots for one id; flush on any non-continuation below.
-    if (event.type === "tool_call" && event.id) {
-      if (openTool && openTool.id === event.id) {
-        // Continuation: latest args win, push the idle deadline out.
-        openTool.event = event;
-        clearTimeout(openTool.timer);
-        openTool.timer = setTimeout(flushOpenTool, OPEN_TOOL_TTL_MS);
-        return;
-      }
-      // A different call: flush the previous open slot, then open this one.
-      flushOpenTool();
-      openTool = {
-        id: event.id,
-        index: eventIndex++,
-        event,
-        timer: setTimeout(flushOpenTool, OPEN_TOOL_TTL_MS),
-      };
-      return;
-    }
-    // Any other event is a "different step": close the open tool call before it, so the
-    // tool_call record lands (with its earlier index) ahead of this event.
-    flushOpenTool();
+    if (stageTool(event)) return;
+
+    // A terminal event is an explicit complete checkpoint. Queue finalized tool state
+    // first so delivery order agrees with the record ordinals as well as read order.
+    if (event.type === "done") flushPendingTools();
 
     // Coalesce delta families: accumulate text; persist only on *_end.
     if (event.type === "message_start") {
@@ -340,16 +352,9 @@ export function buildPersistingEmitter(
       if (acc) {
         coalescedMessages.delete(event.id);
         // Persist the coalesced message in place of the end marker.
-        persistEvent(
-          sessionId,
-          auth,
+        enqueue(
           { type: "message", text: acc.text },
           eventIndex++,
-          "agent",
-          undefined,
-          redactor,
-          turnId,
-          spanId,
         );
         return;
       }
@@ -370,16 +375,9 @@ export function buildPersistingEmitter(
       const acc = coalescedMessages.get(`thought:${event.id}`);
       if (acc) {
         coalescedMessages.delete(`thought:${event.id}`);
-        persistEvent(
-          sessionId,
-          auth,
+        enqueue(
           { type: "thought", text: acc.text },
           eventIndex++,
-          "agent",
-          undefined,
-          redactor,
-          turnId,
-          spanId,
         );
         return;
       }
@@ -388,58 +386,29 @@ export function buildPersistingEmitter(
     // Related tool and interaction events share correlation ids but need distinct, retry-stable
     // rows, so the record type remains part of the stable id.
     if (
-      (event.type === "tool_result" ||
-        event.type === "interaction_request" ||
+      (event.type === "interaction_request" ||
         event.type === "interaction_response") &&
       event.id
     ) {
-      persistEvent(
-        sessionId,
-        auth,
+      enqueue(
         event,
         eventIndex++,
         "agent",
-        stableRecordId(sessionId, event.id, event.type, turnId),
-        redactor,
-        turnId,
-        spanId,
+        stableRecordId(sessionId, event.id, event.type, recordScope),
       );
       return;
     }
 
     // All other events persist as-is.
-    persistEvent(
-      sessionId,
-      auth,
-      event,
-      eventIndex++,
-      "agent",
-      undefined,
-      redactor,
-      turnId,
-      spanId,
-    );
+    enqueue(event, eventIndex++);
   };
 
   const persist = (event: AgentEvent, sender: string): void => {
-    // Out-of-band records (the inbound user turn) still respect open-tool ordering.
-    flushOpenTool();
-    persistEvent(
-      sessionId,
-      auth,
-      event,
-      eventIndex++,
-      sender,
-      undefined,
-      redactor,
-      turnId,
-      spanId,
-    );
+    enqueue(event, eventIndex++, sender);
   };
 
   const flush = async (): Promise<void> => {
-    // A paused call ends the turn with its slot still open — persist it before draining.
-    flushOpenTool();
+    flushPendingTools();
     await drainPersist(sessionId);
     // Consume the drop signal at the turn-end drain: records that exhausted retries mean the durable
     // log is incomplete, so next turn's reconstruction may be missing context. Reading here also

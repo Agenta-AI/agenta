@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,12 +12,21 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
+from oss.src.core.sessions.records.types import (
+    RecordContentConflict,
+    RecordContentConflictDetails,
+)
 from oss.src.dbs.postgres.sessions.records.dbes import RecordDBE
 from oss.src.dbs.postgres.sessions.records.mappings import (
     map_record_event_to_dbe,
     map_record_dbe_to_dto,
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
+from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -46,11 +55,26 @@ class RecordsDAO(RecordsDAOInterface):
         event: SessionRecordEvent,
         session: AsyncSession,
     ) -> Optional[SessionRecord]:
-        stmt = RecordsDAO._upsert_stmt(values_list=[RecordsDAO._values(event=event)])
+        values = RecordsDAO._values(event=event)
+        immutable = env.sessions.history_writes
+        stmt = (
+            RecordsDAO._immutable_stmt(values_list=[values])
+            if immutable
+            else RecordsDAO._upsert_stmt(values_list=[values])
+        )
         result = await session.execute(stmt)
         await session.flush()
 
         row = result.scalars().first()
+        if row is None and immutable:
+            conflict = RecordsDAO._conflict_details(values)
+            log.error(
+                "[RECORDS] Rejected stable-id retry with different content",
+                project_id=str(conflict.project_id),
+                record_id=str(conflict.record_id),
+                session_id=conflict.session_id,
+            )
+            raise RecordContentConflict([conflict])
         if row is None:
             return None
         return map_record_dbe_to_dto(dbe=row)
@@ -65,16 +89,41 @@ class RecordsDAO(RecordsDAOInterface):
         if not events:
             return []
 
-        values_list = self._dedupe_values(
-            values_list=[self._values(event=event) for event in events]
+        immutable = env.sessions.history_writes
+        raw_values = [self._values(event=event) for event in events]
+        values_list = (
+            self._dedupe_immutable_values(values_list=raw_values)
+            if immutable
+            else self._dedupe_values(values_list=raw_values)
         )
 
         async with self.engine.session() as session:
-            stmt = self._upsert_stmt(values_list=values_list)
+            stmt = (
+                self._immutable_stmt(values_list=values_list)
+                if immutable
+                else self._upsert_stmt(values_list=values_list)
+            )
             result = await session.execute(stmt)
-            await session.commit()
+            rows = result.scalars().all()
 
-            return [map_record_dbe_to_dto(dbe=row) for row in result.scalars().all()]
+            if immutable and len(rows) != len(values_list):
+                returned_keys = {(row.project_id, row.record_id) for row in rows}
+                conflicts = [
+                    self._conflict_details(values)
+                    for values in values_list
+                    if (values["project_id"], values["record_id"]) not in returned_keys
+                ]
+                for conflict in conflicts:
+                    log.error(
+                        "[RECORDS] Rejected stable-id retry with different content",
+                        project_id=str(conflict.project_id),
+                        record_id=str(conflict.record_id),
+                        session_id=conflict.session_id,
+                    )
+                raise RecordContentConflict(conflicts)
+
+            await session.commit()
+            return [map_record_dbe_to_dto(dbe=row) for row in rows]
 
     @staticmethod
     def _values(*, event: SessionRecordEvent) -> dict:
@@ -95,6 +144,50 @@ class RecordsDAO(RecordsDAOInterface):
         "turn_id",
         "span_id",
     )
+
+    _IMMUTABLE_CONTENT_COLUMNS = (
+        "session_id",
+        "record_type",
+        "record_source",
+        "attributes",
+        "turn_id",
+        "span_id",
+    )
+
+    @staticmethod
+    def _conflict_details(values: dict) -> RecordContentConflictDetails:
+        return RecordContentConflictDetails(
+            project_id=values["project_id"],
+            record_id=values["record_id"],
+            session_id=values["session_id"],
+        )
+
+    @staticmethod
+    def _same_immutable_content(left: dict, right: dict) -> bool:
+        return all(
+            left.get(column) == right.get(column)
+            for column in RecordsDAO._IMMUTABLE_CONTENT_COLUMNS
+        )
+
+    @staticmethod
+    def _dedupe_immutable_values(*, values_list: List[dict]) -> List[dict]:
+        deduped: dict = {}
+        for values in values_list:
+            key = (values["project_id"], values["record_id"])
+            previous = deduped.get(key)
+            if previous is None:
+                deduped[key] = values
+                continue
+            if not RecordsDAO._same_immutable_content(previous, values):
+                conflict = RecordsDAO._conflict_details(values)
+                log.error(
+                    "[RECORDS] Rejected in-batch stable-id retry with different content",
+                    project_id=str(conflict.project_id),
+                    record_id=str(conflict.record_id),
+                    session_id=conflict.session_id,
+                )
+                raise RecordContentConflict([conflict])
+        return list(deduped.values())
 
     @staticmethod
     def _dedupe_values(*, values_list: List[dict]) -> List[dict]:
@@ -133,6 +226,23 @@ class RecordsDAO(RecordsDAOInterface):
                 "turn_id": stmt.excluded.turn_id,
                 "span_id": stmt.excluded.span_id,
             },
+        ).returning(RecordDBE)
+
+    @staticmethod
+    def _immutable_stmt(*, values_list: List[dict]):
+        stmt = insert(RecordDBE).values(values_list)
+        unchanged = and_(
+            *(
+                getattr(RecordDBE, column).is_not_distinct_from(
+                    getattr(stmt.excluded, column)
+                )
+                for column in RecordsDAO._IMMUTABLE_CONTENT_COLUMNS
+            )
+        )
+        return stmt.on_conflict_do_update(
+            index_elements=["project_id", "record_id"],
+            set_={"record_id": stmt.excluded.record_id},
+            where=unchanged,
         ).returning(RecordDBE)
 
     async def get_records(
