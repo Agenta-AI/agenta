@@ -258,12 +258,30 @@ class SessionStreamsService:
                 entity="session",
                 id=session_id,
             )
+
         except Exception:
             log.warning(
                 "[WATCH] session change publish failed",
                 project_id=str(project_id),
                 session_id=session_id,
             )
+
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        await self._dao.settle_command(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            mirror_stopped=mirror_stopped,
+            transaction=transaction,
+        )
 
     async def command(
         self,

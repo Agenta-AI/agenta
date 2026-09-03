@@ -12,6 +12,7 @@ run they meant, and it can kill a run they never meant. These pin the rules that
   * Redis is not written at admission, so the stopping execution keeps its locks while it stops.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from unittest.mock import AsyncMock, patch
@@ -68,6 +69,10 @@ class _FakeCommandsDAO:
         self.stopping_turn_ids: List[Optional[str]] = []
         self.claims: List[Dict] = []
         self.abandoned: List[SessionCommand] = []
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield object()
 
     async def create_command(
         self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None
@@ -153,7 +158,7 @@ class _FakeCommandsDAO:
     async def claim_commands(self, **_):
         return []
 
-    async def settle_command(self, *, settle):
+    async def settle_command(self, *, settle, transaction=None):
         for index, row in enumerate(self.rows):
             if row.id == settle.command_id and row.state in settle.expected_states:
                 # Mirrors the real guard: a `pending` row holds no claim, so a null
@@ -235,6 +240,22 @@ class _FakeStreamsService:
             }
         )
 
+    async def settle_command(
+        self,
+        *,
+        project_id,
+        session_id,
+        turn_id,
+        mirror_stopped,
+        transaction=None,
+    ):
+        if mirror_stopped and self.stream is not None:
+            self.stream = self.stream.model_copy(
+                update={
+                    "flags": self.stream.flags.model_copy(update={"is_running": False})
+                }
+            )
+
 
 class _FakeInteractionsService:
     def __init__(self) -> None:
@@ -275,6 +296,7 @@ class _FakeExecutionsDAO:
         terminal_outcome,
         settled_by,
         settled_at=None,
+        transaction=None,
     ):
         key = (session_id, execution_id)
         if key in self.rows:
@@ -291,47 +313,6 @@ class _FakeExecutionsDAO:
         )
         self.rows[key] = row
         return SessionExecutionSettlementResult(settlement=row, won=True)
-
-    async def settle_command_execution(
-        self,
-        *,
-        settle,
-        session_id,
-        execution_id,
-        terminal_outcome,
-        settled_by,
-        mirror_stopped,
-        cancel_interactions,
-    ):
-        if execution_id and terminal_outcome and settled_by:
-            result = await self.settle(
-                project_id=settle.project_id,
-                session_id=session_id,
-                execution_id=execution_id,
-                terminal_outcome=terminal_outcome,
-                settled_by=settled_by,
-            )
-            winner = result.settlement
-            if not result.won and (
-                winner.terminal_outcome != terminal_outcome
-                or winner.settled_by != settled_by
-            ):
-                return None
-        command = await self.commands.settle_command(settle=settle)
-        if command is None:
-            return None
-        await self.commands.clear_stopping_turn(
-            project_id=settle.project_id,
-            session_id=session_id,
-            turn_id=execution_id,
-        )
-        if cancel_interactions and execution_id:
-            await self.interactions.cancel_session_pending(
-                project_id=settle.project_id,
-                session_id=session_id,
-                only_turn_id=execution_id,
-            )
-        return command
 
     async def list_redis_unreconciled(self, *, limit):
         return [

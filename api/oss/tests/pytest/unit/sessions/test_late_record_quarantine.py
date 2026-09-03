@@ -101,8 +101,9 @@ class _StubDAO(RecordsDAOInterface):
 
 
 class _ExecutionSettlements:
-    def __init__(self):
+    def __init__(self, *, raises: bool = False):
         self.rows: Dict[Tuple[str, str], SessionExecutionSettlement] = {}
+        self.raises = raises
 
     async def settle(
         self,
@@ -131,6 +132,8 @@ class _ExecutionSettlements:
         return SessionExecutionSettlementResult(settlement=row, won=True)
 
     async def query_settled(self, *, project_id, keys):
+        if self.raises:
+            raise RuntimeError("core database is unreachable")
         return {key: self.rows[key] for key in keys if key in self.rows}
 
     async def close_records(self, *, project_id, keys, settled_by):
@@ -271,7 +274,7 @@ async def test_runner_winner_quarantines_the_watchdogs_records(monkeypatch):
     assert [event.record_type for event in _quarantined(dao)] == ["error", "done"]
 
 
-async def test_output_after_the_runners_terminal_batch_is_quarantined(monkeypatch):
+async def test_output_after_the_runners_own_stop_is_ordinary_history(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     dao = _StubDAO()
@@ -280,7 +283,55 @@ async def test_output_after_the_runners_terminal_batch_is_quarantined(monkeypatc
     await service.append_many(events=[_event("usage"), _event("done")])
     await service.append_many(events=[_event("tool_result")])
 
-    assert [event.record_type for event in _quarantined(dao)] == ["tool_result"]
+    assert _quarantined(dao) == []
+
+
+async def test_an_ordinary_completion_row_does_not_make_trailing_usage_late(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    executions = _ExecutionSettlements()
+    await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        terminal_outcome="completed",
+        settled_by="runner",
+    )
+    dao = _StubDAO()
+    service = RecordsService(records_dao=dao, executions_dao=executions)
+
+    await service.append_many(events=[_event("usage")])
+
+    assert _quarantined(dao) == []
+
+
+async def test_execution_lookup_failure_appends_the_batch_unguarded(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    dao = _StubDAO()
+    service = RecordsService(
+        records_dao=dao,
+        executions_dao=_ExecutionSettlements(raises=True),
+    )
+    events = [_event("usage"), _event("done")]
+
+    results = await service.append_many(events=events)
+
+    assert len(results) == 2
+    assert dao.appended == events
+    assert _quarantined(dao) == []
+
+
+async def test_ingest_does_not_write_a_terminal_execution(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    executions = _ExecutionSettlements()
+    service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
+
+    await service.append_many(
+        events=[_event("done", attributes={"type": "done", "stopReason": "cancelled"})]
+    )
+
+    assert executions.rows == {}
 
 
 async def test_the_guard_asks_only_about_watchdog_endings():

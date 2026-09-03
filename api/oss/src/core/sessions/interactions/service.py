@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -102,6 +102,8 @@ class SessionInteractionsService:
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
+        publish: bool = True,
     ) -> int:
         cancelled = await self.interactions_dao.cancel_session_pending(
             project_id=project_id,
@@ -109,8 +111,9 @@ class SessionInteractionsService:
             except_turn_id=except_turn_id,
             except_tokens=except_tokens,
             only_turn_id=only_turn_id,
+            transaction=transaction,
         )
-        if cancelled:
+        if cancelled and publish:
             await self._publish_interaction(
                 project_id=project_id,
                 session_id=session_id,

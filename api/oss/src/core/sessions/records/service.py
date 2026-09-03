@@ -10,6 +10,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecord,
     SessionRecordEvent,
 )
+from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.utils.env import env
@@ -74,26 +75,7 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
-        records = await self.records_dao.append_many(events=guarded)
-        if self.executions_dao is not None and env.agenta.sessions.durable_stop:
-            terminal: Dict[UUID, Set[Tuple[str, str]]] = {}
-            for event in guarded:
-                if (
-                    event.record_type == TERMINAL_RECORD_TYPE
-                    and event.turn_id
-                    and not _written_by_watchdog(event)
-                    and event.quarantined_at is None
-                ):
-                    terminal.setdefault(event.project_id, set()).add(
-                        (event.session_id, event.turn_id)
-                    )
-            for project_id, keys in terminal.items():
-                await self.executions_dao.close_records(
-                    project_id=project_id,
-                    keys=sorted(keys),
-                    settled_by="runner",
-                )
-        return records
+        return await self.records_dao.append_many(events=guarded)
 
     async def _handle_late_events(
         self,
@@ -206,34 +188,20 @@ class RecordsService:
         if not candidates:
             return events
 
-        for event in events:
-            if event.record_type != TERMINAL_RECORD_TYPE or not event.turn_id:
-                continue
-            settled_by = "watchdog" if _written_by_watchdog(event) else "runner"
-            attributes = event.attributes or {}
-            stop_reason = str(attributes.get("stopReason") or "").lower()
-            outcome = (
-                "lost"
-                if settled_by == "watchdog"
-                else "stopped"
-                if stop_reason in {"cancelled", "canceled"}
-                else "completed"
-            )
-            await self.executions_dao.settle(
-                project_id=event.project_id,
-                session_id=event.session_id,
-                execution_id=event.turn_id,
-                terminal_outcome=outcome,
-                settled_by=settled_by,
-                settled_at=event.timestamp,
-            )
-
-        settled = {}
+        settled: Dict[UUID, Dict[Tuple[str, str], SessionExecutionSettlement]] = {}
         for project_id, keys in candidates.items():
-            settled[project_id] = await self.executions_dao.query_settled(
-                project_id=project_id,
-                keys=sorted(keys),
-            )
+            try:
+                settled[project_id] = await self.executions_dao.query_settled(
+                    project_id=project_id,
+                    keys=sorted(keys),
+                )
+            except Exception:
+                log.warning(
+                    "[RECORDS] Terminal execution lookup failed; appending the batch unguarded",
+                    project_id=str(project_id),
+                    exc_info=True,
+                )
+                settled[project_id] = {}
 
         now = datetime.now(timezone.utc)
         guarded: List[SessionRecordEvent] = []
@@ -249,8 +217,9 @@ class RecordsService:
                 continue
 
             writer = "watchdog" if _written_by_watchdog(event) else "runner"
-            is_late = terminal.settled_by != writer or (
-                writer == "runner" and terminal.records_closed_at is not None
+            is_late = terminal.settled_by != writer and terminal.terminal_outcome in (
+                "lost",
+                "stopped",
             )
             if not is_late:
                 guarded.append(event)
