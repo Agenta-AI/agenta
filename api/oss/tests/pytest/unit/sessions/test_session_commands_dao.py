@@ -360,6 +360,13 @@ async def test_the_claim_records_the_lease_and_counts_the_delivery(command_scope
     command = await dao.create_command(
         user_id=command_scope["user_id"], command=_create(command_scope)
     )
+    attempted = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=datetime.now(timezone.utc),
+        max_deliveries=3,
+    )
+    assert attempted is not None
 
     claimed = await dao.claim_for_delivery(
         project_id=command_scope["project_id"],
@@ -543,3 +550,45 @@ async def test_expire_claims_returns_only_leases_that_have_passed(command_scope)
     # An hour later the same lease has passed, and the settlement sweep sees it.
     later = await dao.expire_claims(now=now + timedelta(hours=1), max_deliveries=3)
     assert fresh.id in {row.id for row in later}
+
+
+async def test_old_pending_commands_are_returned_for_redelivery(command_scope):
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+    now = datetime.now(timezone.utc)
+    command = await dao.create_command(
+        user_id=command_scope["user_id"],
+        command=_create(command_scope, created_at=now - timedelta(minutes=5)),
+    )
+
+    rows = await dao.expire_claims(
+        now=now,
+        max_deliveries=3,
+        pending_before=now - timedelta(seconds=90),
+    )
+
+    assert command.id in {row.id for row in rows}
+
+
+async def test_delivery_attempts_are_bounded_in_the_database(command_scope):
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+    command = await dao.create_command(
+        user_id=command_scope["user_id"], command=_create(command_scope)
+    )
+    now = datetime.now(timezone.utc)
+
+    first = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=now,
+        max_deliveries=1,
+    )
+    second = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=now + timedelta(seconds=1),
+        max_deliveries=1,
+    )
+
+    assert first is not None
+    assert first.claim_count == 1
+    assert second is None
