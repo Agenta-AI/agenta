@@ -27,10 +27,15 @@ export interface QuoteCandidate {
 /** A phone's own selection callout needs a beat to settle before we draw over it. */
 const TOUCH_SETTLE_MS = 260
 
-const readTarget = (node: Node | null): HTMLElement | null => {
-    const el = node instanceof Element ? node : node?.parentElement
-    return (el?.closest("[data-quotable]") as HTMLElement | null) ?? null
-}
+const elementOf = (node: Node | null): Element | null =>
+    node instanceof Element ? node : (node?.parentElement ?? null)
+
+const readTarget = (node: Node | null): HTMLElement | null =>
+    (elementOf(node)?.closest("[data-quotable]") as HTMLElement | null) ?? null
+
+/** The pill and the note box hold their own text; selecting inside them must not re-arm. */
+const isOwnUi = (node: Node | null): boolean =>
+    Boolean(elementOf(node)?.closest("[data-quote-ignore]"))
 
 const sourceFrom = (el: HTMLElement): QuoteSource | null => {
     const kind = el.dataset.quoteKind
@@ -97,8 +102,7 @@ export const useQuoteSelection = ({
                 return
             }
             const range = selection.getRangeAt(0)
-            // The note box holds its own textarea; selecting inside it must not re-arm the pill.
-            if (readTarget(range.commonAncestorContainer)?.dataset.quoteIgnore === "true") return
+            if (isOwnUi(range.commonAncestorContainer)) return
             const target = readTarget(range.commonAncestorContainer)
             if (!target || !root.contains(target)) {
                 setCandidate(null)
