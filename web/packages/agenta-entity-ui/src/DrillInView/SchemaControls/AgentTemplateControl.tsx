@@ -1222,7 +1222,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={880}
+                width={mh.advancedDrawerWidth}
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody

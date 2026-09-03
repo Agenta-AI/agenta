@@ -9,7 +9,7 @@
  * The content is capped at `max-w-prose` so inputs in a section panel keep a readable width instead
  * of stretching the full drawer. Styling uses antd semantic tokens (`--ag-color*`) only — dark-safe.
  */
-import type {ReactNode} from "react"
+import {createContext, useContext, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
 import {
@@ -26,6 +26,20 @@ import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
 
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
+
+/** How a {@link RailField} lays its label out: the two-column rail rhythm, or label-above-control
+ * for panels too narrow to spare the 116px column. Context, like the two filters RailField reads. */
+const FieldLayoutContext = createContext<"rail" | "stacked">("rail")
+
+export function FieldLayoutProvider({
+    layout,
+    children,
+}: {
+    layout: "rail" | "stacked"
+    children: ReactNode
+}) {
+    return <FieldLayoutContext.Provider value={layout}>{children}</FieldLayoutContext.Provider>
+}
 
 export interface RailFieldProps {
     label: ReactNode
@@ -120,12 +134,53 @@ function ChangedDetail({
 }
 
 export function RailField({label, align = "top", path, wide, children}: RailFieldProps) {
+    const layout = useContext(FieldLayoutContext)
     const changed = useChangedPath(path)
     const detail = useChangedDetail(path)
     const revert = useRevertPath(path)
     // Focus filter (see FocusPathsContext): each row self-filters on its own `path`.
     const visible = useIsPathVisible(path)
     if (!visible) return null
+    const stacked = layout === "stacked"
+    // The change shows as emphasis + a colorInfo dotted underline, so both states share one box.
+    const labelNode = changed ? (
+        <Popover>
+            <PopoverTrigger asChild>
+                {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
+                <span
+                    role="button"
+                    className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
+                >
+                    {label}
+                </span>
+            </PopoverTrigger>
+            {/* antd Popover chrome: elevated panel with 12px inner padding. */}
+            <PopoverContent side="top" align="start" className="p-3">
+                <ChangedDetail before={detail?.before} onRevert={revert} />
+            </PopoverContent>
+        </Popover>
+    ) : (
+        label
+    )
+
+    // Stacked = the trigger drawers' flat field stack; `align`/`wide` are rail-only knobs.
+    if (stacked) {
+        return (
+            <div className="flex flex-col gap-1.5">
+                <span
+                    className={`text-xs ${
+                        changed
+                            ? "text-[var(--ag-colorText)]"
+                            : "text-[var(--ag-colorTextDescription)]"
+                    }`}
+                >
+                    {labelNode}
+                </span>
+                <div className="flex min-w-0 flex-col">{children}</div>
+            </div>
+        )
+    }
+
     return (
         <div className="flex gap-3">
             <div
@@ -133,28 +188,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
                     align === "center" ? "self-center" : "pt-1.5"
                 } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
             >
-                {/* The label carries the change via emphasis (colorTextSecondary → colorText) plus a
-                    colorInfo dotted underline — no marker glyph, so changed and unchanged rows share
-                    the same box. */}
-                {changed ? (
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
-                            <span
-                                role="button"
-                                className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
-                            >
-                                {label}
-                            </span>
-                        </PopoverTrigger>
-                        {/* antd Popover chrome: elevated panel with 12px inner padding. */}
-                        <PopoverContent side="top" align="start" className="p-3">
-                            <ChangedDetail before={detail?.before} onRevert={revert} />
-                        </PopoverContent>
-                    </Popover>
-                ) : (
-                    label
-                )}
+                {labelNode}
             </div>
             <div
                 className={cn(
