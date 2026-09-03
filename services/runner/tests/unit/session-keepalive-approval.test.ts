@@ -30,6 +30,7 @@ import {
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
+  approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
   mountExpiryMs,
@@ -139,6 +140,12 @@ function makeApprovalEngine(
       reply: string;
       toolCallId: string;
     }>,
+    settledBeforePrompts: [] as Array<{
+      permissionId: string;
+      reply: string;
+      toolCallId: string;
+    }>,
+    prompts: [] as string[],
     acquiredEnvs: [] as DispatchFakeEnv[],
     /** One control per approvalPause turn: settle the parked prompt promise from the test. */
     promptControls: [] as Array<{
@@ -190,6 +197,7 @@ function makeApprovalEngine(
 
   const applyScript = async (
     env: DispatchFakeEnv,
+    request: AgentRunRequest,
     opts: any,
   ): Promise<AgentRunResult> => {
     const idx = calls.turns.length;
@@ -214,6 +222,19 @@ function makeApprovalEngine(
           reply: decision.reply,
           toolCallId: decision.toolCallId,
         });
+      }
+    }
+    if (opts?.settleApprovalsThenPrompt) {
+      for (const decision of opts.settleApprovalsThenPrompt.decisions) {
+        calls.settledBeforePrompts.push({
+          permissionId: decision.permissionId,
+          reply: decision.reply,
+          toolCallId: decision.toolCallId,
+        });
+      }
+      const tail = request.messages?.[request.messages.length - 1];
+      if (tail?.role === "user" && typeof tail.content === "string") {
+        calls.prompts.push(tail.content);
       }
     }
     if (script.hold) {
@@ -277,8 +298,8 @@ function makeApprovalEngine(
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
-    async runTurn(env, _request, _emit, _signal, opts) {
-      return applyScript(env as unknown as DispatchFakeEnv, opts);
+    async runTurn(env, request, _emit, _signal, opts) {
+      return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
@@ -544,6 +565,83 @@ describe("runWithKeepalive: approval park + resume", () => {
       calls.resumes[0].reply,
       "reject",
       "deny -> respondPermission reject",
+    );
+  });
+
+  it("settles a rewritten denial then prompts a trailing fresh user turn on the warm session", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const request: AgentRunRequest = {
+      ...pauseTurn(),
+      messages: [
+        { role: "user", content: "do X" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: false },
+            },
+          ],
+        },
+        { role: "user", content: "What was the codeword I gave you?" },
+      ],
+    };
+
+    const result = await runWithKeepalive(
+      request,
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.acquire, 1, "the fresh turn kept the warm environment");
+    assert.equal(calls.resumes.length, 0, "it did not take approval-resume");
+    assert.deepEqual(calls.settledBeforePrompts, [
+      { permissionId: "perm-1", reply: "reject", toolCallId: "tc-gate" },
+    ]);
+    assert.deepEqual(calls.prompts, ["What was the codeword I gave you?"]);
+    assert.equal(calls.turns[1].opts.continuation, true);
+    assert.equal(calls.turns[1].env, calls.turns[0].env);
+  });
+
+  it("ignores a denied tool result older than the last assistant message", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: "first" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: false },
+            },
+          ],
+        },
+        { role: "user", content: "second" },
+        { role: "assistant", content: "finished a later turn" },
+        { role: "user", content: "fresh question" },
+      ],
+    };
+
+    assert.equal(
+      approvalDecisionForToolCall(request, "tc-gate"),
+      undefined,
     );
   });
 
@@ -1572,6 +1670,7 @@ function pausableHarness(
     logs: [] as string[],
     resolvePrompt: undefined as ((value: unknown) => void) | undefined,
     promptCount: 0,
+    prompts: [] as any[],
     /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
     journal: [] as string[],
   };
@@ -1645,8 +1744,9 @@ function pausableHarness(
         queueMicrotask(emitPiBatchResults);
       }
     },
-    prompt(_blocks: any) {
+    prompt(blocks: any) {
       calls.promptCount += 1;
+      calls.prompts.push(blocks);
       // Stays pending (Claude never resolves prompt on an unanswered gate) until the test resolves
       // it — modelling the ORIGINAL prompt continuing after the parked gate is answered.
       return new Promise((resolve) => {
@@ -2038,6 +2138,88 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       ],
     );
 
+    await env.destroy();
+  });
+
+  it("settles a parked denial before sending a fresh prompt to session.prompt", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    await firstTurn;
+
+    const parked = env.parkedApproval!;
+    const resolveOriginalPrompt = calls.resolvePrompt!;
+    env.clearTurn();
+    const freshText = "What was the codeword I gave you?";
+    const freshRequest: AgentRunRequest = {
+      ...engineReq,
+      messages: [{ role: "user", content: freshText }],
+    };
+    const secondTurn = runTurn(
+      env,
+      freshRequest,
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        continuation: true,
+        settleApprovalsThenPrompt: {
+          decisions: [
+            {
+              permissionId: parked.permissionId,
+              reply: "reject",
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
+          ],
+        },
+      },
+    );
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "reject" },
+    ]);
+
+    resolveOriginalPrompt({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    for (let i = 0; i < 20 && calls.promptCount < 2; i += 1) await flush();
+    assert.equal(calls.promptCount, 2, "the fresh text became a new prompt");
+    assert.deepEqual(calls.prompts[1], [{ type: "text", text: freshText }]);
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+
+    const result = await secondTurn;
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "complete");
     await env.destroy();
   });
 

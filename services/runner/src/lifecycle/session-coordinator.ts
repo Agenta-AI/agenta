@@ -1183,6 +1183,7 @@ export async function runWithKeepalive(
     const parkedList = [...existing.environment.parkedApprovals.values()];
     const resumeDecisions: ResumeApprovalInput[] = [];
     const carriedForward: ParkedApproval[] = [];
+    const freshUserTail = tailIsFreshUserMessage(request);
     let mismatch: string | undefined;
     if (parkedList.length === 0) {
       mismatch = "no-parked-gate";
@@ -1232,7 +1233,14 @@ export async function runWithKeepalive(
     // session; the history check only guards a client that DID assert a transcript.
     const clientAssertsHistory = !carriesApprovalReplyOnly(request);
     if (!mismatch) {
-      if (clientAssertsHistory && priorFp !== existing.historyFingerprint) {
+      if (freshUserTail && carriedForward.length > 0) {
+        // A new prompt cannot start while any old gate still holds the harness's original prompt.
+        // Only a complete decision set can settle that prompt and keep this environment warm.
+        mismatch = "fresh-prompt-unanswered-gate";
+      } else if (
+        clientAssertsHistory &&
+        priorFp !== existing.historyFingerprint
+      ) {
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
@@ -1288,21 +1296,25 @@ export async function runWithKeepalive(
 
     const live = pool.checkoutApproval(key);
     if (live) {
-      shadowRoute(existing, "reuse", "approval-resume");
+      const decisionRoute = freshUserTail
+        ? "approval-decision-then-prompt"
+        : "approval-resume";
+      shadowRoute(existing, "reuse", decisionRoute);
       const approveCount = resumeDecisions.filter(
         (d) => d.reply === "once",
       ).length;
       const rejectCount = resumeDecisions.length - approveCount;
       klog(
-        `resume key=${key} gates=${parkedList.length} answered=${resumeDecisions.length} ` +
+        `${freshUserTail ? "decision-then-prompt" : "resume"} key=${key} ` +
+          `gates=${parkedList.length} answered=${resumeDecisions.length} ` +
           `carried=${carriedForward.length} ` +
           `approve=${approveCount} reject=${rejectCount} tool=${parked?.toolName ?? "?"}`,
       );
       let result: AgentRunResult;
       try {
-        // Answer the parked gate on the SAME live session; the original prompt continues and this
-        // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
-        // args — no model re-issues anything, so argument drift/task restart cannot happen.
+        // A pure decision resumes the original prompt. A decision followed by fresh user text
+        // settles that gate first and then sends the text as a normal continuation prompt on the
+        // same warm session; the decision becomes context instead of swallowing the new turn.
         result = await engine.runTurn(
           live.environment,
           request,
@@ -1310,7 +1322,14 @@ export async function runWithKeepalive(
           signal,
           {
             approvalParkMode: true,
-            resume: { decisions: resumeDecisions, carriedForward },
+            ...(freshUserTail
+              ? {
+                  continuation: true,
+                  settleApprovalsThenPrompt: { decisions: resumeDecisions },
+                }
+              : {
+                  resume: { decisions: resumeDecisions, carriedForward },
+                }),
             ...turnCredential,
           },
         );
