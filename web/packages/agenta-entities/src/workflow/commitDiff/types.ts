@@ -9,7 +9,14 @@ import type {ExtendedDiffLine} from "@agenta/ui/diff"
 
 export type ChangeKind = "added" | "removed" | "edited" | "changed"
 
-export type SectionId = "tools" | "instructions" | "model" | "params" | "mcps" | "skills"
+export type SectionId =
+    | "tools"
+    | "subagents"
+    | "instructions"
+    | "model"
+    | "params"
+    | "mcps"
+    | "skills"
 
 export interface ChangeTag {
     kind: ChangeKind
@@ -93,6 +100,8 @@ export interface NormalizedTool {
     fingerprint: string
     /** A function-call tool (`function.name`); only these get field-level diffs. */
     isFunction: boolean
+    /** A `{type:"reference"}` entry — another agent, sectioned apart from the real tools. */
+    isSubagent?: boolean
 }
 
 export interface AgentConfigView {

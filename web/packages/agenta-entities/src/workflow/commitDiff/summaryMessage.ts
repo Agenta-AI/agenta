@@ -15,7 +15,7 @@ function joinClauses(parts: string[]): string {
     return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`
 }
 
-function toolsPhrase(section: ChangeSection): string {
+function itemsPhrase(section: ChangeSection, noun: string): string {
     const items = section.items ?? []
     const counts = {added: 0, edited: 0, removed: 0}
     for (const it of items) {
@@ -24,9 +24,9 @@ function toolsPhrase(section: ChangeSection): string {
         else counts.edited++
     }
     const sub: string[] = []
-    if (counts.added) sub.push(`added ${counts.added} ${plural("tool", counts.added)}`)
-    if (counts.edited) sub.push(`edited ${counts.edited} ${plural("tool", counts.edited)}`)
-    if (counts.removed) sub.push(`removed ${counts.removed} ${plural("tool", counts.removed)}`)
+    if (counts.added) sub.push(`added ${counts.added} ${plural(noun, counts.added)}`)
+    if (counts.edited) sub.push(`edited ${counts.edited} ${plural(noun, counts.edited)}`)
+    if (counts.removed) sub.push(`removed ${counts.removed} ${plural(noun, counts.removed)}`)
     return sub.join(", ")
 }
 
@@ -35,7 +35,10 @@ export function buildCommitSummaryMessage(sections: ChangeSection[]): string {
     for (const section of sections) {
         switch (section.id) {
             case "tools":
-                phrases.push(toolsPhrase(section))
+                phrases.push(itemsPhrase(section, "tool"))
+                break
+            case "subagents":
+                phrases.push(itemsPhrase(section, "subagent"))
                 break
             case "instructions":
                 phrases.push("edited the instructions")

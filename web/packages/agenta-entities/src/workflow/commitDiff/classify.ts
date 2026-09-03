@@ -89,9 +89,18 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     return `${parts.join(" & ")} changed`
 }
 
-function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSection | null {
-    const localMap = new Map(local.tools.map((t) => [t.key, t]))
-    const remoteMap = new Map(remote.tools.map((t) => [t.key, t]))
+/**
+ * Diff one slice of the `tools` array. Subagents live in that same array but get their own
+ * section, mirroring the config panel — a `{type:"reference"}` entry is another agent, not a tool.
+ */
+function toolsSection(
+    id: "tools" | "subagents",
+    title: string,
+    localTools: NormalizedTool[],
+    remoteTools: NormalizedTool[],
+): ChangeSection | null {
+    const localMap = new Map(localTools.map((t) => [t.key, t]))
+    const remoteMap = new Map(remoteTools.map((t) => [t.key, t]))
 
     const added: NormalizedTool[] = []
     const removed: NormalizedTool[] = []
@@ -113,11 +122,13 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
+    // Inside Subagents the source ("Subagent") only repeats the header.
+    const sourceDetail = (t: NormalizedTool) => (id === "subagents" ? undefined : t.source)
     const items = [
         ...added.map((t) => ({
             id: t.key,
             label: t.label,
-            detail: t.source,
+            detail: sourceDetail(t),
             kind: "added" as const,
             rawKey: t.rawKey,
         })),
@@ -138,7 +149,7 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         ...removed.map((t) => ({
             id: t.key,
             label: t.label,
-            detail: t.source,
+            detail: sourceDetail(t),
             kind: "removed" as const,
             rawKey: t.rawKey,
         })),
@@ -150,8 +161,8 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
     if (removed.length) tags.push({kind: "removed" as const, label: `${removed.length} removed`})
 
     return {
-        id: "tools",
-        title: "Tools",
+        id,
+        title,
         tags,
         totalCount: total,
         defaultCollapsed: total > 20,
@@ -310,11 +321,15 @@ function listSection(
     return {id, title, tags, totalCount: total, defaultCollapsed: total > 20, items}
 }
 
+/** Subagents share the `tools` array with real tools; each section sees only its own kind. */
+const tools = (v: AgentConfigView) => v.tools.filter((t) => !t.isSubagent)
+const subagents = (v: AgentConfigView) => v.tools.filter((t) => t.isSubagent)
+
 export function classifyAgentChanges(localParams: unknown, remoteParams: unknown): ChangeSection[] {
     const local = readAgentConfig(localParams)
     const remote = readAgentConfig(remoteParams)
     // Grouped to mirror the agent-template control sections (Model & harness, Instructions,
-    // Tools, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
+    // Tools, Subagents, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
     return [
         scalarSection(
             "model",
@@ -323,7 +338,8 @@ export function classifyAgentChanges(localParams: unknown, remoteParams: unknown
             modelHarnessBucket(remote),
         ),
         instructionsSection(local, remote),
-        toolsSection(local, remote),
+        toolsSection("tools", "Tools", tools(local), tools(remote)),
+        toolsSection("subagents", "Subagents", subagents(local), subagents(remote)),
         listSection("mcps", "MCPs", local.mcps, remote.mcps),
         listSection("skills", "Skills", local.skills, remote.skills),
         scalarSection("params", "Advanced", advancedBucket(local), advancedBucket(remote)),

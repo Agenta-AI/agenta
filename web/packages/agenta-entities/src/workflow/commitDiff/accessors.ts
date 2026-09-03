@@ -163,6 +163,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             paramsJson: "{}",
             fingerprint,
             isFunction: false,
+            isSubagent: true,
         }
     }
 

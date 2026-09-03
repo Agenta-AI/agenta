@@ -30,6 +30,7 @@ import {
     PencilSimple,
     PlugsConnected,
     Plus,
+    Robot,
     Sparkle,
     SlidersHorizontal,
     Wrench,
@@ -50,6 +51,9 @@ export const CARD =
 /** Keyboard users need to see where focus lands once these rows are real controls. */
 const FOCUS_RING =
     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+
+/** Sections whose edited rows carry field-level detail worth opening. */
+const DRILLABLE = new Set<ChangeSection["id"]>(["tools", "subagents"])
 
 /** A row that is a button when it does something, and a plain div when it does not. */
 function Row({
@@ -87,6 +91,7 @@ export const LINK_BTN = cn(
 
 export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     tools: <Wrench />,
+    subagents: <Robot />,
     instructions: <ChatText />,
     model: <Cpu />,
     mcps: <PlugsConnected />,
@@ -361,11 +366,11 @@ export function SectionCard({
                             : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
                     )}
                 >
-                    {/* MCPs and Skills carry rows too; only tools have a detail view to open. */}
+                    {/* MCPs and Skills carry rows too; only the tool kinds drill into a detail view. */}
                     {toolItems?.length ? (
                         <CappedItems
                             items={toolItems}
-                            onOpenTool={section.id === "tools" ? onOpenTool : undefined}
+                            onOpenTool={DRILLABLE.has(section.id) ? onOpenTool : undefined}
                         />
                     ) : null}
                     {section.scalarChanges ? <ScalarRows changes={section.scalarChanges} /> : null}

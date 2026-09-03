@@ -30,11 +30,12 @@ describe("ChangeSections", () => {
         ["skills", "Skills", "web-search"],
         ["mcps", "MCPs", "linear"],
         ["tools", "Tools", "send_email"],
+        ["subagents", "Subagents", "hourly-news"],
     ] as const)("renders %s rows when the section is open", (id, title, label) => {
         expect(markup(listSection(id, title, label))).toContain(label)
     })
 
-    it("makes only tool rows clickable — the others have no detail view", () => {
+    it("opens a detail view from tool and subagent rows only", () => {
         // Only an EDITED row has anything to drill into.
         const edited = (id: ChangeSection["id"], title: string): ChangeSection => ({
             ...listSection(id, title, "thing"),
@@ -50,8 +51,10 @@ describe("ChangeSections", () => {
                 />,
             ).match(/<button/g)?.length ?? 0
 
-        // The section header is always a button; only Tools adds a second for the row.
+        // The section header is always a button; a drillable row adds a second.
         expect(buttons(edited("tools", "Tools"))).toBe(2)
+        expect(buttons(edited("subagents", "Subagents"))).toBe(2)
         expect(buttons(edited("skills", "Skills"))).toBe(1)
+        expect(buttons(edited("mcps", "MCPs"))).toBe(1)
     })
 })

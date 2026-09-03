@@ -90,7 +90,7 @@ describe("readAgentConfig — three schema shapes normalize to one view", () => 
     })
 })
 
-describe("subagents are named and described like every other tool", () => {
+describe("subagents get their own section, named the way the config panel names them", () => {
     // Regression: named by slug, description dropped, so an edited description showed nothing.
     const ref = (over: Record<string, unknown>) => ({
         type: "reference",
@@ -100,24 +100,50 @@ describe("subagents are named and described like every other tool", () => {
     })
 
     it("uses the subagent's name, and says what kind of thing it is", () => {
-        const tools = classifyAgentChanges(
+        const sections = classifyAgentChanges(
             {agent: {tools: [ref({name: "Article writer"})]}},
             {agent: {tools: []}},
-        ).find((s) => s.id === "tools")
-        expect(tools?.items?.[0]).toMatchObject({
+        )
+        // Its own section — never mixed into Tools.
+        expect(sections.map((s) => s.id)).toEqual(["subagents"])
+        expect(sections[0].items?.[0]).toMatchObject({
             kind: "added",
             label: "Article writer",
-            detail: "Subagent",
+            // No detail: "Subagent" would only repeat the section header.
+            detail: undefined,
             // The slug stays reachable as the technical key.
             rawKey: "dev-to-article-writer",
         })
     })
 
     it("falls back to the slug when the reference carries no name", () => {
-        const tools = classifyAgentChanges({agent: {tools: [ref({})]}}, {agent: {tools: []}}).find(
-            (s) => s.id === "tools",
+        const section = classifyAgentChanges(
+            {agent: {tools: [ref({})]}},
+            {agent: {tools: []}},
+        ).find((s) => s.id === "subagents")
+        expect(section?.items?.[0]).toMatchObject({label: "dev-to-article-writer"})
+    })
+
+    it("keeps real tools and subagents in separate sections", () => {
+        const fn = {function: {name: "send_email", parameters: {}}}
+        const sections = classifyAgentChanges(
+            {agent: {tools: [fn, ref({name: "Writer"})]}},
+            {agent: {tools: []}},
         )
-        expect(tools?.items?.[0]).toMatchObject({label: "dev-to-article-writer"})
+        expect(sections.find((s) => s.id === "tools")?.items?.map((i) => i.label)).toEqual([
+            "Send email",
+        ])
+        expect(sections.find((s) => s.id === "subagents")?.items?.map((i) => i.label)).toEqual([
+            "Writer",
+        ])
+    })
+
+    it("counts subagents as subagents in the commit message", () => {
+        const sections = classifyAgentChanges(
+            {agent: {tools: [ref({name: "Writer"})]}},
+            {agent: {tools: []}},
+        )
+        expect(buildCommitSummaryMessage(sections)).toBe("Added 1 subagent.")
     })
 
     it("shows WHAT changed when a subagent's description is edited", () => {
@@ -125,7 +151,8 @@ describe("subagents are named and described like every other tool", () => {
         const after = {
             agent: {tools: [ref({name: "Writer", description: "Writes and publishes."})]},
         }
-        const item = classifyAgentChanges(after, before).find((s) => s.id === "tools")?.items?.[0]
+        const item = classifyAgentChanges(after, before).find((s) => s.id === "subagents")
+            ?.items?.[0]
         expect(item?.kind).toBe("edited")
         expect(item?.descriptionDiff).toEqual({
             before: "Writes drafts.",
@@ -305,9 +332,9 @@ describe("classifyAgentChanges", () => {
         // "Reference a workflow"; normalizeTool used to drop them → invisible in the Tools diff.
         const remote = {agent: {tools: []}}
         const local = {agent: {tools: [{type: "reference", slug: "sub-workflow"}]}}
-        const tools = classifyAgentChanges(local, remote).find((s) => s.id === "tools")
-        expect(tools?.tags).toContainEqual({kind: "added", label: "1 added"})
-        expect(tools?.items?.[0]).toMatchObject({
+        const section = classifyAgentChanges(local, remote).find((s) => s.id === "subagents")
+        expect(section?.tags).toContainEqual({kind: "added", label: "1 added"})
+        expect(section?.items?.[0]).toMatchObject({
             kind: "added",
             label: "sub-workflow",
             rawKey: "sub-workflow",
@@ -317,8 +344,8 @@ describe("classifyAgentChanges", () => {
     it("agent-template: editing a reference tool (no function fields) still registers", () => {
         const remote = {agent: {tools: [{type: "reference", slug: "wf", version: "1"}]}}
         const local = {agent: {tools: [{type: "reference", slug: "wf", version: "2"}]}}
-        const tools = classifyAgentChanges(local, remote).find((s) => s.id === "tools")
-        expect(tools?.items?.[0]).toMatchObject({kind: "edited", rawKey: "wf"})
+        const section = classifyAgentChanges(local, remote).find((s) => s.id === "subagents")
+        expect(section?.items?.[0]).toMatchObject({kind: "edited", rawKey: "wf"})
     })
 
     it("classifier: nameless builtin tools are diffed too (prompt playground / legacy)", () => {
