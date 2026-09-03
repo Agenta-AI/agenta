@@ -39,6 +39,19 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
     collapsedKeys?: string[]
     /** Overrides the entity's static `emptyLabel` — e.g. "nothing matches these filters". */
     emptyLabel?: string
+    /** Which of this source's rows and headings the user may hand-arrange. Absent = none. */
+    reorder?: SidebarEntityReorder
+}
+
+/**
+ * The manual-order zones a grouped source offers, resolved WITH the groups because it depends on
+ * the active grouping. Items sharing a zone reorder against each other and nothing else.
+ */
+export interface SidebarEntityReorder {
+    /** Zone the HEADINGS arrange in; absent leaves them fixed. */
+    groupZone?: string
+    /** Zone a heading's rows arrange in; `undefined` leaves that heading's rows fixed. */
+    rowZone?: (groupKey: string) => string | undefined
 }
 
 /** One heading in a grouped entity list. */
@@ -66,8 +79,10 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     childMatchPaths?: (ref: TRef) => string[]
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
-    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 3. */
+    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 5. */
     maxItems?: number
+    /** Zone this entity's rows arrange in, for an UNGROUPED list. Absent leaves them fixed. */
+    dragZone?: string
     /** Project-relative path for the "Show all" overflow row. */
     showAllPath?: string
     /** Per-row icon, overriding the shared kind icon — for rows whose state differs from each
@@ -90,6 +105,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
         groups: SidebarEntityGroup[]
         collapsedKeys: string[]
         emptyLabel?: string
+        reorder?: SidebarEntityReorder
     }>
     /** Toggles a heading's collapse state. */
     toggleGroupAtom?: WritableAtom<string[], [string], void>
@@ -112,6 +128,7 @@ export interface SidebarEntity {
     childMatchLinks?: (ref: SidebarEntityRef, projectURL: string) => string[]
     emptyLabel?: string
     maxItems: number
+    dragZone?: string
     showAllLink?: (projectURL: string) => string
     getIcon?: (ref: SidebarEntityRef) => ReactElement
     getTooltip?: (ref: SidebarEntityRef) => string | undefined
@@ -124,6 +141,7 @@ export interface SidebarEntity {
         groups: SidebarEntityGroup[]
         collapsedKeys: string[]
         emptyLabel?: string
+        reorder?: SidebarEntityReorder
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
 }

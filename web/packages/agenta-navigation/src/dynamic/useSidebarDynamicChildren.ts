@@ -5,6 +5,8 @@ import {getDefaultStore, useAtomValue} from "jotai"
 
 import type {SidebarConfig} from "../types"
 
+import {sidebarReorderActiveAtom} from "../reorder"
+
 import {SIDEBAR_ENTITIES, sidebarEntitySourcesAtom} from "./registry"
 import {getSidebarSourceStatusLabel} from "./status"
 import type {SidebarEntity, SidebarEntityRef, SidebarEntitySource} from "./types"
@@ -19,7 +21,7 @@ const groupedChildren = (
     entity: SidebarEntity,
     source: SidebarEntitySource,
     refs: SidebarEntityRef[],
-    toRow: (ref: SidebarEntityRef) => SidebarConfig,
+    toRow: (ref: SidebarEntityRef, reorder?: RowReorder) => SidebarConfig,
 ): SidebarConfig[] => {
     const rowsByGroup = new Map<string, SidebarEntityRef[]>()
     for (const ref of refs) {
@@ -35,18 +37,26 @@ const groupedChildren = (
         const groupRefs = rowsByGroup.get(group.key)
         if (!groupRefs?.length) continue
         const isCollapsed = collapsed.has(group.key)
+        const groupZone = source.reorder?.groupZone
         children.push({
             key: `${entity.parentKey}-group-${group.key}`,
             title: group.label,
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
+            dragItem: groupZone ? {kind: "group", id: group.key, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
                 ? () => getDefaultStore().set(entity.toggleGroupAtom!, group.key)
                 : undefined,
         })
         if (isCollapsed) continue
-        children.push(...groupRefs.map(toRow))
+        const rowZone = source.reorder?.rowZone?.(group.key)
+        const ids = rowZone ? groupRefs.map((ref) => ref.id) : undefined
+        children.push(
+            ...groupRefs.map((ref, index) =>
+                toRow(ref, rowZone && ids ? {zone: rowZone, ids, index} : undefined),
+            ),
+        )
     }
     return children
 }
@@ -66,8 +76,19 @@ export type SidebarRowIcons = Record<string, (ref: SidebarEntityRef) => ReactEle
 
 export type SidebarRowWrappers = Record<
     string,
-    (ref: SidebarEntityRef, node: ReactNode) => ReactElement
+    (ref: SidebarEntityRef, node: ReactNode, reorder?: RowReorder) => ReactElement
 >
+
+/**
+ * Where a row sits in its arrangeable zone, for the non-drag path (the row menu's Move verbs).
+ * Third argument, so a host that has not opted in keeps its two-arg wrapper.
+ */
+export interface RowReorder {
+    zone: string
+    /** The zone's row ids in render order — the Move verb's input. */
+    ids: string[]
+    index: number
+}
 
 /**
  * Maps one entity's gated source to menu children. Always returns ≥1 child — an
@@ -148,8 +169,9 @@ export const resolveChildren = (
     // not quietly render more rows than an ungrouped one.
     const visibleRefs = refs.slice(0, entity.maxItems)
 
-    const toRow = (ref: SidebarEntityRef): SidebarConfig => ({
+    const toRow = (ref: SidebarEntityRef, reorder?: RowReorder): SidebarConfig => ({
         key: `${entity.parentKey}-${ref.id}`,
+        dragItem: reorder ? {kind: "row", id: ref.id, zone: reorder.zone} : undefined,
         title: entity.getLabel(ref),
         // Context the label cannot carry (#5945) — e.g. which agent a session belongs to.
         tooltip: entity.getTooltip?.(ref),
@@ -161,16 +183,25 @@ export const resolveChildren = (
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),
         wrapRow: wrapRow
-            ? (node) => wrapRow(ref, node)
+            ? (node) => wrapRow(ref, node, reorder)
             : entity.wrapRow
               ? (node) => entity.wrapRow!(ref, node)
               : undefined,
     })
 
+    // An ungrouped entity arranges its whole list in one zone.
+    const flatIds = entity.dragZone ? visibleRefs.map((ref) => ref.id) : undefined
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
             ? groupedChildren(entity, source, visibleRefs, toRow)
-            : visibleRefs.map(toRow)
+            : visibleRefs.map((ref, index) =>
+                  toRow(
+                      ref,
+                      entity.dragZone && flatIds
+                          ? {zone: entity.dragZone, ids: flatIds, index}
+                          : undefined,
+                  ),
+              )
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {
         children.push({
@@ -202,6 +233,7 @@ export const useSidebarDynamicChildren = ({
     rowIcons?: SidebarRowIcons
 }): Record<string, SidebarConfig[]> => {
     const sources = useAtomValue(sidebarEntitySourcesAtom)
+    const reordering = useAtomValue(sidebarReorderActiveAtom)
     const cachedChildrenRef = useRef<
         Record<string, {projectURL: string; children: SidebarConfig[]}>
     >({})
@@ -216,6 +248,13 @@ export const useSidebarDynamicChildren = ({
         for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
             const source = sourcesByKey[key]
             const cached = cachedChildren[key]
+            // Hold the rows still while a drag is in flight: a poll landing mid-gesture would
+            // otherwise add, remove or reorder a row under the pointer and invalidate the drag
+            // engine's cached rects.
+            if (reordering && cached?.projectURL === resolvedProjectURL) {
+                result[key] = cached.children
+                continue
+            }
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
             result[key] = resolveChildren(
@@ -229,11 +268,12 @@ export const useSidebarDynamicChildren = ({
             )
         }
         return result
-    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons])
+    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons, reordering])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.
     useEffect(() => {
+        if (reordering) return
         const resolvedProjectURL = projectURL ?? ""
         const sourcesByKey = sources ?? {}
         for (const key of Object.keys(SIDEBAR_ENTITIES)) {
@@ -245,7 +285,7 @@ export const useSidebarDynamicChildren = ({
                 }
             }
         }
-    }, [sources, projectURL, childrenByKey])
+    }, [sources, projectURL, childrenByKey, reordering])
 
     return childrenByKey
 }
