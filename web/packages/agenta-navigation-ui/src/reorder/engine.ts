@@ -160,12 +160,14 @@ const endDrag = (commit: boolean) => {
     store.set(sidebarReorderActiveAtom, false)
 
     if (!commit) return
+    // A drag ran, so the pointerup's click must die whether or not the order changed — a drag
+    // back to the origin would otherwise navigate the row or toggle the heading.
+    suppressClick = true
     // Resolved HERE, not left to the last frame: a drag released before any frame ran (a fast
     // flick, a throttled tab) would otherwise commit the index it started with and drop nothing.
     resolveIndex(state)
     const next = reorderedIds(state.ids, state.from, state.index)
     if (next.every((id, index) => id === state.ids[index])) return
-    suppressClick = true
     store.set(setSidebarManualOrderAtom, {zone: state.item.zone, ids: next})
 }
 

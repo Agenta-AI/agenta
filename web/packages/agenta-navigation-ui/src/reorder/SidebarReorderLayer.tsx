@@ -20,12 +20,15 @@ export const SidebarReorderLayer = ({
 
         // Armed on the first press that lands on a draggable row; the module is cached after that.
         const arm = (event: PointerEvent) => {
-            if (detach || !(event.target as HTMLElement | null)?.closest("[data-drag-zone]")) return
+            const target = event.target as HTMLElement | null
+            if (detach || !target?.closest("[data-drag-zone]")) return
             void import("./engine").then(({attachReorder}) => {
                 if (cancelled || detach) return
                 detach = attachReorder(root)
-                // The press that armed us is already spent, so replay it into the fresh listener.
-                root.dispatchEvent(new PointerEvent("pointerdown", event))
+                // Replay from the ORIGINAL target, not `root`: dispatching on `root` retargets the
+                // event to `<nav>`, whose `closest("[data-drag-zone]")` is null, so the first drag
+                // never starts. The event still bubbles up to the listener `attachReorder` added.
+                target.dispatchEvent(new PointerEvent("pointerdown", event))
             })
         }
 
