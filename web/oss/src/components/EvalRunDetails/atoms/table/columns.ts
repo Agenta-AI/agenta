@@ -1,6 +1,6 @@
 import {extractMetrics} from "@agenta/entities/workflow"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {StepMeta} from "@/oss/lib/evaluations/buildRunIndex"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"

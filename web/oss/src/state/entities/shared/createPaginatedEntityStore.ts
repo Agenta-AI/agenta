@@ -85,7 +85,7 @@ import {
 } from "@agenta/ui/table"
 import {atom} from "jotai"
 import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 // ============================================================================
 // TYPES
