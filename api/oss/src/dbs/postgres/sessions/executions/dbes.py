@@ -21,7 +21,6 @@ class SessionExecutionDBE(Base):
     terminal_outcome = Column(String, nullable=False)
     settled_by = Column(String, nullable=False)
     settled_at = Column(TIMESTAMP(timezone=True), nullable=False)
-    records_closed_at = Column(TIMESTAMP(timezone=True), nullable=True)
     redis_reconciled_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     __table_args__ = (
