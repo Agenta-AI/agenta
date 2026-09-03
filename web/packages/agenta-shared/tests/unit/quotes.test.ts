@@ -88,7 +88,7 @@ describe("quotesToMarkdown", () => {
 
     it("carries the file name, line range, excerpt and note", () => {
         const out = quotesToMarkdown([fileQuote()], "Fix these three.")
-        expect(out).toContain("> **07-schedule.mdx** (L34–L36)")
+        expect(out).toContain("> **07-schedule.mdx** (L34–L36)  ")
         expect(out).toContain("> A schedule runs one pinned variant and revision.")
         expect(out).toContain("This contradicts the section above.")
         expect(out.endsWith("Fix these three.")).toBe(true)
@@ -101,7 +101,7 @@ describe("quotesToMarkdown", () => {
                 note: "",
             }),
         ])
-        expect(out).toContain("> **Agent reply**")
+        expect(out).toContain("> **Agent reply**  ")
     })
 
     it("stacks several quotes above one message", () => {
