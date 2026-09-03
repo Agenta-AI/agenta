@@ -199,10 +199,7 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
         return (
             <p
                 {...dragAttrs(item.dragItem)}
-                className={clsx(
-                    "m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none",
-                    item.dragItem && "cursor-grab",
-                )}
+                className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
             >
                 {item.title}
             </p>
@@ -215,10 +212,7 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
             {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
-            className={clsx(
-                "mx-auto flex w-[calc(100%-16px)] select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
-                item.dragItem ? "cursor-grab" : "cursor-pointer",
-            )}
+            className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
             onClick={toggle}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
@@ -267,7 +261,6 @@ const LeafRow = ({
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
-                item.dragItem && "cursor-grab",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",

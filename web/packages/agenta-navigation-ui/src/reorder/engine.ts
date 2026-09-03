@@ -137,7 +137,6 @@ const endDrag = (commit: boolean) => {
     state.overlay.destroy()
     for (const ghost of state.ghosts) delete ghost.dataset.dragGhost
     state.scroller.style.removeProperty("touch-action")
-    document.body.style.removeProperty("cursor")
     document.removeEventListener("pointermove", onPointerMove)
     document.removeEventListener("pointerup", onPointerUp)
     document.removeEventListener("pointercancel", onCancel)
@@ -193,7 +192,6 @@ const startDrag = (
     const ghosts = ghostsFor(el, item)
     for (const ghost of ghosts) ghost.dataset.dragGhost = "true"
     scroller.style.touchAction = "none"
-    document.body.style.cursor = "grabbing"
 
     active = {
         pointerId: event.pointerId,
