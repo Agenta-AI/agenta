@@ -382,7 +382,7 @@ class SessionExecutionRef(BaseModel):
 
 
 class SessionCancelResponse(BaseModel):
-    command: Optional[SessionCommandRef] = None
+    command: SessionCommandRef
     execution: SessionExecutionRef
 
 

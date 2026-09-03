@@ -148,6 +148,16 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
+    expected_execution_id: Optional[str] = None
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SessionStreamCommandResponse(BaseModel):
