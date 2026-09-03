@@ -194,6 +194,32 @@ remain available while clients migrate. New behavior must not add more overloade
 such as using one route's `force` value to switch between unrelated operations. Final route names
 receive a separate API review.
 
+### Acceptance and failure
+
+Durable session operations use one response rule. Before the admission transaction commits, HTTP
+reports success or failure. After commit, HTTP reports acceptance and the session event stream
+reports execution progress and its terminal outcome.
+
+- New durable work returns `202 Accepted` with the stable accepted resource and execution IDs.
+- An identical retry under the same idempotency key returns `202` with the same IDs and may mark
+  the response as an idempotent replay. It creates nothing new.
+- Reusing an idempotency key with different content returns `409 idempotency_key_reused`.
+- Busy `on_busy: reject` returns `409 session_busy`.
+- An expected execution mismatch returns `409 execution_mismatch` and changes nothing.
+- Invalid input returns `422`; a missing resource returns `404`; rate limiting returns `429`.
+- A retryable failure before commit returns `503 admission_unavailable` and may include
+  `Retry-After`. The client retries with the same idempotency key.
+- Delivery failure after commit does not reverse acceptance. Server delivery retries. A permanent
+  inability to continue appears as an explicit `execution.failed` or `execution.lost` event and
+  leaves the session usable.
+
+An unguarded Stop on an idle session returns `200` with `already_idle`. A guarded Stop naming an
+execution that is no longer current returns `409 execution_mismatch`.
+
+Private record ingestion treats an identical record retry as success, a changed payload under the
+same ID as `409 record_conflict`, output after terminal settlement as
+`409 execution_terminal`, and a temporary storage failure as retryable `503`.
+
 ### Submit input
 
 ```http

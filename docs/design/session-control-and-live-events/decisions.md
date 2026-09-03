@@ -52,6 +52,15 @@ do not expose command claim states. Existing routes remain during migration. Do 
 boolean modes that change one endpoint between unrelated operations. Final route spelling remains
 a separate API review.
 
+### Separate durable acceptance from execution outcome
+
+New durable work returns `202 Accepted` only after its admission transaction commits. Identical
+idempotent retries return the same stable IDs; conflicting reuse returns `409`. Busy policy and
+stale execution guards return distinct `409` codes. Retryable failure before commit returns `503`.
+Failure after commit appears through the execution event stream and never asks the client to
+resubmit accepted work. Unguarded Stop on an idle session is a successful `already_idle` no-op;
+guarded Stop against an old execution conflicts.
+
 ### Make the expected execution guard optional
 
 Stop can include `expected_execution_id`. When omitted, it targets the current execution at API

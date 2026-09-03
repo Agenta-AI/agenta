@@ -36,6 +36,9 @@
 - Postgres assigns per-session sequence under a `session_streams` row lock in the record-insert
   transaction. Legacy records stay unsequenced. Replay subscribes before reading and treats Redis
   notifications only as wake-up signals.
+- HTTP reports admission results through commit. New durable work and identical retries return
+  stable accepted IDs. Later execution outcomes arrive through the event stream. Idle unguarded
+  Stop is a successful no-op; stale guarded Stop conflicts.
 
 ## Work in review
 
