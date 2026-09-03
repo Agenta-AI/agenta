@@ -23,3 +23,6 @@ export const modifierKeyLabel = (): string => (isMacPlatform() ? "⌘" : "Ctrl")
  * other platform prints `AltR`.
  */
 export const altKeyPrefix = (): string => (isMacPlatform() ? "⌥" : "Alt+")
+
+/** The push-to-talk chord's display label: `⌃⌥` on Apple hardware, `Ctrl+Alt` elsewhere. */
+export const pushToTalkLabel = (): string => (isMacPlatform() ? "⌃⌥" : "Ctrl+Alt")

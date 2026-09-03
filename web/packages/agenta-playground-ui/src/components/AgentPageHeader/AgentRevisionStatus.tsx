@@ -1,8 +1,17 @@
+import {useEffect} from "react"
+
 import {
+    invalidateAgentCommittedRevisionCache,
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
     workflowRevisionsByWorkflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
+import {
+    agentAutoCommitErrorAtomFamily,
+    agentAutoCommitScheduledAtomFamily,
+    agentAutoCommitStatusAtomFamily,
+    flushAgentAutoCommitAtom,
+} from "@agenta/playground/state"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     DropdownMenu,
@@ -12,8 +21,8 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretDown, Check} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {CaretDown, Check, WarningCircle} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
 
 export interface AgentRevisionStatusProps {
     /** The revision whose version and dirty state this reads. */
@@ -91,8 +100,10 @@ const RevisionPicker = ({
 }
 
 /**
- * A revision's committed identity: the `vN` chip (its commit message on hover) and a
- * `● Draft/Saved` dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
+ * A revision's committed identity: the `vN` chip (its commit message on hover) and a save-status
+ * dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
+ *
+ * The dot reports auto-commit; there is no Save button, so a failed save makes the dot the retry.
  *
  * Rendered by every surface that shows an agent's header — the desktop playground's revision
  * selector and the mobile session workspace's top bar — so the two can never disagree about
@@ -104,11 +115,44 @@ export const AgentRevisionStatus = ({
     onSelectRevision,
     className,
 }: AgentRevisionStatusProps) => {
+    // A commit can land while this surface is closed — the agent commits itself mid-session, or
+    // the same agent is driven from another surface (the desktop playground and `/m` share one
+    // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
+    // surface has none, so on return the revision queries were still inside their staleTime and
+    // this chip named the superseded version (#6380). Revalidate once on mount, where the
+    // observers ARE active. It lives here, in the shared chip, because every host that shows a
+    // revision has the problem — putting it in one app's wrapper fixed only that app.
+    useEffect(() => {
+        invalidateAgentCommittedRevisionCache()
+    }, [])
+
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId || ""))
+    const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(revisionId || ""))
+    const autoCommitStatus = useAtomValue(agentAutoCommitStatusAtomFamily(revisionId || ""))
+    const autoCommitError = useAtomValue(agentAutoCommitErrorAtomFamily(revisionId || ""))
+    const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
+    const retrySave = useSetAtom(flushAgentAutoCommitAtom)
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
+
+    const failed = autoCommitStatus === "error"
+    // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every
+    // revision auto-commit skips, which sat on "Saving…" forever; those read Draft.
+    const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
+
+    const dot = failed
+        ? {
+              tone: "bg-colorError",
+              label: "Not saved",
+              tip: `${autoCommitError ?? "Couldn't save changes"} — click to retry`,
+          }
+        : saving
+          ? {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
+          : isDirty
+            ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
+            : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
@@ -143,16 +187,33 @@ export const AgentRevisionStatus = ({
                         </span>
                     </SimpleTooltip>
                 ))}
-            <SimpleTooltip title={isDirty ? "Draft — unsaved changes" : "Saved"}>
-                <span className="flex items-center gap-1.5 text-xs text-colorTextTertiary">
-                    <span
-                        className={`h-[7px] w-[7px] shrink-0 rounded-full ${
-                            isDirty ? "bg-colorWarning" : "bg-colorSuccess"
-                        }`}
-                    />
+            <SimpleTooltip title={dot.tip}>
+                <span
+                    role={failed ? "button" : undefined}
+                    tabIndex={failed ? 0 : undefined}
+                    aria-label={failed ? "Retry saving changes" : undefined}
+                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                    onKeyDown={
+                        failed
+                            ? (event) => {
+                                  if (event.key !== "Enter" && event.key !== " ") return
+                                  event.preventDefault()
+                                  void retrySave({revisionId})
+                              }
+                            : undefined
+                    }
+                    className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
+                        failed ? "cursor-pointer" : ""
+                    }`}
+                >
+                    {failed ? (
+                        <WarningCircle size={12} className="shrink-0 text-colorError" />
+                    ) : (
+                        <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot.tone}`} />
+                    )}
                     {/* The word is the first thing to go on a narrow bar — the dot and its
                         tooltip already say it, and the identity beside it needs the room. */}
-                    <span className="hidden sm:inline">{isDirty ? "Draft" : "Saved"}</span>
+                    <span className="hidden sm:inline">{dot.label}</span>
                 </span>
             </SimpleTooltip>
         </div>

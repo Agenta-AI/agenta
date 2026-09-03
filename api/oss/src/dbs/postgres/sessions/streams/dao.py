@@ -311,7 +311,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         stmt = stmt.where(SessionStreamDBE.project_id == project_id)
         if not filter.include_ended:
             stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
-        if not filter.include_archived:
+        if filter.archived_only:
+            stmt = stmt.where(SessionStreamDBE.archived_at.is_not(None))
+        elif not filter.include_archived:
             stmt = stmt.where(SessionStreamDBE.archived_at.is_(None))
         if filter.session_id is not None:
             stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
@@ -621,7 +623,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 user_id=user_id,
                 header=header,
             )
-            dbe.updated_at = datetime.now(timezone.utc)
+            # `updated_at` is deliberately not bumped: it is the last-ACTIVITY sort key, and
+            # renaming a session is not activity — bumping it teleports the row you just
+            # renamed to the top of every session list.
             await session.commit()
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)

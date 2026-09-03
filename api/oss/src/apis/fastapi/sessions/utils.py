@@ -193,6 +193,7 @@ def normalize_session_query_request(
         lifecycle=SessionQueryLifecycle(
             include_ended=body.include_ended,
             include_archived=body.include_archived,
+            archived_only=body.archived_only,
         ),
         options=SessionQueryOptions(
             include_total=body.include_total,

@@ -176,13 +176,16 @@ content, kept in lockstep by `images/verify-wrappers.sh`).
 ### Security Note
 
 The scripts default to compose-like placeholder values for `AGENTA_AUTH_KEY`,
-`AGENTA_CRYPT_KEY`, `AGENTA_RUNNER_TOKEN`, and `POSTGRES_PASSWORD`. This is
-acceptable for throwaway test projects, but not for persistent deployments.
-For persistent deployments, set unique values:
+`AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, `AGENTA_RUNNER_TOKEN`, and
+`POSTGRES_PASSWORD`. This is acceptable for throwaway test projects, but not
+for persistent deployments. `AGENTA_SERVICES_INTERNAL_KEY` has no fallback to
+`AGENTA_AUTH_KEY`; API and Services must receive the same dedicated value.
+For persistent deployments, set a unique value for each credential:
 
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export AGENTA_SERVICES_INTERNAL_KEY="$(openssl rand -hex 32)"
 export AGENTA_RUNNER_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
@@ -210,16 +213,19 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 #### The mobile app (`/m`)
 
-The mobile web app is **opt-in** while it is pre-GA, the same way the compose
-stack keeps it behind the `with-web-mobile` profile (`run.sh --with-mobile`).
-Set the flag before `bootstrap.sh` and it creates a `web-mobile` service; the
-gateway already routes `/m` and `/m/*` to it:
+A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
+compose stack, which now starts `web-mobile` by default. Set the flag before
+`bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
+`/m` and `/m/*` to it. The two gate keys below are optional now: both gates
+default on, so set them only to opt out (`false`).
 
 ```bash
 export AGENTA_RAILWAY_WITH_MOBILE=true
-# Turn the device gate on so phones landing on a desktop route go to /m:
+# The device gate is on by default; this line only makes it explicit. A phone
+# landing on a desktop route goes to /m. Set it to false to turn the gate off.
 export AGENTA_MOBILE_GATE=true
-# Let desktop browsers open /m directly instead of being bounced back:
+# Let desktop browsers open /m directly instead of being bounced back. This one
+# IS a change from the default, and preview environments want it:
 export AGENTA_MOBILE_REVERSE_GATE=false
 ```
 

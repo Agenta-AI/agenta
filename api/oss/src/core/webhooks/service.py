@@ -11,6 +11,7 @@ from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
     UpdateSecretDTO,
+    UpdateSecretPayloadDTO,
     WebhookProviderDTO,
     WebhookProviderSettingsDTO,
 )
@@ -135,6 +136,12 @@ class WebhooksService:
                         ),
                     ),
                 ),
+                # Opted out of the write-only default on purpose. A signing secret is a
+                # SHARED secret: the subscriber verifies our signature with the same
+                # value, and when we generated it here that response is the only place
+                # they can ever read it. Redacting it would ship a subscription nobody
+                # can verify.
+                write_only=False,
             ),
         )
 
@@ -378,7 +385,7 @@ class WebhooksService:
                     secret_id=existing.secret_id,
                     project_id=project_id,
                     update_secret_dto=UpdateSecretDTO(
-                        secret=SecretDTO(
+                        secret=UpdateSecretPayloadDTO(
                             kind=SecretKind.WEBHOOK_PROVIDER,
                             data=WebhookProviderDTO(
                                 provider=WebhookProviderSettingsDTO(
@@ -404,6 +411,9 @@ class WebhooksService:
                                 ),
                             ),
                         ),
+                        # Same shared-secret reasoning as the create path: a subscription
+                        # that first gets a secret on edit must stay verifiable.
+                        write_only=False,
                     ),
                 )
                 secret_id = secret_dto.id
@@ -419,12 +429,10 @@ class WebhooksService:
             return None
 
         if subscription.secret is not None:
-            result = self._with_secret(
+            return self._with_secret(
                 subscription=result,
                 secret=subscription.secret,
             )
-
-            return result
 
         if result.secret_id:
             secret_value = await self._resolve_secret(

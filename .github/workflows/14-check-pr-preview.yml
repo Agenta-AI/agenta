@@ -4,18 +4,18 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'api/**'
-      - 'web/**'
-      - 'services/**'
-      - 'sdks/python/**'
-      - 'hosting/railway/**'
-      - '.github/workflows/14-check-pr-preview.yml'
-      - '.github/workflows/40-railway.yml'
-      - '.github/workflows/41-railway-setup.yml'
-      - '.github/workflows/42-railway-build.yml'
-      - '.github/workflows/43-railway-deploy.yml'
-      - '.github/workflows/44-railway-tests.yml'
-      - '.github/workflows/45-railway-cleanup.yml'
+      - "api/**"
+      - "web/**"
+      - "services/**"
+      - "sdks/python/**"
+      - "hosting/railway/**"
+      - ".github/workflows/14-check-pr-preview.yml"
+      - ".github/workflows/40-railway.yml"
+      - ".github/workflows/41-railway-setup.yml"
+      - ".github/workflows/42-railway-build.yml"
+      - ".github/workflows/43-railway-deploy.yml"
+      - ".github/workflows/44-railway-tests.yml"
+      - ".github/workflows/45-railway-cleanup.yml"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -68,5 +68,7 @@ jobs:
       agenta_web_url: ${{ needs.deploy.outputs.preview_url }}
       layers: all
       packages: all
+      mobile_gate_enabled: true
+      # Railway previews keep /m directly reachable for desktop reviewers.
+      mobile_reverse_gate_enabled: false
     secrets: inherit
-

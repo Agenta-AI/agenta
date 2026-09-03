@@ -1,5 +1,5 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {agentVoiceInputEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
@@ -15,7 +15,6 @@ const Preferences = () => {
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
-    const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
 
     return (
         <PreferencesPage
@@ -31,13 +30,6 @@ const Preferences = () => {
                     description: "Show all platform areas in the navigation.",
                     enabled: !advancedNavHidden,
                     onChange: (enabled) => setNavSimplifiedOverride(!enabled),
-                },
-                {
-                    key: "voice-input",
-                    title: "Voice input",
-                    description: "Dictate messages in the agent chat.",
-                    enabled: agentVoiceInputEnabled,
-                    onChange: setAgentVoiceInputEnabled,
                 },
                 {
                     key: "playground-inspector",

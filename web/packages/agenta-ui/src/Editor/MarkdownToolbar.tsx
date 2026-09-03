@@ -63,6 +63,7 @@ import {
 } from "../components/ui/dropdown-menu"
 import {Input} from "../components/ui/input"
 import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
+import {cn} from "../utils/styles"
 
 const BLOCK_TYPES = [
     {key: "paragraph", label: "Normal text"},
@@ -322,12 +323,12 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     {BLOCK_TYPES.map((b) => (
                         <DropdownMenuItem
                             key={b.key}
+                            // text-xs matches the trigger; the item default (14px) overshoots it.
                             // antd `selectable` + `selectedKeys`: the active block is highlighted.
-                            className={
-                                b.key === blockType
-                                    ? "bg-controlItemBgActive text-colorPrimary"
-                                    : undefined
-                            }
+                            className={cn(
+                                "text-xs",
+                                b.key === blockType && "bg-controlItemBgActive text-colorPrimary",
+                            )}
                             onMouseDown={keepEditorSelection}
                             onSelect={() => formatBlock(b.key)}
                         >

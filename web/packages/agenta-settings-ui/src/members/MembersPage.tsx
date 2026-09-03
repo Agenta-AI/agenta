@@ -5,7 +5,7 @@ import type {WorkspaceMember} from "@agenta/entities/organization"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {InitialsAvatar, Tag} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 interface MemberRow extends WorkspaceMember {
     key: string
@@ -27,12 +27,15 @@ export interface MembersPageProps {
     renderRoleCell?: (member: WorkspaceMember) => ReactNode
     canInviteMembers?: boolean
     canRemoveMembers?: boolean
+    /** Admin-only: mint a password reset link for another member. */
+    canResetPassword?: boolean
     /** Email currently being re-invited — disables that row's action. */
     resendingEmail?: string | null
     onInvite?: () => void
     onResendInvite?: (member: WorkspaceMember) => void
     onRemove?: (member: WorkspaceMember) => void
     onRenameSelf?: (member: WorkspaceMember) => void
+    onResetPassword?: (member: WorkspaceMember) => void
     /** Invite / rename / invited-link dialogs — the host's. */
     children?: ReactNode
 }
@@ -53,11 +56,13 @@ export const MembersPage = ({
     renderRoleCell,
     canInviteMembers = false,
     canRemoveMembers = false,
+    canResetPassword = false,
     resendingEmail,
     onInvite,
     onResendInvite,
     onRemove,
     onRenameSelf,
+    onResetPassword,
     children,
 }: MembersPageProps) => {
     const rows = useMemo<MemberRow[]>(() => {
@@ -172,6 +177,20 @@ export const MembersPage = ({
                             !onResendInvite,
                         disabled: resendingEmail === record.user.email,
                         onClick: () => onResendInvite?.(record),
+                    },
+                    {
+                        key: "reset_password",
+                        label: "Reset password",
+                        icon: <Key size={16} />,
+                        // The owner is excluded even though the backend has no such check:
+                        // resetting their password would mint a login link into that account.
+                        hidden:
+                            isSelf(record) ||
+                            isOwner(record) ||
+                            record.user.status !== "member" ||
+                            !canResetPassword ||
+                            !onResetPassword,
+                        onClick: () => onResetPassword?.(record),
                     },
                     {
                         key: "remove",

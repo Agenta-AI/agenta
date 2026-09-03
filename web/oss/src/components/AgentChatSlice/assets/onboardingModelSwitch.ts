@@ -19,7 +19,7 @@
  * model id, provider family, connection slug and harness (`selectionFromModelRow`), so this never
  * re-derives any of them.
  */
-import {selectionFromModelRow} from "@agenta/entity-ui/drill-in"
+import {pickerSelectionAfterProviderSave} from "@agenta/entity-ui/drill-in"
 import type {PickerConnectionRow, PickerSelection} from "@agenta/entity-ui/drill-in"
 
 export interface OnboardingModelSwitchArgs {
@@ -28,6 +28,14 @@ export interface OnboardingModelSwitchArgs {
      * empty-state pill — as opposed to the picker's "Add provider" footer mid-session.
      */
     onboarding: boolean
+    /** Only new local drafts may replace their automatic placeholder. */
+    replaceable: boolean
+    /** Stable identity returned by the create API. */
+    savedConnectionId?: string | null
+    /** Current complete draft choice, preserved when it is runnable. */
+    current?: PickerSelection | null
+    /** Whether that choice was runnable before the provider save began. */
+    currentWasRunnable?: boolean
     /** Connection row keys present BEFORE the save, so the added one can be told apart. */
     previousConnectionKeys: readonly string[]
     /** The picker's first-level rows AFTER the save (subscriptions included; they are skipped). */
@@ -44,13 +52,20 @@ export interface OnboardingModelSwitchArgs {
  */
 export const onboardingModelSwitch = ({
     onboarding,
+    replaceable,
+    savedConnectionId,
+    current,
+    currentWasRunnable = false,
     previousConnectionKeys,
     rows,
 }: OnboardingModelSwitchArgs): PickerSelection | null => {
     if (!onboarding) return null
-    const known = new Set(previousConnectionKeys)
-    // Subscriptions are ambient (a mounted login), never "the connection just created".
-    const added = rows.find((row) => row.kind === "connection" && !known.has(row.key))
-    const first = added?.models[0]
-    return first ? selectionFromModelRow(first) : null
+    return pickerSelectionAfterProviderSave({
+        rows,
+        replaceable,
+        savedConnectionId,
+        previousConnectionKeys,
+        current,
+        currentWasRunnable,
+    })
 }

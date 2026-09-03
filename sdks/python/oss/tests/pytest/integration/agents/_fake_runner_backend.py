@@ -24,6 +24,7 @@ from agenta.sdk.agents.dtos import (
 )
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
+from agenta.sdk.agents.tools.models import ResolvedGatewayPolicy
 from agenta.sdk.agents.utils import (
     deliver_http_result,
     deliver_http_stream,
@@ -58,6 +59,7 @@ class FakeRunnerSession(Session):
         run_context: Optional[RunContext],
         session_id: Optional[str],
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> None:
         self._backend = backend
         self._config = config
@@ -66,6 +68,7 @@ class FakeRunnerSession(Session):
         self._run_context = run_context
         self._session_id = session_id
         self._effective_parameters = effective_parameters
+        self._gateway_policy = gateway_policy
 
     @property
     def id(self) -> Optional[str]:
@@ -82,6 +85,7 @@ class FakeRunnerSession(Session):
             run_context=self._run_context,
             session_id=self._session_id,
             effective_parameters=self._effective_parameters,
+            gateway_policy=self._gateway_policy,
         )
 
     def _absorb_result(self, result: AgentResult) -> None:
@@ -120,7 +124,7 @@ class FakeRunnerBackend(Backend):
     """
 
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA, HarnessKind.CODEX}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX}
     )
 
     def __init__(
@@ -158,6 +162,7 @@ class FakeRunnerBackend(Backend):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
             self,
@@ -167,6 +172,7 @@ class FakeRunnerBackend(Backend):
             run_context=run_context,
             session_id=session_id,
             effective_parameters=effective_parameters,
+            gateway_policy=gateway_policy,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:

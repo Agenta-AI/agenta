@@ -57,7 +57,7 @@ services:
         # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
         # container's process env), so mirror the gate flag into an env file the
         # app loads. Prod standalone reads process.env at request time — dev-only.
-        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/ee/.env.development.local && pnpm dev-ee'
+        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-true}" > /app/ee/.env.development.local && pnpm dev-ee'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -73,9 +73,10 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -89,13 +90,14 @@ services:
 
     web-mobile:
         # === ACTIVATION =========================================== #
-        profiles:
-            - with-web-mobile
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
+        # hand-rolled `docker compose up`.
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
         # Same dev-sandbox env mirroring as the web service (see comment there).
-        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-false}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -107,9 +109,10 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
             AGENTA_MOBILE_REVERSE_GATE: ${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
@@ -179,6 +182,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
             # address + shared token as the `services` container's runner_url().
@@ -239,6 +243,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
             AGENTA_WORKER_STREAMS: ""
@@ -288,6 +293,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
             AGENTA_WORKER_QUEUES: ""
@@ -332,6 +338,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
@@ -361,6 +368,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
@@ -411,6 +419,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
@@ -479,10 +488,9 @@ services:
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             PI_CODING_AGENT_DIR: /pi-agent
-            # The API as reached FROM this container — by its compose service name, over the
-            # network (the same `http://api:8000` the workers use), NOT the public
-            # `http://localhost/api` (which doesn't resolve inside a container). Used by the
-            # OTLP tracing-export fallback AND the session heartbeat/record-persist calls.
+            # Keep both canonical API bases. The public URL identifies caller-provided OTLP
+            # credentials as Agenta-owned; the internal URL is the route the runner actually uses.
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
@@ -549,6 +557,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRES_USER: ${POSTGRES_USER:-username}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         # === NETWORK ============================================== #
@@ -652,6 +661,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so unlike
             # the API (which reads code defaults from env.py) they must be present in this service's
             # env. Defaults live here for the bundled store the same way supertokens carries its own
@@ -759,6 +769,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
         # === NETWORK ============================================== #
         networks:
@@ -793,6 +804,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -818,6 +831,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
             PYTHONUNBUFFERED: "1"
         # === NETWORK ============================================== #

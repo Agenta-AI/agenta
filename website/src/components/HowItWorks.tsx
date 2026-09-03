@@ -880,14 +880,18 @@ export default function HowItWorks() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
+            {/* The no-JS / reduced-motion layout is what a crawler reads, so
+                the beat title has to be a real <h3> here too (see the scroll
+                layout below). margin:0 keeps it pixel-identical. */}
+            <h3
               style={{
+                margin: 0,
                 font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
                 color: "#F7F6F4",
               }}
             >
               {label}
-            </span>
+            </h3>
             <span
               style={{
                 font: "var(--text-body-sm)",
@@ -998,6 +1002,11 @@ export default function HowItWorks() {
                       gap: 16,
                     }}
                   >
+                    {/* Deliberately NOT a heading: this row is a role="button" accordion
+                        control, and a heading inside a button is exposed as
+                        presentational, so it would add nothing for assistive
+                        tech. The no-JS layout below carries the real <h3> —
+                        that is the markup crawlers receive. */}
                     <span
                       style={{
                         font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",

@@ -4,7 +4,7 @@
  * The right-hand editor drawer for a single instructions markdown file (e.g. AGENTS.md), opened
  * from a file row in the Instructions section. A header `Edit | Preview` toggle switches between the
  * editing view (the shared `MarkdownEditor` with a formatting toolbar) and a read-only rendered
- * Preview that can Expand to fill the drawer. A right rail carries suggested-action scaffolds.
+ * Preview. A right rail carries suggested-action scaffolds.
  *
  * Like the tools/skills drawer, editing happens on a draft the host owns: the drawer reports changes
  * via `onChange`, commits via `onSave`, and discards via `onCancel` / the close button, so an
@@ -15,15 +15,8 @@
 import {useCallback, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {
-    Button,
-    Segmented,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
-import {ArrowsIn, ArrowsOut, FileText, Lightbulb} from "@phosphor-icons/react"
+import {Button, Segmented} from "@agenta/ui/ui"
+import {Lightbulb} from "@phosphor-icons/react"
 
 import {MarkdownEditor} from "./MarkdownEditor"
 
@@ -40,6 +33,8 @@ export interface InstructionsDrawerProps {
     /** Commit the draft to the config. */
     onSave: () => void
     disabled?: boolean
+    /** Whether the draft differs from the content the drawer opened with — Save is gated on it. */
+    dirty?: boolean
 }
 
 type DrawerMode = "edit" | "preview"
@@ -72,21 +67,16 @@ export function InstructionsDrawer({
     onCancel,
     onSave,
     disabled = false,
+    dirty = false,
 }: InstructionsDrawerProps) {
     const [mode, setMode] = useState<DrawerMode>("edit")
-    const [expanded, setExpanded] = useState(false)
 
     const appendSnippet = useCallback(
         (snippet: string) => onChange(`${value}${snippet}`),
         [value, onChange],
     )
 
-    const changeMode = useCallback((next: DrawerMode) => {
-        setMode(next)
-        if (next === "edit") setExpanded(false)
-    }, [])
-
-    const railHidden = mode === "preview" && expanded
+    const changeMode = useCallback((next: DrawerMode) => setMode(next), [])
 
     return (
         <EnhancedDrawer
@@ -95,17 +85,12 @@ export function InstructionsDrawer({
             onClose={onCancel}
             placement="right"
             width={920}
-            // Explicit Cancel/Save only — an outside click must not silently drop the draft.
-            closeOnLayoutClick={false}
             destroyOnClose
-            title={
-                <div className="flex min-w-0 items-center gap-2">
-                    <FileText size={16} />
-                    <span className="truncate font-mono text-sm font-medium">{filename}</span>
-                </div>
-            }
+            title={<span className="truncate font-mono text-sm font-medium">{filename}</span>}
             extra={
                 <Segmented
+                    size="sm"
+                    className="[&_[data-slot=segmented-item]]:text-field-sm"
                     value={mode}
                     onChange={(v) => changeMode(v as DrawerMode)}
                     options={[
@@ -116,16 +101,13 @@ export function InstructionsDrawer({
                 />
             }
             footer={
-                <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-[var(--ag-zinc-5)]">Draft — applies on save</span>
-                    <div className="flex shrink-0 items-center gap-2">
-                        <Button variant="outline" onClick={onCancel}>
-                            Cancel
-                        </Button>
-                        <Button variant="default" onClick={onSave} disabled={disabled}>
-                            Save
-                        </Button>
-                    </div>
+                <div className="flex items-center justify-end gap-2">
+                    <Button variant="outline" onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button variant="default" onClick={onSave} disabled={disabled || !dirty}>
+                        Save
+                    </Button>
                 </div>
             }
             styles={{body: {padding: 16, overflow: "hidden"}}}
@@ -147,29 +129,6 @@ export function InstructionsDrawer({
                         />
                     ) : (
                         <div className="relative flex-1">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button
-                                            type="button"
-                                            aria-label={
-                                                expanded ? "Collapse preview" : "Expand preview"
-                                            }
-                                            onClick={() => setExpanded((e) => !e)}
-                                            className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5)] bg-[var(--ag-c-FFFFFF)] text-[var(--ag-c-586673)] hover:border-[var(--ag-zinc-5)]"
-                                        >
-                                            {expanded ? (
-                                                <ArrowsIn size={14} />
-                                            ) : (
-                                                <ArrowsOut size={14} />
-                                            )}
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {expanded ? "Collapse" : "Expand"}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
                             <MarkdownEditor
                                 value={value}
                                 onChange={onChange}
@@ -183,47 +142,42 @@ export function InstructionsDrawer({
                     )}
                 </div>
 
-                {!railHidden ? (
-                    <div className="flex w-[240px] shrink-0 flex-col gap-6">
-                        {filename === "AGENTS.md" ? (
-                            <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
-                                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
-                                    <Lightbulb size={14} />
-                                    Writing a good AGENTS.md
-                                </div>
-                                <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-[var(--ag-zinc-5)]">
-                                    <li>
-                                        Open with the agent&apos;s role and goal in one or two
-                                        lines.
-                                    </li>
-                                    <li>
-                                        Keep short, labelled sections (Role, Tools, Guardrails).
-                                    </li>
-                                    <li>Be concrete about the output format and hard limits.</li>
-                                    <li>Prefer imperative instructions over long prose.</li>
-                                </ul>
+                <div className="flex w-[240px] shrink-0 flex-col gap-3">
+                    {filename === "AGENTS.md" ? (
+                        <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
+                            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
+                                <Lightbulb size={14} />
+                                Writing a good AGENTS.md
                             </div>
-                        ) : null}
-                        <div>
-                            <div className="mb-2 text-xs uppercase tracking-wide text-[var(--ag-zinc-5)]">
-                                Suggested
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {SUGGESTIONS.map((s) => (
-                                    <button
-                                        key={s.label}
-                                        type="button"
-                                        disabled={disabled || mode === "preview"}
-                                        onClick={() => appendSnippet(s.snippet)}
-                                        className="cursor-pointer rounded-full border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-zinc-5)] disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        + {s.label}
-                                    </button>
-                                ))}
-                            </div>
+                            <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-[var(--ag-zinc-5)]">
+                                <li>
+                                    Open with the agent&apos;s role and goal in one or two lines.
+                                </li>
+                                <li>Keep short, labelled sections (Role, Tools, Guardrails).</li>
+                                <li>Be concrete about the output format and hard limits.</li>
+                                <li>Prefer imperative instructions over long prose.</li>
+                            </ul>
+                        </div>
+                    ) : null}
+                    <div>
+                        <div className="mb-2 text-xs tracking-wide text-[var(--ag-zinc-5)]">
+                            Suggested
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {SUGGESTIONS.map((s) => (
+                                <button
+                                    key={s.label}
+                                    type="button"
+                                    disabled={disabled || mode === "preview"}
+                                    onClick={() => appendSnippet(s.snippet)}
+                                    className="cursor-pointer rounded-control border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-zinc-5)] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    + {s.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                ) : null}
+                </div>
             </div>
         </EnhancedDrawer>
     )

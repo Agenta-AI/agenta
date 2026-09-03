@@ -11,9 +11,11 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {shortcutAria} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleLeft, DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -24,7 +26,6 @@ import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/s
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
-import {useCommitHostAdapter} from "../../Modals/CommitVariantChangesModal/assets/useCommitHostAdapter"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {PlaygroundVariantConfigHeaderProps} from "./types"
@@ -155,7 +156,6 @@ const PlaygroundVariantConfigHeader = ({
         [_variantId, deployedIn, isLatestRevision],
     )
 
-    const commitHost = useCommitHostAdapter()
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
 
@@ -203,18 +203,23 @@ const PlaygroundVariantConfigHeader = ({
             <AgentConfigHeader
                 revisionId={variantId}
                 className={className}
-                // The header owns the commit button here, so it needs the same host adapter the
-                // OSS commit button carries — without it an agent commit leaves this app's
-                // registry and evaluator lists stale and skips the onboarding event.
-                {...commitHost}
+                // Saves itself (#6126); `AgentRevisionSelector` carries the host's after-commit work.
+                autoSave
                 // Collapse, not Deploy + kebab. PR #5943 removed both from the AGENT header by
                 // design and kept them on the classic prompt header; the package extraction
                 // reinstated them here, which also cost this control its accessible name.
                 trailing={
-                    <SimpleTooltip title="Hide configuration">
+                    <SimpleTooltip
+                        title={
+                            <span className="flex items-center gap-1.5">
+                                Hide configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                            </span>
+                        }
+                    >
                         <EnhancedButton
                             type="text"
                             size="small"
+                            aria-keyshortcuts={shortcutAria("panel.config")}
                             aria-label="Hide configuration"
                             icon={<CaretDoubleLeft size={14} />}
                             onClick={handleCollapseConfigPanel}

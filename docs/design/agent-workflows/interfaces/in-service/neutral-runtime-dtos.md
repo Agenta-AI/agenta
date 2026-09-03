@@ -31,8 +31,9 @@ All in `dtos.py`. The ones that carry the most weight:
   `HARNESS_IDENTITIES`; the stored/wire value stays the bare enum string, so only the interface
   gains the slug + name. See [Agent config schema](../public-edge/agent-config-schema.md).
 - **`SessionConfig`**: everything one run needs, assembled by the handler: the agent config,
-  secrets, resolved connection, permission policy, trace, session id, and the resolved tool
-  and MCP inputs.
+  secrets, resolved connection, coarse permission policy, compiled gateway policy, trace,
+  session id, and the resolved tool and MCP inputs. Its `gateway_integration_names` projection
+  gives harness prompt composition sorted names without exposing the policy table.
 - **`Message` and `ContentBlock`**: the neutral conversation shape. See the appendix.
 - **`AgentEvent`**: a `type` plus a free `data` dict. The streamed event vocabulary
   (`message`, `thought`, `tool_call`, `tool_result`, `usage`, `error`, `done`).
@@ -104,3 +105,6 @@ Note that this `Message` is the agent runtime's type, deliberately not re-export
 - **Capability names.** They gate behavior across the runner and the form.
 - **Harness-specific config fields.** Each subclass owns a slice of the `/run` wire. Adding a
   field here usually means adding a wire field and a golden fixture.
+- **Run policy versus harness config.** `SessionConfig.gateway_policy` is runner policy and
+  crosses the neutral backend boundary directly. Do not copy it onto a harness-specific DTO;
+  harness adapters consume only `gateway_integration_names` for prompt guidance.

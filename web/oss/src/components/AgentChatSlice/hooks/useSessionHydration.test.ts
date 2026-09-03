@@ -11,10 +11,15 @@
  * local `addToolOutput` settle is still waiting for `sendAutomaticallyWhen` to fire — the adopted
  * transcript predates the settle and silently discards it.
  */
+import type {SessionInteractionRowStates} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {hasStrandedTail, shouldSkipRecordsRefresh} from "./useSessionHydration"
+import {
+    hasStrandedTail,
+    shouldProtectRenderedInteraction,
+    shouldSkipRecordsRefresh,
+} from "./useSessionHydration"
 
 describe("shouldSkipRecordsRefresh", () => {
     it("does not skip when idle and no settle is pending a resume", () => {
@@ -50,5 +55,57 @@ describe("hasStrandedTail", () => {
 
     it("passes an empty transcript", () => {
         expect(hasStrandedTail([])).toBe(false)
+    })
+})
+
+describe("shouldProtectRenderedInteraction", () => {
+    const pendingRows = new Map([
+        [
+            "approval-1",
+            {
+                token: "approval-1",
+                status: "pending",
+                kind: "user_approval",
+                toolCallId: "call-1",
+            },
+        ],
+    ]) as SessionInteractionRowStates
+    const approval = {
+        id: "a1",
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-commit_revision",
+                toolCallId: "call-1",
+                state: "approval-requested",
+                approval: {id: "approval-1"},
+            },
+        ],
+    } as unknown as UIMessage
+    const staleBeforeApproval = {
+        id: "a1",
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-commit_revision",
+                toolCallId: "call-1",
+                state: "input-available",
+            },
+        ],
+    } as unknown as UIMessage
+
+    it("does not protect a stale cached transcript that has not rendered the pending card", () => {
+        expect(shouldProtectRenderedInteraction([staleBeforeApproval], pendingRows)).toBe(false)
+    })
+
+    it("protects an actionable card already rendered from the pending row", () => {
+        expect(shouldProtectRenderedInteraction([approval], pendingRows)).toBe(true)
+    })
+
+    it("does not protect a stale card after the server row settles", () => {
+        const settledRows = new Map([
+            ["approval-1", {...pendingRows.get("approval-1")!, status: "resolved"}],
+        ]) as SessionInteractionRowStates
+        expect(shouldProtectRenderedInteraction([approval], settledRows)).toBe(false)
     })
 })

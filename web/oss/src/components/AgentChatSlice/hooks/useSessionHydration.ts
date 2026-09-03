@@ -1,19 +1,22 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {isSessionFresh} from "@agenta/chat/state"
+import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
     revalidateSessionRecordsAtom,
+    type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
+import {isHitlPending} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
 import {type UIMessage} from "ai"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {shouldRefreshOnReady} from "../assets/readyRefresh"
 import {sessionLivenessAtomFamily, sessionRunningElsewhereAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {activeSessionIdAtomFamily} from "../state/sessions"
@@ -61,6 +64,17 @@ export const shouldSkipRecordsRefresh = ({
  * client-side (aborted mid-prepare, a lost seed handoff) leaves behind (#6042). */
 export const hasStrandedTail = (messages: UIMessage[]): boolean =>
     messages.length > 0 && messages[messages.length - 1]?.role === "user"
+
+/**
+ * Protect local interaction state only when the pending server row already has an actionable card
+ * on screen. A pending row by itself is not enough: the browser may have cached the transcript
+ * before the interaction_request record arrived. Treating that stale copy as user-owned state
+ * prevents hydration from ever delivering the missing approval or form.
+ */
+export const shouldProtectRenderedInteraction = (
+    messages: UIMessage[],
+    interactionRows: SessionInteractionRowStates | undefined,
+): boolean => hasWaitingInteraction(interactionRows) && isHitlPending(messages)
 
 /** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
  * existing red error bubble. */
@@ -127,8 +141,14 @@ export const useSessionHydration = ({
     // A to-be-hydrated session (empty local cache, not brand-new) shows a transcript skeleton
     // instead of the "start a chat" hero, so a session WITH server history doesn't flash the empty
     // state before its records land. Seeded synchronously so the first paint is already the skeleton.
+    // Did a PREVIOUS mount leave a live chat behind? Read once, during the first render — this mount
+    // publishes its own chat at commit, so reading it later would always say yes. A run preserved
+    // across a route change is still streaming into the chat we just re-bound to, and a transcript
+    // is only persisted on SETTLE, so `initialMessages` is empty mid-stream and hydration would
+    // otherwise put the skeleton over the run we kept alive (#5724).
+    const [resumedLiveChat] = useState(() => hasSessionChat(sessionId))
     const [isHydrating, setIsHydrating] = useState(
-        () => initialMessages.length === 0 && !isSessionFresh(sessionId),
+        () => initialMessages.length === 0 && !isSessionFresh(sessionId) && !resumedLiveChat,
     )
     // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records — its
     // durable history was pruned by retention or never persisted. Drives the "history unavailable"
@@ -152,7 +172,10 @@ export const useSessionHydration = ({
                 busy: busyRef.current,
                 // #5942: a card still parked on the user outranks the log — adopting over it
                 // discards whatever they typed into its form.
-                awaitingUser: hasWaitingInteraction(interactionRows),
+                awaitingUser: shouldProtectRenderedInteraction(
+                    messagesRef.current,
+                    interactionRows,
+                ),
             })
             if (!adopt) return false
             // Restored history renders settled (no live fade-in) and pinned to the bottom.
@@ -198,10 +221,35 @@ export const useSessionHydration = ({
     const adoptServerTranscriptRef = useRef(adoptServerTranscript)
     adoptServerTranscriptRef.current = adoptServerTranscript
 
+    // Every full read of the record log reports itself here, so the relay's `ready` can tell
+    // "nobody has read this yet" from "we are reading it right now" (#6296).
+    const logReadsInFlightRef = useRef(0)
+    const logReadCompletedAtRef = useRef<number | undefined>(undefined)
+    const readLog = useCallback(
+        (onRestored?: (t: SessionTranscript | null) => void): Promise<SessionTranscript | null> => {
+            logReadsInFlightRef.current += 1
+            const settle = () => {
+                logReadsInFlightRef.current -= 1
+                logReadCompletedAtRef.current = Date.now()
+            }
+            return loadSessionMessages(sessionId, onRestored).then(
+                (transcript) => {
+                    settle()
+                    return transcript
+                },
+                (error) => {
+                    settle()
+                    throw error
+                },
+            )
+        },
+        [sessionId],
+    )
+
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
-        if (initialMessages.length > 0 || isSessionFresh(sessionId)) {
+        if (initialMessages.length > 0 || isSessionFresh(sessionId) || resumedLiveChat) {
             setIsHydrating(false)
             return
         }
@@ -215,7 +263,7 @@ export const useSessionHydration = ({
         // up on the next React commit — so record here, not via what's on screen, that real
         // history was already adopted.
         let adopted = false
-        loadSessionMessages(sessionId, (fresh) => {
+        readLog((fresh) => {
             if (cancelled) return
             // The restore said "no records" but the server has some — clear the notice.
             if (adoptServerTranscript(fresh)) {
@@ -242,7 +290,7 @@ export const useSessionHydration = ({
             cancelled = true
         }
         // Seed once per mounted session tab; `sessionId` is stable for this instance.
-    }, [sessionId])
+    }, [sessionId, readLog])
 
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
     // we refetch the durable records ONCE (low-priority) and adopt the server transcript when the
@@ -263,12 +311,12 @@ export const useSessionHydration = ({
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.
-        loadSessionMessages(sessionId, adopt).then(adopt)
+        readLog(adopt).then(adopt)
         return () => {
             cancelled = true
         }
         // Once per mounted session tab; `sessionId` is stable for this instance.
-    }, [sessionId])
+    }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
     // There is no push channel to browsers: the runner publishes every event to Redis, but the only
@@ -295,7 +343,7 @@ export const useSessionHydration = ({
             let grew = false
             try {
                 const adopt = adoptServerTranscriptRef.current
-                const transcript = await loadSessionMessages(sessionId, (fresh) => {
+                const transcript = await readLog((fresh) => {
                     if (!cancelled && adopt(fresh, {armJump: false})) grew = true
                 })
                 if (!cancelled && adopt(transcript, {armJump: false})) grew = true
@@ -332,7 +380,7 @@ export const useSessionHydration = ({
         if (prev.sessionId !== sessionId || !prev.running || runningElsewhere) return
         let cancelled = false
         const adopt = adoptServerTranscriptRef.current
-        loadSessionMessages(sessionId, (fresh) => {
+        readLog((fresh) => {
             if (!cancelled) adopt(fresh, {armJump: false})
         }).then((transcript) => {
             if (!cancelled) adopt(transcript, {armJump: false})
@@ -418,7 +466,7 @@ export const useSessionHydration = ({
         // A tick usually lands inside the records query's stale window, so the shared cache would
         // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
         revalidateSessionRecords(sessionId)
-        void loadSessionMessages(sessionId).then((transcript) => {
+        void readLog().then((transcript) => {
             // Adoption-point recheck: the entry check above only covers the window BEFORE this
             // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
             // settle can land while it's in flight — without re-checking here, that settle arrives
@@ -434,13 +482,28 @@ export const useSessionHydration = ({
             // A background catch-up must not yank a reader who scrolled up — as with the poll.
             adoptServerTranscriptRef.current(transcript, {armJump: false})
         })
-    }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords])
+    }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog])
+    // `ready` fires on every connect — each tab activation, each return to the foreground — so it
+    // must not repeat a read the mount is already doing. A change that lands after the subscribe
+    // arrives as `records-changed`, which is never skipped (#6296).
+    const refreshOnReady = useCallback(() => {
+        if (
+            !shouldRefreshOnReady({
+                inFlight: logReadsInFlightRef.current > 0,
+                lastLoadedAt: logReadCompletedAtRef.current,
+                now: Date.now(),
+            })
+        )
+            return
+        refreshFromRecords()
+    }, [refreshFromRecords])
     useSessionRecordsWatch({
         sessionId,
         projectId,
         // #5919 relay; this surface re-reads records on any interaction change.
         onInteractionChanged: () => revalidateSessionRecords(sessionId),
         enabled: activeSessionId === sessionId,
+        onReady: refreshOnReady,
         onRecordsChanged: refreshFromRecords,
     })
 

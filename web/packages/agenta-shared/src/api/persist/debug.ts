@@ -36,7 +36,16 @@ const ageOf = (value: PersistedQuery): string => {
     return seconds > 120 ? `${Math.round(seconds / 60)}m old` : `${seconds}s old`
 }
 
-type PersistEvent = "read-hit" | "read-miss" | "write" | "skip" | "evict" | "clear" | "gc"
+type PersistEvent =
+    | "read-hit"
+    | "read-miss"
+    | "write"
+    | "skip"
+    | "evict"
+    | "clear"
+    | "gc"
+    /** A read that never settled — IndexedDB blocked. Served as a cache miss. */
+    | "timeout"
 
 /** Console diagnostics for the persistence layer; no-op unless the debug flag is set. */
 export const persistLog = (

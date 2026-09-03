@@ -1,3 +1,4 @@
+import {projectIdAtom} from "@agenta/shared/state"
 import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
@@ -14,6 +15,7 @@ describe("activeSessionTitleAtomFamily", () => {
     it("reacts to active-session switches and renames", () => {
         const scope = `page-title-${Date.now()}`
         const store = createStore()
+        store.set(projectIdAtom, "proj-test")
 
         store.set(adoptSessionAtomFamily(scope), {id: "one", title: "First"})
         store.set(adoptSessionAtomFamily(scope), {id: "two", title: "Second"})
@@ -35,6 +37,7 @@ describe("reconcileServerSessionsAtomFamily title precedence", () => {
     it("lets a non-empty server name replace a local one", () => {
         const scope = `reconcile-server-wins-${Date.now()}`
         const store = createStore()
+        store.set(projectIdAtom, "proj-test")
 
         store.set(adoptSessionAtomFamily(scope), {id: "one", title: "Local title"})
         store.set(reconcileServerSessionsAtomFamily(scope), [
@@ -47,6 +50,7 @@ describe("reconcileServerSessionsAtomFamily title precedence", () => {
     it("keeps the local name when the server one is empty or blank", () => {
         const scope = `reconcile-local-kept-${Date.now()}`
         const store = createStore()
+        store.set(projectIdAtom, "proj-test")
 
         store.set(adoptSessionAtomFamily(scope), {id: "one", title: "Local title"})
         store.set(reconcileServerSessionsAtomFamily(scope), [{id: "one", title: "   "}])
@@ -59,6 +63,7 @@ describe("reconcileServerSessionsAtomFamily title precedence", () => {
     it("adopts the server name for a session absent locally", () => {
         const scope = `reconcile-adopt-${Date.now()}`
         const store = createStore()
+        store.set(projectIdAtom, "proj-test")
 
         store.set(reconcileServerSessionsAtomFamily(scope), [
             {id: "new-one", title: "Server-only title"},

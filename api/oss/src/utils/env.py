@@ -575,6 +575,16 @@ class SessionsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _services_internal_key_from_environment() -> str | None:
+    """Read the dedicated runtime proof without accepting public placeholders."""
+    runtime_key = (os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
+
+    if not runtime_key or runtime_key == "replace-me":
+        return None
+
+    return runtime_key
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -587,6 +597,13 @@ class AgentaConfig(BaseModel):
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
+    # Shared secret that proves a caller IS the platform runtime (the workflow service),
+    # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
+    # caller holding it can be issued a credential that reads write-only secret values.
+    # This is deliberately separate from the administrator key: deployments must opt in
+    # by configuring the same dedicated value on the API and platform services. NEVER
+    # sent to the runner or into a sandbox.
+    services_internal_key: str | None = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
@@ -705,7 +722,8 @@ class ComposioConfig(BaseModel):
     webhook_replay_window_seconds: int = int(
         os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
     )
-    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    # Full trigger-types and tool catalogs: project-agnostic cache TTL + whole-fetch
+    # deadline. Both crawl the same Composio catalog surface.
     catalog_cache_ttl_seconds: int = int(
         os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
     )
@@ -1339,6 +1357,11 @@ class PostHogConfig(BaseModel):
         os.getenv("POSTHOG_API_KEY")
         or "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
     )
+    # Whether THIS deployment supplied the key, as opposed to falling back to the
+    # built-in project key above. `enabled` cannot answer that — the fallback makes it
+    # true in every checkout — and a consumer that must tell "this operator runs
+    # PostHog" from "this is a stock local stack" needs the difference.
+    api_key_configured: bool = bool(os.getenv("POSTHOG_API_KEY"))
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1503,6 +1526,85 @@ class SendgridConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# starter_credits_bridge — starter-credit seeding at signup (EE, temporary bridge).
+# ---------------------------------------------------------------------------
+
+
+class StarterCreditsBridgeConfig(BaseModel):
+    """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
+    seed it into the new organization's vault as a ready-to-use connection.
+
+    Inert unless `enabled` is true AND `proxy_admin_url` + `proxy_public_url` +
+    `master_key` + `team_id` are present (the team's budget ceiling is the
+    program's total-exposure bound, so seeding refuses to run without it). The
+    redeploy-free runtime switch is the PostHog policy payload: clearing or
+    emptying it leaves the policy unresolved, and seeding fails closed.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
+
+    # Two base URLs for the same proxy, because it is reachable two ways. The
+    # public one is what the SEEDED CONNECTION stores, so a sandboxed run can
+    # reach the proxy's inference paths from outside; only those paths are
+    # publicly routed. The admin routes (/key/generate, /key/block, /team/info)
+    # are not, so the master-keyed admin client dials the proxy's internal
+    # address instead — and the master key never leaves the private network.
+    proxy_public_url: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_PUBLIC_URL") or None
+    )
+    proxy_admin_url: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL") or None
+    )
+    master_key: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY") or None
+    )
+    # Every minted key joins this team; its max_budget is the program ceiling.
+    team_id: str | None = os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID") or None
+
+    model_id: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
+        or "vertex_ai/gemini-3.7-flash"
+    )
+
+    # The mint policy (velocity caps, domain classification, eligibility rules,
+    # grant size, per-key limits) ships via the PostHog policy flag's payload:
+    # the payload is the only source, so no real value lives in source and no
+    # money value can be changed one field at a time on a single deployment.
+    # Without a resolvable payload the policy is unresolved and seeding fails
+    # closed. Only the flag's NAME is configurable here.
+    #
+    # One exception, for developer convenience: a deployment with NO PostHog
+    # configured at all (local dev, a QA stack) runs on the built-in development
+    # policy in `starter_credits_bridge/types.py` instead of being blocked, since
+    # it has no way to publish a payload. Cloud always has PostHog, so it always
+    # takes the payload path and still fails closed on a missing or bad one.
+    policy_flag: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
+        or "starter-credits-bridge-policy"
+    )
+    # Optional operator webhook ({"text": ...} POST) for refusals and failures.
+    alert_webhook: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def armed(self) -> bool:
+        """True when the deployment opted in and holds both proxy addresses and
+        the proxy credentials, plus the program team whose ceiling bounds total
+        exposure. Without the admin address every mint would dial a route that is
+        not publicly served, so a missing one keeps the bridge inert."""
+        return bool(
+            self.enabled
+            and self.proxy_public_url
+            and self.proxy_admin_url
+            and self.master_key
+            and self.team_id
+        )
+
+
+# ---------------------------------------------------------------------------
 # stripe
 # ---------------------------------------------------------------------------
 
@@ -1570,6 +1672,31 @@ class SuperTokensConfig(BaseModel):
                 "  - SUPERTOKENS_URI_CORE\n"
                 "  - SUPERTOKENS_API_KEY\n"
             )
+
+
+# ---------------------------------------------------------------------------
+# Triggers
+# ---------------------------------------------------------------------------
+
+
+class TriggersConfig(BaseModel):
+    """Guardrails for trigger schedules."""
+
+    # The smallest gap allowed between two consecutive fires of a schedule's cron
+    # expression. Every fire starts an agent run in its own sandbox, so `* * * * *`
+    # bills 1440 runs a day; and because a run routinely outlives one minute, such a
+    # schedule also overlaps itself. Enforced on create and edit only, so rows stored
+    # before the floor existed keep firing until someone edits them.
+    #
+    # The web mirrors this default as MIN_CRON_INTERVAL_MINUTES so the drawer can
+    # reject a value before submitting. Lowering this below that constant makes the
+    # client stricter than the server until the two are changed together.
+    schedule_min_interval_minutes: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
+        )
+        or 15
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1655,9 +1782,11 @@ class EnvironSettings(BaseModel):
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    starter_credits_bridge: StarterCreditsBridgeConfig = StarterCreditsBridgeConfig()
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
+    triggers: TriggersConfig = TriggersConfig()
 
     model_config = ConfigDict(extra="ignore")
 

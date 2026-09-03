@@ -53,6 +53,7 @@ export const SessionListScreen = ({
             onOpenRow={sessionMenu.open}
             menuFor={sessionMenu.menuFor}
             onMenuSelect={sessionMenu.onMenuSelect}
+            onRenameRow={sessionMenu.onRenameRow}
             revealActionsOnHover={false}
             className={`${pageContentWidthClass} min-h-0 flex-1 overflow-y-auto px-4 pb-6 lg:px-16`}
         />

@@ -3,9 +3,12 @@ import {idleReadyAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 
 import {
+    sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarCollapsedScopeAtomFamily,
     sidebarDefaultOpenGroupsAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
+    sidebarRouteOpenGroupsAtomFamily,
 } from "../state"
 
 import type {SidebarEntityRef, SidebarEntitySource} from "./types"
@@ -27,7 +30,18 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
         const persistedOpen = get(sidebarOpenGroupsAtomFamily(scopeId))
         const effectiveOpen =
             persistedOpen ?? get(sidebarDefaultOpenGroupsAtomFamily(scopeId)) ?? []
-        const inlineOpen = effectiveOpen.includes(parentKey)
+        // OR, not a fallback: an `alwaysOpen` group is expanded on screen with no way to collapse
+        // it, so it counts as open whether or not the scope has a persisted record.
+        const alwaysOpen = get(sidebarAlwaysOpenGroupsAtomFamily(scopeId)).includes(parentKey)
+        // A collapsed rail renders NO inline children — a group is either a flyout there or a
+        // plain link. So inline open-state cannot keep a query alive while collapsed; only a
+        // flyout that is actually open can. Without this an `alwaysOpen` group (Sessions) kept
+        // fetching and polling a list with nowhere to render.
+        const collapsed = get(sidebarCollapsedScopeAtomFamily(scopeId))
+        // The route opens a group too, without persisting anything — see the atom's note.
+        const routeOpen = get(sidebarRouteOpenGroupsAtomFamily(scopeId)).includes(parentKey)
+        const inlineOpen =
+            !collapsed && (alwaysOpen || routeOpen || effectiveOpen.includes(parentKey))
         const popupOpen = get(sidebarPopupGroupsAtomFamily(scopeId)).includes(parentKey)
 
         if (!inlineOpen && !popupOpen) {

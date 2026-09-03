@@ -7,6 +7,8 @@ import {HomeTaskComposer, type HomeTaskComposerAgent} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {newId} from "@/lib/ids"
+
 import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
 
 /**
@@ -29,7 +31,7 @@ export const HomeComposer = ({
     const stash = useSetAtom(stashPendingTaskAtom)
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
     const [sessionId] = useState(() => {
-        const id = crypto.randomUUID()
+        const id = newId()
         // Same reason as the rail's "+": a session minted here has no durable records yet.
         markSessionFresh(id)
         return id

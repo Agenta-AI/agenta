@@ -16,7 +16,10 @@ content in its finally — the same contract a `yield`-based handler gets. Both 
 These tests are RED before the fix, GREEN after. Uses the in-memory exporter (no backend).
 """
 
+import asyncio
+
 import pytest
+from opentelemetry import trace as otel_trace
 
 from agenta.sdk.agents.fold import assistant_text
 from agenta.sdk.decorators.running import workflow
@@ -118,6 +121,40 @@ async def test_returned_agent_event_stream_records_assistant_text(in_memory_trac
 
     root = _roots(in_memory_tracing.finished_spans())[0]
     assert _attr(root, "ag.data.outputs.__default__") == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_returned_async_gen_reactivates_span_for_each_consumer_context(
+    in_memory_tracing,
+):
+    """Mirror ASGI requesting consecutive stream steps from different contexts."""
+
+    async def _events():
+        try:
+            yield "one"
+            yield "two"
+        finally:
+            otel_trace.get_current_span().set_attribute(
+                "test.stream_finalizer_span_active", True
+            )
+
+    @workflow()
+    async def wf(value: str):
+        return _events()
+
+    response = await wf.invoke(request=_request("a"))
+    stream = response.iterator()
+    items = []
+    while True:
+        try:
+            # A fresh task carries a fresh Context frame, as StreamingResponse may.
+            items.append(await asyncio.create_task(anext(stream)))
+        except StopAsyncIteration:
+            break
+
+    assert items == ["one", "two"]
+    root = _roots(in_memory_tracing.finished_spans())[0]
+    assert _attr(root, "test.stream_finalizer_span_active") is True
 
 
 # --------------------------------------------------------------------------- #

@@ -40,7 +40,11 @@ export interface GateInput {
     /** Case-insensitive header getter (NextRequest headers already are). */
     header: (name: string) => string | null
     cookie: (name: string) => string | undefined
-    /** AGENTA_MOBILE_GATE, resolved by the adapter at request time. */
+    /**
+     * AGENTA_MOBILE_GATE, resolved by the adapter at request time with
+     * `resolveGateEnabled`. DEFAULT ON: a deployment opts out with
+     * `AGENTA_MOBILE_GATE=false`.
+     */
     gateEnabled: boolean
     /**
      * AGENTA_MOBILE_REVERSE_GATE, mobile-app only. `false` keeps the forward gate (mobile
@@ -48,6 +52,22 @@ export interface GateInput {
      * as non-mobile, so the bounce blocks deliberate visits. Defaults to on.
      */
     reverseGateEnabled?: boolean
+}
+
+/**
+ * Env → flag, for both gates. DEFAULT ON: only the exact string "false" turns a
+ * gate off, so an unset, empty, or misspelled value keeps the mobile app
+ * reachable. Both gates ship on so that no deployment (cloud, self-hosted
+ * compose, Railway, local dev) needs an env key to give phones /m; the keys are
+ * an opt-OUT.
+ *
+ * The adapters read process.env INSIDE the request handler, never at module
+ * scope: on the self-hosted standalone Node server, non-NEXT_PUBLIC env is
+ * resolved at runtime, so flipping the key and recreating the container is
+ * enough — no rebuild.
+ */
+export function resolveGateEnabled(raw: string | undefined | null): boolean {
+    return raw !== "false"
 }
 
 export type GateDecision =
@@ -168,8 +188,9 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         // BEFORE the flag: a provider redirect the MOBILE app started has to reach /m whether or
         // not the device gate is on. The cookie is an explicit intent set by /m moments earlier,
         // not a device heuristic, and the OAuth state lives in /m's same-origin sessionStorage.
-        // The gate defaults OFF, so gating this stranded every mobile SSO sign-in on the desktop
-        // route, where the state it needs does not exist.
+        // A deployment that opts out with AGENTA_MOBILE_GATE=false still runs /m, so gating this
+        // strands every mobile SSO sign-in on the desktop route, where the state it needs does
+        // not exist.
         if (
             !wantsDesktop &&
             isDocumentNavigation(input) &&

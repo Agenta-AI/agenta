@@ -12,10 +12,12 @@
  * platform special cases; nothing here is load-bearing for unknown tools, and raw names stay
  * reachable via tooltips and Build mode.
  */
+import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
+import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
 import type {
-    ApprovalBodyEntry,
+    ApprovalDescriber,
     ChatSkinRegistration,
     ClientToolMeta,
     ClientToolWidget,
@@ -30,7 +32,7 @@ interface RegistrationStore {
         byRenderKind: Record<string, ClientToolWidget>
         byToolName: Record<string, ClientToolWidget>
     }
-    approvals: Record<string, ApprovalBodyEntry>
+    approvals: Record<string, ApprovalDescriber>
     toolDisplay: Record<string, ToolDisplayEntry>
 }
 
@@ -79,7 +81,12 @@ export const resolveClientToolWidget = (
             store.clientTools.byRenderKind[meta.renderKind] ??
             fallback?.byRenderKind?.[meta.renderKind]
         )
-    return store.clientTools.byToolName[meta.toolName] ?? fallback?.byToolName?.[meta.toolName]
+    // Canonicalized: the wire name is `__ag__request_input` (or the harness's `mcp__…` wrapping)
+    // while the registry is keyed on the bare `request_input`. Matching raw made this whole axis
+    // dead, so a transcript persisted before the sibling `data-render` part existed resolved to
+    // `UnhandledClientTool` and auto-settled "not handled by this client".
+    const name = canonicalToolName(meta.toolName)
+    return store.clientTools.byToolName[name] ?? fallback?.byToolName?.[name]
 }
 
 /** Whether this client tool has a dedicated widget registered (used to route known tools in every
@@ -89,9 +96,8 @@ export const hasClientToolWidget = (
     fallback?: ChatSkinRegistration["clientTools"],
 ): boolean => resolveClientToolWidget(meta, fallback) !== undefined
 
-/** Resolve the renderer for an approval, or `undefined` for the generic card (mirrors OSS
- * `resolveApprovalRenderer`, which returns `null` for the same miss). */
-export const resolveApprovalBody = (toolName: string): ApprovalBodyEntry | undefined =>
+/** The describer registered for a tool, or `undefined` when the generic one should run. */
+export const resolveApprovalDescriber = (toolName: string): ApprovalDescriber | undefined =>
     store.approvals[toolName]
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -136,16 +142,6 @@ const matchedTool = (output: unknown): {slug?: string; action?: string} => {
     }
 }
 
-/** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
-const INTERNAL_MCP_SERVER = "agenta-tools"
-
-/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
- * (runner `client-tools.ts` strips the same two). */
-const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
-
-/** Our slug namespace. Unstripped, `__ag__request_input` derives "Requested an Ag input". */
-const INTERNAL_SLUG_PREFIX = "__ag__"
-
 /** Ops we ship, mirroring the SDK's `platform/op_catalog.py` plus the two client tools. A bare name
  * is ours only if listed: a reference tool carries the user's own workflow name, and the glossary
  * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
@@ -177,23 +173,10 @@ const PLATFORM_OPS = new Set([
     "test_subscription",
 ])
 
-/**
- * The platform tool name behind a harness wrapper.
- *
- * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
- * `mcp__agenta-tools__commit_revision`, Codex `mcp.agenta-tools.commit_revision`. Anything keyed
- * BY tool name must key on this, or one call behaves differently depending on the harness.
- *
- * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
- * collide with a platform tool of the same bare name. NOT for permission rules: those must match
- * the wire name verbatim (see `useAlwaysAllowTool`).
- */
-export const canonicalToolName = (raw: string): string => {
-    for (const prefix of [...INTERNAL_MCP_PREFIXES, INTERNAL_SLUG_PREFIX]) {
-        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
-    }
-    return raw
-}
+/** The platform tool name behind a harness wrapper. Re-exported from @agenta/shared so
+ * @agenta/playground can key on the same rule without importing this package (that direction closes
+ * a workspace cycle). See `canonicalClientToolName` for the full contract. */
+export const canonicalToolName = canonicalClientToolName
 
 /** Special cases, keyed by lowercased canonical wire name. Platform ops are `verb_noun`, so the
  * verb table and glossary derive them — only the few whose derived text would be wrong are here. */
@@ -574,10 +557,6 @@ const shortCommand = (command: string): string =>
     clamp(unwrapShell(command).replace(SANDBOX_ROOT, ""), 48)
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
-
-/** Path-ish argument keys. Kept in step with `PATH_KEYS` in `@agenta/entities`'
- * `session/core/fileActivity.ts`, which reads the same argument for the file cards on this row. */
-const PATH_KEYS = ["path", "file_path", "filePath", "notebook_path", "filename", "target_file"]
 
 /** Arguments naming what the call was looking for. */
 const QUERY_KEYS = ["use_cases", "query", "keywords", "search"]
