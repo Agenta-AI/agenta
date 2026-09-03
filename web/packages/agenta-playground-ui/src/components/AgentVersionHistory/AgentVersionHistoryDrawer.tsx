@@ -140,7 +140,8 @@ export const AgentVersionHistoryDrawer = ({
             onClose={handleClose}
             title={<span className="text-sm font-normal">Version history</span>}
             width={780}
-            classNames={{body: "!p-0"}}
+            // px-3 so the buttons' outer edge lands on the same line as the section bands.
+            classNames={{body: "!p-0", footer: "px-3"}}
             footer={
                 <RevertFooter
                     phase={phase}

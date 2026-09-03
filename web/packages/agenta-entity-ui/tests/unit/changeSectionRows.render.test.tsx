@@ -35,6 +35,38 @@ describe("ChangeSections", () => {
         expect(markup(listSection(id, title, label))).toContain(label)
     })
 
+    // The ghost accordion bleeds its band 8px past the pane's content box on BOTH sides, and its
+    // rows inset by the same 8px to land back on the content line. Header, rows and the drawer
+    // footer then share one left and one right edge; a one-sided bleed is what broke it before.
+    it("bleeds the ghost band symmetrically and insets its rows by the same amount", () => {
+        const html = renderToStaticMarkup(
+            <ChangeSections
+                sections={[listSection("tools", "Tools", "send_email")]}
+                openState={{tools: true}}
+                onToggleSection={() => undefined}
+                ghost
+            />,
+        )
+        // Two bleeding boxes: the header band and the body that hangs under it.
+        expect(html.match(/-mx-2/g)).toHaveLength(2)
+        expect(html).not.toContain("-ml-3.5")
+        // Rows pay the bleed back, so their content sits on the pane's content line.
+        expect(html).toContain("px-2")
+        expect(html).not.toContain("px-3.5")
+    })
+
+    it("leaves the card variant on its own inset — nothing bleeds there", () => {
+        const html = renderToStaticMarkup(
+            <ChangeSections
+                sections={[listSection("tools", "Tools", "send_email")]}
+                openState={{tools: true}}
+                onToggleSection={() => undefined}
+            />,
+        )
+        expect(html).not.toContain("-mx-2")
+        expect(html).toContain("px-3.5")
+    })
+
     it("opens a detail view from tool and subagent rows only", () => {
         // Only an EDITED row has anything to drill into.
         const edited = (id: ChangeSection["id"], title: string): ChangeSection => ({

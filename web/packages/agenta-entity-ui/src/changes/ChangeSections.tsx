@@ -38,6 +38,11 @@ import {
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
 export const INLINE_TEXT_DIFF_LINES = 6
+/** Row inset inside a card body. Ghost bleeds instead, so its rows carry the smaller one. */
+const ROW_PAD = "px-3.5"
+const GHOST_ROW_PAD = "px-2"
+/** How far a ghost band bleeds past the pane's content box, on both sides. */
+const GHOST_BLEED = "-mx-2"
 const SUBGROUP_VISIBLE = 5
 const VIRTUALIZE_AT = 50
 
@@ -139,14 +144,22 @@ export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: 
 }
 
 /** Diff surface — tinted +/- rows with a sign gutter; long lines wrap. */
-export function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: number}) {
+export function HunkRows({
+    hunks,
+    limit,
+    padX = ROW_PAD,
+}: {
+    hunks: ExtendedDiffLine[]
+    limit?: number
+    padX?: string
+}) {
     const shown = limit ? hunks.slice(0, limit) : hunks
     return (
         <div className="py-2 font-mono text-xs leading-[1.8]">
             {shown.map((line, i) => {
                 if (line.type === "fold") {
                     return (
-                        <div key={i} className={cn("px-3.5 italic", textColors.tertiary)}>
+                        <div key={i} className={cn(padX, "italic", textColors.tertiary)}>
                             {line.content}
                         </div>
                     )
@@ -169,10 +182,7 @@ export function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: num
                 return (
                     <div
                         key={i}
-                        className={cn(
-                            "flex px-3.5",
-                            line.type === "context" && textColors.tertiary,
-                        )}
+                        className={cn("flex", padX, line.type === "context" && textColors.tertiary)}
                         style={style}
                     >
                         <span className="w-3.5 shrink-0 opacity-70">
@@ -186,13 +196,21 @@ export function HunkRows({hunks, limit}: {hunks: ExtendedDiffLine[]; limit?: num
     )
 }
 
-function ItemRow({it, onOpenTool}: {it: ChangeItem; onOpenTool?: (itemId: string) => void}) {
+function ItemRow({
+    it,
+    onOpenTool,
+    padX = ROW_PAD,
+}: {
+    it: ChangeItem
+    onOpenTool?: (itemId: string) => void
+    padX?: string
+}) {
     const clickable = it.kind === "edited" && !!onOpenTool
     return (
         <Row
             clickable={clickable}
             onActivate={clickable ? () => onOpenTool?.(it.id) : undefined}
-            className="flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left"
+            className={cn("flex w-full items-center gap-2.5 py-1.5 text-left", padX)}
         >
             <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
                 {kindIcon(it.kind)}
@@ -212,9 +230,11 @@ function ItemRow({it, onOpenTool}: {it: ChangeItem; onOpenTool?: (itemId: string
 function CappedItems({
     items,
     onOpenTool,
+    padX = ROW_PAD,
 }: {
     items: ChangeItem[]
     onOpenTool?: (itemId: string) => void
+    padX?: string
 }) {
     const [expanded, setExpanded] = useState(false)
 
@@ -225,7 +245,7 @@ function CappedItems({
                 maxHeight={320}
                 estimateSize={30}
                 getItemKey={(it) => it.id}
-                renderItem={(it) => <ItemRow it={it} onOpenTool={onOpenTool} />}
+                renderItem={(it) => <ItemRow it={it} onOpenTool={onOpenTool} padX={padX} />}
             />
         )
     }
@@ -235,12 +255,12 @@ function CappedItems({
     return (
         <div className="py-1">
             {visible.map((it) => (
-                <ItemRow key={it.id} it={it} onOpenTool={onOpenTool} />
+                <ItemRow key={it.id} it={it} onOpenTool={onOpenTool} padX={padX} />
             ))}
             {hidden > 0 ? (
                 <button
                     type="button"
-                    className={cn("px-3.5 py-1.5 text-xs", LINK_BTN)}
+                    className={cn(padX, "py-1.5 text-xs", LINK_BTN)}
                     onClick={() => setExpanded(true)}
                 >
                     <DotsThree />
@@ -251,13 +271,13 @@ function CappedItems({
     )
 }
 
-function ScalarRows({changes}: {changes: ScalarChange[]}) {
+function ScalarRows({changes, padX = ROW_PAD}: {changes: ScalarChange[]; padX?: string}) {
     return (
         <div className="py-1">
             {changes.map((c) => (
                 <div
                     key={c.key}
-                    className="flex flex-wrap items-center gap-2 px-3.5 py-1.5 text-xs"
+                    className={cn("flex flex-wrap items-center gap-2 py-1.5 text-xs", padX)}
                     title={c.key}
                 >
                     <span className={textColors.secondary}>{c.label ?? c.key}</span>
@@ -300,6 +320,9 @@ export function SectionCard({
     ghost?: boolean
 }) {
     const toolItems = items ?? section.items
+    // Ghost bleeds its band outward, so its rows inset by the same amount to land back on the
+    // pane's content line — one left edge for the heading, the header band and every row.
+    const rowPad = ghost ? GHOST_ROW_PAD : ROW_PAD
     // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
         <div className={cn(ghost ? "mb-1" : small ? "mb-1.5" : "mb-2.5")}>
@@ -326,7 +349,9 @@ export function SectionCard({
                         // the heading above it — same left edge, no visible inset.
                         ghost
                             ? cn(
-                                  "-mx-2 rounded-md border-0 bg-[var(--ag-colorFillQuaternary)] px-2 hover:bg-[var(--ag-colorFillTertiary)]",
+                                  GHOST_BLEED,
+                                  GHOST_ROW_PAD,
+                                  "rounded-md border-0 bg-[var(--ag-colorFillQuaternary)] hover:bg-[var(--ag-colorFillTertiary)]",
                                   small ? "gap-2 py-2" : "gap-2.5 py-2.5",
                               )
                             : cn(
@@ -363,7 +388,7 @@ export function SectionCard({
                     className={cn(
                         "overflow-hidden",
                         ghost
-                            ? "-ml-3.5 border-0 bg-transparent"
+                            ? cn(GHOST_BLEED, "border-0 bg-transparent")
                             : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
                     )}
                 >
@@ -372,17 +397,26 @@ export function SectionCard({
                         <CappedItems
                             items={toolItems}
                             onOpenTool={DRILLABLE.has(section.id) ? onOpenTool : undefined}
+                            padX={rowPad}
                         />
                     ) : null}
-                    {section.scalarChanges ? <ScalarRows changes={section.scalarChanges} /> : null}
+                    {section.scalarChanges ? (
+                        <ScalarRows changes={section.scalarChanges} padX={rowPad} />
+                    ) : null}
                     {section.textDiff ? (
-                        <div className={cn(ghost && "pl-3.5")}>
+                        <div>
                             <HunkRows
                                 hunks={section.textDiff.hunks}
                                 limit={onOpenInstructions ? INLINE_TEXT_DIFF_LINES : undefined}
+                                padX={rowPad}
                             />
                             {onOpenInstructions ? (
-                                <div className="flex items-center border-t border-[var(--ag-colorBorderSecondary)] px-3.5 py-2">
+                                <div
+                                    className={cn(
+                                        "flex items-center border-t border-[var(--ag-colorBorderSecondary)] py-2",
+                                        rowPad,
+                                    )}
+                                >
                                     <button
                                         type="button"
                                         className={cn("text-xs", LINK_BTN)}
