@@ -10,8 +10,13 @@ import {
     useState,
 } from "react"
 
+import {connectModelGate} from "@agenta/chat/hooks"
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
-import {createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
+import {
+    type AgentModelCandidatesState,
+    agentModelCandidatesAtomFamily,
+    createEphemeralAppFromTemplate,
+} from "@agenta/entities/workflow"
 import {
     hasPendingHydrationAtomFamily,
     isAgentModeAtomFamily,
@@ -19,7 +24,7 @@ import {
 } from "@agenta/playground"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
 import {
@@ -37,6 +42,15 @@ import {useCreateAgent} from "../hooks/useCreateAgent"
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
 import OnboardingConfigSettling from "./OnboardingConfigSettling"
 import {type OnboardingContextValue} from "./OnboardingContext"
+
+/** Stand-in for the query-backed candidate state; reads as "still loading", so the gate stays off. */
+const idleModelCandidatesAtom = atom<AgentModelCandidatesState>({
+    status: "loading",
+    candidates: [],
+    connections: [],
+    capabilities: null,
+    error: null,
+})
 
 export interface AgentOnboardingResult {
     /** True once the ephemeral has been minted (the playground can render it). */
@@ -109,6 +123,25 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         sessionStatusAtomFamily(firstRunSettled ? "" : (foundingSessionId ?? "")),
     )
     const sawRunRef = useRef(false)
+    // The connect-model gate parks the seeded run before it ever dispatches, so waiting on a run
+    // status here would keep the lock on forever (#6441). A gated project can't produce a founding
+    // run at all, so it counts as settled — same "never trap the user" rule as "error". Project-wide
+    // and entity-independent, so the candidate list alone decides it (see `useAgentModelKeyStatus`).
+    // Swapped for the inert atom once the lock is out of play, so a plain playground never
+    // subscribes to the (query-backed) candidate sources.
+    const modelCandidates = useAtomValue(
+        useMemo(
+            () =>
+                active && !firstRunSettled
+                    ? agentModelCandidatesAtomFamily(true)
+                    : idleModelCandidatesAtom,
+            [active, firstRunSettled],
+        ),
+    )
+    const modelGateActive = connectModelGate({
+        loading: modelCandidates.status !== "ready",
+        candidateCount: modelCandidates.candidates.length,
+    })
     useEffect(() => {
         if (!realEntityId || firstRunSettled) return
         if (foundingStatus === "running") {
@@ -116,11 +149,17 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             return
         }
         // Settled = the seeded run finished (ran, then left "running"), paused on the user
-        // ("awaiting" approval/input IS progress), or failed ("error" — never trap the user).
-        if (sawRunRef.current || foundingStatus === "awaiting" || foundingStatus === "error") {
+        // ("awaiting" approval/input IS progress), failed ("error" — never trap the user), or can
+        // never start because the project has no runnable model.
+        if (
+            sawRunRef.current ||
+            foundingStatus === "awaiting" ||
+            foundingStatus === "error" ||
+            modelGateActive
+        ) {
             setFirstRunSettled(true)
         }
-    }, [realEntityId, foundingStatus, firstRunSettled])
+    }, [realEntityId, foundingStatus, firstRunSettled, modelGateActive])
 
     // Post-commit chrome (session bar / connect-model banner / header mode switch) eases in a beat AFTER
     // the commit, so the send + transcript scroll settle first instead of everything moving at once.

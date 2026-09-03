@@ -8,6 +8,7 @@ import AgentChatEmptyState from "./AgentChatEmptyState"
 import AgentChatHistoryUnavailable from "./AgentChatHistoryUnavailable"
 import {TranscriptSkeleton} from "./AgentChatSkeleton"
 import AgentMessage from "./AgentMessage"
+import ConnectModelCallout from "./ConnectModelCallout"
 import MessageRow from "./MessageRow"
 
 /**
@@ -43,6 +44,7 @@ const TranscriptPlaceholder = ({
     firstRunPrompt: string | null
     /** The composer-docked template strip is rendering — the empty state drops its starter pills. */
     showTemplateStrip: boolean
+    /** The connect-model gate is clear — a turn can actually run (`!modelBlocked`). */
     canStart: boolean
     onStart: (text: string) => void | Promise<void>
     onPrefill: (text: string) => void
@@ -53,6 +55,10 @@ const TranscriptPlaceholder = ({
         // Optimistic first turn: the submitted description as a sent user bubble + an assistant
         // loading placeholder (mirrors a real `status:"submitted"` turn), so the commit reads as
         // one continuous chat, not an empty state.
+        //
+        // Unless the connect-model gate is up — then the seed is parked, no run was ever dispatched,
+        // and a loader would spin forever (#6441). The callout says so in the thread instead, and
+        // reverts to the loader the moment a key lands and the parked seed sends itself.
         return (
             <MessageRow mid="pending-first-turn" enter>
                 <AgentMessage
@@ -62,7 +68,13 @@ const TranscriptPlaceholder = ({
                     onRewind={onRewind}
                     onClientToolOutput={onClientToolOutput}
                 />
-                <ChatBubble placement="start" variant="borderless" loading />
+                <ChatBubble
+                    placement="start"
+                    variant="borderless"
+                    className="min-w-0 max-w-[85%]"
+                    loading={canStart}
+                    content={canStart ? undefined : <ConnectModelCallout />}
+                />
             </MessageRow>
         )
     }
