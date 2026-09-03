@@ -1507,11 +1507,11 @@ class GitDAO(GitDAOInterface):
             )
 
             if latest_per_artifact:
-                # The empty placeholder a variant is seeded with (version "0", no data, no flags)
-                # is not a revision anyone committed, and every client-side "latest" picker skips
-                # it. `DISTINCT ON` would not: a variant added later carries a placeholder with a
-                # NEWER id than the first variant's real head, so a multi-variant artifact would
-                # resolve to the placeholder and lose its flags. Exclude them before picking.
+                # Skip empty placeholder revisions — version "0" carrying no data and no flags.
+                # Nothing committed them, and on a multi-variant artifact one can hold a NEWER id
+                # than the real head, which would resolve the artifact to a row with no flags.
+                # A first commit lands ON version 0 and DOES carry data, so the data/flags arms
+                # are what keep a single-revision artifact from disappearing here.
                 stmt = stmt.filter(
                     or_(
                         self.RevisionDBE.version.is_(None),  # type: ignore
