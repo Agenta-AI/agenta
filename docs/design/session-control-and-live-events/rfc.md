@@ -188,6 +188,12 @@ The architecture has four boundaries:
 
 The same public interface serves desktop, mobile, integrations, and external API clients.
 
+The durable command store is private implementation. Public routes describe session operations,
+not internal command types or claim states. Existing invoke, interaction, record, and watch routes
+remain available while clients migrate. New behavior must not add more overloaded boolean modes
+such as using one route's `force` value to switch between unrelated operations. Final route names
+receive a separate API review.
+
 ### Submit input
 
 ```http

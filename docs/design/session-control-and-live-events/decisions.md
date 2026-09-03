@@ -47,6 +47,11 @@ the capability spike.
 Desktop, mobile, integrations, and external clients use the same public session resources. The
 runner uses a private protocol for trusted execution work.
 
+The durable command store remains private. Public routes describe explicit session operations and
+do not expose command claim states. Existing routes remain during migration. Do not add overloaded
+boolean modes that change one endpoint between unrelated operations. Final route spelling remains
+a separate API review.
+
 ### Make the expected execution guard optional
 
 Stop can include `expected_execution_id`. When omitted, it targets the current execution at API

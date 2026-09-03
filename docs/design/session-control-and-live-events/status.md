@@ -29,6 +29,8 @@
   must change first.
 - Records-versus-event-log remains an explicit reviewer gate.
 - Final endpoint names remain open.
+- The public interface exposes explicit session operations while the durable command store remains
+  private. Existing routes remain during migration; final route spelling is deferred.
 
 ## Work in review
 
