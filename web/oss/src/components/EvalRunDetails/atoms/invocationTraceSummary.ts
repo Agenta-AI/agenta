@@ -5,6 +5,7 @@ import type {TraceData, TraceNode} from "@/oss/lib/evaluations"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
+import {sameFamilyKey} from "./familyKeys"
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
 import {evaluationRunIndexAtomFamily} from "./table/run"
@@ -145,6 +146,7 @@ export const scenarioHasInvocationAtomFamily = atomFamily(
 
             return Boolean(traceId)
         }),
+    sameFamilyKey,
 )
 
 export const invocationTraceSummaryAtomFamily = atomFamily(
@@ -323,4 +325,5 @@ export const invocationTraceSummaryAtomFamily = atomFamily(
                 errorCount,
             }
         }),
+    sameFamilyKey,
 )

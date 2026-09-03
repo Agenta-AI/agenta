@@ -25,3 +25,4 @@ export {
 export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggleButton"
 export {default as SidebarBanners} from "./SidebarBanners"
 export {default as SidebarBanner} from "./SidebarBanner"
+export {SessionFilterMenu} from "./SessionFilterMenu"

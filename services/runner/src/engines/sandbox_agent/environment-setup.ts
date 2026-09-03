@@ -26,7 +26,6 @@ import {
   configurePiSkillSnapshot,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
-  writeOtlpAuthFile,
 } from "./pi-assets.ts";
 import {
   buildPiModelConfigPlan,
@@ -178,7 +177,7 @@ export async function prepareEnvironmentSetup(
   // provider cannot leak.
   // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
   // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
-  // RuntimeLifecycle BUILDS the daemon world: both env maps plus the 0600 OTLP bearer file.
+  // RuntimeLifecycle BUILDS the daemon world: both environment maps and runner-owned paths.
   // That was never planning, which is why it moved out of this file (lifecycle migration,
   // step 5). See `environment/runtime-lifecycle.ts` for the ordering rule inside it.
   const runtimeEnvironment = buildRuntimeEnvironment({
@@ -193,7 +192,6 @@ export async function prepareEnvironmentSetup(
   const env = runtimeEnvironment.env;
   const piExtEnv = runtimeEnvironment.piExtEnv;
   const piSessionDir = runtimeEnvironment.piSessionDir;
-  const otlpAuthFilePath = runtimeEnvironment.otlpAuthFilePath;
   const strictModel = modelResolutionStrict();
   logger(
     `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
@@ -386,7 +384,6 @@ export async function prepareEnvironmentSetup(
     executableToolGateRef,
     mcpAbort,
     runAgentDir,
-    otlpAuthFilePath,
     codexSqliteHome,
     mountCreds,
     agentMountCreds,

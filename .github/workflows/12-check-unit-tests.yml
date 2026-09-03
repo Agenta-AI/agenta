@@ -375,6 +375,17 @@ jobs:
         working-directory: services/runner
         run: pnpm run typecheck
 
+      # The gateway composition suite covers the Daytona placement, which uploads the in-sandbox
+      # tool MCP shim from `dist/tools/tool-mcp-stdio.js`. That bundle is a build artifact, so
+      # without this step those tests fail in CI while passing on any machine with a stale dist.
+      # Building it is deliberate rather than skipping the placement when the bundle is absent:
+      # this suite covers denied tools and unconfigured integrations, and a skipped security test
+      # is an untested claim that looks green.
+      - name: Build the runner extension bundles
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run build:extension
+
       # The code-tool unit test spawns python3 and node end-to-end; both are preinstalled on
       # ubuntu runners (node is also set up above), so no setup-python step is needed.
       - name: Run agent runner unit tests

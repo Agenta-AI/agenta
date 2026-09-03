@@ -10,6 +10,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getProjectValues} from "@/oss/state/project"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
 
+import {sameFamilyKey} from "./familyKeys"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const annotationBatcherCache = new Map<string, BatchFetcher<string, AnnotationDto[] | null>>()
@@ -123,6 +124,7 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
 
             return batcher
         }),
+    sameFamilyKey,
 )
 
 export const evaluationAnnotationQueryAtomFamily = atomFamily(
@@ -150,6 +152,7 @@ export const evaluationAnnotationQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )
 
 export const scenarioAnnotationsQueryAtomFamily = atomFamily(
@@ -190,4 +193,5 @@ export const scenarioAnnotationsQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )

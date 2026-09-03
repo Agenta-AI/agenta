@@ -51,6 +51,7 @@ For production deployments, generate unique auth and encryption keys:
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export AGENTA_SERVICES_INTERNAL_KEY="$(openssl rand -hex 32)"
 ```
 
 Save these keys somewhere safe. You will need them again when upgrading.
@@ -177,6 +178,7 @@ These environment variables control the deployment scripts. All have sensible de
 |---|---|---|
 | `AGENTA_AUTH_KEY` | placeholder | Authentication key (set for production) |
 | `AGENTA_CRYPT_KEY` | placeholder | Encryption key (set for production) |
+| `AGENTA_SERVICES_INTERNAL_KEY` | placeholder | Proves the Services container is the platform runtime, so a run can read write-only secret values (set for production; no fallback to `AGENTA_AUTH_KEY`) |
 
 ### Optional Integrations
 

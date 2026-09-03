@@ -13,6 +13,8 @@ import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
+import {sameFamilyKey} from "./familyKeys"
+
 /**
  * Invalidate the trace batcher cache.
  * Now delegates to the shared trace entity cache invalidation.
@@ -241,6 +243,7 @@ export const evaluationTraceQueryAtomFamily = atomFamily(
                 a.isFetching === b.isFetching &&
                 a.error === b.error,
         ),
+    sameFamilyKey,
 )
 
 export const traceValueAtomFamily = atomFamily(
@@ -285,6 +288,7 @@ export const traceValueAtomFamily = atomFamily(
             },
             Object.is,
         ),
+    sameFamilyKey,
 )
 
 export const traceQueryMetaAtomFamily = atomFamily(
@@ -303,4 +307,5 @@ export const traceQueryMetaAtomFamily = atomFamily(
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),
+    sameFamilyKey,
 )

@@ -156,8 +156,16 @@ def test_config_schema_names_every_top_level_template_field():
 def test_config_schema_names_every_tool_type_discriminator():
     content = _file("references/config-schema.md").content
     types = _tool_type_discriminators()
-    # Sanity: the union really carries the six documented arms.
-    assert types == {"builtin", "gateway", "code", "client", "reference", "platform"}
+    # Sanity: the union really carries the seven documented arms.
+    assert types == {
+        "builtin",
+        "gateway",
+        "gateway_connection",
+        "code",
+        "client",
+        "reference",
+        "platform",
+    }
     missing = sorted(
         tool_type
         for tool_type in types

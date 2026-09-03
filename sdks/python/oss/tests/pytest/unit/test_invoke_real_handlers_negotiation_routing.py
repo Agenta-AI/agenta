@@ -125,9 +125,7 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
-    )
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     def __init__(self, *, events: List[Event], output: str = "") -> None:
         self._events = events
@@ -147,6 +145,7 @@ class _FakeBackend(Backend):
         run_context=None,
         session_id=None,
         effective_parameters=None,
+        gateway_policy=None,
     ) -> _FakeSession:
         return _FakeSession(
             AgentResult(output=self._output, events=self._events, usage={"total": 5})

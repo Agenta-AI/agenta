@@ -12,14 +12,10 @@
  */
 import {useMemo} from "react"
 
-import {appEnvironmentsQueryAtomFamily} from "@agenta/entities/environment"
 import type {RunnablePort} from "@agenta/entities/shared"
 import {
     discardLocalServerDataAtom,
-    evaluatorTemplatesMapAtom,
     nonArchivedWorkflowsAtom,
-    parseWorkflowKeyFromUri,
-    queryWorkflowRevisionsByWorkflow,
     resolveInputSchema as resolveWorkflowInputSchema,
     resolveOutputSchema as resolveWorkflowOutputSchema,
     resolveParameters,
@@ -34,64 +30,21 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {
+    SubagentDetail,
     WorkflowConfigPart,
     WorkflowConfigPayload,
-    WorkflowEnvironmentUI,
     WorkflowReferenceBridge,
+    WorkflowReferenceCatalogEntry,
     WorkflowReferenceType,
-    WorkflowReferenceUI,
-    WorkflowRevisionUI,
 } from "@agenta/ui/drill-in"
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-// A workflow's revisions, fetched on demand when one is selected in the reference drawer (the
-// variant-axis version picker). Keyed by workflow id; the project is singular in scope.
-const workflowRevisionsQueryAtomFamily = atomFamily((workflowId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(projectIdAtom)
-        return {
-            queryKey: ["agentWorkflowRevisions", workflowId, projectId],
-            queryFn: () => queryWorkflowRevisionsByWorkflow(workflowId, projectId as string),
-            enabled: Boolean(workflowId) && Boolean(projectId),
-            staleTime: 60_000,
-        }
-    }),
-)
-
-function useWorkflowRevisions(workflow: WorkflowReferenceUI | null): {
-    revisions: WorkflowRevisionUI[]
-    isLoading: boolean
-} {
-    const res = useAtomValue(workflowRevisionsQueryAtomFamily(workflow?.id ?? ""))
-    const revisions = useMemo<WorkflowRevisionUI[]>(() => {
-        const list = (res.data?.workflow_revisions ?? []) as Record<string, unknown>[]
-        return list
-            .map((r) => ({
-                version: r.version != null ? String(r.version) : "",
-                label: typeof r.message === "string" ? (r.message as string) : undefined,
-            }))
-            .filter((r) => Boolean(r.version) && Number(r.version) > 0)
-            .sort((a, b) => Number(b.version) - Number(a.version))
-    }, [res.data])
-    return {revisions, isLoading: Boolean(res.isLoading)}
-}
-
-function useWorkflowEnvironments(workflow: WorkflowReferenceUI | null): {
-    environments: WorkflowEnvironmentUI[]
-    isLoading: boolean
-} {
-    const res = useAtomValue(appEnvironmentsQueryAtomFamily(workflow?.id ?? ""))
-    const environments = useMemo<WorkflowEnvironmentUI[]>(
-        () =>
-            (res.data ?? [])
-                .filter((env) => Boolean(env.slug))
-                .map((env) => ({slug: env.slug, name: env.name || env.slug})),
-        [res.data],
-    )
-    return {environments, isLoading: Boolean(res.isLoading)}
-}
+import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
+import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
+import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
+import {buildIntegrationRows} from "../SchemaControls/toolUtils"
 
 // Map the molecule's canonical workflow type down to the four the reference picker badges.
 function toReferenceType(t: WorkflowType | null | undefined): WorkflowReferenceType | undefined {
@@ -118,12 +71,68 @@ function classifyRevision(revision: Workflow): WorkflowReferenceType | undefined
 
 interface ReferenceTypeInfo {
     type: WorkflowReferenceType | undefined
-    /** For evaluators: the evaluator template key (from the revision URI), for a finer badge label. */
-    evaluatorKey: string | null
+    /** The workflow this revision belongs to. A row's icon is keyed by workflow id. */
+    workflowId: string | null
+    /** What the picker's rows show, read from the revision this query already fetched. */
+    model: string | null
+    provider: string | null
+    /** Integration keys this agent has connected, e.g. ["github", "slack"]. */
+    integrations: string[]
+    /** This slug's revision fetch failed. Without it the agent silently leaves the picker. */
+    failed?: boolean
 }
 
-// Resolve type + evaluator-key for a set of workflow slugs. Keyed by the sorted slug set so the batch
-// is cached and only refetches when the set changes.
+/** The workflow a revision belongs to. */
+function workflowIdOf(revision: Workflow): string | null {
+    const id = (revision as unknown as Record<string, unknown>).workflow_id
+    return typeof id === "string" && id ? id : null
+}
+
+/** The model, provider and connected apps of one workflow's latest revision. Every field is
+ *  optional: a missing one means the workflow has none, never that the request failed. */
+function summarizeRevision(revision: Workflow): {
+    model: string | null
+    provider: string | null
+    integrations: string[]
+} {
+    const cfg = agentConfigOf(revision)
+    if (!cfg) return {model: null, provider: null, integrations: []}
+    // Agents nest the model under `llm`; prompt-shaped configs use `llm_config`.
+    const llm = isPlainRecord(cfg.llm)
+        ? cfg.llm
+        : isPlainRecord(cfg.llm_config)
+          ? cfg.llm_config
+          : null
+    const model = llm ? modelIdFromConfig(llm.model ?? llm) : null
+    const provider = llm ? connectionFromConfig(llm).provider : null
+    const tools = Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
+    // The same parser the config panel uses, so picker and panel cannot disagree.
+    const integrations = buildIntegrationRows(tools).map((row) => row.integration)
+    return {model, provider, integrations}
+}
+
+/** The agent template inside a revision. NOT on `data` directly: `resolveParameters` unwraps the
+ *  envelope and the config then sits flat or one level down under its own key. */
+function agentConfigOf(revision: Workflow): Record<string, unknown> | null {
+    const params = resolveParameters(revision.data as Parameters<typeof resolveParameters>[0])
+    if (!isPlainRecord(params)) return null
+    if (isPromptLike(params)) return params
+    for (const value of Object.values(params)) {
+        if (isPlainRecord(value) && isPromptLike(value)) return value
+    }
+    return null
+}
+
+const EMPTY_REFERENCE_INFO: ReferenceTypeInfo = {
+    type: undefined,
+    workflowId: null,
+    model: null,
+    provider: null,
+    integrations: [],
+}
+
+// Type, binding and display summary for a set of slugs. One revision fetch per workflow serves
+// all of it, keyed by the sorted set; nothing here may add a per-row request.
 const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
@@ -140,18 +149,19 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
                                 projectId: projectId as string,
                                 workflowRef: {slug},
                             })
-                            if (!revision) return [slug, {type: undefined, evaluatorKey: null}]
+                            if (!revision) return [slug, EMPTY_REFERENCE_INFO]
                             return [
                                 slug,
                                 {
                                     type: classifyRevision(revision),
-                                    evaluatorKey: revision.flags?.is_evaluator
-                                        ? parseWorkflowKeyFromUri(revision.data?.uri)
-                                        : null,
+                                    workflowId: workflowIdOf(revision),
+                                    ...summarizeRevision(revision),
                                 },
                             ]
                         } catch {
-                            return [slug, {type: undefined, evaluatorKey: null}]
+                            // Recorded, never silently empty: an unmarked failure drops the agent
+                            // from the picker and caches that absence for five minutes.
+                            return [slug, {...EMPTY_REFERENCE_INFO, failed: true}]
                         }
                     }),
                 )
@@ -160,16 +170,6 @@ const referenceTypesQueryAtomFamily = atomFamily((slugsKey: string) =>
         }
     }),
 )
-
-// Humanize an evaluator key as a fallback when the template catalog lacks a display name.
-// e.g. "auto_exact_match" → "Exact Match".
-function humanizeEvaluatorKey(key: string): string {
-    return key
-        .replace(/^(auto|human)_/, "")
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-        .trim()
-}
 
 // Lazy activation for the workflow-reference bridge. Referencing a workflow as an agent tool is
 // the only consumer of the project-wide workflow list + evaluator catalog inside the always-mounted
@@ -181,49 +181,109 @@ const activateWorkflowReferenceAtom = atom(null, (get, set) => {
     if (!get(workflowReferenceActivatedAtom)) set(workflowReferenceActivatedAtom, true)
 })
 const EMPTY_WORKFLOW_REFS: Workflow[] = []
-const EMPTY_EVALUATOR_NAMES = new Map<string, string>()
 const workflowReferenceWorkflowsAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(nonArchivedWorkflowsAtom) : EMPTY_WORKFLOW_REFS,
 )
 const workflowReferenceLoadingAtom = atom((get) =>
     get(workflowReferenceActivatedAtom) ? get(workflowsListQueryStateAtom).isPending : false,
 )
-const workflowReferenceEvaluatorNamesAtom = atom((get) =>
-    get(workflowReferenceActivatedAtom) ? get(evaluatorTemplatesMapAtom) : EMPTY_EVALUATOR_NAMES,
+
+/** One subagent's detail, keyed by slug. Kept out of the picker's batch: 200 agents would carry
+ *  megabytes of instruction text the picker never shows. */
+const subagentDetailQueryAtomFamily = atomFamily((slug: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["agentSubagentDetail", projectId, slug],
+            enabled: Boolean(projectId) && Boolean(slug),
+            staleTime: 60_000,
+            queryFn: async () => {
+                const revision = await retrieveWorkflowRevision({
+                    projectId: projectId as string,
+                    workflowRef: {slug},
+                })
+                return revision ? subagentDetailOf(revision) : null
+            },
+        }
+    }),
 )
 
-function useWorkflowReferenceTypes(workflows: WorkflowReferenceUI[]): {
-    typeBySlug: Record<string, WorkflowReferenceType | undefined>
-    labelBySlug?: Record<string, string | undefined>
-    loading: boolean
-} {
-    const slugsKey = useMemo(
-        () =>
-            workflows
-                .map((w) => w.slug)
-                .filter(Boolean)
-                .sort()
-                .join("\n"),
-        [workflows],
-    )
-    const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
-    // Evaluator template catalog (key → display name), for the evaluator sub-type badge.
-    // Gated behind the bridge activation so it doesn't fire the catalog on a plain playground load.
-    const evaluatorNames = useAtomValue(workflowReferenceEvaluatorNamesAtom)
+function useSubagentDetail(slug: string): {detail: SubagentDetail | null; loading: boolean} {
+    const res = useAtomValue(subagentDetailQueryAtomFamily(slug))
+    return {detail: (res.data as SubagentDetail | null) ?? null, loading: Boolean(res.isLoading)}
+}
 
+/** Words in a body of prose, for the instruction file's "Markdown, N words" line. */
+function countWords(text: string): number {
+    const words = text.trim().match(/\S+/g)
+    return words ? words.length : 0
+}
+
+/** One subagent's configuration, read off its latest revision. */
+function subagentDetailOf(revision: Workflow): SubagentDetail {
+    const cfg = agentConfigOf(revision)
+    const summary = summarizeRevision(revision)
+    const tools = cfg && Array.isArray(cfg.tools) ? (cfg.tools as unknown[]) : []
+    const integrations = buildIntegrationRows(tools).map((row) => ({
+        key: row.integration,
+        // The permission the agent granted this app, in the same words its own row uses.
+        permission: row.entry
+            ? integrationPermissionSummary(row.entry.permissions).label
+            : undefined,
+    }))
+    const skills = (cfg && Array.isArray(cfg.skills) ? (cfg.skills as unknown[]) : [])
+        .map((skill) => describeSkill(skill).name)
+        .filter(Boolean)
+    const agentsMd =
+        cfg && isPlainRecord(cfg.instructions) && typeof cfg.instructions.agents_md === "string"
+            ? cfg.instructions.agents_md
+            : null
+    return {
+        workflowId: workflowIdOf(revision) ?? undefined,
+        description: typeof revision.description === "string" ? revision.description : undefined,
+        model: summary.model ?? undefined,
+        provider: summary.provider ?? undefined,
+        integrations,
+        skills,
+        instructions: agentsMd
+            ? {fileName: "AGENTS.md", text: agentsMd, wordCount: countWords(agentsMd)}
+            : undefined,
+    }
+}
+
+/** Everything the Subagents picker needs for a batch of workflows, off one cached revision fetch. */
+function useWorkflowReferenceCatalog(slugs: string[]): {
+    bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined>
+    failedSlugs: string[]
+    loading: boolean
+    retry: () => void
+} {
+    // Sorted and joined so the same set of slugs, in any order, hits one cached batch.
+    const slugsKey = useMemo(() => [...slugs].filter(Boolean).sort().join("\n"), [slugs])
+    const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
+
+    const refetch = res.refetch
     return useMemo(() => {
         const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
-        const typeBySlug: Record<string, WorkflowReferenceType | undefined> = {}
-        const labelBySlug: Record<string, string | undefined> = {}
+        const bySlug: Record<string, WorkflowReferenceCatalogEntry | undefined> = {}
+        const failedSlugs: string[] = []
         for (const [slug, info] of Object.entries(data)) {
-            typeBySlug[slug] = info.type
-            if (info.evaluatorKey) {
-                labelBySlug[slug] =
-                    evaluatorNames.get(info.evaluatorKey) ?? humanizeEvaluatorKey(info.evaluatorKey)
+            if (info.failed) failedSlugs.push(slug)
+            bySlug[slug] = {
+                type: info.type,
+                workflowId: info.workflowId ?? undefined,
+                model: info.model ?? undefined,
+                provider: info.provider ?? undefined,
+                integrations: info.integrations,
             }
         }
-        return {typeBySlug, labelBySlug, loading: Boolean(res.isLoading)}
-    }, [res.data, res.isLoading, evaluatorNames])
+        return {
+            bySlug,
+            failedSlugs,
+            loading: Boolean(res.isLoading),
+            retry: () => void refetch(),
+        }
+    }, [res.data, res.isLoading, refetch])
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -523,7 +583,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             enabled: true,
             activate,
             // All project workflows are referenceable (apps + evaluators + …), not just apps. Type
-            // (incl. `evaluator`) is resolved per-slug via useWorkflowTypes.
+            // (incl. `evaluator`) is resolved per-slug via useWorkflowReferenceCatalog.
             workflows: workflows
                 .filter((w) => typeof w.slug === "string")
                 .map((w) => ({
@@ -531,7 +591,7 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                     slug: w.slug as string,
                     name: w.name ?? undefined,
                     description: w.description ?? undefined,
-                    // type is resolved asynchronously via useWorkflowTypes (needs the revision URI).
+                    // type is resolved asynchronously via useWorkflowReferenceCatalog (needs the revision URI).
                 })),
             workflowsLoading,
             resolveInputSchema: async (workflow) => {
@@ -588,9 +648,8 @@ export function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
                 const parts = buildConfigParts(revision.data)
                 return parts.length ? {parts} : null
             },
-            useWorkflowRevisions,
-            useWorkflowEnvironments,
-            useWorkflowTypes: useWorkflowReferenceTypes,
+            useWorkflowReferenceCatalog,
+            useSubagentDetail,
         }),
         [activate, workflows, workflowsLoading, projectId, store],
     )

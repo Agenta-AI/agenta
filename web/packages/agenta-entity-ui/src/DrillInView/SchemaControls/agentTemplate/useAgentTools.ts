@@ -7,11 +7,24 @@ import {useCallback, useMemo, type MutableRefObject} from "react"
 
 import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui/drill-in"
 
-import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import {gatewayToolIdentity, parseGatewayTool, type ToolObj} from "../toolUtils"
+import {migrateIntegration} from "../gatewayMigration"
+import {DEFAULT_INTEGRATION_PERMISSIONS, mergeToolPermission} from "../integrationPolicy"
+import {
+    buildIntegrationRows,
+    findGatewayConnectionIndex,
+    parseGatewayConnection,
+    removeIntegrationRow,
+    setGatewayConnectionPermissions,
+    upsertGatewayConnection,
+    type GatewayConnectionPermissions,
+    type GatewayConnectionTarget,
+    type GatewayPermission,
+    type IntegrationRow,
+} from "../toolUtils"
 
-import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./itemDescriptors"
+import {toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
+import {normalizeSubagentReference} from "./subagentReference"
 
 export function useAgentTools({
     config,
@@ -39,38 +52,7 @@ export function useAgentTools({
         [config, onChange],
     )
 
-    const handleAddTool = useCallback(
-        (tool: ToolObj, meta?: ToolSelectionMeta) => {
-            // `needsConfig` is a transient routing flag — never persist it in the tool metadata.
-            const {needsConfig, ...toolMeta} = meta ?? ({} as ToolSelectionMeta)
-            const hasMeta = Object.keys(toolMeta).length > 0
-            const next =
-                hasMeta && tool && typeof tool === "object" && !Array.isArray(tool)
-                    ? {
-                          ...(tool as Record<string, unknown>),
-                          agenta_metadata: {
-                              ...(((tool as Record<string, unknown>).agenta_metadata as
-                                  | Record<string, unknown>
-                                  | undefined) ?? {}),
-                              ...toolMeta,
-                          },
-                      }
-                    : tool
-            // Open the config editor (append only on Save) for a custom tool, or a gateway action
-            // whose input schema couldn't be resolved — so a half-filled/schema-less tool never
-            // lands silently. Complete gateway tools add straight away (gateway is multi-select).
-            if (toolMeta.source === "custom" || needsConfig) {
-                openCreate("tool", next as Record<string, unknown>, "form")
-                return
-            }
-            setTools([...tools, next])
-        },
-        [tools, setTools, openCreate],
-    )
-
-    // Append a `type:"reference"` tool for a workflow chosen in the reference drawer (#4860),
-    // auto-deriving its model-facing input schema from the workflow's latest revision. The axis
-    // (variant/environment), pinned version, and environment come from the drawer's payload.
+    // Append a subagent, deriving its model-facing input schema from the target's latest revision.
     const handleAddWorkflowReference = useCallback(
         async (payload: WorkflowReferencePayload) => {
             const wf = workflowReference?.workflows.find((w) => w.slug === payload.slug)
@@ -86,103 +68,93 @@ export function useAgentTools({
             const latest = configRef.current
             const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
             if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
-            const referenceTool: Record<string, unknown> = {
-                type: "reference",
-                ref_by: payload.refBy,
+            const referenceTool = normalizeSubagentReference({
                 slug: payload.slug,
-                ...(payload.refBy === "variant" && payload.variant
-                    ? {variant_id: payload.variant}
-                    : {}),
-                ...(payload.refBy === "variant" && payload.version
-                    ? {version: payload.version}
-                    : {}),
-                ...(payload.refBy === "environment" && payload.environment
-                    ? {environment: payload.environment}
-                    : {}),
                 name: wf?.name || payload.slug,
                 description: payload.description ?? wf?.description ?? wf?.name ?? "",
                 input_schema: inputSchema ?? {type: "object", properties: {}},
-            }
+            })
             onChange({...latest, tools: [...latestTools, referenceTool]})
         },
         [workflowReference, onChange, configRef],
     )
 
-    const handleRemoveToolByName = useCallback(
-        (name: string) => setTools(tools.filter((tool) => toolName(tool) !== name)),
+    // Removal by SLUG: a reference's display name is editable and can match another tool.
+    const handleRemoveReferenceBySlug = useCallback(
+        (slug: string) => setTools(tools.filter((tool) => toolReferenceSlug(tool) !== slug)),
         [tools, setTools],
     )
 
-    const handleRemoveBuiltinTool = useCallback(
-        (toolToRemove: ToolObj) => {
-            let removed = false
-            const updated = tools.filter((tool) => {
-                if (removed) return true
-                if (!isBuiltinPayloadMatch(tool, toolToRemove)) return true
-                removed = true
-                return false
-            })
-            if (removed) setTools(updated)
-        },
-        [tools, setTools],
-    )
+    // ── Integrations: one `gateway_connection` entry per provider and integration ────────────
+    const integrationRows = useMemo(() => buildIntegrationRows(tools), [tools])
 
-    const selectedToolNames = useMemo(
-        () => new Set(tools.map(toolName).filter((n): n is string => Boolean(n))),
-        [tools],
-    )
-
-    // Encoding-independent identities of the gateway tools present — the drawer's added-state.
-    // Derived from the SAME `tools` memo as `selectedToolNames`, so the two never drift.
-    const selectedGatewayIds = useMemo(
-        () =>
-            new Set(
-                tools
-                    .map((t) => {
-                        const v = parseGatewayTool(t)
-                        return v ? gatewayToolIdentity(v) : null
-                    })
-                    .filter((s): s is string => Boolean(s)),
-            ),
-        [tools],
-    )
-
-    // Remove EXACTLY ONE identity match (toggle-off) — never all duplicates, per the design.
-    const removeGatewayToolByIdentity = useCallback(
-        (identity: string) => {
-            let removed = false
+    /**
+     * Add an integration, or point an already-configured one at another connection. Either way it
+     * is ONE write to ONE entry: the saved format allows a single entry per provider and
+     * integration, so appending a second would produce a revision the SDK refuses to parse. A swap
+     * keeps the policy the author already set and changes the connection slug alone.
+     */
+    const setIntegrationConnection = useCallback(
+        (target: GatewayConnectionTarget, connectionSlug: string) => {
+            const index = findGatewayConnectionIndex(tools, target)
+            const existing = index >= 0 ? parseGatewayConnection(tools[index]) : null
             setTools(
-                tools.filter((t) => {
-                    if (removed) return true
-                    const v = parseGatewayTool(t)
-                    if (v && gatewayToolIdentity(v) === identity) {
-                        removed = true
-                        return false
-                    }
-                    return true
+                upsertGatewayConnection(tools, {
+                    ...target,
+                    connection: connectionSlug,
+                    permissions: existing?.permissions ?? DEFAULT_INTEGRATION_PERMISSIONS,
                 }),
             )
         },
         [tools, setTools],
     )
 
-    // Workflows not yet referenced as a tool — the pool the selector drawer offers.
-    const referenceableWorkflows = useMemo(() => {
-        const referenced = new Set(
-            tools.map((t) => toolReferenceSlug(t)).filter((s): s is string => Boolean(s)),
-        )
-        return (workflowReference?.workflows ?? []).filter((w) => !referenced.has(w.slug))
-    }, [tools, workflowReference])
+    const setIntegrationPermissions = useCallback(
+        (target: GatewayConnectionTarget, permissions: GatewayConnectionPermissions) =>
+            setTools(setGatewayConnectionPermissions(tools, target, permissions)),
+        [tools, setTools],
+    )
+
+    const setIntegrationToolPermission = useCallback(
+        (target: GatewayConnectionTarget, toolKey: string, permission: GatewayPermission) => {
+            const index = findGatewayConnectionIndex(tools, target)
+            const current = index >= 0 ? parseGatewayConnection(tools[index]) : null
+            if (!current || !toolKey) return
+            setTools(
+                setGatewayConnectionPermissions(
+                    tools,
+                    target,
+                    mergeToolPermission(current.permissions, toolKey, permission),
+                ),
+            )
+        },
+        [tools, setTools],
+    )
+
+    const removeIntegration = useCallback(
+        (row: IntegrationRow) => setTools(removeIntegrationRow(tools, row)),
+        [tools, setTools],
+    )
+
+    /** Fold an integration's legacy entries into one connection entry. An author action only —
+     *  never a page load, so viewing an untouched agent never rewrites it. */
+    const migrateIntegrationEntries = useCallback(
+        (target: GatewayConnectionTarget) => {
+            const next = migrateIntegration(tools, target)
+            if (next) setTools(next)
+        },
+        [tools, setTools],
+    )
 
     return {
         tools,
-        handleAddTool,
         handleAddWorkflowReference,
-        handleRemoveToolByName,
-        handleRemoveBuiltinTool,
-        selectedToolNames,
-        selectedGatewayIds,
-        removeGatewayToolByIdentity,
-        referenceableWorkflows,
+        handleRemoveReferenceBySlug,
+        integrationRows,
+        setIntegrationConnection,
+        setIntegrationPermissions,
+        setIntegrationToolPermission,
+        removeIntegration,
+        migrateIntegrationEntries,
     }
 }

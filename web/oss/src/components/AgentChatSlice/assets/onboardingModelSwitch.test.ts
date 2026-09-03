@@ -43,6 +43,7 @@ describe("onboardingModelSwitch", () => {
         expect(
             onboardingModelSwitch({
                 onboarding: true,
+                replaceable: true,
                 previousConnectionKeys: ["old"],
                 rows: [existing, row()],
             }),
@@ -61,6 +62,7 @@ describe("onboardingModelSwitch", () => {
         expect(
             onboardingModelSwitch({
                 onboarding: false,
+                replaceable: true,
                 previousConnectionKeys: ["old"],
                 rows: [existing, row()],
             }),
@@ -73,6 +75,7 @@ describe("onboardingModelSwitch", () => {
         expect(
             onboardingModelSwitch({
                 onboarding: true,
+                replaceable: true,
                 previousConnectionKeys: ["old"],
                 rows: [existing, row({models: []})],
             }),
@@ -84,6 +87,7 @@ describe("onboardingModelSwitch", () => {
         expect(
             onboardingModelSwitch({
                 onboarding: true,
+                replaceable: true,
                 previousConnectionKeys: ["old"],
                 rows: [existing],
             }),
@@ -102,9 +106,92 @@ describe("onboardingModelSwitch", () => {
         expect(
             onboardingModelSwitch({
                 onboarding: true,
+                replaceable: true,
                 previousConnectionKeys: ["old"],
                 rows: [existing, subscription],
             }),
         ).toBeNull()
+    })
+
+    it("never rewrites a committed agent", () => {
+        expect(
+            onboardingModelSwitch({
+                onboarding: true,
+                replaceable: false,
+                previousConnectionKeys: ["old"],
+                rows: [existing, row()],
+            }),
+        ).toBeNull()
+    })
+
+    it("preserves a runnable current choice on a new draft", () => {
+        expect(
+            onboardingModelSwitch({
+                onboarding: true,
+                replaceable: true,
+                current: {
+                    modelId: "openrouter/deepseek-v4",
+                    provider: "openrouter",
+                    mode: "agenta",
+                    slug: "openrouter",
+                    harness: "pi_core",
+                },
+                currentWasRunnable: true,
+                previousConnectionKeys: [],
+                rows: [row()],
+            }),
+        ).toBeNull()
+    })
+
+    it("replaces an automatic placeholder that only became runnable because of the new key", () => {
+        const openai = row({
+            key: "openai",
+            name: "OpenAI",
+            iconKey: "openai",
+            models: [
+                model({
+                    connectionKey: "openai",
+                    modelId: "openai/gpt-5.6-luna",
+                    provider: "openai",
+                    slug: "openai",
+                }),
+            ],
+        })
+
+        expect(
+            onboardingModelSwitch({
+                onboarding: true,
+                replaceable: true,
+                savedConnectionId: "new",
+                current: {
+                    modelId: "openai/gpt-5.6-luna",
+                    provider: "openai",
+                    mode: "agenta",
+                    slug: "openai",
+                    harness: "pi_core",
+                },
+                currentWasRunnable: false,
+                previousConnectionKeys: [],
+                rows: [openai, row()],
+            }),
+        ).toMatchObject({slug: "openrouter"})
+    })
+
+    it("uses the API-returned id when several rows appear together", () => {
+        const other = row({
+            key: "other",
+            name: "Other",
+            models: [model({connectionKey: "other", slug: "other"})],
+        })
+
+        expect(
+            onboardingModelSwitch({
+                onboarding: true,
+                replaceable: true,
+                savedConnectionId: "new",
+                previousConnectionKeys: ["old"],
+                rows: [existing, other, row()],
+            }),
+        ).toMatchObject({slug: "openrouter"})
     })
 })

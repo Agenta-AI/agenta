@@ -24,6 +24,38 @@ export const CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set(
     Object.values(CLIENT_TOOL_DESCRIPTORS).map(({toolName}) => toolName),
 )
 
+/** The MCP server we expose our own platform tools through. */
+export const INTERNAL_MCP_SERVER = "agenta-tools"
+
+/** How each harness wraps a tool of that server: Claude `mcp__<server>__`, Codex `mcp.<server>.`
+ * (runner `client-tools.ts` strips the same two). */
+const INTERNAL_MCP_PREFIXES = [`mcp__${INTERNAL_MCP_SERVER}__`, `mcp.${INTERNAL_MCP_SERVER}.`]
+
+/** Our slug namespace. Unstripped, `__ag__request_input` never matches a `byToolName` registry. */
+export const INTERNAL_SLUG_PREFIX = "__ag__"
+
+/**
+ * The platform tool name behind a harness wrapper.
+ *
+ * Pi sends `request_input`; Claude exposes the same tool over MCP and sends
+ * `mcp__agenta-tools__request_input`, Codex `mcp.agenta-tools.request_input`, and our own catalog
+ * slugs it `__ag__request_input`. Anything keyed BY tool name must key on this, or one call behaves
+ * differently depending on the harness.
+ *
+ * Lives in this leaf package so `@agenta/playground` and `@agenta/chat` can both key on it without
+ * either importing the other. @agenta/chat re-exports it as `canonicalToolName`.
+ *
+ * Only OUR server is unwrapped, so a third-party MCP tool keeps its full name and can never collide
+ * with a platform tool of the same bare name. NOT for permission rules: those must match the wire
+ * name verbatim (see `useAlwaysAllowTool`).
+ */
+export const canonicalClientToolName = (raw: string): string => {
+    for (const prefix of [...INTERNAL_MCP_PREFIXES, INTERNAL_SLUG_PREFIX]) {
+        if (raw.startsWith(prefix)) return raw.slice(prefix.length) || raw
+    }
+    return raw
+}
+
 const CLIENT_TOOL_INTERACTION_ENDED_KEY = "agenta_interaction_ended"
 
 // Marks a terminal row with no saved answer, which is neither an answer nor an abandonment.

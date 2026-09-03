@@ -413,7 +413,7 @@ async def test_discover_capabilities_end_to_end(monkeypatch):
 
     calls = {"search": 0}
 
-    async def _search_capabilities(*, use_cases, user_id):
+    async def _search_capabilities(*, use_cases, user_id, toolkits=None):
         calls["search"] += 1
         return search
 
@@ -475,7 +475,7 @@ async def test_discover_caches_tool_schema_half_recomputes_state_fresh(monkeypat
 
     called = {"search": 0, "query": 0}
 
-    async def _search_capabilities(*, use_cases, user_id):
+    async def _search_capabilities(*, use_cases, user_id, toolkits=None):
         called["search"] += 1
         return _parsed_search()
 
@@ -503,25 +503,9 @@ async def test_discover_caches_tool_schema_half_recomputes_state_fresh(monkeypat
     assert result.capabilities
 
 
-async def test_discover_raises_when_provider_lacks_search(monkeypatch):
-    service = object.__new__(ToolsService)
-    service.adapter_registry = SimpleNamespace(get=lambda _k: SimpleNamespace())
-
-    async def _miss(**_kwargs):
-        return None
-
-    async def _noop(**_kwargs):
-        return None
-
-    monkeypatch.setattr("oss.src.core.tools.service.get_cache", _miss)
-    monkeypatch.setattr("oss.src.core.tools.service.set_cache", _noop)
-
-    with pytest.raises(DiscoveryUnsupportedError):
-        await service.discover_capabilities(
-            project_id=uuid4(),
-            use_cases=["do a thing"],
-            provider_key="agenta",
-        )
+# A provider that cannot search is now impossible to build: ``search_capabilities`` is
+# abstract on ``ToolsGatewayInterface``, so the class fails at import instead of on a
+# live turn. The route's 422 mapping is still covered below.
 
 
 # ---------------------------------------------------------------------------

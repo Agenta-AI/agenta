@@ -69,11 +69,42 @@ export const sidebarWidthAtom = atomWithStorage<number>(
 export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
 
 /**
+ * Whether the shell is rendering this scope as a collapsed icon rail, published per scope.
+ *
+ * Per scope rather than read off a global: each host hands `SidebarShell` its OWN collapsed atom
+ * (the mobile drawer passes an expanded flag that is never the desktop rail's), so only the shell
+ * knows which state a given scope is in.
+ */
+export const sidebarCollapsedScopeAtomFamily = atomFamily((_scopeId: string) => atom(false))
+
+/**
+ * Groups the shell is holding open because the ROUTE lands inside them, published per scope.
+ *
+ * The fourth way a group can be open, after persisted, `defaultOpen` and `alwaysOpen` — and the
+ * gate has to know about every one of them. Navigating to /agents opens the Agents group without
+ * writing anything to the persisted set, so a gate reading only that set kept its query idle and
+ * the expanded group rendered "Open to load" under a route that was already showing agents.
+ */
+export const sidebarRouteOpenGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
+
+/**
  * The `defaultOpen` keys the shell is currently displaying as expanded, published per scope.
  * Not persisted: it mirrors what the user SEES so the gated entity sources agree with the
  * screen. Seeding the persisted atom instead would clobber it before storage hydrates.
  */
 export const sidebarDefaultOpenGroupsAtomFamily = atomFamily((_scopeId: string) =>
+    atom<string[]>([]),
+)
+
+/**
+ * Groups the shell renders as ALWAYS open, published per scope.
+ *
+ * Separate from the `defaultOpen` set on purpose: the gate reads persisted keys `??` defaults, so
+ * once a scope has any persisted record the defaults stop applying. An `alwaysOpen` group cannot
+ * be collapsed, so its key is never in the persisted set, and it has to be ORed in rather than
+ * fall back to. Without this the desktop rail showed "Open to load" forever.
+ */
+export const sidebarAlwaysOpenGroupsAtomFamily = atomFamily((_scopeId: string) =>
     atom<string[]>([]),
 )
 

@@ -1,5 +1,4 @@
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
-import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
@@ -8,7 +7,6 @@ import {useSetAtom} from "jotai"
 import {ChevronsLeft} from "lucide-react"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
 
 /**
  * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
@@ -21,17 +19,9 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
  * state on the desktop side, and the header takes them as slots precisely so a surface that
  * cannot offer them simply does not.
  */
-export const ConfigPane = ({
-    entityId,
-    agentId,
-    sessionId,
-}: {
-    entityId: string
-    agentId?: string | null
-    sessionId: string
-}) => {
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+export const ConfigPane = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
             <DrillInBridgeProvider>
@@ -53,7 +43,9 @@ export const ConfigPane = ({
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}
-                            appId={agentId ?? undefined}
+                            // `/m` mounts the auto-commit engine, so this header shows Save
+                            // rather than Commit. The desktop playground keeps Commit.
+                            autoSave
                             // The desktop's collapse: the header owns "«", the top bar owns the
                             // "»" that brings the panel back. Without a way OUT, the restore
                             // control in the bar could never be reached.
@@ -70,16 +62,6 @@ export const ConfigPane = ({
                                     </Button>
                                 </SimpleTooltip>
                             }
-                            // The roster and the agent screens read the workflows list query; a
-                            // commit mints a revision they would otherwise not see.
-                            // A commit mints a revision: drop any pin so the workspace follows the
-                            // new latest instead of staying on the one that was just committed
-                            // from. The list query the roster and agent screens read needs the
-                            // same nudge.
-                            onAfterCommit={() => {
-                                pinRevision(null)
-                                void invalidateWorkflowsListCache()
-                            }}
                         />
                     }
                 />

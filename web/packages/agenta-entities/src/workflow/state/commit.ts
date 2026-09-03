@@ -28,6 +28,7 @@ import {
     preserveResponseStatus,
     stripAgentaMetadataDeep,
 } from "@agenta/shared/utils"
+import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
@@ -46,6 +47,8 @@ import {workflowsListDataAtom} from "./allWorkflows"
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     workflowEntityAtomFamily,
+    workflowDraftAtomFamily,
+    updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -53,6 +56,7 @@ import {
     invalidateWorkflowRevisionsByVariantCache,
     invalidateWorkflowVariantsCache,
     primeWorkflowRevisionDetailCacheImperative,
+    primeCommittedRevisionRefLists,
     getFlatSourceData,
 } from "./store"
 
@@ -259,6 +263,9 @@ export const commitWorkflowRevisionAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
+            // What we are about to send. Step 4 compares against this so an edit made WHILE the
+            // request is in flight is not mistaken for something this commit contains.
+            const draftAtSend = get(workflowDraftAtomFamily(revisionId))
             const flatSource = getFlatSourceData(get, revisionId)
             const flatParams =
                 (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
@@ -308,6 +315,9 @@ export const commitWorkflowRevisionAtom = atom(
             // synchronously with `initialData`, keeping the just-created
             // revision selected through the navigation.
             primeWorkflowRevisionDetailCacheImperative(newWorkflow)
+            // The pickers list thin refs; seed the new one so the dropdown shows it immediately
+            // rather than after the invalidation below refetches.
+            primeCommittedRevisionRefLists(newWorkflow)
 
             const result: WorkflowCommitResult = {
                 success: true,
@@ -322,8 +332,21 @@ export const commitWorkflowRevisionAtom = atom(
                 await _commitCallbacks.onNewRevision(result, params)
             }
 
-            // 4. Discard draft
-            set(discardWorkflowDraftAtom, revisionId)
+            // 4. Discard only what this commit contains. The payload was snapshotted before the
+            // `await`, so an edit typed during the request is in neither the new revision nor —
+            // once discarded — anywhere else. Carry it onto the new revision instead.
+            const draftNow = get(workflowDraftAtomFamily(revisionId))
+            const editedDuringCommit = !isEqual(draftNow, draftAtSend)
+            let carriedForward = false
+            if (editedDuringCommit && draftNow?.data) {
+                set(updateWorkflowDraftAtom, newRevisionId, {data: draftNow.data})
+                // Dropped when the new revision has no server baseline yet — confirm, don't assume.
+                carriedForward = get(workflowDraftAtomFamily(newRevisionId)) !== null
+            }
+            // A stranded draft is recoverable; a discarded one is not.
+            if (!editedDuringCommit || carriedForward) {
+                set(discardWorkflowDraftAtom, revisionId)
+            }
 
             // 5. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
@@ -331,6 +354,9 @@ export const commitWorkflowRevisionAtom = atom(
             invalidateEvaluatorsListCache()
             invalidateWorkflowCache(revisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            // The picker lists by VARIANT, so without this the revision just created is missing
+            // from the dropdown until something else refetches.
+            if (variantId) invalidateWorkflowRevisionsByVariantCache(variantId)
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }

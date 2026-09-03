@@ -16,6 +16,7 @@ import {testcase} from "@/oss/state/entities/testcase"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import {testcaseQueryAtomFamily} from "@/oss/state/entities/testcase/testcaseEntity"
 
+import {sameFamilyKey} from "./familyKeys"
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
 
@@ -56,6 +57,7 @@ export const scenarioTestcaseIdAtomFamily = atomFamily(
             const steps = stepsQuery.data?.steps ?? []
             return extractTestcaseIdFromSteps(steps)
         }),
+    sameFamilyKey,
 )
 
 /**
@@ -76,6 +78,7 @@ export const scenarioTestcaseEntityAtomFamily = atomFamily(
             // Use the global testcase entity atom for caching and consistency
             return get(testcase.selectors.data(testcaseId))
         }),
+    sameFamilyKey,
 )
 
 /**
@@ -118,6 +121,7 @@ export const scenarioTestcaseMetaAtomFamily = atomFamily(
                 hasTestcase: true,
             }
         }),
+    sameFamilyKey,
 )
 
 /**
@@ -169,6 +173,7 @@ export const scenarioTestcaseValueAtomFamily = atomFamily(
                 return a === b
             },
         ),
+    sameFamilyKey,
 )
 
 /**
@@ -191,4 +196,5 @@ export const scenarioHasEmbeddedInputsAtomFamily = atomFamily(
 
             return false
         }),
+    sameFamilyKey,
 )

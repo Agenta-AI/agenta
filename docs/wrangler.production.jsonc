@@ -1,0 +1,23 @@
+{
+  // Cloudflare Workers Static Assets config for the PRODUCTION docs worker.
+  // Same asset behaviour as wrangler.jsonc (the preview worker); the split
+  // exists so a preview upload can never touch production.
+  //
+  // Deployed by .github/workflows/19-docs-production.yml on every merge to main
+  // that touches docs/**.
+  //
+  "name": "agenta-docs",
+  "compatibility_date": "2026-08-01",
+  // Production takes no per-version preview aliases; those live on the preview
+  // worker.
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "agenta.ai/docs", "zone_name": "agenta.ai" },
+    { "pattern": "agenta.ai/docs/*", "zone_name": "agenta.ai" }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

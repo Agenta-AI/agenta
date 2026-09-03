@@ -156,6 +156,11 @@ export const useSessionList = ({
         // only their membership is being rechecked.
         placeholderData: keepPreviousData,
         staleTime: 30_000,
+        // Explicit because the hosts disagree on the default: the desktop inherits TanStack's
+        // `true`, `/m` sets `false` app-wide. On a phone, coming back to the tab IS the "what
+        // changed?" signal — a backgrounded PWA never remounts, so without this the list only
+        // ever refreshed via the project watch.
+        refetchOnWindowFocus: true,
     })
 }
 

@@ -22,7 +22,7 @@ import {DriveExplorerSkeleton} from "./index"
 import {useDriveArtifactId} from "./index"
 import {useDriveGeneration} from "./index"
 import {driveQuickLookAtomFamily} from "./index"
-import {filesDrawerStagedAtomFamily, matchesTail} from "./index"
+import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
 
 // Heavy body — loaded lazily on first open (the split unmounts the pane while collapsed).
 const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {
@@ -74,11 +74,10 @@ export function SessionFilesPane({scope, sessionId}: {scope: string; sessionId: 
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
-    const initialPath = useMemo(() => {
-        if (!quickLook) return null
-        const hit = drive.recents.find((f) => matchesTail(f.path, quickLook.path))
-        return hit?.path ?? quickLook.path
-    }, [quickLook, drive.recents])
+    const initialPath = useMemo(
+        () => (quickLook ? resolveQuickLookPath(drive.recents, quickLook.path) : null),
+        [quickLook, drive.recents],
+    )
 
     // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same
     // switch as the rest of the inspection surface — off, the overflow menu is just "Download all".

@@ -65,7 +65,7 @@ const SESSIONS_WITH_ROWS = [
     "connectAndFormsSession",
 ]
 
-describe("replayed approval parts satisfy what ApprovalDock and its bodies read", () => {
+describe("replayed approval parts satisfy what ApprovalDock and its describers read", () => {
     for (const name of SESSIONS_WITH_ROWS) {
         const rows = INTERACTION_ROWS(name).filter((r) => r.kind === "user_approval")
         if (rows.length === 0) continue
@@ -101,8 +101,8 @@ describe("replayed approval parts satisfy what ApprovalDock and its bodies read"
         })
 
         it(`${name}: the approval body's tool key resolves to the row's tool`, () => {
-            // ApprovalDock.tsx:235 — `resolveApprovalRenderer(canonicalToolName(toolName))`, and
-            // the registry (approvals/registry.tsx:34-39) is keyed by the bare `commit_revision`.
+            // describeApproval — `resolveApprovalDescriber(canonicalToolName(toolName))`, and
+            // the registry (approvals/registry.ts) is keyed by the bare `commit_revision`.
             // If this drifts, the specialized card silently degrades to the raw-payload fallback.
             const messages = build(name)
             for (const row of rows) {
@@ -119,7 +119,7 @@ describe("replayed approval parts satisfy what ApprovalDock and its bodies read"
         })
 
         it(`${name}: approval inputs are the tool's own arguments, not the MCP envelope`, () => {
-            // CommitRevisionApproval.tsx:97 reads `input.workflow_revision` at the TOP level, and
+            // describeCommitRevision reads `input.workflow_revision` at the TOP level, and
             // toolDisplay.ts:62-67 summarizes the same way. The durable `tool_call` record for an
             // MCP-routed call stores `{tool, server, arguments}`; live re-stamps the bare args
             // (stream.py:686-690, 717-726). A wrapped input renders the card as raw JSON.

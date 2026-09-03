@@ -1,15 +1,20 @@
-import {GATE_COOKIE_MAX_AGE, decideDesktopGate} from "@agenta/shared/utils/mobileGate"
+import {
+    GATE_COOKIE_MAX_AGE,
+    decideDesktopGate,
+    resolveGateEnabled,
+} from "@agenta/shared/utils/mobileGate"
 import {NextRequest, NextResponse} from "next/server"
 
 /**
  * Mobile device gate, forward direction (agenta-mobile WP5): mobile devices
  * navigating desktop routes are redirected into the /m app.
  *
- * DEFAULT OFF. Activates only when the deployment sets AGENTA_MOBILE_GATE=true.
- * The flag is read inside the handler at request time: on the self-hosted
- * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime
- * (the client-only DefinePlugin in next.config.ts does not touch this
- * compiler), so flipping the env + recreating the container is enough — no
+ * DEFAULT ON. Every deployment gates phones into /m without setting anything;
+ * a deployment opts OUT with AGENTA_MOBILE_GATE=false (resolveGateEnabled owns
+ * that rule). The flag is read inside the handler at request time: on the
+ * self-hosted standalone Node server, non-NEXT_PUBLIC process.env is resolved
+ * at runtime (the client-only DefinePlugin in next.config.ts does not touch
+ * this compiler), so flipping the env + recreating the container is enough — no
  * rebuild. Behind Traefik this middleware never sees /m traffic
  * (PathPrefix(`/m`) routes to the mobile app); the matcher still excludes /m
  * for direct-port dev runs.
@@ -24,7 +29,7 @@ export function middleware(request: NextRequest) {
         method: request.method,
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
-        gateEnabled: process.env.AGENTA_MOBILE_GATE === "true",
+        gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
     })
 
     if (decision.kind === "redirect") {

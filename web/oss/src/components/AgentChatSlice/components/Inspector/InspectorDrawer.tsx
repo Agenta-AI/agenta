@@ -38,7 +38,6 @@ export function InspectorDrawer({
             placement="right"
             width={560}
             destroyOnClose
-            closeOnLayoutClick={false}
             styles={{body: {padding: 0, display: "flex", minHeight: 0}, header: {display: "none"}}}
         >
             <div className="flex h-full min-h-0 flex-col bg-[var(--ag-surface-raised)]">

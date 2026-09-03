@@ -107,6 +107,17 @@ export const groupAnnotationsByReferenceId = (
     for (const annotation of annotations) {
         const evaluatorSlot = annotation.references?.evaluator?.slug
         if (!evaluatorSlot) continue
+        // Both keys come off an API payload and index a plain object. A `__proto__` (or
+        // `constructor` / `prototype`) key would write through to `Object.prototype` instead of
+        // into the group. Such a key never reaches the result anyway — `Object.entries` below
+        // does not enumerate it — so skipping it changes nothing an evaluator can observe.
+        if (
+            evaluatorSlot === "__proto__" ||
+            evaluatorSlot === "constructor" ||
+            evaluatorSlot === "prototype"
+        ) {
+            continue
+        }
 
         if (!grouped[evaluatorSlot]) {
             grouped[evaluatorSlot] = {}
@@ -119,6 +130,13 @@ export const groupAnnotationsByReferenceId = (
                 : {}
         for (const [metricName, value] of Object.entries(metrics)) {
             if (typeof value !== "number" && typeof value !== "boolean") continue
+            if (
+                metricName === "__proto__" ||
+                metricName === "constructor" ||
+                metricName === "prototype"
+            ) {
+                continue
+            }
 
             if (!grouped[evaluatorSlot][metricName]) {
                 grouped[evaluatorSlot][metricName] = {values: []}

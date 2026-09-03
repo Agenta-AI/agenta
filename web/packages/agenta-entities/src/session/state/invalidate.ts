@@ -15,3 +15,16 @@ export function invalidateSessionListQueries(): void {
         predicate: (query) => query.queryKey.includes("session-list"),
     })
 }
+
+/**
+ * Refetch every session-liveness query, wherever it is nested.
+ *
+ * Same nesting problem as the lists: the desktop keys `["session-liveness", "alive", projectId]`
+ * and `/m` keys `["mobile", "session-liveness", projectId]`, so a prefix match on
+ * `["session-liveness"]` reaches the desktop ONLY. A token match reaches both.
+ */
+export function invalidateSessionLivenessQueries(): void {
+    void getHostQueryClient().invalidateQueries({
+        predicate: (query) => query.queryKey.includes("session-liveness"),
+    })
+}
