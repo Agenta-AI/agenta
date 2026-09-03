@@ -180,9 +180,8 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [measureAlign],
     )
 
-    // Clears the hand-arranged order too, so the label says "Reset" and not "Reset to defaults":
-    // it covers two things now, and naming only the filters would make the order going back feel
-    // like a bug.
+    // Clears the hand-arranged order alongside the filters: both are things this menu set, and
+    // both are what "defaults" means here.
     const onReset = useCallback(() => {
         setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS)
         clearManualOrder()
@@ -193,7 +192,6 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             facets={facets}
             dirty={dirty}
             onReset={onReset}
-            resetLabel="Reset"
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
