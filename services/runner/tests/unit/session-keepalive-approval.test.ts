@@ -2223,6 +2223,71 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   });
 
+  it("pauses when the harness re-gates after a denial instead of hanging on the old prompt", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    await firstTurn;
+
+    const parked = env.parkedApproval!;
+    env.clearTurn();
+    const secondTurn = runTurn(
+      env,
+      { ...engineReq, messages: [{ role: "user", content: "try another way" }] },
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        continuation: true,
+        settleApprovalsThenPrompt: {
+          decisions: [
+            {
+              permissionId: parked.permissionId,
+              reply: "reject",
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
+          ],
+        },
+      },
+    );
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-regated", name: "deploy", rawInput: {} },
+    });
+
+    const result = await secondTurn;
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      calls.promptCount,
+      1,
+      "the fresh prompt was not sent behind a new gate",
+    );
+    assert.equal(env.parkedApproval?.toolCallId, "tc-regated");
+    await env.destroy();
+  }, 1_000);
+
   it("creates and resolves a durable gate row without workflow context", async () => {
     const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
     const fetchSpy = vi
