@@ -19,10 +19,12 @@
 
 ## Work in review
 
-1. Warm cancellation and harness compatibility, PR #6496.
+1. Warm cancellation and harness compatibility, PR #6496. Hold because Codex can leave a tool
+   child process running and Daytona and Claude Code remain untested.
 2. Durable command and transport design, PR #6497.
 3. Current Stop path map, PR #6498.
-4. Stable record-ID semantics, PR #6499.
+4. Stable record-ID semantics, PR #6499. Evidence only. Its focused tests pass, but the new runner
+   test file currently fails TypeScript typechecking and the producer migration is not built.
 5. Concurrent-send admission, PR #6500.
 6. Dead execution watchdog, PR #6501.
 7. Record acknowledgement after Postgres commit, PR #6502.
