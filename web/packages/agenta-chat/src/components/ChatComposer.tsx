@@ -217,10 +217,10 @@ export const ChatComposer = ({
                     (quotes && quotes.length > 0
                         ? "What should change about the quoted part?"
                         : waitingOnUser
-                        ? // The parked interaction is docked directly above, so point at it rather
-                          // than describing the wait in the abstract.
-                          "Answer above, or type to queue a message"
-                        : hasKeyboard
+                          ? // The parked interaction is docked directly above, so point at it rather
+                            // than describing the wait in the abstract.
+                            "Answer above, or type to queue a message"
+                          : hasKeyboard
                             ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             : "Ask the agent…")
                 }

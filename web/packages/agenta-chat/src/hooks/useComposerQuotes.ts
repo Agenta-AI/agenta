@@ -9,7 +9,13 @@
 import {useCallback} from "react"
 
 import type {Quote} from "@agenta/shared/quotes"
-import {clearQuotes, getQuotes, removeQuote, restoreQuotes, useStagedQuotes} from "@agenta/ui/quote-selection"
+import {
+    clearQuotes,
+    getQuotes,
+    removeQuote,
+    restoreQuotes,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 
 export const useComposerQuotes = (sessionId: string | null | undefined) => {
     const quotes = useStagedQuotes(sessionId)
