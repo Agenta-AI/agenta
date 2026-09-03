@@ -527,7 +527,9 @@ another database read. It cannot create a permanent gap.
 The runner assigns a stable ID before sending each durable checkpoint. It retries timeouts,
 disconnects, overload responses, and backend failures with the same ID. Identical duplicates count
 as success. A conflicting payload under the same ID and output after terminal settlement are
-non-retryable correctness responses.
+non-retryable correctness responses. A committed terminal outcome closes the execution's session
+history. Later non-terminal output receives `execution_terminal`, is excluded from the
+conversation, and produces diagnostic logs and metrics. Version one adds no quarantine table.
 
 The runner does not block model streaming on each database commit. It holds unconfirmed durable
 checkpoints in a bounded in-memory buffer. Before submitting a successful terminal outcome, it
@@ -740,7 +742,8 @@ These points remain deliberately open even though this RFC provides provisional 
 10. Confirm the exact API response contract for retryable delivery failure, duplicate success,
     conflicting payload, and output after terminal settlement.
 11. Confirm Spike D found every intentional progressive record update.
-12. Decide whether output after watchdog terminal settlement is rejected or quarantined.
+12. Verify the terminal-settlement and record-ingest transaction prevents the demonstrated
+    stale-tail race.
 13. Verify every current liveness consumer implements the confirmed post-Stop `running` and
     `alive` contract.
 
