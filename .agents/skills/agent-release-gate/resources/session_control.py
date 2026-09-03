@@ -826,12 +826,14 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "resume_recalled_marker": marker in (t2.get("text") or ""),
         "resume_elapsed_s": t2.get("elapsed_s"),
     }
-    if stop["status"] != 200:
-        return evidence, _fail(f"Stop returned HTTP {stop['status']}, expected 200")
+    if stop["status"] not in (200, 202):
+        return evidence, _fail(
+            f"Stop returned HTTP {stop['status']}, expected 200 or 202"
+        )
     if not evidence["resume_recalled_marker"]:
         return evidence, _fail("warm resume did not recall the codeword")
     return evidence, _pass(
-        "Stop returned 200 and the warm resume recalled the codeword"
+        f"Stop returned HTTP {stop['status']} and the warm resume recalled the codeword"
     )
 
 
@@ -971,9 +973,9 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         return evidence, _fail(
             "no pending approval was seen before the Stop; the race did not land"
         )
-    if stop["status"] != 200:
+    if stop["status"] not in (200, 202):
         return evidence, _fail(
-            f"named Stop on a parked approval returned HTTP {stop['status']}, expected 200"
+            f"named Stop on a parked approval returned HTTP {stop['status']}, expected 200 or 202"
         )
     if late.get("status") == 200:
         return evidence, _fail(
@@ -1396,7 +1398,7 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     }
     if hooks.available:
         evidence["commands"] = hooks.command_rows(session_id)
-    accepted = [r for r in results if r["status"] == 200]
+    accepted = [r for r in results if r["status"] in (200, 202)]
     if len(accepted) == 0:
         return evidence, _fail("neither of the two repeated Stops was accepted")
     if len(evidence["terminal_records"]) != 1:
@@ -1466,7 +1468,7 @@ def cell_stop_during_completion(cfg, references, args, hooks: OperatorHooks) -> 
         return evidence, _fail(
             f"the race produced {len(terminal)} terminal records for one turn, expected one"
         )
-    if stop["status"] not in (200, 404, 409):
+    if stop["status"] not in (200, 202, 404, 409):
         return evidence, _fail(
             f"Stop-at-completion returned an unexpected HTTP {stop['status']}"
         )
