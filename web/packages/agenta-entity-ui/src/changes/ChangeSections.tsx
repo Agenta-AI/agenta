@@ -361,8 +361,12 @@ export function SectionCard({
                             : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
                     )}
                 >
-                    {section.id === "tools" && toolItems ? (
-                        <CappedItems items={toolItems} onOpenTool={onOpenTool} />
+                    {/* MCPs and Skills carry rows too; only tools have a detail view to open. */}
+                    {toolItems?.length ? (
+                        <CappedItems
+                            items={toolItems}
+                            onOpenTool={section.id === "tools" ? onOpenTool : undefined}
+                        />
                     ) : null}
                     {section.scalarChanges ? <ScalarRows changes={section.scalarChanges} /> : null}
                     {section.textDiff ? (
