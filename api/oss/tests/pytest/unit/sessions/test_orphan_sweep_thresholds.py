@@ -80,6 +80,10 @@ def _evaluate(node, row) -> Optional[bool]:
         left, right = _value(node.left, row), _value(node.right, row)
         if node.operator is operators.is_:
             return left is right
+        if node.operator is operators.is_not:
+            # `turn_id IS NOT NULL`, from the ending-only selection. Postgres `IS NOT` is a
+            # total predicate: it never returns NULL, so neither does this.
+            return left is not right
         if node.operator is operators.lt:
             return None if left is None or right is None else left < right
         if getattr(node.operator, "opstring", None) == "@>":

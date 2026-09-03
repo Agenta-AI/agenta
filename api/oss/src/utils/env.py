@@ -635,11 +635,12 @@ class SessionWatchdogConfig(BaseModel):
         or 90
     )
 
-    # An ALIVE-but-not-running row (between turns, or parked awaiting a human) is not the
-    # watchdog's business: it owes no ending, because its last turn already reached one. It is
-    # still reclaimed here after a much longer silence, which is the pre-existing orphan-sweep
-    # behaviour and is keyed to the 30-minute approval TTL. No terminal record is ever written
-    # for these rows.
+    # How long an ALIVE-but-not-running row (between turns, or parked awaiting a human) is left
+    # alone before it is RECLAIMED. That state is resumable, so it is keyed to the 30-minute
+    # approval TTL rather than to three missed beats. It does not govern whether such a row owes
+    # its turn a terminal record: that question is asked of the records plane on the
+    # `stale_heartbeat_seconds` clock, because a durable Stop clears `is_running` before the
+    # runner has written its own ending.
     idle_grace_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
         or 1_800
