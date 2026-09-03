@@ -1,10 +1,7 @@
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import type {AgentVersionRow} from "@agenta/playground/state"
+import {ChangesPane, RevertFooter, VersionList} from "@agenta/playground-ui/agent-version-history"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-
-import {ChangesPane} from "../../../packages/agenta-playground-ui/src/components/AgentVersionHistory/ChangesPane"
-import {RevertFooter} from "../../../packages/agenta-playground-ui/src/components/AgentVersionHistory/RevertFooter"
-import {VersionList} from "../../../packages/agenta-playground-ui/src/components/AgentVersionHistory/VersionList"
 
 // The version-history drawer's three panes (#6405), in the states a reviewer cannot click to.
 // Widths match the real drawer (780px, 250px rail) so rows wrap as they do in situ.
