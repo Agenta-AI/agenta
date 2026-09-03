@@ -78,18 +78,62 @@ export function parseProcessTable(stdout: string): ProcRow[] {
   return rows;
 }
 
+/** Find exactly one `sandbox-agent server` whose `--port` value is this sandbox's port. */
+export function findSandboxAgentServerPid(
+  rows: ProcRow[],
+  port: number | undefined,
+): number | undefined {
+  if (!Number.isInteger(port) || (port ?? 0) <= 0) return undefined;
+  const expectedPort = String(port);
+  const matches = rows.filter((row) => {
+    const [executable, ...rest] = row.args.split(/\s+/);
+    if (!executable) return false;
+    const basename = executable.split("/").pop();
+    const portIndex = rest.indexOf("--port");
+    return (
+      basename === "sandbox-agent" &&
+      rest.includes("server") &&
+      portIndex >= 0 &&
+      rest[portIndex + 1] === expectedPort
+    );
+  });
+  return matches.length === 1 ? matches[0].pid : undefined;
+}
+
 /**
- * Find the `codex app-server` process.
+ * Find the `codex app-server` process beneath this sandbox's daemon.
  *
  * The match is deliberately narrow: the executable's basename must be exactly `codex` AND the
  * command must carry the `app-server` subcommand. The JS launcher (`node .../codex.js app-server`)
  * also carries the subcommand, which is why the basename check is on the executable rather than
- * anywhere in the string. Returns `undefined` when there is not exactly one match, because a
- * second match means this heuristic no longer describes the tree and killing on a guess is worse
- * than leaving a `sleep` running for the length of the park window.
+ * anywhere in the string. Returns `undefined` when there is not exactly one match below the
+ * daemon, because killing on a guess is worse than leaving a `sleep` running for the park window.
  */
-export function findAppServerPid(rows: ProcRow[]): number | undefined {
-  const matches = rows.filter((row) => {
+export function findAppServerPid(
+  rows: ProcRow[],
+  sandboxAgentPid: number,
+): number | undefined {
+  const childrenOf = new Map<number, ProcRow[]>();
+  for (const row of rows) {
+    const siblings = childrenOf.get(row.ppid);
+    if (siblings) siblings.push(row);
+    else childrenOf.set(row.ppid, [row]);
+  }
+
+  const descendants: ProcRow[] = [];
+  const seen = new Set<number>([sandboxAgentPid]);
+  const queue = [sandboxAgentPid];
+  while (queue.length > 0) {
+    const parent = queue.shift() as number;
+    for (const child of childrenOf.get(parent) ?? []) {
+      if (seen.has(child.pid) || child.pid <= 1) continue;
+      seen.add(child.pid);
+      queue.push(child.pid);
+      descendants.push(child);
+    }
+  }
+
+  const matches = descendants.filter((row) => {
     const [executable, ...rest] = row.args.split(/\s+/);
     if (!executable) return false;
     const basename = executable.split("/").pop();
@@ -144,6 +188,8 @@ export interface ReapSandbox {
 
 export interface ReapLeakedExecInput {
   sandbox: ReapSandbox | undefined;
+  /** Port passed to this sandbox's `sandbox-agent server --port`. */
+  sandboxAgentPort: number | undefined;
   /** Milliseconds from the prompt being issued to the cancel settling. */
   turnElapsedMs: number;
   log: (message: string) => void;
@@ -196,7 +242,14 @@ export async function reapLeakedExecChildren(
     return { killed: 0, skipped: "ps-failed" };
   }
 
-  const appServerPid = findAppServerPid(rows);
+  const sandboxAgentPid = findSandboxAgentServerPid(
+    rows,
+    input.sandboxAgentPort,
+  );
+  const appServerPid =
+    sandboxAgentPid === undefined
+      ? undefined
+      : findAppServerPid(rows, sandboxAgentPid);
   if (appServerPid === undefined) {
     input.log("stage=harness_reap killed=0 skipped=no-app-server");
     return { killed: 0, skipped: "no-app-server" };

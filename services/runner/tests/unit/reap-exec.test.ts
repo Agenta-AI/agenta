@@ -10,22 +10,43 @@ import { describe, expect, it, vi } from "vitest";
 import {
   MAX_REAPED,
   findAppServerPid,
+  findSandboxAgentServerPid,
   parseProcessTable,
   reapLeakedExecChildren,
   selectLeakedExecPids,
 } from "../../src/engines/sandbox_agent/reap-exec.ts";
+import {
+  DAYTONA_SANDBOX_AGENT_PORT,
+  sandboxAgentServerPort,
+} from "../../src/engines/sandbox_agent/provider.ts";
+
+const LIVE_PORT = 43_123;
 
 /** The real tree, copied from the live probe on the integration stack (2026-09-03). */
 const LIVE_PS = [
   "    1     0  50000 /sbin/docker-init -- docker-entrypoint.sh sh -c node scripts/build-extension.mjs",
   "    7     1  49999 node node_modules/.bin/../tsx/dist/cli.mjs watch src/server.ts",
   "   58     7  49998 /usr/local/bin/node --require /app/node_modules/.pnpm/tsx@4.19.2/preflight.cjs src/server.ts",
-  "67965    58    120 /app/node_modules/.pnpm/@sandbox-agent+cli-linux-x64@0.4.2/bin/sandbox-agent server",
+  `67965    58    120 /app/node_modules/.pnpm/@sandbox-agent+cli-linux-x64@0.4.2/bin/sandbox-agent server --host 127.0.0.1 --port ${LIVE_PORT}`,
   "68015 67965    118 node /root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/.bin/codex-acp",
   "68022 68015    117 /usr/local/bin/node /root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/@openai/codex/bin/codex.js app-server",
   "68029 68022    116 /root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex app-server",
   "68164 68029     12 python3 -c import time; time.sleep(300.925793)",
 ].join("\n");
+
+describe("sandboxAgentServerPort", () => {
+  it("reads the allocated port from a local sandbox handle id", () => {
+    expect(sandboxAgentServerPort(`local/127.0.0.1:${LIVE_PORT}`)).toBe(
+      LIVE_PORT,
+    );
+  });
+
+  it("returns the explicit port configured for Daytona", () => {
+    expect(sandboxAgentServerPort("daytona/sandbox-1")).toBe(
+      DAYTONA_SANDBOX_AGENT_PORT,
+    );
+  });
+});
 
 describe("parseProcessTable", () => {
   it("reads pid, ppid, elapsed seconds and the full argv", () => {
@@ -46,24 +67,37 @@ describe("parseProcessTable", () => {
   });
 });
 
+describe("findSandboxAgentServerPid", () => {
+  it("matches the exact --port value, not another port with the same prefix", () => {
+    const rows = parseProcessTable(
+      [
+        "   10     1   5 /x/bin/sandbox-agent server --port 4312",
+        "   11     1   5 /x/bin/sandbox-agent server --port 43123",
+      ].join("\n"),
+    );
+    expect(findSandboxAgentServerPid(rows, 4312)).toBe(10);
+  });
+});
+
 describe("findAppServerPid", () => {
   it("finds the Rust core and not the JavaScript launcher that shares its subcommand", () => {
-    expect(findAppServerPid(parseProcessTable(LIVE_PS))).toBe(68029);
+    expect(findAppServerPid(parseProcessTable(LIVE_PS), 67965)).toBe(68029);
   });
 
   it("answers undefined when nothing matches", () => {
     const rows = parseProcessTable("   10     1   5 node server.js");
-    expect(findAppServerPid(rows)).toBeUndefined();
+    expect(findAppServerPid(rows, 1)).toBeUndefined();
   });
 
-  it("answers undefined when TWO processes match, rather than picking one", () => {
+  it("answers undefined when TWO descendants match, rather than picking one", () => {
     const rows = parseProcessTable(
       [
-        "   10     1   5 /a/bin/codex app-server",
-        "   11     1   5 /b/bin/codex app-server",
+        "   10     1   5 /x/bin/sandbox-agent server --port 4312",
+        "   11    10   5 /a/bin/codex app-server",
+        "   12    10   5 /b/bin/codex app-server",
       ].join("\n"),
     );
-    expect(findAppServerPid(rows)).toBeUndefined();
+    expect(findAppServerPid(rows, 10)).toBeUndefined();
   });
 });
 
@@ -157,13 +191,15 @@ describe("reapLeakedExecChildren", () => {
     // a cold turn. At 28.9 s of turn, a 29 s-old helper must not be a candidate.
     const { sandbox, calls } = sandboxWith(
       [
-        "68029 68022 116 /x/bin/codex app-server",
+        `67965 58 120 /x/bin/sandbox-agent server --port ${LIVE_PORT}`,
+        "68029 67965 116 /x/bin/codex app-server",
         "68100 68029  29 git -C /w/.codex/.tmp/plugins-clone fetch --depth 1",
         "68164 68029  22 sleep 300",
       ].join("\n"),
     );
     const result = await reapLeakedExecChildren({
       sandbox,
+      sandboxAgentPort: LIVE_PORT,
       turnElapsedMs: 28_900,
       log: vi.fn(),
     });
@@ -176,6 +212,7 @@ describe("reapLeakedExecChildren", () => {
     const log = vi.fn();
     const result = await reapLeakedExecChildren({
       sandbox,
+      sandboxAgentPort: LIVE_PORT,
       turnElapsedMs: 20_000,
       log,
     });
@@ -186,10 +223,37 @@ describe("reapLeakedExecChildren", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("pids=68164"));
   });
 
+  it("reaps only the stopped turn beneath the daemon on this sandbox's port", async () => {
+    const rows = [
+      "100 1 120 /x/bin/sandbox-agent server --host 127.0.0.1 --port 41001",
+      "110 100 119 node /x/codex-acp",
+      "120 110 118 /x/bin/codex app-server",
+      "130 120 10 sleep 300",
+      "200 1 120 /x/bin/sandbox-agent server --host 127.0.0.1 --port 41002",
+      "210 200 119 node /x/codex-acp",
+      "220 210 118 /x/bin/codex app-server",
+      "230 220 10 sleep 300",
+    ].join("\n");
+    const { sandbox, calls } = sandboxWith(rows);
+    const result = await reapLeakedExecChildren({
+      sandbox,
+      sandboxAgentPort: 41002,
+      turnElapsedMs: 20_000,
+      log: vi.fn(),
+    });
+    expect(result).toEqual({ killed: 1 });
+    expect(calls[1]).toMatchObject({ command: "kill", args: ["-9", "230"] });
+  });
+
   it("kills nothing, and says why, when the sandbox has no one-off process API", async () => {
     const log = vi.fn();
     expect(
-      await reapLeakedExecChildren({ sandbox: {}, turnElapsedMs: 1, log }),
+      await reapLeakedExecChildren({
+        sandbox: {},
+        sandboxAgentPort: LIVE_PORT,
+        turnElapsedMs: 1,
+        log,
+      }),
     ).toEqual({
       killed: 0,
       skipped: "no-run-process",
@@ -204,7 +268,12 @@ describe("reapLeakedExecChildren", () => {
       }),
     };
     expect(
-      await reapLeakedExecChildren({ sandbox, turnElapsedMs: 1, log }),
+      await reapLeakedExecChildren({
+        sandbox,
+        sandboxAgentPort: LIVE_PORT,
+        turnElapsedMs: 1,
+        log,
+      }),
     ).toEqual({ killed: 0, skipped: "ps-failed" });
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining("skipped=ps-failed"),
@@ -214,22 +283,38 @@ describe("reapLeakedExecChildren", () => {
   it("kills nothing when the app-server cannot be identified", async () => {
     const { sandbox } = sandboxWith("   10     1   5 node other.js");
     expect(
-      await reapLeakedExecChildren({ sandbox, turnElapsedMs: 1, log: vi.fn() }),
+      await reapLeakedExecChildren({
+        sandbox,
+        sandboxAgentPort: LIVE_PORT,
+        turnElapsedMs: 1,
+        log: vi.fn(),
+      }),
     ).toEqual({ killed: 0, skipped: "no-app-server" });
   });
 
   it("kills nothing when the harness already cleaned up after itself", async () => {
     const { sandbox, calls } = sandboxWith(
-      "68029 68022 116 /x/bin/codex app-server",
+      [
+        `67965 58 120 /x/bin/sandbox-agent server --port ${LIVE_PORT}`,
+        "68029 67965 116 /x/bin/codex app-server",
+      ].join("\n"),
     );
     expect(
-      await reapLeakedExecChildren({ sandbox, turnElapsedMs: 1, log: vi.fn() }),
+      await reapLeakedExecChildren({
+        sandbox,
+        sandboxAgentPort: LIVE_PORT,
+        turnElapsedMs: 1,
+        log: vi.fn(),
+      }),
     ).toEqual({ killed: 0, skipped: "nothing-to-reap" });
     expect(calls).toHaveLength(1);
   });
 
   it("refuses to fire when the candidate set is implausibly large", async () => {
-    const rows = ["68029 68022 116 /x/bin/codex app-server"];
+    const rows = [
+      `67965 58 120 /x/bin/sandbox-agent server --port ${LIVE_PORT}`,
+      "68029 67965 116 /x/bin/codex app-server",
+    ];
     for (let i = 0; i <= MAX_REAPED; i += 1) {
       rows.push(`${70000 + i} 68029 1 worker-${i}`);
     }
@@ -237,6 +322,7 @@ describe("reapLeakedExecChildren", () => {
     expect(
       await reapLeakedExecChildren({
         sandbox,
+        sandboxAgentPort: LIVE_PORT,
         turnElapsedMs: 5_000,
         log: vi.fn(),
       }),
@@ -256,6 +342,7 @@ describe("reapLeakedExecChildren", () => {
     expect(
       await reapLeakedExecChildren({
         sandbox,
+        sandboxAgentPort: LIVE_PORT,
         turnElapsedMs: 20_000,
         log: vi.fn(),
       }),
