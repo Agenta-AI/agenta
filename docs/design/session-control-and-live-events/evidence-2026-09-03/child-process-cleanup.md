@@ -24,14 +24,23 @@ message resumes warm on the same sandbox, and that next turn can still run a she
 | Scenario | Provider | Harness | Stack / commit | Result | Timing | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | Stop a running `sleep`, watch across the park window | local | codex | integration `9110c08000`, 8580 | child ALIVE after Stop | alive 56.3 s, gone by 61.4 s | `run-codex-2.json`, `runner-codex-2.log` |
-| Stop, then continue INSIDE the park window | local | codex | integration `9110c08000` | child alive through the warm turn 2 | alive at 20.5 s and after turn 2 | `run-codex-3-warm-turn2.json` |
-| Same, with a `python3` blocking command | local | codex | integration `9110c08000` | child ALIVE, so not a `sleep` artefact | alive at 35.8 s and after turn 2 | `run-codex-4-python.json` |
-| Stop a running `sleep` | local | pi_core | integration `9110c08000` | child GONE | gone by 0.2 s | `run-pi_core-1.json` |
-| Stop a running `python3` blocker | local | claude | integration `9110c08000` | child GONE | gone by 0.2 s | `run-claude-3.json` |
+| Stop, then continue INSIDE the park window | local | codex | integration `9110c08000` | child alive through the warm turn 2 | alive at 20.5 s and after turn 2 | `run-codex-3-warm-turn2.json`, no runner log |
+| Same, with a `python3` blocking command | local | codex | integration `9110c08000` | child ALIVE, so not a `sleep` artefact | alive at 35.8 s and after turn 2 | `run-codex-4-python.json`, no runner log |
+| Stop a running `sleep` | local | pi_core | integration `9110c08000` | child GONE | gone by 0.2 s | `run-pi_core-1.json`, no runner log |
+| Stop a running `python3` blocker | local | claude | integration `9110c08000` | child GONE | gone by 0.2 s | `run-claude-3.json`, no runner log |
 | Fix: Stop a running `sleep` | local | codex | spike `9e21fba4ee`, 8980 | child KILLED, sandbox parked, warm resume | reap at the abort | `fix-codex-1.json`, `runner-fix-codex-1.log` |
 | Fix: turn 2 runs a NEW shell command | local | codex | spike `9e21fba4ee` | warm turn 2 executed `echo` and returned it | turn 2 in 4.4 s, no `sandbox_start` | `fix-codex-2-turn2shell.json` |
 | Fix: Pi regression check | local | pi_core | spike `9e21fba4ee` | no reap line, parked, warm turn 2 ran a shell command | turn 2 in 3.2 s | `fix-pi_core-1.json` |
 | Fix, after the rounding refinement | local | codex | spike `5cdd23ab72` | child killed, parked, warm turn 2 ran a shell command | turn 2 in 3.5 s | `fix-codex-3-final.json`, `runner-fix-codex-3.log` |
+
+**Four of the nine runs have no runner log, and cannot get one.** The `daytona-matrix` lane
+recreated the shared stack's runner container at 14:18 local to load a Daytona key that can manage
+Secrets, which discarded the container's log history. Only `runner-codex-2.log` was saved in time
+from the integration stack, and it is the one that matters: it carries `harness_cancel sent=true
+settled=true`, `park-cancelled ttl=60000ms`, and the `[keepalive] expire (TTL 60000ms)` line that
+dates the child's death to the park window closing. The four unlogged runs rest on their process
+tables instead, which is what those runs were measuring, so no conclusion in this file depends on
+the lost lines. Every log for the fix verification came from a separate stack and is intact.
 
 Raw evidence: `~/agenta-qa-evidence/2026-09-03-session-round2/child-cleanup/`. The driver is
 `child_cleanup_live.py` in that folder. Every run mints its own account and project, so the other
