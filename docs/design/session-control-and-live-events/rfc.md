@@ -15,7 +15,7 @@ Agenta will separate session commands from session reading.
 
 - Clients submit Send, Stop, Queue, Steer, and interaction responses to the API.
 - The API durably accepts commands before reporting success.
-- The runner receives commands through authenticated HTTP long polling.
+- The API delivers commands directly to the runner through a replaceable delivery adapter.
 - The first version keeps the existing Redis execution ownership model.
 - The runner sends live frames to one shared backend path.
 - All authorized clients read the same session snapshot and event stream.
@@ -69,12 +69,16 @@ code can map existing fields without renaming every stored column in the first r
    `command_id`.
 4. Public Stop can optionally include `expected_execution_id`. Without it, Stop targets the
    current execution when the API accepts the request.
+5. First-party clients send `expected_execution_id` whenever they know the active execution. A
+   mismatch returns a conflict and leaves the current execution untouched.
 5. Internal command delivery state does not define public execution state.
 
 ### Execution
 
 1. At most one execution owns a session under the current Redis ownership contract.
 2. Every accepted execution reaches one terminal outcome: completed, stopped, failed, or lost.
+3. After that terminal outcome, later non-terminal output for the execution is rejected or
+   quarantined.
 3. Stop prevents new model and tool work within five seconds under normal operation.
 4. Stop preserves the sandbox and native harness session for warm resume.
 5. Delete remains separate and can remove the session and its resources.
@@ -100,9 +104,9 @@ code can map existing fields without renaming every stored column in the first r
 ### First implementation scope
 
 - A durable command store.
-- Runner-initiated HTTP long polling.
-- Stop delivery through that channel.
-- Heartbeat discovery of pending Stop as fallback.
+- Direct authenticated API-to-runner Stop delivery behind a replaceable adapter.
+- Durable recovery when direct delivery fails.
+- Heartbeats used for health and ownership, not normal Stop delivery.
 - Warm cancellation and a durable stopped outcome.
 - Current Redis ownership held until Stop settles.
 - Existing watch notifications used to refresh clients.
@@ -159,7 +163,7 @@ durable API and worker paths. These paths do not share one command admission con
                               durable inputs and commands
 Client ---------------------> API --------------------------> Postgres
   |                            ^                                |
-  | snapshot and SSE           | long-poll claim                |
+  | snapshot and SSE           | direct command delivery        |
   v                            |                                |
 Client <--------------------- API <-------------------------- Runner
                                |          live frames           |
@@ -315,20 +319,22 @@ the transaction commits.
 The core command service depends on a port rather than a transport implementation:
 
 ```text
-claim(runner_id, wait_deadline)
-acknowledge(command_id, runner_id, result)
-recover(runner_id)
+deliver(command, runner_target)
+recover(command_id)
+settle(command_id, result)
 ```
 
-The first adapter uses authenticated HTTP long polling. The runner opens a claim request. The API
-holds it until work is available or a timeout passes. The runner immediately reconnects after each
-response. Commands remain in Postgres when either side disconnects.
+The first adapter uses the existing authenticated direct API-to-runner route. The API attempts
+delivery only after the durable command commits. A failed call leaves the command pending for
+reconciliation. Command truth remains in Postgres.
 
-Internal Redis Pub/Sub or Postgres notifications may wake the API process holding the request.
-These notifications are optional accelerators. They are not command truth.
+Runner-initiated authenticated HTTP long polling is a designed but parked adapter. It becomes
+relevant if a future runner cannot accept inbound calls. Its design is tracked in
+[Linear AGE-4253](https://linear.app/agenta/issue/AGE-4253/parked-add-runner-initiated-long-polling-for-session-commands)
+and PR #6497.
 
-A future adapter can use a persistent connection or managed-runner routing. Changing the adapter
-must not change the public API, command states, idempotency, or settlement rules.
+Changing adapters must not change the public API, durable command states, idempotency, or settlement
+rules.
 
 ## Stop
 
@@ -340,21 +346,25 @@ return the existing pending or terminal result.
 
 ### Ownership while stopping
 
-The first version keeps the current `alive` ownership while cancellation runs. It does not free the
-session when Stop is merely accepted. This prevents a normal second start before the old runner
-settles.
+The first version keeps current ownership while cancellation runs. It does not free the session
+when Stop is merely accepted. This prevents a normal second start before the old runner settles.
+
+After settlement, `running` must be false. The exact `alive` rule remains open. The candidate rule
+retains `alive` while the warm sandbox is parked, then lets normal idle expiry clear it. Reviewers
+must verify this against every current liveness consumer.
 
 ### Delivery
 
-Long polling delivers Stop immediately. The heartbeat path checks for an applicable pending Stop
-as fallback. Heartbeat remains useful for lease renewal and missing-runner detection, but it is no
-longer the normal Stop signal.
+The API delivers Stop directly to the runner after the durable command commits. Heartbeat remains
+useful for health, ownership renewal, and missing-runner detection. It is not the normal Stop
+signal. If direct delivery fails, the durable pending command remains available for recovery.
 
 ### Runner behavior
 
 The runner stops starting model and tool work, interrupts the active operation where supported,
 settles partial output honestly, preserves the native harness session, and parks the sandbox. It
-then reports the stopped outcome and releases owner-checked Redis keys.
+then reports the stopped outcome, clears owner-checked `running`, and applies the reviewed
+post-Stop `alive` rule.
 
 ### Missing runner
 
@@ -434,23 +444,31 @@ Each API process reads the same session frame stream and durable history.
 
 ## Durable events and snapshots
 
-### Provisional storage choice
+### Durable-history storage choice
 
-**AI-selected, reviewer gate:** Add a separate append-only `session_events` table. Keep current
-records as the transcript and harness-reconstruction projection during migration.
+**Reviewer gate:** Keep two alternatives open.
 
-Reasons:
+1. Repair records into an immutable replay log.
+2. Add a separate append-only `session_events` table and keep records as a projection.
 
-- Current records allow upserts that change payload and timestamp.
-- Record IDs do not provide a per-session replay order.
-- Records follow tracing retention and quota behavior.
-- A public session lifecycle includes inputs, commands, executions, and interactions that do not
-  fit cleanly into the current record contract.
-- Changing record semantics risks harness reconstruction before stable-ID behavior is understood.
+Spike D found three repeated-ID cases. Exact delivery retries already fit immutable inserts. Resume
+re-emission uses a different execution identity and does not collide. Progressive tool calls and
+tool results are the remaining intentional updates: the runner can persist an incomplete tool
+payload, then repair the same row when later arguments or output arrive.
 
-The cost is temporary duplication between session events and records. The durable projector must
-write the authoritative session event before or with derived projections. A reviewer must confirm
-the database boundary and migration cost before implementation.
+Repairing records requires the producer to keep progressive tool frames temporary and emit one
+complete durable tool call and one complete durable tool result. Those final checkpoints must
+commit before terminal settlement. Every terminal event also needs a stable producer-generated ID
+so a transport retry cannot create two terminal rows.
+
+Temporary tool frames can expire and may contain the same sensitive tool inputs that current live
+events contain. They never serve as the resume source. A reconnect may miss partial animation, but
+the next durable checkpoint repairs the client.
+
+Records still have unresolved constraints: no per-session cursor, tracing retention and quota
+behavior, and incomplete coverage of inputs, commands, executions, and interactions. The storage
+choice remains open until reviewers decide whether to change those contracts or add the separate
+event table.
 
 ### Event model
 
@@ -691,7 +709,8 @@ change has substantial migration cost and limited immediate user value.
 These points remain deliberately open even though this RFC provides provisional defaults:
 
 1. Prove warm Stop and determine sandbox-agent and Daytona changes.
-2. Confirm long-poll request ownership, authentication, and claim expiry values.
+2. Confirm direct-delivery retry and recovery behavior. Keep long-poll claim design parked in
+   Linear AGE-4253.
 3. Confirm whether manual Stop pauses all queued input until an explicit resume action.
 4. Confirm the separate `session_events` table or select repaired records.
 5. Select the per-session cursor transaction strategy.
@@ -699,6 +718,9 @@ These points remain deliberately open even though this RFC provides provisional 
 7. Confirm interaction behavior when Stop, Steer, and an answer race.
 8. Confirm final public endpoint names.
 9. Map each implementation phase to the issue inventory before claiming an issue fixed.
+10. Confirm Spike D found every intentional progressive record update.
+11. Decide whether output after watchdog terminal settlement is rejected or quarantined.
+12. Define `running` and `alive` after warm Stop against every current liveness consumer.
 
 ## Approval
 
