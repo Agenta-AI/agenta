@@ -3,8 +3,7 @@
  *
  * `commandSessionStream` goes through `callFern`, which logs every non-abort failure and returns
  * null, so the desktop could not tell a refusal from a network error and showed "Stopped" for a run
- * that was still going. `cancelSessionStream` keeps the three answers apart: cancelled, stale
- * (the server refused because another turn holds the session), and failed.
+ * that was still going. `cancelSessionStream` keeps accepted, idle, stale, and failed apart.
  */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -43,6 +42,16 @@ describe("cancelSessionStream", () => {
         expect(outcome.status).toBe("cancelled")
         expect(outcome.status === "cancelled" && outcome.response?.turn_id).toBe("turn-1")
         expect(setSessionStream).toHaveBeenCalledWith({session_id: "s1"}, expect.anything())
+    })
+
+    it("reports idle when the server accepted but found no running turn", async () => {
+        setSessionStream.mockResolvedValue({
+            mode: "cancel",
+            session_id: "s1",
+            cancelled_turn_ids: [],
+        })
+
+        expect(await cancelSessionStream(params)).toEqual({status: "idle"})
     })
 
     it("sends the turn id as expected_execution_id when the client knows it", async () => {
@@ -92,9 +101,12 @@ describe("cancelSessionStream", () => {
     })
 
     it("reports any other error as failed, never as stale", async () => {
-        setSessionStream.mockRejectedValue(apiError(500))
+        setSessionStream.mockRejectedValue(apiError(500, {detail: {message: "Runner unavailable"}}))
 
-        expect((await cancelSessionStream(params)).status).toBe("failed")
+        expect(await cancelSessionStream(params)).toEqual({
+            status: "failed",
+            message: "Runner unavailable",
+        })
     })
 
     it("rethrows an abort so a cancelled query settles as cancelled", async () => {

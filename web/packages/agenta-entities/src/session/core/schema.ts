@@ -206,6 +206,7 @@ export const sessionStreamCommandResponseSchema = z.object({
     turn_id: z.string().nullish(),
     watcher_id: z.string().nullish(),
     detached: z.boolean().nullish(),
+    cancelled_turn_ids: z.array(z.string()).optional(),
 })
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>

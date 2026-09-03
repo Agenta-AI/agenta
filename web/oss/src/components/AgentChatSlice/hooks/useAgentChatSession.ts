@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -57,6 +57,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
+import {isStoppingPhase, reduceStopPhase} from "../assets/stopState"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -114,6 +115,8 @@ export const useAgentChatSession = ({
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
     const [stopped, setStopped] = useState(false)
+    const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
+    const stopping = isStoppingPhase(stopPhase)
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -483,13 +486,10 @@ export const useAgentChatSession = ({
         }
     }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
 
-    // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
-    const markStopped = useCallback(() => {
-        const last = messages[messages.length - 1]
-        if (last && last.role === "assistant") setStopped(true)
-    }, [messages])
-
     const projectId = useAtomValue(projectIdAtom)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    const abortAfterAcceptedRef = useRef(false)
 
     /**
      * Send the Stop, naming the execution we mean.
@@ -499,77 +499,160 @@ export const useAgentChatSession = ({
      * conflict and the user's Stop would do nothing. When the row names no turn we send no
      * expectation and let the API resolve the target, which is the same behaviour as before.
      *
-     * A conflict means the run this tab was watching had already ended, so refresh rather than
-     * retry: the session's own state is the answer, never this response.
+     * Returns both the resolved execution id and the API outcome so the stop-state guard can
+     * retry the same execution without ever targeting a successor.
      */
-    const stopCurrentExecution = useCallback(async () => {
-        if (!projectId || !sessionId) return
-        // Name the turn this browser was actually watching. The runner streams its id on the
-        // `turn` frame and the SDK carries it as `message.metadata.turnId`, which the
-        // conversation stores; that is the id the user means when they press Stop, and it costs
-        // no request. Fall back to the session row for a stream that never named one (a runner
-        // without the admission change), and to no expectation at all when even that read fails,
-        // which is the behaviour before any of this existed.
-        let expectedExecutionId = getSessionTurnId(sessionId)
-        if (!expectedExecutionId) {
-            const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
-            expectedExecutionId = stream?.turn_id ?? undefined
-        }
-        const outcome = await cancelSessionExecution({
-            sessionId,
-            projectId,
-            expectedExecutionId,
-        })
-        // Refresh on every answer, conflict included. A conflict means the run this tab was
-        // watching had already ended, and the session's own state is what says so.
-        void invalidateSessionInspector(queryClient, sessionId)
-        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-        // The outcome is read, not discarded. A Stop the server refused used to be invisible: the
-        // transcript said "Stopped" while the run kept going and billing. A conflict means the turn
-        // the user was watching had already ended and another turn holds the session, so withdraw
-        // the local "Stopped" marker and say so. `null` is a failed request, which is a different
-        // sentence: the run may well still be running.
-        if (outcome?.conflict) {
-            setStopped(false)
-            message.warning("That run had already ended. The session is running a newer turn.")
-            return
-        }
-        if (!outcome) {
-            message.warning("Could not stop the run. It may still be running.")
-        }
-    }, [projectId, sessionId, queryClient, setStopped])
+    const stopCurrentExecution = useCallback(
+        async (expectedExecutionId?: string, resolveMissing = true) => {
+            if (!projectId || !sessionId) return {outcome: null, expectedExecutionId}
+            // Name the turn this browser was actually watching. The runner streams its id on the
+            // `turn` frame and the SDK carries it as `message.metadata.turnId`, which the
+            // conversation stores; that is the id the user means when they press Stop, and it costs
+            // no request. Fall back to the session row for a stream that never named one (a runner
+            // without the admission change), and to no expectation at all when even that read fails,
+            // which is the behaviour before any of this existed.
+            if (!expectedExecutionId && resolveMissing) {
+                const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+                expectedExecutionId = stream?.turn_id ?? undefined
+            }
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId,
+            })
+            // Refresh on every answer, conflict included. A conflict means the run this tab was
+            // watching had already ended, and the session's own state is what says so.
+            void invalidateSessionInspector(queryClient, sessionId)
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            return {outcome, expectedExecutionId}
+        },
+        [projectId, sessionId, queryClient],
+    )
 
     const handleStop = useCallback(() => {
-        markStopped()
-        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
-        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
-        liveGateInteractionRef.current = null
-        stop() // abort the client stream immediately
-        if (!projectId || !sessionId) return
+        if (stopping) return
+        dispatchStop({type: "request"})
+        if (!projectId || !sessionId) {
+            dispatchStop({type: "failed"})
+            message.warning("Could not stop the run. It may still be running.")
+            return
+        }
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
         if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
+                        dispatchStop({type: "accepted"})
+                        liveGateInteractionRef.current = null
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                         // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
                         // kill immediately (mirrors the panel's own Kill button).
                         void invalidateSessionInspector(queryClient, sessionId)
+                    } else {
+                        dispatchStop({type: "failed"})
+                        message.warning("Could not stop the run. It may still be running.")
                     }
                 })
-                .catch(() => {})
+                .catch((error: unknown) => {
+                    dispatchStop({type: "failed"})
+                    message.warning(
+                        error instanceof Error
+                            ? error.message
+                            : "Could not stop the run. It may still be running.",
+                    )
+                })
             return
         }
-        // Default Stop: cancel the CURRENT EXECUTION and keep the session warm. The API records a
-        // durable command and reaches the runner directly, so the turn stops in seconds instead of
-        // on the next heartbeat, and the sandbox and native harness session survive for the next
-        // message. This is not a kill: the session stays open and resumable.
+        // Keep this stream attached until a terminal event proves cancellation completed.
+        // The durable cancel route records the command and reaches the runner directly; the runner
+        // closes the turn as interrupted while the session and warm sandbox stay resumable.
         //
-        // `POST /sessions/streams/` with the cancel mode still works and still carries the same
-        // late-Stop guard, for callers that have not moved. The desktop uses the new route because
-        // it is the one that reaches the runner without waiting for a heartbeat.
-        void stopCurrentExecution()
-    }, [markStopped, stop, projectId, sessionId, queryClient, stopCurrentExecution])
+        // The outcome is read, not discarded. A Stop that the server refuses used to be invisible:
+        // the call was fire-and-forget and `callFern` swallowed the error, so the transcript said
+        // "Stopped" while the run kept going and billing. A refusal means the turn the user was
+        // watching had already ended and another turn holds the session, so the local "Stopped"
+        // marker is withdrawn and the liveness poll re-reads the truth.
+        // Name the turn when this browser knows it. An absent id means the stream never carried
+        // one (a runner without the admission change), and the server falls back to its own
+        // arrival-time check — the behavior before this existed.
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = isRetry
+        void stopCurrentExecution(expectedExecutionId, !isRetry)
+            .then(({outcome, expectedExecutionId: resolvedExecutionId}) => {
+                expectedStopExecutionIdRef.current = resolvedExecutionId
+                if (outcome?.accepted && !outcome.conflict) {
+                    dispatchStop({type: "accepted"})
+                    if (abortAfterAcceptedRef.current) {
+                        stop()
+                        dispatchStop({type: "terminal"})
+                    }
+                    liveGateInteractionRef.current = null
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                if (outcome && !outcome.conflict) {
+                    abortAfterAcceptedRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                    dispatchStop({type: "already_idle"})
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                abortAfterAcceptedRef.current = false
+                dispatchStop({type: "failed"})
+                message.warning(
+                    outcome?.conflict
+                        ? "That run had already ended. The session is running a newer turn."
+                        : "Could not stop the run. It may still be running.",
+                )
+                queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            })
+            .catch((error: unknown) => {
+                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                abortAfterAcceptedRef.current = false
+                dispatchStop({type: "failed"})
+                message.warning(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+    }, [stopping, projectId, sessionId, queryClient, stop, stopCurrentExecution])
+
+    useEffect(() => {
+        if (stopPhase !== "accepted") return
+        const timer = setTimeout(() => {
+            retryStopRef.current = true
+            abortAfterAcceptedRef.current = false
+            dispatchStop({type: "timeout"})
+        }, 30_000)
+        return () => clearTimeout(timer)
+    }, [stopPhase])
+
+    const previousBusyRef = useRef(busy)
+    useEffect(() => {
+        const wasBusy = previousBusyRef.current
+        previousBusyRef.current = busy
+        if (wasBusy && !busy) {
+            retryStopRef.current = false
+            dispatchStop({type: "terminal"})
+        }
+        if (!wasBusy && busy) dispatchStop({type: "reset"})
+    }, [busy])
+
+    useEffect(() => {
+        if (stopPhase !== "stopped") return
+        const last = messagesRef.current[messagesRef.current.length - 1]
+        if (last?.role === "assistant") setStopped(true)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        dispatchStop({type: "reset"})
+    }, [stopPhase])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it
@@ -612,6 +695,7 @@ export const useAgentChatSession = ({
         hydratedEmpty,
         runningElsewhere,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,

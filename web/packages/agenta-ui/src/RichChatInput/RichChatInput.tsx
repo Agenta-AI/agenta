@@ -92,7 +92,9 @@ export interface RichChatInputProps {
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
     streaming?: boolean
-    /** Abort the in-flight stream (used while `streaming`). */
+    /** Disable the Stop control while its durable request is settling. */
+    stopping?: boolean
+    /** Request a durable stop (used while `streaming`). */
     onStop?: () => void
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
@@ -155,6 +157,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             sendDisabled,
             hideSendButton,
             streaming,
+            stopping,
             onStop,
             minHeightClassName = "min-h-[72px]",
             size = "compact",
@@ -346,6 +349,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     disabledReason={sendDisabledReason}
                                     streaming={streaming}
                                     onStop={onStop}
+                                    stopping={stopping}
                                 />
                             )}
                             {trailing}
