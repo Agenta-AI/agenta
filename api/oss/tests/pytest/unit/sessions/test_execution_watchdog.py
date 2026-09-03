@@ -28,6 +28,7 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
     ORPHAN_THRESHOLD_SECONDS,
+    IDLE_THRESHOLD_SECONDS,
     run_orphan_sweep,
 )
 
@@ -79,7 +80,42 @@ class _FakePgSession:
         self.commits = 0
 
     async def execute(self, stmt):
-        return _FakeResult(self._rows)
+        # Evaluate the sweep's two selections the way Postgres would, so a test can tell a
+        # collapsed row from one that only owed an ending. The ending-only statement is the
+        # one that filters on `turn_id IS NOT NULL`; the first statement carries the OR of
+        # the running and idle branches.
+        text = str(stmt)
+        now = datetime.now(timezone.utc)
+
+        def age(row):
+            return (now - (row.updated_at or row.created_at)).total_seconds()
+
+        if "IS NOT NULL" in text:
+            rows = [
+                r
+                for r in self._rows
+                if r.flags.get("is_alive") is True
+                and r.flags.get("is_running") is not True
+                and r.turn_id is not None
+                and age(r) > ORPHAN_THRESHOLD_SECONDS
+            ]
+        else:
+            rows = [
+                r
+                for r in self._rows
+                if r.flags.get("is_alive") is True
+                and (
+                    (
+                        r.flags.get("is_running") is True
+                        and age(r) > ORPHAN_THRESHOLD_SECONDS
+                    )
+                    or (
+                        r.flags.get("is_running") is not True
+                        and age(r) > IDLE_THRESHOLD_SECONDS
+                    )
+                )
+            ]
+        return _FakeResult(rows)
 
     async def commit(self):
         self.commits += 1
@@ -113,6 +149,19 @@ class _FakeRedis:
 
     async def expire(self, key, ttl):
         return True
+
+    async def eval(self, script, numkeys, key, value):
+        # The one script the sweep runs is release-if-owner: delete the key when its value
+        # is the caller's turn id, answer 1, else 0. Keys arrive as bytes.
+        k = key.decode() if isinstance(key, bytes) else key
+        v = value.decode() if isinstance(value, bytes) else value
+        current = self._store.get(k)
+        if isinstance(current, bytes):
+            current = current.decode()
+        if current == v:
+            self._store.pop(k, None)
+            return 1
+        return 0
 
 
 class _FakeRecordsService:
@@ -449,10 +498,15 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
         age_seconds=ORPHAN_THRESHOLD_SECONDS + 30,
     )
     publisher = _Publisher()
+    redis = _FakeRedis()
+    # Settlement leaves `alive` to its TTL, so the dead turn still holds the session's
+    # alive lock when the sweep runs; the SEND gate reads that lock.
+    alive_key = f"alive:{row.project_id}:session:{row.session_id}"
+    redis._store[alive_key] = b"turn-stopped"
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
-        _FakeRedis(),
+        redis,
         records_service=_FakeRecordsService(),
         publish=publisher,
     )
@@ -461,3 +515,29 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
         "a stopped turn whose runner never wrote an ending must be given one"
     )
     assert all(event.turn_id == "turn-stopped" for event in publisher.published)
+    assert alive_key not in redis._store, (
+        "the dead turn's alive lock must be released, or the next Send is refused for an hour"
+    )
+    assert row.flags["is_alive"] is True, "the stopped row itself is not collapsed"
+
+
+async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backend):
+    """Release is owner-checked: if a newer turn already holds `alive`, leave it alone."""
+    row = _FakeRow(
+        session_id="sess-stopped",
+        turn_id="turn-stopped",
+        is_running=False,
+        age_seconds=ORPHAN_THRESHOLD_SECONDS + 30,
+    )
+    redis = _FakeRedis()
+    alive_key = f"alive:{row.project_id}:session:{row.session_id}"
+    redis._store[alive_key] = b"turn-newer"
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=_Publisher(),
+    )
+
+    assert redis._store.get(alive_key) == b"turn-newer"
