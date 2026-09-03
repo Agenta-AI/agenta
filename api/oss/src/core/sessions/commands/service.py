@@ -329,13 +329,25 @@ class SessionCommandsService:
         """A reachable runner said it does not hold this session. Two different things look
         alike here, and the user must not be told the wrong one.
 
-        A `not_held` for a session whose row says alive with a FRESH heartbeat means some
-        process is running that session and it is not the one we called. Nothing else produces
-        that. Settle it `lost`, so the user learns the Stop failed, and log it at error level.
-        Otherwise the session really has ended, and `not_running` is the honest answer.
+        `running` is the discriminator, not the heartbeat. A `not_held` while SOME execution
+        holds `running` means a process is executing this session and it is not the one we
+        called. Settle that `lost`, so the user learns the Stop failed, and log it at error
+        level.
+
+        With no `running` execution anywhere, nothing is executing and the work the user meant
+        to stop is over. That is the everyday case: the turn ended a moment before the Stop
+        arrived, the runner had already dropped it, and the answer is `not_running`. Judging it
+        on the heartbeat instead called every one of those a failed Stop, because a turn that
+        has just ended leaves `alive` set and a fresh beat behind it, exactly as a running one
+        does.
         """
         outcome = SessionCommandOutcome.not_running
-        if await self._session_is_beating(
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+        )
+        if running_owner is not None and await self._session_is_beating(
             project_id=command.project_id, session_id=command.session_id
         ):
             outcome = SessionCommandOutcome.lost
@@ -347,13 +359,14 @@ class SessionCommandsService:
                 session_id=command.session_id,
             )
             log.error(
-                "control delivery: the runner answered not_held for session=%s while its row "
-                "is alive and beating. Some process is running that session and it is not the "
-                "one we called, so this deployment has more than one runner replica and the "
-                "direct adapter cannot route to it. Settling the command lost, so the user is "
-                "told the Stop failed rather than that the work had already finished. "
-                "command=%s target_turn=%s owner_replica=%s",
+                "control delivery: the runner answered not_held for session=%s while "
+                "execution %s holds `running` and the row is beating. A process is executing "
+                "that session and it is not the one we called, so this deployment has more "
+                "than one runner replica and the direct adapter cannot route to it. Settling "
+                "the command lost, so the user is told the Stop failed rather than that the "
+                "work had already finished. command=%s target_turn=%s owner_replica=%s",
                 command.session_id,
+                running_owner,
                 command.id,
                 command.target_turn_id,
                 owner or "unknown",

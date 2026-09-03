@@ -11,6 +11,9 @@
  *  3. A session it holds parked awaiting an approval answers `not_running` and stays parked.
  *     Stop ends the work, not the session.
  *  4. The same command delivered twice aborts once and acknowledges twice.
+ *  5. It aborts NOTHING when the named execution's prompt has already settled and only its
+ *     teardown is still running. That Stop lost the race by a moment, and aborting a finished
+ *     run would destroy the warm environment teardown was about to park.
  */
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "vitest";
@@ -29,6 +32,7 @@ import {
 } from "../../src/sessions/stop-signal.ts";
 import {
   findExecution,
+  noteExecutionSettled,
   registerExecution,
   resetExecutionsForTest,
   noteExecutionProject,
@@ -241,6 +245,67 @@ describe("applyCommand", () => {
     );
   });
 
+  it("aborts nothing when the named execution's prompt has already settled", async () => {
+    // The race the user cannot see: the answer lands, they press Stop a moment later, and the
+    // entry is still registered because teardown is writing the transcript and parking the
+    // sandbox. Aborting here stops nothing and makes teardown destroy a healthy environment.
+    const { execution, aborts } = liveRun({ settled: true });
+    const { reported, report } = collector();
+
+    const outcome = await applyCommand(command(), {
+      findLive: () => execution,
+      report,
+    });
+
+    assert.equal(aborts.length, 0, "a finished run must not be aborted");
+    assert.equal(outcome.result, "obsolete", "the command stopped nothing");
+    assert.equal(outcome.execution.state, "not_running");
+    assert.equal(outcome.execution.id, TURN);
+    assert.deepEqual(reported, [outcome], "and it still acknowledges");
+  });
+
+  it("still aborts an execution whose prompt has NOT settled", async () => {
+    // The guard must be the flag and not the mere presence of teardown, or every Stop becomes
+    // a no-op and Stop stops working.
+    const { execution, aborts } = liveRun({ settled: false });
+    const { report } = collector();
+
+    const outcome = await applyCommand(command(), {
+      findLive: () => execution,
+      report,
+    });
+
+    assert.equal(aborts.length, 1);
+    assert.equal(outcome.execution.state, "stopped");
+  });
+
+  it("parks the environment of a finished turn that a late Stop did not abort", () => {
+    // The consequence the fix exists for, stated as the teardown sees it. No abort means no
+    // aborted signal, so a normally finished turn takes the ordinary park path.
+    const controller = new AbortController();
+    assert.equal(
+      shouldPark(
+        { ok: true, stopReason: "end_turn" } as never,
+        controller.signal,
+        undefined,
+      ),
+      true,
+      "an un-aborted, cleanly finished turn parks",
+    );
+    // And this is what used to happen instead: the late abort fired, and the same finished
+    // turn was destroyed rather than parked.
+    controller.abort(USER_STOP_ABORT_REASON);
+    assert.equal(
+      shouldPark(
+        { ok: true, stopReason: "end_turn" } as never,
+        controller.signal,
+        undefined,
+      ),
+      false,
+      "which is why the applier must not abort a settled run",
+    );
+  });
+
   it("reports the cancel as failed when the abort itself throws", async () => {
     const execution: LiveExecution = {
       projectId: PROJECT,
@@ -299,6 +364,24 @@ describe("the execution registry", () => {
     noteExecutionProject(SESSION, "turn-1", "some-other-project");
 
     assert.equal(findExecution(PROJECT, SESSION)?.projectId, undefined);
+  });
+
+  it("marks only the turn it names as settled", () => {
+    registerExecution({
+      projectId: PROJECT,
+      sessionId: SESSION,
+      turnId: TURN,
+      startedAt: 900,
+      abort: () => {},
+    });
+
+    // A late callback from a turn that has already been replaced must not mark the successor
+    // finished, which would make every Stop on the live turn a no-op.
+    noteExecutionSettled(SESSION, "some-older-turn");
+    assert.equal(findExecution(PROJECT, SESSION)?.settled, undefined);
+
+    noteExecutionSettled(SESSION, TURN);
+    assert.equal(findExecution(PROJECT, SESSION)?.settled, true);
   });
 
   it("does not let a finished turn unregister its successor", () => {

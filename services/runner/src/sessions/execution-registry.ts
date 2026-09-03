@@ -43,6 +43,16 @@ export interface LiveExecution {
   turnId: string;
   /** When this process started the run, in epoch milliseconds. */
   startedAt: number;
+  /**
+   * True once the harness prompt has settled, whatever it settled as.
+   *
+   * The entry stays registered through teardown, which writes the transcript, exports the
+   * trace and decides whether to park, and that takes hundreds of milliseconds. A Stop that
+   * arrives in that window has nothing left to abort, and aborting anyway is actively harmful:
+   * the abort makes teardown read the run as cancelled-but-unsettled and DESTROY a healthy
+   * environment that was about to be parked. So the applier reads this flag and does nothing.
+   */
+  settled?: boolean;
   /** Stop the run. Aborting is what makes the turn end `cancelled`. */
   abort: () => void;
 }
@@ -69,6 +79,19 @@ export function noteExecutionProject(
 ): void {
   const current = executions.get(sessionId);
   if (current && current.turnId === turnId) current.projectId = projectId;
+}
+
+/**
+ * Mark a run's own work as finished, the moment the harness prompt settles and before teardown
+ * begins. Scoped to the turn id for the same reason `noteExecutionProject` is: a late callback
+ * from a finished run must not relabel its successor.
+ *
+ * Set from inside the turn, not from the request handler that awaits it, because the harmful
+ * window is exactly the teardown that runs between those two points.
+ */
+export function noteExecutionSettled(sessionId: string, turnId: string): void {
+  const current = executions.get(sessionId);
+  if (current && current.turnId === turnId) current.settled = true;
 }
 
 /**
