@@ -38,7 +38,11 @@ Draft requirements:
   parked is an open contract question that must be resolved against every liveness consumer.
 - Every accepted execution reaches exactly one durable terminal outcome.
 - The sender and every other reader see the same terminal outcome.
-- Runner, sandbox, provider, tool, and adapter failures cannot leave an unbounded running state.
+- Runner, sandbox, provider, tool, adapter, and record-delivery failures cannot leave an unbounded
+  running state.
+- After any terminal failure, the session accepts a new message and continues from its last
+  committed history. A failure may lose an unconfirmed tail, but it cannot make the session
+  permanently unusable or discard previously committed conversation history.
 - Normal Stop preserves the session workspace and leaves the harness session warm and resumable.
 - The runner parks a stopped sandbox only after both the harness prompt and any in-flight tool child
   processes have stopped. If a harness cannot prove that state, the runner must destroy or isolate
@@ -134,7 +138,13 @@ Draft requirements:
   durable checkpoint. That checkpoint must commit before terminal settlement.
 - Durable replay uses append-only facts with a stable cursor.
 - A detected persistence gap marks the session history incomplete.
-- The runner drains required durable writes before terminal settlement.
+- The runner gives every durable checkpoint a stable ID before its first send.
+- Temporary delivery failures retry with the same ID. A timeout has unknown outcome and also
+  retries with the same ID.
+- The runner drains required durable writes before terminal settlement for a bounded period.
+- The first version may lose an unconfirmed in-memory tail when the runner crashes. The watchdog
+  records `lost`, marks history incomplete, releases the session, and allows a new message.
+- The system never reports successful completion when durable settlement is unknown.
 
 ## Approvals and pauses
 
