@@ -16,6 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -1457,19 +1458,47 @@ export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: st
     }),
 )
 
-export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
-    atom<boolean>(true),
-)
-
 /** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
 export interface BuildKitUiState {
     enabled: boolean
     disabledOps: string[]
 }
 
-/** Platform ops switched off individually, by `op`. Empty = all on. In-memory like the master flag. */
-export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string[]>([]),
+const DEFAULT_BUILD_KIT_UI_STATE: BuildKitUiState = {enabled: true, disabledOps: []}
+
+/**
+ * The build-kit UI state per revision, persisted so an individually switched-off tool (or the
+ * master off) survives a page reload (#6493). One localStorage record keyed by revision id, the
+ * scoped-persistence pattern; the two atom families below expose per-revision read/write access.
+ */
+const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+    "agenta:playground:build-kit",
+    {},
+    undefined,
+    {getOnInit: true},
+)
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => get(buildKitUiStateByRevisionAtom)[revisionId]?.enabled ?? true,
+        (get, set, next: boolean) => {
+            const all = get(buildKitUiStateByRevisionAtom)
+            const prev = all[revisionId] ?? DEFAULT_BUILD_KIT_UI_STATE
+            set(buildKitUiStateByRevisionAtom, {...all, [revisionId]: {...prev, enabled: next}})
+        },
+    ),
+)
+
+/** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
+export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => get(buildKitUiStateByRevisionAtom)[revisionId]?.disabledOps ?? [],
+        (get, set, next: string[]) => {
+            const all = get(buildKitUiStateByRevisionAtom)
+            const prev = all[revisionId] ?? DEFAULT_BUILD_KIT_UI_STATE
+            set(buildKitUiStateByRevisionAtom, {...all, [revisionId]: {...prev, disabledOps: next}})
+        },
+    ),
 )
 
 /**
