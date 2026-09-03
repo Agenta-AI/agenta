@@ -38,6 +38,7 @@ import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 import TableCellResizerPlugin from "./TableCellResizerPlugin"
 import {importMarkdownWithHtmlBatches} from "./utils/htmlImport"
+import {looksLikeMarkdown} from "./utils/paste"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -404,6 +405,34 @@ const MarkdownPlugin = ({
                     })
 
                     return true
+                }
+
+                if (clipboardPlainText && looksLikeMarkdown(clipboardPlainText)) {
+                    let shouldRenderMarkdown = false
+                    editor.getEditorState().read(() => {
+                        const root = $getRoot()
+                        const firstChild = root.getFirstChild()
+                        const isMarkdownSource =
+                            $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+                        const isEmpty =
+                            root.getChildrenSize() === 0 ||
+                            (root.getChildrenSize() === 1 && firstChild?.getTextContent() === "")
+                        shouldRenderMarkdown = !isMarkdownSource && isEmpty
+                    })
+
+                    if (shouldRenderMarkdown) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        editor.update(() => {
+                            $convertFromMarkdownString(
+                                clipboardPlainText,
+                                PLAYGROUND_TRANSFORMERS,
+                                undefined,
+                                true,
+                            )
+                        })
+                        return true
+                    }
                 }
 
                 const htmlData = event.clipboardData?.getData("text/html")
