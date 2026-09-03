@@ -34,6 +34,7 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
+import {isQuoteReplyEnabled, useQuoteSource} from "@agenta/ui/quote-selection"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -127,6 +128,19 @@ const TurnRowInner = ({
         .map((part) => (part as {text?: string}).text ?? "")
         .join("\n")
         .trim()
+
+    // Quoting is offered on settled answers only; mid-stream the text is still being written.
+    const quotable = !turn.isUser && !turn.isStreamingTurn && isQuoteReplyEnabled()
+    useQuoteSource(quotable ? `msg:${turn.message.id}` : null, copyText)
+    const quoteProps = quotable
+        ? ({
+              "data-quotable": "true",
+              "data-quote-kind": "message",
+              "data-quote-source": `msg:${turn.message.id}`,
+              "data-quote-message-id": turn.message.id,
+              "data-quote-label": "Agent reply",
+          } as const)
+        : undefined
 
     const footer = {
         messageId: turn.message.id,
@@ -227,12 +241,14 @@ const TurnRowInner = ({
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (
-                <AnswerReveal animate={live}>
-                    <AssistantMarkdown
-                        streaming={isLiveTextItem(turn, activity.answerIndex)}
-                        text={activity.answer.text}
-                    />
-                </AnswerReveal>
+                <div {...quoteProps}>
+                    <AnswerReveal animate={live}>
+                        <AssistantMarkdown
+                            streaming={isLiveTextItem(turn, activity.answerIndex)}
+                            text={activity.answer.text}
+                        />
+                    </AnswerReveal>
+                </div>
             ) : null}
             {errorText ? (
                 <RunErrorCallout
