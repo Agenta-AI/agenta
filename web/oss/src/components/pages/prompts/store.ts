@@ -7,11 +7,7 @@
  */
 
 import type {Workflow} from "@agenta/entities/workflow"
-import {
-    ensureAgentFlags,
-    queryWorkflows,
-    selectNonAgentWorkflows,
-} from "@agenta/entities/workflow"
+import {ensureAgentFlags, queryWorkflows, selectNonAgentWorkflows} from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
