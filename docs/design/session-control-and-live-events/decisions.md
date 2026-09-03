@@ -143,6 +143,14 @@ incomplete, releases the session, and allows the user to continue from the last 
 The first version does not add a persistent runner spool. Clean failure and continued session use
 take priority over preserving unconfirmed output.
 
+### Reject output after terminal settlement
+
+A committed terminal outcome closes that execution's session history. The API rejects later
+non-terminal records with a non-retryable `execution_terminal` conflict. The runner stops
+sending output for that execution. The API records diagnostic logs and metrics but does not add a
+permanent quarantine table in version one. A watchdog-lost execution is already marked incomplete,
+and the session remains available for a new message.
+
 ### Use one client reducer
 
 Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
@@ -161,8 +169,8 @@ Durable checkpoints replace those previews.
 8. Final public endpoint names.
 9. Confirm Spike D covered every intentional progressive record update before any immutable-record
    migration.
-10. Confirm the exact API response contract for retryable delivery failure, duplicate success,
-    conflicting payload, and output after terminal settlement.
+10. Confirm the remaining API status codes and payload fields for retryable delivery failure,
+    duplicate success, conflicting payload, and `execution_terminal`.
 11. Verify every current liveness consumer implements the confirmed post-Stop `running` and
    `alive` contract.
 
