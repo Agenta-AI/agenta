@@ -35,10 +35,8 @@ export function buildCommitSummaryMessage(sections: ChangeSection[]): string {
     for (const section of sections) {
         switch (section.id) {
             case "tools":
-                phrases.push(itemsPhrase(section, "tool"))
-                break
             case "subagents":
-                phrases.push(itemsPhrase(section, "subagent"))
+                phrases.push(itemsPhrase(section, section.noun ?? "tool"))
                 break
             case "instructions":
                 phrases.push("edited the instructions")

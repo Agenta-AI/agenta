@@ -96,6 +96,7 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
 function toolsSection(
     id: "tools" | "subagents",
     title: string,
+    noun: string,
     localTools: NormalizedTool[],
     remoteTools: NormalizedTool[],
 ): ChangeSection | null {
@@ -163,6 +164,7 @@ function toolsSection(
     return {
         id,
         title,
+        noun,
         tags,
         totalCount: total,
         defaultCollapsed: total > 20,
@@ -328,6 +330,9 @@ const subagents = (v: AgentConfigView) => v.tools.filter((t) => t.isSubagent)
 export function classifyAgentChanges(localParams: unknown, remoteParams: unknown): ChangeSection[] {
     const local = readAgentConfig(localParams)
     const remote = readAgentConfig(remoteParams)
+    // The agent panel calls them Integrations; the prompt playground has plain tools.
+    const asAgent = local.isAgentTemplate || remote.isAgentTemplate
+    const [toolsTitle, toolsNoun] = asAgent ? ["Integrations", "integration"] : ["Tools", "tool"]
     // Grouped to mirror the agent-template control sections (Model & harness, Instructions,
     // Tools, Subagents, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
     return [
@@ -338,8 +343,8 @@ export function classifyAgentChanges(localParams: unknown, remoteParams: unknown
             modelHarnessBucket(remote),
         ),
         instructionsSection(local, remote),
-        toolsSection("tools", "Tools", tools(local), tools(remote)),
-        toolsSection("subagents", "Subagents", subagents(local), subagents(remote)),
+        toolsSection("tools", toolsTitle, toolsNoun, tools(local), tools(remote)),
+        toolsSection("subagents", "Subagents", "subagent", subagents(local), subagents(remote)),
         listSection("mcps", "MCPs", local.mcps, remote.mcps),
         listSection("skills", "Skills", local.skills, remote.skills),
         scalarSection("params", "Advanced", advancedBucket(local), advancedBucket(remote)),

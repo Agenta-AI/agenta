@@ -73,6 +73,8 @@ export interface TextDiff {
 export interface ChangeSection {
     id: SectionId
     title: string
+    /** Singular noun for the commit message ("integration"). Defaults to a section-wide fallback. */
+    noun?: string
     tags: ChangeTag[]
     /** Total change count in this section — drives caps / collapse defaults. */
     totalCount: number
@@ -105,6 +107,8 @@ export interface NormalizedTool {
 }
 
 export interface AgentConfigView {
+    /** An agent template, not a prompt variant — the two name the same sections differently. */
+    isAgentTemplate: boolean
     instructions: string
     tools: NormalizedTool[]
     model: string | undefined

@@ -15,7 +15,7 @@ import {useMemo, useState} from "react"
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
-import {ArrowLeft, ChatText, Code, PencilSimple} from "@phosphor-icons/react"
+import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
 
 import {
     CARD,
@@ -23,6 +23,7 @@ import {
     DetailCard,
     HunkRows,
     LINK_BTN,
+    SECTION_ICON,
     StatusTags,
     kindIcon,
     kindStyle,
@@ -166,7 +167,9 @@ export default function AgentChangesSummary({
                         onCollapse={collapseDetail}
                         head={
                             <>
-                                <ChatText className={textColors.secondary} />
+                                <span className={textColors.secondary}>
+                                    {SECTION_ICON.instructions}
+                                </span>
                                 <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
                                     Instructions
                                 </span>

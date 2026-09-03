@@ -263,6 +263,11 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
     const skills = firstArray(agent?.skills, p.skills)
 
     return {
+        // The prompt playground shares this classifier but not the agent panel's vocabulary.
+        isAgentTemplate:
+            !!agent ||
+            agentsMd !== undefined ||
+            ["harness", "runner", "sandbox", "mcps", "skills"].some((k) => p[k] !== undefined),
         instructions,
         tools,
         model,

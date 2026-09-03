@@ -161,6 +161,29 @@ describe("subagents get their own section, named the way the config panel names 
     })
 })
 
+describe("the tools section is named the way its own playground names it", () => {
+    const one = (params: Record<string, unknown>, before: Record<string, unknown>) =>
+        classifyAgentChanges(params, before).find((s) => s.id === "tools")
+
+    it("calls them Integrations for an agent template, matching the config panel", () => {
+        const section = one(
+            {agent: {tools: [{function: {name: "send_email", parameters: {}}}]}},
+            {agent: {tools: []}},
+        )
+        expect(section?.title).toBe("Integrations")
+        expect(buildCommitSummaryMessage(section ? [section] : [])).toBe("Added 1 integration.")
+    })
+
+    it("keeps them Tools for a prompt variant, which has no integrations", () => {
+        const section = one(
+            {prompt: {llm_config: {tools: [{type: "web_search"}]}}},
+            {prompt: {llm_config: {tools: []}}},
+        )
+        expect(section?.title).toBe("Tools")
+        expect(buildCommitSummaryMessage(section ? [section] : [])).toBe("Added 1 tool.")
+    })
+})
+
 describe("advanced settings read as settings, not as JSON paths", () => {
     // Regression: the row printed the storage path and the stored enum verbatim.
     const advanced = (params: Record<string, unknown>) =>

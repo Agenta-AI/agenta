@@ -122,7 +122,8 @@ const sections: ChangeSection[] = [
     },
     {
         id: "tools",
-        title: "Tools",
+        title: "Integrations",
+        noun: "integration",
         tags: [
             {kind: "added", label: "1 added"},
             {kind: "removed", label: "2 removed"},
@@ -133,6 +134,14 @@ const sections: ChangeSection[] = [
             {id: "t2", label: "Write", kind: "removed"},
             {id: "t3", label: "Fetch", kind: "removed"},
         ],
+    },
+    {
+        id: "subagents",
+        title: "Subagents",
+        noun: "subagent",
+        tags: [{kind: "added", label: "1 added"}],
+        totalCount: 1,
+        items: [{id: "s1", label: "hourly-news", kind: "added"}],
     },
 ]
 

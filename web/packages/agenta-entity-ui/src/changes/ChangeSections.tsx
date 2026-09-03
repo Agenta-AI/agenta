@@ -23,17 +23,17 @@ import {
     ArrowRight,
     CaretDown,
     CaretRight,
-    ChatText,
     Cpu,
     DotsThree,
+    FileText,
+    GraduationCap,
     Minus,
     PencilSimple,
-    PlugsConnected,
+    Plugs,
     Plus,
+    PuzzlePiece,
     Robot,
-    Sparkle,
     SlidersHorizontal,
-    Wrench,
 } from "@phosphor-icons/react"
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
@@ -89,13 +89,14 @@ export const LINK_BTN = cn(
     "hover:text-[var(--ag-colorText)]",
 )
 
+/** One per config-panel accordion section, so the diff and the panel read as the same thing. */
 export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
-    tools: <Wrench />,
+    tools: <PuzzlePiece />,
     subagents: <Robot />,
-    instructions: <ChatText />,
+    instructions: <FileText />,
     model: <Cpu />,
-    mcps: <PlugsConnected />,
-    skills: <Sparkle />,
+    mcps: <Plugs />,
+    skills: <GraduationCap />,
     params: <SlidersHorizontal />,
 }
 
