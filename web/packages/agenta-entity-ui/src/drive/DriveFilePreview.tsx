@@ -1,15 +1,17 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {META_REVEAL} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
+import {isQuoteReplyEnabled, QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
+import {useDriveSessionId} from "./driveSessionContext"
 import {DriveFileContentViewer, DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
@@ -52,6 +54,10 @@ export const DriveFilePreview = ({
 }) => {
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
+    // Quote-to-reply is offered only inside a conversation — elsewhere there is nothing to reply
+    // into, so the pill never appears and the browser's own Copy is all there is.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
+    const quoteSessionId = useDriveSessionId()
     const [metaExpanded, setMetaExpanded] = useState(false)
     const metaOpen = hideHeader ? Boolean(detailsOpen) : metaExpanded
 
@@ -138,7 +144,12 @@ export const DriveFilePreview = ({
                 </div>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
+            <div ref={quoteRootRef} className="relative flex min-h-0 flex-1 flex-col p-4 pt-3">
+                <QuoteSelectionLayer
+                    rootRef={quoteRootRef}
+                    sessionId={quoteSessionId}
+                    enabled={isQuoteReplyEnabled()}
+                />
                 <DriveFileContentViewer
                     mount={mount}
                     path={path}
