@@ -475,8 +475,8 @@ describe("classifyAgentChanges", () => {
         })
     })
 
-    it("agent-template: llm connection-mode change lands in Model & harness, not Advanced", () => {
-        // Connection-mode selection lives in the Model & harness drawer now, so its diff must
+    it("agent-template: llm connection-mode change lands in Model, not Advanced", () => {
+        // Connection-mode selection lives in the Model drawer now, so its diff must
         // classify there — not in Advanced (which would show it under the wrong section).
         const remote = {
             agent: {llm: {model: "opus", provider: "anthropic", connection: {mode: "agenta"}}},
@@ -490,7 +490,7 @@ describe("classifyAgentChanges", () => {
         // No params changed → no Advanced section.
         expect(sections.find((s) => s.id === "params")).toBeUndefined()
         const modelHarness = sections.find((s) => s.id === "model")
-        expect(modelHarness?.title).toBe("Model & harness")
+        expect(modelHarness?.title).toBe("Model")
         expect(modelHarness?.scalarChanges).toContainEqual({
             key: "llm.connection.mode",
             label: "Connection mode",
@@ -502,7 +502,7 @@ describe("classifyAgentChanges", () => {
         })
     })
 
-    it("agent-template: a model-only change stays in Model & harness (no Advanced leak)", () => {
+    it("agent-template: a model-only change stays in Model (no Advanced leak)", () => {
         const remote = {agent: {llm: {model: "opus", provider: "anthropic"}}}
         const local = {agent: {llm: {model: "opus[1m]", provider: "anthropic"}}}
         const sections = classifyAgentChanges(local, remote)
@@ -526,12 +526,12 @@ describe("classifyAgentChanges", () => {
         expect(advanced?.scalarChanges?.map((c) => c.key)).toEqual(["runner.kind", "sandbox.kind"])
     })
 
-    it("agent-template: harness kind change lands in Model & harness", () => {
+    it("agent-template: harness kind change lands in Model", () => {
         const remote = {agent: {harness: {kind: "pi_core"}, llm: {model: "gpt-4o"}}}
         const local = {agent: {harness: {kind: "claude"}, llm: {model: "gpt-4o"}}}
         const sections = classifyAgentChanges(local, remote)
         const mh = sections.find((s) => s.id === "model")
-        expect(mh?.title).toBe("Model & harness")
+        expect(mh?.title).toBe("Model")
         expect(mh?.scalarChanges).toContainEqual({
             key: "harness.kind",
             label: "Harness",
@@ -642,7 +642,7 @@ describe("buildCommitSummaryMessage", () => {
                 llm_config: {model: "claude-opus-4-8", tools: [tool("gmail_send")]},
             },
         }
-        // Ordered to mirror the config panel: Model & harness, Instructions, …, Tools.
+        // Ordered to mirror the config panel: Model, Instructions, …, Tools.
         const msg = buildCommitSummaryMessage(classifyAgentChanges(local, base))
         expect(msg).toBe(
             "Changed the model to claude-opus-4-8, edited the instructions, and added 1 tool.",

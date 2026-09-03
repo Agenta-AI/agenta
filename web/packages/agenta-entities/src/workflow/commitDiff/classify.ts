@@ -244,9 +244,9 @@ function prefixed(
 }
 
 /**
- * Model & harness — the model identity (`llm.model`), all of `llm` (provider + connection/auth),
- * and the harness engine (`harness.kind`), mirroring the config panel's "Model & harness" control
- * section, which now owns connection-mode UI too.
+ * Model — the model identity (`llm.model`), all of `llm` (provider + connection/auth), and the
+ * harness engine (`harness.kind`), mirroring the config panel's "Model" section, which owns the
+ * harness and connection-mode UI too.
  */
 function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
@@ -259,7 +259,7 @@ function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
 /**
  * Advanced — everything the config panel *artificially groups* under "Advanced", which lives in
  * several JSON locations: generation params, the runner/sandbox execution sections, and the
- * harness's non-`kind` knobs (e.g. permissions). `llm` in full belongs to Model & harness.
+ * harness's non-`kind` knobs (e.g. permissions). `llm` in full belongs to Model.
  */
 function advancedBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
@@ -333,15 +333,10 @@ export function classifyAgentChanges(localParams: unknown, remoteParams: unknown
     // The agent panel calls them Integrations; the prompt playground has plain tools.
     const asAgent = local.isAgentTemplate || remote.isAgentTemplate
     const [toolsTitle, toolsNoun] = asAgent ? ["Integrations", "integration"] : ["Tools", "tool"]
-    // Grouped to mirror the agent-template control sections (Model & harness, Instructions,
+    // Grouped to mirror the agent-template control sections (Model, Instructions,
     // Tools, Subagents, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
     return [
-        scalarSection(
-            "model",
-            "Model & harness",
-            modelHarnessBucket(local),
-            modelHarnessBucket(remote),
-        ),
+        scalarSection("model", "Model", modelHarnessBucket(local), modelHarnessBucket(remote)),
         instructionsSection(local, remote),
         toolsSection("tools", toolsTitle, toolsNoun, tools(local), tools(remote)),
         toolsSection("subagents", "Subagents", "subagent", subagents(local), subagents(remote)),

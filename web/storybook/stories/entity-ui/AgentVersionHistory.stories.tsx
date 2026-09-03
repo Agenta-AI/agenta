@@ -105,7 +105,7 @@ export const ListEmpty: ListStory = {
 const sections: ChangeSection[] = [
     {
         id: "model",
-        title: "Model & harness",
+        title: "Model",
         tags: [{kind: "changed", label: "1 changed"}],
         totalCount: 1,
         scalarChanges: [

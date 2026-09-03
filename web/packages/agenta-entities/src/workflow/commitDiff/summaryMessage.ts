@@ -46,7 +46,7 @@ export function buildCommitSummaryMessage(sections: ChangeSection[]): string {
                 const to = section.scalarChanges?.find(
                     (c) => c.key === "llm.model" || c.key === "model",
                 )?.after
-                phrases.push(to ? `changed the model to ${to}` : "updated the model & harness")
+                phrases.push(to ? `changed the model to ${to}` : "updated the model")
                 break
             }
             case "mcps":
