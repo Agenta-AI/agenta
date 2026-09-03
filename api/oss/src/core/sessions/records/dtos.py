@@ -10,6 +10,21 @@ from oss.src.core.shared.dtos import Lifecycle, OTelSpanId
 # just keeps the DTO honest about that contract for any other producer.
 SESSION_MESSAGE_PREVIEW_TEXT_LIMIT = 240
 
+# The runner's terminal per-turn record type, mirrored from
+# services/runner/src/protocol.ts (`{ type: "done" }`). Also spelled in the records DAO and
+# the ingest worker, which read the same marker off their own layers.
+TERMINAL_RECORD_TYPE = "done"
+
+# Who wrote a terminal record, stamped into `attributes` by the writer.
+#
+# Only the platform ever sets it: the ingest route builds `SessionRecordEvent` field by field
+# from the request body and has no path to this key, so a runner cannot claim to be the
+# watchdog. It exists because the two endings are otherwise identical — the watchdog copies
+# the runner's `{"type": "done"}` deliberately, so one outcome never reaches a user in two
+# wordings — and the late-record guard has to tell them apart.
+RECORD_SETTLED_BY_ATTRIBUTE = "settled_by"
+SETTLED_BY_WATCHDOG = "watchdog"
+
 
 class SessionRecordEvent(BaseModel):
     project_id: UUID
@@ -26,6 +41,12 @@ class SessionRecordEvent(BaseModel):
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
 
+    # Set ONLY by the ingest guard in `RecordsService.append_many`, never by a producer: the
+    # ingest route builds this DTO field by field and never reads this one off the wire. A
+    # non-null value means the record arrived for a turn the watchdog had already ended, so it
+    # is kept as evidence and left out of the transcript. See `RecordsService.append_many`.
+    quarantined_at: Optional[datetime] = None
+
 
 class SessionRecord(Lifecycle):
     record_id: UUID
@@ -41,6 +62,11 @@ class SessionRecord(Lifecycle):
 
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+
+    # Non-null when this record was written for an already-settled turn. Reads that rebuild a
+    # transcript filter these out at the DAO; the column is exposed so support and billing can
+    # still see the work the agent did after the platform closed the turn.
+    quarantined_at: Optional[datetime] = None
 
 
 class SessionMessagePreview(BaseModel):
