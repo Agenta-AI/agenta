@@ -10,6 +10,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecord,
     SessionRecordEvent,
 )
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -30,8 +31,13 @@ def _written_by_watchdog(event: SessionRecordEvent) -> bool:
 
 
 class RecordsService:
-    def __init__(self, records_dao: RecordsDAOInterface):
+    def __init__(
+        self,
+        records_dao: RecordsDAOInterface,
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
+    ):
         self.records_dao = records_dao
+        self.executions_dao = executions_dao
 
     async def append(
         self,
@@ -67,16 +73,34 @@ class RecordsService:
         if not events:
             return []
 
-        return await self.records_dao.append_many(
-            events=await self._handle_late_events(events=events)
-        )
+        guarded = await self._handle_late_events(events=events)
+        records = await self.records_dao.append_many(events=guarded)
+        if self.executions_dao is not None and env.agenta.sessions.durable_stop:
+            terminal: Dict[UUID, Set[Tuple[str, str]]] = {}
+            for event in guarded:
+                if (
+                    event.record_type == TERMINAL_RECORD_TYPE
+                    and event.turn_id
+                    and not _written_by_watchdog(event)
+                    and event.quarantined_at is None
+                ):
+                    terminal.setdefault(event.project_id, set()).add(
+                        (event.session_id, event.turn_id)
+                    )
+            for project_id, keys in terminal.items():
+                await self.executions_dao.close_records(
+                    project_id=project_id,
+                    keys=sorted(keys),
+                    settled_by="runner",
+                )
+        return records
 
     async def _handle_late_events(
         self,
         *,
         events: List[SessionRecordEvent],
     ) -> List[SessionRecordEvent]:
-        """Stamp `quarantined_at` on every event belonging to a watchdog-settled turn.
+        """Stamp `quarantined_at` on every event belonging to a settled turn.
 
         Scoped as narrowly as the invariant allows, in three ways.
 
@@ -98,6 +122,9 @@ class RecordsService:
         A failed lookup quarantines nothing and appends everything. Losing a record is worse
         than showing one that should have been hidden, and the next delivery gets another go.
         """
+        if self.executions_dao is not None and env.agenta.sessions.durable_stop:
+            return await self._handle_by_execution_state(events=events)
+
         candidates: Dict[UUID, Set[Tuple[str, str]]] = {}
         for event in events:
             if not event.turn_id or _written_by_watchdog(event):
@@ -161,6 +188,86 @@ class RecordsService:
             if action == "reject":
                 continue
             guarded.append(event.model_copy(update={"quarantined_at": now}))
+
+        return guarded
+
+    async def _handle_by_execution_state(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecordEvent]:
+        candidates: Dict[UUID, Set[Tuple[str, str]]] = {}
+        for event in events:
+            if event.turn_id:
+                candidates.setdefault(event.project_id, set()).add(
+                    (event.session_id, event.turn_id)
+                )
+
+        if not candidates:
+            return events
+
+        for event in events:
+            if event.record_type != TERMINAL_RECORD_TYPE or not event.turn_id:
+                continue
+            settled_by = "watchdog" if _written_by_watchdog(event) else "runner"
+            attributes = event.attributes or {}
+            stop_reason = str(attributes.get("stopReason") or "").lower()
+            outcome = (
+                "lost"
+                if settled_by == "watchdog"
+                else "stopped"
+                if stop_reason in {"cancelled", "canceled"}
+                else "completed"
+            )
+            await self.executions_dao.settle(
+                project_id=event.project_id,
+                session_id=event.session_id,
+                execution_id=event.turn_id,
+                terminal_outcome=outcome,
+                settled_by=settled_by,
+                settled_at=event.timestamp,
+            )
+
+        settled = {}
+        for project_id, keys in candidates.items():
+            settled[project_id] = await self.executions_dao.query_settled(
+                project_id=project_id,
+                keys=sorted(keys),
+            )
+
+        now = datetime.now(timezone.utc)
+        guarded: List[SessionRecordEvent] = []
+        for event in events:
+            if not event.turn_id:
+                guarded.append(event)
+                continue
+            terminal = settled.get(event.project_id, {}).get(
+                (event.session_id, event.turn_id)
+            )
+            if terminal is None:
+                guarded.append(event)
+                continue
+
+            writer = "watchdog" if _written_by_watchdog(event) else "runner"
+            is_late = terminal.settled_by != writer or (
+                writer == "runner" and terminal.records_closed_at is not None
+            )
+            if not is_late:
+                guarded.append(event)
+                continue
+
+            action = env.agenta.sessions.late_output
+            log.warning(
+                "[RECORDS] %s a record for an execution that is already terminal",
+                "Rejected" if action == "reject" else "Quarantined",
+                project_id=str(event.project_id),
+                session_id=event.session_id,
+                turn_id=event.turn_id,
+                record_type=event.record_type,
+                record_id=str(event.record_id) if event.record_id else None,
+            )
+            if action == "quarantine":
+                guarded.append(event.model_copy(update={"quarantined_at": now}))
 
         return guarded
 

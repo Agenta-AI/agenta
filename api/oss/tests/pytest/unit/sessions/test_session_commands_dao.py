@@ -24,6 +24,7 @@ from oss.src.core.sessions.commands.dtos import (
 )
 from oss.src.core.sessions.commands.interfaces import SessionScope
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
@@ -592,3 +593,27 @@ async def test_delivery_attempts_are_bounded_in_the_database(command_scope):
     assert first is not None
     assert first.claim_count == 1
     assert second is None
+
+
+async def test_runner_and_watchdog_have_one_terminal_winner(command_scope):
+    dao = SessionExecutionsDAO(engine=command_scope["engine"])
+
+    runner, watchdog = await asyncio.gather(
+        dao.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="stopped",
+            settled_by="runner",
+        ),
+        dao.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="lost",
+            settled_by="watchdog",
+        ),
+    )
+
+    assert sum(result.won for result in (runner, watchdog)) == 1
+    assert runner.settlement == watchdog.settlement

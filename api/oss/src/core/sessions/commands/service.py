@@ -54,6 +54,7 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
@@ -106,12 +107,14 @@ class SessionCommandsService:
         interactions_service: SessionInteractionsService,
         lock_engine: LockEngine,
         delivery: ControlDeliveryPort,
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
     ) -> None:
         self._dao = commands_dao
         self._streams = streams_service
         self._interactions = interactions_service
         self._lock = lock_engine
         self._delivery = delivery
+        self._executions = executions_dao
 
     # -- admission ---------------------------------------------------------- #
 
@@ -503,6 +506,26 @@ class SessionCommandsService:
 
     # -- settlement --------------------------------------------------------- #
 
+    async def settle_execution_lost(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        settled_at: datetime,
+    ) -> bool:
+        if self._executions is None:
+            return True
+        result = await self._executions.settle(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome=SessionCommandOutcome.lost.value,
+            settled_by="watchdog",
+            settled_at=settled_at,
+        )
+        return result.won
+
     async def report_outcome(
         self,
         *,
@@ -577,6 +600,31 @@ class SessionCommandsService:
         The guard is what makes this idempotent: a second report finds a terminal row, changes
         nothing, and the side effects below do not run twice.
         """
+        if (
+            self._executions is not None
+            and execution_id is not None
+            and outcome in (SessionCommandOutcome.stopped, SessionCommandOutcome.lost)
+        ):
+            settled_by = (
+                "watchdog" if outcome == SessionCommandOutcome.lost else "runner"
+            )
+            stored_command = await self._dao.fetch_command(command_id=command_id)
+            if stored_command is None:
+                return None
+            execution = await self._executions.settle(
+                project_id=project_id,
+                session_id=stored_command.session_id,
+                execution_id=execution_id,
+                terminal_outcome=outcome.value,
+                settled_by=settled_by,
+            )
+            winner = execution.settlement
+            if not execution.won and (
+                winner.terminal_outcome != outcome.value
+                or winner.settled_by != settled_by
+            ):
+                return None
+
         settled = await self._dao.settle_command(
             settle=SessionCommandSettle(
                 project_id=project_id,
