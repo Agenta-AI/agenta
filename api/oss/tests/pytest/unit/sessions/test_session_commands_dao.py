@@ -242,7 +242,7 @@ async def test_a_settled_command_does_not_block_a_new_one(command_scope):
             command_id=first.id,
             state=SessionCommandState.applied,
             outcome=SessionCommandOutcome.stopped,
-            expected_state=SessionCommandState.pending,
+            expected_states=[SessionCommandState.pending],
             replica_id=None,
         )
     )
@@ -476,7 +476,7 @@ async def test_the_api_can_settle_a_pending_command_nobody_took(command_scope):
             command_id=command.id,
             state=SessionCommandState.obsolete,
             outcome=SessionCommandOutcome.not_running,
-            expected_state=SessionCommandState.pending,
+            expected_states=[SessionCommandState.pending],
             replica_id=None,
         )
     )
