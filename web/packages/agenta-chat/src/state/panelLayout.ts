@@ -55,15 +55,8 @@ export const configPanelCollapsedPreferenceAtom = atomWithStorage<boolean | null
 )
 
 /**
- * The same answer, asked separately for phone-width viewports (#6378).
- *
- * One key for every breakpoint made the per-device default unreachable: opening the pane on a
- * desktop stores `false`, and a stored value beats the default in both directions, so the same
- * browser at phone width then opened the pane over the whole screen and hid the playground. The
- * two viewports want genuinely different answers, so they get genuinely different preferences.
- *
- * The wide preference keeps the original key: a value stored before this split was almost
- * certainly set on a desktop, and it still means what it meant there.
+ * The same answer asked separately at phone width (#6378) — one shared key let a desktop
+ * `false` open the pane over the whole phone screen. The wide side keeps the original key.
  */
 export const configPanelCollapsedPhonePreferenceAtom = atomWithStorage<boolean | null>(
     "agenta:chat:config-panel-collapsed-phone",
@@ -87,13 +80,8 @@ export const resolveConfigPanelCollapsed = (
     hostCollapsed = false,
 ): boolean => stored ?? (phoneViewport || hostCollapsed)
 
-/**
- * The stored preference that applies at the CURRENT viewport, or `null` if none is stored for it.
- *
- * For a host that layers its own default in via `resolveConfigPanelCollapsed`'s `hostCollapsed`
- * and so cannot read `configPanelCollapsedAtom`. Reading either preference atom directly would
- * silently pick the wrong breakpoint's answer.
- */
+/** The stored preference for the CURRENT viewport; reading either atom directly picks the
+ * wrong breakpoint's answer. */
 export const configPanelCollapsedViewportPreferenceAtom = atom((get) =>
     get(
         get(phoneViewportAtom)
@@ -102,11 +90,8 @@ export const configPanelCollapsedViewportPreferenceAtom = atom((get) =>
     ),
 )
 
-/** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
- * in Build is not the same as switching to Chat.
- *
- * Reads AND writes the preference for the viewport you are on, so neither breakpoint's answer
- * overwrites the other's (#6378). */
+/** Build mode's config pane collapsed to 0, separate from the maximize flag. Reads and writes
+ * the current viewport's preference so neither breakpoint overwrites the other (#6378). */
 export const configPanelCollapsedAtom = atom(
     (get) => {
         const phoneViewport = get(phoneViewportAtom)
@@ -130,12 +115,8 @@ export const configPanelCollapsedAtom = atom(
 )
 
 /**
- * "Show me the configuration" — the single write an Edit action makes.
- *
- * TWO independent things hide the pane: the Build/Chat maximize flag and the collapse preference,
- * both persisted. An action that promises configuration has to clear both, or it lands the user on
- * a playground with nothing to edit and no explanation (#6381). Shared so every host's Edit means
- * the same thing, and so a third flag can only ever be added in one place.
+ * "Show me the configuration": clears BOTH things that hide the pane — the maximize flag and
+ * the collapse preference — since either one alone leaves nothing to edit (#6381).
  */
 export const revealConfigPaneAtom = atom(null, (_get, set) => {
     set(chatPanelMaximizedAtom, false)
