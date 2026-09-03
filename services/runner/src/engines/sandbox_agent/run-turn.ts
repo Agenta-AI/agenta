@@ -1446,11 +1446,27 @@ export async function runTurn(
       return { ok: false, error: swallowedError };
     }
 
-    // A pause has not finished authoring the turn, so only a completed execution can advance the
-    // in-memory resume pointer or complete the durable ledger row.
+    // Which endings are a faithful resume point, and may therefore advance the in-memory resume
+    // pointer and complete the durable ledger row.
+    //
+    //  - A completed execution, as it always has been.
+    //  - A user Stop the HARNESS confirmed. `cancelSettled` is the same proof that earns the warm
+    //    park in `shouldPark`: the harness answered the cancelled prompt, so it is idle and its
+    //    native transcript holds a short but FINISHED turn. Nothing more will be written into it.
+    //
+    // A stopped turn has to take this path, not just the park, because the park alone is
+    // process-local. `hydrateHarnessSessionFromDurable` refuses to re-seed the store from a row
+    // without `end_time`, so a Stop used to leave its row forever incomplete and the session lost
+    // its native harness session on the next runner restart or pool eviction: the rebuild went
+    // cold and the conversation survived only as replayed text.
+    //
+    // Still dropped, unchanged: a pause has not finished authoring the turn, and an UNSETTLED
+    // cancel leaves the harness in an unknown state, possibly still writing. Both fall back to
+    // cold replay, which is the always-correct floor.
+    const turnIsResumePoint =
+      stopReason !== "paused" && (stopReason !== "cancelled" || cancelSettled);
     if (
-      stopReason !== "paused" &&
-      stopReason !== "cancelled" &&
+      turnIsResumePoint &&
       env.continuityTurnIndex !== undefined &&
       sessionId
     ) {
@@ -1477,7 +1493,8 @@ export async function runTurn(
         ).catch(() => {});
       }
     } else if (stopReason === "paused" || stopReason === "cancelled") {
-      // A pause/cancel stopped mid-turn, after the harness may have written a partial turn natively.
+      // A pause, or a cancel the harness never confirmed: the turn stopped mid-write, so the
+      // native transcript may hold a partial turn nobody can describe.
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 

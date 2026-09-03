@@ -32,6 +32,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
     claim_owner,
+    clear_owner,
     clear_running,
     release_running,
     force_cancel_alive,
@@ -546,6 +547,49 @@ class SessionStreamsService:
         auto-title and `rename_session` all overwrite, so they always win.
         """
         _validate_session_id(request.session_id)
+
+        # The shutdown beat: hand the affinity key back and touch nothing else. It runs FIRST,
+        # before the superseded check and before any lock is read or written, because a
+        # departing runner asserts nothing about turns — it only stops holding the session.
+        # `clear_owner` is release-if-owner, so a beat from a replica that no longer owns the
+        # session is a no-op and can never take affinity from a live one. Without this the
+        # next replica is refused for the rest of OWNER_TTL_SECONDS (`claim_owner` never
+        # steals), which on the local sandbox provider is a two-minute outage after every
+        # runner restart.
+        if request.release_owner:
+            released = await clear_owner(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+                replica_id=request.replica_id,
+            )
+            stream = await self._dao.get_by_session_id(
+                project_id=project_id,
+                session_id=request.session_id,
+            )
+            owner = await get_owner(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+            )
+            log.info(
+                "sessions: released session ownership",
+                extra={
+                    "session_id": request.session_id,
+                    "replica_id": request.replica_id,
+                    "released": released,
+                    "owner_after": owner,
+                },
+            )
+            # `replica_id` means "who owns this session now". After a successful release
+            # nobody does, and the caller is the one entitled to hear that, so report the
+            # caller's own id rather than inventing an owner. `is_current_turn` is False
+            # because this beat refreshed no turn.
+            return SessionHeartbeatResult(
+                stream=stream,
+                replica_id=owner or request.replica_id,
+                is_current_turn=False,
+            )
 
         # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
         # forever: refuse the beat before it touches ANY lock or the row. This is what keeps

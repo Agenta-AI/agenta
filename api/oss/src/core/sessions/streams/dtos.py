@@ -199,6 +199,14 @@ class SessionHeartbeatRequest(BaseModel):
     is_running: bool = True
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
+    # The INVERSE beat, sent once per session as a runner shuts down: hand the affinity key
+    # back instead of renewing it. `claim_owner` never steals, so a replica that dies still
+    # holding `owner:session:<id>` locks the session out of every other replica for the rest
+    # of OWNER_TTL_SECONDS — a local-provider session then refuses every message until the
+    # lease expires. The release is conditional on still being the owner, so it can never
+    # take a session from a live replica. Everything else about the beat is skipped: a
+    # departing runner asserts no liveness and no turn.
+    release_owner: bool = False
 
 
 class SessionLiveness(BaseModel):
