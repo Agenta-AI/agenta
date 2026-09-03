@@ -46,7 +46,7 @@ owner lease.
 | Stop fired the instant the prompt settles | local | Pi | `89d7c7c90d` | live registry entry aborted during teardown, park refused (`no-park:end_turn`), cold rebuild 7.21 s | | same |
 | same, fixed | local | Pi | `38cbc92201` (PR #6503) | run marked settled at prompt settle, applier no-op, command `obsolete`/`not_running`, parked, warm 1.91 s | | same |
 | Every reader of Redis `running` and `alive` | code reading | | `9110c08000` | the candidate rule (clear `running`, keep `alive`) is what the code does and every input path admits a new Send under it; the defect was the row mirror, now fixed | | `post-stop-liveness.md` |
-| All branches re-merged and thirteen cells re-run | local and Daytona | Pi, Codex | integration refresh | see `integration-refresh.md` when it lands | | |
+| All branches re-merged and thirteen cells re-run | local and Daytona | Pi, Codex | `7f2ef31307` (PR #6506) | 13 of 13 pass; the combined run found two more sweep defects, fixed on that branch (`a161a29df6`, `e6a033063a`): a stopped row whose runner died got no ending, and the ending left the dead turn's `alive` lock in place | runner-gone settled 137.5 s, stale tail quarantined after a 107 s pause | `integration-refresh.md` |
 
 ## How credentials were obtained
 
@@ -72,7 +72,7 @@ owner lease.
 | `spike/session-cancel-warm` | `5a10e6b100` | #6496 | Codex child reap on Stop; age rounding; continuity record for a stopped turn; owner-claim release at runner shutdown through `release_owner` on the heartbeat |
 | `feat/session-execution-watchdog` | `3f25f06d64` | #6501 | `quarantined_at` on session records with a migration; ingest guard for late output after the watchdog's ending; the watchdog marks its own writer |
 | `feat/session-durable-cancel` | `38cbc92201` | #6503 | mirror write at settlement; named Stop on a parked approval; outcome race; settled-run no-op inside teardown; `not_running` versus `lost` on the `running` key; liveness polls key on `is_running` |
-| `agent/session-execution-integration` | refresh in progress | #6506 | re-merge of the above and the thirteen-cell run |
+| `agent/session-execution-integration` | `7f2ef31307` | #6506 | re-merge of the above, the thirteen-cell run, and two sweep fixes that belong on #6501 (an ending for a stopped row whose runner died; release of the dead turn's `alive` lock; a bounded sweep pass) |
 | `agent/session-execution-overnight` | this branch | #6505 | this report and the lane reports |
 | `feat/session-single-turn-admission`, `feat/session-stop-guard`, `fix/records-worker-ack-after-commit` | unchanged | #6500, #6504, #6502 | |
 
@@ -90,6 +90,7 @@ owner lease.
 | same | `@agenta/entities`, `@agenta/navigation`, `@agenta/mobile` | 1468, 46, 144 pass |
 | all Python | `uvx ruff@0.15.12 format` and `check` | clean |
 | all web | `cd web && pnpm lint-fix` | clean |
+| `agent/session-execution-integration` at `e6a033063a` | API session unit tests in the api container | 627 pass plus the 16 Redis-contract tests with the fixture copied in; the two watchdog files 18 pass |
 
 ## Findings that need a decision
 
