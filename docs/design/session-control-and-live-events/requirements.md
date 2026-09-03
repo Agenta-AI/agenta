@@ -32,7 +32,10 @@ Observed examples:
 
 Draft requirements:
 
-- Normal Stop reaches the active runner within a defined short deadline.
+- Normal Stop reaches the active runner within a defined short deadline through direct delivery.
+- Heartbeats report runner health and refresh ownership. They are not the normal Stop-delivery path.
+- After Stop settles, the session is not running. Whether it remains `alive` while its sandbox is
+  parked is an open contract question that must be resolved against every liveness consumer.
 - Every accepted execution reaches exactly one durable terminal outcome.
 - The sender and every other reader see the same terminal outcome.
 - Runner, sandbox, provider, tool, and adapter failures cannot leave an unbounded running state.
@@ -60,13 +63,16 @@ Observed examples:
 Draft requirements:
 
 - At most one execution is active for a session at one time.
-- Only the current execution ownership generation can append events or cause external effects.
+- After an execution reaches a terminal outcome, later non-terminal output for that execution is
+  rejected or quarantined. The first release does not add ownership generations.
 - A second message uses an explicit `reject`, `queue`, or `steer` policy.
 - The API saves an accepted queue or steer message before interrupting current work.
 - The API resolves every execution-affecting command to one execution before delivery.
 - Public Stop can optionally name the execution the caller expects. If omitted, it targets the
   current execution.
-- An older runner cannot reclaim ownership or write after replacement.
+- First-party clients send `expected_execution_id` whenever they know it. A mismatch returns a
+  conflict and leaves the current execution untouched.
+- A delayed runner cannot append normal output after a terminal execution outcome.
 - A failed steer leaves the saved message visible and recoverable.
 
 ## Reattach and multiple readers
@@ -117,9 +123,12 @@ Observed examples:
 
 Draft requirements:
 
-- A successful ingest acknowledgment has a precise durability meaning.
+- A Redis Stream record is acknowledged only after the Postgres transaction that stores it commits.
 - One bad record cannot silently discard unrelated records in the same batch.
-- Retries are idempotent and cannot change established event order.
+- Every durable producer event has a stable producer-generated ID before its first send.
+- Identical retries are idempotent and cannot change established event order.
+- Progressive tool-call and tool-result frames remain temporary until the runner emits one complete
+  durable checkpoint. That checkpoint must commit before terminal settlement.
 - Durable replay uses append-only facts with a stable cursor.
 - A detected persistence gap marks the session history incomplete.
 - The runner drains required durable writes before terminal settlement.
