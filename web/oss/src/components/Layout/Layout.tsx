@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {NotFoundScreen} from "@agenta/auth-ui"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import {ProjectWatch} from "@agenta/sessions/watch"
@@ -20,7 +21,7 @@ import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
     demoReturnHintDismissedAtom,
@@ -431,7 +432,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
     // stale on the hop off a 404. /404 renders bare like the auth screens.
     const router = useRouter()
-    const isBareRoute = isAuthRoute || router.pathname === "/404"
+    // An address naming a workspace or project that does not exist is a 404, and it is owned here
+    // rather than per page: every route under /w carries those ids, so one guard covers them all.
+    const {isNotFound: isRouteNotFound} = useAtomValue(routeContextAtom)
+    const isBareRoute = isAuthRoute || router.pathname === "/404" || isRouteNotFound
 
     // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
     // against the layout viewport hides its bottom edge behind it. This publishes the visible
@@ -449,7 +453,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
             {typeof window === "undefined" ? null : isBareRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
-                        {children}
+                        {isRouteNotFound ? (
+                            <NotFoundScreen onBack={() => router.back()} path={router.asPath} />
+                        ) : (
+                            children
+                        )}
                         {contextHolder}
                     </ErrorBoundary>
                 </Layout>
