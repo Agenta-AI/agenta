@@ -548,8 +548,10 @@ const selectHumanEvaluationModalTableInput = async ({
 }) => {
     const activePane = getActiveHumanEvaluationPane(modal)
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
+    // `[role]` included: the Radix checkbox/radio is a <button role="checkbox">, not an
+    // <input>, so the native+antd list alone matched nothing and selection read as false.
     const inputSelector =
-        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
+        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input, [role="checkbox"], [role="radio"]'
     const controlSelector =
         '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
     const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
