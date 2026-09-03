@@ -13,4 +13,6 @@ export interface ToolCallContext {
     integration?: (string | null) | undefined;
     connection?: (string | null) | undefined;
     tool?: (string | null) | undefined;
+    toolkit_version?: (string | null) | undefined;
+    toolkit_versions?: (Record<string, string | null> | null) | undefined;
 }

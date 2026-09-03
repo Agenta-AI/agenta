@@ -19,6 +19,7 @@ import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
 import { signAgentMountCredentials } from "./agent-mount.ts";
 import { probeCapabilities } from "./capabilities.ts";
+import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
@@ -65,6 +66,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
+  awaitCredentialSubstitution?: typeof awaitCredentialSubstitution;
   applyModel?: typeof applyModel;
   applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
@@ -273,6 +275,7 @@ export interface SessionEnvironment {
   commitApplied: (result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }) => void;
   plan: RunPlan;
   logger: Log;
@@ -310,6 +313,16 @@ export interface SessionEnvironment {
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
+  /**
+   * When this sandbox's MODEL credential was delivered as a Daytona Secret (epoch millis), set
+   * only on a fresh create. Undefined for a plaintext-env run, a reconnect, and every local run.
+   *
+   * Read by the 401 classifier: Daytona applies a new Secret's substitution rule asynchronously,
+   * so a refusal shortly after delivery is the propagation race rather than a bad key. The
+   * timestamp is what keeps that reading honest — a warm sandbox's turn an hour later gets the
+   * ordinary auth advice, because by then the placeholder explanation is no longer available.
+   */
+  modelSecretDeliveredAt?: number;
   /** The conversation turn index this acquire's continuity record was read/written at. */
   continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
@@ -387,4 +400,16 @@ export interface SessionEnvironment {
 
 export type AcquireEnvironmentResult =
   | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The preflight proved this sandbox never got its Secret substitution wiring (the fault
+       * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
+       * already destroyed; the acquire wrapper rebuilds a fresh sandbox on the SAME Secret,
+       * which is the case Daytona support confirmed works. The Secret lease that makes the
+       * rebuild possible never reaches this type: it is internal to the acquire loop, which
+       * owns it for the whole run and releases it before returning. See `AcquireAttemptResult`.
+       */
+      stuckSubstitution?: boolean;
+    };

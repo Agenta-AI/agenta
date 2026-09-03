@@ -1,7 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {isSessionFresh} from "@agenta/chat/state"
+import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
@@ -141,8 +141,14 @@ export const useSessionHydration = ({
     // A to-be-hydrated session (empty local cache, not brand-new) shows a transcript skeleton
     // instead of the "start a chat" hero, so a session WITH server history doesn't flash the empty
     // state before its records land. Seeded synchronously so the first paint is already the skeleton.
+    // Did a PREVIOUS mount leave a live chat behind? Read once, during the first render — this mount
+    // publishes its own chat at commit, so reading it later would always say yes. A run preserved
+    // across a route change is still streaming into the chat we just re-bound to, and a transcript
+    // is only persisted on SETTLE, so `initialMessages` is empty mid-stream and hydration would
+    // otherwise put the skeleton over the run we kept alive (#5724).
+    const [resumedLiveChat] = useState(() => hasSessionChat(sessionId))
     const [isHydrating, setIsHydrating] = useState(
-        () => initialMessages.length === 0 && !isSessionFresh(sessionId),
+        () => initialMessages.length === 0 && !isSessionFresh(sessionId) && !resumedLiveChat,
     )
     // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records — its
     // durable history was pruned by retention or never persisted. Drives the "history unavailable"
@@ -243,7 +249,7 @@ export const useSessionHydration = ({
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
-        if (initialMessages.length > 0 || isSessionFresh(sessionId)) {
+        if (initialMessages.length > 0 || isSessionFresh(sessionId) || resumedLiveChat) {
             setIsHydrating(false)
             return
         }

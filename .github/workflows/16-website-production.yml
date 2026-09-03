@@ -83,9 +83,19 @@ jobs:
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      # This zone-level rule runs before the marketing worker, static assets, and
+      # the /docs/* proxy. That is what lets every variant canonicalize in one hop.
+      - name: Enforce canonical host and protocol
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: cd website && node scripts/configure-canonical-redirect.mjs
+
       # Asserts the site serves AND that the edge worker's agent-readiness
       # behavior survived: content negotiation, Vary, 406, the JSON/markdown
       # 404s, /openapi.json — plus the static behavior it must not break
       # (the _redirects 308s and trailing-slash normalization).
       - name: Verify production serves the site
         run: cd website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
+
+      - name: Verify canonical host and protocol
+        run: cd website && bash scripts/verify-canonical-redirects.sh

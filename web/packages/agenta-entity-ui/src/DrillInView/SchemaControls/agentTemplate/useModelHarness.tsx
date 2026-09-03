@@ -149,6 +149,7 @@ export function useModelHarness({
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
     const harnessValue = effectiveHarnessValue(harness)
+    // "pi_agenta" is a removed experiment; old stored revisions may still carry it.
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
