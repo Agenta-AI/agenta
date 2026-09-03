@@ -81,7 +81,7 @@ import {
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
 } from "./sessions/admission.ts";
-import { startAliveWatchdog } from "./sessions/alive.ts";
+import { releaseOwnedSessions, startAliveWatchdog } from "./sessions/alive.ts";
 import {
   buildWorkflowReferenceList,
   cancelStaleInteractions,
@@ -944,6 +944,14 @@ if (isEntrypoint(import.meta.url)) {
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
+      // LAST, and only after the sandboxes are gone: hand back the `owner:session:<id>`
+      // affinity keys this replica holds. Nothing else releases them, and `claim_owner` never
+      // steals, so without this the replacement replica is refused every message on those
+      // sessions for the rest of the 120-second lease. It runs last because a session whose
+      // sandbox is still being destroyed should not yet look free to another replica, and it
+      // is bounded so it can never hold the process past the SIGTERM grace period. A SIGKILL
+      // reaches no handler at all; the lease stays the fallback for that.
+      await releaseOwnedSessions(timeoutMs);
     },
   });
 
