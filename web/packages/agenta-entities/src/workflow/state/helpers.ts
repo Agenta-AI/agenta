@@ -7,12 +7,87 @@
  * @packageDocumentation
  */
 
-import {getAgentaApiUrl} from "@agenta/shared/api"
+import {getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 
-import {fetchWorkflowsBatch} from "../api/api"
+import {fetchWorkflowAgentFlags, fetchWorkflowsBatch, queryWorkflows} from "../api/api"
 import {collectEvaluatorCandidates, isOnlineCapableEvaluator, type Workflow} from "../core"
 
 import type {WorkflowType} from "./molecule"
+
+/**
+ * Every app workflow in the project, classified agent / not-agent.
+ *
+ * ONE query key per project, so the sidebar, `/agents`, `/prompts` and app-management share a
+ * single fetch of a single project-wide fact instead of issuing it once each. Each of those keeps
+ * its own list query — they display different subsets — and joins against this map.
+ *
+ * Its own artifact list rather than a reuse of the sidebar's: that one excludes archived
+ * workflows, and without them the archived Agents tab silently empties. One extra cheap list call
+ * project-wide, cached — and it replaces app-management's several.
+ *
+ * Keyed on `projectId` alone. Deliberately NOT on per-workflow timestamps: a commit to one app
+ * changed its `updated_at` and so re-fetched the classification of every app. Commits invalidate
+ * this by key prefix instead.
+ */
+export function agentFlagsQueryOptions(projectId: string | null) {
+    return {
+        queryKey: ["workflows", "apps", "agentFlags", projectId] as const,
+        queryFn: async (): Promise<ReadonlyMap<string, boolean>> => {
+            if (!projectId) return new Map<string, boolean>()
+
+            const response = await queryWorkflows({
+                projectId,
+                flags: {is_evaluator: false},
+                includeArchived: true,
+                lowPriority: true,
+            })
+            const ids = (response.workflows ?? []).map((workflow) => workflow.id)
+
+            return fetchWorkflowAgentFlags(projectId, ids, {lowPriority: true})
+        },
+        staleTime: 30_000,
+    }
+}
+
+/** The classification map, fetched once and shared. For plain hooks and imperative callers. */
+export async function ensureAgentFlags(
+    projectId: string | null,
+): Promise<ReadonlyMap<string, boolean>> {
+    if (!projectId) return new Map<string, boolean>()
+    // Resolved per call, never imported as a singleton: package code must work inside whichever
+    // client its host mounted.
+    return getHostQueryClient().ensureQueryData(agentFlagsQueryOptions(projectId))
+}
+
+/** Keep the workflows the map marks as agents. Unknown ids are not agents. */
+export function selectAgentWorkflows(
+    workflows: Workflow[],
+    agentFlags: ReadonlyMap<string, boolean>,
+): Workflow[] {
+    return workflows.filter((workflow) => agentFlags.get(workflow.id) === true)
+}
+
+/** Keep the workflows the map does not mark as agents — prompts. */
+export function selectNonAgentWorkflows(
+    workflows: Workflow[],
+    agentFlags: ReadonlyMap<string, boolean>,
+): Workflow[] {
+    return workflows.filter((workflow) => agentFlags.get(workflow.id) !== true)
+}
+
+/** Stamp `flags.is_agent` onto each workflow from the map, for lists that render off the flag. */
+export function withAgentFlags(
+    workflows: Workflow[],
+    agentFlags: ReadonlyMap<string, boolean>,
+): Workflow[] {
+    return workflows.map((workflow) => ({
+        ...workflow,
+        flags: {
+            ...workflow.flags,
+            is_agent: agentFlags.get(workflow.id) === true,
+        } as Workflow["flags"],
+    }))
+}
 
 /**
  * Fetch each non-deleted workflow's latest revision and classify the list.
