@@ -17,7 +17,6 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
-    sessionCancelResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -30,7 +29,6 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
-    type SessionCancelResponse,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
@@ -638,7 +636,7 @@ export interface CancelSessionStreamParams extends SessionScopedParams {
 }
 
 export type CancelSessionOutcome =
-    | {status: "cancelled"; response: SessionCancelResponse | null}
+    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
     | {status: "idle"}
     /** The server refused: another turn holds the session, or the Stop arrived too late. */
     | {status: "stale"; message: string}
@@ -685,8 +683,12 @@ export async function cancelSessionStream({
             projectScopedRequest(projectId, appId, abortSignal),
         )
         const response =
-            safeParseWithLogging(sessionCancelResponseSchema, data, "[cancelSessionStream]") ?? null
-        if (response?.execution?.state === "idle") return {status: "idle"}
+            safeParseWithLogging(
+                sessionStreamCommandResponseSchema,
+                data,
+                "[cancelSessionStream]",
+            ) ?? null
+        if (response?.cancelled_turn_ids?.length === 0) return {status: "idle"}
         return {
             status: "cancelled",
             response,
