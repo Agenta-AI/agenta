@@ -16,9 +16,9 @@ import {isValidUUID} from "@/oss/lib/helpers/validators"
 /**
  * OSS binding for `@agenta/navigation`'s local-session seam (#5974).
  *
- * Two playground sessions qualify, and neither is abandoned: the one you are looking at, and any
- * that is RUNNING or awaiting you. Scope is the routed app id, so rows disappear when you leave
- * that playground — a blank chat never lingers.
+ * A playground session qualifies while it is the one you are looking at, while it is running or
+ * awaiting you, or while the server list cannot carry it yet. Scope is the routed app id, so rows
+ * disappear when you leave that playground — a blank chat never lingers.
  *
  * `error` is settled, not live: an errored empty session is as abandoned as an untouched one.
  */
@@ -41,6 +41,19 @@ export const activePlaygroundSessionIdAtom = atom<string | null>((get) => {
     // rail pinning a selection onto a row it does not render, which then fell back to the agent.
     return isSessionHusk(active, get(sessionHasMessagesAtomFamily(active.id))) ? null : active.id
 })
+
+/**
+ * Does this session still need the local seam to be listed at all?
+ *
+ * `serverKnown` is the one signal that survives a tab switch. `isActive` and `isLive` both go false
+ * the moment you look away — `isLive` reads a record only a MOUNTED conversation writes — so a
+ * session whose first turn was still in flight vanished from the rail until the server list caught
+ * up (#6494). An unconfirmed session drops out by itself on the first reconcile.
+ */
+export const qualifiesForLocalRail = (
+    session: AgentChatSession,
+    {isActive, isLive}: {isActive: boolean; isLive: boolean},
+): boolean => isActive || isLive || !session.serverKnown
 
 export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const scope = get(defaultScopeKeyAtom)
@@ -67,7 +80,12 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
         return at ? new Date(at).toISOString() : null
     }
     return sessions
-        .filter((session) => session.id === active?.id || isLive(session.id))
+        .filter((session) =>
+            qualifiesForLocalRail(session, {
+                isActive: session.id === active?.id,
+                isLive: isLive(session.id),
+            }),
+        )
         .filter((session) => !isHusk(session))
         .map((session) => ({
             id: session.id,
