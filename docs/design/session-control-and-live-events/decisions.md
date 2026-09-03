@@ -105,13 +105,21 @@ The runner emits one ordered frame sequence to the backend. A bounded Redis Stre
 relay and durable projector. Existing sender streaming and record persistence remain during
 migration.
 
-### Keep the durable-history storage choice open
+### Use repaired records as durable session history
 
-Spike D found that immutable records mainly require producer changes for progressive tool calls and
-tool results, plus stable producer IDs for terminal events. This makes repaired records more viable
-than the original draft assumed. Records still follow tracing retention and omit some session
-lifecycle facts. A separate `session_events` table and repaired records therefore remain equal
-review alternatives until retention and lifecycle coverage are decided.
+Records become the canonical durable source for the conversation, harness reconstruction, session
+snapshots, and replay. Before immutable inserts are enabled, the runner must stop progressively
+updating tool-call and tool-result records, and every durable record must receive a stable producer
+ID.
+
+The migration is additive. Existing rows are not rewritten or backfilled. A snapshot continues to
+return the complete legacy and current transcript. Its cursor covers ordered records committed
+under the new contract. Clients do not require event-by-event replay of history created before the
+migration.
+
+Session-history retention must be separated from tracing quota and retention before records can
+serve as permanent session history. A separate `session_events` table remains a fallback only if
+that separation or lifecycle representation proves structurally unsafe.
 
 ### Use an opaque per-session cursor
 
@@ -162,7 +170,8 @@ Durable checkpoints replace those previews.
 2. Confirm direct-delivery failure recovery. Keep long-poll authentication and claim-expiry design
    parked in Linear AGE-4253.
 3. Manual Stop behavior for pending input.
-4. Separate session events versus repaired records.
+4. Verify the additive repaired-record migration, retention separation, and lifecycle record
+   vocabulary.
 5. Per-session commit-order implementation.
 6. Temporary frame retention and slow-reader limits.
 7. Stop, Steer, and interaction-response races.
