@@ -1590,6 +1590,18 @@ describe("runSandboxAgent orchestration", () => {
       {
         type: "data",
         name: "agent-status",
+        data: { phase: "preparing_workspace" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "opening_session" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
         data: { phase: "environment_ready" },
         transient: true,
       },
