@@ -79,5 +79,8 @@ export const persistLog = (
         case "gc":
             console.info(`[persist] GC ${label}`)
             break
+        case "timeout":
+            console.warn(`[persist] TIMEOUT ${label} (IndexedDB blocked — served as a miss)`)
+            break
     }
 }
