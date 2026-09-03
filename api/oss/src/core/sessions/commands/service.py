@@ -32,7 +32,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.commands.dtos import (
@@ -130,16 +130,23 @@ class SessionCommandsService:
             session_id=session_id,
         )
 
-        if expected_execution_id is not None:
-            running = await get_running_owner(
-                self._lock, project_id=str(project_id), session_id=session_id
+        if (
+            expected_execution_id is not None
+            and target_turn_id != expected_execution_id
+        ):
+            # Compared against the TARGET, which is `running` with a fallback to `alive`, and
+            # never against `running` alone. An execution parked on an approval has released
+            # `running` and still holds `alive` under the same turn id, and it is exactly the
+            # execution the user is looking at when they press Stop on the approval card. The
+            # browser always sends the id it streamed, so comparing against `running` alone
+            # refused every named Stop on a parked approval while the same Stop without an
+            # expectation was accepted — the guard fired on the one case it exists to allow.
+            #
+            # Nothing is inserted and nothing is delivered. The caller was looking at a run
+            # that has already ended, and its next read tells it so.
+            raise ExecutionExpectationFailed(
+                expected=expected_execution_id, current=target_turn_id
             )
-            if running != expected_execution_id:
-                # Nothing is inserted and nothing is delivered. The caller was looking at a run
-                # that has already ended, and its next read tells it so.
-                raise ExecutionExpectationFailed(
-                    expected=expected_execution_id, current=running
-                )
 
         if target_turn_id is None:
             # Nothing is running and nothing is parked. Record the intent so a retry with the
@@ -322,13 +329,25 @@ class SessionCommandsService:
         """A reachable runner said it does not hold this session. Two different things look
         alike here, and the user must not be told the wrong one.
 
-        A `not_held` for a session whose row says alive with a FRESH heartbeat means some
-        process is running that session and it is not the one we called. Nothing else produces
-        that. Settle it `lost`, so the user learns the Stop failed, and log it at error level.
-        Otherwise the session really has ended, and `not_running` is the honest answer.
+        `running` is the discriminator, not the heartbeat. A `not_held` while SOME execution
+        holds `running` means a process is executing this session and it is not the one we
+        called. Settle that `lost`, so the user learns the Stop failed, and log it at error
+        level.
+
+        With no `running` execution anywhere, nothing is executing and the work the user meant
+        to stop is over. That is the everyday case: the turn ended a moment before the Stop
+        arrived, the runner had already dropped it, and the answer is `not_running`. Judging it
+        on the heartbeat instead called every one of those a failed Stop, because a turn that
+        has just ended leaves `alive` set and a fresh beat behind it, exactly as a running one
+        does.
         """
         outcome = SessionCommandOutcome.not_running
-        if await self._session_is_beating(
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(command.project_id),
+            session_id=command.session_id,
+        )
+        if running_owner is not None and await self._session_is_beating(
             project_id=command.project_id, session_id=command.session_id
         ):
             outcome = SessionCommandOutcome.lost
@@ -340,13 +359,14 @@ class SessionCommandsService:
                 session_id=command.session_id,
             )
             log.error(
-                "control delivery: the runner answered not_held for session=%s while its row "
-                "is alive and beating. Some process is running that session and it is not the "
-                "one we called, so this deployment has more than one runner replica and the "
-                "direct adapter cannot route to it. Settling the command lost, so the user is "
-                "told the Stop failed rather than that the work had already finished. "
-                "command=%s target_turn=%s owner_replica=%s",
+                "control delivery: the runner answered not_held for session=%s while "
+                "execution %s holds `running` and the row is beating. A process is executing "
+                "that session and it is not the one we called, so this deployment has more "
+                "than one runner replica and the direct adapter cannot route to it. Settling "
+                "the command lost, so the user is told the Stop failed rather than that the "
+                "work had already finished. command=%s target_turn=%s owner_replica=%s",
                 command.session_id,
+                running_owner,
                 command.id,
                 command.target_turn_id,
                 owner or "unknown",
@@ -355,7 +375,7 @@ class SessionCommandsService:
             command_id=command.id,
             project_id=command.project_id,
             replica_id=None,
-            expected_state=SessionCommandState.pending,
+            expected_states=[SessionCommandState.pending],
             state=SessionCommandState.obsolete,
             outcome=outcome,
             execution_id=command.target_turn_id,
@@ -433,7 +453,7 @@ class SessionCommandsService:
                 command_id=command.id,
                 project_id=command.project_id,
                 replica_id=None,
-                expected_state=command.state,
+                expected_states=[command.state],
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.lost,
                 execution_id=command.target_turn_id,
@@ -490,36 +510,20 @@ class SessionCommandsService:
             command_id=command_id,
             project_id=command.project_id,
             replica_id=replica_id,
-            expected_state=SessionCommandState.claimed,
+            # Both, and checked at the moment of the write. Admission inserts `pending`,
+            # delivers, and only then writes `claimed` on the runner's behalf, so a runner that
+            # aborts fast reports its outcome while the row is still `pending`. Guarding on
+            # `claimed` alone refused that report with a conflict and left a correctly stopped
+            # execution sitting `claimed` until the sweep called it lost — the user watching
+            # "stopping" for the whole sweep window, and a Stop that worked recorded as lost.
+            expected_states=[
+                SessionCommandState.pending,
+                SessionCommandState.claimed,
+            ],
             state=state,
             outcome=outcome,
             execution_id=execution_id or command.target_turn_id,
         )
-        if settled is None:
-            stored = await self._dao.fetch_command(command_id=command_id)
-            # THE REPORT CAN BEAT THE CLAIM, and on the fastest Stop it always does. The direct
-            # adapter claims the row only after the runner has answered the delivery call, and
-            # the runner reports on its own clock as soon as it has applied the command. When
-            # there is nothing to abort — a session parked awaiting an approval, which decides
-            # `not_running` and returns at once — the report reaches this route while the row
-            # is still `pending`, and the claimed-state guard refuses it. Observed live: the
-            # command stayed `claimed` for ever, the session read "stopping", and the parked
-            # approval was never cancelled.
-            #
-            # A `pending` row is one NO replica holds, so there is no other writer to protect
-            # it from and accepting the report is safe. The caller is the runner, authenticated
-            # with the shared runner token. The claim that arrives a moment later finds a
-            # terminal row and is a no-op, because `claim_for_delivery` only moves `pending`.
-            if stored is not None and stored.state == SessionCommandState.pending:
-                settled = await self.settle(
-                    command_id=command_id,
-                    project_id=command.project_id,
-                    replica_id=None,
-                    expected_state=SessionCommandState.pending,
-                    state=state,
-                    outcome=outcome,
-                    execution_id=execution_id or command.target_turn_id,
-                )
         if settled is None:
             stored = await self._dao.fetch_command(command_id=command_id)
             raise SessionCommandNotClaimable(
@@ -534,7 +538,7 @@ class SessionCommandsService:
         command_id: UUID,
         project_id: UUID,
         replica_id: Optional[str],
-        expected_state: SessionCommandState,
+        expected_states: List[SessionCommandState],
         state: SessionCommandState,
         outcome: SessionCommandOutcome,
         execution_id: Optional[str],
@@ -550,7 +554,7 @@ class SessionCommandsService:
                 command_id=command_id,
                 state=state,
                 outcome=outcome,
-                expected_state=expected_state,
+                expected_states=expected_states,
                 replica_id=replica_id,
             )
         )
@@ -586,6 +590,17 @@ class SessionCommandsService:
             # `alive` is deliberately left to its own time to live, exactly as the end of a
             # normal turn leaves it. Warm resume is the required outcome of Stop, so the session
             # must end up in the state a finished turn leaves it in, not in a torn-down one.
+
+            # Mirror the nest onto the row HERE, because nothing else will. The tombstone
+            # above refuses the stopped execution's own final `is_running=false` beat before it
+            # can reach the heartbeat's mirror write, and the read model the product polls
+            # (`query_streams`) reads Postgres and never Redis. Skipping this leaves the row
+            # saying `is_running: true` until the orphan sweep collapses it, so the tab that
+            # pressed Stop shows a "running somewhere else" strip over its own session.
+            await self._streams.mirror_liveness(
+                project_id=project_id,
+                session_id=session_id,
+            )
 
         if outcome in (
             SessionCommandOutcome.stopped,

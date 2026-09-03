@@ -13,9 +13,11 @@
  * THE THREE ANSWERS.
  *
  *   stopped                  — this process held the target execution and aborted it.
- *   not_running              — it holds no such execution. A session parked awaiting an
- *                              approval answers this: there is no turn to abort, the parked
- *                              environment stays in the pool, and the session stays warm.
+ *   not_running              — it holds no execution that can still be stopped. A session
+ *                              parked awaiting an approval answers this, and so does a turn
+ *                              whose prompt has already settled and is only tearing down. In
+ *                              both cases there is nothing to abort, the parked environment
+ *                              stays in the pool, and the session stays warm.
  *   superseded_by_newer_turn — it holds an execution that STARTED AFTER the command was
  *                              created, so the command was meant for a turn that has since
  *                              ended. Nothing is aborted. This check is exact, because it
@@ -197,6 +199,25 @@ function decideOutcome(
     return {
       result: "obsolete",
       execution: { id: command.target.turnId, state: "not_running" },
+    };
+  }
+
+  if (live.settled) {
+    // THE STOP LOST THE RACE BY A MOMENT. The harness prompt already settled and the entry is
+    // only still here because teardown is running: writing the transcript, exporting the trace,
+    // parking the environment. There is nothing left to abort.
+    //
+    // Doing nothing is not merely tidier, it is the whole fix. `live.abort()` here would abort
+    // a finished run, and the aborted signal then makes `shouldPark` refuse to park a healthy
+    // idle environment, so the sandbox is destroyed and the user's next message rebuilds cold.
+    // The user paid a cold start for pressing Stop as the answer landed.
+    //
+    // `obsolete`, not `applied`: the command never stopped anything. `not_running` is the same
+    // answer a parked approval gets, and it means the same thing here — this process holds no
+    // execution that can still be stopped.
+    return {
+      result: "obsolete",
+      execution: { id: command.target.turnId ?? live.turnId, state: "not_running" },
     };
   }
 

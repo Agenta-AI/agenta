@@ -1233,6 +1233,33 @@ class SessionStreamsService:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
 
+    async def mirror_liveness(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        user_id: Optional[UUID] = None,
+    ) -> None:
+        """Write the Redis nest onto the row, for a caller that changed the nest itself.
+
+        Durable Stop settlement is that caller, and it is the one nest change no heartbeat can
+        mirror. Settlement tombstones the stopped execution BEFORE it releases `running`, so the
+        runner's own final `is_running=false` beat is refused by the tombstone check in
+        `heartbeat` above and returns before the mirror write at the end of that method. The
+        order cannot be swapped: a late beat that found `alive` free would take it straight back
+        under the dead turn's id. Without this method the row therefore keeps `is_running: true`
+        until the orphan sweep collapses it minutes later, and `query_streams` reads Postgres
+        alone, so the tab that pressed Stop sees its own session running somewhere else.
+
+        Re-reads Redis rather than writing a literal `false`, so a newer turn that has already
+        taken `running` is reported, not erased.
+        """
+        await self._mirror_flags(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
     async def _mirror_flags(
         self,
         *,

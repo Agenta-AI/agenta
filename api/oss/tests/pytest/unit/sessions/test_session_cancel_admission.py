@@ -36,6 +36,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_running,
     get_alive_owner,
     get_running_owner,
+    get_session_liveness,
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
@@ -117,9 +118,12 @@ class _FakeCommandsDAO:
 
     async def settle_command(self, *, settle):
         for index, row in enumerate(self.rows):
-            if row.id == settle.command_id and row.state == settle.expected_state:
+            if row.id == settle.command_id and row.state in settle.expected_states:
+                # Mirrors the real guard: a `pending` row holds no claim, so a null
+                # `claimed_by` passes; a claimed row must be claimed by the reporter.
                 if (
                     settle.replica_id is not None
+                    and row.claimed_by is not None
                     and row.claimed_by != settle.replica_id
                 ):
                     return None
@@ -142,17 +146,39 @@ class _FakeCommandsDAO:
 
 
 class _FakeStreamsService:
-    """Only the two reads admission and settlement make."""
+    """The reads admission makes, plus the row settlement writes.
 
-    def __init__(self, stream: Optional[SessionStream] = None) -> None:
+    `mirrored` stands in for the `session_streams` row. It records the nest exactly as the real
+    `_mirror_flags` would read it — from Redis, at the moment settlement calls — so a test can
+    assert what the ROW says and not merely that a call happened. `query_streams`, which is what
+    the product's liveness polls read, serves that row and never looks at Redis.
+    """
+
+    def __init__(
+        self, stream: Optional[SessionStream] = None, lock_engine=None
+    ) -> None:
         self.stream = stream
         self.ended: List[str] = []
+        self.lock_engine = lock_engine
+        self.mirrored: List[Dict[str, bool]] = []
 
     async def fetch_header(self, *, project_id: UUID, session_id: str):
         return self.stream
 
     async def publish_session_ended(self, *, project_id: UUID, session_id: str):
         self.ended.append(session_id)
+
+    async def mirror_liveness(self, *, project_id: UUID, session_id: str, user_id=None):
+        snap = await get_session_liveness(
+            self.lock_engine, project_id=str(project_id), session_id=session_id
+        )
+        self.mirrored.append(
+            {
+                "is_alive": snap["alive"],
+                "is_running": snap["running"],
+                "is_attached": snap["attached"],
+            }
+        )
 
 
 class _FakeInteractionsService:
@@ -203,9 +229,13 @@ async def lock_engine():
 
 
 def _service(lock_engine, *, dao=None, streams=None, interactions=None, delivery=None):
+    streams = streams or _FakeStreamsService()
+    # The fake mirrors from Redis, so it reads the same engine the service writes through.
+    if streams.lock_engine is None:
+        streams.lock_engine = lock_engine
     return SessionCommandsService(
         commands_dao=dao or _FakeCommandsDAO(),
-        streams_service=streams or _FakeStreamsService(),
+        streams_service=streams,
         interactions_service=interactions or _FakeInteractionsService(),
         lock_engine=lock_engine,
         delivery=delivery or _RecordingDelivery(),
@@ -418,6 +448,78 @@ async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine
 
 
 @pytest.mark.asyncio
+async def test_a_named_stop_reaches_a_parked_approval(lock_engine):
+    """The Stop the browser actually sends, on the session state Stop exists to reach.
+
+    A parked approval has released `running` and still holds `alive` under the same turn id.
+    The browser always sends `expected_execution_id`, because it knows the id it streamed. If
+    the expectation is compared against `running` alone it is None here, so the named Stop is
+    refused with a conflict while the identical Stop without an expectation is accepted — the
+    guard firing on the one case it exists to allow, and the gate left pending.
+    """
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-parked",
+    )
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(_stream("turn-parked", None)),
+        delivery=delivery,
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        expected_execution_id="turn-parked",
+    )
+
+    assert admission.accepted is True
+    assert admission.execution_id == "turn-parked"
+    assert len(delivery.delivered) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_named_stop_on_a_parked_session_still_refuses_a_different_turn(
+    lock_engine,
+):
+    """The guard must keep working on the fallback, not merely stop firing.
+
+    A user looking at a turn that finished, on a session now parked under a NEWER turn, must
+    still be refused: the id they named is not the one that would be stopped.
+    """
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-new",
+    )
+    dao = _FakeCommandsDAO()
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-new", None)),
+        delivery=delivery,
+    )
+
+    with pytest.raises(ExecutionExpectationFailed) as excinfo:
+        await svc.request_cancel(
+            project_id=_PROJECT,
+            user_id=_USER,
+            session_id=_SESSION,
+            expected_execution_id="turn-old",
+        )
+
+    assert excinfo.value.current == "turn-new"
+    assert dao.rows == []
+    assert delivery.delivered == []
+
+
+@pytest.mark.asyncio
 async def test_two_stops_in_a_row_collapse_onto_one_command(lock_engine):
     await _run_turn(lock_engine, "turn-A")
     dao = _FakeCommandsDAO()
@@ -481,7 +583,8 @@ async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(
     lock_engine,
 ):
     # The wrong-replica failure. The user must be told the Stop failed, never that the work had
-    # already finished.
+    # already finished. `_run_turn` holds `running`, which is the discriminator: an execution is
+    # being run somewhere, and it is not by the process we called.
     await _run_turn(lock_engine, "turn-A")
     dao = _FakeCommandsDAO()
     streams = _FakeStreamsService(
@@ -497,6 +600,38 @@ async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(
     await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert dao.rows[0].outcome == SessionCommandOutcome.lost
+
+
+@pytest.mark.asyncio
+async def test_not_held_on_a_turn_that_just_ended_is_not_running_not_lost(lock_engine):
+    """The everyday late Stop: the answer landed, the user pressed Stop a moment after.
+
+    The turn released `running` and left `alive` and a fresh heartbeat behind it, exactly as a
+    RUNNING turn would, so a beating-row test calls this a failed Stop and tells the user their
+    Stop was lost. Nothing was lost: the work finished. `running` is what separates the two,
+    because a session nobody is executing has no `running` owner at all.
+    """
+    # `alive` only, which is what a turn leaves when it ends.
+    await acquire_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-A"
+    )
+    dao = _FakeCommandsDAO()
+    streams = _FakeStreamsService(
+        _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+    # Beating, and recently: the turn ended seconds ago, not half an hour ago.
+    streams.stream.updated_at = datetime.now(timezone.utc)
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        delivery=_RecordingDelivery(status="not_held"),
+    )
+
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
 
 
 @pytest.mark.asyncio
@@ -641,6 +776,164 @@ async def test_a_report_that_beats_its_own_claim_still_settles(lock_engine):
         )
         is None
     )
+
+
+@pytest.mark.asyncio
+async def test_settlement_writes_the_row_as_alive_and_not_running(lock_engine):
+    """The ROW, not only Redis — the row is the only thing the product's liveness polls read.
+
+    Redis is already right the moment settlement returns, and the test above pins that. The row
+    is a separate write, and nothing else performs it: settlement tombstones the execution first,
+    so the runner's own final `is_running=false` heartbeat is refused before it reaches the
+    heartbeat's mirror write. Left unwritten, the row says `is_running: true` until the orphan
+    sweep collapses it minutes later, and the tab that pressed Stop shows its own session as
+    running somewhere else for that whole time.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    streams = _FakeStreamsService(
+        _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+    svc = _service(lock_engine, streams=streams)
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    # Written once, and written AFTER `running` was released — a mirror taken before the release
+    # would have recorded `is_running: True` and been exactly the bug.
+    assert streams.mirrored == [
+        {"is_alive": True, "is_running": False, "is_attached": False}
+    ]
+    # And the mirror is the state a normally finished turn leaves behind, which is what makes
+    # the session read as resumable rather than as torn down.
+    assert streams.mirrored[-1]["is_alive"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_settlement_that_stops_nothing_does_not_touch_the_row(lock_engine):
+    """`not_running` changes no lock, so it must not write the row either.
+
+    An obsolete Stop lands here: the turn it named had already finished, a NEWER turn may hold
+    the nest, and a mirror write from this path would be a write the settlement has no business
+    making. The row is left to the live turn's own heartbeats.
+    """
+    dao = _FakeCommandsDAO()
+    streams = _FakeStreamsService(None)
+    svc = _service(lock_engine, dao=dao, streams=streams)
+
+    # Nothing running and nothing parked: admission settles the command at insert.
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+
+    assert admission.accepted is False
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    assert streams.mirrored == []
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_that_beats_the_claim_still_settles(lock_engine):
+    """The race the runner wins on a fast abort, driven at the exact instant it happens.
+
+    Admission inserts the command `pending`, hands it to the runner, and writes `claimed` only
+    after the runner answers. A runner that aborts inside that window reports its outcome while
+    the row still says `pending`. Guarded on `claimed` alone that report was refused with a
+    conflict, the command sat open, and the sweep later recorded a Stop that actually worked as
+    lost — with the user watching "stopping" for the whole sweep window.
+
+    The delivery double below reports from inside `deliver`, which is precisely where the real
+    runner's report lands relative to the claim.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    holder: Dict[str, SessionCommandsService] = {}
+
+    class _ReportsBeforeTheClaimCommits:
+        def __init__(self) -> None:
+            self.delivered: List[SessionCommand] = []
+            self.state_at_report: Optional[SessionCommandState] = None
+
+        async def deliver(self, *, command):
+            self.delivered.append(command)
+            # The window. Nothing has written `claimed` yet, and the runner is already done.
+            self.state_at_report = dao.rows[0].state
+            await holder["svc"].report_outcome(
+                command_id=command.id,
+                replica_id="runner-1",
+                result="applied",
+                execution_id="turn-A",
+                execution_state="stopped",
+            )
+            return DeliveryReceipt(status="accepted", replica_id="runner-1")
+
+        async def acknowledge(self, *, command_id, replica_id):
+            return None
+
+    delivery = _ReportsBeforeTheClaimCommits()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=5))
+        ),
+        delivery=delivery,
+    )
+    holder["svc"] = svc
+
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert delivery.state_at_report == SessionCommandState.pending, (
+        "the test is only meaningful if the report really did beat the claim"
+    )
+    assert dao.rows[0].state == SessionCommandState.applied
+    assert dao.rows[0].outcome == SessionCommandOutcome.stopped
+    # And the claim that arrives afterwards must not resurrect a settled command.
+    assert dao.rows[0].state == SessionCommandState.applied
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_from_a_replica_that_does_not_hold_the_claim_is_refused(
+    lock_engine,
+):
+    """Widening the guard to `pending` must not weaken it for a row that IS claimed.
+
+    A claimed row names its holder, and only that holder may write the outcome. The null
+    `claimed_by` this change now admits exists solely for the unclaimed row.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=5))
+        ),
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    assert dao.rows[0].state == SessionCommandState.claimed
+
+    from oss.src.core.sessions.commands.types import SessionCommandNotClaimable
+
+    with pytest.raises(SessionCommandNotClaimable):
+        await svc.report_outcome(
+            command_id=admission.command.id,
+            replica_id="a-different-replica",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.claimed
 
 
 @pytest.mark.asyncio

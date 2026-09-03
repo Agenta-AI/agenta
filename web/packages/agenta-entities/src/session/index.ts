@@ -86,6 +86,8 @@ export {
     deriveStreamNest,
     deriveSessionLifecycle,
     refineLifecycleWithSandbox,
+    livenessPollInterval,
+    type LivenessPollInterval,
     type SessionLifecycle,
     type SessionStreamNest,
     type SandboxLiveness,

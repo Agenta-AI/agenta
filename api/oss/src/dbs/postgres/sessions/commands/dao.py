@@ -284,18 +284,33 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         *,
         settle: SessionCommandSettle,
     ) -> Optional[SessionCommand]:
-        """Terminal transition. None means the command was not in the state the caller expected,
-        so the caller reads the stored row and answers 409 instead of letting a runner retry."""
+        """Terminal transition. None means the command was in none of the states the caller
+        expected, so the caller reads the stored row and answers 409 instead of letting a runner
+        retry.
+
+        One statement, so the guard is evaluated at the moment of the write. Reading the state
+        first and updating after would reopen the very race this exists to close: the claim can
+        commit between the read and the write.
+        """
         async with self.engine.session() as session:
             now = datetime.now(timezone.utc)
             stmt = sa_update(SessionCommandDBE).where(
                 SessionCommandDBE.project_id == settle.project_id,
                 SessionCommandDBE.id == settle.command_id,
-                SessionCommandDBE.state == settle.expected_state.value,
+                SessionCommandDBE.state.in_(
+                    [state.value for state in settle.expected_states]
+                ),
             )
             if settle.replica_id is not None:
-                # Only the replica holding the claim may write the outcome.
-                stmt = stmt.where(SessionCommandDBE.claimed_by == settle.replica_id)
+                # Only the replica holding the claim may write the outcome. A row still
+                # `pending` holds no claim, and refusing it there is what turned a correct
+                # abort into a command the sweep later called lost.
+                stmt = stmt.where(
+                    or_(
+                        SessionCommandDBE.claimed_by.is_(None),
+                        SessionCommandDBE.claimed_by == settle.replica_id,
+                    )
+                )
             stmt = stmt.values(
                 state=settle.state.value,
                 outcome=settle.outcome.value,

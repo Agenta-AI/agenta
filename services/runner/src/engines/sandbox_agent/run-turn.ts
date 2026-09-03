@@ -67,6 +67,7 @@ import {
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
+import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import { reapLeakedExecChildren } from "./reap-exec.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
@@ -1239,6 +1240,16 @@ export async function runTurn(
         : raced === PAUSED || pause.active
           ? "paused"
           : (raced as any)?.stopReason;
+    // THE TURN'S OWN WORK IS OVER HERE. Everything below is teardown: draining gates, writing
+    // the transcript, exporting the trace, deciding whether to park. That takes hundreds of
+    // milliseconds, and the execution stays registered for all of it, so a Stop arriving now
+    // would abort a run that has already finished. The abort would change no outcome and would
+    // still make the teardown treat the run as aborted, which DESTROYS the warm environment
+    // instead of parking it. Marked here rather than where the caller awaits this function,
+    // because that window is precisely what lies between the two.
+    if (request.sessionId && request.turnId) {
+      noteExecutionSettled(request.sessionId, request.turnId);
+    }
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
     // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {

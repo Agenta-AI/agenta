@@ -3,6 +3,7 @@ import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
+    livenessPollInterval,
     querySessionStreams,
     type SessionLifecycle,
     type SessionStream,
@@ -23,8 +24,10 @@ import {projectIdAtom} from "@/oss/state/project"
  * N idle tabs cost ONE request, not N — important on cold load (see the request-count budget). Only
  * alive streams come back, which is exactly what the dot needs (running/alive vs idle); a session
  * absent from the result is dormant/cold/dead/new and simply reads as idle. Kept out of the live
- * conversation's way: the fetch is LOW-PRIORITY, polls only WHILE something is alive (empty result
- * → stop), and re-checks on tab refocus.
+ * conversation's way: the fetch is LOW-PRIORITY, polls fast only WHILE something is RUNNING,
+ * slowly while a session is merely alive (Stop and an ordinary turn end both leave `alive` set,
+ * so an alive-keyed cadence never idles down), stops when nothing is alive, and re-checks on tab
+ * refocus.
  */
 const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
@@ -39,7 +42,7 @@ const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
             }),
         enabled: Boolean(projectId),
         staleTime: 10_000,
-        refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 15_000 : false),
+        refetchInterval: (query) => livenessPollInterval(query.state.data),
         refetchOnWindowFocus: true,
     }
 })
