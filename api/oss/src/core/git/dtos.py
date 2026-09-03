@@ -92,6 +92,17 @@ class RevisionQuery(Header, Metadata):
 
     message: Optional[str] = None
 
+    # Return only the newest revision of each artifact the query matches, instead of every
+    # revision of every one. A caller that wants one fact per artifact ("is this an agent?")
+    # otherwise has to download the whole history to compute it.
+    #
+    # It lives here, on the SHARED query, and not on a domain subclass: the domain services
+    # downcast their query to this type before calling the DAO, and this model does not set
+    # `extra`, so Pydantic's `extra="ignore"` default would drop a subclass-only field at that
+    # boundary without an error. "Newest per artifact" is generic artifact semantics anyway, so
+    # every domain on this DAO gets it.
+    latest_per_artifact: Optional[bool] = None
+
 
 class RevisionCommit(Slug, Header, Metadata):
     data: Optional[Data] = None
