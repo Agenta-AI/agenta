@@ -13,6 +13,15 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
+    applyManualOrder,
+    SIDEBAR_AGENT_ORDER_ZONE,
+    SIDEBAR_STATUS_GROUP_ZONE,
+    sidebarManualOrderAtomFamily,
+    sidebarManualOrdersAtom,
+    sidebarSessionZone,
+    withManualAgentRanks,
+} from "../reorder"
+import {
     sidebarAlwaysOpenGroupsAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
@@ -743,7 +752,14 @@ export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<
 }
 
 export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+    atom((get) =>
+        // A hand-arranged agent outranks any count. Folded in HERE, not at each call site: the
+        // Agents group and the agent headings both read this atom, so they cannot disagree.
+        withManualAgentRanks(
+            agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? []),
+            get(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_ORDER_ZONE)),
+        ),
+    ),
 )
 
 /**
