@@ -26,6 +26,7 @@ from oss.src.core.sessions.records.dtos import (
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.utils.env import env
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -145,6 +146,17 @@ async def test_a_thawed_runners_tail_is_quarantined_not_appended_as_history():
     assert len(results) == 4
     assert len(_quarantined(dao)) == 4
     assert all(row.quarantined_at is not None for row in results)
+
+
+async def test_reject_policy_drops_a_late_tail(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "late_output", "reject")
+    dao = _StubDAO(watchdog_settled={(_SESSION, _TURN)})
+    service = RecordsService(records_dao=dao)
+
+    results = await service.append_many(events=[_event("tool_result"), _event("usage")])
+
+    assert results == []
+    assert dao.appended == []
 
 
 async def test_the_guard_asks_only_about_watchdog_endings():
