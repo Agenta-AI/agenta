@@ -204,6 +204,32 @@ def anyio_backend():
     return "asyncio"
 
 
+class _OrderedCommandsService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def settle_abandoned_commands(self, *, now):
+        self.calls.append("settle")
+        return 0
+
+    async def repair_terminal_redis(self):
+        self.calls.append("repair")
+        return 0
+
+
+@pytest.mark.anyio
+async def test_redis_repair_runs_after_the_sweeps_main_work(anyio_backend):
+    commands = _OrderedCommandsService()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([]),
+        _FakeRedis(),
+        commands_service=commands,
+    )
+
+    assert commands.calls == ["settle", "repair"]
+
+
 @pytest.mark.anyio
 async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     row = _FakeRow(

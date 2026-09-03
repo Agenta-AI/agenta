@@ -52,9 +52,14 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.streams.dtos import (
+    SessionStreamCommandRequest,
+    SessionStreamCommandResponse,
+)
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionIdInvalid
+from oss.src.core.sessions.streams.types import SessionIdInvalid, SessionTurnMismatch
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
@@ -91,6 +96,10 @@ class CancelAdmission:
         self.accepted = accepted
 
 
+class _SettlementRejected(Exception):
+    pass
+
+
 class SessionCommandsService:
     def __init__(
         self,
@@ -100,14 +109,40 @@ class SessionCommandsService:
         interactions_service: SessionInteractionsService,
         lock_engine: LockEngine,
         delivery: ControlDeliveryPort,
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
     ) -> None:
         self._dao = commands_dao
         self._streams = streams_service
         self._interactions = interactions_service
         self._lock = lock_engine
         self._delivery = delivery
+        self._executions = executions_dao
 
     # -- admission ---------------------------------------------------------- #
+
+    async def request_cancel_legacy(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        expected_execution_id: Optional[str] = None,
+    ) -> SessionStreamCommandResponse:
+        """Use the heartbeat-carried Stop path kept for rollout rollback."""
+        try:
+            return await self._streams.command(
+                project_id=project_id,
+                user_id=user_id,
+                request=SessionStreamCommandRequest(
+                    session_id=session_id,
+                    expected_execution_id=expected_execution_id,
+                ),
+            )
+        except SessionTurnMismatch as error:
+            raise ExecutionExpectationFailed(
+                expected=error.expected_turn_id,
+                current=error.actual_turn_id,
+            ) from error
 
     async def request_cancel(
         self,
@@ -292,6 +327,15 @@ class SessionCommandsService:
 
         Never raises. The user's request has already succeeded by the time this runs.
         """
+        command = await self._dao.record_delivery_attempt(
+            project_id=command.project_id,
+            command_id=command.id,
+            now=datetime.now(timezone.utc),
+            max_deliveries=env.agenta.sessions.commands.max_deliveries,
+        )
+        if command is None:
+            return
+
         try:
             receipt = await self._delivery.deliver(command=command)
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
@@ -397,82 +441,104 @@ class SessionCommandsService:
         return age < HEARTBEAT_INTERVAL_SECONDS * 2
 
     async def settle_abandoned_commands(self, *, now: datetime) -> int:
-        """Settle every claimed command whose runner will never report an outcome.
-
-        THE ONE WRITER RULE. An execution reaches exactly one terminal outcome from exactly
-        one writer. The execution watchdog is that writer, so this method has exactly one
-        caller: `run_orphan_sweep`, in the same pass that settles the execution itself. A
-        second sweep racing this one is a worse bug than the one being fixed.
-
-        A claim that has expired means the runner accepted the Stop and did not report back.
-        Two very different situations look alike from the row:
-
-        * The runner is gone (a restart, a crash). Nobody will ever report. The command is
-          settled `obsolete` with outcome `lost`, which runs the same side effects a reported
-          settlement runs: the session stops reading "stopping", the execution's pending
-          interaction gates are cancelled, and open browsers are told the turn ended.
-        * The runner is alive and still beating for that session. Its report is merely late,
-          so the claim is left alone and the next pass reconsiders. Settling here would tell
-          the user the Stop failed while it was in fact still being applied.
-
-        A command that is still `pending` long after admission is the third shape, and it is
-        the one a runner restart actually produces: the delivery call never reached a runner,
-        so no claim was ever written. It gets the same treatment.
-
-        Returns how many commands were settled, for the sweep's log line.
-        """
-        expired = list(
-            await self._dao.expire_claims(
-                now=now,
-                max_deliveries=env.agenta.sessions.commands.max_deliveries,
-            )
-        )
-        # And the commands NOBODY ever claimed. A claim is written only after a runner accepts
-        # the delivery, so a row still `pending` long after admission means the delivery never
-        # reached a runner at all: it was down, or unreachable. `expire_claims` cannot see
-        # these, and without them a Stop sent to a runner that is already gone leaves the
-        # session reading "stopping" for ever. Observed live on the integration stack.
-        expired.extend(
-            await self._dao.expire_unclaimed(
-                older_than=now
-                - timedelta(
-                    seconds=env.agenta.sessions.commands.admission_timeout_seconds
-                ),
-            )
+        max_deliveries = env.agenta.sessions.commands.max_deliveries
+        abandoned = await self._dao.expire_claims(
+            now=now,
+            max_deliveries=max_deliveries,
+            pending_before=now
+            - timedelta(seconds=env.agenta.sessions.commands.admission_timeout_seconds),
         )
         settled = 0
-        for command in expired:
-            if await self._session_is_beating(
-                project_id=command.project_id, session_id=command.session_id
-            ):
+        for command in abandoned:
+            beating = await self._session_is_beating(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+            if beating and command.claim_count < max_deliveries:
+                await self._deliver(command)
                 continue
-            # `replica_id=None`: the sweep is not the replica that holds the claim, and that
-            # is the point. The state guard alone decides, so a runner that reports at the
-            # same instant either wins the row or finds it terminal, never both.
+
             result = await self.settle(
                 command_id=command.id,
                 project_id=command.project_id,
                 replica_id=None,
-                expected_states=[command.state],
+                expected_states=[
+                    SessionCommandState.pending,
+                    SessionCommandState.claimed,
+                ],
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.lost,
                 execution_id=command.target_turn_id,
             )
-            if result is None:
-                continue
-            settled += 1
-            log.warning(
-                "watchdog: settled a session command whose runner never reported",
-                extra={
-                    "command_id": str(command.id),
-                    "session_id": command.session_id,
-                    "target_turn_id": command.target_turn_id,
-                    "claim_count": command.claim_count,
-                },
-            )
+            if result is not None:
+                settled += 1
         return settled
 
     # -- settlement --------------------------------------------------------- #
+
+    async def settle_execution_lost(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        settled_at: datetime,
+    ) -> bool:
+        if self._executions is None:
+            return True
+        result = await self._executions.settle(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome=SessionCommandOutcome.lost.value,
+            settled_by="watchdog",
+            settled_at=settled_at,
+        )
+        winner = result.settlement
+        return result.won or (
+            winner.terminal_outcome == SessionCommandOutcome.lost.value
+            and winner.settled_by == "watchdog"
+        )
+
+    async def repair_terminal_redis(self) -> int:
+        if self._executions is None:
+            return 0
+        misses = await self._executions.list_redis_unreconciled(limit=200)
+        repaired = 0
+        for execution in misses:
+            await self._reconcile_stopped_redis(
+                project_id=execution.project_id,
+                session_id=execution.session_id,
+                execution_id=execution.execution_id,
+            )
+            repaired += 1
+        return repaired
+
+    async def _reconcile_stopped_redis(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> None:
+        await mark_turn_superseded(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        await release_running(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        if self._executions is not None:
+            await self._executions.mark_redis_reconciled(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
 
     async def report_outcome(
         self,
@@ -548,44 +614,108 @@ class SessionCommandsService:
         The guard is what makes this idempotent: a second report finds a terminal row, changes
         nothing, and the side effects below do not run twice.
         """
-        settled = await self._dao.settle_command(
-            settle=SessionCommandSettle(
-                project_id=project_id,
-                command_id=command_id,
-                state=state,
-                outcome=outcome,
-                expected_states=expected_states,
-                replica_id=replica_id,
-            )
+        transition = SessionCommandSettle(
+            project_id=project_id,
+            command_id=command_id,
+            state=state,
+            outcome=outcome,
+            expected_states=expected_states,
+            replica_id=replica_id,
         )
+        atomic_core_settlement = self._executions is not None
+        cancelled_interactions = 0
+        if atomic_core_settlement:
+            stored_command = await self._dao.fetch_command(command_id=command_id)
+            if stored_command is None:
+                return None
+            terminal = outcome in (
+                SessionCommandOutcome.stopped,
+                SessionCommandOutcome.lost,
+            )
+            settled_by = (
+                "watchdog"
+                if outcome == SessionCommandOutcome.lost
+                else "runner"
+                if terminal
+                else None
+            )
+            try:
+                async with self._dao.transaction() as transaction:
+                    settled = await self._dao.settle_command(
+                        settle=transition,
+                        transaction=transaction,
+                    )
+                    if settled is None:
+                        raise _SettlementRejected
+
+                    if execution_id and terminal and settled_by:
+                        result = await self._executions.settle(
+                            project_id=project_id,
+                            session_id=stored_command.session_id,
+                            execution_id=execution_id,
+                            terminal_outcome=outcome.value,
+                            settled_by=settled_by,
+                            transaction=transaction,
+                        )
+                        winner = result.settlement
+                        if not result.won and (
+                            winner.terminal_outcome != outcome.value
+                            or winner.settled_by != settled_by
+                        ):
+                            raise _SettlementRejected
+
+                    await self._streams.settle_command(
+                        project_id=project_id,
+                        session_id=stored_command.session_id,
+                        turn_id=execution_id,
+                        mirror_stopped=outcome == SessionCommandOutcome.stopped,
+                        transaction=transaction,
+                    )
+                    if execution_id and outcome in (
+                        SessionCommandOutcome.stopped,
+                        SessionCommandOutcome.not_running,
+                        SessionCommandOutcome.lost,
+                    ):
+                        cancelled_interactions = (
+                            await self._interactions.cancel_session_pending(
+                                project_id=project_id,
+                                session_id=stored_command.session_id,
+                                only_turn_id=execution_id,
+                                transaction=transaction,
+                                publish=False,
+                            )
+                        )
+            except _SettlementRejected:
+                return None
+        else:
+            settled = await self._dao.settle_command(settle=transition)
         if settled is None:
             return None
 
         session_id = settled.session_id
         target = settled.target_turn_id
 
-        await self._dao.clear_stopping_turn(
-            project_id=project_id,
-            session_id=session_id,
-            turn_id=target,
-        )
+        if cancelled_interactions:
+            await self._interactions.publish_session_pending_cancelled(
+                project_id=project_id,
+                session_id=session_id,
+            )
+
+        if not atomic_core_settlement:
+            await self._dao.clear_stopping_turn(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=target,
+            )
 
         if outcome == SessionCommandOutcome.stopped and target:
             # Order matters. Tombstone first, so a late beat from the stopped execution cannot
             # re-arm the locks it is about to lose; that beat would otherwise find `alive` free
             # and take it straight back under the same turn id.
-            await mark_turn_superseded(
-                self._lock,
-                project_id=str(project_id),
+            await self._reconcile_stopped_redis(
+                project_id=project_id,
                 session_id=session_id,
-                turn_id=target,
-            )
-            # Owner-checked, so it can only release its OWN execution's key.
-            await release_running(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=target,
+                execution_id=target,
             )
             # `alive` is deliberately left to its own time to live, exactly as the end of a
             # normal turn leaves it. Warm resume is the required outcome of Stop, so the session
@@ -597,17 +727,18 @@ class SessionCommandsService:
             # (`query_streams`) reads Postgres and never Redis. Skipping this leaves the row
             # saying `is_running: true` until the orphan sweep collapses it, so the tab that
             # pressed Stop shows a "running somewhere else" strip over its own session.
-            await self._streams.mirror_liveness(
-                project_id=project_id,
-                session_id=session_id,
-            )
+            if not atomic_core_settlement:
+                await self._streams.mirror_liveness(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
 
         if outcome in (
             SessionCommandOutcome.stopped,
             SessionCommandOutcome.not_running,
             SessionCommandOutcome.lost,
         ):
-            if target:
+            if target and not atomic_core_settlement:
                 # An approval card whose execution was stopped is a card whose buttons do
                 # nothing. Scoped to this execution, so a newer turn's gates survive.
                 await self._interactions.cancel_session_pending(

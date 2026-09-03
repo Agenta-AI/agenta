@@ -49,6 +49,10 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import {
+  cancelHarnessTurn,
+  resolveCancelSettleMs,
+} from "./engines/sandbox_agent/cancel-turn.ts";
+import {
   isMounted,
   type MountCredentials,
 } from "./engines/sandbox_agent/mount.ts";
@@ -92,6 +96,7 @@ import {
   applyCommand,
   holdsSession,
   type ControlCommand,
+  type ParkedSessionControl,
 } from "./sessions/control-channel.ts";
 import {
   noteExecutionProject,
@@ -876,10 +881,99 @@ function readRequiredId(value: unknown): string | null {
  * control channel at all today: a parked session stops heartbeating, so the only existing Stop
  * signal never reaches it.
  */
-function isSessionParked(sessionId: string): boolean {
-  return Object.values(keepalivePools).some(
-    (pool) => pool.awaitingApproval(sessionId) !== undefined,
-  );
+function parkedSessionControl(
+  projectId: string,
+  sessionId: string,
+): ParkedSessionControl | undefined {
+  const key = `${projectId}:${sessionId}`;
+  for (const provider of Object.keys(
+    keepalivePools,
+  ) as KeepaliveProviderName[]) {
+    const pool = keepalivePools[provider];
+    const parked = pool.get(key);
+    if (!parked || parked.state !== "awaiting_approval") continue;
+    return {
+      stop: async () => {
+        // Checkout makes the transition exclusive: a racing request cannot consume the same
+        // permission gate while Stop is releasing it.
+        const live = pool.checkoutApproval(key);
+        if (!live) throw new Error("parked approval was already checked out");
+        await stopParkedApprovalSession({
+          environment: live.environment,
+          repark: () =>
+            pool.repark(
+              live,
+              {
+                historyFingerprint: live.historyFingerprint,
+                historyAsserted: live.historyAsserted,
+                credentialEpoch: live.credentialEpoch,
+              },
+              keepaliveConfigs[provider].stoppedTtlMs ??
+                keepaliveConfigs[provider].ttlMs,
+            ),
+          teardown: () =>
+            pool.evictIfCurrent(
+              live,
+              "stop-approval-failed",
+              "failed-turn",
+            ),
+        });
+      },
+    };
+  }
+  return undefined;
+}
+
+interface StopParkedApprovalSessionInput {
+  environment: SessionEnvironment;
+  repark: () => Promise<boolean>;
+  teardown: () => Promise<void>;
+  /** Test seams; production uses the operator-configured bound and a real timer. */
+  cancelSettleMs?: number;
+  wait?: (ms: number) => Promise<void>;
+}
+
+/** Reject and cancel a parked prompt before exposing its environment as idle again. */
+export async function stopParkedApprovalSession(
+  input: StopParkedApprovalSessionInput,
+): Promise<void> {
+  const env = input.environment;
+  const gates = [...env.parkedApprovals.values()];
+  try {
+    await Promise.all(
+      gates.map((gate) =>
+        env.session.respondPermission(gate.permissionId, "reject"),
+      ),
+    );
+    const cancel = await cancelHarnessTurn({
+      sandbox: env.sandbox,
+      sessionId: env.session?.id,
+      promptPromise: gates[0]?.promptPromise,
+      timeoutMs: input.cancelSettleMs ?? resolveCancelSettleMs(),
+      log: env.logger,
+      wait: input.wait,
+    });
+    if (cancel.requested) env.sessionDestroyRequested = true;
+    if (!cancel.settled) {
+      throw new Error("parked approval harness cancel did not settle");
+    }
+
+    env.parkedApprovals.clear();
+    env.parkedApproval = undefined;
+    env.parkedApprovedExecutions?.clear();
+    env.approvalGateCount = 0;
+    env.nonParkablePauseCount = 0;
+    env.commitAuthorization = undefined;
+    env.clearTurn();
+    if (!(await input.repark())) {
+      throw new Error("released approval could not return to the pool");
+    }
+  } catch (error) {
+    // A partly released or unsettled prompt is not safe to present as idle. Fail closed through
+    // the normal teardown path; applyCommand reports the failed outcome.
+    await input.teardown();
+    throw error;
+  }
 }
 
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
@@ -1002,14 +1096,22 @@ export function createRequestListener(
           createdAt:
             typeof cancelBody.createdAt === "string" ? cancelBody.createdAt : "",
         };
-        if (!holdsSession(cancelProjectId, cancelSessionId, isSessionParked)) {
+        if (
+          !holdsSession(
+            cancelProjectId,
+            cancelSessionId,
+            parkedSessionControl,
+          )
+        ) {
           // 404 is ambiguous on purpose and the API disambiguates it: a `not_held` for a
           // session whose row is alive and beating means the call reached the wrong replica.
           return send(res, 404, { ok: false, error: "session not held here" });
         }
         // Answer before the outcome. The applier reports it separately, and a Stop that takes
         // seconds to settle must not hold this request open.
-        void applyCommand(command, { isParked: isSessionParked }).catch(() => {});
+        void applyCommand(command, {
+          isParked: parkedSessionControl,
+        }).catch(() => {});
         return send(res, 202, { ok: true, replicaId: REPLICA_ID });
       }
 

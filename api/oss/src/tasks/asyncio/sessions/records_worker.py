@@ -178,6 +178,21 @@ class RecordsWorker(StreamConsumer):
             results = await self.service.append_many(
                 events=[msg.record_event for _, msg in entries],
             )
+            quarantined = [
+                row
+                for row in results
+                if getattr(row, "quarantined_at", None) is not None
+            ]
+            if quarantined:
+                log.warning(
+                    "[RECORDS] Quarantined late records for settled turns",
+                    project_id=str(project_id),
+                    quarantined=len(quarantined),
+                    appended=len(results),
+                    turns=sorted(
+                        {f"{row.session_id}:{row.turn_id}" for row in quarantined}
+                    ),
+                )
             self.mark_committed()
             return len(results), True
         except Exception:

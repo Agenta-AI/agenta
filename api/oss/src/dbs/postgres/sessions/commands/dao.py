@@ -7,7 +7,7 @@ write a terminal outcome, and it is the same pattern
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, update as sa_update
@@ -43,6 +43,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    def transaction(self):
+        return self.engine.session()
 
     async def create_command(
         self,
@@ -255,6 +258,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
 
         None means somebody else already took or settled it, which is not an error: the runner
         that answered will still report, and the outcome route decides on the stored state.
+        The delivery budget was already consumed by `record_delivery_attempt`; incrementing it
+        again here would charge one direct delivery twice. Long-poll claims use `claim_commands`,
+        which performs its own increment.
         """
         async with self.engine.session() as session:
             now = datetime.now(timezone.utc)
@@ -269,7 +275,6 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     state=SessionCommandState.claimed.value,
                     claimed_by=replica_id,
                     claim_expires_at=now + timedelta(seconds=lease_seconds),
-                    claim_count=SessionCommandDBE.claim_count + 1,
                     updated_at=now,
                 )
                 .returning(SessionCommandDBE)
@@ -279,10 +284,46 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             await session.commit()
         return map_command_dbe_to_dto(dbe) if dbe is not None else None
 
+    async def record_delivery_attempt(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        now: datetime,
+        max_deliveries: int,
+    ) -> Optional[SessionCommand]:
+        stmt = (
+            sa_update(SessionCommandDBE)
+            .where(
+                SessionCommandDBE.project_id == project_id,
+                SessionCommandDBE.id == command_id,
+                SessionCommandDBE.state.in_(_OPEN_STATES),
+                SessionCommandDBE.claim_count < max_deliveries,
+                or_(
+                    SessionCommandDBE.state == SessionCommandState.pending.value,
+                    SessionCommandDBE.claim_expires_at < now,
+                ),
+            )
+            .values(
+                state=SessionCommandState.pending.value,
+                claimed_by=None,
+                claim_expires_at=None,
+                claim_count=SessionCommandDBE.claim_count + 1,
+                updated_at=now,
+            )
+            .returning(SessionCommandDBE)
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            await session.commit()
+        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
     async def settle_command(
         self,
         *,
         settle: SessionCommandSettle,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """Terminal transition. None means the command was in none of the states the caller
         expected, so the caller reads the stored row and answers 409 instead of letting a runner
@@ -292,7 +333,8 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         first and updating after would reopen the very race this exists to close: the claim can
         commit between the read and the write.
         """
-        async with self.engine.session() as session:
+
+        async def execute(session: Any) -> Optional[SessionCommand]:
             now = datetime.now(timezone.utc)
             stmt = sa_update(SessionCommandDBE).where(
                 SessionCommandDBE.project_id == settle.project_id,
@@ -319,8 +361,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             ).returning(SessionCommandDBE)
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            await session.commit()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def clear_stopping_turn(
         self,
@@ -350,17 +396,38 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         *,
         now: datetime,
         max_deliveries: int,
+        pending_before: Optional[datetime] = None,
     ) -> List[SessionCommand]:
         async with self.engine.session() as session:
+            abandoned = and_(
+                SessionCommandDBE.state == SessionCommandState.claimed.value,
+                SessionCommandDBE.claim_expires_at < now,
+            )
+            if pending_before is not None:
+                abandoned = or_(
+                    abandoned,
+                    and_(
+                        SessionCommandDBE.state == SessionCommandState.pending.value,
+                        func.coalesce(
+                            SessionCommandDBE.updated_at,
+                            SessionCommandDBE.created_at,
+                        )
+                        < pending_before,
+                    ),
+                )
             stmt = (
                 select(SessionCommandDBE)
                 .where(
-                    SessionCommandDBE.state == SessionCommandState.claimed.value,
                     SessionCommandDBE.deleted_at.is_(None),
-                    SessionCommandDBE.claim_expires_at < now,
-                    SessionCommandDBE.claim_count < max_deliveries,
+                    abandoned,
                 )
-                .order_by(SessionCommandDBE.claim_expires_at)
+                .order_by(
+                    func.coalesce(
+                        SessionCommandDBE.claim_expires_at,
+                        SessionCommandDBE.updated_at,
+                        SessionCommandDBE.created_at,
+                    )
+                )
                 .limit(200)
             )
             result = await session.execute(stmt)

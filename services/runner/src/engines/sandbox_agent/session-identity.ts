@@ -537,15 +537,34 @@ export function approvalDecisionForToolCall(
   toolCallId: string,
 ): "allow" | "deny" | undefined {
   if (!toolCallId) return undefined;
-  for (const message of request.messages ?? []) {
-    const content = message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
-        continue;
+  const messages = request.messages ?? [];
+  if (messages.length === 0) return undefined;
+
+  // A pure interaction reply carries its decision at the request tail. A fresh user turn can
+  // carry a rewritten `output-denied` tool part in its history; only the LAST assistant message
+  // is relevant there. Scanning the whole transcript lets an older denial bind to a newer gate
+  // that reused the id and incorrectly diverts the new user text into approval-resume.
+  let message: ChatMessage | undefined;
+  if (!tailIsFreshUserMessage(request)) {
+    message = messages[messages.length - 1];
+  } else {
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i]?.role === "assistant") {
+        message = messages[i];
+        break;
       }
-      const decision = approvalDecisionOf(block);
-      if (decision !== undefined) return decision;
+    }
+  }
+  if (message) {
+    const content = message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
+          continue;
+        }
+        const decision = approvalDecisionOf(block);
+        if (decision !== undefined) return decision;
+      }
     }
   }
   return undefined;

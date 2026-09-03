@@ -24,6 +24,9 @@ from oss.src.core.sessions.commands.dtos import (
 )
 from oss.src.core.sessions.commands.interfaces import SessionScope
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
@@ -360,6 +363,13 @@ async def test_the_claim_records_the_lease_and_counts_the_delivery(command_scope
     command = await dao.create_command(
         user_id=command_scope["user_id"], command=_create(command_scope)
     )
+    attempted = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=datetime.now(timezone.utc),
+        max_deliveries=3,
+    )
+    assert attempted is not None
 
     claimed = await dao.claim_for_delivery(
         project_id=command_scope["project_id"],
@@ -543,3 +553,190 @@ async def test_expire_claims_returns_only_leases_that_have_passed(command_scope)
     # An hour later the same lease has passed, and the settlement sweep sees it.
     later = await dao.expire_claims(now=now + timedelta(hours=1), max_deliveries=3)
     assert fresh.id in {row.id for row in later}
+
+
+async def test_old_pending_commands_are_returned_for_redelivery(command_scope):
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+    now = datetime.now(timezone.utc)
+    command = await dao.create_command(
+        user_id=command_scope["user_id"],
+        command=_create(command_scope, created_at=now - timedelta(minutes=5)),
+    )
+
+    rows = await dao.expire_claims(
+        now=now,
+        max_deliveries=3,
+        pending_before=now - timedelta(seconds=90),
+    )
+
+    assert command.id in {row.id for row in rows}
+
+
+async def test_delivery_attempts_are_bounded_in_the_database(command_scope):
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+    command = await dao.create_command(
+        user_id=command_scope["user_id"], command=_create(command_scope)
+    )
+    now = datetime.now(timezone.utc)
+
+    first = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=now,
+        max_deliveries=1,
+    )
+    second = await dao.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=now + timedelta(seconds=1),
+        max_deliveries=1,
+    )
+
+    assert first is not None
+    assert first.claim_count == 1
+    assert second is None
+
+
+async def test_runner_and_watchdog_have_one_terminal_winner(command_scope):
+    dao = SessionExecutionsDAO(engine=command_scope["engine"])
+
+    runner, watchdog = await asyncio.gather(
+        dao.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="stopped",
+            settled_by="runner",
+        ),
+        dao.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="lost",
+            settled_by="watchdog",
+        ),
+    )
+
+    assert sum(result.won for result in (runner, watchdog)) == 1
+    assert runner.settlement == watchdog.settlement
+
+
+async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    streams = SessionStreamsDAO(engine=command_scope["engine"])
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    command = await commands.create_command(
+        user_id=command_scope["user_id"],
+        command=_create(command_scope),
+        stopping_turn_id="turn-A",
+    )
+    await commands.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=datetime.now(timezone.utc),
+        max_deliveries=3,
+    )
+    await commands.claim_for_delivery(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        replica_id="runner-1",
+        lease_seconds=90,
+    )
+    interaction_id = uuid.uuid4()
+    async with command_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "UPDATE session_streams SET flags = "
+                '\'{"is_alive": true, "is_running": true, '
+                '"is_attached": true}\'::jsonb '
+                "WHERE project_id = :project_id AND session_id = :session_id"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+        await session.execute(
+            text(
+                "INSERT INTO session_interactions "
+                "(project_id, id, session_id, turn_id, token, kind, status) "
+                "VALUES (:project_id, :id, :session_id, 'turn-A', "
+                "'token-A', 'approval', 'pending')"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "id": interaction_id,
+                "session_id": command_scope["session_id"],
+            },
+        )
+
+    transition = SessionCommandSettle(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        expected_states=[SessionCommandState.claimed],
+        replica_id="runner-1",
+    )
+    async with commands.transaction() as transaction:
+        settled = await commands.settle_command(
+            settle=transition,
+            transaction=transaction,
+        )
+        execution = await executions.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="stopped",
+            settled_by="runner",
+            transaction=transaction,
+        )
+        await streams.settle_command(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            turn_id="turn-A",
+            mirror_stopped=True,
+            transaction=transaction,
+        )
+        await interactions.cancel_session_pending(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            only_turn_id="turn-A",
+            transaction=transaction,
+        )
+
+    assert settled is not None
+    assert execution.won is True
+    async with command_scope["engine"].session() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT c.state, c.outcome, s.stopping_turn_id, "
+                    "s.flags->>'is_running', s.flags->>'is_attached', i.status, "
+                    "e.terminal_outcome "
+                    "FROM session_commands c "
+                    "JOIN session_streams s ON s.project_id = c.project_id "
+                    "AND s.session_id = c.session_id "
+                    "JOIN session_interactions i ON i.project_id = c.project_id "
+                    "AND i.session_id = c.session_id "
+                    "JOIN session_executions e ON e.project_id = c.project_id "
+                    "AND e.session_id = c.session_id "
+                    "AND e.execution_id = c.target_turn_id "
+                    "WHERE c.project_id = :project_id AND c.id = :command_id"
+                ),
+                {
+                    "project_id": command_scope["project_id"],
+                    "command_id": command.id,
+                },
+            )
+        ).one()
+    assert tuple(row) == (
+        "applied",
+        "stopped",
+        None,
+        "false",
+        "true",
+        "cancelled",
+        "stopped",
+    )

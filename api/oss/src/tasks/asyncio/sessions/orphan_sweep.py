@@ -266,6 +266,16 @@ async def _settle_abandoned_commands(
         return 0
 
 
+async def _repair_terminal_redis(commands_service: Optional[Any]) -> int:
+    if commands_service is None:
+        return 0
+    try:
+        return await commands_service.repair_terminal_redis()
+    except Exception:
+        log.warning("watchdog: failed to repair terminal Redis state", exc_info=True)
+        return 0
+
+
 async def run_orphan_sweep(
     engine: TransactionsEngine,
     lock_engine: LockEngine,
@@ -354,12 +364,26 @@ async def run_orphan_sweep(
             # No stale row and nothing owed an ending, but a command can still be abandoned:
             # its execution may have ended normally between the claim and the report.
             await _settle_abandoned_commands(commands_service, now_utc)
+            await _repair_terminal_redis(commands_service)
             return
 
         # Durable ending FIRST. A crash after this point leaves the row a candidate for the
         # next pass, which re-reads the record it just wrote and does not write a second.
         now = datetime.now(timezone.utc)
+        terminal_winners: Set[Tuple[UUID, str, str]] = set()
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
+            if (
+                env.agenta.sessions.durable_stop
+                and commands_service is not None
+                and not await commands_service.settle_execution_lost(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=turn_id,
+                    settled_at=now,
+                )
+            ):
+                continue
+            terminal_winners.add((project_id, session_id, turn_id))
             for record_event in _lost_turn_records(
                 project_id=project_id,
                 session_id=session_id,
@@ -376,6 +400,8 @@ async def run_orphan_sweep(
                         turn_id=turn_id,
                         exc_info=True,
                     )
+
+        unsettled = terminal_winners
 
         # A stopped row whose turn was just given its ending is NOT collapsed, but the dead
         # turn may still hold the session's `alive` lock: settlement leaves `alive` to its
@@ -482,6 +508,7 @@ async def run_orphan_sweep(
         commands_settled = await _settle_abandoned_commands(
             commands_service, datetime.now(timezone.utc)
         )
+        await _repair_terminal_redis(commands_service)
 
         log.info(
             "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",

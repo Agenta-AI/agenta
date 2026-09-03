@@ -13,11 +13,10 @@
  * THE THREE ANSWERS.
  *
  *   stopped                  — this process held the target execution and aborted it.
- *   not_running              — it holds no execution that can still be stopped. A session
- *                              parked awaiting an approval answers this, and so does a turn
- *                              whose prompt has already settled and is only tearing down. In
- *                              both cases there is nothing to abort, the parked environment
- *                              stays in the pool, and the session stays warm.
+ *   not_running              — it holds no execution that can still be stopped. A turn whose
+ *                              prompt has already settled and is only tearing down answers this.
+ *                              An approval-parked turn is still stoppable: its pending gate is
+ *                              released and it answers `stopped` like a live execution.
  *   superseded_by_newer_turn — it holds an execution that STARTED AFTER the command was
  *                              created, so the command was meant for a turn that has since
  *                              ended. Nothing is aborted. This check is exact, because it
@@ -65,9 +64,15 @@ export interface ControlOutcome {
   };
 }
 
+/** The control operation exposed by one approval-parked session. */
+export interface ParkedSessionControl {
+  /** Release every gate and return the same environment to the pool as idle. */
+  stop(): Promise<void> | void;
+}
+
 /** How the runner reaches a parked session. Injected so tests need no pool. */
 export interface ParkedLookup {
-  (sessionId: string): boolean;
+  (projectId: string, sessionId: string): ParkedSessionControl | undefined;
 }
 
 export interface ApplyCommandDeps {
@@ -87,7 +92,7 @@ export function holdsSession(
   isParked?: ParkedLookup,
 ): boolean {
   if (findExecution(projectId, sessionId)) return true;
-  return isParked ? isParked(sessionId) : false;
+  return isParked ? isParked(projectId, sessionId) !== undefined : false;
 }
 
 /**
@@ -123,7 +128,10 @@ export async function applyCommand(
 
   const createdAtMs = Date.parse(command.createdAt);
   const live = findLive(command.projectId, command.sessionId);
-  const outcome = decideOutcome(command, live, createdAtMs);
+  const parked = live
+    ? undefined
+    : deps.isParked?.(command.projectId, command.sessionId);
+  const outcome = decideOutcome(command, live, parked, createdAtMs);
 
   // Remember BEFORE aborting. A duplicate that arrives while the first abort is still settling
   // must find the command already taken, not start a second one.
@@ -137,15 +145,26 @@ export async function applyCommand(
     now(),
   );
 
-  if (outcome.execution.state === "stopped" && live) {
+  if (outcome.execution.state === "stopped") {
     try {
-      // The abort is the cancel. It makes the turn end `cancelled`, which is what sends the
-      // ACP `session/cancel` to the harness and lets the environment be PARKED rather than
-      // deleted (see `cancel-turn.ts` and `shouldPark`). Stop keeps the session warm.
-      live.abort();
-      log(
-        `aborted command=${command.id} session=${command.sessionId} turn=${live.turnId}`,
-      );
+      if (live) {
+        // The abort is the cancel. It makes the turn end `cancelled`, which is what sends the
+        // ACP `session/cancel` to the harness and lets the environment be PARKED rather than
+        // deleted (see `cancel-turn.ts` and `shouldPark`). Stop keeps the session warm.
+        live.abort();
+        log(
+          `aborted command=${command.id} session=${command.sessionId} turn=${live.turnId}`,
+        );
+      } else if (parked) {
+        // An approval park has no live execution to abort, but its harness still holds the
+        // original prompt on one or more permission gates. Releasing those gates ends the work
+        // and returns the SAME environment to the idle pool, so the next user message is a
+        // normal warm prompt rather than an approval resume.
+        await parked.stop();
+        log(
+          `released parked approval command=${command.id} session=${command.sessionId}`,
+        );
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : String(error ?? "abort failed");
@@ -174,12 +193,17 @@ export async function applyCommand(
 function decideOutcome(
   command: ControlCommand,
   live: LiveExecution | undefined,
+  parked: ParkedSessionControl | undefined,
   createdAtMs: number,
 ): ControlOutcome {
   if (!live) {
-    // No turn is running here. A parked approval lands here too, and that is the right answer:
-    // there is nothing to abort, and the parked environment must stay in the pool so the next
-    // message is warm. Stop ends the work, not the session.
+    if (parked) {
+      return {
+        result: "applied",
+        execution: { id: command.target.turnId, state: "stopped" },
+      };
+    }
+    // No live or approval-parked turn is held here. There is nothing to stop.
     return {
       result: "applied",
       execution: { id: command.target.turnId, state: "not_running" },

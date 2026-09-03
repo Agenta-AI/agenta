@@ -61,9 +61,25 @@ class _ExpiringDAO(_FakeCommandsDAO):
         self.unclaimed_calls: List[dict] = []
         self.cleared_turn_ids: List[Optional[str]] = []
 
-    async def expire_claims(self, *, now, max_deliveries):
-        self.expire_calls.append({"now": now, "max_deliveries": max_deliveries})
-        return [row for row in self.rows if row.state == SessionCommandState.claimed]
+    async def expire_claims(self, *, now, max_deliveries, pending_before=None):
+        self.expire_calls.append(
+            {
+                "now": now,
+                "max_deliveries": max_deliveries,
+                "pending_before": pending_before,
+            }
+        )
+        return [
+            row
+            for row in self.rows
+            if row.state == SessionCommandState.claimed
+            or (
+                row.state == SessionCommandState.pending
+                and pending_before is not None
+                and row.created_at is not None
+                and row.created_at < pending_before
+            )
+        ]
 
     async def expire_unclaimed(self, *, older_than):
         self.unclaimed_calls.append({"older_than": older_than})

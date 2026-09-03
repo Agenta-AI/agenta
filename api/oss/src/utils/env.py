@@ -1,7 +1,7 @@
 import os
 import hashlib
 import warnings
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -512,6 +512,18 @@ class RedactionConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
+    value = (os.getenv("AGENTA_SESSIONS_LATE_OUTPUT") or "quarantine").strip().lower()
+    if value in ("quarantine", "reject"):
+        return value
+    warnings.warn(
+        f"AGENTA_SESSIONS_LATE_OUTPUT={value!r} is not recognized; "
+        "behaving as 'quarantine'.",
+        stacklevel=2,
+    )
+    return "quarantine"
+
+
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
 
@@ -672,6 +684,10 @@ class SessionsCommandsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    durable_stop: bool = (
+        os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false"
+    ).lower() in _TRUTHY
+    late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
