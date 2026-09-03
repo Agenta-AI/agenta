@@ -25,7 +25,6 @@ def _to_dto(row: SessionExecutionDBE) -> SessionExecutionSettlement:
         terminal_outcome=row.terminal_outcome,
         settled_by=row.settled_by,
         settled_at=row.settled_at,
-        records_closed_at=row.records_closed_at,
         redis_reconciled_at=row.redis_reconciled_at,
     )
 

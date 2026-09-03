@@ -26,7 +26,6 @@ def upgrade() -> None:
         sa.Column("terminal_outcome", sa.String(), nullable=False),
         sa.Column("settled_by", sa.String(), nullable=False),
         sa.Column("settled_at", sa.TIMESTAMP(timezone=True), nullable=False),
-        sa.Column("records_closed_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("project_id", "session_id", "execution_id"),
     )

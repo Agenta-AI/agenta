@@ -148,7 +148,14 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
-    expected_execution_id: Optional[str] = None
+    # A stale-request guard for cancel mode only; send, steer, and attach ignore it.
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
 
     @field_validator("expected_execution_id")
     @classmethod
