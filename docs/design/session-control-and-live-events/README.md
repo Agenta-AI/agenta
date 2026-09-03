@@ -1,53 +1,44 @@
 # Session control and live events
 
-> AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
-
-This folder holds the design work for session execution control, shared live output,
-durable event replay, and durable commands.
+> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This folder contains a provisional RFC. Mahmoud has not
+> approved the architecture. Confirmed discussion decisions and AI-selected defaults are labeled.
 
 ## Reading order
 
-1. [Context](context.md) explains the user problems and the current system boundary.
-2. [Requirements](requirements.md) lists the open issues and draft system requirements.
-3. [Decisions](decisions.md) separates confirmed decisions from proposals and open questions.
-4. [Plan](plan.md) defines the design tracks and the order of discussion.
-5. [Research](research.md) records verified repository findings and external dependency checks.
-6. [Record properties](records-invariants.md) evaluates the existing record model before storage
-   options are compared.
-7. [RFC](rfc.md) is the living architecture proposal. It remains incomplete until each track is discussed.
-8. [Status](status.md) records current progress and the next discussion.
-9. [Tonight handoff](tonight-handoff.md) contains independent spike and implementation briefs.
+1. [RFC](rfc.md) contains the proposed end-to-end architecture and migration.
+2. [Decisions](decisions.md) separates confirmed direction from provisional AI choices.
+3. [Requirements](requirements.md) maps open issues to required system behavior.
+4. [Implementation plan](plan.md) divides the work into independent programs.
+5. [Status](status.md) lists work that can start and the next human review priorities.
+6. [Research](research.md) records verified repository and competitor findings.
+7. [Record properties](records-invariants.md) analyzes current record durability and ordering.
+8. [Tonight handoff](tonight-handoff.md) contains focused spike briefs.
+9. [Context](context.md) describes the original problem and system boundary.
 
-## Added on the night of 2026-09-02 (agent-generated, for morning review)
-
-Read `overnight-2026-09-02.md` first. It is the log of what was done, where every branch is,
-and how to revert each piece.
-
-10. [Review](review-2026-09-02.md) merges two reviews of the RFC and lists the decisions Mahmoud
-    must make. The full reviews are `review-architecture-2026-09-02.md` and
-    `review-product-2026-09-02.md`.
-11. [Implementation plan](implementation-plan.md) is the build plan for version one, the merge
-    order, and the gate cells.
-12. Spike results: [A, sandbox cancel](spike-a-sandbox-cancel.md),
-    [B, durable commands and long polling](spike-b-durable-commands-design.md) with its
-    [route contracts](api-design.md), [C, the current Stop map](spike-c-current-stop-map.md),
-    [D, stable record ids](spike-d-stable-record-ids.md).
-13. Code slices, each on its own branch: [admission](slice-admission.md),
-    [watchdog](slice-watchdog.md), [Stop guard](slice-stop-guard.md),
-    [records durability](slice-records-ack.md), [durable cancel](slice-durable-cancel.md).
-
-## Terms under review
+## Terms
 
 - **Session:** One durable conversation and its workspace.
-- **Execution:** One runner attempt that can start, pause, complete, fail, or be cancelled.
-- **Conversation turn:** One user message and the resulting agent response. One conversation turn
-  can contain several executions when an approval pauses and resumes work.
+- **Conversation turn:** One user message and the resulting agent response.
+- **Execution:** One runner attempt to advance a session.
 - **Runner:** The service that starts a sandbox and drives the coding harness.
 - **Harness:** The coding-agent program inside the sandbox, such as Pi or Claude Code.
-- **Live frame:** A temporary output update, such as a text delta or tool progress update.
-- **Durable event:** An append-only saved fact used for replay and recovery.
-- **Command:** A saved request to send, cancel, approve, queue, or steer.
-- **Lease:** Temporary proof that one runner owns a session or execution.
+- **Command:** A durable request that can change execution.
+- **Input:** Durable user content waiting for or assigned to execution.
+- **Live frame:** Temporary output such as a text delta or tool progress update.
+- **Durable event:** An immutable saved fact used for replay and recovery.
+- **Cursor:** An opaque point in committed durable session history.
+- **Lease:** Temporary evidence that a runner remains alive and owns current work.
 
-The names are provisional. The contract discussion must settle how these terms map to the
-existing `turn_id` and `turn_index` fields.
+## Overnight and daytime evidence (agent-generated, low weight)
+
+- `overnight-2026-09-02.md` is the log of the unattended night: every branch, stack, decision
+  made on Mahmoud's behalf, and the revert path for each.
+- `review-2026-09-02.md` merges the two RFC reviews; the full reviews are
+  `review-architecture-2026-09-02.md` and `review-product-2026-09-02.md`.
+- `implementation-plan.md` is the build plan, merge order, and gate cells for version one.
+- Spike reports: `spike-a-sandbox-cancel.md`, `spike-b-durable-commands-design.md` with
+  `api-design.md`, `spike-c-current-stop-map.md`, `spike-d-stable-record-ids.md`.
+- Slice reports: `slice-admission.md`, `slice-watchdog.md`, `slice-stop-guard.md`,
+  `slice-records-ack.md`, `slice-durable-cancel.md`, and `integration-2026-09-03.md`.
+- `evidence-2026-09-03/` holds the daytime round: Daytona and Claude Code scenarios, runner
+  restart, child-process cleanup, the watchdog stale tail, and the post-Stop liveness trace.

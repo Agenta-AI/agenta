@@ -1,82 +1,56 @@
 # Status
 
-> AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
+> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This status was prepared autonomously on 2026-09-02 for
+> human review on the next working day.
 
 ## Current state
 
-- Isolated branch created: `agent/session-execution-rfc`.
-- Problem inventory created from 48 open GitHub issues.
-- Current Stop, heartbeat, records, and watch paths checked against the repository.
-- Confirmed process decisions recorded.
-- Proposed architecture choices kept separate from confirmed decisions.
-- Living RFC created with empty sections for track-by-track discussion.
-- Current command endpoint and runner routing boundary verified.
-- Sandbox-agent cancellation investigation promoted to the first parallel task.
-- Five seconds recorded as the provisional Stop delivery target.
-- Public resource API separated from the proposed internal command transport.
-- Current interaction response path documented.
-- Public APIs from Gumloop, OpenAI background Responses, and Claude Managed Agents compared.
-- Each current operation mapped to its proposed behavior and degree of change.
-- Stop and Delete distinction confirmed.
-- Optional `expected_execution_id` guard recorded.
-- One public session API for first-party and external clients recorded.
-- Visible server-side pending inputs added to the interface discussion.
-- Queued inputs made immutable. Clients can remove and replace them, but cannot edit or reorder.
-- Detailed API mechanics delegated to established conventions unless they affect architecture.
-- Durable acceptance defined independently from runner claim and execution start.
-- Sender-only visibility explicitly excluded from the target requirements.
-- Proposed snapshot and event routes explicitly marked as new contracts, not changed meanings of
-  current stream routes.
-- Side-by-side endpoint migration accepted as the first draft. Final naming deferred.
-- Existing record properties, violations, structural constraints, and repair options traced before
-  selecting a replay storage design.
-- Corrected the cursor analysis: plain Postgres sequences do not guarantee commit visibility order.
-- Added the repaired-records and separate-event-log options with trade-offs. Redis-only permanent
-  history excluded from the draft.
-- Added a mandatory stable-ID producer spike before immutable record changes.
-- Made single active execution and stale-writer fencing explicit requirements.
-- Kept the public Stop execution guard optional.
-- Added possible future user-operated runners as a control-transport consideration, not a
-  requirement.
-- Recorded long polling as the current control-transport preference behind a replaceable adapter.
-- Recorded warm sandbox and harness resume as the required Stop outcome.
-- Confirmed the minimal internal command lifecycle and its separation from public execution state.
-- Left the Stop settlement timeout for the sandbox cancellation spike.
-- Confirmed that the first version keeps current Redis execution ownership.
-- Kept durable commands and long polling in scope; deferred Postgres ownership and full fencing.
+- The RFC has a complete provisional architecture.
+- Confirmed founder decisions are separated from AI-selected defaults.
+- The first version keeps current Redis execution ownership.
+- Durable Stop uses direct API-to-runner delivery behind a replaceable port.
+- Runner-initiated long polling is designed but parked in Linear AGE-4253.
+- Stop requires warm sandbox and harness resume.
+- Shared live frames use one canonical backend path in the target design.
+- Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
+  must change first.
+- Records-versus-event-log remains an explicit reviewer gate.
+- Final endpoint names remain open.
+
+## Work in review
+
+1. Warm cancellation and harness compatibility, PR #6496.
+2. Durable command and transport design, PR #6497.
+3. Current Stop path map, PR #6498.
+4. Stable record-ID semantics, PR #6499.
+5. Concurrent-send admission, PR #6500.
+6. Dead execution watchdog, PR #6501.
+7. Record acknowledgement after Postgres commit, PR #6502.
+8. Durable Stop with direct delivery, PR #6503.
+9. Stop guard, approval cancellation, and client behavior, PR #6504.
+10. Overnight evidence and integration, PRs #6505 and #6506.
+
+## Work ready to start
+
+1. Prove Daytona and Claude Code warm Stop.
+2. Prove restart behavior and durable continuity.
+3. Prevent or quarantine output after watchdog terminal settlement.
+4. Verify the post-Stop `running` and `alive` contract.
+5. Design live-frame ingress and shared reading.
+
+## Human review priorities
+
+1. Confirm that the first Stop release is small enough.
+2. Decide repaired records versus a separate session-event table after reviewing Spike D.
+3. Confirm manual Stop behavior for queued input.
+4. Review the public resource boundaries without focusing on final route spelling.
+5. Assign owners for the independent spikes.
 
 ## Branch
 
-- Branch: `agent/session-execution-rfc`
-- The branch is pushed to `Agenta-AI/agenta` after each design exchange.
+`agent/session-execution-rfc`
 
-## Next discussion
+## Evidence
 
-Start with **Stop and ownership**:
-
-1. Start the sandbox-agent capability investigation.
-2. Confirm the user-visible Stop requirements and latency target.
-3. Choose the immediate runner-control transport at a high level.
-4. Define terminal settlement and watchdog responsibility.
-5. Decide which current issues this track is expected to close.
-
-The **live-frame ingress** discussion can proceed independently after that or in parallel.
-
-## Overnight work, 2026-09-02 to 2026-09-03
-
-- Two reviews of the RFC written and merged into `review-2026-09-02.md`.
-- The four spikes from `tonight-handoff.md` completed: A (warm cancel proven live on Pi and
-  Codex), B (command design with the direct-call adapter as the recommended first transport),
-  C (Stop map), D (record-id semantics with characterization tests).
-- Five code slices built and verified live on standalone stacks, each on its own branch:
-  single-turn admission, execution watchdog, Stop guard, records durability, and the durable
-  Stop command with the direct-call adapter (Stop reaches the runner in 72 ms and the sandbox
-  stays warm).
-- Nothing merged, nothing pushed to main. The log is `overnight-2026-09-02.md`.
-
-## Next discussion (updated)
-
-1. Decide the five items in `review-2026-09-02.md` (transport adapter default, reject-only
-   version one, steer shape, park window after Stop, token-level relay).
-2. Decide the deviations listed in `overnight-2026-09-02.md`.
-3. Review the slice branches in the merge order of `implementation-plan.md`.
+The overnight log, the reviews, the spike and slice reports, and the daytime evidence folder
+live on PR #6505 (`agent/session-execution-overnight`), starting from `overnight-2026-09-02.md`.

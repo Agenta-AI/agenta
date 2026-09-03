@@ -1,86 +1,71 @@
-# Design plan
+# Implementation plan
 
-> AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
+> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This sequence is a provisional AI proposal. Human review
+> and spike results can change it.
 
-## Parallel programs
+## Independent programs
 
-The work has three parallel programs. The order below is a discussion order, not a requirement
-that one program finish before another starts.
+### Fast Stop and command delivery
 
-### Program A: Immediate control
+1. Trace current Stop, kill, heartbeat, abort, sandbox, and interaction paths.
+2. Prove warm cancellation and identify sandbox-agent or Daytona work.
+3. Add the durable command repository and state transitions.
+4. Add runner-initiated long polling behind the command-delivery adapter.
+5. Make public Stop create a durable command with an optional execution guard.
+6. Keep current Redis ownership until cancellation settles.
+7. Add heartbeat command discovery as fallback.
+8. Emit stopped or lost outcomes and notify existing clients.
 
-1. Sandbox-agent cancellation capability and Daytona rebuild impact.
-2. Ownership and execution identity.
-3. Immediate Stop delivery.
-4. Stop settlement and sandbox preservation.
-5. Approval and Stop races.
+### Shared live reading
 
-### Program B: Shared reading
+1. Define a stable runner frame envelope.
+2. Add the bounded Redis frame stream and live relay.
+3. Let secondary clients render live frames while the sender keeps its existing stream.
+4. Prove that live delivery does not block the runner.
+5. Detach execution from the sender request.
+6. Move the sender to the shared session stream.
 
-1. Raw live-frame ingress.
-2. Multi-client live relay.
-3. Explicit execution lifecycle facts.
-4. Append-only durable ordering and replay.
-5. Sender becomes an ordinary reader.
+### Durable snapshot and replay
 
-### Program C: Durable input
+1. Complete the stable record-ID spike.
+2. Review the provisional separate-event-table choice.
+3. Add the selected append-only event store and per-session commit order.
+4. Build session projections and snapshots through an opaque cursor.
+5. Add replay followed by live delivery.
+6. Migrate desktop and mobile before removing the old watch path.
 
-1. Durable command admission.
-2. Second-message policies: reject, queue, and steer.
-3. Approval responses as commands.
-4. Steer settlement and promotion.
+### Durable input, Queue, Steer, and approvals
 
-## Cross-cutting foundations
+1. Add durable input admission and visible pending state.
+2. Move the browser queue to the server.
+3. Promote one queued input after normal completion.
+4. Implement Steer as saved input, Stop, then promotion.
+5. Move interaction continuation through the durable command path.
+6. Test Stop, Steer, and approval races.
 
-These topics apply to all three programs:
+## Work that can start immediately
 
-- Vocabulary and identifier ownership.
-- Harness capability reporting.
-- Authentication and authorization.
-- Redaction and temporary-frame retention.
-- Idempotency and duplicate delivery.
-- Live-stack tests and failure injection.
+The following tasks do not require the final event-store decision:
 
-## Proposed discussion order
+- Sandbox cancellation spike.
+- Current Stop path map.
+- Durable command and long-poll design.
+- Stable record-ID spike.
+- Live frame envelope and ingress spike.
 
-The first two discussions can happen in parallel.
+## First releasable slice
 
-1. **Stop and ownership:** current lease, immediate signal options, sandbox-agent dependency,
-   terminal settlement, and watchdog behavior.
-2. **Live frames:** one raw ingress, Redis Stream layout, multi-client fan-out, and temporary
-   recovery.
-3. **Durable ordering:** append-only event model, cursor allocation, snapshot boundary, and the
-   conflict with the existing UUIDv7 record-order decision.
-4. **Sender detachment:** command acceptance, execution lifetime, and making the sender a reader.
-5. **Durable commands:** command states, delivery, retries, and owner routing.
-6. **Queue and Steer:** second-message policy, promotion order, interruption boundary, and
-   interaction races.
-7. **Shared client engine:** desktop and mobile state application after the server contracts are
-   stable.
+The first release contains durable Stop, long-poll delivery, heartbeat fallback, honest terminal
+outcomes, and warm resume. It keeps existing Redis ownership and existing client watch behavior.
 
-Before finalizing the command contract, review the proposed public interface as a whole. The
-review must distinguish user-facing resource endpoints from the private command transport used to
-reach runners.
+## Completion evidence
 
-## Definition of a completed track
+Each program needs:
 
-Each track must contain:
+- One stated invariant.
+- Automated concurrency and failure tests.
+- A live-stack test.
+- Exact current and changed API behavior.
+- Known limitations.
 
-- One user problem.
-- One invariant.
-- One interface or state transition contract.
-- The main rejected alternatives.
-- One live-stack test that proves the invariant.
-- Known harness or deployment limitations.
-
-## Initial parallel investigation
-
-The sandbox-agent investigation starts before the Stop interface is fixed. It must answer:
-
-1. Which protocol request currently ends a prompt or execution?
-2. Does that request also close the harness session?
-3. Can Pi and Claude Code resume the same native session after cancellation?
-4. Does the runner destroy or park the sandbox on each cancellation path?
-5. Which source repository owns the required change?
-6. Does Daytona need a new snapshot, and how is that snapshot version deployed?
-7. What automated test proves cancel followed by warm resume?
+The draft RFC contains the complete test matrix.
