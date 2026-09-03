@@ -984,6 +984,12 @@ async function acquireEnvironmentOnce(
     }
 
     const prepareWorkspaceStartedAt = Date.now();
+    emit?.({
+      type: "data",
+      name: "agent-status",
+      data: { phase: "preparing_workspace" },
+      transient: true,
+    });
     // The instructions file is the fourth guidance channel, and the only one every harness reads.
     // It is composed HERE rather than in `run-plan.ts` because the mount arm needs mount state:
     // both agent-mount paths above run before this point (local at `mountLocalAgentCwd`, Daytona
@@ -1209,6 +1215,14 @@ async function acquireEnvironmentOnce(
     // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the
     // turns table is append-only, so there is nothing to overwrite mid-conversation.
     // HarnessSessionLifecycle owns both open modes and both `create_session` timing marks.
+
+    // Longest stage of a cold acquire by far (19.2s of 24.5s), so it gets its own phase.
+    emit?.({
+      type: "data",
+      name: "agent-status",
+      data: { phase: "opening_session" },
+      transient: true,
+    });
     const opened = await openHarnessSession({
       sandbox: environment.sandbox,
       persist,

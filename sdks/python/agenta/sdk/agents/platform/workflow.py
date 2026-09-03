@@ -64,7 +64,7 @@ class AgentaWorkflowToolResolver:
         authorization = self._connection.authorization()
 
         # Resolve every model-visible name up front. Sanitizing can merge two distinct children
-        # onto one name ("Support Router" and "Support/Router" both become `Support_Router`), and
+        # onto one name ("support router" and "support/router" both become `support_router`), and
         # a duplicate name silently shadows the earlier tool instead of erroring — so the second
         # subagent would simply never be callable. This is the only place that sees siblings.
         names_by_call_ref = disambiguate_tool_names(
@@ -103,12 +103,10 @@ class AgentaWorkflowToolResolver:
             tool_specs.append(
                 CallbackToolSpec(
                     name=resolved_name,
-                    # The DESCRIPTION keeps the authored display name when there is one: that is
-                    # what the model reads to decide whether to call this subagent, and the
-                    # sanitized wire name may have lost the spacing that made it readable.
-                    description=tool_config.description
-                    or tool_config.name
-                    or resolved_name,
+                    # The DESCRIPTION is what the model reads to decide whether to call this
+                    # subagent, so it never falls back to the stored `name`: that copy goes stale
+                    # the moment the target is renamed (#6444).
+                    description=tool_config.description or resolved_name,
                     # Expand Agenta catalog pointers (``x-ag-type-ref``, e.g. ``messages``) into
                     # concrete JSON Schema so the harness sees a real shape (an array WITH items,
                     # not a bare ``x-ag-type-ref``) and can construct the call. Reference tools are

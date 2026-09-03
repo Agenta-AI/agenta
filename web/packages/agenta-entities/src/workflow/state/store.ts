@@ -464,6 +464,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: false},
+                // Keep UNPAGED: the rail reads "absent from this list" as "archived" (#6457).
                 lowPriority: true,
             })
             const workflows = response.workflows ?? []

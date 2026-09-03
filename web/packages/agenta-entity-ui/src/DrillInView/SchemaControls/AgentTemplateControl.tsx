@@ -78,7 +78,11 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
-import {SubagentHeaderIcon, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
+import {
+    SubagentHeaderIcon,
+    SubagentHeaderTitle,
+    SubagentOpenAgentButton,
+} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -1100,7 +1104,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                         ? subagentHeaderIcon
                                         : def.icon
                               }
-                              title={def.drawerTitle(draft)}
+                              title={
+                                  isSubagent && workflowReference ? (
+                                      <SubagentHeaderTitle
+                                          bridge={workflowReference}
+                                          slug={editingSubagentSlug}
+                                          fallback={def.drawerTitle(draft)}
+                                      />
+                                  ) : (
+                                      def.drawerTitle(draft)
+                                  )
+                              }
                               badge={
                                   bareChrome || isSubagent
                                       ? undefined
