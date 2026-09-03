@@ -123,16 +123,6 @@ export const VersionList = ({
                                     Latest
                                 </span>
                             ) : null}
-                            {row.isReverted && !row.isLatest ? (
-                                <span
-                                    className={cn(
-                                        "rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-px text-[10px] font-medium",
-                                        textColors.secondary,
-                                    )}
-                                >
-                                    Reverted
-                                </span>
-                            ) : null}
                             <span
                                 className={cn(
                                     "ml-auto whitespace-nowrap text-[10.5px]",

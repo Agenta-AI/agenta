@@ -21,7 +21,7 @@ import {atom, getDefaultStore} from "jotai"
 
 import {flushAgentAutoCommitAtom} from "./agentAutoCommit"
 
-/** Prefix of a revert's commit message — also how a row is recognised as one. */
+/** Prefix of a revert's commit message. */
 export const REVERT_MESSAGE_PREFIX = "Revert to v"
 
 export interface AgentVersionRow {
@@ -33,8 +33,6 @@ export interface AgentVersionRow {
     isCurrent: boolean
     /** The newest version. Usually also `isCurrent`, but not when the surface sits on an older one. */
     isLatest: boolean
-    /** Committed by a revert. Derived from the message; no field records it. */
-    isReverted: boolean
 }
 
 /**
@@ -68,7 +66,6 @@ export const buildVersionRows = (
                 createdAt: revision.created_at ?? null,
                 isCurrent: revision.id === currentRevisionId,
                 isLatest: index === 0,
-                isReverted: !!message?.startsWith(REVERT_MESSAGE_PREFIX),
             }
         })
 

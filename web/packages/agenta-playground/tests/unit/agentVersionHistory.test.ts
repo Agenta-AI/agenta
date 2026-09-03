@@ -187,17 +187,6 @@ describe("buildVersionRows", () => {
         ])
     })
 
-    it("recognises a revert by its commit message", () => {
-        const rows = buildVersionRows(
-            [
-                revision({id: "a", version: 3, message: 'Revert to v1 — "Initial commit"'}),
-                revision({id: "b", version: 2, message: "Add the Linear MCP server"}),
-            ],
-            "a",
-        )
-        expect(rows.map((r) => r.isReverted)).toEqual([true, false])
-    })
-
     it("normalises a blank commit message to null", () => {
         expect(buildVersionRows([revision({message: "   "})], null)[0].message).toBeNull()
     })

@@ -25,7 +25,6 @@ const rows: AgentVersionRow[] = [
         createdAt: new Date(now - 2 * HOUR).toISOString(),
         isCurrent: true,
         isLatest: true,
-        isReverted: false,
     },
     {
         id: "r3",
@@ -34,7 +33,6 @@ const rows: AgentVersionRow[] = [
         createdAt: new Date(now - 72 * HOUR).toISOString(),
         isCurrent: false,
         isLatest: false,
-        isReverted: true,
     },
     {
         id: "r2",
@@ -43,7 +41,6 @@ const rows: AgentVersionRow[] = [
         createdAt: new Date(now - 144 * HOUR).toISOString(),
         isCurrent: false,
         isLatest: false,
-        isReverted: false,
     },
     {
         id: "r1",
@@ -52,7 +49,6 @@ const rows: AgentVersionRow[] = [
         createdAt: new Date(now - 336 * HOUR).toISOString(),
         isCurrent: false,
         isLatest: false,
-        isReverted: false,
     },
 ]
 
