@@ -272,6 +272,15 @@ export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** Every scope the local session store holds for this project. Lets a project-wide surface reach
+ * sessions outside the routed playground, which the per-scope families cannot name on their own.
+ * Compared by value: `Object.keys` is a fresh array each read, and its consumer feeds an effect. */
+export const sessionScopeKeysAtom = selectAtom(
+    sessionsByAppAtom,
+    (byScope) => Object.keys(byScope),
+    (a, b) => a.length === b.length && a.every((key, i) => key === b[i]),
+)
+
 /** Archived sessions for a scope, most-recently-active first. Backs the archived view. */
 export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
