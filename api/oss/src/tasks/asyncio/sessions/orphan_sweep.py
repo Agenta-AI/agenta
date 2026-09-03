@@ -62,6 +62,7 @@ from oss.src.dbs.redis.sessions.locks import (
     clear_running,
     force_clear_owner,
     mark_turn_superseded,
+    release_alive,
 )
 
 from sqlalchemy import and_, func, not_, or_, select
@@ -245,15 +246,41 @@ async def _unsettled_turns(
     return unsettled
 
 
+async def _settle_abandoned_commands(
+    commands_service: Optional[Any],
+    now: datetime,
+) -> int:
+    """Settle every Stop command whose runner accepted it and never reported.
+
+    Delegates the decision to the commands plane, which owns the command state machine, so
+    this sweep and a runner report can never write two different terminal outcomes for the
+    same command. Never raises: an abandoned command must not stop the pass that settles
+    executions.
+    """
+    if commands_service is None:
+        return 0
+    try:
+        return await commands_service.settle_abandoned_commands(now=now)
+    except Exception:
+        log.warning("watchdog: failed to settle abandoned commands", exc_info=True)
+        return 0
+
+
 async def run_orphan_sweep(
     engine: TransactionsEngine,
     lock_engine: LockEngine,
     *,
     records_service: Optional[RecordsService] = None,
     watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+    commands_service: Optional[Any] = None,
     publish: Any = publish_record,
 ) -> None:
-    """Single watchdog pass: settle every stale is_alive row."""
+    """Single watchdog pass: settle every stale is_alive row, then every abandoned command.
+
+    `commands_service` is a `SessionCommandsService`. It is optional and typed loosely so this
+    module keeps no import edge on the commands plane, which would be a cycle. When it is
+    given, this pass is also the one writer that settles a Stop the runner never reported.
+    """
     now_utc = datetime.now(timezone.utc)
     threshold = now_utc - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
     idle_threshold = now_utc - timedelta(seconds=IDLE_THRESHOLD_SECONDS)
@@ -350,6 +377,38 @@ async def run_orphan_sweep(
                         exc_info=True,
                     )
 
+        # A stopped row whose turn was just given its ending is NOT collapsed, but the dead
+        # turn may still hold the session's `alive` lock: settlement leaves `alive` to its
+        # TTL on purpose, and that TTL is an hour. The SEND gate reads that lock, so a new
+        # message would be refused with "another turn owns this session" until it expired.
+        # Release it only if it still names the dead turn, and tombstone the turn so a late
+        # beat cannot re-nest the session. Observed live on the integration stack: the
+        # ending landed at 96.7 s and the next message was still refused.
+        collapsing = {(r.project_id, r.session_id, str(r.turn_id)) for r in orphans}
+        for project_id, session_id, turn_id in sorted(
+            unsettled - collapsing, key=lambda t: t[1]
+        ):
+            released = await release_alive(
+                lock_engine,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            await mark_turn_superseded(
+                lock_engine,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            log.warning(
+                "watchdog: wrote the ending a stopped turn's runner never reported",
+                extra={
+                    "session_id": session_id,
+                    "turn_id": turn_id,
+                    "released_alive": released,
+                },
+            )
+
         for row in orphans:
             row.flags = SessionStreamFlags(
                 is_alive=False, is_running=False, is_attached=False
@@ -417,10 +476,18 @@ async def run_orphan_sweep(
                         exc_info=True,
                     )
 
+        # AFTER the rows above are collapsed, on purpose. A command is only abandoned when its
+        # session has stopped beating, and the collapse just made that true for every row in
+        # this batch. Running it first would leave the runner-gone case waiting a second pass.
+        commands_settled = await _settle_abandoned_commands(
+            commands_service, datetime.now(timezone.utc)
+        )
+
         log.info(
-            "watchdog: settled %d sessions (%d turns marked lost)",
+            "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",
             len(orphans),
             len(unsettled),
+            commands_settled,
         )
 
 
@@ -430,19 +497,38 @@ async def orphan_sweep_loop(
     *,
     records_service: Optional[RecordsService] = None,
     watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+    commands_service: Optional[Any] = None,
 ) -> None:
     """Infinite loop; runs as a background asyncio task during app lifespan."""
+    # A pass that never returns would end the watchdog for the life of the process with
+    # nothing in the log; observed on the integration stack on 2026-09-03, when the sweep
+    # went silent after one pass and never ran again. Bound every pass, log the timeout,
+    # and go round again.
+    pass_timeout = float(max(SWEEP_INTERVAL_SECONDS * 2, 120))
     while True:
+        started = datetime.now(timezone.utc)
         try:
-            await run_orphan_sweep(
-                engine,
-                lock_engine,
-                records_service=records_service,
-                watch_publisher=watch_publisher,
+            await asyncio.wait_for(
+                run_orphan_sweep(
+                    engine,
+                    lock_engine,
+                    records_service=records_service,
+                    watch_publisher=watch_publisher,
+                    commands_service=commands_service,
+                ),
+                timeout=pass_timeout,
             )
         except asyncio.CancelledError:
             raise
+        except asyncio.TimeoutError:
+            log.error(
+                "watchdog: sweep pass timed out after %.0fs; skipping to the next pass",
+                pass_timeout,
+            )
         except Exception:
             log.exception("watchdog: error during sweep pass")
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        if elapsed > SWEEP_INTERVAL_SECONDS:
+            log.warning("watchdog: sweep pass took %.1fs", elapsed)
         # Floored: a zero or negative interval would turn the loop into a hot spin.
         await asyncio.sleep(max(SWEEP_INTERVAL_SECONDS, 1))
