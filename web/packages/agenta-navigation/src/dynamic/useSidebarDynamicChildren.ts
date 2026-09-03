@@ -44,7 +44,13 @@ const groupedChildren = (
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
-            dragItem: groupZone ? {kind: "group", id: group.key, zone: groupZone} : undefined,
+            dragItem: groupZone
+                ? {
+                      kind: "group",
+                      id: source.reorder?.groupId?.(group.key) ?? group.key,
+                      zone: groupZone,
+                  }
+                : undefined,
             onClick: entity.toggleGroupAtom
                 ? () => getDefaultStore().set(entity.toggleGroupAtom!, group.key)
                 : undefined,

@@ -50,6 +50,9 @@ export interface SidebarEntitySource<TRef extends SidebarEntityRef = SidebarEnti
 export interface SidebarEntityReorder {
     /** Zone the HEADINGS arrange in; absent leaves them fixed. */
     groupZone?: string
+    /** The id a heading is SAVED under. Defaults to its group key — agent headings map
+     * `agent:<id>` to the bare agent id, so they share the Agents group's zone. */
+    groupId?: (groupKey: string) => string
     /** Zone a heading's rows arrange in; `undefined` leaves that heading's rows fixed. */
     rowZone?: (groupKey: string) => string | undefined
 }

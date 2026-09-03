@@ -97,6 +97,12 @@ let active: DragState | null = null
 /** Set for one tick after a drop, so the click the pointerup raises never navigates. */
 let suppressClick = false
 
+/** Where the row would land right now. Cheap and side-effect free, so the drop can call it too. */
+const resolveIndex = (state: DragState) => {
+    const contentY = state.pointerY - state.scrollerRect.top + state.scroller.scrollTop
+    state.index = insertionIndex(state.slots, contentY)
+}
+
 const paint = () => {
     if (!active) return
     active.frame = null
@@ -105,8 +111,7 @@ const paint = () => {
     const speed = autoscrollSpeed(active.pointerY, scrollerRect.top, scrollerRect.bottom)
     if (speed) scroller.scrollTop += speed
 
-    const contentY = active.pointerY - scrollerRect.top + scroller.scrollTop
-    active.index = insertionIndex(slots, contentY)
+    resolveIndex(active)
     const lineY = insertionOffset(slots, active.index) - scroller.scrollTop + scrollerRect.top
     overlay.moveLine(
         scrollerRect.left,
@@ -140,6 +145,9 @@ const endDrag = (commit: boolean) => {
     store.set(sidebarReorderActiveAtom, false)
 
     if (!commit) return
+    // Resolved HERE, not left to the last frame: a drag released before any frame ran (a fast
+    // flick, a throttled tab) would otherwise commit the index it started with and drop nothing.
+    resolveIndex(state)
     const next = reorderedIds(state.ids, state.from, state.index)
     if (next.every((id, index) => id === state.ids[index])) return
     suppressClick = true
