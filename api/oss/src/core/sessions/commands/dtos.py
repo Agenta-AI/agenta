@@ -14,7 +14,7 @@ command id. Merging them is what makes today's cancel ambiguous.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -100,16 +100,24 @@ class SessionCommandCreate(BaseModel):
 
 
 class SessionCommandSettle(BaseModel):
-    """The terminal transition, guarded on the state the caller expects to find.
+    """The terminal transition, guarded on the states the caller expects to find.
+
+    A SET and not one state, because the outcome report races the claim that is taken on the
+    runner's behalf. Admission inserts the command `pending`, hands it to the runner, and only
+    then writes `claimed`; a runner that aborts fast reports its outcome while the row is still
+    `pending`. Guarding on `claimed` alone refused that report with a conflict and left the
+    command open until the sweep called it lost. Both states are legitimate at the moment of the
+    write, so the compare-and-set covers both.
 
     `replica_id` guards a settlement that follows a claim: only the replica that holds the
-    claim may write the outcome. It is None when the API itself settles a command nobody ever
-    took, which is the `not_held` case and the sweep's `lost` case.
+    claim may write the outcome. A `pending` row has no claim to violate, so the guard admits a
+    null `claimed_by` as well. It is None altogether when the API itself settles a command
+    nobody ever took, which is the `not_held` case and the sweep's `lost` case.
     """
 
     project_id: UUID
     command_id: UUID
     state: SessionCommandState
     outcome: SessionCommandOutcome
-    expected_state: SessionCommandState = SessionCommandState.claimed
+    expected_states: List[SessionCommandState] = [SessionCommandState.claimed]
     replica_id: Optional[str] = None
