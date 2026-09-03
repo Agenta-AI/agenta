@@ -6,7 +6,6 @@ import {
     permissionPolicyLabel,
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
-import {OriginTag} from "@agenta/entity-ui/drive"
 import {
     HintKey,
     PalettePanel,
@@ -367,7 +366,6 @@ const fileItem = (
     key: row.path,
     label: row.folder ? `${row.path}/` : row.path,
     icon: row.folder ? <FolderSimple size={14} /> : <FileText size={14} />,
-    badge: <OriginTag origin={row.path.startsWith("agent-files") ? "agent" : "session"} />,
     tail: row.tail,
     kind: "insert",
     insertText: row.folder ? `${row.path}/` : row.path,

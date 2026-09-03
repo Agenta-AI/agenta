@@ -30,8 +30,6 @@ export interface PaletteItem {
     description?: string
     /** Dim, after the label — the parent directory on a recents row. */
     secondary?: ReactNode
-    /** Between the label and the tail — the file's origin pill. */
-    badge?: ReactNode
     /** Right-aligned label — the current value for a command, size and age for a file. */
     tail?: ReactNode
     icon?: ReactNode

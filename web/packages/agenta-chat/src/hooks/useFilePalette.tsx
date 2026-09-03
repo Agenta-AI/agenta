@@ -10,7 +10,6 @@
 import {useCallback, useDeferredValue, useMemo, useState, type ReactNode} from "react"
 
 import {
-    driveHasMixedOrigins,
     driveRootLabel,
     fileOrigin,
     humanSize,
@@ -21,7 +20,6 @@ import {
 import {
     DriveBreadcrumb,
     driveFileIcon,
-    OriginTag,
     useDriveArtifactId,
     useDriveSessionId,
     useLazyDriveTree,
@@ -32,7 +30,7 @@ import {
     type PaletteSection,
     type PaletteSpec,
 } from "@agenta/ui/rich-chat-input"
-import {CircleNotch, FolderOpen, FolderSimple, House, MagnifyingGlass} from "@phosphor-icons/react"
+import {CircleNotch, FolderOpen, FolderSimple, MagnifyingGlass} from "@phosphor-icons/react"
 
 import {
     browseRows,
@@ -83,7 +81,6 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
     }, [cwd])
 
     const searching = deferredQuery.trim() !== ""
-    const showOrigin = useMemo(() => driveHasMixedOrigins(lazy.files), [lazy.files])
 
     const toItem = useCallback(
         (row: PaletteFileRow, keyPrefix: string): PaletteItem => ({
@@ -95,7 +92,6 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
             ) : (
                 driveFileIcon(row.path, 14)
             ),
-            badge: showOrigin ? <OriginTag origin={fileOrigin(row.path)} /> : undefined,
             secondary:
                 !searching && keyPrefix === "recent" && parentPath(row.path)
                     ? `${parentPath(row.path)}/`
@@ -114,18 +110,43 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
             insertAs: "code",
             onDrillIn: row.isFolder ? () => setCwd(row.path) : undefined,
         }),
-        [searching, showOrigin],
+        [searching],
+    )
+
+    /**
+     * Split a level by scope. Two headings say what a per-row tag used to, without spending a pill
+     * on every row. A level that is all one scope needs neither, so it stays a single list.
+     */
+    const byOrigin = useCallback(
+        (rows: PaletteFileRow[], keyPrefix: string): PaletteSection[] => {
+            const session = rows.filter((r) => fileOrigin(r.path) === "session")
+            const agent = rows.filter((r) => fileOrigin(r.path) === "agent")
+            if (!session.length || !agent.length) {
+                return rows.length
+                    ? [{key: keyPrefix, title: "", items: rows.map((r) => toItem(r, keyPrefix))}]
+                    : []
+            }
+            return [
+                {
+                    key: `${keyPrefix}-session`,
+                    title: "Session",
+                    items: session.map((r) => toItem(r, keyPrefix)),
+                },
+                {
+                    key: `${keyPrefix}-agent`,
+                    title: "Agent",
+                    items: agent.map((r) => toItem(r, keyPrefix)),
+                },
+            ]
+        },
+        [toItem],
     )
 
     const sections = useMemo<PaletteSection[]>(() => {
         if (!active) return []
-        if (searching) {
-            const rows = searchRows(lazy.files, cwd, deferredQuery)
-            return rows.length
-                ? [{key: "matches", title: "", items: rows.map((r) => toItem(r, "hit"))}]
-                : []
-        }
+        if (searching) return byOrigin(searchRows(lazy.files, cwd, deferredQuery), "hit")
         const level = browseRows(lazy.files, cwd)
+        // Inside a folder every row shares one scope, so there is nothing to group by.
         if (cwd) {
             return level.length
                 ? [{key: "level", title: "", items: level.map((r) => toItem(r, "level"))}]
@@ -134,27 +155,22 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
         const recents = recentRows(drive.recents)
         const recentPaths = new Set(recents.map((r) => r.path))
         return [
-            recents.length
-                ? {
-                      key: "recent",
-                      title: "Recently touched",
-                      items: recents.map((r) => toItem(r, "recent")),
-                  }
-                : null,
-            level.length
-                ? {
-                      key: "root",
-                      title: recents.length ? "Root" : "",
-                      // A file already listed above would read as a duplicate row.
-                      items: level
-                          .filter((r) => !recentPaths.has(r.path))
-                          .map((r) => toItem(r, "root")),
-                  }
-                : null,
-        ].filter(
-            (section): section is PaletteSection => section !== null && section.items.length > 0,
-        )
-    }, [active, searching, lazy.files, cwd, deferredQuery, drive.recents, toItem])
+            ...(recents.length
+                ? [
+                      {
+                          key: "recent",
+                          title: "Recently touched",
+                          items: recents.map((r) => toItem(r, "recent")),
+                      },
+                  ]
+                : []),
+            // A file already listed above would read as a duplicate row.
+            ...byOrigin(
+                level.filter((r) => !recentPaths.has(r.path)),
+                "root",
+            ),
+        ].filter((section) => section.items.length > 0)
+    }, [active, searching, byOrigin, lazy.files, cwd, deferredQuery, drive.recents, toItem])
 
     // While the search is still held back, say so rather than reporting the loaded dirs as the
     // whole answer — an empty state here would claim the drive holds no match.
@@ -170,7 +186,7 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
         if (cwd) {
             return (
                 <>
-                    <House size={12} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                    {/* No leading icon: DriveBreadcrumb opens with its own home button. */}
                     <DriveBreadcrumb
                         shown={cwd}
                         rootLabel={driveRootLabel(drive.mount)}
@@ -188,9 +204,11 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
                     <FolderOpen size={14} className="text-[var(--ag-colorTextTertiary)]" />
                 )}
                 <span className="font-medium">Files</span>
-                <span className="text-[11.5px] text-[var(--ag-colorTextTertiary)]">
-                    {searching ? "across the drive" : "this session's drive"}
-                </span>
+                {searching ? (
+                    <span className="text-[11.5px] text-[var(--ag-colorTextTertiary)]">
+                        across the drive
+                    </span>
+                ) : null}
                 {status}
             </>
         )
@@ -213,7 +231,8 @@ export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): File
                 {activeItem?.onDrillIn ? <HintKey keys="tab" label="open folder" /> : null}
                 <HintKey keys="esc" label={cwd ? "back" : "dismiss"} />
                 {cwd ? (
-                    <span className="ml-auto">
+                    // Truncates rather than wraps: a deep path must not push the keys onto a second line.
+                    <span className="ml-auto min-w-0 truncate pl-2">
                         searching inside <span className="font-mono">{cwd}/</span>
                     </span>
                 ) : null}

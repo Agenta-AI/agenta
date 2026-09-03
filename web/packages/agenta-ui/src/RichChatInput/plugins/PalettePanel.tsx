@@ -110,7 +110,7 @@ export function PalettePanel({
                 {!isEmpty && loading ? <ShimmerRows rows={2} /> : null}
             </div>
             {footer ? (
-                <div className="flex items-center gap-4 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[13px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                <div className="flex items-center gap-4 overflow-hidden border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[15px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
                     {footer}
                 </div>
             ) : null}
@@ -216,7 +216,8 @@ function PaletteRow({
                     {item.description}
                 </span>
             ) : null}
-            {item.badge ? <span className="shrink-0">{item.badge}</span> : null}
+            {/* A row's last mark lands on the gutter either way — the caret on a folder row, the
+                meta text on a plain one — so the list reads with one right edge. */}
             {item.onDrillIn ? (
                 // A real target, because a touch screen has no Tab. stopPropagation keeps the tap
                 // off the row's own reference action.
@@ -228,16 +229,17 @@ function PaletteRow({
                         e.stopPropagation()
                         onDrillIn()
                     }}
-                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded border-0 bg-transparent pl-2.5 text-[10px] text-[var(--ag-colorTextTertiary)]"
+                    // p-0: the UA button padding would inset the meta text past the plain rows'.
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 pl-2.5 text-[10px] text-[var(--ag-colorTextTertiary)]"
                 >
-                    {item.tail}
-                    <CaretRight size={11} />
+                    <span className="whitespace-nowrap">{item.tail}</span>
+                    <CaretRight size={11} className="shrink-0" />
                 </button>
-            ) : item.tail ? (
+            ) : (
                 <span className="ml-auto whitespace-nowrap pl-2.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                     {item.tail}
                 </span>
-            ) : null}
+            )}
         </div>
     )
 }
@@ -245,7 +247,7 @@ function PaletteRow({
 /** One `key + label` footer hint, e.g. `↵ reference`. */
 export function HintKey({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-[5px]">
+        <span className="flex shrink-0 items-center gap-[5px] whitespace-nowrap">
             <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </span>
