@@ -53,7 +53,11 @@ class RecordsDAOInterface:
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
+        settled_by: Optional[str] = None,
     ) -> Set[Tuple[str, str]]:
-        """Which of these `(session_id, turn_id)` pairs already carry a terminal record."""
+        """Which of these `(session_id, turn_id)` pairs already carry a terminal record.
+
+        `settled_by` narrows the answer to endings that one writer wrote; see the DAO.
+        """
 
         raise NotImplementedError
