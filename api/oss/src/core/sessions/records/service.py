@@ -136,6 +136,7 @@ class RecordsService:
 
         now = datetime.now(timezone.utc)
         guarded: List[SessionRecordEvent] = []
+        late = 0
         for event in events:
             is_late = (
                 event.turn_id is not None
@@ -156,6 +157,25 @@ class RecordsService:
                 record_id=str(event.record_id) if event.record_id else None,
             )
             guarded.append(event.model_copy(update={"quarantined_at": now}))
+            late += 1
+
+        # The per-batch total beside the per-record lines above, so how often the guard fires is
+        # one grep away rather than a query over the records table. It belongs here and not in
+        # the records worker: the worker deliberately does not read the rows `append_many`
+        # returns, and making it read them coupled it to this column.
+        if late:
+            log.warning(
+                "[RECORDS] Quarantined late records for settled turns",
+                quarantined=late,
+                appended=len(guarded),
+                turns=sorted(
+                    {
+                        f"{event.session_id}:{event.turn_id}"
+                        for event in guarded
+                        if event.quarantined_at is not None
+                    }
+                ),
+            )
 
         return guarded
 
