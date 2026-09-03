@@ -13,7 +13,7 @@ export const actionableInteractionsQueryKey = (projectId: string) =>
 /**
  * Every pending HITL request across the project in ONE query (`session_id` omitted,
  * `actionable_only: true`) — the list-badge primitive. Same cadence rules as the liveness poll:
- * 15s while anything is pending OR alive (a running turn is what mints new gates), stops when
+ * 15s while anything is pending OR RUNNING (a running turn is what mints new gates), stops when
  * idle, re-checks on focus.
  */
 export const useActionableInteractions = (projectId: string) => {
@@ -29,7 +29,9 @@ export const useActionableInteractions = (projectId: string) => {
             const alive = queryClient.getQueryData<SessionStream[] | null>(
                 livenessQueryKey(projectId),
             )
-            return (alive?.length ?? 0) > 0 ? 15_000 : false
+            // RUNNING, not merely alive: a running turn is what mints new gates, and a stopped
+            // or finished session keeps `is_alive` set so it can resume warm.
+            return (alive ?? []).some((stream) => stream.flags?.is_running) ? 15_000 : false
         },
         refetchOnWindowFocus: true,
     })

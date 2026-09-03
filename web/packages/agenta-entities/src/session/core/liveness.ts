@@ -88,3 +88,34 @@ export function refineLifecycleWithSandbox(
     if (sandbox.alive === true) return sandbox.warm ? "warm" : "cold"
     return lifecycle
 }
+
+/** What a liveness-driven `refetchInterval` may return: a period in ms, or `false` to stop. */
+export type LivenessPollInterval = number | false
+
+/** Fast cadence: something is executing right now, so the view changes on its own. */
+const RUNNING_POLL_MS = 15_000
+/** Slow cadence: nothing runs, but a warm session can be resumed from another device. */
+const RESUMABLE_POLL_MS = 60_000
+
+/**
+ * The cadence a liveness poll should use for the rows it last received.
+ *
+ * The discriminator is `is_running`, never "the alive set is non-empty". Stop ends the WORK and
+ * leaves the session alive so it can resume warm, and an ordinary turn end does the same, so a
+ * predicate keyed on `is_alive` holds every poll at the fast cadence for as long as `alive`
+ * lives — half an hour after one Stop, in every open tab. Keyed on `is_running` the fast
+ * cadence lasts exactly as long as the work does.
+ *
+ * `idle` is the floor for "nothing alive at all". Views that only ever render sessions they
+ * already know are live leave it `false` and stop polling; a view that must also DISCOVER a run
+ * it did not start (the sidebar rail) passes a slow period instead.
+ */
+export function livenessPollInterval(
+    rows: readonly (SessionStream | null | undefined)[] | null | undefined,
+    options?: {idle?: LivenessPollInterval},
+): LivenessPollInterval {
+    const list = rows ?? []
+    if (list.some((row) => row?.flags?.is_running)) return RUNNING_POLL_MS
+    if (list.some((row) => row?.flags?.is_alive)) return RESUMABLE_POLL_MS
+    return options?.idle ?? false
+}
