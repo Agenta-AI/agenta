@@ -7,7 +7,11 @@ import {useEffect, type RefObject} from "react"
  * ~300 lines of pointer machinery would tax every load for a gesture most sessions never make.
  * Same call as `ChatComposer` makes for Lexical. This component renders nothing.
  */
-export const SidebarReorderLayer = ({containerRef}: {containerRef: RefObject<HTMLElement | null>}) => {
+export const SidebarReorderLayer = ({
+    containerRef,
+}: {
+    containerRef: RefObject<HTMLElement | null>
+}) => {
     useEffect(() => {
         const root = containerRef.current
         if (!root) return

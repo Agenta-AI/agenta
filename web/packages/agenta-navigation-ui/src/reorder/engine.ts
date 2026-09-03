@@ -71,10 +71,10 @@ const nearestScroller = (el: HTMLElement, root: HTMLElement): HTMLElement => {
     return root
 }
 
-/** A heading carries every row under it, up to the next heading. Derived from the DOM, not the
- * flat config array, so `groupedChildren` keeps its shape. */
-const ghostsFor = (el: HTMLElement, item: SidebarDragItem): HTMLElement[] => {
-    if (item.kind === "row") return [el]
+/** A heading and every row under it, up to the next heading. Derived from the DOM, not the flat
+ * config array, so `groupedChildren` keeps its shape. */
+const blockOf = (el: HTMLElement, kind: SidebarDragItem["kind"]): HTMLElement[] => {
+    if (kind === "row") return [el]
     const block = [el]
     let node = el.nextElementSibling as HTMLElement | null
     while (node) {
@@ -85,11 +85,27 @@ const ghostsFor = (el: HTMLElement, item: SidebarDragItem): HTMLElement[] => {
     return block
 }
 
-const measure = (peers: HTMLElement[], scroller: HTMLElement, rect: DOMRect): DragSlot[] =>
+/**
+ * Each peer's extent, in the scroller's content coordinates.
+ *
+ * A GROUP measures its whole block — heading plus the rows under it — not the heading element.
+ * Measuring the heading alone put the drop line just under the heading's text, so a group could
+ * never be dropped below another group's sessions, and the midpoint that decides the gap sat in
+ * the wrong place entirely.
+ */
+const measure = (
+    peers: HTMLElement[],
+    kind: SidebarDragItem["kind"],
+    scroller: HTMLElement,
+    rect: DOMRect,
+): DragSlot[] =>
     peers.map((peer) => {
-        const peerRect = peer.getBoundingClientRect()
-        const top = peerRect.top - rect.top + scroller.scrollTop
-        const bottom = top + peerRect.height
+        const block = blockOf(peer, kind)
+        const first = block[0].getBoundingClientRect()
+        const last = block[block.length - 1].getBoundingClientRect()
+        const offset = scroller.scrollTop - rect.top
+        const top = first.top + offset
+        const bottom = last.bottom + offset
         return {id: peer.dataset.dragId ?? "", top, mid: (top + bottom) / 2, bottom}
     })
 
@@ -189,7 +205,8 @@ const startDrag = (
     if (from < 0) return false
 
     const scrollerRect = scroller.getBoundingClientRect()
-    const ghosts = ghostsFor(el, item)
+    const sourceRect = el.getBoundingClientRect()
+    const ghosts = blockOf(el, item.kind)
     for (const ghost of ghosts) ghost.dataset.dragGhost = "true"
     scroller.style.touchAction = "none"
 
@@ -198,7 +215,7 @@ const startDrag = (
         item,
         scroller,
         scrollerRect,
-        slots: measure(peers, scroller, scrollerRect),
+        slots: measure(peers, item.kind, scroller, scrollerRect),
         ids,
         from,
         ghosts,
@@ -206,7 +223,7 @@ const startDrag = (
         pointerY: event.clientY,
         index: from,
         frame: null,
-        overlay: createOverlay(el.textContent?.trim() ?? ""),
+        overlay: createOverlay(el.textContent?.trim() ?? "", sourceRect),
     }
     store.set(sidebarReorderActiveAtom, true)
     document.addEventListener("pointermove", onPointerMove, {passive: false})
