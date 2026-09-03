@@ -308,7 +308,9 @@ const testsetTests = () => {
                     await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
                         {timeout: 10000},
                     )
-                    await expect(page.locator(".ant-table-tbody")).toContainText("existing row", {
+                    // `.avt-body` is the table package's stable hook; `.ant-table-tbody` matches
+                    // nothing since the antd Table branch was removed (see AVT in tableDom.ts).
+                    await expect(page.locator(".avt-body")).toContainText("existing row", {
                         timeout: 10000,
                     })
 

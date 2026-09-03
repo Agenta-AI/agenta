@@ -625,9 +625,7 @@ const playgroundTests = () => {
                             role: Role.USER,
                         },
                     ])
-                    await expect(
-                        page.locator("button.ant-btn-primary").filter({hasText: "Commit"}).first(),
-                    ).toBeEnabled()
+                    await expect(page.getByRole("button", {name: "Commit"}).first()).toBeEnabled()
                     await saveVariant("version")
                 },
             )

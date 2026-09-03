@@ -124,9 +124,12 @@ const openVariantUseApiDrawer = async (page: any) => {
     // so select the first row explicitly when nothing is checked.
     // Scoped to the registry table's BODY rows: the header select-all and any checkbox
     // outside the table must neither satisfy the check nor receive the click.
-    const checkedRow = page.locator(".ant-table-tbody .ant-checkbox-checked").first()
+    // `.avt-body` + role, not `.ant-table-*`: the table is the virtual one and its selection
+    // control is the Radix Checkbox (role=checkbox), so no antd classes exist here.
+    const tableBody = page.locator(".avt-body")
+    const checkedRow = tableBody.getByRole("checkbox", {checked: true}).first()
     if (!(await checkedRow.isVisible().catch(() => false))) {
-        const firstRowCheckbox = page.locator(".ant-table-tbody .ant-checkbox-input").first()
+        const firstRowCheckbox = tableBody.getByRole("checkbox").first()
         await expect(firstRowCheckbox).toBeVisible({timeout: 15000})
         await firstRowCheckbox.click()
     }
@@ -204,7 +207,7 @@ const useApiTests = () => {
                 await uiHelpers.expectPath(`/apps/${appId}/variants`)
                 // Wait for the variants table radio controls to confirm the page has rendered
                 await expect(
-                    page.locator(".ant-radio-button-wrapper").filter({hasText: "Variants"}).first(),
+                    page.getByRole("radio", {name: "Variants", exact: true}).first(),
                 ).toBeVisible({timeout: 15000})
             })
 
