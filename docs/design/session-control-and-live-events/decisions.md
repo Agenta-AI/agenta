@@ -97,13 +97,17 @@ clears `alive`. A failed or unsafe park clears both flags.
 The snapshot and replayable event routes do not change the meaning of current stream and watch
 routes. Clients migrate before obsolete endpoints are removed. Final route names remain open.
 
-## Provisional AI-selected defaults
-
 ### Use one canonical live-frame path
 
-The runner emits one ordered frame sequence to the backend. A bounded Redis Stream feeds the live
-relay and durable projector. Existing sender streaming and record persistence remain during
-migration.
+The runner emits one ordered frame sequence to the API. The API places it in a bounded Redis
+Stream. The live relay forwards temporary frames to every reader. The durable projector combines
+the same frames into complete immutable records in Postgres.
+
+During migration, the initiating browser keeps its existing invoke response while other readers
+use the relay. After multi-reader behavior is proven, the initiating browser becomes an ordinary
+relay reader and the start request no longer owns execution.
+
+## Provisional AI-selected defaults
 
 ### Use repaired records as durable session history
 
