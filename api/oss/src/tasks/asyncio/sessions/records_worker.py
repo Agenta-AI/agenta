@@ -4,6 +4,7 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.records.dtos import TERMINAL_RECORD_TYPE
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -18,10 +19,9 @@ if is_ee():
     from ee.src.core.access.entitlements.types import Counter
 
 
-# The runner's terminal per-turn record, and the marker it stamps on that record when the turn
-# stopped to wait for a human instead of finishing (services/runner/src/tracing/otel.ts: the
-# field is written ONLY for a pause and omitted on every other stop reason).
-TERMINAL_RECORD_TYPE = "done"
+# The marker the runner stamps on its terminal record when the turn stopped to wait for a
+# human instead of finishing (services/runner/src/tracing/otel.ts: the field is written ONLY
+# for a pause and omitted on every other stop reason).
 PAUSED_STOP_REASON = "paused"
 
 
@@ -239,6 +239,22 @@ class RecordsWorker(StreamConsumer):
                     events=[msg.record_event for msg in project_batch["events"]],
                 )
                 total_appended += len(results)
+
+                # The counter for the late-record guard. `append_many` quarantines a record
+                # that arrives for a turn the watchdog has already ended, and logs each one;
+                # this is the per-batch total, so how often the guard fires is one grep away
+                # rather than a query over the records table.
+                quarantined = [row for row in results if row.quarantined_at is not None]
+                if quarantined:
+                    log.warning(
+                        "[RECORDS] Quarantined late records for settled turns",
+                        project_id=str(project_batch["project_id"]),
+                        quarantined=len(quarantined),
+                        appended=len(results),
+                        turns=sorted(
+                            {f"{row.session_id}:{row.turn_id}" for row in quarantined}
+                        ),
+                    )
             except Exception:
                 log.error(
                     "[RECORDS] Failed to append event batch",
