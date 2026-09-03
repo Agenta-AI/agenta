@@ -45,8 +45,16 @@ describe("facet ownership: one field moves exactly one facet", () => {
     overrides: Partial<AgentRunRequest>;
     facet: Facet;
   }> = [
-    { what: "the sandbox provider", overrides: { sandbox: "daytona" }, facet: "sandbox" },
-    { what: "the harness kind", overrides: { harness: "pi" }, facet: "sandbox" },
+    {
+      what: "the sandbox provider",
+      overrides: { sandbox: "daytona" },
+      facet: "sandbox",
+    },
+    {
+      what: "the harness kind",
+      overrides: { harness: "pi" },
+      facet: "sandbox",
+    },
     {
       what: "the sandbox permission",
       overrides: { sandboxPermission: "none" as never },
@@ -69,7 +77,11 @@ describe("facet ownership: one field moves exactly one facet", () => {
       overrides: { agentsMd: "new instructions" },
       facet: "workspaceFiles",
     },
-    { what: "the system prompt", overrides: { systemPrompt: "sp" }, facet: "prompts" },
+    {
+      what: "the system prompt",
+      overrides: { systemPrompt: "sp" },
+      facet: "prompts",
+    },
     {
       what: "the skills",
       overrides: {
@@ -98,13 +110,9 @@ describe("facet ownership: one field moves exactly one facet", () => {
       overrides: { customTools: [{ name: "t" }] as never },
       facet: "toolCatalog",
     },
-    {
-      what: "the tool callback endpoint",
-      overrides: {
-        toolCallback: { endpoint: "https://gateway/tools/call" } as never,
-      },
-      facet: "toolCatalog",
-    },
+    // The tool callback endpoint left this table with audit finding 5: it is read from the
+    // incoming request every turn, so it moves NO facet. The per-turn-volatile suite below
+    // pins that instead.
   ];
 
   for (const { what, overrides, facet } of cases) {
@@ -145,9 +153,87 @@ describe("facet normalization: stability and coverage", () => {
       { messages: [{ role: "user" as const, content: "different" }] },
       { turnId: "another-turn" },
       { context: { propagation: { traceparent: "00-abc-def-01" } } as never },
+      // The resolved model's input modalities ride the request per turn and change with the
+      // model; hashing them refused the live route on any cross-modality model switch.
+      { modelCapabilities: { inputModalities: ["text"] } as never },
+      // The rest of runContext is per-turn metadata: a committed revision or a trace id must
+      // never evict. Only `workflow.artifact.id` is identity (it selects the agent mount).
+      {
+        runContext: {
+          workflow: {
+            revision: { id: "rev-2", version: "7" },
+            variant: { id: "var-2" },
+          },
+          trace: { trace_id: "abc" },
+        } as never,
+      },
+      // The per-deployment gateway URL is read from the incoming request every turn
+      // (finding 5); a moved deployment must not evict every warm session.
+      { toolCallback: { endpoint: "https://gateway-2/tools/call" } as never },
     ]) {
-      assert.deepEqual(movedBy(overrides), [], JSON.stringify(overrides).slice(0, 40));
+      const label = JSON.stringify(overrides).slice(0, 40);
+      assert.deepEqual(movedBy(overrides), [], label);
+      // BOTH identity views must ignore a volatile: a field that sneaks back into the
+      // fingerprint alone would cold-evict every warm session while this facet probe
+      // stayed green (Codex review of the finding-5 change).
+      assert.equal(
+        configFingerprint({ ...BASE, ...overrides } as AgentRunRequest),
+        configFingerprint(BASE),
+        `fingerprint moved: ${label}`,
+      );
     }
+  });
+
+  it("omitted MCP credentials equal an empty credential array, in BOTH views", () => {
+    // The facet digest normalized an omitted array to [] while the fingerprint kept the
+    // omission, so two identical requests disagreed in one view only: a cold evict with an
+    // empty live plan and a DISAGREE log (Codex review of the finding-3 change).
+    const server = { name: "s", connection: { url: "https://mcp.test" } };
+    const omitted = { ...BASE, mcpServers: [server] } as never as AgentRunRequest;
+    const empty = {
+      ...BASE,
+      mcpServers: [{ ...server, connection: { ...server.connection, credentials: [] } }],
+    } as never as AgentRunRequest;
+    assert.equal(configFingerprint(omitted), configFingerprint(empty));
+    assert.deepEqual(digestsOf(omitted), digestsOf(empty));
+  });
+
+  it("the fingerprint and the facets agree about harness-mode changes (finding 3)", () => {
+    // The fingerprint normalized the Codex mode while the facet took it raw, so an
+    // explicitly-sent default moved `harnessSession` but not the fingerprint — and a session
+    // poisoned that way rebuilt on every later mixed plan. Both views now share one
+    // normalizer; this pins the agreement in BOTH directions.
+    const codex = { ...BASE, harness: "codex" } as AgentRunRequest;
+    const agree = (a: AgentRunRequest, b: AgentRunRequest, why: string) => {
+      const fpMoved = configFingerprint(a) !== configFingerprint(b);
+      const facetsMoved =
+        JSON.stringify(digestsOf(a)) !== JSON.stringify(digestsOf(b));
+      assert.equal(fpMoved, facetsMoved, why);
+      return fpMoved;
+    };
+    assert.equal(
+      agree(
+        codex,
+        { ...codex, harnessMode: "agent-full-access" },
+        "explicit default",
+      ),
+      false,
+      "an explicitly-sent default equals an absent field in both views",
+    );
+    assert.equal(
+      agree(codex, { ...codex, harnessMode: "read-only" }, "real mode change"),
+      true,
+      "a real Codex mode change moves both views",
+    );
+    assert.equal(
+      agree(
+        BASE,
+        { ...BASE, harnessMode: "read-only" } as AgentRunRequest,
+        "non-codex",
+      ),
+      false,
+      "a mode on a harness that ignores it moves neither view",
+    );
   });
 
   it("NO INPUT DRIFT: a field that moves the fingerprint also moves a facet", () => {
@@ -157,25 +243,32 @@ describe("facet normalization: stability and coverage", () => {
     const probes: Array<[string, Partial<AgentRunRequest>]> = [
       ["sandbox", { sandbox: "daytona" }],
       ["harness", { harness: "pi" }],
+      [
+        "runContext.workflow.artifact.id",
+        { runContext: { workflow: { artifact: { id: "art-2" } } } } as never,
+      ],
       ["model", { model: "m2" }],
       ["agentsMd", { agentsMd: "x" }],
       ["systemPrompt", { systemPrompt: "x" }],
       ["appendSystemPrompt", { appendSystemPrompt: "x" }],
-      ["skills", { skills: [{ name: "s", description: "d", body: "b" }] as never }],
+      [
+        "skills",
+        { skills: [{ name: "s", description: "d", body: "b" }] as never },
+      ],
       ["customTools", { customTools: [{ name: "t" }] as never }],
-      ["harnessFiles", { harnessFiles: [{ path: "a", content: "b" }] as never }],
+      [
+        "harnessFiles",
+        { harnessFiles: [{ path: "a", content: "b" }] as never },
+      ],
       ["permissions", { permissions: { default: "deny" } as never }],
       ["sandboxPermission", { sandboxPermission: "none" as never }],
       ["mcpServers", { mcpServers: [{ name: "x", connection: {} }] as never }],
-      ["modelCapabilities", { modelCapabilities: { vision: true } as never }],
-      [
-        "toolCallback.endpoint",
-        { toolCallback: { endpoint: "https://gateway/tools/call" } as never },
-      ],
     ];
 
     for (const [name, overrides] of probes) {
-      const changed = configFingerprint({ ...BASE, ...overrides }) !== configFingerprint(BASE);
+      const changed =
+        configFingerprint({ ...BASE, ...overrides }) !==
+        configFingerprint(BASE);
       assert.ok(changed, `precondition: ${name} must move the fingerprint`);
       assert.notDeepEqual(
         movedBy(overrides),
@@ -205,7 +298,10 @@ describe("facet normalization: stability and coverage", () => {
       } as never,
     });
     assert.deepEqual(
-      changedFacets(digestsOf(withSecret("sk-a")), digestsOf(withSecret("sk-b"))),
+      changedFacets(
+        digestsOf(withSecret("sk-a")),
+        digestsOf(withSecret("sk-b")),
+      ),
       [],
       "only the credential SHAPE is hashed, never its value",
     );
@@ -235,9 +331,8 @@ describe("facet normalization: stability and coverage", () => {
     // Same reasoning on the session side. Section 1.4 exempts permission TIGHTENING from
     // apply-live entirely, so a permissions change must not ride the `setModel` route.
     assert.deepEqual(movedBy({ model: "m2" }), ["model"]);
-    assert.deepEqual(
-      movedBy({ permissions: { default: "deny" } as never }),
-      ["harnessSession"],
-    );
+    assert.deepEqual(movedBy({ permissions: { default: "deny" } as never }), [
+      "harnessSession",
+    ]);
   });
 });

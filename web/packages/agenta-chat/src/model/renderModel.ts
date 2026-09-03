@@ -1,4 +1,4 @@
-import type {ToolUIPart, UIMessage} from "ai"
+import type {FileUIPart, ToolUIPart, UIMessage} from "ai"
 
 import {isToolPart, toolIdentity} from "./parts"
 
@@ -11,6 +11,7 @@ export type RenderItem =
     | {kind: "part"; part: UIMessage["parts"][number]; index: number}
     | {kind: "tools"; parts: ToolUIPart[]; index: number}
     | {kind: "clientTool"; part: ToolUIPart; index: number}
+    | {kind: "files"; parts: FileUIPart[]; index: number}
 
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
@@ -74,6 +75,14 @@ export const buildTurnRenderItems = (
             const last = renderItems[renderItems.length - 1]
             if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
             else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
+            return
+        }
+        // Consecutive attachments share one grid, so a message's files lay out as a block
+        // instead of one full-width card per part.
+        if (part.type === "file") {
+            const last = renderItems[renderItems.length - 1]
+            if (last && last.kind === "files") last.parts.push(part as FileUIPart)
+            else renderItems.push({kind: "files", parts: [part as FileUIPart], index: i})
             return
         }
         renderItems.push({kind: "part", part, index: i})
