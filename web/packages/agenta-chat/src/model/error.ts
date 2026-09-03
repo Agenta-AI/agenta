@@ -1,19 +1,12 @@
 export interface ParsedRunError {
     message: string
     code?: number
-    /**
-     * The request never reached Agenta — offline, DNS, refused, dropped mid-flight, or the tab out
-     * of connections. There is no server verdict behind this one, so it is worth retrying as-is,
-     * and it must not be reported as anything the agent or its config did.
-     */
+    /** The request never reached Agenta: no server verdict behind it, and retryable as-is. */
     transport?: boolean
 }
 
-/**
- * How each engine words "the fetch never completed". Matched as the WHOLE message, because a
- * server sentence that merely contains one of these ("Upstream fetch failed") is a verdict the
- * server reached, not a request that never arrived.
- */
+/** How each engine words "the fetch never completed", matched as the WHOLE message — a server
+ * sentence merely containing one ("Upstream fetch failed") is a verdict, not a lost request. */
 const TRANSPORT_MESSAGES = [
     "failed to fetch", // Chrome, Edge
     "networkerror when attempting to fetch resource", // Firefox
@@ -32,25 +25,30 @@ const ERROR_CLASS_PREFIX = /^[a-z]*error:\s*/
 /** One sentence with something to do in it, in place of a browser's internal wording. */
 export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your connection and retry."
 
+/** Trailing periods and spaces, scanned rather than matched: `/[.\s]+$/` backtracks
+ * quadratically on a long unmatched tail (CodeQL js/polynomial-redos). */
+const withoutTrailingStop = (text: string): string => {
+    let end = text.length
+    while (end > 0 && (text[end - 1] === "." || text[end - 1] === " " || text[end - 1] === "\t")) {
+        end -= 1
+    }
+    return text.slice(0, end)
+}
+
 /** Is this raw message an engine's transport failure rather than a reason from the server? */
 export const isTransportFailure = (raw: string): boolean => {
     const text = raw.trim().toLowerCase()
     if (!text) return false
     if (TRANSPORT_CODES.some((code) => text.includes(code))) return true
-    // Drop the wrapper the engine added and the sentence-final period, then require what's left
-    // to BE the phrase — a message with words of its own around it came from someone else.
-    const bare = text.replace(ERROR_CLASS_PREFIX, "").replace(/[.\s]+$/, "")
+    // Strip the engine's wrapper, then require what is left to BE the phrase.
+    const bare = withoutTrailingStop(text.replace(ERROR_CLASS_PREFIX, ""))
     return TRANSPORT_MESSAGES.includes(bare)
 }
 
 /**
- * Best-effort human reason from a useChat stream error. The server may hand us a clean string
- * ("Agent run failed: …") or a JSON envelope (`{status:{code,message,…}}` / `{message}`) — pull
- * the message out of either and drop the stacktrace / docs-url noise so it reads cleanly inline.
- *
- * A message the server never sent is translated rather than shown. A dropped request surfaces as
- * the engine's own `TypeError` text, and "Failed to fetch" rendered under "The agent run failed"
- * told the user nothing they could act on and read as a fault in the agent.
+ * Best-effort human reason from a useChat stream error: a plain string or a `{status:{…}}`
+ * envelope. An engine's own wording is translated — "Failed to fetch" under "The agent run
+ * failed" read as a fault in the agent.
  */
 export const parseAgentRunError = (err: unknown): ParsedRunError => {
     const raw =
