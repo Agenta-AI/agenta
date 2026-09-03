@@ -23,6 +23,8 @@
   makes this existing condition explicit to readers.
 - The accepted answer, continuation execution, and continuation command commit together. Delivery
   can retry afterward. A failed continuation keeps the answer and leaves the session usable.
+- Stop and interaction responses use first-commit-wins serialization. Execution guards remain
+  exact and never silently target a continuation execution.
 - Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
   must change first.
 - Records-versus-event-log remains an explicit reviewer gate.

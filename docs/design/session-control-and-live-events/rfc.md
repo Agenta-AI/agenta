@@ -510,6 +510,13 @@ Stop cancels pending interactions that belong to the stopped execution. A late r
 resume a stopped or replaced execution. A response remains recoverable if continuation fails to
 start. The interaction state and continuation outcome appear in the snapshot and durable events.
 
+Stop and interaction response transitions are serialized in Postgres. The first committed
+transition wins. If Stop cancels a pending interaction first, a later response returns a conflict
+and creates no continuation. If a response commits first, its continuation execution becomes the
+new work. A Stop guarded with the old execution ID returns a conflict rather than following the
+relationship and stopping the continuation. The client refreshes and can explicitly stop the new
+execution. An unguarded Stop still targets the session's current execution at API acceptance.
+
 ## Shared live frames
 
 ### Canonical runner output

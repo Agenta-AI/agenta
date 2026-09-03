@@ -193,6 +193,15 @@ answer and continuation intent are safe, not that execution has started. Tempora
 failure retries the same command. Permanent start or execution failure produces an explicit
 execution outcome, preserves the accepted answer, and leaves the session usable.
 
+### Serialize Stop and interaction responses with exact guards
+
+The first Postgres transaction to commit wins when Stop and an interaction response race. A Stop
+that wins cancels the pending interaction, so a later response conflicts and creates no
+continuation. A response that wins creates the continuation. `expected_execution_id` remains an
+exact guard and does not follow execution lineage, so a guarded Stop naming the old execution
+conflicts after the continuation becomes current. An unguarded Stop targets current work at API
+acceptance.
+
 ## Reviewer gates
 
 1. Warm cancellation behavior in each harness and sandbox.
