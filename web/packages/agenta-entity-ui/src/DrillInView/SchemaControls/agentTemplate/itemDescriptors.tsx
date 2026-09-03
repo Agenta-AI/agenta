@@ -100,10 +100,14 @@ function capitalizeFirst(value: string): string {
 export function describeSubagent(
     tool: unknown,
     chrome?: {glyph: React.ReactNode; className: string; style?: React.CSSProperties},
+    currentName?: string,
 ): ItemDescriptor {
     const t = (tool ?? {}) as Record<string, unknown>
     const slug = typeof t.slug === "string" ? t.slug : undefined
-    const name = typeof t.name === "string" && t.name ? t.name : slug
+    // The target's CURRENT name wins: a reference saved before #6444 still carries a copy that a
+    // rename never reached, and that copy is only a placeholder until the artifact resolves.
+    const stored = typeof t.name === "string" && t.name ? t.name : undefined
+    const name = currentName || stored || slug
     return {
         name: name ?? "Subagent",
         // Prose, never monospace: this is an agent's name, not an identifier.

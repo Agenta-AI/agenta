@@ -14,7 +14,7 @@ export * from "./banners"
 export {useSidebarResize} from "./useSidebarResize"
 
 export {
-    dropArchivedAgentSessions,
+    dropMissingAgentSessions,
     localSessionRefsAtom,
     withLocalSessions,
     type SessionSidebarRef,

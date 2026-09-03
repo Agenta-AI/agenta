@@ -4,7 +4,7 @@ import {type SessionStream} from "@agenta/entities/session"
 import {sessionListPolicies} from "@agenta/sessions/state"
 import {isValidUUID} from "@agenta/shared/utils"
 import {atom, useAtomValue, useSetAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"

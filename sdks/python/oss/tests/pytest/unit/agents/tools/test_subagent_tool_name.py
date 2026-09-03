@@ -1,20 +1,25 @@
-"""Subagent tool names must satisfy the provider's tool-name pattern (E4).
+"""A subagent's model-visible tool name is its workflow SLUG (E4, #6444).
 
-THE BUG. A subagent's model-visible name is a DISPLAY name the user typed in the Subagents UI, and
-it reached the provider verbatim. Every major provider requires `^[a-zA-Z0-9_.-]+$` for a tool
-name and refuses the WHOLE `tools` array when any entry violates it, so adding a child called
-"QA-v0.114.4 Helper" made every run of the parent fail with `Invalid 'tools[23].name'` until the
-child was renamed. "Support Router" is an ordinary thing to type.
+TWO BUGS, ONE DERIVATION. `ReferenceToolConfig.tool_name` used to return the display name the
+author typed in the Subagents UI, and that name was wrong in two different ways.
 
-The derivation itself is old — `ReferenceToolConfig.tool_name` has returned `self.name or
-self.slug` since 2026-06-26 — but nothing put an authored display name in front of it until the
-Subagents UI shipped, so the latent break became reachable.
+  IT WAS INVALID. Every major provider requires `^[a-zA-Z0-9_.-]+$` for a tool name and refuses
+  the WHOLE `tools` array when any entry violates it, so a child called "QA-v0.114.4 Helper" made
+  every run of the parent fail with `Invalid 'tools[23].name'`.
+
+  IT WAS STALE. The name was a COPY, taken when the subagent was added, and renaming the child
+  never reached it. The model was told about an agent that no longer went by that name, and the
+  only cure was to remove the subagent and add it again.
+
+The slug fixes both at once: it already matches the provider pattern, and a rename never touches
+it. Sanitizing stays, because a slug authored through the API rather than the UI need not match.
 
 Two properties are load-bearing beyond "it is valid now":
 
   STABILITY. The model sees this name. A name that changed between turns would strand a
   conversation mid-tool-call, so the mapping is deterministic and the collision discriminator is
-  derived from the tool's own identity rather than its position in the list.
+  derived from the tool's own identity rather than its position in the list. A rename during an
+  open conversation must not move it.
 
   DISTINCTNESS. Sanitizing can merge two different children onto one name, and a duplicate tool
   name silently SHADOWS the earlier tool rather than erroring — the second subagent would simply
@@ -37,70 +42,74 @@ from agenta.sdk.agents.tools import (
 PROVIDER_TOOL_NAME = re.compile(r"^[a-zA-Z0-9_.-]+$")
 
 
-@pytest.mark.parametrize(
-    "display_name",
-    [
-        "QA-v0.114.4 Helper",  # the live repro
-        "Support Router",  # the ordinary case that bricks a parent
-        "Café Assistant",  # non-ASCII
-        "billing/refunds",  # a slash
-        "deploy (staging)",  # brackets
-        "  padded  ",  # leading and trailing space
-        "emoji 🚀 agent",  # astral plane
-        "tabs\tand\nnewlines",
-        "a" * 200,  # long, but every character legal
-    ],
-)
-def test_every_authored_display_name_produces_a_valid_tool_name(display_name):
-    name = ReferenceToolConfig(slug="wf", name=display_name).tool_name
-    assert PROVIDER_TOOL_NAME.match(name), f"{display_name!r} -> {name!r}"
-
-
-def test_a_clean_name_passes_through_unchanged():
-    # The common case must not be disfigured: a name already matching the pattern is the name.
-    for clean in ["summarizer", "Support_Router", "billing-v2", "agent.v1", "A1"]:
-        assert ReferenceToolConfig(slug="wf", name=clean).tool_name == clean
-
-
-def test_the_spaced_repro_becomes_the_obvious_thing():
-    assert (
-        ReferenceToolConfig(slug="wf", name="QA-v0.114.4 Helper").tool_name
-        == "QA-v0.114.4_Helper"
-    )
-    assert (
-        ReferenceToolConfig(slug="wf", name="Support Router").tool_name
-        == "Support_Router"
-    )
-
-
-def test_runs_of_disallowed_characters_collapse_to_one_separator():
-    # "a___b" from "a   b" would be noise; the model reads this name.
-    assert sanitize_tool_name("a   b", fallback="wf") == "a_b"
-    assert sanitize_tool_name("a // b", fallback="wf") == "a_b"
-
-
-def test_separators_are_trimmed_from_both_ends():
-    assert sanitize_tool_name("  spaced  ", fallback="wf") == "spaced"
-    assert sanitize_tool_name("...dots...", fallback="wf") == "dots"
-    assert sanitize_tool_name("---", fallback="wf") == "wf"
-
-
-class TestFallback:
-    """A name that survives sanitization empty must still produce something callable."""
-
-    def test_a_symbol_only_name_falls_back_to_the_slug(self):
-        assert ReferenceToolConfig(slug="my-workflow", name="🚀🚀🚀").tool_name == (
-            "my-workflow"
-        )
-        assert ReferenceToolConfig(slug="my-workflow", name="///").tool_name == (
-            "my-workflow"
+class TestTheWireNameIsTheSlug:
+    def test_the_slug_is_the_tool_name(self):
+        assert ReferenceToolConfig(slug="support-router-k3f9").tool_name == (
+            "support-router-k3f9"
         )
 
-    def test_no_authored_name_uses_the_slug_as_before(self):
-        assert ReferenceToolConfig(slug="summarizer").tool_name == "summarizer"
+    @pytest.mark.parametrize(
+        "display_name",
+        [
+            "QA-v0.114.4 Helper",  # the live repro
+            "Support Router",  # the ordinary case that bricked a parent
+            "Café Assistant",  # non-ASCII
+            "billing/refunds",  # a slash
+            "deploy (staging)",  # brackets
+            "emoji 🚀 agent",  # astral plane
+            "tabs\tand\nnewlines",
+        ],
+    )
+    def test_a_stored_display_name_cannot_reach_the_wire(self, display_name):
+        # Whatever a legacy configuration carries, the provider only ever sees the slug — so no
+        # authored name can produce `Invalid 'tools[N].name'` again.
+        config = ReferenceToolConfig(slug="wf", name=display_name)
+        assert config.tool_name == "wf"
+        assert PROVIDER_TOOL_NAME.match(config.tool_name)
 
-    def test_a_slug_needing_sanitizing_is_sanitized_too(self):
-        assert sanitize_tool_name(None, fallback="my workflow") == "my_workflow"
+    def test_renaming_the_child_does_not_move_the_name(self):
+        # The staleness bug and the stability property have the same answer: the slug. Two
+        # configs for the same child, saved either side of a rename, agree on the wire name.
+        before = ReferenceToolConfig(slug="helper-9f21", name="Helper One")
+        after = ReferenceToolConfig(slug="helper-9f21", name="Helper Two")
+        assert before.tool_name == after.tool_name == "helper-9f21"
+
+    def test_a_slug_needing_sanitizing_is_sanitized(self):
+        # UI-made slugs already match the pattern; one authored through the API need not.
+        assert ReferenceToolConfig(slug="my workflow").tool_name == "my_workflow"
+
+    def test_the_stored_name_itself_is_never_rewritten(self):
+        # Only the wire name is derived. Anything still reading `name` off a legacy config sees
+        # exactly what was saved.
+        config = ReferenceToolConfig(slug="wf", name="Support Router")
+        assert config.name == "Support Router"
+
+
+class TestSanitizing:
+    """The pattern guard, exercised directly — `tool_name` is only its most important caller."""
+
+    def test_a_clean_name_passes_through_unchanged(self):
+        for clean in ["summarizer", "Support_Router", "billing-v2", "agent.v1", "A1"]:
+            assert sanitize_tool_name(clean, fallback="wf") == clean
+
+    def test_the_spaced_repro_becomes_the_obvious_thing(self):
+        assert sanitize_tool_name("QA-v0.114.4 Helper", fallback="wf") == (
+            "QA-v0.114.4_Helper"
+        )
+
+    def test_runs_of_disallowed_characters_collapse_to_one_separator(self):
+        # "a___b" from "a   b" would be noise; the model reads this name.
+        assert sanitize_tool_name("a   b", fallback="wf") == "a_b"
+        assert sanitize_tool_name("a // b", fallback="wf") == "a_b"
+
+    def test_separators_are_trimmed_from_both_ends(self):
+        assert sanitize_tool_name("  spaced  ", fallback="wf") == "spaced"
+        assert sanitize_tool_name("...dots...", fallback="wf") == "dots"
+        assert sanitize_tool_name("---", fallback="wf") == "wf"
+
+    def test_a_symbol_only_input_falls_back(self):
+        assert sanitize_tool_name("🚀🚀🚀", fallback="my-workflow") == "my-workflow"
+        assert sanitize_tool_name("///", fallback="my-workflow") == "my-workflow"
 
     def test_a_last_resort_name_when_everything_sanitizes_empty(self):
         # Not reachable through the model today (`slug` has min_length=1 and is a slug), but the
@@ -112,17 +121,17 @@ class TestFallback:
 class TestCollisions:
     def test_two_names_that_sanitize_alike_stay_distinct(self):
         pairs = [
-            ("workflow.variant.a", "Support_Router"),
-            ("workflow.variant.b", "Support_Router"),
+            ("workflow.variant.a", "support_router"),
+            ("workflow.variant.b", "support_router"),
         ]
         resolved = disambiguate_tool_names(pairs)
         assert resolved["workflow.variant.a"] != resolved["workflow.variant.b"]
         for name in resolved.values():
             assert PROVIDER_TOOL_NAME.match(name)
-            assert name.startswith("Support_Router")
+            assert name.startswith("support_router")
 
     def test_a_name_with_no_collision_is_left_alone(self):
-        # Only the colliding names are decorated, so the common case keeps the name the user
+        # Only the colliding names are decorated, so the common case keeps the slug the user
         # recognizes from the UI.
         pairs = [
             ("workflow.variant.a", "summarizer"),
@@ -160,40 +169,30 @@ class TestCollisions:
         assert resolved["workflow.variant.c"] == "unique"
 
 
-def test_the_display_name_itself_is_never_rewritten():
-    # Only the wire name changes. The UI, the config, and anything else reading `name` must still
-    # see exactly what the user typed.
-    config = ReferenceToolConfig(slug="wf", name="Support Router")
-    assert config.name == "Support Router"
-    assert config.tool_name == "Support_Router"
-
-
 class TestResolverInteraction:
-    """Sanitizing must not make the resolver reject a configuration that is actually fine."""
+    """The declared-name pass must not reject a configuration that is actually fine."""
 
-    def test_two_display_names_that_sanitize_alike_are_not_a_duplicate_error(self):
+    def test_two_slugs_that_sanitize_alike_are_not_a_duplicate_error(self):
         # The early declared-name pass runs BEFORE the adapter disambiguates, so it would see two
-        # `Support_Router` entries. Rejecting there would turn the fix into a different outage:
+        # `support_router` entries. Rejecting there would turn the fix into a different outage:
         # the user could no longer save the pair at all.
         from agenta.sdk.agents.tools.resolver import _validate_declared_config_names
 
         _validate_declared_config_names(
             [
-                ReferenceToolConfig(slug="a", name="Support Router"),
-                ReferenceToolConfig(slug="b", name="Support/Router"),
+                ReferenceToolConfig(slug="support router"),
+                ReferenceToolConfig(slug="support/router"),
             ]
         )
 
     def test_a_reference_tool_may_still_not_shadow_a_builtin(self):
         # The other half of that pass is about a custom tool silently replacing a harness
-        # built-in, which sanitizing does nothing to excuse.
+        # built-in, which deriving from the slug does nothing to excuse.
         from agenta.sdk.agents.tools.errors import ReservedToolNameError
         from agenta.sdk.agents.tools.resolver import _validate_declared_config_names
 
         with pytest.raises(ReservedToolNameError):
-            _validate_declared_config_names(
-                [ReferenceToolConfig(slug="wf", name="read")]
-            )
+            _validate_declared_config_names([ReferenceToolConfig(slug="read")])
 
     def test_a_genuine_duplicate_among_other_tool_kinds_still_raises(self):
         from agenta.sdk.agents.tools import ClientToolConfig

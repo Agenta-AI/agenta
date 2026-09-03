@@ -25,7 +25,7 @@ import {
 } from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {EvaluatorCategory} from "../../assets/types"
 import type {EvaluatorTableRow} from "../../store/evaluatorsPaginatedStore"

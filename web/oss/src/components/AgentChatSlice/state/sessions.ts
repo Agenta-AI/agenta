@@ -15,7 +15,8 @@ import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
+import {atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
@@ -94,6 +95,11 @@ export interface AgentChatSession {
     /** Hidden-but-recoverable (server `archived_at`). Filtered out of the main history/tabs and
      * shown only in the archived view; unarchive clears it. Distinct from `ended` (kill). */
     archived?: boolean
+    /** The server's own last answer for `archived`, written only by the reconciler. `archived`
+     * alone cannot say who moved it: a local archive/unarchive writes it optimistically, so a
+     * stale or failed write makes local and remote disagree for reasons that are not a remote
+     * archive. Undefined until the server has answered once. */
+    remoteArchived?: boolean
 }
 
 export const GLOBAL_APP_KEY = "__global__"
@@ -272,6 +278,15 @@ export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** Every scope the local session store holds for this project. Lets a project-wide surface reach
+ * sessions outside the routed playground, which the per-scope families cannot name on their own.
+ * Compared by value: `Object.keys` is a fresh array each read, and its consumer feeds an effect. */
+export const sessionScopeKeysAtom = selectAtom(
+    sessionsByAppAtom,
+    (byScope) => Object.keys(byScope),
+    (a, b) => a.length === b.length && a.every((key, i) => key === b[i]),
+)
+
 /** Archived sessions for a scope, most-recently-active first. Backs the archived view. */
 export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
@@ -280,8 +295,8 @@ export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     }),
 )
 
-/** Sessions shown as tabs for a scope, in tab order. Archived sessions are hidden even if a stale
- * open-tab id lingers (e.g. archived on another device — the reconciler flips the flag).
+/** Sessions shown as tabs for a scope: the open list, nothing else — archiving closes tabs where
+ * it is written, so filtering archived here too only hid deliberate opens (#6468).
  *
  * Pinned sessions lead (same project-wide pin the rail and sessions page use); a drag that lands
  * an unpinned tab among the pins is re-sorted back. */
@@ -291,7 +306,7 @@ export const sessionsListAtomFamily = atomFamily((key: string) =>
         const pinned = new Set(get(pinnedSessionIdsAtom))
         const open = currentOpenIds(get, key)
             .map((id) => byId.get(id))
-            .filter((s): s is AgentChatSession => Boolean(s) && !s!.archived)
+            .filter((s): s is AgentChatSession => Boolean(s))
         return open.sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)))
     }),
 )
@@ -637,13 +652,14 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         for (const s of existing) {
             const remote = serverById.get(s.id)
             if (remote) {
-                // Archived on another device: the tab list hides it from here on, so this is its
-                // only teardown signal — mirror the local archive exactly, tab and active pointer
-                // included, or the pane keeps rendering an archived session as the active one.
-                if (remote.archived && !s.archived) retireArchivedSession(get, set, key, s.id)
+                // Archived elsewhere, per the SERVER's answer changing (#6468).
+                if (s.remoteArchived === false && remote.archived) {
+                    retireArchivedSession(get, set, key, s.id)
+                }
                 merged.push({
                     ...s,
                     serverKnown: true,
+                    remoteArchived: Boolean(remote.archived),
                     title: remote.title?.trim() ? remote.title : s.title,
                     createdAt: s.createdAt ?? remote.createdAt,
                     // Keep the freshest activity time: a local turn just settled may lead the
@@ -671,6 +687,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 serverKnown: true,
                 ended: s.ended,
                 archived: s.archived,
+                remoteArchived: Boolean(s.archived),
             })
         }
 
@@ -686,7 +703,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     e.lastMessageAt !== m.lastMessageAt ||
                     e.serverKnown !== m.serverKnown ||
                     e.ended !== m.ended ||
-                    e.archived !== m.archived
+                    e.archived !== m.archived ||
+                    e.remoteArchived !== m.remoteArchived
                 )
             })
         if (!changed) return

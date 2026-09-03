@@ -9,7 +9,8 @@ import {
     setValueAtPath,
 } from "@agenta/shared/utils"
 import {atom, type Getter} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"

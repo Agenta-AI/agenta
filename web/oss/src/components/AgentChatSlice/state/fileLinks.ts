@@ -17,7 +17,7 @@
 import {type ReactNode} from "react"
 
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 export interface ChatFileLinkResolver {
     /** Render an inline-code span: a compact file link (icon + name, opens Quick Look) when `text`

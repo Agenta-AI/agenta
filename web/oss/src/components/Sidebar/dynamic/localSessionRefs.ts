@@ -9,6 +9,7 @@ import {
     defaultScopeKeyAtom,
     isSessionHusk,
     sessionHasMessagesAtomFamily,
+    sessionScopeKeysAtom,
     sessionsListAtomFamily,
     type AgentChatSession,
 } from "@/oss/components/AgentChatSlice/state/sessions"
@@ -16,9 +17,9 @@ import {
 /**
  * OSS binding for `@agenta/navigation`'s local-session seam (#5974).
  *
- * Two playground sessions qualify, and neither is abandoned: the one you are looking at, and any
- * that is RUNNING or awaiting you. Scope is the routed app id, so rows disappear when you leave
- * that playground — a blank chat never lingers.
+ * A session qualifies while it is the one you are looking at, while it is running or awaiting you,
+ * or while the server list cannot carry it yet. The last of those spans EVERY playground scope, so
+ * a session survives navigating to another agent; husks never qualify, so a blank chat cannot.
  *
  * `error` is settled, not live: an errored empty session is as abandoned as an untouched one.
  */
@@ -42,13 +43,22 @@ export const activePlaygroundSessionIdAtom = atom<string | null>((get) => {
     return isSessionHusk(active, get(sessionHasMessagesAtomFamily(active.id))) ? null : active.id
 })
 
+/**
+ * Does this session still need the local seam to be listed at all?
+ *
+ * `serverKnown` is the one signal that survives a tab switch. `isActive` and `isLive` both go false
+ * the moment you look away — `isLive` reads a record only a MOUNTED conversation writes — so a
+ * session whose first turn was still in flight vanished from the rail until the server list caught
+ * up (#6494). An unconfirmed session drops out by itself on the first reconcile.
+ */
+export const qualifiesForLocalRail = (
+    session: AgentChatSession,
+    {isActive, isLive}: {isActive: boolean; isLive: boolean},
+): boolean => isActive || isLive || !session.serverKnown
+
 export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
-    const scope = get(defaultScopeKeyAtom)
-    // The scope key doubles as the app id for the row's link, so it must be a real one.
-    if (!isValidUUID(scope)) return []
-    const sessions = get(sessionsListAtomFamily(scope))
+    const routedScope = get(defaultScopeKeyAtom)
     const activeId = get(activePlaygroundSessionIdAtom)
-    const active = sessions.find((session) => session.id === activeId) ?? null
     const pinned = get(pinnedSessionIdsAtom)
     const statusOf = (id: string) => get(sessionStatusAtomFamily(id))
     const isLive = (id: string) => {
@@ -66,20 +76,39 @@ export const localPlaygroundSessionRefsAtom = atom<SessionSidebarRef[]>((get) =>
         const at = session.lastMessageAt ?? session.createdAt
         return at ? new Date(at).toISOString() : null
     }
+    // EVERY playground scope, not just the routed one: a session you started and then left behind
+    // by opening a different agent is exactly the one the server list cannot show yet (#6494).
+    // A non-UUID scope (`__global__`, `drawer:*`, `onboarding`) never reconciles, so `serverKnown`
+    // is never set there and its sessions would qualify forever — those are skipped.
+    const scopeById = new Map<string, string>()
+    const sessions: AgentChatSession[] = []
+    for (const scope of get(sessionScopeKeysAtom).filter(isValidUUID)) {
+        for (const session of get(sessionsListAtomFamily(scope))) {
+            scopeById.set(session.id, scope)
+            sessions.push(session)
+        }
+    }
+    // The scope key doubles as the app id for the row's link, so it must be a real one.
+    const scopeOf = (id: string) => scopeById.get(id) ?? routedScope
     return sessions
-        .filter((session) => session.id === active?.id || isLive(session.id))
+        .filter((session) =>
+            qualifiesForLocalRail(session, {
+                isActive: scopeOf(session.id) === routedScope && session.id === activeId,
+                isLive: isLive(session.id),
+            }),
+        )
         .filter((session) => !isHusk(session))
         .map((session) => ({
             id: session.id,
             sessionId: session.id,
             name: session.title?.trim() || null,
-            appId: scope,
-            agentId: scope,
+            appId: scopeOf(session.id),
+            agentId: scopeOf(session.id),
             pinned: pinned.includes(session.id),
             alive: false,
             activityAt: activityAt(session),
-            // A client-created session has no server row yet, so it cannot be archived.
-            archived: false,
+            // The server source excludes archived rows, so this ref is their only way in (#6468).
+            archived: Boolean(session.archived),
             // A playground chat is never a trigger run.
             isAutomation: false,
             // Running and awaiting are DIFFERENT signals — one spins, the other goes amber — so
