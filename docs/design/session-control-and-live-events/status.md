@@ -60,8 +60,17 @@ The lead decision record is `reviews/decision-list-2026-09-03.md`. Track C measu
 - Daytona Stop responses took 70 to 104 milliseconds.
 - Record recovery after a Postgres outage passed on the integration tip.
 - Thirteen control and recovery cells passed with the current quarantine behavior.
+- Integrated head `3c9ce08a29` passed the local Claude Code, Daytona Pi, and Daytona Codex HTTP
+  cells. Hook-cell results follow.
 
 The `Proven` columns in `qa.md` distinguish full, partial, and missing evidence.
+
+## Known gaps
+
+Under the `ask` permission, Claude Code's built-in shell and Codex's shell tool run without an
+approval request. Their frames go from `tool-input-available` straight to `tool-output-available`.
+Only Pi asks for shell approval, as the Daytona run
+`~/agenta-qa-evidence/20260903-233439-3632265-session-control` showed.
 
 ## Pull request roles and bases
 

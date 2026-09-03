@@ -123,9 +123,12 @@ The system must meet these requirements:
 - Side-effecting tools do not run twice after pause and resume.
 - One visible conversation turn remains traceable across approval continuations.
 
-Claude Code's built-in shell may bypass the general `ask` permission. A dedicated Linear security
-issue must own that defect and its reproduction. The issue link is recorded in `status.md` under
-work before implementation.
+Under the `ask` permission, Claude Code's built-in shell and Codex's shell tool run without an
+approval request. Their frames go from `tool-input-available` straight to `tool-output-available`.
+Only Pi asks for shell approval, as the Daytona run
+`~/agenta-qa-evidence/20260903-233439-3632265-session-control` showed. A dedicated Linear security
+issue must own the Claude Code and Codex behavior and its reproduction. The issue link is recorded
+in `status.md` under work before implementation.
 
 ## Session list and identity
 

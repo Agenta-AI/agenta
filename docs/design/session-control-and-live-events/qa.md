@@ -8,6 +8,12 @@ Every run records the exact commit, provider, harness, session ID, execution ID,
 timings, terminal records, Redis ownership, Postgres state, client state, and runner logs. A row is
 proven only when one run checks visible behavior, durable state, and a successful continuation.
 
+Tonight's HTTP cells ran on integrated head `3c9ce08a29` from stack
+`agenta-ee-dev-session-integration`, with `AGENTA_SESSIONS_DURABLE_STOP=true` and the driver from PR
+#6518. They checked visible behavior, the terminal record count, and continuation with the same
+sandbox ID before and after. The table marks these results as proven (HTTP cells). The hook rows
+retain the stored-state checks.
+
 The final candidate reruns every applicable row after selected packages are integrated.
 
 ## Invariants
@@ -28,25 +34,25 @@ Each `Proven` column records prior evidence. It does not prove a future release 
 | Provider and harness | Requirement | Proven: commit, provider, harness, evidence path |
 |---|---|---|
 | Local, Pi | Full Stop, approval, restart, and child-cleanup set | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
-| Local, Claude Code | Full set on candidate | Partly proven at `9110c08000`, local, Claude Code, `local-claude-and-restart.md` |
+| Local, Claude Code | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, local, Claude Code, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`; six applicable cells passed, and the built-in shell requested no approval |
 | Local, Codex | Full set on candidate | Partly proven at `9e21fba4ee` and `e6a033063a`, local, Codex, `child-process-cleanup.md` and `integration-refresh.md` |
-| Daytona, Pi | Full set on candidate | Partly proven at `9110c08000` and one cell at `e6a033063a`, Daytona, Pi, `daytona-pi-claude.md` |
+| Daytona, Pi | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; all seven cells passed |
 | Daytona, Claude Code | Full set on candidate | Partly proven at `9110c08000`, Daytona, Claude Code, `daytona-pi-claude.md` |
-| Daytona, Codex | Full set on candidate | Not proven; no run or evidence path |
+| Daytona, Codex | Full set on candidate | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Codex, `~/agenta-qa-evidence/20260903-234628-3777662-session-control`; six applicable cells passed, the warm resume recalled the codeword, and the shell tool requested no approval |
 | Codex 1.1.7 versus 1.8.0 | Full Codex matrix on both pins | Not proven; no 1.8.0 run or evidence path |
 
 ## Stop and recovery
 
 | Scenario | Expected result | Proven: commit, provider, harness, evidence path |
 |---|---|---|
-| Stop during output | One stopped outcome; warm continuation succeeds | Proven at `e6a033063a`, local and Daytona, Pi, `integration-refresh.md` and `daytona-pi-claude.md` |
+| Stop during output | One stopped outcome; warm continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
 | Stop during a long tool | Tool child ends; one stopped outcome; warm continuation succeeds | Partly proven at `9110c08000`, local and Daytona, Pi and Claude Code, `daytona-pi-claude.md` and `local-claude-and-restart.md` |
-| Stop while approval waits | Interaction cancels; late answer conflicts; continuation succeeds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
-| Two Sends arrive together | One admits; one returns busy; first execution stays healthy | Not proven; no simultaneous-arrival run |
-| Stale execution guard | Conflict; current work remains untouched | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` |
-| Repeated Stop | One command effect and one terminal outcome | Not proven; no run |
-| Stop immediately after completion | `not_running`; warm sandbox remains available | Proven at `e6a033063a`, local, Pi, `integration-refresh.md` and `post-stop-mirror.md` |
-| Stop while execution completes | One committed winner; never both completed and stopped | Not proven; required overlap cell |
+| Stop while approval waits | Interaction cancels; late answer conflicts; continuation succeeds | Proven (HTTP cells) at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; Stop cancelled the parked approval, the late answer returned `409`, and continuation recalled the codeword in the same sandbox. Before PR #6501, this failed in five of five local and Daytona Pi attempts across `~/agenta-qa-evidence/20260903-214848-2179056-session-control`, `~/agenta-qa-evidence/20260903-214916-2186506-session-control`, `~/agenta-qa-evidence/20260903-215100-2212560-session-control`, and `~/agenta-qa-evidence/20260903-215210-2229665-session-control`: the runner kept the gate after Stop, and the next message took the approval-resume path. PR #6501 fixed the defect. Claude Code and Codex have no applicable interaction because their built-in shell tools do not ask for approval. |
+| Two Sends arrive together | One admits; one returns busy; first execution stays healthy | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
+| Stale execution guard | Conflict; current work remains untouched | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
+| Repeated Stop | One command effect and one terminal outcome | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
+| Stop immediately after completion | `not_running`; warm sandbox remains available | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
+| Stop while execution completes | One committed winner; never both completed and stopped | Proven (HTTP cells) at `3c9ce08a29`, local Claude Code, Daytona Pi, and Daytona Codex, `~/agenta-qa-evidence/20260903-230015-3207644-session-control`, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`, and `~/agenta-qa-evidence/20260903-234628-3777662-session-control` |
 | Runner dies while Stop is claimed | Watchdog settles command and execution; next Send succeeds within 150 seconds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`, 137.5 seconds |
 | Sandbox disappears | Explicit failure; next Send succeeds | Proven at `e6a033063a`, local, Pi, `integration-refresh.md`, 101.5 seconds |
 | Normal runner shutdown | Claims release before process exit | Partly proven at `5a10e6b100`, local, Pi, `cancel-continuity.md` |
@@ -141,5 +147,5 @@ metric labels.
 | Watchdog stale threshold | 90 seconds | Configuration reference only |
 | Watchdog sweep interval | 60 seconds | Configuration reference only |
 | Abandoned settlement | At most 150 seconds | 137.5 seconds runner-gone and 107 seconds stale-tail at `e6a033063a`, local, Pi, `integration-refresh.md` |
-| Normal Stop alert | 5 seconds | Proven below 300 ms at `9110c08000` and `e6a033063a`, local and Daytona, Pi and Claude Code, `daytona-pi-claude.md` and `integration-refresh.md` |
+| Normal Stop alert | 5 seconds | Proven at 42 to 97 ms at `3c9ce08a29`, Daytona, Pi, `~/agenta-qa-evidence/20260903-233439-3632265-session-control`; earlier runs stayed below 300 ms |
 | Release-note threshold | More than 1 second needs a written reason | Not yet applied to a release |
