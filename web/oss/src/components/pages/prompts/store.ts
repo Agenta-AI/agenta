@@ -8,9 +8,9 @@
 
 import type {Workflow} from "@agenta/entities/workflow"
 import {
-    fetchAndClassifyWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
     queryWorkflows,
+    selectNonAgentWorkflows,
 } from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -167,10 +167,12 @@ const workflowsQueryAtom = atomWithQuery((get) => {
                 folderId: isSearching ? undefined : (currentFolderId ?? null),
                 windowing: {order: "descending"},
             })
-            const workflows = await fetchAndClassifyWorkflows(
-                projectId,
-                response.workflows,
-                filterNonAgentWorkflows,
+            // The agent/prompt split comes from the project-wide classification map — one fetch
+            // the whole app shares — so this query only pays for its own folder-scoped list.
+            const agentFlags = await ensureAgentFlags(projectId)
+            const workflows = selectNonAgentWorkflows(
+                response.workflows.filter((workflow) => !workflow.deleted_at),
+                agentFlags,
             )
 
             return workflows.map(mapWorkflowToRow)
