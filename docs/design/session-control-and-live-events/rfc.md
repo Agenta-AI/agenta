@@ -448,31 +448,38 @@ Each API process reads the same session frame stream and durable history.
 
 ## Durable events and snapshots
 
-### Durable-history storage choice
+### Repaired records as durable history
 
-**Reviewer gate:** Keep two alternatives open.
-
-1. Repair records into an immutable replay log.
-2. Add a separate append-only `session_events` table and keep records as a projection.
+Records are the canonical durable source for the conversation, harness reconstruction, session
+snapshots, and replay. The design does not add a separate `session_events` table.
 
 Spike D found three repeated-ID cases. Exact delivery retries already fit immutable inserts. Resume
 re-emission uses a different execution identity and does not collide. Progressive tool calls and
 tool results are the remaining intentional updates: the runner can persist an incomplete tool
 payload, then repair the same row when later arguments or output arrive.
 
-Repairing records requires the producer to keep progressive tool frames temporary and emit one
-complete durable tool call and one complete durable tool result. Those final checkpoints must
-commit before terminal settlement. Every terminal event also needs a stable producer-generated ID
-so a transport retry cannot create two terminal rows.
+Before immutable inserts are enabled, the runner keeps progressive tool frames temporary and emits
+one complete durable tool call and one complete durable tool result. Those final checkpoints must
+commit before terminal settlement. Every terminal event also receives a stable producer-generated
+ID so a transport retry cannot create two terminal rows.
 
 Temporary tool frames can expire and may contain the same sensitive tool inputs that current live
 events contain. They never serve as the resume source. A reconnect may miss partial animation, but
 the next durable checkpoint repairs the client.
 
-Records still have unresolved constraints: no per-session cursor, tracing retention and quota
-behavior, and incomplete coverage of inputs, commands, executions, and interactions. The storage
-choice remains open until reviewers decide whether to change those contracts or add the separate
-event table.
+The migration is additive. Existing records are not rewritten or backfilled. Snapshot reads retain
+the current legacy ordering and include all existing conversation history. Newly committed records
+receive an ordered replay sequence. The snapshot returns the latest new-format cursor. Clients use
+the snapshot as their baseline and do not request event-by-event replay of pre-migration history.
+
+Existing clients continue using current record queries and ignore the additive sequence field. New
+clients load the same transcript snapshot, then follow records after its cursor. Existing sessions
+remain resumable. Their old ordering defects and duplicates are not rewritten.
+
+Before this becomes permanent session history, implementation must separate session retention from
+tracing quota and retention and add durable record types for execution and interaction lifecycle.
+A separate event table is a fallback only if a spike proves one of those changes structurally
+unsafe.
 
 ### Event model
 
@@ -733,7 +740,7 @@ These points remain deliberately open even though this RFC provides provisional 
 2. Confirm direct-delivery retry and recovery behavior. Keep long-poll claim design parked in
    Linear AGE-4253.
 3. Confirm whether manual Stop pauses all queued input until an explicit resume action.
-4. Confirm the separate `session_events` table or select repaired records.
+4. Verify the repaired-record migration, retention separation, and lifecycle record vocabulary.
 5. Select the per-session cursor transaction strategy.
 6. Define temporary frame retention and client buffer limits from measurements.
 7. Confirm interaction behavior when Stop, Steer, and an answer race.
