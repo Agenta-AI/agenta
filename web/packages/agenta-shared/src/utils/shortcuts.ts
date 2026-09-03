@@ -46,6 +46,7 @@ export type ShortcutGroupId =
     | "connection"
     | "elicitation"
     | "voice"
+    | "quote"
     | "rename"
     | "files"
     | "help"
@@ -62,6 +63,7 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     connection: "Connection dock",
     elicitation: "Forms the agent asks",
     voice: "Voice",
+    quote: "Replying to a quote",
     rename: "Renaming a session",
     files: "Files pane",
     help: "Help",
@@ -188,7 +190,21 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "S",
         when: "while editing a file",
     },
-
+    // Quote-to-reply — QuoteSelection/useQuoteSelection.ts
+    {
+        id: "quote.reply",
+        group: "quote",
+        label: "Reply to the selected part",
+        modifiers: ["alt"],
+        key: "Q",
+        when: "text is selected in a settled reply or a file",
+    },
+    {
+        id: "quote.dismiss",
+        group: "quote",
+        label: "Dismiss the quote pill or note",
+        key: "Esc",
+    },
     // The running turn — AgentConversation.tsx
     {
         id: "run.stop",
