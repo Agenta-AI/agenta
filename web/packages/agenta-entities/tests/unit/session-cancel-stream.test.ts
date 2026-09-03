@@ -3,8 +3,7 @@
  *
  * `commandSessionStream` goes through `callFern`, which logs every non-abort failure and returns
  * null, so the desktop could not tell a refusal from a network error and showed "Stopped" for a run
- * that was still going. `cancelSessionStream` keeps the three answers apart: cancelled, stale
- * (the server refused because another turn holds the session), and failed.
+ * that was still going. `cancelSessionStream` keeps accepted, idle, stale, and failed apart.
  */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -29,19 +28,18 @@ beforeEach(() => {
 })
 
 describe("cancelSessionStream", () => {
-    it("reports the cancelled turns when the server accepts", async () => {
+    it("reports cancellation when the server accepts a running execution", async () => {
         setSessionStream.mockResolvedValue({
             mode: "cancel",
             session_id: "s1",
-            turn_id: "turn-1",
-            cancelled_turn_ids: ["turn-1"],
-            detached: true,
+            command: {id: "command-1", state: "pending"},
+            execution: {id: "turn-1", state: "stopping"},
         })
 
         const outcome = await cancelSessionStream(params)
 
         expect(outcome.status).toBe("cancelled")
-        expect(outcome.status === "cancelled" && outcome.response?.turn_id).toBe("turn-1")
+        expect(outcome.status === "cancelled" && outcome.response?.execution?.id).toBe("turn-1")
         expect(setSessionStream).toHaveBeenCalledWith({session_id: "s1"}, expect.anything())
     })
 
@@ -49,7 +47,8 @@ describe("cancelSessionStream", () => {
         setSessionStream.mockResolvedValue({
             mode: "cancel",
             session_id: "s1",
-            cancelled_turn_ids: [],
+            command: {id: "command-1", state: "obsolete"},
+            execution: {id: null, state: "idle"},
         })
 
         expect(await cancelSessionStream(params)).toEqual({status: "idle"})

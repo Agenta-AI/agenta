@@ -199,6 +199,16 @@ export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
 })
 
+const sessionCommandRefSchema = z.object({
+    id: z.string(),
+    state: z.enum(["pending", "claimed", "applied", "obsolete"]),
+})
+
+const sessionExecutionRefSchema = z.object({
+    id: z.string().nullish(),
+    state: z.enum(["stopping", "idle"]),
+})
+
 /** Control-call result for the prompt × force command matrix. */
 export const sessionStreamCommandResponseSchema = z.object({
     mode: z.string(),
@@ -207,7 +217,15 @@ export const sessionStreamCommandResponseSchema = z.object({
     watcher_id: z.string().nullish(),
     detached: z.boolean().nullish(),
     cancelled_turn_ids: z.array(z.string()).optional(),
+    command: sessionCommandRefSchema.optional(),
+    execution: sessionExecutionRefSchema.optional(),
 })
+
+/** Durable Stop accepts both the current response and the legacy stream-command envelope. */
+export const sessionCancelResponseSchema = z.union([
+    sessionStreamCommandResponseSchema,
+    z.object({command: sessionCommandRefSchema, execution: sessionExecutionRefSchema}),
+])
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
@@ -220,6 +238,7 @@ export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
 export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
+export type SessionCancelResponse = z.infer<typeof sessionCancelResponseSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders
  * are flagged (`is_folder`) or implied by nested file paths. The backend lists the whole tree

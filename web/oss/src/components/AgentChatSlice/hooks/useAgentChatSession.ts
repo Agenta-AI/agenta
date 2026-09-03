@@ -215,6 +215,7 @@ export const useAgentChatSession = ({
         messages,
         sendMessage,
         status,
+        stop,
         regenerate,
         setMessages,
         addToolApprovalResponse,
@@ -485,6 +486,9 @@ export const useAgentChatSession = ({
     }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
 
     const projectId = useAtomValue(projectIdAtom)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    const abortAfterAcceptedRef = useRef(false)
 
     const handleStop = useCallback(() => {
         if (stopping) return
@@ -534,28 +538,45 @@ export const useAgentChatSession = ({
         // Name the turn when this browser knows it. An absent id means the stream never carried
         // one (a runner without the admission change), and the server falls back to its own
         // arrival-time check — the behavior before this existed.
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = isRetry
+        expectedStopExecutionIdRef.current = expectedExecutionId
         void cancelSessionStream({
             sessionId,
             projectId,
-            expectedExecutionId: getSessionTurnId(sessionId),
+            expectedExecutionId,
         })
             .then((outcome) => {
                 if (outcome.status === "cancelled") {
                     dispatchStop({type: "accepted"})
+                    if (abortAfterAcceptedRef.current) {
+                        stop()
+                        dispatchStop({type: "terminal"})
+                    }
                     liveGateInteractionRef.current = null
                     queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                     return
                 }
                 if (outcome.status === "idle") {
+                    abortAfterAcceptedRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
                     dispatchStop({type: "already_idle"})
                     queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                     return
                 }
+                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(outcome.message)
                 queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             })
             .catch((error: unknown) => {
+                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
                     error instanceof Error
@@ -563,16 +584,36 @@ export const useAgentChatSession = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [stopping, projectId, sessionId, queryClient])
+    }, [stopping, projectId, sessionId, queryClient, stop])
 
     useEffect(() => {
-        if (!busy) dispatchStop({type: "terminal"})
+        if (stopPhase !== "accepted") return
+        const timer = setTimeout(() => {
+            retryStopRef.current = true
+            abortAfterAcceptedRef.current = false
+            dispatchStop({type: "timeout"})
+        }, 30_000)
+        return () => clearTimeout(timer)
+    }, [stopPhase])
+
+    const previousBusyRef = useRef(busy)
+    useEffect(() => {
+        const wasBusy = previousBusyRef.current
+        previousBusyRef.current = busy
+        if (wasBusy && !busy) {
+            retryStopRef.current = false
+            dispatchStop({type: "terminal"})
+        }
+        if (!wasBusy && busy) dispatchStop({type: "reset"})
     }, [busy])
 
     useEffect(() => {
         if (stopPhase !== "stopped") return
         const last = messagesRef.current[messagesRef.current.length - 1]
         if (last?.role === "assistant") setStopped(true)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = false
+        expectedStopExecutionIdRef.current = undefined
         dispatchStop({type: "reset"})
     }, [stopPhase])
 

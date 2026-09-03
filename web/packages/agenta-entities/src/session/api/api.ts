@@ -17,6 +17,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -29,6 +30,7 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionCancelResponse,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
@@ -622,7 +624,7 @@ export async function killSession({
 }
 
 /**
- * The three answers a Stop can get. `commandSessionStream` collapses all of them to `null`
+ * The four answers a Stop can get. `commandSessionStream` collapses failures to `null`
  * (`callFern` logs and swallows), which is why the desktop Stop could report "Stopped" for a run
  * that was still going. A Stop is the one control call whose failure the user must see.
  */
@@ -636,7 +638,7 @@ export interface CancelSessionStreamParams extends SessionScopedParams {
 }
 
 export type CancelSessionOutcome =
-    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
+    | {status: "cancelled"; response: SessionCancelResponse | null}
     | {status: "idle"}
     /** The server refused: another turn holds the session, or the Stop arrived too late. */
     | {status: "stale"; message: string}
@@ -683,12 +685,8 @@ export async function cancelSessionStream({
             projectScopedRequest(projectId, appId, abortSignal),
         )
         const response =
-            safeParseWithLogging(
-                sessionStreamCommandResponseSchema,
-                data,
-                "[cancelSessionStream]",
-            ) ?? null
-        if (response?.cancelled_turn_ids?.length === 0) return {status: "idle"}
+            safeParseWithLogging(sessionCancelResponseSchema, data, "[cancelSessionStream]") ?? null
+        if (response?.execution?.state === "idle") return {status: "idle"}
         return {
             status: "cancelled",
             response,

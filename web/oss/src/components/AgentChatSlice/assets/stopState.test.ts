@@ -27,6 +27,20 @@ describe("stop state", () => {
         )
     })
 
+    it("remembers a terminal event dispatched from the idle phase", () => {
+        expect(transition([{type: "terminal"}, {type: "request"}, {type: "accepted"}])).toBe(
+            "stopped",
+        )
+    })
+
+    it("makes an accepted stop retryable after the watchdog timeout", () => {
+        const phase = transition([{type: "request"}, {type: "accepted"}, {type: "timeout"}])
+
+        expect(phase).toBe("retryable")
+        expect(isStoppingPhase(phase)).toBe(false)
+        expect(reduceStopPhase(phase, {type: "terminal"})).toBe("stopped")
+    })
+
     it.each(["failed", "already_idle"] as const)("returns to idle on %s", (type) => {
         expect(transition([{type: "request"}, {type}])).toBe("idle")
     })
