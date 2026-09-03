@@ -429,12 +429,16 @@ API places accepted frames in a bounded Redis Stream. Two independent consumers 
 
 The runner does not wait for browsers. A slow client cannot delay execution.
 
-### Initial adapter
+### Migration
 
-The first adapter can intercept the runner response stream already passing through the API and add
-frames to Redis. The existing sender response and record persistence path remain during migration.
-Later, detached execution can use a resumable runner-to-API frame ingress without changing the
-relay or projector interfaces.
+The API intercepts the runner response stream already passing through it and places frames in
+Redis. During the first migration stage, the initiating browser keeps its existing invoke response
+while other readers use the shared relay. Both views derive from the same runner frame sequence.
+
+After multi-reader streaming is proven, the initiating browser becomes an ordinary relay reader.
+The start request can then return after durable acceptance, and client disconnection no longer owns
+execution. A later resumable runner-to-API ingress can replace the initial adapter without changing
+the relay, projector, or public read contract.
 
 ### Temporary retention
 
