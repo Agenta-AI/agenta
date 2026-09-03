@@ -2,8 +2,8 @@
 
 > AGENT-GENERATED, low weight. Lane: cancel continuity, 2026-09-03. Branch
 > `spike/session-cancel-continuity`, cut from `spike/session-cancel-warm` at `9e21fba4ee`, head
-> `2808f97bd9`. Not pushed. To be folded into PR #6496. Two commits: `ec4d9f40ef` (the stopped
-> turn's continuity record) and `2808f97bd9` (releasing the session owner claim at shutdown).
+> `0a232b27f5`. Not pushed. To be folded into PR #6496. Two commits: `ec4d9f40ef` (the stopped
+> turn's continuity record) and `0a232b27f5` (releasing the session owner claim at shutdown).
 
 ## The answer first
 
@@ -24,6 +24,14 @@ transcript with server-side reconstruction switched off. The sandbox id changed 
 is expected on the local provider: the process pool dies with the container and the native session
 comes back from the durable mount, not from the sandbox.
 
+A second defect sat on top of that one and outlived it: after a restart the replacement replica
+was refused every message on the session for up to two minutes. The affinity key
+`owner:session:<id>` is claimed by every heartbeat and was released by nothing, and the API
+refuses to steal it from an owner it believes is alive, so a runner that exited holding claims
+locked its own replacement out for the rest of the 120-second lease. The second commit gives the
+beat a `release_owner` flag and calls it from the runner's existing SIGTERM handler. With both
+fixes the continuation after a restart is admitted on its first attempt instead of its seventh.
+
 ## Scenario table
 
 | Scenario | Provider | Harness | Commit | Result | Timing | Evidence |
@@ -31,7 +39,10 @@ comes back from the durable mount, not from the sandbox.
 | Smoke: one plain turn | local | `pi_core` | `ec4d9f40ef` | pass, answered `READY` | 8.8 s | `smoke.json` |
 | Stop → restart → continue, fix REVERTED in the tree | local | `pi_core` | `9e21fba4ee` behaviour | turn 0 `end_time` null; no hydration; new `agent_session_id`; recall FAILED ("I don't know") | Stop settled 22.4 s after the request (heartbeat delivery); continuation refused 6 times, admitted at 122.8 s | `before-fix.json`, `before-fix.log` |
 | Stop → restart → continue, fix APPLIED | local | `pi_core` | `ec4d9f40ef` | turn 0 `end_time` set; `hydrated`, `loaded=true`, `mode=load`; SAME `agent_session_id`; recall PASSED (`CONTDD6839`) | Stop settled 22.5 s after the request; continuation refused 6 times, admitted at 112.3 s; the resumed turn took 11.5 s | `after-fix.json`, `after-fix.log`, `proof-lines.txt` |
-| Runner unit suite | n/a | n/a | `ec4d9f40ef` | 161 files, 2674 tests, all pass | 22.7 s | below |
+| Stop → restart → continue, BOTH fixes | local | `pi_core` | `0a232b27f5` | claim released 26 ms after the signal; continuation admitted on its FIRST attempt; `hydrated`, `mode=load`, SAME `agent_session_id`; recall PASSED (`CONTE4C6EC`) | shutdown 37 ms, signal to release; admitted 11.2 s after the restart, 5.1 s after the health check | `after-release.json`, `after-release.log` |
+| SIGKILL control, both fixes, matched timing | local | `pi_core` | `0a232b27f5` | no handler runs, no release, the refusal returns; the continuity half still works (same `agent_session_id`, recall passed) | refused 5 times, admitted at 67.5 s, the remainder of the lease | `kill-control-v3.json` |
+| SIGTERM control, both fixes, matched timing | local | `pi_core` | `0a232b27f5` | the handler runs, both held claims are released, the continuation is admitted on its FIRST attempt | released 154 ms after the signal; admitted 10.8 s after the restart | `term-control-v3.json` |
+| Test suites | n/a | n/a | `0a232b27f5` | runner 162 files, 2686 tests; API sessions 491 passed, 41 skipped | — | below |
 
 Raw evidence: `~/agenta-qa-evidence/2026-09-03-session-round2/cancel-continuity/` (see its
 `README.md` for the stack, the driver and the file list). The stack was
@@ -195,13 +206,14 @@ is the Redis affinity key `owner:session:<id>`, whose TTL is `AGENTA_SESSIONS_RE
 defaulting to **120 s** (`api/oss/src/utils/env.py:1428`), refreshed on every heartbeat and never
 stolen (`claim_owner`, `api/oss/src/dbs/redis/sessions/locks.py:329`). A restart mints a new
 replica id, so the session is unusable until the dead replica's key expires. The measured 112 to
-123 s matches the 120 s TTL. This lane did not change it, and the fix does not depend on it.
+123 s matches the 120 s TTL. The continuity fix does not depend on this; the second commit below
+fixes it.
 
 ## The second fix: releasing the owner claim at shutdown
 
 The refusal above is not a side effect of anything this lane changed, and it outlives the fix:
 after every runner restart the replacement replica is refused for the rest of the affinity
-lease. `spike/session-cancel-warm` had no release path at all. Commit `2808f97bd9` adds one.
+lease. `spike/session-cancel-warm` had no release path at all. Commit `0a232b27f5` adds one.
 
 ### Why nothing released it
 
@@ -272,17 +284,43 @@ after the health check passed:
 Turn 1 carries the same `agent_session_id` (`01a0674a-ae42-7f4f-b980-fd5b3aea7c97`) as turn 0,
 and the recall answered `CONTE4C6EC` from a one-message client transcript.
 
+The matched SIGTERM control repeats it with two claims held at once, and shows the release
+freeing both:
+
+```
+12:53:37.071 [sandbox-agent] received SIGTERM, cleaning up in-flight sandboxes
+12:53:37.125 [sessions/alive] releasing 2 session ownership claim(s) on shutdown
+12:53:37.156 [sessions/alive] ownership released session=60fb213b-...
+12:53:37.160 [sessions/alive] ownership released session=ac90e537-...
+12:53:51.223 [sandbox-agent] hydrated session=ac90e537-... harness=pi_core turn=0
+12:53:54.312 [continuity] session/load attempted session=ac90e537-... loaded=true
+```
+
+Admitted on the first attempt, 10.8 s after the restart, with the same `agent_session_id` and
+the codeword recalled. Its SIGKILL twin, same timing, was refused five times and waited 67.5 s.
+
 | Run | Restart shape | Refusals | Admitted after | Recall |
 |---|---|---|---|---|
 | `before-fix.json` | `docker restart`, neither fix | 6, all local-owner | 122.8 s | failed |
 | `after-fix.json` | `docker restart`, continuity fix only | 6, all local-owner | 112.3 s | passed |
 | `after-release.json` | `docker restart`, both fixes | **0** | **first attempt, 11.2 s** | passed |
-| `kill-control.json` | `docker kill -s SIGKILL`, both fixes | RESULT_REFUSALS | RESULT_ADMITTED | RESULT_RECALL |
+| `kill-control-v3.json` | `docker kill -s SIGKILL`, both fixes, 30 s hold | 5, all local-owner | 67.5 s | passed |
+| `term-control-v3.json` | `docker restart`, both fixes, 30 s hold | **0** | **first attempt, 19.6 s** | passed |
 
-The SIGKILL row is the negative control, run on the same stack with the same code and the same
-timing: the handler is skipped, the claim stands, and the identical refusal returns for the
-full lease. That is what makes the `after-release` result attributable to this fix rather than
-to anything else about the stack.
+The last two rows are the matched pair: same stack, same code, same 30-second hold before the
+restart, differing only in the signal. SIGKILL reaches no handler, so the claim stands and the
+identical refusal returns until the lease runs out; SIGTERM runs the handler and the session is
+free at once. That pair is what makes the result attributable to this fix rather than to
+anything else about the stack.
+
+The SIGKILL row's 67.5 s is the remainder of the lease, not a second budget: the affinity key is
+refreshed only by a beat that still owns its turn, and a Stop supersedes the turn, so the last
+refresh is early in the turn and the 30-second hold spends part of the 120 s before the kill.
+
+One earlier SIGKILL attempt (`kill-control.json`) is kept as an invalid result: an edit to
+`services/runner/src/sessions/alive.ts` made `tsx watch` SIGTERM the runner seven seconds before
+the kill, and that SIGTERM performed the release the control existed to prevent. The API log
+shows it. Never edit runner source while a live run is in flight.
 
 ## Findings
 
@@ -299,13 +337,22 @@ to anything else about the stack.
    `end_time` explains why — but the string is not a usable probe. Search for `hydrated session=`
    and for `stage=create_session ... mode=load` instead.
 
-3. **A runner restart locks a local-provider session out for up to 120 s, and the ownership guard
-   is what does it here.** The restart lane attributed the refusal to admission and to the 90-to-150 s
+3. **A runner restart locked a local-provider session out for up to 120 s, and the ownership guard
+   is what did it here.** The restart lane attributed the refusal to admission and to the 90-to-150 s
    watchdog sweep. On this branch, with the old streams Stop, the alive and running locks are gone
    before the restart, so admission passes and the OWNER key is the thing left standing. Both
-   refusals exist; which one answers depends on what the Stop already cleared. Fixing this means
-   clearing `owner` when a Stop settles, or letting a runner claim a session whose owner has not
-   heartbeat recently. Neither belongs in this lane.
+   refusals exist; which one answers depends on what the Stop already cleared. Fixed by the second
+   commit: the runner now hands the key back at shutdown.
+
+7. **`clear_owner` existed and had no caller.** The release-if-owner primitive was written and
+   left unused; only `force_clear_owner` (the unconditional twin, for kill) was wired. The
+   shutdown release is the caller it was waiting for, so the API change is a new field and a
+   ten-line branch rather than new lock logic.
+
+8. **The runner's hot reload now releases ownership too, which is right but easy to trip over.**
+   `tsx watch` SIGTERMs the process on every save, so a dev-stack edit hands every claim back.
+   Correct behaviour, and it destroyed this lane's first SIGKILL control by performing the
+   release the control existed to prevent. See the note under Tests.
 
 4. **A settled cancel that is NOT a user Stop now writes the record too.** An unlabelled abort (a
    client disconnect) still deletes the sandbox, because `shouldPark` refuses it, but if the harness
@@ -327,17 +374,35 @@ to anything else about the stack.
 
 ```
 cd services/runner && pnpm test
-  → 161 files passed, 2674 tests passed, 0 failed
+  → 162 files passed, 2686 tests passed, 0 failed
 cd services/runner && pnpm run typecheck
   → clean
+cd api && python -m pytest oss/tests/pytest/unit/sessions/ -q
+  → 491 passed, 41 skipped, 0 failed
 ```
 
-The new file alone: `pnpm exec vitest run --project unit tests/unit/cancel-continuity.test.ts`
-→ 6 passed. With the predicate reverted → 3 failed, 3 passed.
+Per new file:
 
-One note for whoever runs this suite in a fresh worktree: `pnpm run build:extension` must run once
-before `pnpm test`, or the four `gateway-run-turn-composition` cases fail with "the in-sandbox tool
-MCP shim could not be delivered". That is a missing build artifact, not a regression.
+| File | Tests |
+|---|---|
+| `services/runner/tests/unit/cancel-continuity.test.ts` | 6 passed. With the predicate reverted, 3 fail. |
+| `services/runner/tests/unit/session-ownership-release.test.ts` | 14 passed. |
+| `api/oss/tests/pytest/unit/sessions/test_heartbeat_release_owner.py` | 7 passed. |
+
+The 41 API skips are the Postgres-backed DAO tests, which skip on a bare host and skipped the
+same way before this lane. The API suite was run with the virtual environment of the
+`slice-durable-cancel` worktree, because this worktree has none of its own.
+
+Two notes for whoever runs these next.
+
+- In a fresh worktree, `pnpm run build:extension` must run once before `pnpm test`, or the four
+  `gateway-run-turn-composition` cases fail with "the in-sandbox tool MCP shim could not be
+  delivered". That is a missing build artifact, not a regression.
+- Do NOT edit anything under `services/runner/src/` while a live run is in flight. The runner
+  runs `tsx watch`, so a save SIGTERMs it — and on this branch that SIGTERM now releases the
+  ownership claims. It silently converted this lane's first SIGKILL control into a SIGTERM one
+  (the API logged `released: True` for both of that run's sessions seven seconds before the
+  kill). The invalid run is kept as `kill-control.json` so the trap is on the record.
 
 ## Open questions for Mahmoud
 
@@ -355,12 +420,14 @@ MCP shim could not be delivered". That is a missing build artifact, not a regres
    Spike A's open question 4 wearing a different hat, and it belongs with the immutable-history
    choice in work package D.
 
-3. **Should a settled Stop clear the Redis `owner` key?** *Recommendation: yes, and treat it as the
-   real fix for the post-restart lockout.* Reason: the session is demonstrably idle when the Stop
-   settles — no alive lock, no running lock, a parked sandbox — and the only thing refusing the next
-   message for two minutes is an affinity key naming a replica that no longer exists. `force_clear_owner`
-   already exists for the force path. The alternative, waiting out a 120 s TTL, is a user-visible
-   two-minute outage after every runner deploy.
+3. **Is the runner's shutdown grace period long enough for the release to be guaranteed, rather
+   than merely observed?** *Recommendation: set `stop_grace_period` on the runner service to 20 s.*
+   Reason: the handler's own budgets are 5 s for the pool drain plus 5 s for the in-flight
+   sandboxes plus 5 s for the release, so the worst case is 15 s against Docker's 10-second
+   default — the release can be cut off by the SIGKILL, and so can part of the sandbox teardown
+   that predates this lane. Measured shutdown here was 37 ms, signal to release, so nothing was
+   ever truncated in practice. This lane did not change compose, because that file is shared with
+   every other stack and the change belongs to whoever owns the deploy.
 
 4. **Do we verify this on Daytona before the RFC is accepted, or at the release gate?**
    *Recommendation: at the release gate.* Reason: the durable mount is what carries the native
@@ -377,8 +444,14 @@ MCP shim could not be delivered". That is a missing build artifact, not a regres
 
 ## What this lane did not do
 
-- **Did not touch the park rule, the Stop route, or the API.** The brief ruled all three out and
-  nothing in the fix needed them.
+- **Did not touch the park rule or the Stop route.** The first commit needed neither. The second
+  commit does change the API, by one optional request field and one early-return branch on the
+  heartbeat the runner already calls; the route, its permission and every existing beat are
+  unchanged.
+- **Did not regenerate the frontend API client.** `SessionHeartbeatRequest` gains an optional
+  field with a default, which is backward compatible for every existing caller, and no browser
+  code sends a heartbeat.
+- **Did not change `stop_grace_period`.** See open question 3.
 - **Did not test Claude or Codex.** The completion path branches on `stopReason` and
   `cancelSettled`, neither of which is harness-specific, and the child-cleanup lane already showed
   all three harnesses answer `session/cancel`. It is an expectation, not a measurement.
