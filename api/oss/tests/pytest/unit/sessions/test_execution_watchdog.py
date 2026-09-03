@@ -19,7 +19,11 @@ from uuid import UUID
 
 import pytest
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    RECORD_SETTLED_BY_ATTRIBUTE,
+    SETTLED_BY_WATCHDOG,
+    SessionRecordEvent,
+)
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
@@ -185,12 +189,20 @@ async def test_a_lost_turn_gets_an_error_then_a_done(anyio_backend):
     assert [event.record_type for event in publisher.published] == ["error", "done"]
 
     error_event, done_event = publisher.published
+    # Both carry the writer marker. It is the ONLY thing separating this ending from a
+    # runner's — the wording and the `done` shape are copied deliberately — and the ingest
+    # guard reads it to tell a thawed runner's tail apart from ordinary history. See
+    # `RecordsService.append_many`.
     assert error_event.attributes == {
         "type": "error",
         "message": LOST_ERROR_MESSAGE,
         "code": LOST_ERROR_CODE,
+        RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG,
     }
-    assert done_event.attributes == {"type": "done"}
+    assert done_event.attributes == {
+        "type": "done",
+        RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG,
+    }
     assert error_event.turn_id == "turn-1"
     assert done_event.turn_id == "turn-1"
     assert error_event.session_id == "sess-lost"
