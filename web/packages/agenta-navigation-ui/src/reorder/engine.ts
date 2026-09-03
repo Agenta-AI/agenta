@@ -205,7 +205,6 @@ const startDrag = (
     if (from < 0) return false
 
     const scrollerRect = scroller.getBoundingClientRect()
-    const sourceRect = el.getBoundingClientRect()
     const ghosts = blockOf(el, item.kind)
     for (const ghost of ghosts) ghost.dataset.dragGhost = "true"
     scroller.style.touchAction = "none"
@@ -223,7 +222,7 @@ const startDrag = (
         pointerY: event.clientY,
         index: from,
         frame: null,
-        overlay: createOverlay(el.textContent?.trim() ?? "", sourceRect),
+        overlay: createOverlay(el.textContent?.trim() ?? "", el),
     }
     store.set(sidebarReorderActiveAtom, true)
     document.addEventListener("pointermove", onPointerMove, {passive: false})

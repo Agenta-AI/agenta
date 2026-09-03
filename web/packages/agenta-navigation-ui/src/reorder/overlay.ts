@@ -12,12 +12,21 @@ export interface ReorderOverlay {
     destroy: () => void
 }
 
-// font-sans: preflight is off and the chip is a sibling of #__next, so it inherits none of the
-// app's typography — without this it renders in the browser's default family, not Inter.
-// box-border + a measured width: the chip is the row lifted out, so it keeps the row's width
-// rather than shrinking to its own text.
+// No type utilities here: the chip copies the dragged row's computed type instead (see below),
+// so a heading chip reads like a heading and a session chip like a session.
 const CHIP_CLASS =
-    "fixed left-0 top-0 z-[1100] box-border pointer-events-none truncate rounded-md bg-colorBgElevated px-3 text-sm leading-7 font-sans text-colorText shadow-overlay opacity-90"
+    "fixed left-0 top-0 z-[1100] box-border pointer-events-none truncate rounded-md bg-colorBgElevated px-3 text-colorText shadow-overlay opacity-90"
+
+/** The type properties the chip lifts off the row it came from. */
+const TYPE_PROPS = [
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "fontStyle",
+    "letterSpacing",
+    "lineHeight",
+    "textTransform",
+] as const
 const LINE_CLASS =
     "fixed left-0 top-0 z-[1100] h-0.5 pointer-events-none bg-colorPrimary before:absolute before:-left-[3px] before:-top-[2px] before:size-1.5 before:rounded-full before:bg-colorPrimary before:content-['']"
 
@@ -38,13 +47,20 @@ export const announceReorder = (message: string) => {
     ensureLiveRegion().textContent = message
 }
 
-export const createOverlay = (
-    label: string,
-    size: {width: number; height: number},
-): ReorderOverlay => {
+/**
+ * The chip is the dragged row, lifted out — same width, same height, same type.
+ *
+ * The type is COPIED from the row rather than set in classes. Next's font variable is declared on
+ * the app's own root element, and the chip is a sibling of `#__next`, so `font-sans` there
+ * resolves to nothing and the chip fell back to the browser's default serif.
+ */
+export const createOverlay = (label: string, source: HTMLElement): ReorderOverlay => {
+    const size = source.getBoundingClientRect()
+    const rowType = getComputedStyle(source)
     const chip = document.createElement("div")
     chip.className = CHIP_CLASS
     chip.textContent = label
+    for (const prop of TYPE_PROPS) chip.style[prop] = rowType[prop]
     chip.style.width = `${size.width}px`
     chip.style.height = `${size.height}px`
     const line = document.createElement("div")
