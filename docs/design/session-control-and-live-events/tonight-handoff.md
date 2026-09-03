@@ -5,7 +5,7 @@
 > **UPDATE, 2026-09-03:** This pre-spike handoff is historical. Direct authenticated delivery is
 > now the confirmed version-one adapter. Runner-initiated long polling remains parked in Linear
 > AGE-4253. Current status and release coverage live in [status.md](status.md) and
-> [qa-matrix.md](qa-matrix.md).
+> [qa.md](qa.md).
 
 ## Fixed direction
 

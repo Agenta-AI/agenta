@@ -1,72 +1,89 @@
-# Implementation plan
+# Session control and live events delivery plan
 
-> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This sequence is a provisional AI proposal. Human review
-> and spike results can change it.
+> **AGENT-GENERATED, low weight.**
 
-## Independent programs
+## Planning terms
 
-### Fast Stop and command delivery
+**Work package:** One result that a branch and pull request can implement and review independently.
 
-1. Trace current Stop, kill, heartbeat, abort, sandbox, and interaction paths.
-2. Use the completed warm-cancellation evidence and close the remaining Codex Daytona check.
-3. Add the durable command repository and state transitions.
-4. Add direct authenticated delivery behind the command-delivery adapter.
-5. Make public Stop create a durable command with an optional execution guard.
-6. Keep current Redis ownership until cancellation settles.
-7. Keep durable commands pending when direct delivery fails so recovery can settle or redeliver
-   them. Long polling remains parked in Linear AGE-4253.
-8. Emit stopped or lost outcomes and notify existing clients.
+**Integration merge:** A branch that combines completed packages and resolves shared-file conflicts.
 
-### Shared live reading
+**Checkpoint:** A deployed integration commit that runs a named subset of `qa.md`.
 
-1. Define a stable runner frame envelope.
-2. Add the bounded Redis frame stream and live relay.
-3. Let secondary clients render live frames while the sender keeps its existing stream.
-4. Prove that live delivery does not block the runner.
-5. Detach execution from the sender request.
-6. Move the sender to the shared session stream.
+**Milestone:** A user-visible system capability accepted at a checkpoint.
 
-### Durable snapshot and replay
+## Milestones
 
-1. Complete the stable record-ID spike.
-2. Review the provisional separate-event-table choice.
-3. Add the selected append-only event store and per-session commit order.
-4. Build session projections and snapshots through the numeric per-session sequence.
-5. Add replay followed by live delivery.
-6. Migrate desktop and mobile before removing the old watch path.
+| Milestone | Result | Required packages |
+|---|---|---|
+| Contract baseline | Reviewers agree on public operations, command delivery, events, persistence, and QA | Documentation only |
+| Reliable session control | Fast warm Stop, clean failure recovery, and safe second-send rejection | Stop and recovery |
+| Shared live output | Sender, second browser, and mobile receive the same temporary output | Live relay |
+| Durable reconnect | Snapshot, ordered durable history, and replay survive disconnects | Durable history plus live relay |
+| One reader model | The sender uses the same read path as every other client | Shared client reader |
+| Durable pending work | Queue, Steer, and approval continuation use durable server state | Queue, Steer, and approvals |
 
-### Durable input, Queue, Steer, and approvals
+## Dependencies
 
-1. Add durable input admission and visible pending state.
-2. Move the browser queue to the server.
-3. Promote one queued input after normal completion.
-4. Implement Steer as saved input, Stop, then promotion.
-5. Move interaction continuation through the durable command path.
-6. Test Stop, Steer, and approval races.
+```text
+Contract baseline
+    |
+    +----> Stop and recovery --------------------------+
+    |                                                  |
+    +----> Live relay ----> Durable history ----------+----> One reader model
+    |                                                  |
+    +--------------------------------------------------+----> Queue, Steer, approvals
+```
 
-## Work that can start immediately
+Stop and recovery can run beside the live relay. Durable history can begin its producer work while
+the relay runs, but snapshot and replay wait for the persistence contract. The sender migrates only
+after live relay and durable reconnect pass.
 
-The following tasks do not require the final event-store decision:
+## Checkpoints
 
-- Sandbox cancellation spike.
-- Current Stop path map.
-- Durable command and long-poll design.
-- Stable record-ID spike.
-- Live frame envelope and ingress spike.
+### Reliable session control checkpoint
 
-## First releasable slice
+Deploy the selected Stop and recovery pull requests together. Run all control, failure, provider,
+and harness rows in `qa.md`. Do not include Queue, Steer, or shared live output.
 
-The first release contains durable Stop, direct delivery, durable recovery, honest terminal
-outcomes, and warm resume. It keeps existing Redis ownership and existing client watch behavior.
+### Shared live output checkpoint
 
-## Completion evidence
+Deploy frame ingress, bounded Redis storage, SSE relay, and secondary-client rendering. Keep the
+sender on its existing invoke stream. Run the multiple-reader, slow-reader, API-replica, and relay
+failure rows.
 
-Each program needs:
+### Durable reconnect checkpoint
 
-- One stated invariant.
-- Automated concurrency and failure tests.
-- A live-stack test.
-- Exact current and changed API behavior.
-- Known limitations.
+Deploy complete record checkpoints, session sequence, snapshot, and replay. Run legacy-session,
+Postgres outage, reconnect, duplicate, ordering, and replay-to-live rows.
 
-The complete release validation contract is in [qa-matrix.md](qa-matrix.md).
+### One reader checkpoint
+
+Detach execution lifetime from the start request and move the sender to the shared event path. Run
+browser close, refresh, sender/secondary parity, and desktop/mobile parity rows.
+
+### Durable pending-work checkpoint
+
+Deploy pending input, Queue, Steer, and durable approval continuation. Run idempotency, ordering,
+removal, Stop pause, Steer failure, and interaction race rows.
+
+## Pull request rules
+
+- Each work package states the files it owns before implementation begins.
+- Shared contract changes land before dependent implementation branches start.
+- A package pull request carries package tests, migration notes, and its required QA rows.
+- An integration branch combines packages. It does not hide package-specific changes.
+- A checkpoint records the exact commit and evidence in `status.md`.
+- No issue closes until the QA row that reproduces it passes on the integrated commit.
+
+## First execution cycle
+
+1. Review the contract baseline.
+2. Compare the current and candidate Codex ACP versions.
+3. Adapt the watchdog branch from quarantine to late-record rejection.
+4. Review the independent Stop pull requests and select their merge order.
+5. Build one Stop integration branch.
+6. Deploy it on local and Daytona providers.
+7. Run the reliable session control checkpoint.
+
+The live-relay measurement and frame-envelope work can run at the same time.

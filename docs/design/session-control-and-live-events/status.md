@@ -1,82 +1,62 @@
-# Status
+# Session control and live events status
 
-> **AGENT-GENERATED, LOW WEIGHT, DRAFT.** This status was prepared autonomously on 2026-09-02 for
-> human review on the next working day.
+> **AGENT-GENERATED, low weight.**
 
-## Current state
+## Current milestone
 
-- The RFC has a complete provisional architecture.
-- Confirmed founder decisions are separated from AI-selected defaults.
-- The first version keeps current Redis execution ownership.
-- Durable Stop uses direct API-to-runner delivery behind a replaceable port.
-- Runner-initiated long polling is designed but parked in Linear AGE-4253.
-- Stop requires warm sandbox and harness resume.
-- Shared live frames use one canonical backend path in the target design.
-- The read contract uses one JSON snapshot plus one long-lived event connection. A new session
-  starts at sequence zero. Only committed durable events advance the database-assigned per-session
-  sequence; temporary frames do not.
-- Normal completion promotes queued input in first-in, first-out order. Manual Stop pauses the
-  queue. Steer saves its input before stopping current work and promotes that input before older
-  queued input; older input remains visible and pending.
-- Approval keeps its current continuation model: the requesting execution ends, the interaction
-  remains durable, and an answer starts a new execution. A new durable `execution.waiting` fact
-  makes this existing condition explicit to readers.
-- The accepted answer, continuation execution, and continuation command commit together. Delivery
-  can retry afterward. A failed continuation keeps the answer and leaves the session usable.
-- Stop and interaction responses use first-commit-wins serialization. Execution guards remain
-  exact and never silently target a continuation execution.
-- Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
-  must change first.
-- Records-versus-event-log remains an explicit reviewer gate.
-- Final endpoint names remain open.
-- The public interface exposes explicit session operations while the durable command store remains
-  private. Existing routes remain during migration; final route spelling is deferred.
-- Temporary frames have bounded age and size. A slow reader is disconnected and reloads the
-  durable snapshot; it never slows the runner. Measurements set the numeric limits.
-- Postgres assigns per-session sequence under a `session_streams` row lock in the record-insert
-  transaction. Legacy records stay unsequenced. Replay subscribes before reading and treats Redis
-  notifications only as wake-up signals.
-- HTTP reports admission results through commit. New durable work and identical retries return
-  stable accepted IDs. Later execution outcomes arrive through the event stream. Idle unguarded
-  Stop is a successful no-op; stale guarded Stop conflicts.
-- Warm Stop is confirmed by live evidence for Pi and Claude Code on Daytona and Pi, Claude Code,
-  and Codex locally. Model-output, active-tool, and pending-approval cases resumed in the same
-  sandbox and native harness session.
-- Stop settlement clears `running`, keeps `alive` during safe parking, and updates the Postgres
-  session-row mirror. Normal idle expiry later clears `alive`.
-- Version one rejects output after terminal settlement. It does not add a quarantine table.
-- The release validation contract is recorded in [qa-matrix.md](qa-matrix.md).
+The project is preparing the contract baseline for independent review. No implementation package is
+approved by this document alone.
 
-## Work in review
+## Settled contracts
 
-1. Warm cancellation and harness compatibility, PR #6496. Core warm cancellation is proven.
-   Codex child cleanup still needs Daytona verification and comparison against a current Codex ACP
-   version.
-2. Durable command and transport design, PR #6497.
-3. Current Stop path map, PR #6498.
-4. Stable record-ID semantics, PR #6499. Evidence only. Its focused tests pass, but the new runner
-   test file currently fails TypeScript typechecking and the producer migration is not built.
-5. Concurrent-send admission, PR #6500.
-6. Dead execution watchdog, PR #6501.
-7. Record acknowledgement after Postgres commit, PR #6502.
-8. Durable Stop with direct delivery, PR #6503.
-9. Stop guard, approval cancellation, and client behavior, PR #6504.
-10. Overnight evidence and integration, PRs #6505 and #6506.
+- Direct authenticated API-to-runner delivery is the version-one Stop adapter.
+- Runner-initiated long polling is parked in Linear AGE-4253.
+- Heartbeats prove health and ownership. They do not carry normal Stop delivery.
+- `expected_execution_id` is optional. First-party clients send it when known.
+- Stop clears `running`, preserves `alive` during a safe park, and updates the Postgres mirror.
+- Late output receives non-retryable `execution_terminal` and is not stored.
+- New durable facts receive a database-assigned per-session sequence.
+- Existing records are not backfilled or rewritten.
+- Temporary frames use bounded Redis storage and do not advance the durable sequence.
+- Disconnect recovery reloads a snapshot and follows from its sequence.
+- Manual Stop pauses pending input. Steer saves before stopping and runs before older queued input.
 
-## Work ready to start
+## Evidence confirmed so far
 
-1. Verify Codex child cleanup on Daytona and test a current Codex ACP version.
-2. Implement rejection of records after terminal settlement on the watchdog branch.
-3. Verify the final runner shutdown grace period.
-4. Design live-frame ingress and shared reading.
+- Warm Stop passed with Pi and Claude Code on Daytona.
+- Warm Stop passed with Pi, Claude Code, and Codex on the local provider.
+- Output, active-tool, and pending-approval Stop cases continued in the same warm sandbox and native
+  harness session.
+- Direct Stop reached the local runner in 72 to 82 milliseconds.
+- The Daytona Stop response took 70 to 104 milliseconds.
+- Record acknowledgement after Postgres commit passed a database-outage test.
+- The integration branch passed thirteen control and recovery scenarios using its implemented
+  quarantine behavior. Version one still requires rejection instead of quarantine.
 
-## Human review priorities
+## Pull requests under review
 
-1. Decide repaired records versus a separate session-event table after reviewing Spike D.
-2. Review the public resource boundaries without focusing on final route spelling.
-3. Set measured live-frame retention and slow-reader limits.
-4. Decide the final endpoint names.
+| Pull request | Purpose | Current role |
+|---|---|---|
+| #6496 | Warm cancellation and continuity | Candidate implementation; Codex Daytona check remains |
+| #6497 | Command and transport design | Evidence for direct and parked long-poll adapters |
+| #6498 | Current Stop path | Reference evidence |
+| #6499 | Stable record semantics | Investigation; producer changes remain |
+| #6500 | Reject concurrent execution before sandbox mutation | Independent candidate |
+| #6501 | Watchdog and stale-tail handling | Candidate; replace quarantine with rejection |
+| #6502 | Acknowledge records after Postgres commit | Independent candidate |
+| #6503 | Durable Stop and direct delivery | Candidate stacked on warm cancellation |
+| #6504 | Execution guard, approvals, and clients | Candidate; interaction overlap needs review |
+| #6505 | Overnight reports | Evidence only |
+| #6506 | Combined branch | Integration evidence, not the source for package review |
 
-## Branch
+## Work before implementation starts
 
-`agent/session-execution-rfc`
+1. Review requirements and all four contract documents.
+2. Resolve the blocking questions in `open-questions.md`.
+3. Compare the current Codex ACP pin with a current version on the full Codex matrix.
+4. Assign one owner and one branch to each work package.
+5. Record the contract-baseline commit here.
+
+## Current branch
+
+`agent/session-execution-rfc`, draft PR #6495.
