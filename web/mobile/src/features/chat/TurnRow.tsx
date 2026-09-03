@@ -39,6 +39,8 @@ import {
     XCircle,
 } from "lucide-react"
 
+import {Button} from "@/components/ui/button"
+
 import {AssistantMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
 
@@ -158,8 +160,14 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
     </div>
 )
 
-/** Desktop RunErrorBody's callout: the red card with a title and the reason inline. */
-const RunErrorCallout = ({text}: {text: string}) => {
+/**
+ * Desktop RunErrorBody's callout: the red card with a title and the reason inline.
+ *
+ * The retry is here rather than in the turn's hover toolbar because the toolbar hides rewind on
+ * the LAST turn (rewinding it just re-runs what is already current) — and a failed run is always
+ * the last turn, so the one turn that most needs re-running was the one turn with no way to do it.
+ */
+const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
     const [expanded, setExpanded] = useState(false)
     const big = text.length > 240 || text.split("\n").length > 4
     return (
@@ -182,6 +190,11 @@ const RunErrorCallout = ({text}: {text: string}) => {
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
+                ) : null}
+                {onRetry ? (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+                        Retry
+                    </Button>
                 ) : null}
             </div>
         </div>
@@ -343,7 +356,12 @@ export const TurnRow = ({
                 return null
             })}
             {turn.status.showError ? (
-                <RunErrorCallout text={turn.status.errorText ?? "Something went wrong."} />
+                <RunErrorCallout
+                    text={turn.status.errorText ?? "Something went wrong."}
+                    // Re-runs the failed turn through the same rewind path the toolbar uses, so a
+                    // tool that already ran still gets its warning first.
+                    onRetry={onRewind && !turn.isUser ? () => onRewind(turn) : undefined}
+                />
             ) : null}
         </div>
     )

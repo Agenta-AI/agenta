@@ -7,7 +7,6 @@ const SIDEBAR_OPEN_GROUPS_STORAGE_KEY = "agenta:sidebar:open-groups"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "agenta:sidebar:collapsed"
 const SIDEBAR_WIDTH_STORAGE_KEY = "agenta:sidebar:width"
 const LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY = "sidebarCollapsed"
-const NO_PROJECT_SCOPE = "__global__"
 
 export const SIDEBAR_COLLAPSED_WIDTH = 48
 export const SIDEBAR_DEFAULT_WIDTH = 255
@@ -78,16 +77,6 @@ export const sidebarPopupGroupsAtomFamily = atomFamily((_scopeId: string) => ato
 export const sidebarCollapsedScopeAtomFamily = atomFamily((_scopeId: string) => atom(false))
 
 /**
- * Groups the shell is holding open because the ROUTE lands inside them, published per scope.
- *
- * The fourth way a group can be open, after persisted, `defaultOpen` and `alwaysOpen` — and the
- * gate has to know about every one of them. Navigating to /agents opens the Agents group without
- * writing anything to the persisted set, so a gate reading only that set kept its query idle and
- * the expanded group rendered "Open to load" under a route that was already showing agents.
- */
-export const sidebarRouteOpenGroupsAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
-
-/**
  * The `defaultOpen` keys the shell is currently displaying as expanded, published per scope.
  * Not persisted: it mirrors what the user SEES so the gated entity sources agree with the
  * screen. Seeding the persisted atom instead would clobber it before storage hydrates.
@@ -130,18 +119,25 @@ const sidebarOpenGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
     {},
 )
 
+/** `null` until a project resolves — there is no bucket to read or write before then. */
 const getSidebarOpenGroupsStorageScope = (scopeId: string, projectId: string | null) =>
-    `${scopeId}:${projectId || NO_PROJECT_SCOPE}`
+    projectId ? `${scopeId}:${projectId}` : null
 
+/**
+ * Which groups are expanded, per scope and project. Both sides no-op until the project id hydrates:
+ * the `__global__` bucket that stood in for it was written but never read back.
+ */
 export const sidebarOpenGroupsAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const storageScope = getSidebarOpenGroupsStorageScope(scopeId, get(projectIdAtom))
+            if (!storageScope) return undefined
             const storage = get(sidebarOpenGroupsStorageAtom)
             return storage[storageScope]
         },
         (get, set, nextOpenKeys: string[]) => {
             const storageScope = getSidebarOpenGroupsStorageScope(scopeId, get(projectIdAtom))
+            if (!storageScope) return
             const storage = get(sidebarOpenGroupsStorageAtom)
             set(sidebarOpenGroupsStorageAtom, {...storage, [storageScope]: nextOpenKeys})
         },

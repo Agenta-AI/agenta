@@ -40,6 +40,14 @@ const TWO_QUESTIONS = {
     },
 }
 
+const ONE_QUESTION = {
+    message: "One detail",
+    requestedSchema: {
+        type: "object",
+        properties: {colour: {type: "string", title: "Colour", enum: ["Red", "Blue"]}},
+    },
+}
+
 // This config sets no `globals`, so RTL never registers its auto-cleanup and mounted cards would
 // otherwise pile up in one document (ApprovalCard.test.tsx unmounts by hand for the same reason).
 afterEach(cleanup)
@@ -105,6 +113,18 @@ describe("chrome", () => {
         for (const label of ["Previous question", "Next question", "Dismiss this request"]) {
             expect(screen.getByLabelText(label).dataset.slot).toBe("button")
         }
+    })
+
+    it("drops the stepper entirely when there is only one question to answer", () => {
+        // Counter, arrows, rail and question number are all inert at one step — dead chrome.
+        const {container} = setup(ONE_QUESTION)
+
+        expect(screen.queryByText("1/1")).toBeNull()
+        expect(screen.queryByLabelText("Previous question")).toBeNull()
+        expect(screen.queryByLabelText("Next question")).toBeNull()
+        expect(container.querySelectorAll("[aria-hidden] > span")).toHaveLength(0)
+        expect(screen.getByText("Colour").textContent).toBe("Colour")
+        expect(screen.getByLabelText("Dismiss this request")).toBeTruthy()
     })
 
     it("titles the card in the primary text colour, not the brand accent or caps", () => {
@@ -263,13 +283,13 @@ describe("automation", () => {
                 properties: {note: {type: "string", title: "Note", format: "multiline"}},
             },
         })
-        const box = screen.getByLabelText("Note")
+        const box = screen.getByLabelText("Note") as HTMLTextAreaElement
 
         fireEvent.change(box, {target: {value: "line one"}})
         fireEvent.keyDown(box, {key: "Enter", shiftKey: true})
 
         expect(onOutput).not.toHaveBeenCalled()
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(box.value).toBe("line one")
     })
 
     it("leaves plain Enter alone in a textarea, so the browser inserts the newline", () => {
@@ -287,7 +307,7 @@ describe("automation", () => {
 
         // Nothing intercepts it, so the browser's own newline stands and the step does not move.
         expect(onOutput).not.toHaveBeenCalled()
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(field.value).toBe("one")
     })
 
     it("advances immediately on a digit, with no hold", () => {
@@ -353,7 +373,7 @@ describe("multi-select", () => {
         fireEvent.click(screen.getByText("Releases"))
 
         // Still on the one and only question — a checkbox list is not done until you say so.
-        expect(screen.getByText("1/1")).toBeTruthy()
+        expect(screen.getAllByRole("checkbox").length).toBeGreaterThan(0)
         expect(onOutput).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByText("Send answers"))
