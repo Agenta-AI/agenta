@@ -258,14 +258,21 @@ class _FakeStreamsService:
 
 
 class _FakeInteractionsService:
-    def __init__(self) -> None:
+    def __init__(self, *, cancelled_count: int = 1) -> None:
         self.cancelled: List[Optional[str]] = []
+        self.published_cancelled: List[str] = []
+        self.cancelled_count = cancelled_count
 
     async def cancel_session_pending(
         self, *, project_id, session_id, only_turn_id=None, **_
     ):
         self.cancelled.append(only_turn_id)
-        return 1
+        return self.cancelled_count
+
+    async def publish_session_pending_cancelled(
+        self, *, project_id, session_id
+    ) -> None:
+        self.published_cancelled.append(session_id)
 
 
 class _RecordingDelivery:
@@ -1066,11 +1073,13 @@ async def test_a_second_outcome_report_changes_nothing(lock_engine):
 async def test_runner_outcome_settles_the_execution_authority(lock_engine):
     await _run_turn(lock_engine, "turn-A")
     executions = _FakeExecutionsDAO()
+    interactions = _FakeInteractionsService()
     svc = _service(
         lock_engine,
         streams=_FakeStreamsService(
             _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
         ),
+        interactions=interactions,
         executions=executions,
     )
 
@@ -1088,6 +1097,37 @@ async def test_runner_outcome_settles_the_execution_authority(lock_engine):
     winner = executions.rows[(_SESSION, "turn-A")]
     assert winner.terminal_outcome == "stopped"
     assert winner.settled_by == "runner"
+    assert interactions.published_cancelled == [_SESSION]
+
+
+@pytest.mark.asyncio
+async def test_atomic_settlement_does_not_publish_when_no_gate_was_cancelled(
+    lock_engine,
+):
+    await _run_turn(lock_engine, "turn-A")
+    interactions = _FakeInteractionsService(cancelled_count=0)
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        interactions=interactions,
+        executions=_FakeExecutionsDAO(),
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    assert interactions.cancelled == ["turn-A"]
+    assert interactions.published_cancelled == []
 
 
 @pytest.mark.asyncio

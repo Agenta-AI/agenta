@@ -114,12 +114,19 @@ class SessionInteractionsService:
             transaction=transaction,
         )
         if cancelled and publish:
-            await self._publish_interaction(
-                project_id=project_id,
-                session_id=session_id,
-                status=WATCH_INTERACTION_RESOLVED,
+            await self.publish_session_pending_cancelled(
+                project_id=project_id, session_id=session_id
             )
         return cancelled
+
+    async def publish_session_pending_cancelled(
+        self, *, project_id: UUID, session_id: str
+    ) -> None:
+        await self._publish_interaction(
+            project_id=project_id,
+            session_id=session_id,
+            status=WATCH_INTERACTION_RESOLVED,
+        )
 
     async def query_interactions(
         self,
