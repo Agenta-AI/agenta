@@ -68,6 +68,7 @@ import {
   withinCredentialPropagationWindow,
 } from "./errors.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
+import { reapLeakedExecChildren } from "./reap-exec.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -1110,6 +1111,10 @@ export async function runTurn(
     // byte-exact args). Either way, on a HITL pause the prompt resolves cancelled or never
     // resolves, and the pause signal ends the turn.
     let promptPromise: Promise<unknown>;
+    // When the prompt was issued, so a reap after a Stop can tell a process this turn started
+    // from one the SESSION started earlier (an stdio MCP server). A resumed turn keeps the
+    // resume's own start, which only ever makes the reap more conservative. See `reap-exec.ts`.
+    let promptStartedAtMs = Date.now();
     if (opts.resume) {
       // The resume turn owns continued events; each decision answers one parked gate by id.
       // Carried gates keep the shared original prompt pending until a later answer.
@@ -1193,6 +1198,7 @@ export async function runTurn(
         pause.pause();
       }
     } else {
+      promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
@@ -1313,6 +1319,17 @@ export async function runTurn(
         log: logger,
       });
       cancelSettled = cancel.settled;
+      // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
+      // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
+      // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
+      // through a Daytona snapshot rebuild. Best effort, and it cannot change the park decision.
+      if (cancel.settled && plan.acpAgent === "codex") {
+        await reapLeakedExecChildren({
+          sandbox: env.sandbox,
+          turnElapsedMs: Date.now() - promptStartedAtMs,
+          log: logger,
+        }).catch(() => undefined);
+      }
       // The harness has been asked to stop, so the Pi trace port and the environment teardown must
       // not ask again. Their `destroySession` also aborts `env.mcpAbort`, which belongs to the
       // ENVIRONMENT and must survive a park (the approval-park path skips it for the same reason).
