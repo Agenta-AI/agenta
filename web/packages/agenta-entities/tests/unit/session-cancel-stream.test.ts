@@ -3,8 +3,7 @@
  *
  * `commandSessionStream` goes through `callFern`, which logs every non-abort failure and returns
  * null, so the desktop could not tell a refusal from a network error and showed "Stopped" for a run
- * that was still going. `cancelSessionStream` keeps the three answers apart: cancelled, stale
- * (the server refused because another turn holds the session), and failed.
+ * that was still going. `cancelSessionStream` keeps cancelled, idle, stale, and failed apart.
  */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 

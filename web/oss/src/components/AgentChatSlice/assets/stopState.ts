@@ -1,20 +1,23 @@
-export type StopPhase = "idle" | "requesting" | "accepted" | "terminal" | "stopped"
+export type StopPhase = "idle" | "requesting" | "accepted" | "retryable" | "terminal" | "stopped"
 
 export type StopEvent =
     | {type: "request"}
     | {type: "accepted"}
     | {type: "terminal"}
+    | {type: "timeout"}
     | {type: "failed" | "already_idle" | "reset"}
 
 export const reduceStopPhase = (phase: StopPhase, event: StopEvent): StopPhase => {
     switch (event.type) {
         case "request":
-            return "requesting"
+            return phase === "terminal" ? "terminal" : "requesting"
         case "accepted":
             return phase === "terminal" ? "stopped" : "accepted"
+        case "timeout":
+            return phase === "accepted" ? "retryable" : phase
         case "terminal":
-            if (phase === "requesting") return "terminal"
-            if (phase === "accepted") return "stopped"
+            if (phase === "idle" || phase === "requesting") return "terminal"
+            if (phase === "accepted" || phase === "retryable") return "stopped"
             return phase
         case "failed":
         case "already_idle":

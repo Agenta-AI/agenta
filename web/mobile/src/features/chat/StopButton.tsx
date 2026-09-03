@@ -12,29 +12,35 @@ import {Button} from "@agenta/ui/ui"
  */
 export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId: string}) => {
     const [state, setState] = useState<"idle" | "stopping" | "failed">("idle")
-    const [failureMessage, setFailureMessage] = useState<string | null>(null)
+    const [staleMessage, setStaleMessage] = useState<string | null>(null)
     const onStop = async () => {
         setState("stopping")
-        setFailureMessage(null)
+        setStaleMessage(null)
         try {
             // No guard here on purpose. This button stops a turn running on ANOTHER device, so
             // this device never saw its turn metadata and has no id to name. Sending the
             // id of some turn this device watched earlier would refuse a Stop that is correct.
             const outcome = await cancelSessionStream({sessionId, projectId})
-            if (outcome.status === "idle") {
+            if (outcome.status === "failed") setState("failed")
+            // A refused Stop is not a broken Stop: the turn this button was offering to stop has
+            // already ended and another one holds the session. Say that instead of "try again",
+            // which would send the user round the same refusal.
+            if (outcome.status === "stale") {
                 setState("idle")
-                return
+                setStaleMessage(outcome.message)
             }
-            if (outcome.status === "failed" || outcome.status === "stale") {
-                setState("failed")
-                setFailureMessage(outcome.message)
-            }
-        } catch (error) {
+        } catch {
             // A rejection (offline, 5xx) must land on "failed" like a null result. Without this
             // the button sits on "Stopping…" forever and the user has no way to retry.
             setState("failed")
-            setFailureMessage(error instanceof Error ? error.message : "Stop failed — try again.")
         }
+    }
+    if (state === "stopping") {
+        return (
+            <p className="text-muted-foreground text-xs">
+                Stopping… can take up to 30s; the turn may settle as an error for now.
+            </p>
+        )
     }
     return (
         <span className="flex items-center gap-2">
@@ -42,14 +48,14 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
                 variant="destructive-outline"
                 className="min-h-11"
                 onClick={() => void onStop()}
-                disabled={state === "stopping"}
             >
-                {state === "stopping" ? "Stopping" : "Stop"}
+                Stop
             </Button>
             {state === "failed" ? (
-                <span className="text-destructive text-xs">
-                    {failureMessage ?? "Stop failed — try again."}
-                </span>
+                <span className="text-destructive text-xs">Stop failed — try again.</span>
+            ) : null}
+            {staleMessage ? (
+                <span className="text-muted-foreground text-xs">{staleMessage}</span>
             ) : null}
         </span>
     )

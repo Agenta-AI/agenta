@@ -157,7 +157,7 @@ export const LiveConversation = ({
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
-    const {isHydrating, send} = conversation
+    const {isHydrating, revalidate, send, stop} = conversation
     useEffect(() => {
         const decision = pendingTaskDecision({
             sessionId,
@@ -192,14 +192,36 @@ export const LiveConversation = ({
 
     // Push-invalidation: a records change (another device's turn, a steer resume) folds into
     // the engine's transcript under its adopt guards.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: conversation.revalidate})
+    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: revalidate})
     // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
     // slow revalidate poll only while the backend says the session is running elsewhere.
     useEffect(() => {
         if (watch.connected || !running) return
-        const timer = setInterval(() => conversation.revalidate(), 7_500)
+        const timer = setInterval(() => revalidate(), 7_500)
         return () => clearInterval(timer)
-    }, [watch.connected, running, conversation.revalidate])
+    }, [watch.connected, running, revalidate])
+
+    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const streamingHereRef = useRef(streamingHere)
+    streamingHereRef.current = streamingHere
+    const [stoppingHere, setStoppingHere] = useState(false)
+    const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    useEffect(() => {
+        if (streamingHere || !stopWatchdogTimerRef.current) return
+        clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [streamingHere])
+    useEffect(
+        () => () => {
+            if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        },
+        [],
+    )
 
     // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
     // (same source function, same index-0 ordering) and acts through the engine.
@@ -208,26 +230,61 @@ export const LiveConversation = ({
     // one on the running-elsewhere strip — the button you see when the turn is NOT yours. Same call
     // and same refusal handling as the desktop.
     const stopHere = useCallback(() => {
-        conversation.stop()
+        if (stoppingHere) return
         if (!projectId || !sessionId) return
+        setStoppingHere(true)
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = expectedExecutionId
         // Name the turn when the stream told this device which one it is. Absent means the runner
         // did not emit it, and the server falls back to its own arrival-time check.
         void cancelSessionStream({
             sessionId,
             projectId,
-            expectedExecutionId: getSessionTurnId(sessionId),
+            expectedExecutionId,
         })
             .then((outcome) => {
-                if (outcome.status === "cancelled") return
+                if (outcome.status === "cancelled") {
+                    if (!streamingHereRef.current) {
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    if (isRetry) {
+                        stop()
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    stopWatchdogTimerRef.current = setTimeout(() => {
+                        retryStopRef.current = true
+                        stopWatchdogTimerRef.current = null
+                        setStoppingHere(false)
+                    }, 30_000)
+                    return
+                }
+                if (isRetry) retryStopRef.current = true
+                setStoppingHere(false)
+                if (outcome.status === "idle") {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                    return
+                }
+                message.warning(outcome.message)
+            })
+            .catch((error: unknown) => {
+                if (isRetry) retryStopRef.current = true
+                setStoppingHere(false)
                 message.warning(
-                    outcome.status === "stale"
-                        ? outcome.message
+                    error instanceof Error
+                        ? error.message
                         : "Could not stop the run. It may still be running.",
                 )
             })
-            // An abort rethrows and needs no handling here: this device has already stopped.
-            .catch(() => undefined)
-    }, [conversation, projectId, sessionId])
+    }, [projectId, sessionId, stop, stoppingHere])
 
     // Emptied after a user stop, matching the desktop and the two docks below: Stop cancels the
     // stopped turn's gates server-side, so an approve pressed after it answers a turn that is gone.
@@ -269,7 +326,6 @@ export const LiveConversation = ({
     )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
-    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
     // Parked question forms → the docked card owns the questions and the answers; the transcript
@@ -507,6 +563,7 @@ export const LiveConversation = ({
                         <Composer
                             sessionId={sessionId}
                             onSend={({text, parts}) => {
+                                setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
@@ -525,6 +582,7 @@ export const LiveConversation = ({
                             }
                             waitingOnUser={conversation.hitlPending}
                             streaming={streamingHere}
+                            stopping={stoppingHere}
                             onStop={stopHere}
                             inputRef={composerRef}
                         />

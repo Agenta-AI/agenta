@@ -623,7 +623,7 @@ export async function killSession({
 }
 
 /**
- * The three answers a Stop can get. `commandSessionStream` collapses all of them to `null`
+ * The four answers a Stop can get. `commandSessionStream` collapses failures to `null`
  * (`callFern` logs and swallows), which is why the desktop Stop could report "Stopped" for a run
  * that was still going. A Stop is the one control call whose failure the user must see.
  */
