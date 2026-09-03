@@ -286,11 +286,45 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     state=SessionCommandState.claimed.value,
                     claimed_by=replica_id,
                     claim_expires_at=now + timedelta(seconds=lease_seconds),
-                    claim_count=SessionCommandDBE.claim_count + 1,
                     updated_at=now,
                 )
                 .returning(SessionCommandDBE)
             )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            await session.commit()
+        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+    async def record_delivery_attempt(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        now: datetime,
+        max_deliveries: int,
+    ) -> Optional[SessionCommand]:
+        stmt = (
+            sa_update(SessionCommandDBE)
+            .where(
+                SessionCommandDBE.project_id == project_id,
+                SessionCommandDBE.id == command_id,
+                SessionCommandDBE.state.in_(_OPEN_STATES),
+                SessionCommandDBE.claim_count < max_deliveries,
+                or_(
+                    SessionCommandDBE.state == SessionCommandState.pending.value,
+                    SessionCommandDBE.claim_expires_at < now,
+                ),
+            )
+            .values(
+                state=SessionCommandState.pending.value,
+                claimed_by=None,
+                claim_expires_at=None,
+                claim_count=SessionCommandDBE.claim_count + 1,
+                updated_at=now,
+            )
+            .returning(SessionCommandDBE)
+        )
+        async with self.engine.session() as session:
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
             await session.commit()
@@ -367,17 +401,38 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         *,
         now: datetime,
         max_deliveries: int,
+        pending_before: Optional[datetime] = None,
     ) -> List[SessionCommand]:
         async with self.engine.session() as session:
+            abandoned = and_(
+                SessionCommandDBE.state == SessionCommandState.claimed.value,
+                SessionCommandDBE.claim_expires_at < now,
+            )
+            if pending_before is not None:
+                abandoned = or_(
+                    abandoned,
+                    and_(
+                        SessionCommandDBE.state == SessionCommandState.pending.value,
+                        func.coalesce(
+                            SessionCommandDBE.updated_at,
+                            SessionCommandDBE.created_at,
+                        )
+                        < pending_before,
+                    ),
+                )
             stmt = (
                 select(SessionCommandDBE)
                 .where(
-                    SessionCommandDBE.state == SessionCommandState.claimed.value,
                     SessionCommandDBE.deleted_at.is_(None),
-                    SessionCommandDBE.claim_expires_at < now,
-                    SessionCommandDBE.claim_count < max_deliveries,
+                    abandoned,
                 )
-                .order_by(SessionCommandDBE.claim_expires_at)
+                .order_by(
+                    func.coalesce(
+                        SessionCommandDBE.claim_expires_at,
+                        SessionCommandDBE.updated_at,
+                        SessionCommandDBE.created_at,
+                    )
+                )
                 .limit(200)
             )
             result = await session.execute(stmt)

@@ -31,7 +31,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
@@ -354,6 +354,15 @@ class SessionCommandsService:
 
         Never raises. The user's request has already succeeded by the time this runs.
         """
+        command = await self._dao.record_delivery_attempt(
+            project_id=command.project_id,
+            command_id=command.id,
+            now=datetime.now(timezone.utc),
+            max_deliveries=env.agenta.sessions.commands.max_deliveries,
+        )
+        if command is None:
+            return
+
         try:
             receipt = await self._delivery.deliver(command=command)
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
@@ -457,6 +466,40 @@ class SessionCommandsService:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
         age = (datetime.now(timezone.utc) - updated_at).total_seconds()
         return age < HEARTBEAT_INTERVAL_SECONDS * 2
+
+    async def settle_abandoned_commands(self, *, now: datetime) -> int:
+        max_deliveries = env.agenta.sessions.commands.max_deliveries
+        abandoned = await self._dao.expire_claims(
+            now=now,
+            max_deliveries=max_deliveries,
+            pending_before=now
+            - timedelta(seconds=env.agenta.sessions.commands.admission_timeout_seconds),
+        )
+        settled = 0
+        for command in abandoned:
+            beating = await self._session_is_beating(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+            if beating and command.claim_count < max_deliveries:
+                await self._deliver(command)
+                continue
+
+            result = await self.settle(
+                command_id=command.id,
+                project_id=command.project_id,
+                replica_id=None,
+                expected_states=[
+                    SessionCommandState.pending,
+                    SessionCommandState.claimed,
+                ],
+                state=SessionCommandState.obsolete,
+                outcome=SessionCommandOutcome.lost,
+                execution_id=command.target_turn_id,
+            )
+            if result is not None:
+                settled += 1
+        return settled
 
     # -- settlement --------------------------------------------------------- #
 
