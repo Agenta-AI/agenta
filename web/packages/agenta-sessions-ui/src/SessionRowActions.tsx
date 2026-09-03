@@ -24,7 +24,6 @@ import {useRouter} from "next/router"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider} from "./menu"
-import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
 
@@ -46,9 +45,9 @@ const RENAME = "rename"
  * shared modal, because a rail row is already the thing you are naming. Every other surface keeps
  * the modal — this intercepts the action here instead of changing the shared verb.
  *
- * Two ways into the menu: long-press (Radix ContextMenu opens on a 700ms touch hold) and a kebab.
- * The kebab hides until hover ON A POINTER DEVICE only — `hover` never fires on touch, so
- * `pointer-coarse` keeps it visible there.
+ * The kebab is the only way in — no right-click menu, so a rail row keeps the browser's own.
+ * It hides until hover ON A POINTER DEVICE only: `hover` never fires on touch, so
+ * `pointer-coarse` keeps it visible there, which is also what makes a long press free to drag.
  */
 const SessionRowActions = ({
     session,
@@ -176,69 +175,65 @@ const SessionRowActions = ({
         )
 
     return (
-        <SessionRowContextMenu entries={entries} onSelect={onSelect}>
+        <span
+            className="group/row flex w-full min-w-0 items-center"
+            onDoubleClick={(event) => {
+                event.preventDefault()
+                cancelPendingNav()
+                // Archived rows cannot be renamed — the menu drops the verb, so the
+                // double-click shortcut into it has to go too.
+                if (!session.archived) rename.start()
+            }}
+        >
+            {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and
+                overriding it here keeps every other rail untouched. */}
+            <span className="min-w-0 flex-1 truncate font-normal">{linkWithHeldNavigation}</span>
             <span
-                className="group/row flex w-full min-w-0 items-center"
-                onDoubleClick={(event) => {
-                    event.preventDefault()
-                    cancelPendingNav()
-                    // Archived rows cannot be renamed — the menu drops the verb, so the
-                    // double-click shortcut into it has to go too.
-                    if (!session.archived) rename.start()
-                }}
+                // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
+                // right edge. Only session rows are wrapped, so no other nav row shifts.
+                className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
+                onClick={swallow}
             >
-                {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and
-                    overriding it here keeps every other rail untouched. */}
-                <span className="min-w-0 flex-1 truncate font-normal">
-                    {linkWithHeldNavigation}
-                </span>
-                <span
-                    // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
-                    // right edge. Only session rows are wrapped, so no other nav row shifts.
-                    className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
-                    onClick={swallow}
-                >
-                    <DropdownMenu open={open} onOpenChange={setOpen}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`Actions for ${session.name || "Untitled session"}`}
-                                data-open={open || undefined}
-                                // [font-family:inherit]: preflight is off, so a bare <button>
-                                // renders Arial while the rows around it render Inter.
-                                // Themed focus ring, not the UA blue: Radix returns focus to the
-                                // trigger on close, so `:focus-visible` matches and painted a stray
-                                // blue box over the row. `outline-none` drops the default.
-                                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
-                            >
-                                <DotsThreeVerticalIcon size={16} weight="bold" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
-                            {entries.map((entry, index) =>
-                                isMenuDivider(entry) ? (
-                                    <DropdownMenuSeparator key={`divider-${index}`} />
-                                ) : (
-                                    <DropdownMenuItem
-                                        key={entry.key}
-                                        disabled={entry.disabled}
-                                        variant={entry.danger ? "destructive" : undefined}
-                                        onSelect={() => onSelect(entry.key)}
-                                    >
-                                        {entry.icon ? (
-                                            <span className="flex shrink-0 items-center">
-                                                {entry.icon}
-                                            </span>
-                                        ) : null}
-                                        {entry.label}
-                                    </DropdownMenuItem>
-                                ),
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </span>
+                <DropdownMenu open={open} onOpenChange={setOpen}>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label={`Actions for ${session.name || "Untitled session"}`}
+                            data-open={open || undefined}
+                            // [font-family:inherit]: preflight is off, so a bare <button>
+                            // renders Arial while the rows around it render Inter.
+                            // Themed focus ring, not the UA blue: Radix returns focus to the
+                            // trigger on close, so `:focus-visible` matches and painted a stray
+                            // blue box over the row. `outline-none` drops the default.
+                            className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+                        >
+                            <DotsThreeVerticalIcon size={16} weight="bold" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
+                        {entries.map((entry, index) =>
+                            isMenuDivider(entry) ? (
+                                <DropdownMenuSeparator key={`divider-${index}`} />
+                            ) : (
+                                <DropdownMenuItem
+                                    key={entry.key}
+                                    disabled={entry.disabled}
+                                    variant={entry.danger ? "destructive" : undefined}
+                                    onSelect={() => onSelect(entry.key)}
+                                >
+                                    {entry.icon ? (
+                                        <span className="flex shrink-0 items-center">
+                                            {entry.icon}
+                                        </span>
+                                    ) : null}
+                                    {entry.label}
+                                </DropdownMenuItem>
+                            ),
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </span>
-        </SessionRowContextMenu>
+        </span>
     )
 }
 
