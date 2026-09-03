@@ -1026,8 +1026,8 @@ export async function acquireEnvironment(
     // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the
     // turns table is append-only, so there is nothing to overwrite mid-conversation.
     // HarnessSessionLifecycle owns both open modes and both `create_session` timing marks.
-    // The longest stage of a cold acquire by a wide margin (measured: 19.2s of a 24.5s total),
-    // so it gets its own phase instead of sitting inside a static "Starting the agent".
+
+    // Longest stage of a cold acquire by far (19.2s of 24.5s), so it gets its own phase.
     emit?.({
       type: "data",
       name: "agent-status",

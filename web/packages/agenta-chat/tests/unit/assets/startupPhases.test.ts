@@ -19,8 +19,7 @@ describe("observed startup labels", () => {
     })
 
     it("names the two stages inside the acquire, so a cold start is not one static line", () => {
-        // `create_session` alone measured 19.2s of a 24.5s cold acquire. Without its own phase
-        // the whole wait sat under "Starting the agent" and read as a stall.
+        // Without its own phase the whole 19.2s create_session sat under "Starting the agent".
         expect(
             startupLabelFromDataPart({
                 type: "data-agent-status",
