@@ -3,16 +3,28 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID
 
+import pytest
+
 from oss.src.apis.fastapi.sessions import router as router_module
 from oss.src.apis.fastapi.sessions.models import SessionCancelRequest
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
 from oss.src.core.sessions.commands.dtos import SessionCommandState
 from oss.src.core.sessions.streams.dtos import CommandMode, SessionStreamCommandResponse
 from oss.src.utils.env import env
+from oss.src.utils.env import _parse_sessions_late_output
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
 _USER = UUID("00000000-0000-0000-0000-0000000000bb")
+
+
+def test_unknown_late_output_policy_falls_back_to_quarantine(monkeypatch):
+    monkeypatch.setenv("AGENTA_SESSIONS_LATE_OUTPUT", "typo")
+
+    with pytest.warns(UserWarning, match="behaving as 'quarantine'"):
+        value = _parse_sessions_late_output()
+
+    assert value == "quarantine"
 
 
 def _request():
