@@ -82,6 +82,38 @@ and the runner calls `api.anthropic.com` directly. Retried once as the brief dir
 raised a real approval card and gave the row above. One of three Claude Daytona sandboxes was
 affected. No product change is implied.
 
+### How the Daytona provider was selected, and every sandbox it made
+
+**Verified.** The provider is chosen per request, in the agent configuration the invoke carries,
+not by an environment switch. The driver sends `sandbox: {"kind": "daytona"}` inside
+`data.parameters.agent`, beside `harness: {"kind": "pi_core"}` or `{"kind": "claude"}`, on
+`POST /services/agent/v0/invoke`. The same field takes `{"kind": "local"}` for the supplementary
+local rows, and nothing else changes between the two, so the two halves of this report are
+directly comparable. The stack allows both because
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona`. The model credential is referenced as
+`connection: {mode: "agenta", slug: null}`, which resolves to the project vault key for that
+provider.
+
+Every Daytona sandbox this lane created, read from the runner log:
+
+| Sandbox id | Used by | Outcome |
+|---|---|---|
+| `daytona/071d5b11-6704-4088-a9fa-a8933709768f` | Pi, the first smoke run of Stop during output | worked; its command row is one of the four in finding 2 |
+| `daytona/85375f12-30b4-418a-8cbf-52e3e6097296` | Pi, row 1 | worked |
+| `daytona/7878b077-5046-48fe-af16-efb01cbb0103` | Pi, row 2 | worked |
+| `daytona/b4aca7cd-9dfe-4a56-ae41-82c4fbebbb04` | Pi, row 3 | worked |
+| `daytona/a18b8ea0-7f56-4fbb-8c73-277807909581` | Pi, the two-arm approval probe | worked |
+| `daytona/188d993b-f2fe-4f90-ba4c-ea6c181d0504` | Claude, row 5 | worked |
+| `daytona/ff5b2639-16f3-4e94-a260-77acb30a82ab` | Claude, row 6 | worked |
+| `daytona/9dca6d7f-20aa-497d-b604-4e2fb11919a0` | Claude, first attempt at row 7 | Secret never substituted |
+| `daytona/84cd4cf5-0f65-4ff2-8b53-a05742976969` | Claude, the runner's own rebuild of that attempt | Secret never substituted either |
+| `daytona/734fced4-70c8-42ae-bcc5-0f25f4226585` | Claude, the retry of row 7 | worked |
+| `daytona/32daa805-e837-4dda-bae2-6d052ca8d2d9` | Claude, the two-arm approval probe | worked |
+
+Eleven sandboxes for eight rows: one extra from the smoke run, and two from the substitution
+failure described below. All of them stayed inside the runner's own park-and-delete lifecycle;
+none was deleted by hand.
+
 ## Findings
 
 ### 1. A Stop that names its own turn is refused while that turn waits on an approval
