@@ -61,6 +61,16 @@ describe("parseAgentRunError", () => {
         expect(parseAgentRunError(raw)).toEqual({message: "Upstream fetch failed", code: 502})
     })
 
+    it("keeps a bare server verdict that merely contains those words", () => {
+        // No envelope to fall back on, so the substring match was the only thing standing between
+        // a 502 the server reached and "check your connection".
+        expect(parseAgentRunError("Upstream fetch failed")).toEqual({
+            message: "Upstream fetch failed",
+        })
+        expect(isTransportFailure("Agent run failed: fetch failed")).toBe(false)
+        expect(isTransportFailure("Load failed for tool call")).toBe(false)
+    })
+
     it("does not mark ordinary run failures as transport", () => {
         expect(parseAgentRunError("Agent run failed: no usable credential")).toEqual({
             message: "Agent run failed: no usable credential",

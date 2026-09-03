@@ -10,20 +10,24 @@ export interface ParsedRunError {
 }
 
 /**
- * How each engine words "the fetch never completed". Matched case-insensitively as substrings
- * because some arrive wrapped ("TypeError: Failed to fetch").
+ * How each engine words "the fetch never completed". Matched as the WHOLE message, because a
+ * server sentence that merely contains one of these ("Upstream fetch failed") is a verdict the
+ * server reached, not a request that never arrived.
  */
-const TRANSPORT_FAILURES = [
+const TRANSPORT_MESSAGES = [
     "failed to fetch", // Chrome, Edge
     "networkerror when attempting to fetch resource", // Firefox
     "load failed", // Safari
     "the network connection was lost", // Safari, mid-flight drop
     "network request failed", // React Native / polyfills
     "fetch failed", // undici, when this runs server-side
-    "err_network",
-    "err_internet_disconnected",
-    "err_connection_refused",
 ]
+
+/** Chromium's network codes, matched anywhere: nothing but a network stack says these words. */
+const TRANSPORT_CODES = ["err_network", "err_internet_disconnected", "err_connection_refused"]
+
+/** The class an engine prefixes its own message with ("TypeError: Failed to fetch"). */
+const ERROR_CLASS_PREFIX = /^[a-z]*error:\s*/
 
 /** One sentence with something to do in it, in place of a browser's internal wording. */
 export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your connection and retry."
@@ -31,7 +35,12 @@ export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your conne
 /** Is this raw message an engine's transport failure rather than a reason from the server? */
 export const isTransportFailure = (raw: string): boolean => {
     const text = raw.trim().toLowerCase()
-    return text.length > 0 && TRANSPORT_FAILURES.some((phrase) => text.includes(phrase))
+    if (!text) return false
+    if (TRANSPORT_CODES.some((code) => text.includes(code))) return true
+    // Drop the wrapper the engine added and the sentence-final period, then require what's left
+    // to BE the phrase — a message with words of its own around it came from someone else.
+    const bare = text.replace(ERROR_CLASS_PREFIX, "").replace(/[.\s]+$/, "")
+    return TRANSPORT_MESSAGES.includes(bare)
 }
 
 /**
