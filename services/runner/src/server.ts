@@ -52,6 +52,10 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import {
+  cancelHarnessTurn,
+  resolveCancelSettleMs,
+} from "./engines/sandbox_agent/cancel-turn.ts";
+import {
   isMounted,
   type MountCredentials,
 } from "./engines/sandbox_agent/mount.ts";
@@ -919,45 +923,82 @@ function parkedSessionControl(
         // permission gate while Stop is releasing it.
         const live = pool.checkoutApproval(key);
         if (!live) throw new Error("parked approval was already checked out");
-        const env = live.environment;
-        const gates = [...env.parkedApprovals.values()];
-        try {
-          await Promise.all(
-            gates.map((gate) =>
-              env.session.respondPermission(gate.permissionId, "reject"),
+        await stopParkedApprovalSession({
+          environment: live.environment,
+          repark: () =>
+            pool.repark(
+              live,
+              {
+                historyFingerprint: live.historyFingerprint,
+                historyAsserted: live.historyAsserted,
+                credentialEpoch: live.credentialEpoch,
+              },
+              keepaliveConfigs[provider].stoppedTtlMs ??
+                keepaliveConfigs[provider].ttlMs,
             ),
-          );
-          env.parkedApprovals.clear();
-          env.parkedApproval = undefined;
-          env.parkedApprovedExecutions?.clear();
-          env.approvalGateCount = 0;
-          env.nonParkablePauseCount = 0;
-          env.commitAuthorization = undefined;
-          env.clearTurn();
-          const reparked = await pool.repark(
-            live,
-            {
-              historyFingerprint: live.historyFingerprint,
-              historyAsserted: live.historyAsserted,
-              credentialEpoch: live.credentialEpoch,
-            },
-            keepaliveConfigs[provider].stoppedTtlMs ??
-              keepaliveConfigs[provider].ttlMs,
-          );
-          if (!reparked) {
-            await live.teardown("failed-turn");
-            throw new Error("released approval could not return to the pool");
-          }
-        } catch (error) {
-          // A partly released gate set is not safe to present as awaiting approval again. Fail
-          // closed through the normal teardown path; applyCommand reports the failed outcome.
-          await pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn");
-          throw error;
-        }
+          teardown: () =>
+            pool.evictIfCurrent(
+              live,
+              "stop-approval-failed",
+              "failed-turn",
+            ),
+        });
       },
     };
   }
   return undefined;
+}
+
+interface StopParkedApprovalSessionInput {
+  environment: SessionEnvironment;
+  repark: () => Promise<boolean>;
+  teardown: () => Promise<void>;
+  /** Test seams; production uses the operator-configured bound and a real timer. */
+  cancelSettleMs?: number;
+  wait?: (ms: number) => Promise<void>;
+}
+
+/** Reject and cancel a parked prompt before exposing its environment as idle again. */
+export async function stopParkedApprovalSession(
+  input: StopParkedApprovalSessionInput,
+): Promise<void> {
+  const env = input.environment;
+  const gates = [...env.parkedApprovals.values()];
+  try {
+    await Promise.all(
+      gates.map((gate) =>
+        env.session.respondPermission(gate.permissionId, "reject"),
+      ),
+    );
+    const cancel = await cancelHarnessTurn({
+      sandbox: env.sandbox,
+      sessionId: env.session?.id,
+      promptPromise: gates[0]?.promptPromise,
+      timeoutMs: input.cancelSettleMs ?? resolveCancelSettleMs(),
+      log: env.logger,
+      wait: input.wait,
+    });
+    if (cancel.requested) env.sessionDestroyRequested = true;
+    if (!cancel.settled) {
+      throw new Error("parked approval harness cancel did not settle");
+    }
+
+    env.parkedApprovals.clear();
+    env.parkedApproval = undefined;
+    env.parkedApprovedExecutions?.clear();
+    env.approvalGateCount = 0;
+    env.nonParkablePauseCount = 0;
+    env.commitAuthorization = undefined;
+    env.clearTurn();
+    if (!(await input.repark())) {
+      throw new Error("released approval could not return to the pool");
+    }
+  } catch (error) {
+    // A partly released or unsettled prompt is not safe to present as idle. Fail closed through
+    // the normal teardown path; applyCommand reports the failed outcome.
+    await input.teardown();
+    throw error;
+  }
 }
 
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
