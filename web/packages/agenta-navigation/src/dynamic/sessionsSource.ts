@@ -26,6 +26,7 @@ import {
 } from "../reorder"
 import {
     sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarOpenFilterMenusAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
 } from "../state"
@@ -922,6 +923,14 @@ const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
     return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
 }
 
+/**
+ * Is the Sessions filter menu open? The Agent facet's catalog hangs off this rather than off the
+ * group, because the Sessions group is always open and so gates nothing.
+ */
+const sessionFilterMenuOpen = (get: Getter, scopeId: string): boolean =>
+    get(sidebarOpenFilterMenusAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY) &&
+    get(idleReadyAtom)
+
 /** The window the agent ranking counts over. The server caps a page at 200; a project with more
  * sessions than this ranks its long tail by catalog order, which is stable and good enough. */
 const AGENT_RANK_WINDOW = 200
@@ -1006,19 +1015,35 @@ export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
 /**
  * Agents the filter can narrow to, from the same catalog the Agents group lists.
  *
- * Gated on the Sessions group being open, exactly like the session query itself: the filter is
- * only reachable from an open group, and an ungated read would pull the agent catalog on every
- * sidebar mount. Derived from the catalog rather than from the loaded sessions on purpose —
- * options taken from the current rows would collapse to one entry as soon as a filter applied.
+ * Gated on the FILTER MENU being open, not on the Sessions group. The group is `alwaysOpen`, so a
+ * group-level gate is always true and this pulled the whole agent catalog on every sidebar mount,
+ * on every page — the catalog costs a revision fetch per workflow, and nothing on screen needed it
+ * until someone opened the menu. Derived from the catalog rather than from the loaded sessions on
+ * purpose — options taken from the current rows would collapse to one entry as soon as a filter
+ * applied.
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
-        if (!sessionsGroupOpen(get, scopeId)) return []
+        if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({
             value: agent.id,
             label: agent.name || agent.slug || "Untitled agent",
         }))
+    }),
+)
+
+/**
+ * Is the Agent facet's catalog still resolving?
+ *
+ * Deferring the fetch to menu-open means the facet is briefly empty, and an empty facet reads as
+ * "this project has no agents". The menu renders a placeholder off this instead. Gated the same
+ * way, so reading it never starts the fetch either.
+ */
+export const sidebarSessionAgentOptionsPendingAtomFamily = atomFamily((scopeId: string) =>
+    atom<boolean>((get) => {
+        if (!sessionFilterMenuOpen(get, scopeId)) return false
+        return get(agentWorkflowsListQueryStateAtom).isPending
     }),
 )
