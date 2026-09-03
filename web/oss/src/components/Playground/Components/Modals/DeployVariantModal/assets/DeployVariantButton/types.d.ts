@@ -1,4 +1,4 @@
-import {ButtonProps} from "antd"
+import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/presentational"
 
 export interface DeployVariantButtonProps extends ButtonProps {
     variantId?: string

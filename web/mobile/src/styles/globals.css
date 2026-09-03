@@ -5,11 +5,46 @@
    web/oss/src/styles/theme/palette.ts — do not edit by hand.
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
+@import "@agenta/auth-ui/auth.css";
+/* The full `--ag-*` token layer, generated from palette.ts and shared with the desktop.
+   Shared components reference these vars LITERALLY (`border-[var(--ag-colorBorderSecondary)]`,
+   `bg-[var(--ag-c-FFFFFF)]`); an undefined var falls back to its CSS initial value — which for
+   a border-color is `currentColor`, i.e. a bright line on a dark surface. 98 of the 115 vars the
+   packages use were undefined here before this import. */
+@import "@agenta/ui/theme-variables.css";
+/* The surface ladder the shared panels are painted on — one definition, both apps. */
+@import "@agenta/ui/surfaces.css";
+/* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
+   composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
+   them code blocks and editor chrome render untokenised. */
+@import "@agenta/ui/editor-theme.css";
+@import "@agenta/ui/code-editor-styles.css";
+/* Streamdown token-animation keyframes — the streaming "typing" effect. */
+@import "streamdown/styles.css";
 
 /* Streamdown (assistant markdown) ships its styling as Tailwind utility classes inside its
    own bundle, which Tailwind does not scan by default. Without this the markdown renders
    completely unstyled. Path is relative to this file: src/styles -> web/mobile. */
 @source "../../node_modules/streamdown/dist/*.js";
+/* Workspace packages rendered by mobile — Tailwind v4 only scans what @source names.
+   Scan each package's WHOLE src, never cherry-picked subdirectories: a class in a file outside
+   the listed paths silently never generates, and the component then renders unstyled with no
+   error anywhere. That failure mode has cost us three separate rounds of "why does /m look
+   wrong" — one line per package is the cheap insurance. */
+@source "../../node_modules/@agenta/ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/entity-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/playground-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/playground/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/chat/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/sessions/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/observability-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/sessions-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/home-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/settings/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/settings-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/navigation/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/navigation-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/auth-ui/src/**/*.{ts,tsx}";
 
 /* Class-based dark mode: .dark is set on <html> pre-paint by _document.tsx. */
 @custom-variant dark (&:is(.dark *));
@@ -39,10 +74,346 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    /* Shared @agenta/ui presentational vocabulary — see generate-shadcn-tokens.ts. */
+    --color-colorText: var(--colorText);
+    --color-colorTextSecondary: var(--colorTextSecondary);
+    --color-colorTextTertiary: var(--colorTextTertiary);
+    --color-colorTextQuaternary: var(--colorTextQuaternary);
+    --color-colorBorder: var(--colorBorder);
+    --color-colorBorderSecondary: var(--colorBorderSecondary);
+    --color-colorBgContainer: var(--colorBgContainer);
+    --color-colorBgElevated: var(--colorBgElevated);
+    --color-colorFill: var(--colorFill);
+    --color-colorFillSecondary: var(--colorFillSecondary);
+    --color-colorFillTertiary: var(--colorFillTertiary);
+    --color-colorFillQuaternary: var(--colorFillQuaternary);
+    --color-colorIcon: var(--colorIcon);
+    --color-colorIconHover: var(--colorIconHover);
+    --color-colorTextHeading: var(--colorTextHeading);
+    --color-colorTextDescription: var(--colorTextDescription);
+    --color-colorTextDisabled: var(--colorTextDisabled);
+    --color-colorWhite: var(--colorWhite);
+    --color-zinc-1: var(--zinc-1);
+    --color-zinc-2: var(--zinc-2);
+    --color-zinc-3: var(--zinc-3);
+    --color-zinc-4: var(--zinc-4);
+    --color-zinc-5: var(--zinc-5);
+    --color-zinc-6: var(--zinc-6);
+    --color-zinc-7: var(--zinc-7);
+    --color-zinc-8: var(--zinc-8);
+    --color-zinc-9: var(--zinc-9);
+    --color-zinc-10: var(--zinc-10);
+    --color-chip: var(--colorFillChip);
+    --color-error-bg: var(--colorErrorBg);
+    --color-controlItemBgHover: var(--controlItemBgHover);
+    --color-colorPrimary: var(--colorPrimary);
+    --color-colorSuccess: var(--colorSuccess);
+    --color-colorSuccessBg: var(--colorSuccessBg);
+    --color-colorSuccessText: var(--colorSuccessText);
+    --color-colorWarning: var(--colorWarning);
+    --color-colorWarningBg: var(--colorWarningBg);
+    --color-colorWarningText: var(--colorWarningText);
+    --color-colorError: var(--colorError);
+    /* The danger callout (shared AccountPage, the composer's mic-permission notice) paints with
+       this pair; unmapped, its box rendered as untinted text on mobile. */
+    --color-colorErrorBg: var(--colorErrorBg);
+    --color-colorErrorBorder: var(--colorErrorBorder);
+    --color-colorInfoBorder: var(--colorInfoBorder);
+    /* Portaled overlays + status dots. The kit's Tooltip paints bg-colorBgSpotlight /
+       text-colorTextLightSolid and its DropdownMenu bg-colorSplit separators; with these
+       unmapped a tooltip rendered as bare text on no background. */
+    --color-colorBgSpotlight: var(--colorBgSpotlight);
+    --color-colorTextLightSolid: var(--colorTextLightSolid);
+    --color-colorSplit: var(--colorSplit);
+    --color-colorInfo: var(--colorInfo);
+    --color-colorBgLayout: var(--colorBgLayout);
+    --color-colorBgMask: var(--colorBgMask);
+    --color-colorBgContainerDisabled: var(--colorBgContainerDisabled);
+    --color-colorTextPlaceholder: var(--colorTextPlaceholder);
+    --color-colorTextLabel: var(--colorTextLabel);
+    --color-colorPrimaryBorder: var(--colorPrimaryBorder);
+    --color-colorPrimaryBorderHover: var(--colorPrimaryBorderHover);
+    /* antd's popup shadow (boxShadowSecondary), off the shared token layer — `shadow-overlay` is
+       what every kit overlay (dropdown, popover, tooltip) elevates with. */
+    --shadow-overlay: var(--ag-boxShadowSecondary);
+    /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
+       scope. Mobile has no custom face, so that is the default sans stack. */
+    --font-portal: var(--font-sans);
+    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). */
+    --spacing-control-check: 16px;
+    --spacing-control-check-dash: 7px;
+    --spacing-control-sm: 24px;
+    --spacing-control: 28px;
+    --spacing-control-lg: 34px;
+    --spacing-btn-sm: 7px;
+    --spacing-btn: 15px;
+    --spacing-btn-lg: 15px;
+    --spacing-input-sm: 7px;
+    --spacing-input: 11px;
+    --spacing-input-lg: 11px;
+    --spacing-input-y-sm: 0px;
+    --spacing-input-y: 4px;
+    --spacing-input-y-lg: 7px;
+    --spacing-input-y-ghost-sm: 1px;
+    --spacing-input-y-ghost: 5px;
+    --spacing-input-y-ghost-lg: 8px;
+    --spacing-switch-thumb: 18px;
+    --spacing-switch-thumb-sm: 12px;
+    --radius-control-sm: 6px;
+    --radius-control: 8px;
+    --radius-control-lg: 10px;
+    --radius-control-round: 50%;
+    --text-btn-sm: 12px;
+    --text-btn-sm--line-height: normal;
+    --text-btn-md: 12px;
+    --text-btn-md--line-height: normal;
+    --text-btn-lg: 14px;
+    --text-btn-lg--line-height: normal;
+    --text-field-sm: 10px;
+    --text-field-sm--line-height: 1.6666666666666667;
+    --text-field-md: 12px;
+    --text-field-md--line-height: 1.6666666666666667;
+    --text-field-lg: 14px;
+    --text-field-lg--line-height: 1.5714285714285714;
+    /* The `secondary` step of the type scale, same literals as oss/tailwind.config.ts. Leaving it
+       undeclared did not inherit the scale — it fell through to Tailwind's stock 12px/16px, so
+       every shared @agenta/* component's secondary text rendered a step smaller here than in
+       oss/ee. `sm` stays stock 14/20 (`body`) in both, so only this step needs stating. */
+    --text-xs: 13px;
+    --text-xs--line-height: 18px;
+    /* The kit Badge's own step. Omitting it did not fall back to anything — `text-badge-md`
+       simply generated no rule here, so the shared Badge lost both its size and the line-height
+       the step bundles. Same literals as oss/src/styles/theme/controlScale.ts. */
+    --text-badge-md: 12px;
+    --text-badge-md--line-height: 1.8666666666666667;
+    --shadow-switch-handle: var(--switch-handle-shadow);
+    /* The kit Sheet's directional drawer shadows — its only separation from the page (the panel
+       is borderless). Same literals as oss/tailwind.config.ts. */
+    --shadow-drawer-right:
+        -6px 0 16px 0 rgba(0, 0, 0, 0.08), -3px 0 6px -4px rgba(0, 0, 0, 0.12),
+        -9px 0 28px 8px rgba(0, 0, 0, 0.05);
+    --shadow-drawer-left:
+        6px 0 16px 0 rgba(0, 0, 0, 0.08), 3px 0 6px -4px rgba(0, 0, 0, 0.12),
+        9px 0 28px 8px rgba(0, 0, 0, 0.05);
+    --shadow-drawer-top:
+        0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12),
+        0 9px 28px 8px rgba(0, 0, 0, 0.05);
+    --shadow-drawer-bottom:
+        0 -6px 16px 0 rgba(0, 0, 0, 0.08), 0 -3px 6px -4px rgba(0, 0, 0, 0.12),
+        0 -9px 28px 8px rgba(0, 0, 0, 0.05);
+    /* Kit control-state tokens — values come from theme.generated.css (palette-bridged). */
+    --color-placeholder: var(--placeholder);
+    --color-focus-ring: var(--focus-ring);
+    --color-disabled: var(--disabled);
+    --color-disabled-bg: var(--disabled-bg);
+    --color-disabled-border: var(--disabled-border);
+    --color-error: var(--error);
+    --color-error-hover: var(--error-hover);
+    --color-error-active: var(--error-active);
+    --color-btn-primary-fg: var(--btn-primary-fg);
+    --color-btn-primary-hover: var(--btn-primary-hover);
+    --color-btn-primary-active: var(--btn-primary-active);
+    --color-btn-default-bg: var(--btn-default-bg);
+    --color-btn-default-hover-bg: var(--btn-default-hover-bg);
+    --color-btn-default-active-bg: var(--btn-default-active-bg);
+    --color-btn-text-hover-bg: var(--btn-text-hover-bg);
+    --color-btn-text-active-bg: var(--btn-text-active-bg);
+    --color-btn-link: var(--btn-link);
+    --color-btn-link-hover: var(--btn-link-hover);
+    --color-btn-link-active: var(--btn-link-active);
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
+
+    /* ── Overlay / drawer motion ──────────────────────────────────────────────────────────────
+       The kit's Sheet, Dialog and Accordion animate with NAMED utilities
+       (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
+       Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
+       drawers opened with no slide and no mask — the components were right, the keyframes simply
+       did not exist here. Values mirror oss/tailwind.config.ts (antd's own durations/easings). */
+    --animate-overlay-in: overlay-in 0.2s ease;
+    --animate-overlay-out: overlay-out 0.2s ease;
+    --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);
+    --animate-dialog-out: dialog-out 0.2s cubic-bezier(0.6, 0.04, 0.98, 0.34);
+    --animate-sheet-in-right: sheet-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    --animate-sheet-out-right: sheet-out-right 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    --animate-sheet-in-left: sheet-in-left 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    --animate-sheet-out-left: sheet-out-left 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    --animate-sheet-in-top: sheet-in-top 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    --animate-sheet-out-top: sheet-out-top 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    --animate-sheet-in-bottom: sheet-in-bottom 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    --animate-sheet-out-bottom: sheet-out-bottom 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+    --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+    --animate-skeleton: skeleton 1.4s ease infinite;
+    --animate-spin-move: spin-move 1s linear infinite alternate;
+    --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
+}
+
+@keyframes overlay-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@keyframes overlay-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+@keyframes dialog-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+@keyframes dialog-out {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+}
+@keyframes sheet-in-right {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+@keyframes sheet-out-right {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(100%);
+    }
+}
+@keyframes sheet-in-left {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+@keyframes sheet-out-left {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-100%);
+    }
+}
+@keyframes sheet-in-top {
+    from {
+        transform: translateY(-100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+@keyframes sheet-out-top {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-100%);
+    }
+}
+@keyframes sheet-in-bottom {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+@keyframes sheet-out-bottom {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(100%);
+    }
+}
+@keyframes accordion-down {
+    from {
+        height: 0;
+        opacity: 0;
+    }
+    to {
+        height: var(--radix-accordion-content-height);
+        opacity: 1;
+    }
+}
+@keyframes accordion-up {
+    from {
+        height: var(--radix-accordion-content-height);
+        opacity: 1;
+    }
+    to {
+        height: 0;
+        opacity: 0;
+    }
+}
+@keyframes skeleton {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}
+@keyframes spin-move {
+    to {
+        opacity: 1;
+    }
+}
+@keyframes config-shimmer {
+    0% {
+        mask-position: 180% 0;
+        -webkit-mask-position: 180% 0;
+    }
+    100% {
+        mask-position: -80% 0;
+        -webkit-mask-position: -80% 0;
+    }
+}
+
+/* Desktop surface classes the shared composer references (kbd hint chip). */
+.ag-surface-chip {
+    background: var(--ag-surface-chip);
+    border: 1px solid var(--ag-surface-chip-border);
+}
+
+/* antd Switch geometry: height and width differ for the same name, which one spacing
+   namespace cannot express — explicit utilities instead (values from controlScale.ts). */
+@utility h-switch {
+    height: 22px;
+}
+@utility h-switch-sm {
+    height: 16px;
+}
+@utility w-switch {
+    width: 44px;
+}
+@utility w-switch-sm {
+    width: 28px;
 }
 
 @layer base {
@@ -50,6 +421,8 @@
         @apply border-border outline-ring/50;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply text-foreground;
+        /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
+        background: var(--ag-sidebar-bg);
     }
 }

@@ -99,7 +99,7 @@ For more advanced settings like SSL, authentication, or custom ports, see our [c
 
 ## Step 3: Secure the Deployment
 
-The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The two Agenta keys ship as the literal string `replace-me`.
+The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The three Agenta keys ship as the literal string `replace-me`.
 
 :::warning Change these before the first start
 PostgreSQL applies `POSTGRES_USER` and `POSTGRES_PASSWORD` when it initializes its data volume. Setting them after the first start does not change an existing database.
@@ -118,6 +118,7 @@ POSTGRES_PASSWORD=<a password you generate>
 
 AGENTA_AUTH_KEY=<a random string>
 AGENTA_CRYPT_KEY=<a random string>
+AGENTA_SERVICES_INTERNAL_KEY=<a random string>
 ```
 
 Generate each key with:
@@ -128,6 +129,7 @@ openssl rand -hex 32
 
 - `AGENTA_AUTH_KEY` authenticates the admin API and signs the tokens Agenta issues. A caller who knows it is an admin on your deployment.
 - `AGENTA_CRYPT_KEY` encrypts the secrets Agenta stores, such as the model provider keys you add in the web interface. Any non-empty string works: Agenta derives the encryption key from it with SHA-256. Changing it later makes already-stored secrets undecryptable.
+- `AGENTA_SERVICES_INTERNAL_KEY` proves to the API that a caller is the platform runtime (the Services container), so a run can be issued a credential that reads write-only secret values. Set the same value on the API and the Services container; there is no fallback to `AGENTA_AUTH_KEY`. The API refuses to start while this is unset or still `replace-me`.
 
 The API builds its database URLs from `POSTGRES_USER` and `POSTGRES_PASSWORD`. If you also set `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, or `POSTGRES_URI_SUPERTOKENS` yourself, update the credentials in those URLs too.
 
@@ -229,6 +231,41 @@ traefik:
 ```
 
 Recreate the API and Traefik containers afterwards.
+
+### Agent Runs Fail With `record log is unreadable; cannot rebuild the conversation`
+
+This applies if the deployment answers on a public hostname and agent runs fail while the rest of
+the app works. Other symptoms of the same cause: an agent that forgets earlier turns, or runner logs
+showing `cred=DROPPED(endpoint-not-agenta-ingest)` and `HTTP 401` on `/sessions/records/ingest`,
+`/sessions/records/query`, and `/sessions/streams/heartbeat`.
+
+**Cause:** The trace endpoint on the run does not match the runner's configured `AGENTA_API_URL`.
+Each run carries the endpoint the API built from its public base, for example
+`https://agenta.example.com/api/otlp/v1/traces`, while the runner may know only its internal hop,
+`http://api:8000`, or a different public base. A strict credential check then withholds the run's
+credential, and the API rejects every callback. Conversation history is never written or read back.
+
+When `AGENTA_API_URL` is unset, the runner keeps the credential and logs a warning that names the
+missing variable. On a runner with this fallback,
+`cred=DROPPED(endpoint-not-agenta-ingest)` means `AGENTA_API_URL` is set but does not match the
+run's endpoint. Set it correctly in either case so the runner can attribute the credential.
+
+**Solution:** Set `AGENTA_API_URL` to the same public API base the `api` and `services` containers
+use, and recreate the runner:
+
+```bash
+docker compose up -d --force-recreate runner
+```
+
+Compose reads `AGENTA_API_URL` from the shell (or `--env-file`) when it builds the runner's
+environment, not from a service's `env_file`. Setting it only in a file that is passed as `env_file`
+reaches the API and services containers but not the runner. Confirm it landed:
+
+```bash
+docker compose exec runner printenv AGENTA_API_URL
+```
+
+Sessions that ran while this was broken keep the gaps in their history. New sessions are unaffected.
 
 ### Nginx-Specific Issues
 

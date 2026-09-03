@@ -5,7 +5,9 @@ import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-rev
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {Input, message} from "antd"
+import {FilterRailLayout} from "@agenta/ui/components/presentational"
+import {SearchInput} from "@agenta/ui/ui"
+import {message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
@@ -15,6 +17,7 @@ import NewAgentButton from "@/oss/components/NewAgentButton"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
+import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import type {AgentColumnActions} from "../agent-home/components/YourAgentsTable/columns"
 import {openDeleteAppModalAtom} from "../app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "../app-management/modals/EditAppModal/store/editAppModalStore"
@@ -86,33 +89,86 @@ export default function AgentsPage() {
         ],
     )
 
-    return (
-        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title="Agents">
-            <div className="flex items-center gap-3">
-                <NewAgentButton />
-                <Input
-                    allowClear
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search agents by name…"
-                    className="max-w-80"
-                />
-                {/* The table's bulk-archive control was also the only route to the archived
-                    list; the grid has no bulk mode, so the link stands on its own. */}
-                <Link
-                    href={`${projectURL}/agents/archived`}
-                    className="ml-auto shrink-0 text-xs !text-colorTextSecondary"
-                >
-                    Archived agents
-                </Link>
-            </div>
+    if (!BROWSE_RAIL_MODE)
+        return (
+            // The page's own title and gutters, so the roster shares one column width with the
+            // rest of the app; create, search and the archived link are a toolbar above the grid.
+            <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title="Agents">
+                <div className="flex items-center gap-3">
+                    <NewAgentButton />
 
-            <AgentsGrid
-                rows={rows}
-                isLoading={isLoading}
-                actions={cardActions}
-                onCreate={handleCreate}
-            />
+                    <SearchInput
+                        value={searchTerm}
+                        onValueChange={setSearchTerm}
+                        placeholder="Search agents by name…"
+                        className="max-w-80"
+                    />
+
+                    {/* The table's bulk-archive control was also the only route to the archived
+                        list; the grid has no bulk mode, so the link stands on its own. */}
+                    <Link
+                        href={`${projectURL}/agents/archived`}
+                        className="ml-auto shrink-0 text-xs !text-colorTextSecondary"
+                    >
+                        Archived agents
+                    </Link>
+                </div>
+
+                {/* /agents is a full-height route, so the layout frame is bounded and
+                    `overflow-hidden`: without a scroller of its own the roster was simply
+                    clipped at the frame's bottom edge. The table this grid replaced scrolled
+                    internally, which is where the page's scrolling used to come from. */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    <AgentsGrid
+                        rows={rows}
+                        isLoading={isLoading}
+                        actions={cardActions}
+                        onCreate={handleCreate}
+                    />
+                </div>
+            </PageLayout>
+        )
+
+    return (
+        <PageLayout className="grow min-h-0 !p-0">
+            {/* The shared browse frame — the roster's search and its page actions live in the rail,
+                so they stay put however far the grid runs. Same pattern as sessions and templates. */}
+            <FilterRailLayout
+                rail={
+                    <>
+                        <h1 className="m-0 text-[24px] font-semibold leading-tight text-colorText">
+                            Agents
+                        </h1>
+
+                        <NewAgentButton />
+
+                        <SearchInput
+                            value={searchTerm}
+                            onValueChange={setSearchTerm}
+                            placeholder="Search agents by name…"
+                        />
+
+                        {/* The table's bulk-archive control was also the only route to the archived
+                            list; the grid has no bulk mode, so the link stands on its own. */}
+                        <Link
+                            href={`${projectURL}/agents/archived`}
+                            className="text-xs !text-colorTextSecondary"
+                        >
+                            Archived agents
+                        </Link>
+                    </>
+                }
+                // pt-4 is breathing room the cards need: the grid's own pt-5 is exactly the
+                // avatar overhang, so without it every avatar sits flush on the scroll edge.
+                contentClassName="overflow-y-auto px-6 pb-6 pt-4"
+            >
+                <AgentsGrid
+                    rows={rows}
+                    isLoading={isLoading}
+                    actions={cardActions}
+                    onCreate={handleCreate}
+                />
+            </FilterRailLayout>
         </PageLayout>
     )
 }

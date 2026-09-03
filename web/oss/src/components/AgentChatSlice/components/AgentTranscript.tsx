@@ -1,15 +1,14 @@
 import {type ReactNode} from "react"
 
-import {ArrowDown} from "@phosphor-icons/react"
-import {type UIMessage} from "ai"
-import {Button} from "antd"
-import {Virtuoso} from "react-virtuoso"
-
 import {
     BOTTOM_FADE_HOVER_HIDE,
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
-} from "../assets/conversationLayout"
+} from "@agenta/chat/assets"
+import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {type UIMessage} from "ai"
+import {Virtuoso} from "react-virtuoso"
+
 import {type ScrollIntent} from "../hooks/useScrollIntent"
 import {type useTranscriptScroll} from "../hooks/useTranscriptScroll"
 import {type VirtCtx, type useVirtuosoTranscript} from "../hooks/useVirtuosoTranscript"
@@ -28,6 +27,7 @@ const AgentTranscript = ({
     virt,
     scroll,
     showJump,
+    gateOpen,
 }: {
     messages: UIMessage[]
     /** Index where the ACTIVE turn (last user message + its response) starts. */
@@ -40,6 +40,8 @@ const AgentTranscript = ({
     virt: ReturnType<typeof useVirtuosoTranscript>
     scroll: ReturnType<typeof useTranscriptScroll>
     showJump: ScrollIntent["showJump"]
+    /** A blocking HITL gate is docked below — the pill stands down (see `jumpGateOpen`). */
+    gateOpen: boolean
 }) => {
     const useVirtuoso = virt.enabled
     return (
@@ -83,8 +85,10 @@ const AgentTranscript = ({
                         footer:
                             activeStart < messages.length ? (
                                 <div
-                                    // `pb-8` ≥ the 28px bottom fade so the meta row clears it at rest.
-                                    className={`flex flex-col gap-3 px-3 pb-8${reserveActive ? " pt-8" : ""}`}
+                                    // `pb-24` (96px) clears the 28px bottom fade with generous room
+                                    // for the last turn's action lane, even when autoscroll settles
+                                    // a little short of true bottom.
+                                    className={`flex flex-col gap-3 px-3 pb-24${reserveActive ? " pt-8" : ""}`}
                                     // Explicit viewport-height reserve (min-h-full is inert in the
                                     // Footer) so scrolling to bottom pins the question to the top.
                                     style={
@@ -96,6 +100,9 @@ const AgentTranscript = ({
                                     {messages
                                         .slice(activeStart)
                                         .map((m, i) => renderMessage(m, activeStart + i))}
+                                    {/* 56px on top of the wrapper's 96px `pb-24` keeps the last
+                                        turn's action lane clear of the bottom fade. */}
+                                    <div style={{height: 56, flexShrink: 0}} />
                                 </div>
                             ) : null,
                     }}
@@ -117,7 +124,7 @@ const AgentTranscript = ({
                     // meta row (Inspect turn + streaming dots) clear them at rest; the bottom pad
                     // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
                     // anchoring off so our pin/anchor logic owns the scroll position).
-                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-8 [overflow-anchor:none]"
+                    className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-24 [overflow-anchor:none]"
                     // Fade content into the top edge (under the tab bar) and the bottom edge (into the
                     // composer) as it scrolls. A gradient mask on the scroll container: transparent at
                     // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
@@ -139,6 +146,9 @@ const AgentTranscript = ({
                             {messages
                                 .slice(activeStart)
                                 .map((m, i) => renderMessage(m, activeStart + i))}
+                            {/* Hard end-of-conversation clearance, INSIDE the active turn —
+                                directly under the last message. */}
+                            <div style={{height: 56, flexShrink: 0}} />
                         </div>
                     )}
                 </div>
@@ -153,29 +163,10 @@ const AgentTranscript = ({
                 style={BOTTOM_FADE_OVERLAY_STYLE}
             />
 
-            {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
-                keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
-            <Button
-                size="small"
-                shape="round"
-                icon={<ArrowDown size={14} />}
+            <ChatJumpToLatest
+                show={showJump && !gateOpen}
                 onClick={useVirtuoso ? virt.jumpToLatest : scroll.jumpToLatest}
-                tabIndex={showJump ? 0 : -1}
-                aria-hidden={!showJump}
-                // Solid elevated surface + border + shadow so the pill reads clearly when it
-                // floats over streamed text (a transparent pill let the text bleed through).
-                // `z-10` puts it above the bottom fade (z-[5]): the pill sits 8px from the bottom,
-                // inside the 28px band, and source order alone left the gradient painting over it
-                // whenever no turn was hovered to suppress the fade.
-                className={`!absolute bottom-2 left-1/2 z-10 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
-                    showJump
-                        ? "translate-y-0 opacity-100"
-                        : "pointer-events-none translate-y-3 opacity-0"
-                }`}
-                aria-label="Jump to latest message"
-            >
-                Jump to latest
-            </Button>
+            />
         </div>
     )
 }

@@ -1,35 +1,31 @@
-"""The Agenta harness's forced defaults: the things ``AgentaHarness`` always applies.
-(``ClaudeHarness`` shares the AGENTS.md preamble and forced platform skills; the persona
-remains Pi-only — see :mod:`.harnesses`.)
+"""Agenta-shipped agent content: the platform skills and the cross-harness gateway guidance.
 
-``AgentaHarness`` is Pi with an opinion. It is the same engine as :class:`PiHarness`, but
-every run carries a fixed set of Agenta-shipped extras the author cannot turn off:
+Two things live here:
 
-- a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
-- a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
+- The **platform skills** (getting started, build-an-agent) as concrete inline packages. The
+  canonical skill content is defined here (the SDK, the lowest layer); the server-side
+  ``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
+  one source of truth.
+- The **gateway guidance** (:func:`gateway_guidance` / :func:`compose_gateway_guidance`),
+  which is cross-harness: every harness gets the same two derived gateway tools, so every
+  harness gets their instructions, and all adapters import it from here.
 
-The forced platform skills are the actually-forced part of "forced skills". The default agent
-config template embeds the platform default skill by reserved ``__ag__*`` slug, but that embed
-only rides the *default* template: a custom ``pi_agenta`` config that drops the embed would
-otherwise lose the platform skill entirely. To make "forced" mean forced, ``AgentaHarness``
-unions ``AGENTA_FORCED_SKILLS`` into every run's skills via :func:`force_skills`, regardless of
-what the author's config carries. The canonical skill content lives here (in the SDK, the lowest
-layer); the server-side ``StaticWorkflowCatalog`` imports the same constant so the embed path
-and the forced path stay one source of truth.
-
-Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentTemplate`):
-the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
-belong in ``AGENTS.md``. ``AGENTA_PREAMBLE`` is the AGENTS.md layer; ``AGENTA_FORCED_APPEND_SYSTEM``
-is the persona layer.
+The ``pi_agenta`` harness (Pi plus a forced Agenta overlay: a preamble, a persona, forced
+skills) was an experiment and was removed on 2026-08-29; the overlay constants and helpers
+went with it.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional, Sequence
 
 from ..flags import ordered_operations_enabled
+from typing import TYPE_CHECKING
+
 from ..skills import SkillFile, SkillTemplate
+
+if TYPE_CHECKING:  # circular at runtime: dtos imports skills, adapters import dtos
+    from ..dtos import GatewayGuidance
 from .agent_templates import build_agent_template_skill_files
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
@@ -39,29 +35,6 @@ from .agent_templates import build_agent_template_skill_files
 # `delta.set` example from this skill against an ordered-operations deployment and replaced a
 # skills list it meant to append to.
 _ORDERED = ordered_operations_enabled()
-
-# The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
-# the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
-#
-# TODO(product): replace this placeholder with the real Agenta AGENTS.md preamble.
-AGENTA_PREAMBLE = """\
-# Agenta agent
-
-You are an agent running on the Agenta platform. The instructions below are Agenta's
-baseline; the user's own instructions follow and take precedence where they are more
-specific.
-
-- Prefer the tools and skills provided to you over guessing.
-- When a skill matches the task, read its SKILL.md fully before acting.
-- Keep answers grounded in what the tools and skills actually return."""
-
-# The base persona, always appended to Pi's built-in system prompt (never replaces it). This
-# is the "who the agent is" layer, distinct from the AGENTS.md project-context layer above.
-#
-# TODO(product): replace this placeholder with the real Agenta persona framing.
-AGENTA_FORCED_APPEND_SYSTEM = """\
-You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
-fabricate results."""
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -151,14 +124,14 @@ _CONFIG_SCHEMA_FIELDS = """\
   "tools": [],
   "mcps": [],
   "skills": [],
-  "harness": { "kind": "pi_agenta" },
+  "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
   "sandbox": { "kind": "local" }
 }
 ```
 
-The example above shows one common setup; your own `harness` may be `pi_agenta`, `claude`, or
-`pi_core`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
+The example above shows one common setup; your own `harness` may be `pi_core`, `claude`, or
+`codex`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
 user explicitly asks to change one.
 
 ## The fields you decide
@@ -166,8 +139,7 @@ user explicitly asks to change one.
 ### instructions
 
 `instructions.agents_md` — a Markdown string, your AGENTS.md: who you are and what you do. Write
-only your own project conventions here — the platform supplies its own baseline framing (on
-`pi_agenta` and `claude`, a fixed Agenta preamble is prepended automatically). One or two
+only your own project conventions here. One or two
 sentences for a simple agent; an explicit numbered procedure for a multi-tool or scheduled one
 (see the instruction-writing section of SKILL.md).
 
@@ -177,7 +149,7 @@ You almost never touch `llm` in a delta. Keep it exactly as it is unless the use
 to change the model, provider, or connection. The rules below matter only when they do ask:
 
 - `model` — the model. How you NAME it depends on the harness (this is the trap):
-  - `pi_core` / `pi_agenta`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
+  - `pi_core`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
     (provider/id selection).
   - `claude`: an alias — `default`, `sonnet`, `opus`, or `haiku` — never a raw model id.
 - `provider` — the provider family (`openai`, `anthropic`, ...); inferred from the model string
@@ -189,9 +161,12 @@ to change the model, provider, or connection. The rules below matter only when t
 
 ### tools
 
-A list of tool entries, each discriminated on `type`. Every entry may also carry two shared
-optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`, overriding the
-runner default for that one tool). The six `type` values:
+A list of tool entries, each discriminated on `type`. Every entry except `gateway_connection`
+may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
+`ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
+covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
+a top-level `permission` on one is refused. The `type` values, with `gateway` legacy —
+read it when a revision carries one, never write a new one:
 
 - `builtin` — legacy, accepted and ignored. The harness built-ins (`read`, `bash`, `edit`,
   `write`, `grep`, `find`, `ls`) are always available and are never listed in `tools`, so do not
@@ -199,10 +174,37 @@ runner default for that one tool). The six `type` values:
   refused comes from `runner.permissions.default` plus the `harness.permissions.allow` / `ask` /
   `deny` rule lists. Those seven names are also reserved: no tool of any other type may take one,
   and a config that does is refused.
-- `gateway` — a server-side gateway action (Composio). Do not hand-write it: run `discover_tools`
-  and copy what it returns, adding the `connection` slug once the connection is ready.
-  `{ "type": "gateway", "provider": "composio", "integration": "github",
+- `gateway` — LEGACY. ONE single gateway action, from before an agent could take a whole
+  integration. Do not write one: use `gateway_connection` below, which covers every action of
+  the integration with one entry. Kept so you can read and preserve what an older revision
+  already carries: `{ "type": "gateway", "provider": "composio", "integration": "github",
      "action": "GET_AN_ISSUE", "connection": "<connection-slug>" }`. `name` is optional.
+- `gateway_connection` — one whole gateway integration with one permission policy, which
+  replaces a list of per-tool `gateway` entries. This is how you add a WHOLE integration:
+  1. Get the REAL connection slug. Run `discover_tools` (or the connect flow) and read the slug
+     off a connection that already exists. NEVER invent one — a plausible-looking guess such as
+     `googledrive-main` commits without complaint and only fails when the agent next runs.
+  2. Add ONE entry with that connection and a policy, via `add_item` on
+     `parameters.agent.tools`. One entry per integration is the limit; a second for the same
+     integration is refused.
+  3. A newly added integration always starts with every tool allowed: set
+     `policy.permissions` to `{ "default": "allow", "tools": {} }`. Do not pre-emptively add
+     per-tool restrictions based on which actions you expect to use. Only change that policy
+     when the user explicitly asks for different permissions.
+  It is addressed for `replace_item` and `remove_item` by the key
+  `gateway_connection:<provider>:<integration>` — for example
+  `gateway_connection:composio:github`. The entry carries no `name`, so that derived key is its
+  only address. Read it, and keep it, when a revision already carries one.
+  `{ "type": "gateway_connection", "connection": { "provider": "composio", "integration":
+     "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "allow",
+     "tools": {} } } }`. Each permission is `inherit` / `allow` /
+  `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
+  agent-wide runner policy. The commit does not check that the slug exists, so a wrong one is
+  caught only when the agent next runs, as a connection-not-found failure naming the slug.
+  To RESTRICT an integration the user already has, name the tools in the map rather than
+  lowering `default`: `{ "default": "allow", "tools": { "DELETE_REPOSITORY": "deny",
+  "CREATE_ISSUE": "ask" } }` keeps everything else usable while denying one tool and asking
+  before another. Only write a policy like that when the user asked for it.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":
@@ -263,7 +265,7 @@ the run:
 
 ## The execution parts (keep as-is unless asked)
 
-- `harness` — `{ "kind": "pi_core" | "pi_agenta" | "claude", "permissions": {...}, "extras":
+- `harness` — `{ "kind": "pi_core" | "claude" | "codex", "permissions": {...}, "extras":
   {...} }`. `permissions` is `{ "default_mode": "default"|"acceptEdits"|"plan"|
   "bypassPermissions", "allow": [...], "ask": [...], "deny": [...] }`. The three rule lists name
   tools that run without asking, that ask first, and that are never allowed to run; each entry is
@@ -308,7 +310,9 @@ L's name — write the selector instead of the list name, never both.
 ```
 
 The keyed lists: `skills` and `mcps` by `name`, `tools` by the tool's `name` (a `reference` tool
-by `name`, else its `slug`), and a skill's `files` by `path`. Any other list takes no selector.
+by `name`, else its `slug`; a `gateway_connection` by the derived key
+`gateway_connection:<provider>:<integration>`, e.g. `gateway_connection:composio:github`, since
+it carries no `name`), and a skill's `files` by `path`. Any other list takes no selector.
 
 ### The seven operations
 
@@ -367,7 +371,7 @@ on the next run.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back to
+  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back to
   a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
 - Naming an `@ag.embed` entry with a selector. An embed has no key, so no operation can address
   it. Leave those entries where they are.
@@ -472,8 +476,12 @@ Remove a skill — `remove_item`, target ending on the selector:
 }
 ```
 
-Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned and the
-`connection` slug filled in. Your existing tools stay as they are:
+Add an integration — ONE `add_item` on `tools` with a `gateway_connection` entry, carrying
+the REAL connection slug `discover_tools` reported as ready. That one entry covers every action
+of the integration; at run time the agent reaches them through `search_tools` and `run_tool`.
+New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
+stricter policy from the task; only restrict it when the user explicitly asks.
+Your existing tools stay as they are:
 
 ```json
 {
@@ -485,12 +493,15 @@ Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned
           "operation": "add_item",
           "target": ["parameters", "agent", "tools"],
           "value": {
-            "type": "gateway",
-            "provider": "composio",
-            "integration": "github",
-            "action": "GITHUB_CREATE_AN_ISSUE",
-            "connection": "conn_9f3a1c",
-            "name": "create_github_issue"
+            "type": "gateway_connection",
+            "connection": {
+              "provider": "composio",
+              "integration": "github",
+              "slug": "github-7f2a"
+            },
+            "policy": {
+              "permissions": { "default": "allow", "tools": {} }
+            }
           }
         }
       ]
@@ -509,8 +520,9 @@ Don't forget:
   alone, so you never resend a list.
 - Copy `old_text` out of the read, character for character, including line breaks.
 - Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
+- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
+  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
+  commits without complaint and fails at run time as connection-not-found.
 - Touch `harness`, `runner`, `sandbox`, and `llm` only when you are intentionally changing them.
 """
 
@@ -543,7 +555,7 @@ on the next run.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back
+  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back
   to a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
 - Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
   so every entry you left out is gone.
@@ -614,6 +626,8 @@ Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry yo
 `@ag.embed` tool, every gateway tool) plus the new one. Leave every `platform` entry out: those
 tools are injected into your run, and a commit that carries one is refused. The gateway
 entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
+New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
+stricter policy from the task; only restrict it when the user explicitly asks.
 CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
 ENTIRE current tools list, every entry you have, not this subset:
 
@@ -629,12 +643,13 @@ ENTIRE current tools list, every entry you have, not this subset:
               { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
                                 "@ag.selector": { "path": "parameters.tool" } } },
               {
-                "type": "gateway",
-                "provider": "composio",
-                "integration": "github",
-                "action": "GITHUB_CREATE_AN_ISSUE",
-                "connection": "conn_9f3a1c",
-                "name": "create_github_issue"
+                "type": "gateway_connection",
+                "connection": {
+                  "provider": "composio",
+                  "integration": "github",
+                  "slug": "github-7f2a"
+                },
+                "policy": { "permissions": { "default": "allow", "tools": {} } }
               }
             ]
           }
@@ -664,8 +679,9 @@ Don't forget:
   one-entry list wipes the rest.
 - Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
 - `message` is a real commit message. Say what changed and why, not a placeholder.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
+- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
+  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
+  commits without complaint and fails at run time as connection-not-found.
 - Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
   changing them; a narrow delta preserves them through the deep merge.
 """
@@ -896,7 +912,7 @@ Read `references/trigger-inputs.md` before you write a schedule or subscription'
 |---|---|---|
 | transform text the user pastes, such as summarize, rewrite, classify | nothing extra | `instructions.agents_md` only |
 | apply reusable know-how, such as a style guide or review rubric | a skill | one `skills` entry |
-| read or write in an outside tool, such as GitHub or Slack | gateway tools | `discover_tools`, then `tools` entries |
+| read or write in an outside tool, such as GitHub or Slack | a connected integration | `discover_tools`, then ONE `gateway_connection` entry on `tools` |
 | run on a clock | a schedule | `create_schedule` after committing |
 | react to an outside event | a subscription | `discover_triggers`, then `create_subscription` |
 
@@ -928,8 +944,10 @@ Do not discover tools or triggers for an ask that does not need them.
    - Right integration is not enough — read the matched event's description. A fragment like "new
      github issue" can match a `..._ARTIFACT_CREATED` event on the shared word "created" with a
      ready connection. Confirm the matched action or event actually does what the user asked.
-   - If nothing in the match or its alternatives plausibly corresponds, stop and tell the user the
-     integration does not support that action yet. Never wire the closest keyword hit.
+   - When picking a SUBSCRIPTION EVENT, if nothing in the match or its alternatives plausibly
+     corresponds, stop and tell the user the integration does not support it yet; never wire the
+     closest keyword hit. For TOOLS you enable the whole integration, so you are choosing the
+     integration, not the action — the run picks the action through `search_tools`.
 4. If a needed connection is not ready, call `request_connection` for that integration and stop.
    Give the user the connection request and wait for them. Re-run `discover_tools` after they
    connect; do not silently create, fake, or skip connections.
@@ -937,8 +955,9 @@ Do not discover tools or triggers for an ask that does not need them.
 
 _BUILD_STEP5_ORDERED = """\
 5. Configure yourself. `read_config` the parts you are about to change, then `commit_revision`
-   with that `base_revision_id`: `add_item` each chosen `capability.tool` entry and needed
-   alternative onto `tools`, and `set` `instructions.agents_md`. This is an approval stop. If the
+   with that `base_revision_id`: `add_item` ONE `gateway_connection` entry per integration you
+   need — provider, integration, the REAL ready slug, and a permissions policy — onto `tools`,
+   and `set` `instructions.agents_md`. This is an approval stop. If the
    commit is denied or fails, earlier connections or triggers are not undone.
 """
 
@@ -948,6 +967,10 @@ _BUILD_STEP5_LEGACY = """\
    If the commit is denied or fails, earlier connections or triggers are not undone.
 """
 
+# NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
+# (`LIST_REPOSITORY_ISSUES`) as a named counter-example. A grep for banned action names in
+# the build-kit text will hit it and read as a regression; it is the fix. Check the role a
+# match plays before deleting it — removing this one deletes the warning, not the mistake.
 _BUILD_LOOP_TAIL = """\
 6. Verify with `test_run`. First warn the user that this is a real run: external write tools may
    perform their action if approved. Then call `test_run` with `inputs.messages` as a blunt
@@ -994,11 +1017,18 @@ terminal action.
 
 Example:
 
-> Every run, do exactly these steps and nothing else: (1) call LIST_REPOSITORY_ISSUES for
-> owner/repo X; (2) call LIST_COMMITS for X; (3) write a 3-bullet digest; (4) call SEND_MESSAGE to
-> channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+> Every run, do exactly these steps and nothing else: (1) `search_tools` for "list issues in a
+> github repo" and `run_tool` the key it returns for owner/repo X; (2) the same for "list commits"
+> on X; (3) write a 3-bullet digest; (4) `search_tools` for "post a slack message" and `run_tool`
+> it to channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+
+Write instructions in terms of `search_tools` and `run_tool`, never a bare provider action name.
+An integration's actions are NOT separate tools at run time: the agent has exactly those two,
+and naming `LIST_REPOSITORY_ISSUES` as if it were callable sends the run looking for a tool that
+does not exist.
 
 - Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
+- You no longer choose actions when wiring: the whole integration is enabled. Steer the RUN instead — tell it in `agents_md` to search for the narrowest tool (a `FIND_*` or `GET_A_*` over a `LIST_ALL_*`), and `deny` list-dump actions you never want run in the entry's `policy.permissions.tools`.
 - Make the final numbered step the terminal side effect, such as the post or write.
 - Say "finish by doing step N" so the run does not stop after the early read steps.
 - Write the persona as an explicit imperative — who the agent is and what it does, stated as a
@@ -1113,10 +1143,6 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
     ],
 )
 
-# Platform skills every pi_agenta run carries, regardless of the author's config. These are the
-# actually-forced skills (see module docstring); unioned in by `force_skills`.
-AGENTA_FORCED_SKILLS: List[SkillTemplate] = [GETTING_STARTED_WITH_AGENTA_SKILL]
-
 
 def _join(*parts: Optional[str]) -> Optional[str]:
     """Join the non-empty parts with a blank line, or ``None`` when nothing remains."""
@@ -1126,29 +1152,59 @@ def _join(*parts: Optional[str]) -> Optional[str]:
     return "\n\n".join(kept)
 
 
-def compose_instructions(user: Optional[str]) -> Optional[str]:
-    """The AGENTS.md the harness ships: the base preamble with the author's instructions
-    appended after it."""
-    return _join(AGENTA_PREAMBLE, user)
+def gateway_guidance(integration_names: Sequence[str]) -> Optional[str]:
+    """The runtime instruction section for the two derived gateway tools.
+
+    Built only when the agent has at least one ``gateway_connection`` entry, and never stored
+    in the agent revision: the tools are derived at resolve time, so their instructions are
+    too. It names the configured integrations and the runtime rules from
+    ``runtime-tools.md``, "Prompt guidance". Capability grouping is deferred; V1 lists the
+    integration names and invents no second classification.
+    """
+    if not integration_names:
+        return None
+    integrations = ", ".join(sorted(integration_names))
+    return f"""\
+## Connected integrations
+
+You can reach your integrations with two tools: `search_tools` and `run_tool`.
+For instance, some of the integrations you have: {integrations}. Others may exist, and this
+list can go stale — `search_tools` is the source of truth for what is connected right now.
+
+- Search once per task, with a concrete description of what you want to do. Never repeat an
+  equivalent query — a second search that means the same thing returns the same results.
+- A search returns at most 5 results. That is a cap, not the whole catalog — if none fit,
+  narrow the description rather than concluding no such tool exists.
+- "No configured tool matched this request." is not a failure. Refine the query ONCE and
+  search again — that is what the message asks for — then report if it still finds nothing.
+- "Tool search is temporarily unavailable." is a temporary failure: retry it once and no more.
+- Use only an integration and a tool key that a search result returned. Never invent one.
+  Pass the BARE tool key, not a prefixed provider action id such as `GMAIL_FETCH_EMAILS`.
+- Copy the arguments from the input schema the search result returned.
+- Stop searching once a result is usable, and run it.
+- A run may pause for the user's approval or be refused outright: that is this agent's
+  permission policy, not a bug. A refusal will not succeed on a retry or with reshaped
+  arguments — report it instead of looping."""
 
 
-def compose_append_system(user: Optional[str]) -> Optional[str]:
-    """The ``append_system`` the harness ships: the forced base persona with the author's own
-    ``append_system`` appended after it."""
-    return _join(AGENTA_FORCED_APPEND_SYSTEM, user)
+def gateway_guidance_field(
+    integration_names: Sequence[str],
+    carrier: str,
+) -> Optional["GatewayGuidance"]:
+    """The ``gatewayGuidance`` wire field, or ``None`` when the agent has no connection.
 
+    Every harness carries the guidance, not only one: each gets the same two derived tools,
+    so guidance on one prompt surface alone would leave the others holding two tools and no
+    instructions for using them. ``carrier`` stays the adapter's choice (the instructions
+    file for the file-based harnesses, ``append_system`` for Pi, whose AGENTS.md is purely
+    authored) — but the SPLICING now happens in the runner, at environment build time, so the
+    integration names stay out of the session fingerprint and adding an integration no longer
+    evicts a warm session. The names read as examples, so a list that goes stale mid-session
+    stays honest until the next cold or reopened session refreshes it.
+    """
+    text = gateway_guidance(integration_names)
+    if not text:
+        return None
+    from ..dtos import GatewayGuidance
 
-def force_skills(skills: List[SkillTemplate]) -> List[SkillTemplate]:
-    """Union the author's skills with the forced platform skills, de-duplicated by name.
-
-    The author's skills come first and win on a name clash (a config that already carries the
-    resolved platform skill — e.g. via the default template's embed — is not doubled), then any
-    forced platform skill not already present is appended. This is what makes the ``_agenta``
-    platform skill actually forced on a custom ``pi_agenta`` config that drops the embed."""
-    seen = {skill.name for skill in skills}
-    out: List[SkillTemplate] = list(skills)
-    for forced in AGENTA_FORCED_SKILLS:
-        if forced.name not in seen:
-            seen.add(forced.name)
-            out.append(forced)
-    return out
+    return GatewayGuidance(text=text, carrier=carrier)

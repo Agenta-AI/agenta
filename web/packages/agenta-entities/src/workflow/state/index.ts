@@ -40,6 +40,13 @@ export {
     type SubscriptionStatusTone,
 } from "./subscriptionStatus"
 
+export {
+    agentModelCandidatesAtomFamily,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -88,10 +95,15 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
+    type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,
@@ -124,6 +136,12 @@ export {
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
+// ============================================================================
+// AGENT ICON (per-agent glyph + colour, persisted client-side)
+// ============================================================================
+
+export {agentIconAtomFamily, type AgentIconRecord} from "./agentIcon"
+
 export {readPersistedAgentType} from "./persistedAgentType"
 
 // Union atoms (app + evaluator combined)
@@ -288,3 +306,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

@@ -31,13 +31,20 @@ WORKDIR /app
 # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
 # commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
 # so the symlink below is what makes the command agents actually type resolve.
+# libnss-unknown + the nsswitch edit: the documented subscription self-host scheme runs this
+# container as the OPERATOR's uid (`user: "<id -u>:<id -g>"`), which usually has no /etc/passwd
+# entry in the image. fusermount calls getpwuid() and aborts with "could not determine username"
+# for a nameless uid, killing every geesefs workspace mount. libnss-unknown synthesizes an entry
+# for unknown uids so any `user:` override works.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates git python3 python-is-python3 unzip zip fuse curl \
-        ripgrep fd-find jq procps file tree \
+        ripgrep fd-find jq procps file tree libnss-unknown \
     && ln -s "$(which fdfind)" /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/* \
-    && echo "user_allow_other" >> /etc/fuse.conf
+    && echo "user_allow_other" >> /etc/fuse.conf \
+    && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
+    && grep -E "^(passwd|group):.* unknown$" /etc/nsswitch.conf
 
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0

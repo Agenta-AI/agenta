@@ -13,7 +13,8 @@
 import {useMemo, useState} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {Segmented, Skeleton, Tag, Tooltip} from "antd"
+import {Tag, type TagProps} from "@agenta/ui/components/presentational"
+import {Segmented, SimpleTooltip, Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import Markdown from "../../../assets/markdown"
@@ -21,12 +22,12 @@ import {buildTimeline, type TimelineEvent} from "../timeline"
 
 type Role = "system" | "user" | "assistant" | "tool_call" | "tool"
 
-const ROLE_META: Record<Role, {color: string}> = {
-    system: {color: "default"},
-    user: {color: "geekblue"},
-    assistant: {color: "green"},
-    tool_call: {color: "blue"},
-    tool: {color: "cyan"},
+const ROLE_META: Record<Role, {tone: TagProps["tone"]}> = {
+    system: {tone: "default"},
+    user: {tone: "geekblue"},
+    assistant: {tone: "green"},
+    tool_call: {tone: "blue"},
+    tool: {tone: "cyan"},
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -73,9 +74,11 @@ const approxTokens = (messages: ContextMessage[]): number =>
 /** One reconstructed context message card. */
 const MessageCard = ({m}: {m: ContextMessage}) => (
     <div className="flex flex-col gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary p-2">
-        <Tag color={ROLE_META[m.role].color} className="m-0 w-fit !text-[12px]">
-            {m.role === "tool_call" ? `→ ${m.toolName || "tool"}` : m.role}
-        </Tag>
+        <Tag
+            tone={ROLE_META[m.role].tone}
+            label={m.role === "tool_call" ? `→ ${m.toolName || "tool"}` : m.role}
+            className="m-0 w-fit text-[12px]"
+        />
         {m.role === "assistant" || m.role === "user" ? (
             <Markdown content={m.text} className="!text-xs" />
         ) : (
@@ -135,13 +138,12 @@ export function ContextLens({
                 <span>~{approxTokens(messages).toLocaleString()} tokens</span>
                 <div className="ml-auto">
                     {focusedTurn != null ? (
-                        <Tooltip
+                        <SimpleTooltip
                             title="This turn = only this turn's messages. Up to here = the cumulative context window as of this turn (everything up to and including it)."
-                            placement="bottomRight"
-                            mouseEnterDelay={0.4}
+                            side="bottom"
                         >
                             <Segmented
-                                size="small"
+                                size="sm"
                                 value={cumulative ? "upto" : "turn"}
                                 onChange={(v) => setCumulative(v === "upto")}
                                 options={[
@@ -149,7 +151,7 @@ export function ContextLens({
                                     {label: "Up to here", value: "upto"},
                                 ]}
                             />
-                        </Tooltip>
+                        </SimpleTooltip>
                     ) : (
                         <span className="text-colorTextQuaternary">running context</span>
                     )}

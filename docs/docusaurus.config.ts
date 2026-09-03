@@ -17,6 +17,10 @@ const config: Config = {
   baseUrl: "/docs/",
   organizationName: "Agenta-AI",
   projectName: "agenta",
+  // Preview deploys go to a public *.workers.dev URL. DOCS_NOINDEX=true (set by
+  // .github/workflows/18-docs-preview.yml) keeps them out of search indexes so
+  // they never rank as duplicates of the real docs. Production leaves it unset.
+  noIndex: process.env.DOCS_NOINDEX === "true",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",

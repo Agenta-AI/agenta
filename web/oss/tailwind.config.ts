@@ -120,6 +120,11 @@ const themeAwareColors = {
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),
     colorErrorBorder: v("colorErrorBorder"),
+    // Missing here, `bg-colorErrorBg` froze at light `#f9e5e5` — the Account page's
+    // delete-account panel painted a pale pink box with white body text on it in dark mode,
+    // while its border and title (both listed above) resolved correctly dark.
+    colorErrorBg: v("colorErrorBg"),
+    colorSuccessBg: v("colorSuccessBg"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),
@@ -144,7 +149,19 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-sessions/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-sessions-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-observability-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-home-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-settings-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-navigation-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-auth-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-chat/src/**/*.{js,ts,jsx,tsx}",
+            // Streamdown ships class-based typography; Tailwind only generates what it scans.
+            // Resolved from the workspace store, so the glob works from both oss and ee.
+            "../node_modules/.pnpm/streamdown@*/node_modules/streamdown/dist/*.js",
             ...content,
         ],
         theme: {

@@ -6,6 +6,7 @@
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -27,15 +28,20 @@ import {
   materializeDaytonaPiSkillSnapshot,
   materializeLocalPiSkillSnapshot,
   PI_SKILL_SNAPSHOT_MARKER,
+  PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
   piSessionWorkspaceDir,
+  piToolSpecsFilePath,
   prepareLocalAgentDir,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
+  resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
-  writeOtlpAuthFile,
+  uploadPiToolSpecsToSandbox,
   writePiModelsConfigLocal,
+  writePiToolSpecsFileLocal,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
@@ -116,7 +122,7 @@ describe("buildPiExtensionEnv", () => {
       },
     } as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, false);
+    const env = buildPiExtensionEnv(request);
 
     assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
       provider: "anthropic",
@@ -143,23 +149,18 @@ describe("buildPiExtensionEnv", () => {
       () =>
         buildPiExtensionEnv(
           request("bad/provider", "https://proxy.example.test"),
-          false,
         ),
       /invalid provider/,
     );
     assert.throws(
       () =>
-        buildPiExtensionEnv(
-          request("anthropic", "http://proxy.example.test"),
-          false,
-        ),
+        buildPiExtensionEnv(request("anthropic", "http://proxy.example.test")),
       /must be an HTTPS URL/,
     );
     assert.throws(
       () =>
         buildPiExtensionEnv(
           request("anthropic", "https://user:pass@proxy.example.test"),
-          false,
         ),
       /without credentials/,
     );
@@ -211,25 +212,33 @@ describe("buildPiExtensionEnv", () => {
       ],
     } as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, true, {
-      relayDir: "/tmp/relay",
+    const relayDir = join(tempDir("agenta-pi-specs-"), "relay");
+    const env = buildPiExtensionEnv(request, {
+      relayDir,
       usageOutPath: "/tmp/usage.json",
-      otlpAuthFilePath: "/tmp/otlp-auth",
+      telemetryControlPath: "/tmp/telemetry/current.control.json",
     });
-
-    assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
-    assert.equal(
-      env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-      request.telemetry?.exporters?.otlp?.endpoint,
+    writePiToolSpecsFileLocal(
+      resolvePiToolSpecsDelivery(request.customTools ?? [], relayDir)!,
     );
-    // the bearer rides a file path, never a plain env var the harness can read/echo.
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+
+    assert.equal(
+      env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH,
+      "/tmp/telemetry/current.control.json",
+    );
+    assert.equal(env.TRACEPARENT, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
-    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
-    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, undefined);
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    // The specs ride a file; env carries only its path (see the E2BIG regression below).
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], `${relayDir}.tool-specs.json`);
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    const specs = JSON.parse(
+      readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8"),
+    );
     assert.deepEqual(specs, [
       {
         name: "safe_tool",
@@ -255,42 +264,39 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("omits trace and tool env when tracing and relay are disabled", () => {
-    const env = buildPiExtensionEnv(
-      {
-        context: {
-          propagation: {
-            traceparent:
-              "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-          },
+    const env = buildPiExtensionEnv({
+      context: {
+        propagation: {
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
-        telemetry: { capture: { content: { enabled: true } } },
-        customTools: [{ name: "safe_tool", kind: "callback" }],
-      } as AgentRunRequest,
-      false,
-    );
+      },
+      telemetry: { capture: { content: { enabled: true } } },
+      customTools: [{ name: "safe_tool", kind: "callback" }],
+    } as AgentRunRequest);
 
     assert.equal(env.TRACEPARENT, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env[PI_MODEL_PROVIDER_OVERRIDE_ENV], undefined);
   });
 
   it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
-    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
     });
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
   });
 
   it("always sets the builtin activation env and never a grant list", () => {
-    const gating = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const gating = buildPiExtensionEnv({} as AgentRunRequest, {
       builtinGatingActive: true,
     });
-    const noGating = buildPiExtensionEnv({} as AgentRunRequest, false, {});
+    const noGating = buildPiExtensionEnv({} as AgentRunRequest, {});
 
     assert.equal(gating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
     assert.equal(noGating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
@@ -300,74 +306,31 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
-    const env = buildPiExtensionEnv(
+    const customTools = [
       {
-        customTools: [
-          {
-            name: "request_connection",
-            kind: "client",
-            input_schema: {
-              type: "object",
-              required: ["integration"],
-              properties: { integration: { type: "string" } },
-            },
-          },
-        ],
-      } as unknown as AgentRunRequest,
-      false,
+        name: "request_connection",
+        kind: "client",
+        input_schema: {
+          type: "object",
+          required: ["integration"],
+          properties: { integration: { type: "string" } },
+        },
+      },
+    ];
+    const env = buildPiExtensionEnv(
+      { customTools } as unknown as AgentRunRequest,
       { relayDir: "/tmp/relay" },
     );
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], "/tmp/relay.tool-specs.json");
+    const specs = JSON.parse(
+      resolvePiToolSpecsDelivery(customTools as never, "/tmp/relay")!.contents,
+    );
     assert.deepEqual(specs[0].inputSchema, {
       type: "object",
       required: ["integration"],
       properties: { integration: { type: "string" } },
     });
-  });
-
-  it("carries the loaded skill names under tracing (F-029)", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    const env = buildPiExtensionEnv(request, true, {
-      skills: ["weather-oracle", "_agenta.agenta-getting-started"],
-    });
-
-    assert.deepEqual(JSON.parse(env.AGENTA_AGENT_SKILLS_LOADED ?? "[]"), [
-      "weather-oracle",
-      "_agenta.agenta-getting-started",
-    ]);
-  });
-
-  it("omits the loaded skills env when there are none or tracing is off", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
-    assert.equal(
-      buildPiExtensionEnv(request, false, { skills: ["x"] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
   });
 
   describe("hop-1 response-watch kill switch forwarding", () => {
@@ -384,7 +347,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("forwards the flag verbatim into the sandbox env when the operator set it", () => {
       process.env[FLAG] = "false";
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], "false");
@@ -392,7 +355,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("omits the flag when the operator did not set it (writer defaults to true)", () => {
       delete process.env[FLAG];
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], undefined);
@@ -400,35 +363,169 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("never leaks the bearer into env when no auth file path is given", () => {
-    const env = buildPiExtensionEnv(
-      {
-        telemetry: {
-          exporters: {
-            otlp: {
-              endpoint: "https://otlp.example.test/v1/traces",
-              headers: { authorization: "Bearer trace-token" },
-            },
+    const env = buildPiExtensionEnv({
+      telemetry: {
+        exporters: {
+          otlp: {
+            endpoint: "https://otlp.example.test/v1/traces",
+            headers: { authorization: "Bearer trace-token" },
           },
         },
-      } as AgentRunRequest,
-      true,
-    );
+      },
+    } as AgentRunRequest);
 
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(JSON.stringify(env).includes("trace-token"), false);
   });
 });
 
-describe("writeOtlpAuthFile", () => {
-  it("writes the bearer to a 0600 file, not env", () => {
-    const dir = tempDir("agenta-pi-otlp-auth-test-");
-    const path = join(dir, "nested", "otlp-auth");
+/**
+ * Regression: "Agent run failed: spawn E2BIG". Every hydrated tool spec used to be packed into
+ * ONE env var, and Linux refuses `execve` when any single env string exceeds MAX_ARG_STRLEN
+ * (131,072 bytes) — a session with 44 Composio tools (~250 KB of specs) failed before the harness
+ * process existed. The specs now ride a file whose path is all env carries.
+ */
+const MAX_ARG_STRLEN = 131_072;
 
-    writeOtlpAuthFile(path, "Bearer trace-token");
+/** 44 tools with fat JSON Schemas: the shape that reproduced the failure in production. */
+function fatToolSpecs(count = 44) {
+  return Array.from({ length: count }, (_, i) => ({
+    name: `composio_tool_${i}`,
+    description: `Tool ${i}. ${"description text ".repeat(60)}`,
+    kind: "callback" as const,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(
+        Array.from({ length: 40 }, (_, f) => [
+          `field_${f}`,
+          {
+            type: "string",
+            description: `Field ${f}. ${"schema prose ".repeat(20)}`,
+          },
+        ]),
+      ),
+    },
+  }));
+}
 
-    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
-    assert.equal(statSync(path).mode & 0o777, 0o600);
+describe("Pi tool specs delivery", () => {
+  it("keeps a 300 KB tool set out of the env and round-trips it through the file", () => {
+    const relayDir = join(tempDir("agenta-pi-specs-e2big-"), "relay");
+    const customTools = fatToolSpecs();
+    const request = { customTools } as unknown as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, { relayDir });
+    const delivery = resolvePiToolSpecsDelivery(customTools as never, relayDir);
+    assert.ok(delivery);
+    writePiToolSpecsFileLocal(delivery);
+
+    assert.ok(
+      Buffer.byteLength(delivery.contents, "utf-8") > 300_000,
+      "the fixture must exceed the single-env-string limit several times over",
+    );
+    for (const [key, value] of Object.entries(env)) {
+      assert.ok(
+        Buffer.byteLength(value, "utf-8") < MAX_ARG_STRLEN,
+        `env ${key} is ${Buffer.byteLength(value, "utf-8")} bytes; execve would fail with E2BIG`,
+      );
+    }
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], piToolSpecsFilePath(relayDir));
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.deepEqual(
+      JSON.parse(readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8")),
+      JSON.parse(delivery.contents),
+    );
+    assert.equal(JSON.parse(delivery.contents).length, 44);
+  });
+
+  it("puts the file beside the relay dir, which is cleared every turn", () => {
+    assert.equal(
+      piToolSpecsFilePath("/tmp/agenta/relay/session-1"),
+      "/tmp/agenta/relay/session-1.tool-specs.json",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([], "/tmp/relay"),
+      undefined,
+      "no tools, nothing to deliver",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([{ name: "t" }] as never, undefined),
+      undefined,
+      "no relay dir means no way to execute a tool, so none is advertised",
+    );
+  });
+
+  it("fails loud when the file cannot be written, rather than dropping the tools", () => {
+    const dir = tempDir("agenta-pi-specs-unwritable-");
+    // A FILE where the parent directory must be: mkdir fails with ENOTDIR.
+    const blocked = join(dir, "blocker");
+    writeFileSync(blocked, "not a directory", "utf-8");
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      join(blocked, "relay"),
+    );
+    assert.ok(delivery);
+
+    assert.throws(
+      () => writePiToolSpecsFileLocal(delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
+  });
+
+  it("uploads the same bytes to the deterministic in-sandbox path on Daytona", async () => {
+    const writes: Array<{ path: string; contents: string }> = [];
+    const madeDirs: string[] = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => {
+        madeDirs.push(path);
+      },
+      writeFsFile: async ({ path }: { path: string }, contents: string) => {
+        writes.push({ path, contents });
+      },
+    };
+    const customTools = fatToolSpecs(2);
+    const delivery = resolvePiToolSpecsDelivery(
+      customTools as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await uploadPiToolSpecsToSandbox(sandbox, delivery);
+
+    assert.deepEqual(madeDirs, ["/home/sandbox/agenta/relay"]);
+    assert.deepEqual(writes, [
+      {
+        path: "/home/sandbox/agenta/relay/session-1.tool-specs.json",
+        contents: delivery.contents,
+      },
+    ]);
+    // The env the sandbox was created with names exactly this path.
+    assert.equal(
+      buildPiExtensionEnv({ customTools } as unknown as AgentRunRequest, {
+        relayDir: "/home/sandbox/agenta/relay/session-1",
+      })[PUBLIC_SPECS_FILE_ENV],
+      writes[0].path,
+    );
+  });
+
+  it("fails loud when the sandbox upload fails", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("sandbox is gone");
+      },
+    };
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await assert.rejects(
+      uploadPiToolSpecsToSandbox(sandbox, delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
   });
 });
 
@@ -854,6 +951,68 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     dirs.push(runDir as string);
   });
 
+  it("reports agentDirWritable=true and prepares sessions/ on a writable mount", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+
+    const { agentDirWritable } = prepareLocalPiAssets({
+      plan: subscriptionPlan(mount) as never,
+      env: {},
+    });
+
+    assert.equal(agentDirWritable, true);
+    // The probe's side effect is exactly what Pi needs at startup; no probe file survives.
+    assert.ok(existsSync(join(mount, "sessions")));
+    assert.equal(readdirSync(join(mount, "sessions")).length, 0);
+  });
+
+  /**
+   * Pi persists session rollouts and its OAuth refresh into the mounted agent dir; on an
+   * unwritable mount it dies at startup with zero output, which the user sees as a silently
+   * stuck session. The probe must report it so the engine can fail closed with a visible error.
+   */
+  it("reports agentDirWritable=false when only sessions/ is writable", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    const authFile = join(mount, "auth.json");
+    const sessionsDir = join(mount, "sessions");
+    writeFileSync(authFile, '{"token":"live"}', "utf-8");
+    mkdirSync(sessionsDir);
+    // Preserve the incomplete-mount shape from the regression: Pi can write a rollout under
+    // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
+    chmodSync(sessionsDir, 0o755);
+    chmodSync(authFile, 0o444);
+    chmodSync(mount, 0o555);
+    try {
+      const { agentDirWritable } = prepareLocalPiAssets({
+        plan: subscriptionPlan(mount) as never,
+        env: {},
+      });
+      if (typeof process.getuid === "function" && process.getuid() === 0) {
+        // root bypasses mode bits, so the probe cannot fail in a root test run
+        assert.equal(agentDirWritable, true);
+      } else {
+        assert.equal(agentDirWritable, false);
+      }
+    } finally {
+      chmodSync(mount, 0o755);
+      chmodSync(authFile, 0o644);
+    }
+  });
+
+  it("managed runs always report agentDirWritable=true (per-run dir is runtime-owned)", () => {
+    const source = tempDir("agenta-pi-managed-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+
+    const result = prepareLocalPiAssets({
+      plan: subscriptionPlan(source, {
+        credentials: { credentialMode: "env" },
+      }) as never,
+      env: {},
+    });
+
+    assert.equal(result.agentDirWritable, true);
+    if (result.dir) dirs.push(result.dir);
+  });
 });
 
 describe("sandbox uploads", () => {

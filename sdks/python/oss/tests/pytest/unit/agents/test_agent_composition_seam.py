@@ -12,7 +12,12 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessKind
+from agenta.sdk.agents import (
+    AgentResult,
+    HarnessKind,
+    InvalidHarnessKindError,
+    Message,
+)
 from agenta.sdk.agents.connections import (
     ConnectionResolutionError,
     ResolvedConnection,
@@ -22,6 +27,13 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+    ResolvedToolSet,
+)
+from agenta.sdk.agents.utils.wire import request_to_wire
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
 
@@ -76,14 +88,16 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
-    )
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
         self.created_run_contexts: List[Any] = []
         self.created_effective_parameters: List[Any] = []
+        self.created_gateway_policies: List[Any] = []
+        # The per-harness config the adapter built. Capturing it alongside neutral backend
+        # arguments checks both sides of the composition boundary rather than one hop.
+        self.created_configs: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -99,9 +113,12 @@ class _FakeBackend(Backend):
         run_context=None,
         session_id=None,
         effective_parameters=None,
+        gateway_policy=None,
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
         self.created_effective_parameters.append(effective_parameters)
+        self.created_gateway_policies.append(gateway_policy)
+        self.created_configs.append(config)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -371,6 +388,66 @@ async def test_default_composition_fails_closed_on_connection_resolution_failure
         )
 
 
+async def test_a_config_persisted_with_an_unreadable_harness_is_refused_with_a_shape():
+    """F4: a config stored before the commit boundary existed must still fail with a code.
+
+    The gate's H1 cell persisted `harness.kind` as `12345` and the invoke that followed died on
+    the enum's bare `ValueError`, which the remap turned into a 500 whose body was the Python
+    repr. The refusal now happens where the handler reads the template, before it selects a
+    backend or resolves anything, and it carries the field, the value, and the harnesses that
+    exist.
+    """
+    backend = _FakeBackend()
+
+    async def _must_not_run(*, model, context):
+        raise AssertionError("resolution must not run on an unreadable harness")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_must_not_run,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(InvalidHarnessKindError) as caught:
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(12345, model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+    assert caught.value.code == 400
+    assert "harness.kind" in caught.value.message
+    # Nothing ran: no session was created, so no turn can be stored for a config that cannot run.
+    assert backend.created_configs == []
+
+
+async def test_a_run_configured_with_the_harness_enum_itself_actually_runs():
+    """The SDK's own `HarnessKind` member must be usable as input, end to end.
+
+    `HarnessKind` is a `str` Enum, so `str(member)` is "HarnessKind.CLAUDE". Stringifying the
+    caller's value lower-cased that to "harnesskind.claude", which `make_harness` then refused —
+    valid input, rejected by the parser that was supposed to accept it.
+    """
+    backend = _FakeBackend(output="hi")
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(HarnessKind.CLAUDE),
+    )
+
+    # It reached the backend, which is what a mangled value never did.
+    assert len(backend.created_configs) == 1
+    assert backend.created_effective_parameters[0]["agent"]["harness"]["kind"] == (
+        HarnessKind.CLAUDE
+    )
+
+
 async def test_composition_override_replaces_default_gating():
     """A composition MAY still fully replace resolve_session_connection (bare passthrough),
     proving the seam stays injectable rather than hardcoding the gate."""
@@ -569,6 +646,108 @@ async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
         )
 
     assert ran == []
+
+
+# --------------------------------------------------------------------------- #
+# The gateway connection propagation path: resolver -> SessionConfig -> backend -> wire
+# --------------------------------------------------------------------------- #
+def _gateway_policy() -> ResolvedGatewayPolicy:
+    return ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                toolkit_version="20250827_00",
+                tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
+            )
+        }
+    )
+
+
+async def test_gateway_policy_and_mode_cross_from_the_resolver_to_the_run_request():
+    """Both propagation lines in the handler, checked end to end on the real wire payload.
+
+    The two are easy to drop and each fails SILENTLY rather than loudly:
+
+    - the agent-wide mode reaches the permission compiler only through the ``resolve_tools``
+      call, so losing it compiles the wrong policy while every unit test of the compiler
+      still passes;
+    - the compiled policy reaches the wire only through ``SessionConfig``, and the runner
+      reads an ABSENT policy as deny, so losing it looks like an agent whose tools quietly
+      stopped working.
+
+    Asserting on ``request_to_wire`` output rather than on an intermediate object is what
+    makes deleting either line fail here: the whole path is exercised, not one hop of it.
+    """
+    policy = _gateway_policy()
+    seen_modes: List[Any] = []
+    backend = _FakeBackend()
+
+    async def _tools_with_policy(tools, **kwargs):
+        seen_modes.append(kwargs.get("permission_default"))
+        return ResolvedToolSet(gateway_policy=policy)
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+        resolve_tools=_tools_with_policy,
+    )
+    handler = make_agent_handler(comp)
+    params = _params()
+    # NOT the ``allow_reads`` default: a dropped kwarg would otherwise still read as "deny".
+    params["agent"]["runner"] = {"permissions": {"default": "deny"}}
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    # Line 1: the agent-wide mode reached the resolver, which hands it to the compiler.
+    assert seen_modes == ["deny"]
+
+    # Line 2: the compiled policy bypassed the harness config and reached the run request.
+    config = backend.created_configs[0]
+    assert not hasattr(config, "gateway_policy")
+    assert backend.created_gateway_policies == [policy]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        gateway_policy=backend.created_gateway_policies[0],
+    )
+    assert payload["gatewayPolicy"] == policy.to_wire()
+    # The same mode also rides the coarse permission plan the harness gate reads.
+    assert payload["permissions"]["default"] == "deny"
+
+
+async def test_no_gateway_policy_leaves_the_run_request_field_absent():
+    """The other half: a resolver that reports no policy emits no field at all."""
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    config = backend.created_configs[0]
+    assert not hasattr(config, "gateway_policy")
+    assert backend.created_gateway_policies == [None]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        gateway_policy=backend.created_gateway_policies[0],
+    )
+    assert "gatewayPolicy" not in payload
 
 
 if __name__ == "__main__":

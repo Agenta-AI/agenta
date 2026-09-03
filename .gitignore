@@ -94,6 +94,7 @@ services/runner/tests/results/
 !.agents/skills/agent-release-gate/
 !.agents/skills/agenta-package-practices/
 !.agents/skills/create-changelog-announcement/
+!.agents/skills/gitbutler-stacks/
 !.agents/skills/implement-feature/
 !.agents/skills/plan-feature/
 !.agents/skills/style-editing/
@@ -135,6 +136,7 @@ services/runner/tests/results/
 !.claude/skills/mobile-app-structure
 !.claude/skills/mobile-shadcn-conventions
 !.claude/skills/mobile-motion-patterns
+!.claude/skills/gitbutler-stacks
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -164,6 +166,17 @@ skills-lock.json
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
 
-# @agenta/sessions test artifacts (vitest writes a junit report on every run).
-web/packages/agenta-sessions/test-results/
+# Storybook build output and the VRT's diff PNGs.
+web/storybook/storybook-static/
+web/storybook/parity/__vrt__/
+
+# Test artifacts in any workspace (vitest/playwright write a junit report on every run).
+test-results/
 junit.xml
+
+# QA parity harness (docs/design/sessions-ux-stack/qa112): the scripts and their measured strip
+# boxes ARE committed - two earlier copies lived in a session scratchpad and were wiped. Its venv
+# and captures are not; a full sweep leaves ~370 PNGs behind.
+docs/design/sessions-ux-stack/qa112/venv/
+docs/design/sessions-ux-stack/qa112/shots/
+docs/design/sessions-ux-stack/qa112/.tabpin.*

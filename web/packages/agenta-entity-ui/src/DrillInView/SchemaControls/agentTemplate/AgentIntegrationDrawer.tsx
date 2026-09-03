@@ -1,286 +1,492 @@
 /**
  * AgentIntegrationDrawer
  *
- * The agent-playground tools catalog drawer. Its body renders the SAME {@link CatalogChooser}
- * the subscription drawer's "Choose a trigger" step uses (the 2-column app grid + connections
- * rail + detail), pointed at the `@agenta/entities/gatewayTool` catalog hooks with an
- * "add the action as a tool" leaf. No bespoke catalog UI here.
+ * Add WHOLE integrations to an agent. Adding one adds every tool the integration has; what the
+ * author configures afterwards, from the integration's row, is the permission policy. There is no
+ * per-action catalog here any more.
  *
- * Built on the shared `EnhancedDrawer` (like every other agent-playground drawer): an intent-based
- * header, `closeOnLayoutClick={false}` so an accidental backdrop click mid-connect never drops the
- * flow, and a footer whose count reflects the app tools added so far + a Done exit.
+ * Three ways in, all landing the same entry: quick-add from a connection the project already has,
+ * pick a connection when an integration has several, and Connect, which runs the existing
+ * {@link ConnectDrawer} auth flow and then adds the integration.
+ *
+ * A new integration lands on "Allow all". Choosing another connection for an
+ * integration that is already configured REPLACES its entry, keeping the policy already set.
  */
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
-    buildToolSlug,
-    fetchToolActionDetail,
     isConnectionValid,
+    toolIntegrationDetailQueryFamily,
     toolIntegrationsSearchAtom,
-    useToolCatalogActions,
     useToolCatalogCategories,
     useToolCatalogIntegrations,
     useToolConnectionsQuery,
-    type ToolCatalogAction,
-    type ToolCatalogActionDetails,
+    useToolIntegrationDetail,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {message} from "@agenta/ui"
+import {connectionDisplayName} from "@agenta/shared/utils"
+import {ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "@agenta/ui/ui"
-import {Plugs} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {Button, RadioGroup, RadioGroupItem, SearchInput, Spinner} from "@agenta/ui/ui"
+import {Check, Plugs} from "@phosphor-icons/react"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {CatalogChooser} from "../../../drawers/shared/CatalogChooser"
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
-import {useReconnectToolConnection} from "../../../gatewayTool/hooks/useReconnectToolConnection"
-import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import {gatewayToolIdentity, type ToolObj} from "../toolUtils"
+import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
+import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
-type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
+import {CatalogListRow} from "./CatalogListRow"
+import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
+import {ExpandableDescription} from "./ExpandableDescription"
+import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
+
+type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
 export interface AgentIntegrationDrawerProps {
     open: boolean
     onClose: () => void
-    onAddTool: (tool: ToolObj, meta?: ToolSelectionMeta) => void
-    onRemoveToolByIdentity?: (identity: string) => void
-    selectedGatewayIds: Set<string>
-    /** Preselect this app on open (a provider group's "Add {app} tool" → its actions directly). */
-    defaultIntegrationKey?: string
+    /** The integrations the agent already holds — the added state and the current connection. */
+    integrationRows: IntegrationRow[]
+    /** Add an integration, or point a configured one at another connection. One write, one entry. */
+    onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
+interface ConnectedGroup {
+    integrationKey: string
+    provider: string
+    connections: ToolConnection[]
 }
 
-// Composio's per-action detail endpoint is flaky under bursts (rate limits / transient 5xx), which
-// is what surfaced as "Failed to add action". Retry a couple of times with backoff so an action
-// whose schema IS available doesn't fall back to a blank, guidance-less editor.
-async function fetchActionDetailWithRetry(
-    provider: string,
-    integrationKey: string,
-    actionKey: string,
-    retries = 2,
-) {
-    let lastError: unknown
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            return await fetchToolActionDetail(provider, integrationKey, actionKey)
-        } catch (error) {
-            lastError = error
-            if (attempt < retries) {
-                await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)))
+/** The identity of an integration row is the PAIR; the integration alone merges two providers. */
+const groupKey = (provider: string, integration: string): string => `${provider}:${integration}`
+
+/** The project's connections, grouped by the provider and integration they belong to. */
+function groupConnections(connections: ToolConnection[]): ConnectedGroup[] {
+    const groups = new Map<string, ConnectedGroup>()
+    for (const connection of connections) {
+        if (!connection.integration_key || !connection.slug) continue
+        const provider = connection.provider_key ?? "composio"
+        const key = groupKey(provider, connection.integration_key)
+        let group = groups.get(key)
+        if (!group) {
+            group = {
+                integrationKey: connection.integration_key,
+                provider,
+                connections: [],
             }
+            groups.set(key, group)
         }
+        group.connections.push(connection)
     }
-    throw lastError
+    return [...groups.values()]
 }
 
-function normalizeParameters(inputs: unknown): Record<string, unknown> {
-    if (!isRecord(inputs)) {
-        return {type: "object", properties: {}, required: [], additionalProperties: false}
-    }
-    const schema = {...inputs}
-    if (schema.type !== "object") schema.type = "object"
-    if (!isRecord(schema.properties)) schema.properties = {}
-    if (!Array.isArray(schema.required)) schema.required = []
-    if (typeof schema.additionalProperties !== "boolean") schema.additionalProperties = false
-    return schema
-}
+/** Connections are shown by NAME. The slug is an identifier, not a label. */
+const connectionLabel = (connection: ToolConnection | undefined): string =>
+    connectionDisplayName(connection)
 
-// Catalog data wrappers (custom hooks) adapting the tool catalog hooks to CatalogChooser's shape.
-function useToolIntegrationsList() {
-    const setSearch = useSetAtom(toolIntegrationsSearchAtom)
-    const r = useToolCatalogIntegrations()
-    return {
-        integrations: r.integrations,
-        total: r.total,
-        hasNextPage: r.hasNextPage,
-        isFetchingNextPage: r.isFetchingNextPage,
-        isLoading: r.isLoading,
-        requestMore: r.requestMore,
-        setSearch,
-        setCategory: r.setCategory,
-        error: r.error,
-        refetch: r.refetch,
-    }
-}
-
-function useToolCategoriesList() {
-    const r = useToolCatalogCategories()
-    return {categories: r.categories, isLoading: r.isLoading, error: r.error, refetch: r.refetch}
-}
-
-function useToolActionList(integrationKey: string) {
-    const r = useToolCatalogActions(integrationKey)
-    return {
-        items: r.actions,
-        isLoading: r.isLoading,
-        hasNextPage: r.hasNextPage,
-        isFetchingNextPage: r.isFetchingNextPage,
-        requestMore: r.requestMore,
-        setSearch: r.setSearch,
-    }
-}
-
-// Body — mounted only while the drawer is open (Drawer destroyOnClose), so catalog queries don't
-// run in the background.
-function ToolCatalogContent({
-    onAddTool,
-    onRemoveToolByIdentity,
-    selectedGatewayIds,
-    defaultIntegrationKey,
-}: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
-    const [pending, setPending] = useState<string | null>(null)
-    const {connections} = useToolConnectionsQuery()
-    const {reconnect, reconnectingId} = useReconnectToolConnection()
-
-    // The in-flight spinner is still keyed by slug; the added-state is keyed by identity.
-    const slugFor = useCallback(
-        (conn: ToolConnection, actionKey: string) =>
-            buildToolSlug(
-                conn.provider_key ?? "composio",
-                conn.integration_key,
-                actionKey,
-                conn.slug ?? "",
-            ),
-        [],
+/** A row in "Connected in your workspace": quick-add, or open the connection chooser. */
+function ConnectedRow({
+    group,
+    row,
+    onAdd,
+}: {
+    group: ConnectedGroup
+    /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
+    row: IntegrationRow | undefined
+    onAdd: (slug: string) => void
+}) {
+    const {integration} = useToolIntegrationDetail(group.integrationKey)
+    const name = integration?.name || group.integrationKey
+    const multiple = group.connections.length > 1
+    const [choosing, setChoosing] = useState(false)
+    const currentSlug = row?.entry?.connection
+    const [selected, setSelected] = useState(() => currentSlug ?? group.connections[0]?.slug ?? "")
+    const selectedName = connectionLabel(
+        group.connections.find((connection) => connection.slug === selected) ??
+            group.connections[0],
     )
 
-    // Encoding-independent identity — matches a canonical or legacy entry already in the config.
-    const idFor = useCallback(
-        (conn: ToolConnection, actionKey: string) =>
-            gatewayToolIdentity({
-                provider: conn.provider_key ?? "composio",
-                integration: conn.integration_key,
-                action: actionKey,
-                connection: conn.slug ?? "",
-                encoding: "legacy",
-            }),
-        [],
-    )
+    // Adding again would give one integration two model-facing surfaces, so one the agent already
+    // holds offers no Add. Choosing another connection edits the entry, which an integration still
+    // on the legacy per-action format does not have.
+    const added = Boolean(row)
+    const swappable = Boolean(row?.entry)
+    const single = group.connections[0]
 
-    // Add the chosen action as a function tool (toggles off if already added).
-    const toggle = useCallback(
-        async (conn: ToolConnection, action: ToolCatalogAction) => {
-            const id = idFor(conn, action.key)
-            if (selectedGatewayIds.has(id)) {
-                onRemoveToolByIdentity?.(id)
-                return
-            }
-            const slug = slugFor(conn, action.key)
-            setPending(slug)
-            // The model-facing input schema comes from the per-action detail endpoint, which
-            // errors provider-side for some actions. That must NOT block the add: the tool
-            // resolves server-side by slug regardless. When the schema resolves we add straight
-            // away (gateway is multi-select); when it doesn't, `needsConfig` opens the tool
-            // editor so the user defines the parameters instead of getting a schema-less tool.
-            let inputs: unknown
-            let fetchFailed = false
-            try {
-                const detail = await fetchActionDetailWithRetry(
-                    conn.provider_key ?? "composio",
-                    conn.integration_key,
-                    action.key,
-                )
-                const detailed =
-                    detail.action && "schemas" in detail.action
-                        ? (detail.action as ToolCatalogActionDetails)
-                        : null
-                inputs = detailed?.schemas?.inputs
-            } catch {
-                fetchFailed = true
-            }
-            try {
-                onAddTool(
-                    {
-                        type: "function",
-                        function: {
-                            name: slug,
-                            description: action.description || action.name || action.key,
-                            parameters: normalizeParameters(inputs),
-                        },
-                    },
-                    {
-                        source: "gateway",
-                        provider: conn.provider_key ?? "composio",
-                        toolCode: action.key,
-                        toolLabel: action.key,
-                        integrationKey: conn.integration_key,
-                        connectionSlug: conn.slug ?? "",
-                        needsConfig: fetchFailed,
-                    },
-                )
-            } catch {
-                message.error("Couldn't add this tool")
-            } finally {
-                setPending(null)
-            }
-        },
-        [slugFor, idFor, selectedGatewayIds, onAddTool, onRemoveToolByIdentity],
-    )
+    const subtitle = choosing
+        ? "Choose connection"
+        : added && !swappable
+          ? "Already added, in the old format"
+          : multiple
+            ? `${group.connections.length} connections`
+            : connectionLabel(single)
+
+    // An added integration offers Change only when it has an entry to edit; adding a second
+    // surface to one still on the legacy format is never the intent.
+    const chooserButton = multiple && (!added || swappable)
 
     return (
-        <div className="min-h-0 flex-1 overflow-hidden">
-            <CatalogChooser<CatalogIntegrationItem, ToolCatalogAction, ToolConnection>
-                connections={connections}
-                cardVariant="subtle"
-                fullBleedRail
-                useCategories={useToolCategoriesList}
-                defaultIntegrationKey={defaultIntegrationKey}
-                isConnectionReady={isConnectionValid}
-                onReconnect={(c) => c.id && reconnect(c.id)}
-                isReconnecting={(c) => !!c.id && c.id === reconnectingId}
-                useIntegrations={useToolIntegrationsList}
-                useItems={useToolActionList}
-                integration={{
-                    key: (i) => i.key,
-                    name: (i) => i.name,
-                    logo: (i) => i.logo,
-                    description: (i) => i.description,
-                    categories: (i) =>
-                        (i as {categories?: string[] | null}).categories ?? undefined,
-                    actionsCount: (i) => (i as {actions_count?: number | null}).actions_count,
-                }}
-                connection={{
-                    id: (c) => c.id ?? undefined,
-                    name: (c) => c.name ?? undefined,
-                    slug: (c) => c.slug ?? undefined,
-                    integrationKey: (c) => c.integration_key,
-                }}
-                item={{
-                    key: (a) => a.key,
-                    name: (a) => a.name ?? undefined,
-                    description: (a) => a.description ?? undefined,
-                    categories: (a) => a.categories ?? undefined,
-                    readOnly: (a) => a.read_only ?? undefined,
-                    deprecated: (a) => /^\s*deprecated\b/i.test(a.description ?? ""),
-                }}
-                itemsLabel="Choose an action"
-                itemsSearchPlaceholder="Search actions"
-                emptyItemsText="No actions for this app"
-                onPickItem={(conn, action) => void toggle(conn, action)}
-                itemState={(conn, action) => {
-                    if (pending === slugFor(conn, action.key)) return "pending"
-                    return selectedGatewayIds.has(idFor(conn, action.key)) ? "selected" : "add"
-                }}
-                renderConnect={(integration, handlers) => (
-                    <ConnectDrawer
-                        open
-                        integrationKey={integration.key}
-                        integrationName={integration.name}
-                        integrationLogo={integration.logo ?? undefined}
-                        integrationDescription={integration.description ?? undefined}
-                        authSchemes={
-                            (integration as {auth_schemes?: string[] | null}).auth_schemes ?? []
-                        }
-                        onClose={handlers.onClose}
-                        onSuccess={handlers.onSuccess}
-                    />
-                )}
+        <CatalogListRow
+            highlighted={choosing}
+            leading={<ProviderLogo logo={integration?.logo ?? null} size={20} />}
+            title={name}
+            titleSuffix={
+                added && !choosing ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-[var(--ag-colorSuccessText)]">
+                        <Check size={11} weight="bold" />
+                        Added
+                    </span>
+                ) : !added && !multiple && !isConnectionValid(single) ? (
+                    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorWarningText)]">
+                        needs reconnect
+                    </span>
+                ) : null
+            }
+            action={
+                chooserButton ? (
+                    <Button variant="outline" size="sm" onClick={() => setChoosing((v) => !v)}>
+                        {choosing ? "Cancel" : added ? "Change" : "Add"}
+                    </Button>
+                ) : !added ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onAdd(single.slug ?? "")}
+                        disabled={!single.slug}
+                    >
+                        Add
+                    </Button>
+                ) : undefined
+            }
+            expansion={
+                choosing ? (
+                    <div className="ml-[30px] mt-2 flex flex-col gap-1">
+                        <RadioGroup value={selected} onValueChange={setSelected}>
+                            {group.connections.map((connection) => (
+                                <label
+                                    key={connection.slug}
+                                    className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-xs ${
+                                        selected === connection.slug
+                                            ? "border-[var(--ag-colorText)]"
+                                            : "border-[var(--ag-colorBorderSecondary)]"
+                                    }`}
+                                >
+                                    <RadioGroupItem value={connection.slug ?? ""} />
+                                    <span className="flex-1 truncate">
+                                        {connectionLabel(connection)}
+                                    </span>
+                                    {isConnectionValid(connection) ? null : (
+                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                            needs reconnect
+                                        </span>
+                                    )}
+                                </label>
+                            ))}
+                        </RadioGroup>
+                        <div className="flex justify-end">
+                            <Button
+                                variant="default"
+                                size="sm"
+                                disabled={!selected || selected === currentSlug}
+                                onClick={() => {
+                                    onAdd(selected)
+                                    setChoosing(false)
+                                }}
+                            >
+                                {added ? `Use ${selectedName}` : `Add with ${selectedName}`}
+                            </Button>
+                        </div>
+                    </div>
+                ) : null
+            }
+        >
+            <span className="truncate text-xs text-[var(--ag-colorTextTertiary)]">{subtitle}</span>
+        </CatalogListRow>
+    )
+}
+
+/** A row in "All apps": an integration the project has no connection for yet. */
+function CatalogRow({
+    integration,
+    onConnect,
+}: {
+    integration: CatalogIntegration
+    onConnect: () => void
+}) {
+    return (
+        <CatalogListRow
+            leading={<ProviderLogo logo={integration.logo ?? null} size={20} />}
+            title={integration.name}
+            action={
+                <Button variant="outline" size="sm" onClick={onConnect}>
+                    Connect
+                </Button>
+            }
+        >
+            <ExpandableDescription
+                description={integration.description ?? undefined}
+                label={integration.name}
             />
+        </CatalogListRow>
+    )
+}
+
+function CategoryRail({
+    active,
+    onSelect,
+}: {
+    active: string | null
+    onSelect: (category: CategorySelection | null) => void
+}) {
+    const {categories, isLoading} = useToolCatalogCategories()
+    return (
+        // min-h-0: without it the rail's own content sets its height and the list never scrolls.
+        <div className="flex min-h-0 w-44 shrink-0 flex-col gap-1 border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] p-3">
+            <span className="shrink-0 px-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                Categories
+            </span>
+            <button
+                type="button"
+                onClick={() => onSelect(null)}
+                className={`shrink-0 cursor-pointer rounded border-0 px-2 py-1 text-left text-[13px] [font-family:inherit] ${
+                    active === null
+                        ? "bg-[var(--ag-colorFillSecondary)] font-medium"
+                        : "bg-transparent text-[var(--ag-colorTextSecondary)]"
+                }`}
+            >
+                All apps
+            </button>
+            {isLoading ? <Spinner size="small" /> : null}
+            {/* Only the categories scroll; the heading and All apps stay put. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                {categories.map((category) => (
+                    <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => onSelect({id: category.id, name: category.name})}
+                        className={`shrink-0 cursor-pointer truncate rounded border-0 px-2 py-1 text-left text-[13px] capitalize [font-family:inherit] ${
+                            active === category.id
+                                ? "bg-[var(--ag-colorFillSecondary)] font-medium"
+                                : "bg-transparent text-[var(--ag-colorTextSecondary)]"
+                        }`}
+                    >
+                        {category.name}
+                    </button>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+// Body — mounted only while the drawer is open (EnhancedDrawer destroyOnClose), so the catalog
+// queries don't run in the background.
+function IntegrationCatalogContent({
+    integrationRows,
+    onAddIntegration,
+}: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
+    const [query, setQuery] = useState("")
+    const [category, setCategoryState] = useState<CategorySelection | null>(null)
+    const [connectTarget, setConnectTarget] = useState<CatalogIntegration | null>(null)
+    // The integration a just-finished connect flow should land, once its connection shows up.
+    const [pendingAdd, setPendingAdd] = useState<string | null>(null)
+
+    const setSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const {
+        integrations,
+        total,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        requestMore,
+        setCategory,
+    } = useToolCatalogIntegrations()
+    const {connections} = useToolConnectionsQuery()
+
+    // The hook ignores a query under three characters server-side; the connected list filters on
+    // the raw query instead, so a two-letter search still narrows what the author already has.
+    useEffect(() => {
+        const timer = setTimeout(() => setSearch(query.trim()), 250)
+        return () => clearTimeout(timer)
+    }, [query, setSearch])
+    // Both filters live in module atoms shared with the other catalog surfaces, and this drawer's
+    // own controls start empty. Clear them on the way out so the next open matches what it shows.
+    useEffect(
+        () => () => {
+            setSearch("")
+            setCategory?.(null)
+        },
+        [setSearch, setCategory],
+    )
+
+    const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
+
+    // Read through the SAME query atoms each row uses, so this shares their cache.
+    const connectedKeys = useMemo(
+        () => allConnectedGroups.map((group) => group.integrationKey).sort(),
+        [allConnectedGroups],
+    )
+    const connectedDetailsAtom = useMemo(
+        () =>
+            atom((get) =>
+                connectedKeys.map((key) => ({
+                    key,
+                    integration: get(toolIntegrationDetailQueryFamily(key)).data?.integration,
+                })),
+            ),
+        [connectedKeys],
+    )
+    const connectedDetails = useAtomValue(connectedDetailsAtom)
+    const {categoriesByIntegration, namesByIntegration} = useMemo(() => {
+        const categoriesMap = new Map<string, readonly string[]>()
+        const namesMap = new Map<string, string>()
+        for (const {key, integration} of connectedDetails) {
+            if (!integration) continue
+            categoriesMap.set(key, integration.categories ?? [])
+            if (integration.name) namesMap.set(key, integration.name)
+        }
+        return {categoriesByIntegration: categoriesMap, namesByIntegration: namesMap}
+    }, [connectedDetails])
+
+    // Filtered here, not inside each row, so the section count matches the rows it heads.
+    const {connected: connectedGroups, connectable: catalogRows} = useMemo(
+        () =>
+            catalogSections({
+                integrations,
+                groups: allConnectedGroups,
+                query,
+                category,
+                categoriesByIntegration,
+                namesByIntegration,
+            }),
+        [
+            integrations,
+            allConnectedGroups,
+            query,
+            category,
+            categoriesByIntegration,
+            namesByIntegration,
+        ],
+    )
+    const rowsByIntegration = useMemo(
+        () => new Map(integrationRows.map((row) => [groupKey(row.provider, row.integration), row])),
+        [integrationRows],
+    )
+
+    const addIntegration = useCallback(
+        (group: ConnectedGroup, slug: string) => {
+            if (!slug) return
+            onAddIntegration({provider: group.provider, integration: group.integrationKey}, slug)
+        },
+        [onAddIntegration],
+    )
+
+    // A connect flow reports success without naming the connection it made, so the add waits for
+    // the refreshed list. One new connection for that integration is the unambiguous case; with
+    // several the author picks in the chooser instead.
+    //
+    // The connect flow treats the provider popup closing as success, so an abandoned or failed
+    // authorization can leave a connection that exists but does not work. Add only a connection
+    // the project reports as valid; the row stays, with its reconnect hint, for the rest.
+    useEffect(() => {
+        if (!pendingAdd) return
+        // The unfiltered list: a search typed before connecting must not hide the new connection.
+        const group = allConnectedGroups.find((g) => g.integrationKey === pendingAdd)
+        if (!group) return
+        const only = group.connections.length === 1 ? group.connections[0] : null
+        // Stay armed while the single connection is not valid YET: validity can arrive on a later
+        // refresh, and the drawer is destroyed on close, so the intent cannot outlive the flow.
+        if (only && !isConnectionValid(only)) return
+        if (only) addIntegration(group, only.slug ?? "")
+        setPendingAdd(null)
+    }, [pendingAdd, allConnectedGroups, addIntegration])
+
+    return (
+        <div className="flex min-h-0 flex-1">
+            <CategoryRail
+                active={category?.id ?? null}
+                onSelect={(next) => {
+                    setCategoryState(next)
+                    setCategory?.(next?.id ?? null)
+                }}
+            />
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+                <SearchInput placeholder="Search apps..." value={query} onValueChange={setQuery} />
+
+                {connectedGroups.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        <SubSectionHeader
+                            label="Connected in your workspace"
+                            count={connectedGroups.length}
+                        />
+                        <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                            {connectedGroups.map((group) => (
+                                <ConnectedRow
+                                    key={groupKey(group.provider, group.integrationKey)}
+                                    group={group}
+                                    row={rowsByIntegration.get(
+                                        groupKey(group.provider, group.integrationKey),
+                                    )}
+                                    onAdd={(slug) => addIntegration(group, slug)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
+                <div className="flex flex-col gap-2">
+                    <SubSectionHeader label="All apps" count={total ?? catalogRows.length} />
+                    {isLoading && integrations.length === 0 ? (
+                        <div className="flex justify-center py-8">
+                            <Spinner size="small" />
+                        </div>
+                    ) : catalogRows.length === 0 ? (
+                        <span className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                            No apps here.
+                        </span>
+                    ) : (
+                        <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                            {catalogRows.map((integration) => (
+                                <CatalogRow
+                                    key={integration.key}
+                                    integration={integration}
+                                    onConnect={() => setConnectTarget(integration)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    <ScrollSentinel
+                        onVisible={requestMore}
+                        hasMore={hasNextPage}
+                        isFetching={isFetchingNextPage}
+                    />
+                    {isFetchingNextPage ? (
+                        <div className="flex justify-center py-2">
+                            <Spinner size="small" />
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+
+            {connectTarget ? (
+                <ConnectDrawer
+                    open
+                    integrationKey={connectTarget.key}
+                    integrationName={connectTarget.name}
+                    integrationLogo={connectTarget.logo ?? undefined}
+                    integrationDescription={connectTarget.description ?? undefined}
+                    authSchemes={
+                        (connectTarget as {auth_schemes?: string[] | null}).auth_schemes ?? []
+                    }
+                    onClose={() => setConnectTarget(null)}
+                    onSuccess={() => {
+                        setPendingAdd(connectTarget.key)
+                        setConnectTarget(null)
+                    }}
+                />
+            ) : null}
         </div>
     )
 }
@@ -288,51 +494,37 @@ function ToolCatalogContent({
 export function AgentIntegrationDrawer({
     open,
     onClose,
-    onAddTool,
-    onRemoveToolByIdentity,
-    selectedGatewayIds,
-    defaultIntegrationKey,
+    integrationRows,
+    onAddIntegration,
 }: AgentIntegrationDrawerProps) {
-    // App tools already added — the footer count so the multi-add flow shows progress.
-    const addedCount = selectedGatewayIds.size
-
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
             placement="right"
-            width={960}
-            // Explicit exit only — an accidental backdrop click mid-connect must not drop the flow.
-            closeOnLayoutClick={false}
+            width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
                 <div className="flex items-center gap-2">
                     <Plugs size={16} />
-                    <span className="text-sm font-medium">Add app tools</span>
+                    <span className="text-sm font-medium">Add integration</span>
                 </div>
             }
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
-                <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
-                        {addedCount > 0
-                            ? `${addedCount} app ${addedCount === 1 ? "tool" : "tools"} added`
-                            : "Pick actions from a connected app — added instantly."}
-                    </span>
+                <div className="flex items-center justify-end">
                     <Button variant="default" onClick={onClose}>
                         Done
                     </Button>
                 </div>
             }
         >
-            <ToolCatalogContent
-                onAddTool={onAddTool}
-                onRemoveToolByIdentity={onRemoveToolByIdentity}
-                selectedGatewayIds={selectedGatewayIds}
-                defaultIntegrationKey={defaultIntegrationKey}
+            <IntegrationCatalogContent
+                integrationRows={integrationRows}
+                onAddIntegration={onAddIntegration}
             />
         </EnhancedDrawer>
     )

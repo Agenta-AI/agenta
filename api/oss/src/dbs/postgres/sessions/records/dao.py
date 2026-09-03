@@ -65,7 +65,9 @@ class RecordsDAO(RecordsDAOInterface):
         if not events:
             return []
 
-        values_list = [self._values(event=event) for event in events]
+        values_list = self._dedupe_values(
+            values_list=[self._values(event=event) for event in events]
+        )
 
         async with self.engine.session() as session:
             stmt = self._upsert_stmt(values_list=values_list)
@@ -82,6 +84,41 @@ class RecordsDAO(RecordsDAOInterface):
             for c in RecordDBE.__table__.columns
             if not (getattr(dbe, c.name) is None and c.server_default is not None)
         }
+
+    # Columns the upsert overwrites on conflict; every other column keeps the first
+    # occurrence's value, exactly as ON CONFLICT DO UPDATE would.
+    _UPSERT_UPDATED_COLUMNS = (
+        "record_type",
+        "record_source",
+        "timestamp",
+        "attributes",
+        "turn_id",
+        "span_id",
+    )
+
+    @staticmethod
+    def _dedupe_values(*, values_list: List[dict]) -> List[dict]:
+        # Postgres rejects one INSERT ... ON CONFLICT DO UPDATE that touches the same
+        # (project_id, record_id) twice ("cannot affect row a second time"), and the
+        # runner legitimately re-sends a record_id within a flush window (partial
+        # tool_call frame, then the completed one). Collapse duplicates into the end
+        # state sequential per-event upserts would have produced.
+        deduped: dict = {}
+        for values in values_list:
+            key = (values["project_id"], values["record_id"])
+            prev = deduped.get(key)
+            if prev is None:
+                deduped[key] = values
+            else:
+                deduped[key] = {
+                    **prev,
+                    **{
+                        column: values[column]
+                        for column in RecordsDAO._UPSERT_UPDATED_COLUMNS
+                        if column in values
+                    },
+                }
+        return list(deduped.values())
 
     @staticmethod
     def _upsert_stmt(*, values_list: List[dict]):

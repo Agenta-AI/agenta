@@ -21,6 +21,42 @@ log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 
+# The platform runtime's proof of what it is, for the credential exchange below.
+_RUNTIME_KEY_HEADER = "X-Agenta-Runtime-Key"
+
+
+def _runtime_key_from_environment() -> str:
+    runtime_key = (getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
+
+    # The placeholder is public repository content, so it counts as no key at all.
+    return "" if runtime_key == "replace-me" else runtime_key
+
+
+_RUNTIME_KEY = _runtime_key_from_environment()
+
+# Said once, at the point of use, because the failure it causes names something else
+# entirely: a run whose connection holds a write-only secret gets the redacted shape and
+# reports "provide the provider key in this run's environment", which is true for a
+# standalone run and misleading here. An operator reading that has no way to reach this
+# cause without being told.
+_RUNTIME_KEY_WARNED = False
+
+
+def _warn_once_about_the_missing_runtime_key() -> None:
+    global _RUNTIME_KEY_WARNED
+
+    if _RUNTIME_KEY_WARNED:
+        return
+
+    _RUNTIME_KEY_WARNED = True
+    log.warning(
+        "agenta: no platform runtime key configured "
+        "(AGENTA_SERVICES_INTERNAL_KEY is unset or uses the placeholder). "
+        "Runs against connections whose secret is write-only will fail to read it. "
+        "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and this service."
+    )
+
+
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")
     or getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED")
@@ -97,6 +133,18 @@ async def get_credentials(
         # HEADERS
         authorization = request.headers.get("authorization", None)
         headers = {"Authorization": authorization} if authorization else None
+
+        # This service exchanges the END USER's credential on their behalf, so the token
+        # it sends says nothing about who is asking. The platform's own secret is what
+        # says "this is the runtime starting a run", and it is what lets the returned
+        # credential read write-only secret values. Sent only on this internal hop, never
+        # logged, never handed to the runner or into a sandbox. A deployment that does not
+        # set it simply gets a credential without that ability.
+        runtime_key = _RUNTIME_KEY
+        if runtime_key:
+            headers = {**(headers or {}), _RUNTIME_KEY_HEADER: runtime_key}
+        else:
+            _warn_once_about_the_missing_runtime_key()
 
         # COOKIES
         access_token = request.cookies.get("sAccessToken", None)

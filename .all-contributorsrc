@@ -735,6 +735,69 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Abdelkaderbzz",
+      "name": "Abdelkaderbzz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/108610803?v=4",
+      "profile": "https://www.abdelkader.work/",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "panshularora",
+      "name": "panshularora",
+      "avatar_url": "https://avatars.githubusercontent.com/u/170356171?v=4",
+      "profile": "https://github.com/panshularora",
+      "contributions": [
+        "test"
+      ]
+    },
+    {
+      "login": "WhoamiI00",
+      "name": "Ankit",
+      "avatar_url": "https://avatars.githubusercontent.com/u/185078340?v=4",
+      "profile": "https://neokit.app/",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "aman-goel-04",
+      "name": "Aman",
+      "avatar_url": "https://avatars.githubusercontent.com/u/216227649?v=4",
+      "profile": "https://github.com/Aman-goel-04",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "AJ-ing",
+      "name": "Aayush Jain",
+      "avatar_url": "https://avatars.githubusercontent.com/u/226107146?v=4",
+      "profile": "https://github.com/AJ-ing",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "MFA-G",
+      "name": "Mochammad Fadhlan Al-Ghiffari",
+      "avatar_url": "https://avatars.githubusercontent.com/u/136257088?v=4",
+      "profile": "https://github.com/MFA-G",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "uchiha-suraj",
+      "name": "suraj ✨ ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46050946?v=4",
+      "profile": "https://www.heysuraj.dev/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

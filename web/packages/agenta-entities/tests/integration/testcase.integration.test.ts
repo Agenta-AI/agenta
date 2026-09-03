@@ -13,8 +13,8 @@
 
 import {describe, it, expect, beforeEach, afterEach} from "vitest"
 
-import {fetchTestcasesPage} from "../../src/testcase/api/api"
 import {testcaseMolecule} from "../../src/testcase"
+import {fetchTestcasesPage} from "../../src/testcase/api/api"
 
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
 import {makeTestsetFixture, type TestsetFixture} from "./helpers/fixtures"

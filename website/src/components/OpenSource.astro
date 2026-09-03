@@ -62,11 +62,13 @@ const ossStrip = [
     >
       <div style="display:flex;flex-direction:column;gap:24px;">
         <Badge variant="dark" style="align-self:flex-start;">Open source</Badge>
-        <span
+        <!-- Real <h2> — see the note in OpenStandards.astro. -->
+        <h2
           class="ag-bighead"
-          style="font:300 44px/1.1 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Self-host Agenta on your infrastructure</span
+          style="margin:0;font:300 44px/1.1 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Self-host Agenta on your infrastructure
+        </h2>
         <span
           style="font:var(--text-body-md);color:rgba(255,255,255,0.55);text-wrap:pretty;"
           >MIT-licensed and yours to run. Keep your agents and data on your own
@@ -118,10 +120,14 @@ const ossStrip = [
         <div
           style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);"
         >
-          <span
-            style="font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.4);"
-            >self-host — with your coding agent</span
+          <!-- The terminal card's title: an <h3> under the section's <h2>, so
+               the outline has real depth. Styling is unchanged (margin:0 + the
+               same inline font shorthand). -->
+          <h3
+            style="margin:0;font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.4);"
           >
+            self-host — with your coding agent
+          </h3>
           <CopyPromptButton client:visible />
         </div>
         <div

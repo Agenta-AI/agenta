@@ -33,6 +33,12 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
 export const TEMPLATE_STRIP_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
+/** Browse-surface layout (`NEXT_PUBLIC_AGENT_BROWSE_RAIL`). OFF by default: sessions, agents and
+ * the templates gallery use the one-row toolbar (#5833/#5846). Set to "true" for the filter rail.
+ * Mobile always renders the rail — it is the phone's whole viewport, not a second sidebar. */
+export const BROWSE_RAIL_MODE =
+    (getEnv("NEXT_PUBLIC_AGENT_BROWSE_RAIL") || "").toLowerCase() === "true"
+
 /** Returning users start a task with an agent they already have; first-run users describe an
  * agent to create. Different question, different verb. */
 /** No subtitle: the composer's placeholder asks the same thing one line below it. */

@@ -513,7 +513,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
     `POST /sessions/turns/`), which makes this a STORED outcome rather than an echo.
 
     Returns [] when the ledger is unavailable, which callers must treat as MISSING EVIDENCE and
-    fail on -- never as evidence of stability."""
+    fail on -- never as evidence of stability. A caller that needs to TELL those two apart (a
+    check whose PASS depends on nothing having been stored) must use `turn_ledger_or_unavailable`
+    instead; this signature cannot express the difference."""
+    rows, _available = turn_ledger_or_unavailable(session_id, limit)
+    return rows
+
+
+def turn_ledger_or_unavailable(
+    session_id: str, limit: int = 20
+) -> tuple[list[dict], bool]:
+    """`(rows, available)` -- the ledger, and whether the query actually answered.
+
+    `turn_ledger` collapses "the query failed" and "the session stored no turn" into the same
+    empty list. That is safe for a check whose PASS needs rows to EXIST, because both readings
+    fail. It is unsafe for a check whose PASS needs rows to be ABSENT: a query failure would then
+    read as proof that nothing ran, which is the strongest possible claim drawn from the weakest
+    possible evidence. `matrix_h1_bad_harness.py` is exactly that shape."""
     r = api_call(
         "POST",
         "/sessions/turns/query",
@@ -523,8 +539,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
         },
     )
     if r.status_code != 200:
-        return []
-    return r.json().get("turns") or []
+        return [], False
+    # A 200 is not an answer until the payload is the shape the contract promises. `{}` and
+    # `{"turns": null}` would otherwise read as an answered-EMPTY ledger, which is the one reading
+    # a caller must never get for free: `matrix_h1_bad_harness.py` turns "answered empty" into a
+    # PASS asserting nothing was stored. Malformed is unavailable, so that PASS stays unreachable.
+    try:
+        body = r.json()
+    except ValueError:
+        return [], False
+    if not isinstance(body, dict):
+        return [], False
+    turns = body.get("turns")
+    if not isinstance(turns, list):
+        return [], False
+    if any(not isinstance(row, dict) for row in turns):
+        return [], False
+    return turns, True
 
 
 def ledger_ids(session_id: str) -> tuple[list[str], list[str]]:
@@ -623,6 +654,58 @@ def run_until_settled(
 
 
 # ---------------------------------------------------------------------------
+# An exhausted provider key is an ENVIRONMENT condition, not a defect. A cell that renders it as
+# FAIL spends a reviewer's attention on a topped-up balance, and worse, it teaches the reader that
+# this cell's FAIL is sometimes noise -- which is how a real regression gets waved through later.
+# Cells already SKIP on a missing or ambiguous vault credential; a key with no credit left belongs
+# in the same class, and reads the same way to a human: nothing about the product was tested.
+#
+# Recognition is deliberately narrow. It matches the runner's own classified copy, never a bare
+# 401 or a rate limit. Source of truth for every string below:
+# `services/runner/src/engines/sandbox_agent/errors.ts`.
+
+#: The runner's coded classes for a credits refusal at the proxy's admission check.
+STARTER_CREDIT_CODES = (
+    "starter_credits_exhausted",
+    "starter_credits_program_paused",
+    "starter_credits_unavailable",
+)
+
+#: Billing-stop prose. The first group is the runner's own user-facing credits copy; the second is
+#: the upstream provider's billing refusal, which the runner classifies as `runner_error`, so the
+#: code alone cannot catch it. Throttling ("rate limit", "too many requests") is deliberately
+#: ABSENT: a throttled run was not out of credit and must stay a FAIL.
+_OUT_OF_CREDIT_RE = re.compile(
+    r"free agenta credits are (?:used up|paused)"
+    r"|agenta credits are temporarily unavailable"
+    r"|the model provider account has insufficient credit"
+    r"|insufficient credit"
+    r"|no credits remaining"
+    r"|credit balance is too low"
+    r"|exceeded your current quota"
+    r"|insufficient_quota"
+    r"|budget_exceeded"
+    r"|budget has been exceeded",
+    re.I,
+)
+
+
+def out_of_credit(error_text: str = "", codes: "list | tuple" = ()) -> str | None:
+    """The SKIP reason when a run failed ONLY because the provider key has no credit left.
+
+    Returns the explanation to report, or None when the failure is anything else -- in which case
+    the caller must keep its FAIL. Pass the run's stored/classified error text and any coded
+    `data-agent-error` classes it carried.
+    """
+    for code in codes or ():
+        if code in STARTER_CREDIT_CODES:
+            return f"environment: provider key out of credit ({code})"
+    if error_text and _OUT_OF_CREDIT_RE.search(error_text):
+        return "environment: provider key out of credit"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # The generic invariant: no tool_result with empty output and isError:false may exist for a call
 # whose runner log says "[commit-auth] refused" (the silent-blank-success class). Added after the
 # Codex approve-then-fail P0 triage found that W7 covered only Claude, so this reusable check is
@@ -688,3 +771,79 @@ def check_no_blank_success_on_refusal(turns: list[Turn], log_lines: list[str]) -
                     }
                 )
     return {"refusals": refused_ids, "violations": violations}
+
+
+# Frame types that carry no content: the stream scaffolding, the model's private reasoning, and
+# the error frames. Everything else the adapter emits IS content — text, tool input/output,
+# approval requests, `file`, attachment delivery, and every `data-<name>` payload.
+#
+# This mirrors `content_parts_emitted` in the product's own egress
+# (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`), which counts message/message_delta,
+# tool_call, tool_result, interaction_request, data, file and attachment_delivery, and does NOT
+# count reasoning, usage, done, or error. Keep the two definitions in step: if the adapter starts
+# counting a new event as content, a turn carrying only that event stops being silent.
+#
+# It is a deny-list on purpose. `data-<name>` payloads are open-ended, so an allow-list would
+# treat an unknown-but-real content frame as silence and FAIL a healthy turn. A deny-list errs the
+# other way — an unrecognised frame reads as content — which can only ever under-report.
+_NON_CONTENT_FRAMES = frozenset(
+    {
+        "start",
+        "start-step",
+        "finish-step",
+        "finish",
+        "reasoning-start",
+        "reasoning-delta",
+        "reasoning-end",
+        "error",
+        "data-agent-error",
+    }
+)
+_TEXT_FRAMES = frozenset({"text-start", "text-delta", "text-end"})
+
+
+def _turn_produced_content(turn: Turn) -> bool:
+    """Did this turn put anything in front of the user (by the product's own definition)?"""
+    if turn.reply.strip():
+        return True
+    for frame in turn.frames:
+        if frame in _NON_CONTENT_FRAMES:
+            continue
+        # Text frames arrived but the reply is blank/whitespace: nothing was actually said.
+        if frame in _TEXT_FRAMES:
+            continue
+        return True
+    return False
+
+
+def check_no_silent_turn(turns: list[Turn]) -> dict:
+    """The silent-turn invariant: a turn that said nothing, did nothing, asked nothing, and
+    reported nothing must never be treated as a completed turn.
+
+    That combination is the signature of a swallowed provider failure (ASD-EST100): the model
+    call is rejected, the error is dropped on the way back, and the turn arrives as a clean
+    empty finish. The user sees a blank bubble with no reason anywhere. It is dangerous precisely
+    in cells whose PASS depends on something NOT appearing — a turn that produced nothing also
+    produced no error, no leak, and no blank success, so it satisfies those cells by doing
+    nothing at all.
+
+    A turn is NOT silent when it produced any content frame (text, a tool call or result, an
+    approval request, a file, an attachment delivery, any `data-<name>` payload) or carried an
+    error. So a parked turn (which raises a gate) and a failed turn (which carries an error) both
+    pass. Returns {"violations": [...]}; a cell should treat any non-empty `violations` as an
+    automatic FAIL regardless of its own assertions. The one case a cell must filter out itself
+    is a turn it deliberately aborted or interrupted, which legitimately ends bare — pass only
+    the turns that were meant to answer (see `matrix_w5.py`, which excludes its interrupted turn).
+    """
+    violations = []
+    for index, turn in enumerate(turns):
+        if _turn_produced_content(turn) or turn.errors:
+            continue
+        violations.append(
+            {
+                "turn": index,
+                "finishReason": turn.finish_reason,
+                "frames": list(turn.frames),
+            }
+        )
+    return {"violations": violations}

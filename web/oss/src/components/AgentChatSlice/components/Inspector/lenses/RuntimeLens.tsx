@@ -6,28 +6,28 @@
  * Quick Look as everywhere else). Runtime is always session-level — a focused turn doesn't change
  * live facts.
  */
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Broadcast, CaretRight, CircleNotch, Database, FolderSimple} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
-import {AnimatePresence, MotionConfig, motion} from "motion/react"
-
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
+import {humanSize} from "@agenta/entities/drive"
+import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/drive"
 import {
     DriveFileRow,
     DriveRetryButton,
     DriveWarningBadge,
     SKELETON_ROW_COUNT,
-} from "@/oss/components/Drives/DriveFileRow"
-import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@/oss/components/Drives/driveMotion"
-import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
-import {humanSize} from "@/oss/components/Drives/driveTree"
-import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
+} from "@agenta/entity-ui/drive"
+import {useDriveArtifactId} from "@agenta/entity-ui/drive"
+import {driveQuickLookAtomFamily} from "@agenta/entity-ui/drive"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Broadcast, CaretRight, CircleNotch, Database, FolderSimple} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
+
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
-import {driveHasMixedOrigins, useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 
 /** The session's files, via the shared drive stack — a click opens the same Quick Look drawer as
- * the chat/config surfaces; "View all files" opens the full Files drawer. */
+ * the chat/config surfaces; "View all files" opens the docked Files pane. */
 const DriveFilesCard = ({
     sessionId,
     drive,

@@ -21,6 +21,11 @@ import {cn} from "./utils"
  *
  * antd → @agenta/ui mapping: active/loading/avatar/title/paragraph/round map 1:1. The rarer
  * element pieces (`Skeleton.Button`/`Input`/`Image`/`Node`) are deferred — see Skeleton.md.
+ *
+ * `Skeleton` is the COMPOSITE (title + paragraph rows, optionally an avatar). For a single bar
+ * use `SkeletonBlock`. Four call sites wrote `<Skeleton className="h-6 w-full" />` meaning one
+ * bar and got four, at 38/100/100/61% with UA margins, squeezed into a root the className had
+ * sized for one, overlapping into a staircase.
  */
 const skeletonBlockVariants = cva("box-border block", {
     variants: {

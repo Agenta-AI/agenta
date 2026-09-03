@@ -13,7 +13,10 @@ import {
     hasRequiredCredential,
     modelDisplayOrder,
     nextConnectionName,
+    probeFailureMessage,
+    probeRequestFor,
     providerModelCatalog,
+    storedCredentialFields,
     toProviderConnections,
     type HarnessCapabilityMap,
     type ProviderConnection,
@@ -25,13 +28,16 @@ import {
     credentialFieldsForKind,
     secretKindForProviderKind,
 } from "../../src/secret/core/providerCatalog"
-import {SecretKind, VAULT_PERSIST_REDACTED} from "../../src/secret/core/types"
+import {
+    SecretKind,
+    SecretManagementPolicy,
+    VAULT_PERSIST_REDACTED,
+} from "../../src/secret/core/types"
 
-const axiosPost = vi.fn()
+const fernProbeProvider = vi.fn()
 
-vi.mock("@agenta/shared/api", () => ({
-    axios: {post: (...args: unknown[]) => axiosPost(...args)},
-    getAgentaApiUrl: () => "https://agenta.test/api",
+vi.mock("@agenta/sdk/resources", () => ({
+    getSecretsClient: () => ({probeProvider: (...args: unknown[]) => fernProbeProvider(...args)}),
 }))
 
 // Imported after the mock so the module picks it up.
@@ -43,6 +49,7 @@ const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
     kind: "openai",
     title: "OpenAI",
     secretKind: SecretKind.ProviderKey,
+    hasStoredCredential: false,
     source: {},
     ...overrides,
 })
@@ -731,16 +738,14 @@ describe("buildConnectionPayload", () => {
 
 describe("probeProvider", () => {
     beforeEach(() => {
-        axiosPost.mockReset()
+        fernProbeProvider.mockReset()
     })
 
     it("posts the credential and returns the two statuses", async () => {
-        axiosPost.mockResolvedValueOnce({
-            data: {
-                credential: {status: "valid", message: "OpenAI accepted this key."},
-                discovery: {status: "fetched", models: ["gpt-5.5"]},
-                fetched_at: "2026-08-12T10:00:00Z",
-            },
+        fernProbeProvider.mockResolvedValueOnce({
+            credential: {status: "valid", message: "OpenAI accepted this key."},
+            discovery: {status: "fetched", models: ["gpt-5.5"]},
+            fetched_at: "2026-08-12T10:00:00Z",
         })
 
         const result = await probeProvider({
@@ -749,22 +754,45 @@ describe("probeProvider", () => {
             provider: {key: "sk-one"},
         })
 
-        expect(axiosPost).toHaveBeenCalledWith(
-            "https://agenta.test/api/providers/probe",
+        expect(fernProbeProvider).toHaveBeenCalledWith(
             {kind: "openai", provider: {key: "sk-one"}},
-            {params: {project_id: "proj-1"}},
+            {queryParams: {project_id: "proj-1"}},
         )
         expect(result?.credential.status).toBe("valid")
         expect(result?.discovery.models).toEqual(["gpt-5.5"])
     })
 
+    it("puts the stored row on the wire as `secret_id`, and omits the field otherwise", async () => {
+        const answer = {
+            credential: {status: "valid", message: "ok"},
+            discovery: {status: "fetched", models: ["m"]},
+            fetched_at: "2026-08-12T10:00:00Z",
+        }
+
+        fernProbeProvider.mockResolvedValueOnce(answer)
+        await probeProvider({
+            projectId: "proj-1",
+            provider: {url: "https://llm.example.com/v1"},
+            secretId: "sec-1",
+        })
+        expect(fernProbeProvider).toHaveBeenLastCalledWith(
+            {provider: {url: "https://llm.example.com/v1"}, secret_id: "sec-1"},
+            {queryParams: {project_id: "proj-1"}},
+        )
+        // Absent, not empty: the stored row names its own kind, and a disagreeing one is a 422.
+        expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("kind")
+
+        // Absent, not null: the server reads a present `secret_id` as "resolve the stored row".
+        fernProbeProvider.mockResolvedValueOnce(answer)
+        await probeProvider({projectId: "proj-1", kind: "openai", provider: {key: "sk-one"}})
+        expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("secret_id")
+    })
+
     it("defaults a fetched-but-model-less discovery to an empty list", async () => {
-        axiosPost.mockResolvedValueOnce({
-            data: {
-                credential: {status: "unknown", message: "not tested"},
-                discovery: {status: "unsupported"},
-                fetched_at: "2026-08-12T10:00:00Z",
-            },
+        fernProbeProvider.mockResolvedValueOnce({
+            credential: {status: "unknown", message: "not tested"},
+            discovery: {status: "unsupported"},
+            fetched_at: "2026-08-12T10:00:00Z",
         })
 
         const result = await probeProvider({projectId: "p", kind: "minimax", provider: {key: "k"}})
@@ -773,10 +801,237 @@ describe("probeProvider", () => {
     })
 
     it("returns null rather than a half-read answer when the payload does not fit", async () => {
-        axiosPost.mockResolvedValueOnce({data: {credential: {status: "maybe"}}})
+        fernProbeProvider.mockResolvedValueOnce({credential: {status: "maybe"}})
 
         const result = await probeProvider({projectId: "p", kind: "openai", provider: {key: "k"}})
 
         expect(result).toBeNull()
+    })
+})
+
+describe("write-only records", () => {
+    const writeOnlyRow = {
+        id: "sec-1",
+        type: SecretKind.ProviderKey,
+        title: "openai",
+        name: "OPENAI_API_KEY",
+        writeOnly: true,
+        hasKey: true,
+        keyPreview: "sk-****9Qa",
+    }
+
+    it("reports a stored credential from `hasKey`, with no value to read", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(connected.hasStoredCredential).toBe(true)
+        expect(connected.keyPreview).toBe("sk-****9Qa")
+        expect(credentialValuesFor(connected).apiKey).toBe("")
+    })
+
+    it("falls back to the value itself for a readable record", () => {
+        const [readable] = toProviderConnections([
+            {id: "sec-2", type: SecretKind.ProviderKey, title: "openai", key: "sk-live"},
+        ])
+
+        expect(readable.hasStoredCredential).toBe(true)
+    })
+
+    it("calls a record with neither value nor `hasKey` unconfigured", () => {
+        const [empty] = toProviderConnections([
+            {id: "sec-3", type: SecretKind.ProviderKey, title: "openai"},
+        ])
+
+        expect(empty.hasStoredCredential).toBe(false)
+    })
+
+    it("carries the managed marker through, so a surface can choose not to list the row", () => {
+        const [managed] = toProviderConnections([
+            {...writeOnlyRow, managementPolicy: SecretManagementPolicy.ManagerOnly},
+        ])
+
+        expect(managed.managementPolicy).toBe(SecretManagementPolicy.ManagerOnly)
+    })
+
+    it("shows the server's preview as the credential summary", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(credentialSummary(connected)).toBe("sk-****9Qa")
+    })
+
+    it("says a value exists when the record has one but no preview to show", () => {
+        const [connected] = toProviderConnections([{...writeOnlyRow, keyPreview: undefined}])
+
+        expect(credentialSummary(connected)).toBe("Key configured")
+    })
+
+    it("exempts only the SECRET fields of a record that holds a credential", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(storedCredentialFields(connected)).toContain("apiKey")
+        expect(storedCredentialFields(connected)).not.toContain("apiBaseUrl")
+        expect(storedCredentialFields(connection())).toEqual([])
+    })
+
+    it("lets an untouched card save: the stored key counts as filled", () => {
+        const [connected] = toProviderConnections([writeOnlyRow])
+
+        expect(hasRequiredCredential("openai", {apiKey: ""})).toBe(false)
+        expect(
+            hasRequiredCredential("openai", {apiKey: ""}, storedCredentialFields(connected)),
+        ).toBe(true)
+    })
+
+    it("omits the key entirely when nothing was typed, rather than blanking the stored one", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: "  "}},
+            "OpenAI",
+        )
+
+        expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({})
+    })
+
+    it("still sends a key the user did type", () => {
+        const payload = buildConnectionPayload(
+            {kind: "openai", name: "", credential: {apiKey: " sk-new "}},
+            "OpenAI",
+        )
+
+        expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({
+            key: "sk-new",
+        })
+    })
+})
+
+describe("Test on a write-only connection: the enable rule and the request shape", () => {
+    // A write-only record hands its secret back to nobody, so the card's key box is empty on every
+    // edit. Test used to demand typed material and was therefore unreachable for exactly the
+    // connections most likely to need a model refresh.
+    const stored = (overrides: Partial<ProviderConnection> = {}): ProviderConnection =>
+        connection({id: "sec-1", hasStoredCredential: true, ...overrides})
+
+    describe("the enable rule", () => {
+        it("enables Test on a stored credential alone, with nothing typed", () => {
+            const fields = storedCredentialFields(stored())
+
+            expect(hasRequiredCredential("openai", {apiKey: ""}, fields)).toBe(true)
+        })
+
+        it("still refuses an empty form on a connection with nothing stored", () => {
+            expect(
+                hasRequiredCredential("openai", {apiKey: ""}, storedCredentialFields(connection())),
+            ).toBe(false)
+        })
+
+        it("keeps enabling a custom endpoint on its base URL alone", () => {
+            // Confirmed against the backend, not assumed: `OpenAICompatibleAdapter` adds the
+            // Authorization header only `if key`, answers `credential: unknown` +
+            // `discovery: fetched` for a keyless 200, and has a test pinning exactly that. An open
+            // OpenAI-compatible server is a real deployment, so its URL stays sufficient.
+            expect(
+                hasRequiredCredential("custom", {apiBaseUrl: "https://llm.example.com/v1"}),
+            ).toBe(true)
+            expect(hasRequiredCredential("custom", {apiBaseUrl: ""})).toBe(false)
+        })
+    })
+
+    describe("why a Test produced no verdict", () => {
+        // A probe OUTCOME is a 200 with a status inside, so anything that throws is the request
+        // failing — and "could not reach the provider" is false for everything the API rejects
+        // on its own.
+        const httpError = (status: number, detail?: string) => ({
+            response: {status, data: detail ? {detail} : undefined},
+        })
+        const fernError = (statusCode: number, detail?: string) => ({
+            statusCode,
+            body: detail ? {detail} : undefined,
+        })
+
+        it("says the connection is gone on a 404, not that the provider is unreachable", () => {
+            expect(probeFailureMessage(httpError(404), "OpenAI")).toContain("no longer exists")
+        })
+
+        it("speaks the server's own words for a 4xx that carried a message", () => {
+            expect(
+                probeFailureMessage(
+                    httpError(422, "Stored key is for another provider."),
+                    "OpenAI",
+                ),
+            ).toBe("Stored key is for another provider.")
+            expect(
+                probeFailureMessage(
+                    fernError(422, "Stored key is for another provider."),
+                    "OpenAI",
+                ),
+            ).toBe("Stored key is for another provider.")
+        })
+
+        it("recognizes Fern 404 errors as missing stored connections", () => {
+            expect(probeFailureMessage(fernError(404), "OpenAI")).toContain("no longer exists")
+        })
+
+        it("falls back to the reach-the-provider line for a transport failure or a 5xx", () => {
+            expect(probeFailureMessage(new Error("network down"), "OpenAI")).toBe(
+                "Agenta could not reach OpenAI to test this credential.",
+            )
+            expect(probeFailureMessage(httpError(500), "OpenAI")).toBe(
+                "Agenta could not reach OpenAI to test this credential.",
+            )
+        })
+    })
+
+    describe("the request shape", () => {
+        it("names the stored row instead of sending an empty credential", () => {
+            const request = probeRequestFor("openai", {apiKey: ""}, stored())
+
+            expect(request).toEqual({provider: {}, secret_id: "sec-1"})
+        })
+
+        it("sends typed non-secret fields alongside the stored row, for the server to override", () => {
+            const request = probeRequestFor(
+                "custom",
+                {apiKey: "", apiBaseUrl: "https://edited.example.com/v1"},
+                stored({kind: "custom"}),
+            )
+
+            expect(request).toEqual({
+                provider: {url: "https://edited.example.com/v1"},
+                secret_id: "sec-1",
+            })
+        })
+
+        it("omits `kind` whenever it names a row, so it cannot contradict the stored one", () => {
+            // The server rejects (422) a kind that disagrees with the stored one unless a key
+            // rides along — and this request deliberately carries none. The stored kind is
+            // authoritative, so the card's own canonical spelling is simply not sent.
+            expect(probeRequestFor("openai", {apiKey: ""}, stored())).not.toHaveProperty("kind")
+            // Without a row to name, the kind is the only thing that says what to probe.
+            expect(probeRequestFor("openai", {apiKey: "sk-typed"}, stored()).kind).toBe("openai")
+            expect(probeRequestFor("openai", {apiKey: ""}, connection()).kind).toBe("openai")
+        })
+
+        it("spends the typed credential and names no row once the user types one", () => {
+            const request = probeRequestFor("openai", {apiKey: "sk-typed"}, stored())
+
+            expect(request).toEqual({kind: "openai", provider: {key: "sk-typed"}})
+            expect(request.secret_id).toBeUndefined()
+        })
+
+        it("names no row when the connection holds nothing, or when there is no connection", () => {
+            expect(probeRequestFor("openai", {apiKey: ""}, connection()).secret_id).toBeUndefined()
+            expect(probeRequestFor("openai", {apiKey: ""}, null).secret_id).toBeUndefined()
+        })
+
+        it("drops blank extras rather than sending a stored-row probe with empty AWS fields", () => {
+            const request = probeRequestFor(
+                "bedrock",
+                {region: "eu-central-1", bearerToken: ""},
+                stored({kind: "bedrock"}),
+            )
+
+            expect(request).toEqual({
+                provider: {extras: {aws_region_name: "eu-central-1"}},
+                secret_id: "sec-1",
+            })
+        })
     })
 })

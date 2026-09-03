@@ -34,6 +34,12 @@ const canonicalHref =
     return new URL(path === "" ? "/" : path, Astro.site).toString();
   })();
 
+// Markdown twin of this page (src/pages/*.md.ts), advertised to agents. The 404
+// page has no twin — the worker builds that body itself.
+const canonicalPath = new URL(canonicalHref).pathname.replace(/\/$/, "");
+const markdownHref =
+  canonicalPath === "/404" ? null : `${canonicalPath || "/index"}.md`;
+
 // Share image: page-specific ogImage (resolved to an absolute URL) or the site
 // default. Both must be absolute for crawlers/social cards.
 const ogImageUrl = new URL(ogImage ?? "/og/default.png", Astro.site).toString();
@@ -97,6 +103,16 @@ const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalHref} />
+
+    <!-- Machine-readable affordances. `service-desc` (RFC 8631) points agents at
+         the API surface; `alternate` advertises the markdown twin of this page,
+         which the edge worker also serves via `Accept: text/markdown`. -->
+    <link rel="service-desc" type="application/json" href="/openapi.json" />
+    {
+      markdownHref && (
+        <link rel="alternate" type="text/markdown" href={markdownHref} />
+      )
+    }
 
     <!-- Favicons. SVG (adaptive, dark tile + brand mark) is preferred by modern
          browsers; .ico is the universal fallback; PNGs cover legacy + Apple. -->

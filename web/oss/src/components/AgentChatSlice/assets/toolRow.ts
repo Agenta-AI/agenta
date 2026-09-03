@@ -1,13 +1,14 @@
 /** What one tool row says, derived from the part alone. Pure and total; split out of
  * `components/ToolActivity.tsx` so it can be tested directly. */
-import type {ToolUIPart} from "ai"
-
-import type {ToolDisplay} from "./toolDisplay"
-import {stripFence} from "./toolFormat"
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
     DEFERRED_NOT_EXECUTED_PREFIX,
-} from "./transcriptToMessages"
+    stripFence,
+} from "@agenta/chat/assets"
+import {partSentence as sharedPartSentence} from "@agenta/chat/model"
+import type {ToolUIPart} from "ai"
+
+import type {ToolDisplay} from "./toolDisplay"
 
 // Finished = produced output, errored, or denied. Everything else is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
@@ -37,10 +38,8 @@ export const hasLanded = (part: ToolUIPart): boolean =>
 
 /** The row's sentence. A failure reads as one thought ("Testing the agent failed") rather than
  * claiming the action completed and contradicting it a few words later. */
-export const partSentence = (part: ToolUIPart, display: ToolDisplay): string => {
-    if (hasFailed(part)) return `${display.activity.running} failed`
-    return hasLanded(part) ? display.activity.done : display.activity.running
-}
+export const partSentence = (part: ToolUIPart, display: ToolDisplay): string =>
+    sharedPartSentence(part, display.activity)
 
 /** A cold replay can reach this with the call unsettled, so tense follows the part. */
 export const groupLabelText = (part: ToolUIPart, display: ToolDisplay): string =>
@@ -136,4 +135,18 @@ export const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | nu
     }
     if (part.state === "output-denied") return "denied"
     return null
+}
+
+/**
+ * What an answered gate says it was answered WITH.
+ *
+ * `approved` is asserted only when the part carries the verdict. A replay can settle a gate to
+ * `approval-responded` knowing only THAT it was answered — from a resumed turn, or a row with no
+ * stored verdict — and on a permission surface an unevidenced "approved" is the one wrong answer.
+ */
+export const approvalVerdictText = (part: ToolUIPart): string => {
+    const approved = (part as {approval?: {approved?: boolean}}).approval?.approved
+    if (approved === true) return "approved"
+    if (approved === false) return "denied"
+    return "responded"
 }

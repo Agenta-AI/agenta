@@ -29,8 +29,6 @@ The provider lists are the REAL harness facts, derived from
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
 - **Codex** reaches openai only, direct, through managed keys or subscription OAuth.
-- **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
-  ``pi_core``'s reach.
 
 The sibling ``docs/design/agent-workflows/projects/harness-capabilities/`` project owns the
 general capability-table mechanism; this module is the provider/model/auth contribution
@@ -151,14 +149,17 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
     ],
-    # ``anthropic/claude-opus-5`` belongs here too, but the pinned pi-ai catalog predates it;
-    # add it when the ``sync-model-catalog`` skill regenerates ``data/pi_models.generated.json``.
     "anthropic": [
         "anthropic/claude-fable-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
+    # New Gemini Flash releases can postdate the pinned pi-ai catalog, so their facts ride the
+    # curated ``additions`` list until a regeneration carries them.
     "gemini": [
+        "gemini/gemini-3.7-flash",
+        "gemini/gemini-3.6-flash",
         "gemini/gemini-3.5-flash",
         "gemini/gemini-3.1-pro-preview",
     ],
@@ -168,7 +169,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     ],
     "groq": [
         "groq/openai/gpt-oss-120b",
-        "groq/llama-3.1-8b-instant",
+        "groq/openai/gpt-oss-20b",
     ],
     "minimax": [
         "minimax/MiniMax-M3",
@@ -184,7 +185,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openrouter/deepseek/deepseek-v4-pro",
         "openrouter/openai/gpt-5.6-luna",
         "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3",
+        "openrouter/tencent/hy3-preview",
     ],
 }
 
@@ -192,11 +193,15 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 # A harness that selects by alias (Claude) names a TIER, not a model id, so a curated id has to
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
 # across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
-# harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, and opus has
-# no curated default until the catalog refresh adds ``claude-opus-5``.
+# harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, so it needs
+# no entry. Opus maps to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that
+# bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
+# alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
+# actually select, so any other spelling would be dropped instead of offered.
 MODEL_ID_ALIASES: Dict[str, str] = {
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
+    "anthropic/claude-opus-": "opus[1m]",
 }
 
 
@@ -385,15 +390,6 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         models=_pi_models(),
         model_catalog=_model_catalog("pi_core"),
     ),
-    "pi_agenta": HarnessConnectionCapabilities(
-        # See ``pi_core``: ``custom`` is UI-surface only; ``harness_allows_pair`` is authoritative.
-        providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
-        deployments=["direct", "custom"],
-        connection_modes=list(_ALL_MODES),
-        model_selection="provider/id",
-        models=_pi_models(),
-        model_catalog=_model_catalog("pi_agenta"),
-    ),
     "claude": HarnessConnectionCapabilities(
         providers=["anthropic"],
         deployments=["direct", "custom", "bedrock", "vertex_ai", "vertex"],
@@ -484,7 +480,7 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
     """Whether ``harness`` can CONSUME the resolved ``deployment`` in v1.
 
     A harness with no entry is unknown, so it gets no capability (closed). The cloud surfaces
-    are allowed only when the harness lists them as consumable. ``pi_core``/``pi_agenta`` list
+    are allowed only when the harness lists them as consumable. ``pi_core`` lists
     ``direct`` and ``custom`` (the OpenAI-compatible surface); Claude also lists
     ``bedrock``/``vertex_ai``.
     """
@@ -502,7 +498,6 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
 # absent here accepts no ``custom`` deployment.
 HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS: Dict[str, str] = {
     "pi_core": "openai",
-    "pi_agenta": "openai",
     "claude": "anthropic",
 }
 
@@ -520,8 +515,8 @@ def harness_allows_pair(harness: str, provider: str, deployment: str) -> bool:
 
     The allowed triples:
 
-    - ``pi_core``/``pi_agenta`` + ``openai`` + ``direct`` or ``custom`` -> allowed;
-    - ``pi_core``/``pi_agenta`` + any other family + ``custom`` -> rejected;
+    - ``pi_core`` + ``openai`` + ``direct`` or ``custom`` -> allowed;
+    - ``pi_core`` + any other family + ``custom`` -> rejected;
     - ``claude`` + ``anthropic`` + ``direct``/``custom``/``bedrock``/``vertex_ai`` -> allowed;
     - ``claude`` + ``openai`` + anything -> rejected (Claude reaches anthropic only);
     - unknown harness -> rejected.

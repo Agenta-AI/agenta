@@ -8,7 +8,7 @@ import {recordsPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {querySessionRecords} from "../api/api"

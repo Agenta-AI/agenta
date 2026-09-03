@@ -1,19 +1,19 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {filterTree} from "@agenta/observability"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {TraceRow} from "@agenta/observability-ui"
+import {CustomTreeComponent} from "@agenta/observability-ui/traceDrawer"
+import {TraceTreeSettings} from "@agenta/observability-ui/traceDrawer"
+import {TraceTreeSettingsState} from "@agenta/observability-ui/traceDrawer"
 import {MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
-import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
-import {filterTree} from "@/oss/components/pages/observability/assets/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
-import {TreeContent} from "../../../TraceDrawer/components/TraceTree"
-import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
-import {TraceTreeSettingsState} from "../../../TraceDrawer/components/TraceTreeSettings/types"
-import {openTraceDrawerAtom} from "../../../TraceDrawer/store/traceDrawerStore"
 import {useSessionDrawer} from "../../hooks/useSessionDrawer"
 
 import {SessionTreeProps} from "./assets/types"
@@ -99,7 +99,7 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
     const filteredTree = treeRoot
 
     const renderTraceLabel = useCallback(
-        (node: TraceSpanNode) => <TreeContent value={node} settings={traceTreeSettings} />,
+        (node: TraceSpanNode) => <TraceRow span={node} metrics={traceTreeSettings} />,
         [traceTreeSettings],
     )
 

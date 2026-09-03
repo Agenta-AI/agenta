@@ -11,6 +11,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    SpanType,
     TraceType,
 )
 
@@ -315,8 +316,24 @@ def cumulate_costs(
         if span.attributes is None:
             span.attributes = {}
 
+        incremental = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("costs", {})
+            .get("incremental", {})
+        )
+        has_reported_total = (
+            isinstance(incremental, dict)
+            and "total" in incremental
+            and "prompt" not in incremental
+            and "completion" not in incremental
+        )
+        if has_reported_total:
+            costs = _get_incremental(span)
+
         if (
-            costs.get("prompt", 0.0) != 0.0
+            has_reported_total
+            or costs.get("prompt", 0.0) != 0.0
             or costs.get("completion", 0.0) != 0.0
             or costs.get("total", 0.0) != 0.0
         ):
@@ -437,8 +454,25 @@ def cumulate_tokens(
         if span.attributes is None:
             span.attributes = {}
 
+        incremental = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("tokens", {})
+            .get("incremental", {})
+        )
+        has_workflow_total = (
+            span.span_type == SpanType.WORKFLOW
+            and isinstance(incremental, dict)
+            and "total" in incremental
+        )
+        if has_workflow_total:
+            # record_usage stamps the runner's whole-run total on the workflow
+            # root. Its child model spans describe the same usage, not more usage.
+            tokens = _get_incremental(span)
+
         if (
-            tokens.get("prompt", 0.0) != 0.0
+            has_workflow_total
+            or tokens.get("prompt", 0.0) != 0.0
             or tokens.get("completion", 0.0) != 0.0
             or tokens.get("total", 0.0) != 0.0
         ):
@@ -575,6 +609,13 @@ TYPES_WITH_COSTS = [
     "rerank",
 ]
 
+# Prompt tokens served from a provider's cache, which price at a much lower rate than fresh
+# input (a tenth of it, for some models). The ingest adapters disagree on the field name:
+# `logfire_adapter` writes `cache_read` (matching the `gen_ai.usage.cache_read.input_tokens`
+# the runner emits), while `vercelai_adapter` writes `cached` (from `ai.usage.cachedInputTokens`).
+# Read every alias, or the cost is right for one integration and overstated for the other.
+CACHE_READ_TOKEN_KEYS = ("cache_read", "cached")
+
 
 def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
     for span in span_idx.values():
@@ -588,27 +629,73 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                 "model"
             ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")
 
-            prompt_tokens = (
+            tokens: dict = (
                 attr.get("ag", {})
                 .get("metrics", {})
                 .get("tokens", {})
                 .get("incremental", {})
-                .get("prompt", 0.0)
             )
 
-            completion_tokens = (
+            incremental_costs = (
                 attr.get("ag", {})
                 .get("metrics", {})
-                .get("tokens", {})
+                .get("costs", {})
                 .get("incremental", {})
-                .get("completion", 0.0)
+            )
+            if (
+                isinstance(incremental_costs, dict)
+                and "total" in incremental_costs
+                and "prompt" not in incremental_costs
+                and "completion" not in incremental_costs
+            ):
+                continue
+
+            prompt_tokens = tokens.get("prompt", 0.0)
+
+            completion_tokens = tokens.get("completion", 0.0)
+
+            # Only a real positive number qualifies. Non-numeric or negative garbage from a
+            # foreign OTLP source must degrade to "no cache kwarg", not reach the int() below
+            # and turn into a swallowed exception that drops the span's ENTIRE cost.
+            cache_read_tokens = next(
+                (
+                    value
+                    for key in CACHE_READ_TOKEN_KEYS
+                    if isinstance((value := tokens.get(key)), (int, float))
+                    and not isinstance(value, bool)
+                    and value > 0
+                ),
+                0.0,
             )
 
             try:
+                # litellm's convention is that `prompt_tokens` INCLUDES the cached tokens and
+                # that it prices the cached slice separately (it normalizes Anthropic-style
+                # usage, where the input count excludes them, on the way in). So the cached
+                # count is passed ALONGSIDE the prompt total and must not be subtracted from
+                # it first -- doing that would understate cost instead of overstating it.
+                #
+                # Passed only when non-zero so a span with no caching calls exactly the
+                # signature it always did: the SDK pins `litellm>=1,<2`, and on a 1.x old
+                # enough to lack the parameter an unconditional kwarg would raise TypeError,
+                # which the `except` below would swallow into "no costs at all" for EVERY span.
+                #
+                # int(), and not incidentally: litellm reads the cached slice back off
+                # `Usage.prompt_tokens_details.cached_tokens`, and its `Usage` model only
+                # derives that wrapper from an int. Hand it the float this metric is stored
+                # as and `prompt_tokens_details` comes back None, so the cached tokens are
+                # billed at the full input rate again -- silently, with no error to catch.
+                cache_kwargs = (
+                    {"cache_read_input_tokens": int(cache_read_tokens)}
+                    if cache_read_tokens
+                    else {}
+                )
+
                 costs = cost_calculator.cost_per_token(
                     model=model,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
+                    **cache_kwargs,
                 )
 
                 if not costs:
@@ -646,6 +733,7 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                     model=model,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
+                    cache_read_tokens=cache_read_tokens,
                 )
 
 

@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {commandSessionStream} from "@agenta/entities/session"
+import {Button} from "@agenta/ui/ui"
 
 /**
  * Cooperative Stop for a running turn: the no-inputs/no-force stream command drops the
@@ -31,13 +32,13 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
     }
     return (
         <span className="flex items-center gap-2">
-            <button
-                type="button"
-                className="border-destructive text-destructive min-h-11 rounded border px-3 py-1 text-xs"
+            <Button
+                variant="destructive-outline"
+                className="min-h-11"
                 onClick={() => void onStop()}
             >
                 Stop
-            </button>
+            </Button>
             {state === "failed" ? (
                 <span className="text-destructive text-xs">Stop failed — try again.</span>
             ) : null}

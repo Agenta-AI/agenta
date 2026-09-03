@@ -1,13 +1,13 @@
-import type {RouteLayer} from "@/oss/state/appState"
-import type {PlaygroundAgentState} from "@/oss/state/workflow"
-
-import type {SidebarScope} from "../engine/types"
-
+import type {SidebarScope} from "@agenta/navigation"
 import {
     MAIN_SIDEBAR_SCOPE_ID,
     SETTINGS_SIDEBAR_SCOPE_ID,
     WORKFLOW_SIDEBAR_SCOPE_ID,
-} from "./constants"
+} from "@agenta/navigation"
+
+import type {RouteLayer} from "@/oss/state/appState"
+import type {PlaygroundAgentState} from "@/oss/state/workflow"
+
 import {mainSidebarScope} from "./mainScope"
 import {createSettingsSidebarScope} from "./settingsScope"
 import {createWorkflowSidebarScope} from "./workflowScope"
@@ -15,11 +15,10 @@ import {createWorkflowSidebarScope} from "./workflowScope"
 export interface SidebarViewMatchContext {
     pathname: string
     routeLayer: RouteLayer
-    /** Agent-ness of the routed app — "unknown" until its workflow type resolves. */
-    agentState: PlaygroundAgentState
-    /** Whether the type lookup has given its final answer, even if that answer is nothing. */
-    agentTypeSettled: boolean
-    /** The view on screen right now; held while `agentState` is unknown so the rail can't flash. */
+    /** Playground agent state — a workflow scope matches only once its type is known. */
+    agentState?: PlaygroundAgentState
+    agentTypeSettled?: boolean
+    /** The view showing now — lets a swap view keep matching itself. */
     currentViewId?: string
 }
 

@@ -18,7 +18,9 @@
     "exports": {
         ".": "./src/index.ts",
         "./state": "./src/state/index.ts",
-        "./row": "./src/row/index.ts"
+        "./row": "./src/row/index.ts",
+        "./link": "./src/link/index.ts",
+        "./watch": "./src/watch/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -26,7 +28,8 @@
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
-        "jotai": ">=2.0.0",
+        "jotai": ">=2.9.0",
+        "jotai-family": ">=0.1.0",
         "react": ">=18.0.0"
     },
     "devDependencies": {
@@ -35,6 +38,7 @@
         "@types/react": "^19.0.10",
         "@vitest/coverage-v8": "^4.1.4",
         "jotai": "^2.15.0",
+        "jotai-family": "^1.0.1",
         "react": "^19.0.0",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"

@@ -16,3 +16,4 @@ export {
     type SessionRowStatusMeta,
 } from "./sessionRowStatus"
 export {sessionRowVm, type SessionRowVm} from "./viewModel"
+export {sessionOpenTarget} from "./sessionOpenTarget"

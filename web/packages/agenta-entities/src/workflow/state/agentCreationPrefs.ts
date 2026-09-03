@@ -6,12 +6,15 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
+import {type AgentModelSelection} from "../../secret/core"
+
 export interface AgentCreationPrefs {
     version: 1
     harness?: string
     model?: string
     provider?: string
     connectionMode?: string
+    connectionSlug?: string
 }
 
 const DEFAULT_PREFS: AgentCreationPrefs = {version: 1}
@@ -22,6 +25,53 @@ export const agentCreationPrefsAtom = atomWithStorage<AgentCreationPrefs>(
     undefined,
     {getOnInit: true},
 )
+
+/** Read only a complete last-used route; partial legacy preferences are not guessed. */
+export function selectionFromAgentCreationPrefs(
+    prefs: AgentCreationPrefs,
+): AgentModelSelection | null {
+    if (!prefs.model || !prefs.harness) return null
+    const mode =
+        prefs.connectionMode === "self_managed"
+            ? "self_managed"
+            : prefs.connectionMode === "agenta"
+              ? "agenta"
+              : null
+    if (!mode) return null
+    if (mode === "agenta" && !prefs.connectionSlug) return null
+    if (mode === "self_managed" && !prefs.provider) return null
+    return {
+        modelId: prefs.model,
+        provider: prefs.provider ?? null,
+        mode,
+        slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        harness: prefs.harness,
+    }
+}
+
+/** Apply one resolved candidate without dropping unrelated harness or model settings. */
+export function applyAgentModelSelection(
+    agentConfig: Record<string, unknown>,
+    selection: AgentModelSelection,
+): Record<string, unknown> {
+    const harness = objectAt(agentConfig, "harness")
+    const llm = objectAt(agentConfig, "llm")
+    const nextLlm: Record<string, unknown> = {
+        ...llm,
+        model: selection.modelId,
+        connection: {
+            mode: selection.mode,
+            ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
+        },
+    }
+    if (selection.provider) nextLlm.provider = selection.provider
+    else delete nextLlm.provider
+    return {
+        ...agentConfig,
+        harness: {...harness, kind: selection.harness},
+        llm: nextLlm,
+    }
+}
 
 /**
  * Overlay saved prefs onto a fresh agent template's config (`parameters.agent`). Only sets fields
@@ -64,6 +114,14 @@ export function applyAgentCreationPrefs(
     }
 
     return next
+}
+
+/** The object at `key`, or `{}` when the config carries nothing usable there. */
+const objectAt = (config: Record<string, unknown>, key: string): Record<string, unknown> => {
+    const value = config[key]
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {}
 }
 
 /**
