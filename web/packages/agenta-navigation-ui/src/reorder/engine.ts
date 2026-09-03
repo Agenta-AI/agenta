@@ -1,18 +1,16 @@
 import {
+    autoscrollSpeed,
+    insertionIndex,
+    insertionOffset,
     moveSidebarManualOrderAtom,
+    reorderedIds,
     setSidebarManualOrderAtom,
     sidebarReorderActiveAtom,
+    type DragSlot,
     type SidebarDragItem,
 } from "@agenta/navigation"
 import {getDefaultStore} from "jotai"
 
-import {
-    autoscrollSpeed,
-    insertionIndex,
-    insertionOffset,
-    reorderedIds,
-    type DragSlot,
-} from "./geometry"
 import {createOverlay, type ReorderOverlay} from "./overlay"
 
 /**

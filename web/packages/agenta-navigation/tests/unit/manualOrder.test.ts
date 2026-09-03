@@ -1,0 +1,127 @@
+import {describe, expect, it} from "vitest"
+
+import {
+    applyManualOrder,
+    mergeManualOrder,
+    movedManualOrder,
+    withManualAgentRanks,
+} from "../../src/reorder/applyOrder"
+import {withRefsByRecency} from "../../src/dynamic/groups"
+import type {SidebarEntityRef, SidebarEntitySource} from "../../src/dynamic/types"
+
+const id = (row: {id: string}) => row.id
+const rows = (...ids: string[]) => ids.map((value) => ({id: value}))
+const ids = (list: {id: string}[]) => list.map((row) => row.id)
+
+describe("applyManualOrder", () => {
+    it("sorts arranged rows by their saved rank", () => {
+        expect(ids(applyManualOrder(rows("a", "b", "c"), id, ["c", "a", "b"], "trail"))).toEqual([
+            "c",
+            "a",
+            "b",
+        ])
+    })
+
+    it("leads with rows the arrangement has not seen", () => {
+        // A session you just started is the one you are about to use.
+        expect(ids(applyManualOrder(rows("new", "a", "b"), id, ["b", "a"], "lead"))).toEqual([
+            "new",
+            "b",
+            "a",
+        ])
+    })
+
+    it("trails rows the arrangement has not seen", () => {
+        // Arranging is how you promote an agent, so one you never placed must not displace it.
+        expect(ids(applyManualOrder(rows("new", "a", "b"), id, ["b", "a"], "trail"))).toEqual([
+            "b",
+            "a",
+            "new",
+        ])
+    })
+
+    it("keeps the natural order when nothing is arranged", () => {
+        expect(ids(applyManualOrder(rows("a", "b"), id, [], "lead"))).toEqual(["a", "b"])
+    })
+
+    it("keeps the natural order when the arrangement names none of these rows", () => {
+        expect(ids(applyManualOrder(rows("a", "b"), id, ["x", "y"], "trail"))).toEqual(["a", "b"])
+    })
+})
+
+describe("mergeManualOrder", () => {
+    it("keeps a hidden id's slot while the visible ids rearrange around it", () => {
+        // `b` is filtered out or past the row cap; it must not be dropped or moved.
+        expect(mergeManualOrder(["a", "b", "c"], ["c", "a"])).toEqual(["c", "b", "a"])
+    })
+
+    it("leaves a longer arrangement intact when a capped surface writes a shorter one", () => {
+        // The Agents group renders 5 rows; the agent headings render every agent with sessions.
+        // A visible-only write from the capped group would truncate the other seven.
+        const saved = ["a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12"]
+        const merged = mergeManualOrder(saved, ["a5", "a1", "a2", "a3", "a4"])
+        expect(merged).toHaveLength(12)
+        expect(merged.slice(0, 5)).toEqual(["a5", "a1", "a2", "a3", "a4"])
+        expect(merged.slice(5)).toEqual(saved.slice(5))
+    })
+
+    it("appends visible ids the arrangement has never seen", () => {
+        expect(mergeManualOrder(["a", "b"], ["b", "a", "c"])).toEqual(["b", "a", "c"])
+    })
+
+    it("takes the visible order when nothing is saved", () => {
+        expect(mergeManualOrder([], ["b", "a"])).toEqual(["b", "a"])
+    })
+
+    it("leaves the saved order alone when nothing is visible", () => {
+        expect(mergeManualOrder(["a", "b"], [])).toEqual(["a", "b"])
+    })
+})
+
+describe("withManualAgentRanks", () => {
+    const counts = new Map([
+        ["busy", 40],
+        ["quiet", 1],
+    ])
+
+    it("lifts an arranged agent above every session count", () => {
+        const ranks = withManualAgentRanks(counts, ["quiet"])
+        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
+    })
+
+    it("preserves the arranged order", () => {
+        const ranks = withManualAgentRanks(counts, ["quiet", "busy"])
+        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
+    })
+
+    it("hands back the same map when nothing is arranged", () => {
+        expect(withManualAgentRanks(counts, [])).toBe(counts)
+    })
+
+    it("puts arranged agents first through the real sorter", () => {
+        // Composition, not the helper alone: a sign error in the rank base only shows up here.
+        const source = {
+            status: "ready",
+            refs: [{id: "busy"}, {id: "quiet"}, {id: "unranked"}],
+        } as SidebarEntitySource
+        const ranks = withManualAgentRanks(counts, ["quiet"])
+        const sorted = withRefsByRecency(source, (ref: SidebarEntityRef) => ranks.get(ref.id))
+        expect(sorted.refs.map((ref) => ref.id)).toEqual(["quiet", "busy", "unranked"])
+    })
+})
+
+describe("movedManualOrder", () => {
+    it("swaps with the neighbour in that direction", () => {
+        expect(movedManualOrder(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"])
+        expect(movedManualOrder(["a", "b", "c"], "b", 1)).toEqual(["a", "c", "b"])
+    })
+
+    it("refuses a move off either end", () => {
+        expect(movedManualOrder(["a", "b"], "a", -1)).toBeNull()
+        expect(movedManualOrder(["a", "b"], "b", 1)).toBeNull()
+    })
+
+    it("refuses an id the zone does not hold", () => {
+        expect(movedManualOrder(["a", "b"], "z", 1)).toBeNull()
+    })
+})

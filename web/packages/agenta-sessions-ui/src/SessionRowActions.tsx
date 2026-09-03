@@ -72,6 +72,7 @@ const moveEntries = (reorder?: {canUp: boolean; canDown: boolean}): SessionMenuE
 const SessionRowActions = ({
     session,
     chrome,
+    reorder,
     children,
 }: {
     session: SessionRowTarget
