@@ -292,7 +292,6 @@ async def run_orphan_sweep(
     given, this pass is also the one writer that settles a Stop the runner never reported.
     """
     now_utc = datetime.now(timezone.utc)
-    await _repair_terminal_redis(commands_service)
     threshold = now_utc - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
     idle_threshold = now_utc - timedelta(seconds=IDLE_THRESHOLD_SECONDS)
     # coalesce, not a bare `updated_at`: a row never updated since creation has updated_at
@@ -365,6 +364,7 @@ async def run_orphan_sweep(
             # No stale row and nothing owed an ending, but a command can still be abandoned:
             # its execution may have ended normally between the claim and the report.
             await _settle_abandoned_commands(commands_service, now_utc)
+            await _repair_terminal_redis(commands_service)
             return
 
         # Durable ending FIRST. A crash after this point leaves the row a candidate for the
@@ -508,6 +508,7 @@ async def run_orphan_sweep(
         commands_settled = await _settle_abandoned_commands(
             commands_service, datetime.now(timezone.utc)
         )
+        await _repair_terminal_redis(commands_service)
 
         log.info(
             "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",

@@ -503,9 +503,9 @@ class SessionCommandsService:
     async def repair_terminal_redis(self) -> int:
         if self._executions is None:
             return 0
-        pending = await self._executions.list_redis_unreconciled(limit=200)
+        misses = await self._executions.list_redis_unreconciled(limit=200)
         repaired = 0
-        for execution in pending:
+        for execution in misses:
             await self._reconcile_stopped_redis(
                 project_id=execution.project_id,
                 session_id=execution.session_id,

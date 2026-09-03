@@ -1152,6 +1152,35 @@ async def test_next_sweep_repairs_a_post_commit_redis_failure(lock_engine, monke
     assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is not None
 
 
+@pytest.mark.asyncio
+async def test_successful_redis_projection_is_not_offered_for_repair(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        executions=executions,
+    )
+    admission = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+    )
+
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is not None
+    assert await svc.repair_terminal_redis() == 0
+
+
 def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
     return SessionCommand(
         id=uuid.uuid7(),
