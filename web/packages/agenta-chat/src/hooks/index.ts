@@ -1,5 +1,6 @@
 export * from "./useAgentChatQueue"
 export * from "./useComposerAttachments"
+export * from "./useComposerQuotes"
 export * from "./useAttachmentUploads"
 export * from "./useApprovalDock"
 export * from "./useConnectionDock"

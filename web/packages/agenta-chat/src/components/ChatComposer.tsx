@@ -9,6 +9,7 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import type {Quote} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
@@ -21,6 +22,7 @@ import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerQuotes from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
 
@@ -90,6 +92,9 @@ export interface ChatComposerProps {
      * surfaces that run before a session exists (onboarding, the home task composer) are untouched.
      */
     fileMentions?: boolean
+    /** Quote-to-reply: the spans staged for the next send, shown as chips above the input. */
+    quotes?: Quote[]
+    onRemoveQuote?: (id: string) => void
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -124,6 +129,8 @@ export const ChatComposer = ({
     headerExtra,
     slashCommands,
     fileMentions,
+    quotes,
+    onRemoveQuote,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -207,13 +214,15 @@ export const ChatComposer = ({
                 submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
-                    (waitingOnUser
+                    (quotes && quotes.length > 0
+                        ? "What should change about the quoted part?"
+                        : waitingOnUser
                         ? // The parked interaction is docked directly above, so point at it rather
                           // than describing the wait in the abstract.
                           "Answer above, or type to queue a message"
                         : hasKeyboard
-                          ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                          : "Ask the agent…")
+                            ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                            : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -222,7 +231,8 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0}
+                // A quote carries a reply on its own, so it can be sent with no text at all.
+                sendForceEnabled={files.length > 0 || (quotes?.length ?? 0) > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
@@ -262,6 +272,13 @@ export const ChatComposer = ({
                 header={
                     <>
                         {headerExtra}
+                        <HeightCollapse open={(quotes?.length ?? 0) > 0}>
+                            <ComposerQuotes
+                                quotes={quotes ?? []}
+                                onRemove={onRemoveQuote ?? (() => {})}
+                                touch={!hasKeyboard}
+                            />
+                        </HeightCollapse>
                         <HeightCollapse open={files.length > 0}>
                             <ComposerAttachments
                                 files={files}
