@@ -359,7 +359,20 @@ async def run_orphan_sweep(
         # Durable ending FIRST. A crash after this point leaves the row a candidate for the
         # next pass, which re-reads the record it just wrote and does not write a second.
         now = datetime.now(timezone.utc)
+        terminal_winners: Set[Tuple[UUID, str, str]] = set()
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
+            if (
+                env.agenta.sessions.durable_stop
+                and commands_service is not None
+                and not await commands_service.settle_execution_lost(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=turn_id,
+                    settled_at=now,
+                )
+            ):
+                continue
+            terminal_winners.add((project_id, session_id, turn_id))
             for record_event in _lost_turn_records(
                 project_id=project_id,
                 session_id=session_id,
@@ -376,6 +389,8 @@ async def run_orphan_sweep(
                         turn_id=turn_id,
                         exc_info=True,
                     )
+
+        unsettled = terminal_winners
 
         # A stopped row whose turn was just given its ending is NOT collapsed, but the dead
         # turn may still hold the session's `alive` lock: settlement leaves `alive` to its

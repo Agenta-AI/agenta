@@ -30,6 +30,10 @@ from oss.src.core.sessions.commands.dtos import (
 from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
+from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionSettlement,
+    SessionExecutionSettlementResult,
+)
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamFlags
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
@@ -230,6 +234,37 @@ class _RecordingDelivery:
         return None
 
 
+class _FakeExecutionsDAO:
+    def __init__(self) -> None:
+        self.rows: Dict[tuple[str, str], SessionExecutionSettlement] = {}
+
+    async def settle(
+        self,
+        *,
+        project_id,
+        session_id,
+        execution_id,
+        terminal_outcome,
+        settled_by,
+        settled_at=None,
+    ):
+        key = (session_id, execution_id)
+        if key in self.rows:
+            return SessionExecutionSettlementResult(
+                settlement=self.rows[key], won=False
+            )
+        row = SessionExecutionSettlement(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome=terminal_outcome,
+            settled_by=settled_by,
+            settled_at=settled_at or datetime.now(timezone.utc),
+        )
+        self.rows[key] = row
+        return SessionExecutionSettlementResult(settlement=row, won=True)
+
+
 def _stream(
     turn_id: Optional[str], turn_started_at: Optional[datetime]
 ) -> SessionStream:
@@ -253,7 +288,15 @@ async def lock_engine():
         yield eng
 
 
-def _service(lock_engine, *, dao=None, streams=None, interactions=None, delivery=None):
+def _service(
+    lock_engine,
+    *,
+    dao=None,
+    streams=None,
+    interactions=None,
+    delivery=None,
+    executions=None,
+):
     streams = streams or _FakeStreamsService()
     # The fake mirrors from Redis, so it reads the same engine the service writes through.
     if streams.lock_engine is None:
@@ -264,6 +307,7 @@ def _service(lock_engine, *, dao=None, streams=None, interactions=None, delivery
         interactions_service=interactions or _FakeInteractionsService(),
         lock_engine=lock_engine,
         delivery=delivery or _RecordingDelivery(),
+        executions_dao=executions,
     )
 
 
@@ -917,6 +961,58 @@ async def test_a_second_outcome_report_changes_nothing(lock_engine):
         )
 
     assert interactions.cancelled == ["turn-A"], "the side effects run exactly once"
+
+
+@pytest.mark.asyncio
+async def test_runner_outcome_settles_the_execution_authority(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        executions=executions,
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    winner = executions.rows[(_SESSION, "turn-A")]
+    assert winner.terminal_outcome == "stopped"
+    assert winner.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_watchdog_cannot_replace_the_runners_terminal_outcome(lock_engine):
+    executions = _FakeExecutionsDAO()
+    svc = _service(lock_engine, executions=executions)
+    first = await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    assert first.won is True
+
+    won = await svc.settle_execution_lost(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert won is False
+    assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "stopped"
 
 
 def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
