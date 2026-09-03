@@ -64,6 +64,11 @@ export const getMessageRunErrorCode = (message: UIMessage): string | undefined =
     return typeof partCode === "string" && partCode.trim() ? partCode : undefined
 }
 
+/** A request that never reached Agenta: retryable as-is, and it carries no failure code. */
+export const isMessageRunErrorTransport = (message: UIMessage): boolean =>
+    (message.metadata as {runError?: {transport?: unknown}} | undefined)?.runError?.transport ===
+    true
+
 /** Token/cost fields in `ExecutionMetricsDisplay`'s shape. */
 export interface MessageUsageMetrics {
     promptTokens?: number
