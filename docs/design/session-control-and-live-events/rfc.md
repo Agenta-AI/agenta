@@ -362,9 +362,10 @@ signal. If direct delivery fails, the durable pending command remains available 
 ### Runner behavior
 
 The runner stops starting model and tool work, interrupts the active operation where supported,
-settles partial output honestly, preserves the native harness session, and parks the sandbox. It
-then reports the stopped outcome, clears owner-checked `running`, and applies the reviewed
-post-Stop `alive` rule.
+and settles partial output honestly. It parks the sandbox only after the harness prompt and every
+in-flight tool child process have stopped. If the harness cannot prove this state, the runner
+destroys or isolates the sandbox instead of claiming warm resume. It then reports the stopped
+outcome, clears owner-checked `running`, and applies the reviewed post-Stop `alive` rule.
 
 ### Missing runner
 
@@ -376,7 +377,9 @@ settlement timeout depends on the sandbox cancellation spike.
 
 Implementation must not claim warm Stop support until a spike proves Stop followed by resume in the
 same sandbox and native harness session. The spike must cover model calls, active tools, partial
-messages, Pi, Claude Code, sandbox-agent changes, and Daytona snapshot impact.
+messages, Pi, Claude Code, sandbox-agent changes, and Daytona snapshot impact. Local Pi and Codex
+prompt continuation passed, but Codex left an in-flight shell child running. Codex warm parking
+therefore remains unsupported until child-process termination is proven.
 
 ## Queue and Steer
 
