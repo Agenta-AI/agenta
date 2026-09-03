@@ -32,7 +32,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.commands.dtos import (
@@ -130,16 +130,23 @@ class SessionCommandsService:
             session_id=session_id,
         )
 
-        if expected_execution_id is not None:
-            running = await get_running_owner(
-                self._lock, project_id=str(project_id), session_id=session_id
+        if (
+            expected_execution_id is not None
+            and target_turn_id != expected_execution_id
+        ):
+            # Compared against the TARGET, which is `running` with a fallback to `alive`, and
+            # never against `running` alone. An execution parked on an approval has released
+            # `running` and still holds `alive` under the same turn id, and it is exactly the
+            # execution the user is looking at when they press Stop on the approval card. The
+            # browser always sends the id it streamed, so comparing against `running` alone
+            # refused every named Stop on a parked approval while the same Stop without an
+            # expectation was accepted — the guard fired on the one case it exists to allow.
+            #
+            # Nothing is inserted and nothing is delivered. The caller was looking at a run
+            # that has already ended, and its next read tells it so.
+            raise ExecutionExpectationFailed(
+                expected=expected_execution_id, current=target_turn_id
             )
-            if running != expected_execution_id:
-                # Nothing is inserted and nothing is delivered. The caller was looking at a run
-                # that has already ended, and its next read tells it so.
-                raise ExecutionExpectationFailed(
-                    expected=expected_execution_id, current=running
-                )
 
         if target_turn_id is None:
             # Nothing is running and nothing is parked. Record the intent so a retry with the
@@ -355,7 +362,7 @@ class SessionCommandsService:
             command_id=command.id,
             project_id=command.project_id,
             replica_id=None,
-            expected_state=SessionCommandState.pending,
+            expected_states=[SessionCommandState.pending],
             state=SessionCommandState.obsolete,
             outcome=outcome,
             execution_id=command.target_turn_id,
@@ -414,7 +421,16 @@ class SessionCommandsService:
             command_id=command_id,
             project_id=command.project_id,
             replica_id=replica_id,
-            expected_state=SessionCommandState.claimed,
+            # Both, and checked at the moment of the write. Admission inserts `pending`,
+            # delivers, and only then writes `claimed` on the runner's behalf, so a runner that
+            # aborts fast reports its outcome while the row is still `pending`. Guarding on
+            # `claimed` alone refused that report with a conflict and left a correctly stopped
+            # execution sitting `claimed` until the sweep called it lost — the user watching
+            # "stopping" for the whole sweep window, and a Stop that worked recorded as lost.
+            expected_states=[
+                SessionCommandState.pending,
+                SessionCommandState.claimed,
+            ],
             state=state,
             outcome=outcome,
             execution_id=execution_id or command.target_turn_id,
@@ -433,7 +449,7 @@ class SessionCommandsService:
         command_id: UUID,
         project_id: UUID,
         replica_id: Optional[str],
-        expected_state: SessionCommandState,
+        expected_states: List[SessionCommandState],
         state: SessionCommandState,
         outcome: SessionCommandOutcome,
         execution_id: Optional[str],
@@ -449,7 +465,7 @@ class SessionCommandsService:
                 command_id=command_id,
                 state=state,
                 outcome=outcome,
-                expected_state=expected_state,
+                expected_states=expected_states,
                 replica_id=replica_id,
             )
         )

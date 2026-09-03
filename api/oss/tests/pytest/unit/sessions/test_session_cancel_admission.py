@@ -118,9 +118,12 @@ class _FakeCommandsDAO:
 
     async def settle_command(self, *, settle):
         for index, row in enumerate(self.rows):
-            if row.id == settle.command_id and row.state == settle.expected_state:
+            if row.id == settle.command_id and row.state in settle.expected_states:
+                # Mirrors the real guard: a `pending` row holds no claim, so a null
+                # `claimed_by` passes; a claimed row must be claimed by the reporter.
                 if (
                     settle.replica_id is not None
+                    and row.claimed_by is not None
                     and row.claimed_by != settle.replica_id
                 ):
                     return None
@@ -445,6 +448,78 @@ async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine
 
 
 @pytest.mark.asyncio
+async def test_a_named_stop_reaches_a_parked_approval(lock_engine):
+    """The Stop the browser actually sends, on the session state Stop exists to reach.
+
+    A parked approval has released `running` and still holds `alive` under the same turn id.
+    The browser always sends `expected_execution_id`, because it knows the id it streamed. If
+    the expectation is compared against `running` alone it is None here, so the named Stop is
+    refused with a conflict while the identical Stop without an expectation is accepted — the
+    guard firing on the one case it exists to allow, and the gate left pending.
+    """
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-parked",
+    )
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(_stream("turn-parked", None)),
+        delivery=delivery,
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        expected_execution_id="turn-parked",
+    )
+
+    assert admission.accepted is True
+    assert admission.execution_id == "turn-parked"
+    assert len(delivery.delivered) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_named_stop_on_a_parked_session_still_refuses_a_different_turn(
+    lock_engine,
+):
+    """The guard must keep working on the fallback, not merely stop firing.
+
+    A user looking at a turn that finished, on a session now parked under a NEWER turn, must
+    still be refused: the id they named is not the one that would be stopped.
+    """
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-new",
+    )
+    dao = _FakeCommandsDAO()
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-new", None)),
+        delivery=delivery,
+    )
+
+    with pytest.raises(ExecutionExpectationFailed) as excinfo:
+        await svc.request_cancel(
+            project_id=_PROJECT,
+            user_id=_USER,
+            session_id=_SESSION,
+            expected_execution_id="turn-old",
+        )
+
+    assert excinfo.value.current == "turn-new"
+    assert dao.rows == []
+    assert delivery.delivered == []
+
+
+@pytest.mark.asyncio
 async def test_two_stops_in_a_row_collapse_onto_one_command(lock_engine):
     await _run_turn(lock_engine, "turn-A")
     dao = _FakeCommandsDAO()
@@ -648,6 +723,104 @@ async def test_a_settlement_that_stops_nothing_does_not_touch_the_row(lock_engin
     assert admission.accepted is False
     assert dao.rows[0].outcome == SessionCommandOutcome.not_running
     assert streams.mirrored == []
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_that_beats_the_claim_still_settles(lock_engine):
+    """The race the runner wins on a fast abort, driven at the exact instant it happens.
+
+    Admission inserts the command `pending`, hands it to the runner, and writes `claimed` only
+    after the runner answers. A runner that aborts inside that window reports its outcome while
+    the row still says `pending`. Guarded on `claimed` alone that report was refused with a
+    conflict, the command sat open, and the sweep later recorded a Stop that actually worked as
+    lost — with the user watching "stopping" for the whole sweep window.
+
+    The delivery double below reports from inside `deliver`, which is precisely where the real
+    runner's report lands relative to the claim.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    holder: Dict[str, SessionCommandsService] = {}
+
+    class _ReportsBeforeTheClaimCommits:
+        def __init__(self) -> None:
+            self.delivered: List[SessionCommand] = []
+            self.state_at_report: Optional[SessionCommandState] = None
+
+        async def deliver(self, *, command):
+            self.delivered.append(command)
+            # The window. Nothing has written `claimed` yet, and the runner is already done.
+            self.state_at_report = dao.rows[0].state
+            await holder["svc"].report_outcome(
+                command_id=command.id,
+                replica_id="runner-1",
+                result="applied",
+                execution_id="turn-A",
+                execution_state="stopped",
+            )
+            return DeliveryReceipt(status="accepted", replica_id="runner-1")
+
+        async def acknowledge(self, *, command_id, replica_id):
+            return None
+
+    delivery = _ReportsBeforeTheClaimCommits()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=5))
+        ),
+        delivery=delivery,
+    )
+    holder["svc"] = svc
+
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert delivery.state_at_report == SessionCommandState.pending, (
+        "the test is only meaningful if the report really did beat the claim"
+    )
+    assert dao.rows[0].state == SessionCommandState.applied
+    assert dao.rows[0].outcome == SessionCommandOutcome.stopped
+    # And the claim that arrives afterwards must not resurrect a settled command.
+    assert dao.rows[0].state == SessionCommandState.applied
+
+
+@pytest.mark.asyncio
+async def test_an_outcome_from_a_replica_that_does_not_hold_the_claim_is_refused(
+    lock_engine,
+):
+    """Widening the guard to `pending` must not weaken it for a row that IS claimed.
+
+    A claimed row names its holder, and only that holder may write the outcome. The null
+    `claimed_by` this change now admits exists solely for the unclaimed row.
+    """
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=5))
+        ),
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    assert dao.rows[0].state == SessionCommandState.claimed
+
+    from oss.src.core.sessions.commands.types import SessionCommandNotClaimable
+
+    with pytest.raises(SessionCommandNotClaimable):
+        await svc.report_outcome(
+            command_id=admission.command.id,
+            replica_id="a-different-replica",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.claimed
 
 
 @pytest.mark.asyncio
