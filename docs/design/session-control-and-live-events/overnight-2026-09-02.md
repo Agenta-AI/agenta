@@ -1,0 +1,187 @@
+# Overnight protocol, 2026-09-02 to 2026-09-03
+
+> AGENT-GENERATED. This is the log of what an unattended agent session did overnight on the
+> session-control RFC. Mahmoud reviews it in the morning and reverts anything he does not want.
+> Every change sits on its own branch. Nothing was merged. Nothing was pushed to `main` or to a
+> release branch.
+
+## How to read this file
+
+1. "What you asked for" restates the task in one paragraph.
+2. "Where everything is" lists every branch, worktree, stack, and file, so you can revert one
+   piece without touching the others.
+3. "Timeline" records each step in order, with the time and the outcome.
+4. "Results" summarizes each work package: what was found, what was built, what was verified
+   live, and what was not done.
+5. "Decisions I made for you" lists every judgment call, with the reason, so you can overturn
+   it.
+6. "Morning checklist" is the shortest path to a review.
+
+## What you asked for
+
+Read the RFC on `agent/session-execution-rfc`, review it with subagents and write the review,
+run the plan-feature process, split the work into independent parts, start the spikes with
+Opus subagents, read the earlier research from today, focus on the open issues, and record
+everything so the morning review can correct or revert. The RFC is the agreed direction; the
+"Fixed direction" list in `tonight-handoff.md` was treated as settled.
+
+## Where everything is
+
+| Item | Location | Base | Purpose |
+|---|---|---|---|
+| RFC branch (unchanged) | `agent/session-execution-rfc` at `f4a6834ba6` | `main` at `33b442f41e` | The agreed RFC. Not modified tonight. |
+| Overnight docs branch | `agent/session-execution-overnight`, worktree `~/code/agenta-2-worktrees/session-overnight` | RFC tip | Reviews, plan updates, this protocol. Docs only. |
+| Spike A branch | `spike/session-cancel-warm`, worktree `~/code/agenta-2-worktrees/spike-a-cancel` | RFC tip | Sandbox cancel that keeps the sandbox warm. Runner code plus a doc. |
+| Spike B branch | `spike/session-durable-commands-design`, worktree `~/code/agenta-2-worktrees/spike-b-commands` | RFC tip | Durable command and long-poll design. Docs only. |
+| Spike C branch | `spike/session-stop-map`, worktree `~/code/agenta-2-worktrees/spike-c-stop-map` | RFC tip | Map of the current Stop path. Docs only. |
+| Spike D branch | `spike/session-record-id-semantics`, worktree `~/code/agenta-2-worktrees/spike-d-record-ids` | RFC tip | Stable record-id inventory plus characterization tests. |
+| Shared agent brief | `/tmp/claude-1000/-home-mahmoud-code-agenta-2/7c724667-82cd-41a6-ba0b-e47bc96b4f67/scratchpad/COMMON-BRIEF.md` | | The rules every subagent received. |
+| Live test stack (if Spike A got that far) | project `agenta-ee-dev-session-spike`, port 8580, Postgres 5440 | Spike A worktree | Teardown: `cd ~/code/agenta-2-worktrees/spike-a-cancel && bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.spike --down --nuke` |
+
+The main workspace `/home/mahmoud/code/agenta-2` was not edited. The toolkit stack on port
+8780 and the team stack on port 8290 were not touched.
+
+## Timeline
+
+| Time (Europe/Berlin) | Step | Outcome |
+|---|---|---|
+| 22:05 | Read the RFC folder (ten files), the research brief from this morning, and the evidence folder. | Done. |
+| 22:20 | Created five worktrees from the RFC tip. | Done. |
+| 22:25 | Started six Opus subagents in parallel: two reviewers and four spikes. | Running. |
+| 22:33 | Product and scope review returned. Filed as `review-product-2026-09-02.md`. | All 48 listed issues are open. Version one as written in the handoff closes one issue fully and eight partly. The double send needs no new table. The park rule change is missing from the version-one steps. |
+| 22:36 | Started two implementation slices in their own worktrees, because they do not depend on the spikes and touch different files: single-turn admission (branch `feat/session-single-turn-admission`, stack port 8680) and the execution watchdog (branch `feat/session-execution-watchdog`, stack port 8880). | Running. |
+| 22:40 | Architecture review returned. Filed as `review-architecture-2026-09-02.md`. | Verdict: not ready as written. Four blocking holes: Stop destroys the sandbox (park rule), Stop cannot reach a parked approval (heartbeat stops), a late Stop kills the next turn (no stale guard), and a claimed command has no settlement owner when the runner dies. Both reviews agree on the park rule and the watchdog. |
+| 22:42 | Sent the holes to the running spike agents: Spike B gets the command-loop lifetime, duplicate delivery, and settlement rules; Spike A gets the abort-versus-Stop distinction and the parked window question; the watchdog slice gets the note that the Redis lease TTL is 3600 s, so it must key off heartbeat age. | Sent. |
+| 22:43 | Started a third slice, the Stop guard (branch `feat/session-stop-guard`, stack port 8980): the desktop sends the turn id it expects on Stop, the API refuses to supersede a turn that started after the Stop was created, and Stop cancels pending interactions. | Running. |
+| 22:44 | Spike B returned: the durable command and long-poll design, committed as `25e4dfe9c5` on `spike/session-durable-commands-design` (`spike-b-durable-commands-design.md`, `api-design.md`). | Covers the table, the state machine with SQL guards, a 60 s claim lease with three deliveries, the long-poll routes on the shared runner token, the heartbeat fallback, Stop in six cases including a parked approval and a dead runner, the port in Python and TypeScript, seven PRs in order. One deliberate deviation: Stop leaves the Redis `alive` key to its own TTL, as a normal turn end does. Sent back for two amendments: a direct-call adapter section and the stale-Stop time guard. |
+| 22:45 | Spike D returned: three commits on `spike/session-record-id-semantics` (`b9b6594dea` comment fixes, `ad0c06263f` tests, `90ff86a1a0` the doc `spike-d-stable-record-ids.md`). | Immutable inserts break exactly one case: a tool call written before its arguments arrive, then repaired by a later snapshot. That is a producer bug in the runner's one-open-tool-slot design, and the same upsert also moves the row's timestamp and re-sorts the transcript today. Resume re-emission never collides because the turn id is in the key. The drop-counter defect is confirmed and pinned by a test, not fixed (the fix is not obviously safe). Two new defects: the records worker acknowledges Redis before the Postgres write, and EE record retention raises on a missing attribute, so records were never aged out. Recommendation: option A, repair records, producer fix first. Tests: 9 new runner tests pass; 4 pre-existing runner failures in `gateway-run-turn-composition.test.ts`. |
+| 22:48 | Spike C returned: the current Stop map, commit `1099df4ba3` on `spike/session-stop-map` (`spike-c-current-stop-map.md`). | Eight verified facts. The abort sends no cancel to the harness for Claude Code or Codex, only Pi. The terminal record drops `stopReason`, so a stopped turn looks completed in Postgres. Cancel leaves approvals pending forever. The desktop never learns whether Stop was accepted. Mobile Stop on the user's own turn never calls the server. The orphan sweep cannot clear a wedged turn because the heartbeat refreshes `updated_at`. The concurrency limit gates Stop. Forwarded the relevant facts to Spike A, the watchdog slice, and the Stop guard slice. |
+| 22:52 | Spike B revision returned, commit `7603ada30e`. | The claim loop is session-scoped and covers parked approvals. Three guards against a late Stop. Settlement keys off heartbeat age with a 90 s lease. Section 9 adds the direct-call adapter: runner `POST /cancel` beside `/kill`, about 70 lines on both sides, one environment variable to switch. Spike B recommends `direct` as the default for version one, which defers the long-poll PR. Both reviewers and Spike B now agree on that. |
+| 22:55 | Spike A returned: two commits on `spike/session-cancel-warm` (`11af505e3e` runner change and test, `7d438802f6` the doc `spike-a-sandbox-cancel.md`). Stack `agenta-ee-dev-session-spike` on port 8580. | Warm cancel works. The guard is client-side only, so the pnpm patch (eight lines, `cancelSession`) is enough and Daytona needs no new snapshot. Live on the local provider: Pi cancel settled in 14 ms and the next turn resumed in the same sandbox in 2.3 s and recalled turn one; Codex settled in 22 ms, resumed in 12.2 s. Negative control with a 1 ms budget destroyed as before. Only a settled cancel parks. Claude Code and Daytona untested (no Anthropic key on the stack). Open issue: a cancelled turn still drops its continuity record, so warm resume only works while the environment stays in the process pool. Runner tests: 2642 pass. Sent three follow-ups: keep `cancelled` in the terminal record, a named park-window constant, a per-harness table. |
+| 22:58 | Started package F, the durable Stop command with the direct-call adapter, on branch `feat/session-durable-cancel` stacked on Spike A's tip, worktree `slice-durable-cancel`, stack port 9180 (or 8580 if memory is short). | Running. |
+| 22:57 | Spike B second revision, commit `86281fa313`. | Section 9 is now the direct-call adapter as the alternative first adapter, with the rule "insert and commit the command first, then call". A cheaper mis-route detector: a runner `not_held` answer for a session whose heartbeat is younger than one interval is the wrong-replica failure; settle `lost`, not `not_running`. No turn start time exists today; the design adds `session_streams.turn_started_at`. Told package F to build from this commit and to own the column; told the Stop guard slice not to add it. |
+| 23:07 | Records durability slice returned: two commits on `fix/records-worker-ack-after-commit`. No stack; verified against a throwaway Redis container with the real worker loop. | The worker now acknowledges only committed ids, rewrites a failed batch one record at a time, and gains an opt-in reclaim pass in the shared consumer (off for the tracing and events workers). A third defect found: the consumer only ever reads new entries, so an unacknowledged entry was invisible forever without a reclaim pass. A guard keeps a database outage from being mistaken for poison records: the drop after five deliveries applies only while other records commit. The enterprise retention fix is its own commit. API unit suite: 3248 pass, 74 skipped. Live: five records published during a 20 s outage all landed after recovery, no duplicates, empty stream. |
+| 23:08 | Box memory check: swap full at 31 GB, 21 GB RAM available, load 25 on 20 cores, three session stacks up. Told package F to tear down Spike A's stack and reuse port 8580 instead of adding a fifth stack. | Done. |
+| 23:10 | Spike A follow-ups returned: commits `96012e8d8e` (code) and `df33b49765` (doc) on `spike/session-cancel-warm`. Runner tests: 2647 pass. | The abort now carries an explicit user-stop label (`stop-signal.ts`), so no other abort can park by accident. The terminal `done` record carries `stopReason: "cancelled"`, verified in Postgres. A stopped session parks under its own window `stoppedTtlMs`: 600 s locally, 120 s on Daytona where a parked sandbox is billed. New finding that needs a decision: a stopped Codex turn leaves its shell command running inside the parked sandbox (two leftovers from two sessions in one probe); Pi does not. The fix belongs in the Codex ACP bridge and would need a Daytona snapshot rebuild. Spike A recommends to ship anyway because the orphan dies when the window closes. Evidence: `~/agenta-qa-evidence/2026-09-02-spike-a-sandbox-cancel/`. Told package F to rebase onto the new tip. |
+| 23:17 | Spike A final commits: `74142e0515` (tests pinning the cancelled stop reason, runner and frontend), `eaa08f25e4` (the stopped-session park window now defaults to the ordinary idle window, so the change alters no timing; `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS` moves it), `f5b1ae6244` (per-harness coverage table). Tip of `spike/session-cancel-warm` is `f5b1ae6244`. | Frontend transcript reconstruction reads only "paused", so a cancelled `done` closes the turn like a completed one; two tests pin that. Note: the terminal record file is `services/runner/src/tracing/otel.ts`. Told package F to rebase onto the final tip. |
+| 23:20 | Incident: `git stash` is shared across all worktrees of one repository (`refs/stash` lives in the shared `.git`). A stash in the package F worktree popped the watchdog lane's changes and the reverse. Both lanes recovered from the dangling stash commits; nothing was lost; a copy of the watchdog changes is in `~/agenta-qa-evidence/2026-09-02-stash-collision/`. Warned every lane. | Recovered. Package F reports it shares `api/oss/src/utils/env.py`, `api/entrypoints/routers.py`, and `services/runner/src/server.ts` with the watchdog lane, so expect conflicts there on rebase. Package F leaves claim expiry to the watchdog: its DAO exposes `expire_claims` and `settle_command` so one execution keeps one terminal writer. |
+| 23:35 | Stop guard slice returned: commits `4bae23a597` (API), `8594f46886` (frontend), `b020cc9d61` (doc `slice-stop-guard.md`) on `feat/session-stop-guard`. Stack `agenta-ee-dev-session-stopguard` on port 8980. Session unit tests: 501 pass. | Optional `expected_execution_id` on cancel: with it, 409 on mismatch and nothing written; without it, cancel refuses a turn whose recorded start is later than the request arrival (a new Redis key stamped once when the turn takes the alive lock). Stop cancels the turn's pending interactions with the same helper kill uses; a late answer gets 409; the approval card closes on the live path in desktop and mobile. Measured limit: the arrival-time guard caught 0 of 14 real races (the window is two database round trips; client latency is invisible), and the next turn was killed in 1 of 14. So `expected_execution_id` is the real fix, and no first-party client can send it today because the runner never tells the browser its turn id. Follow-ups sent: the admission lane adds `turn_id` to the runner `start` frame; the Stop guard lane adds the browser half, the concurrency exemption, the desktop await, and the mobile server Stop. |
+| 23:51 | Admission slice returned: commits `7675eb0dc7` (runner), `bdd7116520` (browser), `8b1a45e5a6` (API tests, no API code change), `2b02c219b7` (doc `slice-admission.md`) on `feat/session-single-turn-admission`. Stack `agenta-ee-dev-session-admission` on port 8680. | The arbiter was already on the send path: the runner's first heartbeat does the atomic acquire and a second turn already got `is_current_turn: false`, but the runner read it only as "abort later" and destroyed the busy environment first. Now `startAliveWatchdog` reports admission from the first beat, a refused turn stops at the edge before the pool, and the coordinator refuses a busy entry instead of evicting it. Live: turn A ran `sleep 40` for 50 s and finished; turn B sent at 15 s was refused in 0.18 s with `session_turn_in_use`; turn C after A ran in 2 s and continued A's parked sandbox (`hit-continue`). Browser: the text returns to the composer with "Message not sent". Approval resumes still work because a parked turn releases `running`. Tests: 2636 runner, 626 chat package, 328 API sessions. Follow-up sent: `turn_id` in the `start` frame. |
+| 23:52 | Watchdog slice returned: commits `59fb1a7864`, `5bbd5a36df`, `38e9a515ec` on `feat/session-execution-watchdog` (doc `slice-watchdog.md`). Stack `agenta-ee-dev-session-watchdog` on port 8880 (API verified; the web frontend was still compiling). | Cause confirmed in code: the ACP transport read loop swallows a severed stream and never fails the pending prompt, and `notePaused()` retires every run deadline when a turn parks. API: the existing orphan sweep is extended, not duplicated; it now writes the `error` and `done` records the dead runner owed (marked `execution_lost`, stable uuid5 ids, skips a turn that already has a terminal record), then collapses the row, clears Redis, and publishes the watch notification. Runner: `awaitTurnOrAbandon` bounds the wait on `run()` and a sandbox liveness probe that really calls the daemon (the first version read a local cache and passed while the sandbox was dead; the live test caught it). Web: `execution_lost` is retryable and the desktop watch listens for `lifecycle`. Live: runner gone settled 132 s after the last beat and the session took a new turn; a runner that wrote its outcome but lost its final beat got no second ending; a sandbox killed under a tool call ended the turn in 82 s with `sandbox_gone`. Tests: 2642 runner, 333 API sessions. Merge-time item: package F's DAO exposes `expire_claims` and `settle_command` for this sweep to drive; that wiring happens when the two branches meet. |
+| 23:58 | Memory check: 6 GB available, swap full, five session stacks up. Tore down the three finished stacks (Spike A on 8580, admission on 8680, watchdog on 8880) with `--down` and no `--nuke`, so their database volumes still exist for a morning look. Available memory went back to 25 GB. The Stop guard stack (8980) and the package F stack stay up. | Done. All live evidence from the torn-down stacks is in the slice documents. |
+| 00:05 | Watchdog corrections committed as `6d98b5479d`: the threshold is heartbeat age directly, 90 s (`AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS`); a parked approval is never settled (pinned by a test); the runner half alone closes #6418, because a dead sandbox under a fresh heartbeat is invisible to the API scan (the same log second showed `ECONNREFUSED` on the ACP socket and `heartbeat OK running=true`). The lane redeployed its stack to re-verify at the new threshold; I told it to tear it down when done. | Re-verification running. Explicit handover recorded: once package F lands, the sweep expires command claims in the same loop that settles the execution. |
+| 00:12 | Watchdog lane final: seven commits, tip `3f8f096714` on `feat/session-execution-watchdog`. Re-verified at the 90 s threshold: two sessions silent for 98 s, the one whose runner died got its `error` and `done`, the parked one kept `is_alive: true` and stayed warm. 19 watchdog tests, 2642 runner tests. I tore its stack down again. | Done. |
+| 00:05 | Admission follow-up returned: commit `ce0f1e12da`, six commits total on `feat/session-single-turn-admission`. | The `start` frame cannot carry the turn id because the SDK egress emits it before the runner is consulted. Instead the runner emits `{type: "turn", turnId}` as its first event after admission, through the live emitter only (never a session record), and the SDK forwards it verbatim as a `data-agent-turn` part, third after `start` and `start-step`. Verified live: the id in the frame equals the id holding the alive lock. Six new tests. Told the Stop guard lane the frame name. I tore the admission stack down again (the lane had redeployed it). |
+| 00:06 | Stop guard follow-ups returned: six commits on `feat/session-stop-guard`. Stack 8980 still up. | Cancel is exempt from the concurrency limit (verified with the limit at 1: send 200, second send 429, Stop 200, next send 200). A refused Stop reaches the user: the desktop swallowed the outcome in two places (fire-and-forget and the Fern wrapper returns null on any failure), so a new `cancelSessionStream` bypasses the wrapper and returns cancelled, stale, or failed; the desktop withdraws its local "Stopped" marker and shows a notice. Mobile composer Stop now sends the server cancel. The two notices were not seen in a browser (no model key on that stack). Tests: 505 API session, 1470 entities, 625 chat. Open question raised: the tab-close cancel in `AgentChatPanel.tsx` still fires and discards its outcome. Pending: the browser half of the turn id from the `data-agent-turn` frame. |
+| 00:10 | Package F returned: seven commits, tip `ae2c3052c6` on `feat/session-durable-cancel` (stacked on Spike A). Stack `agenta-ee-dev-session-cancel` on port 9180, left up for the morning. | A user Stop reaches the running turn in 72 ms (request at 23:56:35.268, runner abort at +72 ms, harness confirmed at +90 ms, command and execution settled at +116 ms, sandbox parked warm at +968 ms). The next message recalled a codeword from the stopped turn, so warm resume is proven from the product. Five of six scenarios pass; the sixth (runner gone while a command is claimed) stays `claimed` by design because the settlement sweep belongs to the watchdog branch; the handoff is written in both docs. Three defects only the live run found, each fixed: the execution registry was keyed on a project id that is empty on the invoke path; the outcome report got 409 because the API claimed under a placeholder replica id; the replica census refused delivery for five minutes after every runner restart because a runner mints a fresh replica id at boot. Deviation to decide: the census now warns and delivers instead of refusing; the real detector is the `not_held` answer for a beating session. Tests: 553 API sessions, 2666 runner (4 pre-existing failures). |
+| 00:13 | Admission lane revised the turn-id channel: commits `ca600cb1e6` (code) and `141ebb73ad` (doc). Tip of `feat/session-single-turn-admission` is `141ebb73ad`. | The SDK now emits a `message-metadata` chunk, so the browser reads `message.metadata.turnId` beside `sessionId`; the `data-agent-turn` part is gone. The SDK merges metadata, so the finish frame does not overwrite it (pinned by a test). Verified live: frames `start`, `start-step`, `message-metadata`, `text-start`; the id matches the runner log. Told the Stop guard lane. |
+| 00:18 | Started the integration lane on branch `agent/session-execution-integration` (worktree `integration`, stack port 8580): merge the five code branches in the plan's order, wire the watchdog to expire command claims, run every suite, and run the seven gate scenarios on one stack. | Running. |
+| 00:40 | Integration lane returned: tip `9110c08000` on `agent/session-execution-integration`, pushed, PR https://github.com/Agenta-AI/agenta/pull/6506. Stack `agenta-ee-dev-session-integration` on port 8580, left up. | The five slices compose. Seven merge commits, nine conflicts, four reconciliation commits. All seven gate cells pass. Two defects only the combined run found, fixed: a Stop outcome on a parked approval arrived before its claim and was refused with 409 (`8b2f8d67ae`); a Stop no runner ever claimed was never settled, so `expire_unclaimed` was added on the existing admission timeout (`c8bb504a85`). The watchdog handoff is wired (`e65e025ab0`): one sweep pass settled the execution and the command 40 ms apart. Mobile Stop calls the new route (`c9a756cd92`). One open defect: a runner that outlives the watchdog appends its tail after the watchdog's ending; the guard belongs on records ingest, with the records repair. Tests: runner 2692, API sessions 608 with zero skipped against live Postgres, chat 644, entities 1472. |
+
+## Results by work package
+
+| Package | Branch and tip | Verified live | Not done |
+|---|---|---|---|
+| Reviews | `agent/session-execution-overnight` | Not applicable | |
+| Spike A, warm cancel | `spike/session-cancel-warm` at `f5b1ae6244` | Pi and Codex on the local provider: Stop parks, the next turn resumes in the same sandbox and recalls the first turn. | Claude Code (no Anthropic key on the stack) and Daytona. A stopped Codex turn leaves its shell child running in the parked sandbox. A cancelled turn still drops its continuity record. |
+| Spike B, command design | `spike/session-durable-commands-design` at `86281fa313` | Design only | |
+| Spike C, Stop map | `spike/session-stop-map` at `1099df4ba3` | Static trace only | |
+| Spike D, record ids | `spike/session-record-id-semantics` at `90ff86a1a0` | Tests against the real emitter and reconstruction | The drop-counter defect is pinned by a test, not fixed. |
+| Admission | `feat/session-single-turn-admission` at `141ebb73ad` | Second send refused in 0.18 s, first turn keeps its sandbox, third turn resumes warm. Turn id reaches the browser as `message.metadata.turnId`. | No browser pass of the composer restore. |
+| Watchdog | `feat/session-execution-watchdog` at `3f8f096714` | Runner gone settled 98 s after the last beat; parked approval untouched; sandbox gone ended the turn in 82 s. | Command claim expiry is wired only in the integration lane. |
+| Stop guard | `feat/session-stop-guard` at `ae11237e47` | Stale id gives 409; pending approval cancelled and late answer refused; Stop exempt from the concurrency limit. | The two desktop notices were not seen in a browser. |
+| Records durability | `fix/records-worker-ack-after-commit` at `9a81f38102` | Real worker loop against a throwaway Redis: five records survived a 20 s outage. | No stack; no metric for the drop counter. |
+| Durable cancel (F) | `feat/session-durable-cancel` at `945cf57e0a` | Stop reached the runner in 72 ms; five of six scenarios pass. | Runner-gone settlement (wired in the integration lane). Long poll adapter not built. |
+| Integration | `agent/session-execution-integration` at `9110c08000` | All seven gate cells pass on one stack (port 8580). | One open defect: a late runner tail after the watchdog's ending. |
+
+## Decisions I made for you
+
+Each can be overturned in the morning. The reason follows each one.
+
+1. **The direct-call adapter was built first, not the long poll.** Both reviewers and Spike B
+   recommended it, the RFC's own port allows it, and it closed the latency bug tonight. The
+   long poll remains designed in Spike B and is one adapter file away.
+2. **`on_busy: reject` only.** Queue and steer need a durable pending-input store and a
+   product decision on the steer shape. Reject closes the reported bug with no storage.
+3. **The four code slices started before the spikes finished.** Both reviews said the park
+   rule, the admission, the watchdog, and the Stop guard were known and small. They touched
+   different files.
+4. **Stop leaves the Redis `alive` key to its own TTL** (Spike B's deviation from the handoff
+   wording). A normal turn end does the same, and force-deleting it is what made the old cancel
+   read as a teardown.
+5. **The replica census warns instead of refusing** in the direct adapter. Refusing broke Stop
+   for five minutes after every runner restart. The design's real detector (a `not_held` answer
+   for a session that is still beating) is built.
+6. **The stopped-session park window defaults to the idle window**, not 600 s. The value is one
+   env var (`AGENTA_RUNNER_SESSION_STOPPED_TTL_MS`). The reviewer's 600 s recommendation is in
+   the Spike A doc for you to pick.
+7. **The turn id travels as `message.metadata.turnId`**, not in the `start` frame, because the
+   SDK emits `start` before the runner is consulted.
+8. **The Stop guard keeps a Redis turn-start key** instead of the `session_streams` column the
+   command design proposes. The column lands with package F; the key is the bridge.
+9. **The records worker gets an opt-in reclaim pass**, off for the tracing and events workers,
+   because those still acknowledge before their write and turning it on there is a separate
+   decision.
+10. **Three finished stacks were torn down at 23:58** to free memory (swap was full). Volumes
+    were kept.
+
+## Deviations from the RFC text that need your yes
+
+- The transport order (direct first, long poll later).
+- Version one ships without the durable pending-input queue.
+- `expected_execution_id` is now sent by first-party clients on every Stop (the RFC keeps it
+  optional in the contract; that stays true).
+- The Stop guard's arrival-time rule refuses a Stop that arrived after the current turn
+  started; the RFC did not have this rule.
+
+## Morning checklist
+
+The one-page version of this file is the artifact
+https://claude.ai/code/artifact/d44b1fc4-839c-497d-afd0-78d1d2b35836.
+
+1. Read `review-2026-09-02.md` (ten minutes) and answer its five decisions.
+2. Read the "Decisions I made for you" list above and say which to overturn.
+3. Open the package F stack at http://144.76.237.122:9180 (if still up) and press Stop on a
+   running turn, then send another message; the runner log shows `park-cancelled` and
+   `hit-continue`.
+4. Read `integration-2026-09-03.md` for the combined scenario table: seven of seven pass. The integration stack is up at http://144.76.237.122:8580 and runs all five slices together.
+5. Review the branches in the merge order of `implementation-plan.md`. Every branch is pushed
+   to `gh-https` with a draft PR whose base is `agent/session-execution-rfc`, so each PR shows
+   only its own diff. Nothing targets `main` or a release branch.
+6. To revert any one piece: close its draft PR and delete its branch. The worktrees under
+   `~/code/agenta-2-worktrees/` can be removed with `git worktree remove <path>`.
+7. To tear down a stack: the command is in each slice document. Every stack tonight has a
+   project name that starts with `agenta-ee-dev-session-`.
+
+## Follow-ups filed as open questions in the slice documents
+
+- A stopped Codex turn leaves its shell command running in the parked sandbox (Spike A). The
+  fix is in the Codex ACP bridge and needs a Daytona snapshot rebuild.
+- A cancelled turn drops its continuity record, so warm resume survives only while the
+  environment stays in the process pool (Spike A).
+- The tab-close cancel in `AgentChatPanel.tsx` still fires and discards its outcome, against
+  the requirement that disconnection does not stop execution (Stop guard).
+- The drop-counter defect in the runner (`noteRecordsIncomplete` unreachable) is pinned by a
+  test and not fixed, because the incomplete mark is process-lifetime (Spike D).
+- The tracing and events workers still acknowledge Redis before their write (records slice).
+- The early tool-call flush in the runner is the one producer bug that blocks immutable
+  records (Spike D).
+
+## Draft pull requests (opened 00:30, all draft, none target main)
+
+| Branch | PR | Base |
+|---|---|---|
+| `spike/session-cancel-warm` | https://github.com/Agenta-AI/agenta/pull/6496 | `agent/session-execution-rfc` |
+| `spike/session-durable-commands-design` | https://github.com/Agenta-AI/agenta/pull/6497 | `agent/session-execution-rfc` |
+| `spike/session-stop-map` | https://github.com/Agenta-AI/agenta/pull/6498 | `agent/session-execution-rfc` |
+| `spike/session-record-id-semantics` | https://github.com/Agenta-AI/agenta/pull/6499 | `agent/session-execution-rfc` |
+| `feat/session-single-turn-admission` | https://github.com/Agenta-AI/agenta/pull/6500 | `agent/session-execution-rfc` |
+| `feat/session-execution-watchdog` | https://github.com/Agenta-AI/agenta/pull/6501 | `agent/session-execution-rfc` |
+| `fix/records-worker-ack-after-commit` | https://github.com/Agenta-AI/agenta/pull/6502 | `agent/session-execution-rfc` |
+| `feat/session-durable-cancel` | https://github.com/Agenta-AI/agenta/pull/6503 | `spike/session-cancel-warm` |
+| `feat/session-stop-guard` | https://github.com/Agenta-AI/agenta/pull/6504 | `agent/session-execution-rfc` |
+| `agent/session-execution-overnight` (docs) | https://github.com/Agenta-AI/agenta/pull/6505 | `agent/session-execution-rfc` |
+| `agent/session-execution-integration` | https://github.com/Agenta-AI/agenta/pull/6506 | `agent/session-execution-rfc` |
+| 00:16 | Package F corrections returned: tip `58bec4d382`, nine commits, rebased onto Spike A's final tip. Stack 9180 stays up. | The rebase caught a real bug: Spike A's park rule requires the user-stop label, and the command applier aborted bare, so every Stop through the command plane would have deleted the sandbox; fixed and pinned by two tests, re-verified live (abort 82 ms, harness 106 ms, settle 126 ms, park 993 ms, codeword recalled). The replica census is removed, not softened; the `not_held` detector names the owning replica and settles `lost`. `turn_started_at` verified live: twelve heartbeats passed and it never moved. Admission lane tore its stack down and stopped (eight commits, tip `141ebb73ad`). |
+| 00:17 | Stop guard browser half returned: commits `3f5271381d` (regenerated client), `2097a039e5` (browser sends the turn id with Stop), `76af1419d6` (doc); nine commits on `feat/session-stop-guard`. | Both chat engines keep the turn id per session in a Map and Stop sends it as `expected_execution_id`; kept past the end of the turn so a Stop on a parked approval names the right turn; omitted when unknown; the mobile running-elsewhere button sends none. Verified at the wire: 409 with both ids for a stale turn, 200 with `cancelled_turn_ids` for the live one. One mismatch: it reads a `data-agent-turn` part, but the admission lane's final shape is `message.metadata.turnId`; sent back for one more commit. Tests: 505 API sessions, 631 chat, 1472 entities. |
+| 00:22 | Stop guard final: `06ba08107a` (read the turn id from message metadata) and `1e4f911a59` (doc). Tip of `feat/session-stop-guard` is `ae11237e47` (one more doc commit: the pinned `ai@6.0.0-beta.150` has no metadata callback, so the id is read off the streaming message), pushed, PR #6504. I tore its stack down. | The store keeps the id in memory only, because message metadata round-trips through the browser cache and a reloaded page would name a turn from a previous load; after a reload Stop sends no guard, which is the old behavior rather than a wrong refusal. Tests: 634 chat, 1472 entities, 505 API sessions. Told the integration lane the final tip. |

@@ -28,3 +28,17 @@
 - **Durable event:** An immutable saved fact used for replay and recovery.
 - **Cursor:** An opaque point in committed durable session history.
 - **Lease:** Temporary evidence that a runner remains alive and owns current work.
+
+## Overnight and daytime evidence (agent-generated, low weight)
+
+- `overnight-2026-09-02.md` is the log of the unattended night: every branch, stack, decision
+  made on Mahmoud's behalf, and the revert path for each.
+- `review-2026-09-02.md` merges the two RFC reviews; the full reviews are
+  `review-architecture-2026-09-02.md` and `review-product-2026-09-02.md`.
+- `implementation-plan.md` is the build plan, merge order, and gate cells for version one.
+- Spike reports: `spike-a-sandbox-cancel.md`, `spike-b-durable-commands-design.md` with
+  `api-design.md`, `spike-c-current-stop-map.md`, `spike-d-stable-record-ids.md`.
+- Slice reports: `slice-admission.md`, `slice-watchdog.md`, `slice-stop-guard.md`,
+  `slice-records-ack.md`, `slice-durable-cancel.md`, and `integration-2026-09-03.md`.
+- `evidence-2026-09-03/` holds the daytime round: Daytona and Claude Code scenarios, runner
+  restart, child-process cleanup, the watchdog stale tail, and the post-Stop liveness trace.

@@ -57,3 +57,8 @@
 ## Branch
 
 `agent/session-execution-rfc`
+
+## Evidence
+
+The overnight log, the reviews, the spike and slice reports, and the daytime evidence folder
+live on PR #6505 (`agent/session-execution-overnight`), starting from `overnight-2026-09-02.md`.
