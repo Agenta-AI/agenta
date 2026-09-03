@@ -209,8 +209,10 @@ const testsetTests = () => {
                     })
 
                     // Click a data row cell to open the TestcaseEditDrawer
+                    // `.avt-cell`, the table package's stable hook — `.ant-table-cell` matches
+                    // nothing since the antd Table branch was removed (AVT in tableDom.ts).
                     const cell = page
-                        .locator(".ant-table-cell")
+                        .locator(".avt-cell")
                         .filter({hasText: "original value"})
                         .first()
                     await expect(cell).toBeVisible({timeout: 10000})
