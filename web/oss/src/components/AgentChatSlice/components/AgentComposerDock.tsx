@@ -73,6 +73,7 @@ const AgentComposerDock = ({
     onClientToolOutput,
     onSubmit,
     onStop,
+    stopping,
     richInputRef,
     composer,
     attachments,
@@ -109,6 +110,7 @@ const AgentComposerDock = ({
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
+    stopping: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -447,6 +449,7 @@ const AgentComposerDock = ({
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
                         streaming={busy}
+                        stopping={stopping}
                         onStop={onStop}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}

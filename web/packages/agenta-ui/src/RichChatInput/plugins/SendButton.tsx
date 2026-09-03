@@ -16,9 +16,10 @@ interface SendButtonProps {
     disabled?: boolean
     /** Tooltip shown when a caller blocks submit. */
     disabledReason?: ReactNode
-    /** When true, the button becomes a Stop button that aborts the in-flight stream. */
+    /** When true, the button becomes a Stop button for the in-flight stream. */
     streaming?: boolean
-    /** Abort the in-flight stream — required for the `streaming` state. */
+    stopping?: boolean
+    /** Request a durable stop — required for the `streaming` state. */
     onStop?: () => void
 }
 
@@ -31,6 +32,7 @@ export function SendButton({
     disabled,
     disabledReason,
     streaming,
+    stopping,
     onStop,
 }: SendButtonProps) {
     const [editor] = useLexicalComposerContext()
@@ -73,9 +75,10 @@ export function SendButton({
                     size="icon"
                     variant="ghost"
                     className="rounded-control-round"
-                    aria-label="Stop"
+                    aria-label={stopping ? "Stopping" : "Stop"}
                     aria-keyshortcuts={shortcutAria("run.stop")}
                     onClick={onStop}
+                    disabled={stopping}
                 >
                     <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />
                 </Button>
