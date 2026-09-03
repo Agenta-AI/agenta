@@ -1,6 +1,6 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useRef, type RefObject} from "react"
 
-import {isMacPlatform} from "@agenta/shared/utils"
+import {isMacPlatform, isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 
 /** How long the chord must be held before the mic opens. */
 export const PUSH_TO_TALK_ARM_MS = 300
@@ -8,17 +8,10 @@ export const PUSH_TO_TALK_ARM_MS = 300
 /** Modifier key names that keep a held chord alive rather than breaking it. */
 const CHORD_KEYS = new Set(["Control", "Alt", "AltGraph"])
 
-/** True while an antd confirm/modal or a Radix dialog owns the screen. No global open-dialog state
- * exists to ask, and these dialogs come from `modal.confirm`, so the DOM is the only witness. */
-const isOverlayOpen = (): boolean =>
-    Boolean(
-        document.querySelector(
-            '.ant-modal-wrap:not([style*="display: none"]), [role="dialog"][data-state="open"]',
-        ),
-    )
-
 export interface UsePushToTalkParams {
     enabled: boolean
+    /** The control's own root — a chat surface keeps visited sessions mounted behind `display: none`. */
+    rootRef: RefObject<HTMLElement | null>
     onStart: () => void
     onStop: () => void
 }
@@ -35,7 +28,7 @@ export interface UsePushToTalkParams {
  * Lives with the mic rather than the app's session shortcuts because dictation state lives here;
  * the app-layer shortcut hook it would otherwise join has no caller since the package carve.
  */
-export function usePushToTalk({enabled, onStart, onStop}: UsePushToTalkParams) {
+export function usePushToTalk({enabled, rootRef, onStart, onStop}: UsePushToTalkParams) {
     // The handlers change every render; keeping them in refs means the listeners register once.
     const onStartRef = useRef(onStart)
     const onStopRef = useRef(onStop)
@@ -73,13 +66,13 @@ export function usePushToTalk({enabled, onStart, onStop}: UsePushToTalkParams) {
             // AltGr is the right-hand Alt everywhere it exists; binding the left one leaves it free.
             if (!macPlatform && e.code === "AltRight") return
             if (armTimer !== null || active) return
-            if (isOverlayOpen()) return
+            // A hidden session hears the chord too, and its recogniser would take the mic.
+            if (!isOnScreen(rootRef.current) || isOverlayOpen()) return
 
             armTimer = setTimeout(() => {
                 armTimer = null
-                // Rechecked: a dialog can open during the arm delay, and the mic must not
-                // open behind it.
-                if (isOverlayOpen()) return
+                // Rechecked: a dialog can open, or the session be switched away, during the delay.
+                if (!isOnScreen(rootRef.current) || isOverlayOpen()) return
                 active = true
                 onStartRef.current()
             }, PUSH_TO_TALK_ARM_MS)
@@ -105,5 +98,5 @@ export function usePushToTalk({enabled, onStart, onStop}: UsePushToTalkParams) {
             window.removeEventListener("blur", release)
             release()
         }
-    }, [enabled])
+    }, [enabled, rootRef])
 }

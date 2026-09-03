@@ -3,7 +3,8 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
-import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
+import {humanizeActionKey} from "@agenta/shared/utils"
+import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
@@ -21,6 +22,10 @@ export interface ItemDescriptor {
     color: string
     /** Avatar icon (overrides the monogram). */
     icon?: React.ReactNode
+    /** Avatar chip classes, for an item that paints its own chip. Set with `avatarStyle`. */
+    avatarClassName?: string
+    /** Custom properties the chip classes read (the light and dark tint and ink). */
+    avatarStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
     tags: string[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
@@ -90,53 +95,34 @@ function capitalizeFirst(value: string): string {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : value
 }
 
-// Whole-word tokens kept uppercase when humanizing an action key (GitHub/Composio actions are
-// littered with these). Everything else is sentence-cased.
-const ACTION_ACRONYMS = new Set([
-    "API",
-    "URL",
-    "URI",
-    "ID",
-    "PR",
-    "CI",
-    "CD",
-    "SSO",
-    "SSH",
-    "IP",
-    "DNS",
-    "SLA",
-    "SMS",
-    "PDF",
-    "CSV",
-    "JSON",
-    "HTTP",
-    "HTTPS",
-    "SDK",
-    "UUID",
-    "GPG",
-    "OAUTH",
-    "2FA",
-    "MFA",
-])
-
-/**
- * Turn a provider action key into a readable label: `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to
- * an issue". Sentence-cased, common acronyms kept uppercase. Used for connected-app tool rows, whose
- * stored `function.name` is the slug (the friendly catalog name isn't persisted).
- */
-export function humanizeActionKey(key: string): string {
-    const words = key
-        .toLowerCase()
-        .split(/[_\s]+/)
-        .filter(Boolean)
-    if (words.length === 0) return key
-    return words
-        .map((word, index) => {
-            const upper = word.toUpperCase()
-            if (ACTION_ACRONYMS.has(upper)) return upper
-            return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
-        })
-        .join(" ")
+/** A saved subagent row. Not `describeTool`: that returns the internal vocabulary (a "workflow"
+ *  tag, a teal square, a monospace name), none of which is true of another agent. */
+export function describeSubagent(
+    tool: unknown,
+    chrome?: {glyph: React.ReactNode; className: string; style?: React.CSSProperties},
+): ItemDescriptor {
+    const t = (tool ?? {}) as Record<string, unknown>
+    const slug = typeof t.slug === "string" ? t.slug : undefined
+    const name = typeof t.name === "string" && t.name ? t.name : slug
+    return {
+        name: name ?? "Subagent",
+        // Prose, never monospace: this is an agent's name, not an identifier.
+        monoName: false,
+        description: typeof t.description === "string" ? t.description : undefined,
+        mono: "",
+        color: "transparent",
+        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
+        avatarClassName:
+            chrome?.className ??
+            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+        avatarStyle: chrome?.style,
+        // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
+        tags: [],
+        typeLabel: "subagent",
+        typeColor: "geekblue",
+        subtitle: slug ? `Subagent · ${slug}` : "Subagent",
+    }
 }
 
 /** Classify a tool into its row avatar / name / description / type tags. */
@@ -188,14 +174,10 @@ export function describeTool(tool: unknown): ItemDescriptor {
     }
     if (entry) {
         const gateway = entry.action
-        // Some action keys repeat the integration (GITHUB_ADD_...) — drop it; the group header
-        // already names the app. Then humanize the key into a readable label.
-        const intgPrefix = `${gateway.integration.toUpperCase()}_`
-        const actionKey = gateway.action.toUpperCase().startsWith(intgPrefix)
-            ? gateway.action.slice(intgPrefix.length)
-            : gateway.action
         return {
-            name: humanizeActionKey(actionKey),
+            // The key often repeats the integration (GITHUB_ADD_...); the group header already
+            // names the app, so the helper drops the prefix before humanizing.
+            name: humanizeActionKey(gateway.action, gateway.integration),
             monoName: false,
             description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),

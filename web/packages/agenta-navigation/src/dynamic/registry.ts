@@ -161,7 +161,8 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(RobotIcon, {size: 14}),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        // An agent's surface is its overview — its config, sessions and runs live there (#6389).
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
         // Busiest agent first, by session count — stable session to session, unlike recency,
         // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
         ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
