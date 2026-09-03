@@ -133,6 +133,16 @@ completion promotes one pending input in admission order. This avoids making Sto
 The API saves the steering input first, stops current work, and promotes the input after terminal
 settlement. A failed Stop does not discard the steering input.
 
+### Accept bounded in-memory delivery in version one
+
+The runner may buffer unconfirmed durable checkpoints in memory. Temporary delivery failures retry
+with the same stable IDs. Before terminal settlement, the runner waits for a bounded final flush.
+A runner crash may lose the unconfirmed tail. The watchdog then records `lost`, marks history
+incomplete, releases the session, and allows the user to continue from the last committed history.
+
+The first version does not add a persistent runner spool. Clean failure and continued session use
+take priority over preserving unconfirmed output.
+
 ### Use one client reducer
 
 Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
@@ -151,7 +161,8 @@ Durable checkpoints replace those previews.
 8. Final public endpoint names.
 9. Confirm Spike D covered every intentional progressive record update before any immutable-record
    migration.
-10. Decide whether late output after watchdog settlement is rejected or quarantined.
+10. Confirm the exact API response contract for retryable delivery failure, duplicate success,
+    conflicting payload, and output after terminal settlement.
 11. Verify every current liveness consumer implements the confirmed post-Stop `running` and
    `alive` contract.
 
