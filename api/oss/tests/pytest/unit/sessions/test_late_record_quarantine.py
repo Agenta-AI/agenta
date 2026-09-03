@@ -136,14 +136,6 @@ class _ExecutionSettlements:
             raise RuntimeError("core database is unreachable")
         return {key: self.rows[key] for key in keys if key in self.rows}
 
-    async def close_records(self, *, project_id, keys, settled_by):
-        for key in keys:
-            row = self.rows.get(key)
-            if row is not None and row.settled_by == settled_by:
-                self.rows[key] = row.model_copy(
-                    update={"records_closed_at": datetime.now(timezone.utc)}
-                )
-
 
 def _event(record_type: str, **over) -> SessionRecordEvent:
     base = {

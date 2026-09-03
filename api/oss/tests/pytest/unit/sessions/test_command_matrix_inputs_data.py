@@ -200,6 +200,15 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
     )
 
 
+def test_expected_execution_id_schema_documents_cancel_only_guard():
+    description = SessionStreamCommandRequest.model_json_schema()["properties"][
+        "expected_execution_id"
+    ]["description"]
+
+    assert "only in cancel mode" in description
+    assert "ignored for send, steer, and attach" in description
+
+
 @pytest.mark.asyncio
 async def test_no_inputs_and_force_is_attach(lock_engine):
     svc = _service(lock_engine)
