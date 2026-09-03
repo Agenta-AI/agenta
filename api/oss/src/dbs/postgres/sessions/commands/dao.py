@@ -275,6 +275,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
 
         None means somebody else already took or settled it, which is not an error: the runner
         that answered will still report, and the outcome route decides on the stored state.
+        The delivery budget was already consumed by `record_delivery_attempt`; incrementing it
+        again here would charge one direct delivery twice. Long-poll claims use `claim_commands`,
+        which performs its own increment.
         """
         async with self.engine.session() as session:
             now = datetime.now(timezone.utc)
