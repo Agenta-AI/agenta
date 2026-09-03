@@ -13,6 +13,7 @@ class SessionExecutionSettlement(BaseModel):
     settled_by: str
     settled_at: datetime
     records_closed_at: Optional[datetime] = None
+    redis_reconciled_at: Optional[datetime] = None
 
 
 class SessionExecutionSettlementResult(BaseModel):

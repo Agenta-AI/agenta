@@ -477,7 +477,51 @@ class SessionCommandsService:
             settled_by="watchdog",
             settled_at=settled_at,
         )
-        return result.won
+        winner = result.settlement
+        return result.won or (
+            winner.terminal_outcome == SessionCommandOutcome.lost.value
+            and winner.settled_by == "watchdog"
+        )
+
+    async def repair_terminal_redis(self) -> int:
+        if self._executions is None:
+            return 0
+        pending = await self._executions.list_redis_unreconciled(limit=200)
+        repaired = 0
+        for execution in pending:
+            await self._reconcile_stopped_redis(
+                project_id=execution.project_id,
+                session_id=execution.session_id,
+                execution_id=execution.execution_id,
+            )
+            repaired += 1
+        return repaired
+
+    async def _reconcile_stopped_redis(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> None:
+        await mark_turn_superseded(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        await release_running(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        if self._executions is not None:
+            await self._executions.mark_redis_reconciled(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
 
     async def report_outcome(
         self,
@@ -553,69 +597,66 @@ class SessionCommandsService:
         The guard is what makes this idempotent: a second report finds a terminal row, changes
         nothing, and the side effects below do not run twice.
         """
-        if (
-            self._executions is not None
-            and execution_id is not None
-            and outcome in (SessionCommandOutcome.stopped, SessionCommandOutcome.lost)
-        ):
-            settled_by = (
-                "watchdog" if outcome == SessionCommandOutcome.lost else "runner"
-            )
+        transition = SessionCommandSettle(
+            project_id=project_id,
+            command_id=command_id,
+            state=state,
+            outcome=outcome,
+            expected_states=expected_states,
+            replica_id=replica_id,
+        )
+        atomic_core_settlement = self._executions is not None
+        if atomic_core_settlement:
             stored_command = await self._dao.fetch_command(command_id=command_id)
             if stored_command is None:
                 return None
-            execution = await self._executions.settle(
-                project_id=project_id,
+            terminal = outcome in (
+                SessionCommandOutcome.stopped,
+                SessionCommandOutcome.lost,
+            )
+            settled = await self._executions.settle_command_execution(
+                settle=transition,
                 session_id=stored_command.session_id,
                 execution_id=execution_id,
-                terminal_outcome=outcome.value,
-                settled_by=settled_by,
+                terminal_outcome=outcome.value if terminal else None,
+                settled_by=(
+                    "watchdog"
+                    if outcome == SessionCommandOutcome.lost
+                    else "runner"
+                    if terminal
+                    else None
+                ),
+                mirror_stopped=outcome == SessionCommandOutcome.stopped,
+                cancel_interactions=outcome
+                in (
+                    SessionCommandOutcome.stopped,
+                    SessionCommandOutcome.not_running,
+                    SessionCommandOutcome.lost,
+                ),
             )
-            winner = execution.settlement
-            if not execution.won and (
-                winner.terminal_outcome != outcome.value
-                or winner.settled_by != settled_by
-            ):
-                return None
-
-        settled = await self._dao.settle_command(
-            settle=SessionCommandSettle(
-                project_id=project_id,
-                command_id=command_id,
-                state=state,
-                outcome=outcome,
-                expected_states=expected_states,
-                replica_id=replica_id,
-            )
-        )
+        else:
+            settled = await self._dao.settle_command(settle=transition)
         if settled is None:
             return None
 
         session_id = settled.session_id
         target = settled.target_turn_id
 
-        await self._dao.clear_stopping_turn(
-            project_id=project_id,
-            session_id=session_id,
-            turn_id=target,
-        )
+        if not atomic_core_settlement:
+            await self._dao.clear_stopping_turn(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=target,
+            )
 
         if outcome == SessionCommandOutcome.stopped and target:
             # Order matters. Tombstone first, so a late beat from the stopped execution cannot
             # re-arm the locks it is about to lose; that beat would otherwise find `alive` free
             # and take it straight back under the same turn id.
-            await mark_turn_superseded(
-                self._lock,
-                project_id=str(project_id),
+            await self._reconcile_stopped_redis(
+                project_id=project_id,
                 session_id=session_id,
-                turn_id=target,
-            )
-            # Owner-checked, so it can only release its OWN execution's key.
-            await release_running(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=target,
+                execution_id=target,
             )
             # `alive` is deliberately left to its own time to live, exactly as the end of a
             # normal turn leaves it. Warm resume is the required outcome of Stop, so the session
@@ -627,17 +668,18 @@ class SessionCommandsService:
             # (`query_streams`) reads Postgres and never Redis. Skipping this leaves the row
             # saying `is_running: true` until the orphan sweep collapses it, so the tab that
             # pressed Stop shows a "running somewhere else" strip over its own session.
-            await self._streams.mirror_liveness(
-                project_id=project_id,
-                session_id=session_id,
-            )
+            if not atomic_core_settlement:
+                await self._streams.mirror_liveness(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
 
         if outcome in (
             SessionCommandOutcome.stopped,
             SessionCommandOutcome.not_running,
             SessionCommandOutcome.lost,
         ):
-            if target:
+            if target and not atomic_core_settlement:
                 # An approval card whose execution was stopped is a card whose buttons do
                 # nothing. Scoped to this execution, so a newer turn's gates survive.
                 await self._interactions.cancel_session_pending(

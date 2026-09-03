@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
 )
+from oss.src.core.sessions.commands.dtos import SessionCommand, SessionCommandSettle
 
 
 class SessionExecutionsDAOInterface(ABC):
@@ -41,3 +42,35 @@ class SessionExecutionsDAOInterface(ABC):
         settled_by: str,
     ) -> None:
         """Close the winner's record stream after its terminal batch commits."""
+
+    @abstractmethod
+    async def settle_command_execution(
+        self,
+        *,
+        settle: SessionCommandSettle,
+        session_id: str,
+        execution_id: Optional[str],
+        terminal_outcome: Optional[str],
+        settled_by: Optional[str],
+        mirror_stopped: bool,
+        cancel_interactions: bool,
+    ) -> Optional[SessionCommand]:
+        """Commit the terminal core facts in one transaction."""
+
+    @abstractmethod
+    async def list_redis_unreconciled(
+        self,
+        *,
+        limit: int,
+    ) -> List[SessionExecutionSettlement]:
+        """Runner settlements whose post-commit Redis projection is incomplete."""
+
+    @abstractmethod
+    async def mark_redis_reconciled(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> None:
+        """Record completion of the idempotent post-commit Redis projection."""

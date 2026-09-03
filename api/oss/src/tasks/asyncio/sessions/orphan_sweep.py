@@ -266,6 +266,16 @@ async def _settle_abandoned_commands(
         return 0
 
 
+async def _repair_terminal_redis(commands_service: Optional[Any]) -> int:
+    if commands_service is None:
+        return 0
+    try:
+        return await commands_service.repair_terminal_redis()
+    except Exception:
+        log.warning("watchdog: failed to repair terminal Redis state", exc_info=True)
+        return 0
+
+
 async def run_orphan_sweep(
     engine: TransactionsEngine,
     lock_engine: LockEngine,
@@ -282,6 +292,7 @@ async def run_orphan_sweep(
     given, this pass is also the one writer that settles a Stop the runner never reported.
     """
     now_utc = datetime.now(timezone.utc)
+    await _repair_terminal_redis(commands_service)
     threshold = now_utc - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
     idle_threshold = now_utc - timedelta(seconds=IDLE_THRESHOLD_SECONDS)
     # coalesce, not a bare `updated_at`: a row never updated since creation has updated_at
