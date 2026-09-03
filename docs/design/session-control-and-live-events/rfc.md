@@ -95,7 +95,8 @@ code can map existing fields without renaming every stored column in the first r
 ### Pending input
 
 1. Pending inputs live on the server and appear in every client snapshot.
-2. The server promotes pending inputs in first-in, first-out order.
+2. Normal queue promotion uses first-in, first-out order. A newly admitted Steer input is the
+   explicit exception and runs before older queued input after its target execution stops.
 3. A client can remove a pending input but cannot edit or reorder it.
 4. Changing pending content means removing it and submitting a replacement.
 
@@ -457,6 +458,11 @@ them, or submits another explicit start action.
 The API first saves the steering input. It then creates a Stop command whose reason is `steer`.
 After the old execution reaches a terminal outcome, the server promotes the saved input. A failed
 or lost cancellation does not discard the input.
+
+The steering input takes priority over older queued input because it expresses an immediate change
+of direction. Older queued input remains pending and visible. It returns to normal first-in,
+first-out promotion after the steering execution completes normally. Manual Stop does not promote
+either the queue or a new input.
 
 Steer uses Stop and continue. It does not inject text into an arbitrary provider request. A harness
 with a native steering capability may later supply another adapter behind the same public policy.

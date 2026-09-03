@@ -149,7 +149,10 @@ completion promotes one pending input in admission order. This avoids making Sto
 ### Model Steer as saved input followed by Stop
 
 The API saves the steering input first, stops current work, and promotes the input after terminal
-settlement. A failed Stop does not discard the steering input.
+settlement. A failed Stop does not discard the steering input. The steering input runs before
+older queued input because it expresses an immediate change of direction. Older queued input
+remains pending and visible, then returns to normal first-in, first-out promotion after the
+steering execution completes normally.
 
 ### Accept bounded in-memory delivery in version one
 

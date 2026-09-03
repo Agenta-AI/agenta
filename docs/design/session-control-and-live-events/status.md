@@ -15,6 +15,9 @@
 - The read contract uses one JSON snapshot plus one long-lived event connection. A new session
   starts at sequence zero. Only committed durable events advance the database-assigned per-session
   sequence; temporary frames do not.
+- Normal completion promotes queued input in first-in, first-out order. Manual Stop pauses the
+  queue. Steer saves its input before stopping current work and promotes that input before older
+  queued input; older input remains visible and pending.
 - Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
   must change first.
 - Records-versus-event-log remains an explicit reviewer gate.
