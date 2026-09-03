@@ -325,6 +325,45 @@ async def test_renew_fails_when_the_legacy_key_is_gone(fake_redis):
     assert await fake_redis.ttl(lock_key) > 5
 
 
+async def test_acquire_releases_the_legacy_key_when_the_primary_set_raises(fake_redis):
+    """A failed primary claim must not strand the legacy key for its whole TTL.
+
+    The legacy key is taken first, so if claiming the primary raises — or the task is
+    cancelled between the two — the section goes to nobody while a key that blocks both
+    generations stays held.
+    """
+    lock_key, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    real_set = fake_redis.set
+
+    async def fail_on_primary(name, *args, **kwargs):
+        if name == lock_key:
+            raise RuntimeError("redis went away")
+        return await real_set(name, *args, **kwargs)
+
+    with patch.object(locking._lock_engine, "set", side_effect=fail_on_primary):
+        assert (
+            await locking.acquire_lock(
+                namespace="eval", key="run", project_id=PROJECT_A, ttl=90
+            )
+            is None
+        )
+
+    assert await fake_redis.get(legacy_key) is None
+    assert await fake_redis.get(lock_key) is None
+
+    # The section is free, so the next caller gets it rather than waiting out the TTL.
+    assert (
+        await locking.acquire_lock(
+            namespace="eval", key="run", project_id=PROJECT_A, ttl=5
+        )
+        is not None
+    )
+
+
 async def test_renew_fails_when_the_primary_key_is_gone(fake_redis):
     """The mirror case: the primary lapsing must not be masked by a live legacy key."""
     lock_key, legacy_key = locking._lock_keys(

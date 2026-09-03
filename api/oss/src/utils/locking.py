@@ -183,6 +183,13 @@ async def acquire_lock(
                 owner=lock_owner,
             )
     """
+    lock_owner = uuid4().hex
+    legacy_key = None
+    # Set only while this call holds the legacy key without having handed the section to
+    # anyone. Cleared once the caller owns it or it has already been released, so the
+    # `finally` below cleans up exactly the abandoned case.
+    legacy_claimed = False
+
     try:
         lock_key, legacy_key = _lock_keys(
             namespace=namespace,
@@ -190,7 +197,6 @@ async def acquire_lock(
             project_id=project_id,
             user_id=user_id,
         )
-        lock_owner = uuid4().hex
 
         # The legacy key is claimed first: a pod on the previous release sets only that
         # one, so taking it is what makes the two generations exclude each other. Claiming
@@ -203,11 +209,14 @@ async def acquire_lock(
                         key=legacy_key,
                     )
                 return None
+            legacy_claimed = True
 
         # Atomic SET NX: Returns True if lock acquired, False if already held
         acquired = await _lock_engine.set(lock_key, lock_owner, nx=True, ex=ttl)
 
         if acquired:
+            # The caller owns both keys from here; `release_lock` clears them together.
+            legacy_claimed = False
             if LOCK_DEBUG:
                 log.debug(
                     "[lock] ACQUIRED",
@@ -220,6 +229,7 @@ async def acquire_lock(
             # legacy key held until its TTL — that would block everyone for `ttl`.
             if legacy_key is not None:
                 await _release_if_owner(legacy_key, lock_owner)
+                legacy_claimed = False
 
             if LOCK_DEBUG:
                 log.debug(
@@ -236,6 +246,21 @@ async def acquire_lock(
         if strict:
             raise
         return None
+
+    finally:
+        # Reached when claiming the primary key raised or the task was cancelled between
+        # the two sets. The section went to nobody, so leaving the legacy key held would
+        # block both generations for its full TTL. Cancellation matters as much as an
+        # exception here, which is why this is a `finally` rather than an except branch.
+        if legacy_claimed and legacy_key is not None:
+            try:
+                await _release_if_owner(legacy_key, lock_owner)
+            except Exception as cleanup_error:  # pragma: no cover - best effort
+                log.error(
+                    f"[lock] LEGACY CLEANUP ERROR: namespace={namespace} "
+                    f"key={key} error={cleanup_error}",
+                    exc_info=True,
+                )
 
 
 async def renew_lock(
