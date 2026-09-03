@@ -40,6 +40,9 @@ Draft requirements:
 - The sender and every other reader see the same terminal outcome.
 - Runner, sandbox, provider, tool, and adapter failures cannot leave an unbounded running state.
 - Normal Stop preserves the session workspace and leaves the harness session warm and resumable.
+- The runner parks a stopped sandbox only after both the harness prompt and any in-flight tool child
+  processes have stopped. If a harness cannot prove that state, the runner must destroy or isolate
+  that sandbox instead of advertising warm resume.
 - A watchdog settles work when the owning runner cannot produce the terminal outcome.
 - A slow tool fails with an explicit tool or execution result. It does not disappear silently.
 
