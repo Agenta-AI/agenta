@@ -2,77 +2,104 @@
 
 > **AGENT-GENERATED, low weight.**
 
-## Two event categories
+## What clients receive today
 
-Temporary frames provide live animation. Durable events provide recovery and replay.
+The initiating browser receives invoke frames. The current watch SSE emits notices such as
+`records-changed`, then secondary clients reload completed records. It does not carry live content.
 
-| Property | Temporary frame | Durable event |
-|---|---|---|
-| Examples | text delta, tool progress | completed message, tool result, execution outcome |
-| Storage | bounded Redis Stream | Postgres record |
-| Sequence | none | numeric per-session sequence |
-| Replay guarantee | bounded window only | durable retention |
-| Client role | preview | canonical state |
+## One ingest envelope
 
-## Shared envelope
-
-Both categories carry stable object identity:
+Temporary frames and durable events reuse the existing records ingest stream. The envelope is
+versioned, and `kind` makes the two valid shapes explicit.
 
 ```text
+version
+kind: frame | event
 session_id
 execution_id
 frame_or_event_id
-type
 entity_id
+type
 payload
 created_at
+
+when kind = frame:
+  frame_index
+
+when kind = event:
+  sequence
 ```
 
-Durable events also carry `session_sequence`. Message and tool frames use the same entity ID as
-their completed checkpoint so the client replaces a preview rather than adding another object.
+- `session_id` reuses the current `sessionId`.
+- `execution_id` reuses the current `turnId`.
+- `frame_or_event_id` is stable across an identical retry.
+- `entity_id` reuses `id`, `toolCallId`, or `messageId`. Execution events use `execution_id`.
+- `frame_index` increases by one within an execution and orders temporary frames.
+- `sequence` is the database-assigned per-session cursor for durable events.
+- `created_at` is the producer timestamp in UTC. It does not define order.
 
-## Durable lifecycle vocabulary
+Ingress accepts an identical retry and rejects conflicting reuse of an ID or index. It records a
+frame gap. Clients order frames by `(execution_id, frame_index)` and durable events by `sequence`.
 
-The first contract includes:
+## Temporary frame payloads
 
-- `execution.accepted`
-- `execution.started`
-- `execution.waiting`
-- `execution.completed`
-- `execution.stopped`
-- `execution.failed`
-- `execution.lost`
-- `message.completed`
-- `tool.completed`
-- `interaction.pending`
-- `interaction.responded`
-- `interaction.cancelled`
-- `input.pending`
-- `input.promoted`
-- `input.removed`
+The envelope wraps the current invoke vocabulary. It does not rename the content protocol.
 
-The implementation specification will define exact payload fields before code changes begin.
+| Family | Existing types and fields |
+|---|---|
+| Stream | `start.messageId`, `start.messageMetadata.sessionId`, `start-step`, `finish-step`, `finish.finishReason`, `finish.messageMetadata.traceId`, `finish.messageMetadata.usage` |
+| Correlation | `message-metadata.messageMetadata.turnId` |
+| Text and reasoning | `text-start`, `text-delta.delta`, `text-end`, `reasoning-start`, `reasoning-delta.delta`, `reasoning-end`; all reuse `id` |
+| Tools | `tool-input-start`, `tool-input-available`, `tool-output-available`, `tool-output-error`, `tool-output-denied`; all reuse `toolCallId` and current input or output fields |
+| Other | `data-*`, `file`, `error`, and `data-agent-status` |
+
+Repeated tool input snapshots keep one `toolCallId`, so the reducer updates one preview.
+
+## Six durable events
+
+Version one freezes only these event types and payloads:
+
+| Type | Typed payload |
+|---|---|
+| `execution.started` | `{started_at}` |
+| `execution.stopped` | `{stopped_at, reason, command_id}` |
+| `execution.failed` | `{failed_at, error: {code, message, retryable, details?}}` |
+| `execution.lost` | `{lost_at, reason, history_complete: false}` |
+| `message.completed` | `{message_id, role, content, finish_reason?}` |
+| `tool.completed` | `{tool_call_id, name, input, output?, error?, status}` |
+
+The envelope carries session, execution, entity, sequence, and creation fields, so payloads do not
+repeat them. The reducer ignores an unknown event type and continues from the next sequence. New
+approval and pending-input events ship with their packages and a new compatible contract version.
+
+## Storage and retention
+
+The records worker persists only durable events. The relay consumer forwards temporary frames from
+the same stream. Redis trims each session stream approximately with `MAXLEN` and also enforces age.
+
+The measured long case reached 3,161 frames and 201,056 SSE bytes in one turn. The initial limits
+are 15 minutes and 100,000 frames per session. At the highest measured average rate, that length
+holds about 22 minutes and more than 31 long turns. The size estimate is about 6.36 MB of frame data
+before envelope and Redis overhead.
+
+A reader outside either retention bound discards temporary previews, reloads a snapshot, and
+follows current frames. The runner never waits for retention or readers.
 
 ## Replay and live handoff
 
-The event endpoint subscribes to the wake-up source before its first history query. It then queries
-Postgres after the supplied sequence, sends those rows in order, and queries again whenever a
-notification arrives. A notification carries no durable truth.
+The event endpoint subscribes to the wake-up source before its first history query. It queries
+Postgres after the supplied sequence, sends rows in order, and queries again when a notification
+arrives. Notifications carry no durable truth.
 
-This order prevents a commit between replay and live following from being lost.
+Each reader has a bounded output buffer. The API closes a reader that falls behind. The reader then
+reloads the snapshot and resumes from its durable sequence.
 
-## Slow readers
+## Authorization and privacy
 
-Each reader has a bounded output buffer. The API closes a reader that falls behind. The runner and
-other readers continue. The disconnected client reloads a snapshot and follows from its returned
-sequence.
+The event route applies the same project access rules as the transcript and invoke stream. It
+revalidates access during the connection or ends the connection within 15 minutes so the client
+must authenticate again.
 
-## Multiple API replicas
-
-Redis and Postgres hold shared state. Runner ingress and client SSE may connect to different API
-replicas. No API process owns durable session truth.
-
-## Authorization
-
-The event connection applies the same project access rules as the current session transcript and
-invoke stream. The new path does not introduce a separate rule based on which client started work.
+Runner ingress verifies the caller's current owner claim for the supplied session and execution.
+The shared runner token alone cannot authorize a foreign frame. Logs contain identifiers and reason
+codes only. They never contain message content, tool payloads, or tokens.

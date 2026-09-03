@@ -2,88 +2,112 @@
 
 > **AGENT-GENERATED, low weight.**
 
+## What ships first
+
+Two current bugs ship before new behavior: #6502 acknowledges records only after Postgres commits,
+and #6500 rejects concurrent execution before sandbox mutation. The next increment makes Stop fast,
+durable, warm, and recoverable.
+
 ## Planning terms
 
-**Work package:** One result that a branch and pull request can implement and review independently.
-
-**Integration merge:** A branch that combines completed packages and resolves shared-file conflicts.
+**Work package:** One result that a pull request series can implement and review independently.
 
 **Checkpoint:** A deployed integration commit that runs a named subset of `qa.md`.
 
-**Milestone:** A user-visible system capability accepted at a checkpoint.
+**Increment:** One ordered release step with an activation and rollback rule.
 
-## Milestones
+## Increments
 
-| Milestone | Result | Required packages |
-|---|---|---|
-| Contract baseline | Reviewers agree on public operations, command delivery, events, persistence, and QA | Documentation only |
-| Reliable session control | Fast warm Stop, clean failure recovery, and safe second-send rejection | Stop and recovery |
-| Shared live output | Sender, second browser, and mobile receive the same temporary output | Live relay |
-| Durable reconnect | Snapshot, ordered durable history, and replay survive disconnects | Durable history plus live relay |
-| One reader model | The sender uses the same read path as every other client | Shared client reader |
-| Durable pending work | Queue, Steer, and approval continuation use durable server state | Queue, Steer, and approvals |
+| Increment | User or system result | Required package | Flag and rollback |
+|---:|---|---|---|
+| 1 | Record ack and admission bugs are fixed in #6502 and #6500 | Stop and recovery | None. These are pure fixes. |
+| 2 | Stop is durable, direct, warm, and recoverable | Stop and recovery | `AGENTA_SESSIONS_DURABLE_STOP`; flip off and keep the old Stop path mounted |
+| 3 | History writes are stable, ordered, and independent from tracing retention | Durable history | `AGENTA_SESSIONS_HISTORY_WRITES`; flip off and keep old writes mounted |
+| 4 | Secondary readers share relay, sequence, snapshot, and one reducer | Live relay | `AGENTA_SESSIONS_SHARED_READER`; flip off to watch-and-refetch |
+| 5 | The sender uses the shared path and no longer owns execution lifetime | Live relay | `AGENTA_SESSIONS_SHARED_READER`; flip off to invoke |
+| 6 | Approval answers and continuation intent are durable | Durable approvals | Name the env switch and old response fallback before implementation |
+| 7 | Pending input is shared; Queue ships before Steer | Queue and Steer | Name separate Queue and Steer switches before implementation |
+
+The API reads switches through `api/oss/src/utils/env.py`, never `os.getenv`. Project allowlists
+and capability advertisement remain an open choice.
 
 ## Dependencies
 
 ```text
-Contract baseline
+Contract baseline candidate
     |
-    +----> Stop and recovery --------------------------+
-    |                                                  |
-    +----> Live relay ----> Durable history ----------+----> One reader model
-    |                                                  |
-    +--------------------------------------------------+----> Queue, Steer, approvals
+    +-> Increment 1: pure fixes
+            |
+            +-> Increment 2: Stop and recovery
+            |       |
+            |       +-> Increment 6: durable approvals
+            |       |       |
+            |       |       +-> Increment 7: Queue, then Steer
+            |       |
+            |       +-> Increment 3: durable history and retention
+            |               |
+            |               +-> Increment 4: secondary shared reading
+            |                       |
+            |                       +-> Increment 5: sender shared reading
 ```
 
-Stop and recovery can run beside the live relay. Durable history can begin its producer work while
-the relay runs, but snapshot and replay wait for the persistence contract. The sender migrates only
-after live relay and durable reconnect pass.
+History producer preparation may run beside Stop work, but retention separation and the sequence
+decision must pass before history writes turn on. The sender moves only after secondary readers
+pass shared-reading and replay checks.
 
 ## Checkpoints
 
-### Reliable session control checkpoint
+### Pure-fix checkpoint
 
-Deploy the selected Stop and recovery pull requests together. Run all control, failure, provider,
-and harness rows in `qa.md`. Do not include Queue, Steer, or shared live output.
+Test #6502 and #6500 independently on main. Prove database outage recovery and simultaneous
+admission without enabling a new client path.
 
-### Shared live output checkpoint
+### Stop and recovery checkpoint
 
-Deploy frame ingress, bounded Redis storage, SSE relay, and secondary-client rendering. Keep the
-sender on its existing invoke stream. Run the multiple-reader, slow-reader, API-replica, and relay
-failure rows.
+Deploy #6496 on main, #6503 on #6496, #6501 on #6503, and #6504 on #6503 after the pure fixes.
+Run control, failure, provider, harness, retry, settlement, and rollback rows in `qa.md`.
 
-### Durable reconnect checkpoint
+### Durable history checkpoint
 
-Deploy complete record checkpoints, session sequence, snapshot, and replay. Run legacy-session,
-Postgres outage, reconnect, duplicate, ordering, and replay-to-live rows.
+First prove that tracing quota and retention cannot delete session history. Then deploy complete
+checkpoints, analytics cursor allocation, sequenced legacy writes, snapshot, and replay in shadow.
+Clients remain unchanged.
 
-### One reader checkpoint
+### Secondary shared-reading checkpoint
 
-Detach execution lifetime from the start request and move the sender to the shared event path. Run
-browser close, refresh, sender/secondary parity, and desktop/mobile parity rows.
+Deploy shared ingress, bounded Redis retention, SSE relay, snapshot, sequence, and one reducer.
+Keep the sender on invoke. Run multi-reader, slow-reader, authorization, replica, and rollback rows.
 
-### Durable pending-work checkpoint
+### Sender checkpoint
 
-Deploy pending input, Queue, Steer, and durable approval continuation. Run idempotency, ordering,
-removal, Stop pause, Steer failure, and interaction race rows.
+Move the sender to the shared event path. Run browser close, refresh, sender parity, desktop parity,
+mobile parity, and rollback rows.
+
+### Durable approvals checkpoint
+
+Deploy atomic answer acceptance and continuation command creation. Run delivery failure, Stop race,
+duplicate response, and rollback rows.
+
+### Queue and Steer checkpoint
+
+Deploy visible pending input and Queue first. Keep busy default `reject` until enabled clients show
+the queue. Add Steer only after save-before-stop and priority-promotion races pass.
 
 ## Pull request rules
 
-- Each work package states the files it owns before implementation begins.
-- Shared contract changes land before dependent implementation branches start.
-- A package pull request carries package tests, migration notes, and its required QA rows.
-- An integration branch combines packages. It does not hide package-specific changes.
-- A checkpoint records the exact commit and evidence in `status.md`.
-- No issue closes until the QA row that reproduces it passes on the integrated commit.
+- Each package states its files and contract before implementation.
+- Shared contract changes land before dependent branches start.
+- A package carries tests, migration notes, flag behavior, rollback behavior, and required QA rows.
+- An integration branch records evidence. It is not a merge source for package changes.
+- A checkpoint records the exact commit, provider, harness, and evidence path in `status.md`.
+- No issue closes until its reproducing QA row passes on the integrated commit.
 
 ## First execution cycle
 
-1. Review the contract baseline.
-2. Compare the current and candidate Codex ACP versions.
-3. Adapt the watchdog branch from quarantine to late-record rejection.
-4. Review the independent Stop pull requests and select their merge order.
-5. Build one Stop integration branch.
+1. Record this RFC head as the contract-baseline candidate.
+2. Resolve the seven choices in `open-questions.md` that block their packages.
+3. Land and test #6502 and #6500 on main.
+4. Test the Codex reap from #6496 and test the pin bump in a separate pull request.
+5. Build the Stop stack in the stated base order.
 6. Deploy it on local and Daytona providers.
-7. Run the reliable session control checkpoint.
-
-The live-relay measurement and frame-envelope work can run at the same time.
+7. Run the Stop and recovery checkpoint, including flag rollback.

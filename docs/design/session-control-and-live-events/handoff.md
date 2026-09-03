@@ -56,7 +56,7 @@ optional execution guards, command settlement, direct-delivery failure, and inte
 
 ### Events and clients
 
-Review `contracts/events.md` and `work-packages/shared-client-reader.md`. Check frame identity,
+Review `contracts/events.md` and `work-packages/live-relay.md`. Check frame identity,
 preview replacement, reconnect, slow readers, multiple API replicas, and migration from invoke and
 watch behavior.
 

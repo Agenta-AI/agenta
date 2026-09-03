@@ -3,203 +3,147 @@
 > AGENT-GENERATED, low weight. Draft for discussion. Issue text is observation. Requirements are
 > proposed interpretations until Mahmoud confirms them.
 
-## Stop and hung executions
+## Stop and recovery
 
-Issues: [#5160](https://github.com/Agenta-AI/agenta/issues/5160),
+Users report that Stop returns while backend work continues, hung turns keep `running=true`, and a
+dead runner can leave the session unusable. These reports include
+[#5160](https://github.com/Agenta-AI/agenta/issues/5160),
 [#5982](https://github.com/Agenta-AI/agenta/issues/5982),
 [#6418](https://github.com/Agenta-AI/agenta/issues/6418),
 [#6100](https://github.com/Agenta-AI/agenta/issues/6100),
 [#6449](https://github.com/Agenta-AI/agenta/issues/6449),
-[#6099](https://github.com/Agenta-AI/agenta/issues/6099),
-[#6420](https://github.com/Agenta-AI/agenta/issues/6420),
-[#6327](https://github.com/Agenta-AI/agenta/issues/6327),
-[#5788](https://github.com/Agenta-AI/agenta/issues/5788),
-[#6102](https://github.com/Agenta-AI/agenta/issues/6102),
-[#6103](https://github.com/Agenta-AI/agenta/issues/6103),
-[#6084](https://github.com/Agenta-AI/agenta/issues/6084),
-[#5356](https://github.com/Agenta-AI/agenta/issues/5356),
-[#5327](https://github.com/Agenta-AI/agenta/issues/5327),
-[#6441](https://github.com/Agenta-AI/agenta/issues/6441),
-[#6313](https://github.com/Agenta-AI/agenta/issues/6313).
+[#6099](https://github.com/Agenta-AI/agenta/issues/6099), and
+[#6420](https://github.com/Agenta-AI/agenta/issues/6420).
 
-Observed examples:
+The system must meet these requirements:
 
-> “After clicking Stop, the UI reflects the stop action immediately, but backend processing
-> continues for several minutes.” ([#5160](https://github.com/Agenta-AI/agenta/issues/5160))
+- Direct delivery carries normal Stop to the active runner.
+- The five-second Stop latency is an alert threshold. Current evidence is below 300 milliseconds,
+  and a release above one second needs a written reason.
+- The client shows `stopping` until the API accepts Stop. It shows `stopped` only after the durable
+  terminal event. A failed request restores `running` and reconnects or refreshes observation.
+- Heartbeats report health and refresh ownership. They do not carry normal Stop delivery.
+- A pending command for a beating session is redelivered with the same command ID and bounded
+  attempts. A pending command whose runner is gone settles `lost`.
+- Every accepted execution reaches one durable terminal outcome. A database compare-and-set on the
+  execution row selects the winner.
+- Runner and watchdog settlement use the same terminal operation.
+- The watchdog settles an abandoned execution within 150 seconds. The client shows `recovering`
+  during the 90-second stale period and the following sweep window.
+- After settlement, the session is not running. It remains alive only while the runner has safely
+  parked the sandbox.
+- Normal Stop preserves the workspace and native harness session. Unsafe cleanup destroys or
+  isolates the sandbox instead of claiming warm resume.
+- A bounded watchdog sweep logs a timed-out pass and lets later passes continue.
+- Any terminal failure leaves committed history readable and permits another message.
 
-> “The turn hangs forever. `runTurn` never resolves, the alive watchdog keeps heartbeating
-> `running=true`.” ([#6418](https://github.com/Agenta-AI/agenta/issues/6418))
+## Concurrent input and late output
 
-Draft requirements:
-
-- Normal Stop reaches the active runner within a defined short deadline through direct delivery.
-- Heartbeats report runner health and refresh ownership. They are not the normal Stop-delivery path.
-- After Stop settles, the session is not running. It remains `alive` while the runner safely parks
-  the sandbox, then normal idle expiry clears `alive`. Settlement updates both Redis and the
-  Postgres session-row mirror.
-- Every accepted execution reaches exactly one durable terminal outcome.
-- The sender and every other reader see the same terminal outcome.
-- Runner, sandbox, provider, tool, adapter, and record-delivery failures cannot leave an unbounded
-  running state.
-- After any terminal failure, the session accepts a new message and continues from its last
-  committed history. A failure may lose an unconfirmed tail, but it cannot make the session
-  permanently unusable or discard previously committed conversation history.
-- Normal Stop preserves the session workspace and leaves the harness session warm and resumable.
-- The runner parks a stopped sandbox only after both the harness prompt and any in-flight tool child
-  processes have stopped. If a harness cannot prove that state, the runner must destroy or isolate
-  that sandbox instead of advertising warm resume.
-- A watchdog settles work when the owning runner cannot produce the terminal outcome.
-- A slow tool fails with an explicit tool or execution result. It does not disappear silently.
-
-## Steer and concurrent sends
-
-Issues: [#6417](https://github.com/Agenta-AI/agenta/issues/6417),
+Users report that a second message or Steer can kill both turns and block the session. These reports
+include [#6417](https://github.com/Agenta-AI/agenta/issues/6417),
 [#6020](https://github.com/Agenta-AI/agenta/issues/6020),
 [#5790](https://github.com/Agenta-AI/agenta/issues/5790),
-[#5539](https://github.com/Agenta-AI/agenta/issues/5539),
+[#5539](https://github.com/Agenta-AI/agenta/issues/5539), and
 [#5538](https://github.com/Agenta-AI/agenta/issues/5538).
 
-Observed examples:
+The system must meet these requirements:
 
-> “I expect the platform to queue the message, or to refuse it with a clear signal. Instead both
-> turns die and the session refuses every message for 30 minutes.”
-> ([#6417](https://github.com/Agenta-AI/agenta/issues/6417))
-
-> “The steering turn itself fails with an error and an empty reply, and every turn I send on that
-> session afterwards fails the same way.” ([#6020](https://github.com/Agenta-AI/agenta/issues/6020))
-
-Draft requirements:
-
-- At most one execution is active for a session at one time.
-- After an execution reaches a terminal outcome, later output for that execution is rejected with
-  a non-retryable conflict. The first release does not add ownership generations or a quarantine
-  table. Rejections produce structured logs and metrics.
-- A second message uses an explicit `reject`, `queue`, or `steer` policy.
-- The API saves an accepted queue or steer message before interrupting current work.
-- The API resolves every execution-affecting command to one execution before delivery.
-- Public Stop can optionally name the execution the caller expects. If omitted, it targets the
-  current execution.
-- First-party clients send `expected_execution_id` whenever they know it. A mismatch returns a
-  conflict and leaves the current execution untouched.
-- A delayed runner cannot append normal output after a terminal execution outcome.
-- A failed steer leaves the saved message visible and recoverable.
+- One session has at most one active execution.
+- The existing invoke operation accepts an `on_busy` policy and an `Idempotency-Key`.
+- Version one defaults `on_busy` to `reject`. Queue and Steer remain unavailable until every
+  enabled client displays pending input.
+- The API compares the request body when an idempotency key repeats. An identical retry returns the
+  first result, while a different request returns `409`.
+- Public Stop can include `expected_execution_id`. First-party clients send it when known.
+- The terminal execution row guards every later record for every terminal cause.
+- Late output never enters canonical reads. Whether storage rejects or quarantines it remains open.
+- Steer saves its input before Stop and preserves that input if Stop fails.
 
 ## Reattach and multiple readers
 
-Issues: [#5609](https://github.com/Agenta-AI/agenta/issues/5609),
+Today the sender receives invoke frames while secondary clients reload completed records after
+watch notices. Refresh can also hide approvals or live work. Relevant reports include
+[#5609](https://github.com/Agenta-AI/agenta/issues/5609),
 [#5542](https://github.com/Agenta-AI/agenta/issues/5542),
-[#6404](https://github.com/Agenta-AI/agenta/issues/6404),
-[#5611](https://github.com/Agenta-AI/agenta/issues/5611),
-[#5443](https://github.com/Agenta-AI/agenta/issues/5443),
-[#5384](https://github.com/Agenta-AI/agenta/issues/5384),
-[#6397](https://github.com/Agenta-AI/agenta/issues/6397),
-[#5990](https://github.com/Agenta-AI/agenta/issues/5990),
-[#6388](https://github.com/Agenta-AI/agenta/issues/6388),
-[#6468](https://github.com/Agenta-AI/agenta/issues/6468),
-[#5950](https://github.com/Agenta-AI/agenta/issues/5950).
+[#6404](https://github.com/Agenta-AI/agenta/issues/6404), and
+[#5611](https://github.com/Agenta-AI/agenta/issues/5611).
 
-Observed examples:
+The system must meet these requirements:
 
-> “A tab that never regains focus misses a run started in another browser.”
-> ([#5609](https://github.com/Agenta-AI/agenta/issues/5609))
-
-> “Reload the page. After the reload: The approval card is gone entirely.”
-> ([#5542](https://github.com/Agenta-AI/agenta/issues/5542))
-
-Draft requirements:
-
-- Every authorized client can follow one execution concurrently.
-- Every connected client receives live frames, not only completed messages.
-- Refresh, navigation, and sender disconnection do not stop the execution.
-- A snapshot declares the durable event cursor it represents.
-- A reader can replay durable events after that cursor and then follow new events.
+- Every authorized client can follow one execution and receive temporary frames.
+- A snapshot returns `{session, execution, pending, read}` and one durable sequence watermark.
+- The transcript is paged so an old session cannot exhaust an API worker or browser.
+- A reader replays durable events after the snapshot watermark, then follows new activity.
+- Each SSE connection revalidates access or ends after a bounded lifetime.
+- Runner frame ingress verifies the execution ID and current owner claim.
+- Logs contain identifiers only. They never contain message content or tokens.
 - Missed temporary frames are repaired by the next durable checkpoint.
-- Pending interactions remain visible and actionable after reload.
-- Session identity is stable in URLs and across client caches.
+- Desktop and mobile use one reducer and converge on the same state.
 
 ## Record durability and ordering
 
-Issues: [#5496](https://github.com/Agenta-AI/agenta/issues/5496),
+The records worker can lose accepted work during database failure, and it currently drops records
+for an over-quota organization. Relevant reports include
+[#5496](https://github.com/Agenta-AI/agenta/issues/5496) and
 [#5594](https://github.com/Agenta-AI/agenta/issues/5594).
 
-Observed examples:
+The system must meet these requirements:
 
-> “The session-records pipeline loses records permanently in three separate ways, and reports
-> success while doing it.” ([#5496](https://github.com/Agenta-AI/agenta/issues/5496))
-
-> “The records worker rejects the whole batch.”
-> ([#5594](https://github.com/Agenta-AI/agenta/issues/5594))
-
-Draft requirements:
-
-- A Redis Stream record is acknowledged only after the Postgres transaction that stores it commits.
-- One bad record cannot silently discard unrelated records in the same batch.
-- Every durable producer event has a stable producer-generated ID before its first send.
-- Identical retries are idempotent and cannot change established event order.
-- Progressive tool-call and tool-result frames remain temporary until the runner emits one complete
-  durable checkpoint. That checkpoint must commit before terminal settlement.
-- Durable replay uses append-only facts with a stable cursor.
-- A detected persistence gap marks the session history incomplete.
-- The runner gives every durable checkpoint a stable ID before its first send.
-- Temporary delivery failures retry with the same ID. A timeout has unknown outcome and also
-  retries with the same ID.
-- The runner drains required durable writes before terminal settlement for a bounded period.
-- The first version may lose an unconfirmed in-memory tail when the runner crashes. The watchdog
-  records `lost`, marks history incomplete, releases the session, and allows a new message.
-- The system never reports successful completion when durable settlement is unknown.
+- The records worker acknowledges ingest only after the Postgres transaction commits.
+- One malformed record cannot discard unrelated valid records from the same batch.
+- Session history is exempt from tracing quota and retention before records become permanent
+  history. This is the first history task and a completion gate.
+- Every durable producer event has a stable ID before its first send.
+- Identical retries are idempotent and cannot change established order.
+- New durable records are immutable. Progressive tool frames remain temporary until one complete
+  checkpoint commits.
+- A records-domain cursor allocates one sequence in the same analytics transaction as the record,
+  unless Mahmoud chooses to move records to core.
+- Every durable write after migration receives a sequence, including old endpoint writes.
+- A write path that cannot allocate a sequence stays off behind the history flag.
+- A persistence gap marks `history_complete=false`.
+- The system never reports completion when durable settlement is unknown.
 
 ## Approvals and pauses
 
-Issues: [#6315](https://github.com/Agenta-AI/agenta/issues/6315),
+Today approval cards can remain actionable after Stop, and an accepted answer can disappear when
+continuation delivery fails. Relevant reports include
+[#6315](https://github.com/Agenta-AI/agenta/issues/6315),
 [#6316](https://github.com/Agenta-AI/agenta/issues/6316),
-[#6106](https://github.com/Agenta-AI/agenta/issues/6106),
-[#5907](https://github.com/Agenta-AI/agenta/issues/5907),
-[#5592](https://github.com/Agenta-AI/agenta/issues/5592),
-[#5638](https://github.com/Agenta-AI/agenta/issues/5638),
-[#5545](https://github.com/Agenta-AI/agenta/issues/5545),
-[#5097](https://github.com/Agenta-AI/agenta/issues/5097).
+[#6106](https://github.com/Agenta-AI/agenta/issues/6106), and
+[#5592](https://github.com/Agenta-AI/agenta/issues/5592).
 
-Observed examples:
-
-> “The playground keeps rendering an actionable card whose buttons do nothing.”
-> ([#6315](https://github.com/Agenta-AI/agenta/issues/6315))
-
-> “When I answer a parked approval and the resumed run fails to start, the approval is gone.”
-> ([#5592](https://github.com/Agenta-AI/agenta/issues/5592))
-
-Draft requirements:
+The system must meet these requirements:
 
 - An interaction has one visible state: pending, resolved, denied, or cancelled.
-- Stop cancels pending interactions for the stopped execution.
+- Stop cancels pending interactions for the target execution in the settlement transaction.
 - A late answer cannot resume a cancelled or replaced execution.
-- An answer is not consumed until its continuation has a recoverable outcome.
+- One transaction accepts an answer and creates its continuation execution and private command.
+- A delivery failure cannot erase an accepted answer.
 - Side-effecting tools do not run twice after pause and resume.
-- One user-visible conversation turn remains traceable across approval resumes.
+- One visible conversation turn remains traceable across approval continuations.
+
+Claude Code's built-in shell may bypass the general `ask` permission. A dedicated Linear security
+issue must own that defect and its reproduction. The decision list did not provide the issue URL,
+so this document cannot link the exact issue yet.
 
 ## Session list and identity
 
-Issues: [#6419](https://github.com/Agenta-AI/agenta/issues/6419),
-[#6463](https://github.com/Agenta-AI/agenta/issues/6463),
-[#5969](https://github.com/Agenta-AI/agenta/issues/5969),
-[#6457](https://github.com/Agenta-AI/agenta/issues/6457),
-[#6031](https://github.com/Agenta-AI/agenta/issues/6031),
-[#6214](https://github.com/Agenta-AI/agenta/issues/6214).
+Today a session can appear in the list without its accepted message, and browser-local identity can
+diverge across clients. Relevant reports include
+[#6419](https://github.com/Agenta-AI/agenta/issues/6419),
+[#6463](https://github.com/Agenta-AI/agenta/issues/6463), and
+[#5969](https://github.com/Agenta-AI/agenta/issues/5969).
 
-Observed example:
+The system must meet these requirements:
 
-> “The session rail shows a session titled with my message, and the conversation is empty.”
-> ([#6419](https://github.com/Agenta-AI/agenta/issues/6419))
-
-Draft requirements:
-
-- A user message accepted by the API is never lost when execution fails to start.
+- A message accepted by the API is never lost when execution fails to start.
 - A visible session has an explicit origin and owner type.
-- Session list updates converge without requiring a full page reload.
-- Rename and archive operations have observable success or failure.
+- Session list updates converge without a full reload.
+- Rename and archive operations report success or failure.
 - Session identity does not depend on the browser that created it.
 
 ## Requirement status
 
-This file does not yet state priority or implementation order. Some issues may share a cause, and
-some may fall outside the final RFC. Each design-track discussion must confirm which requirements
-it owns and which linked issues it expects to close.
+The seven increments in [`plan.md`](plan.md) assign implementation order. The remaining choices in
+[`open-questions.md`](open-questions.md) block only the packages named there.

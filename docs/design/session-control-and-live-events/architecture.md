@@ -2,92 +2,120 @@
 
 > **AGENT-GENERATED, low weight.**
 
+## What runs today
+
+The initiating browser reads its invoke response. Secondary clients receive watch notices and
+reload completed records. Redis stores runner liveness and ownership, while the records pipeline
+writes history to the analytics database.
+
+Stop can travel through a heartbeat. The existing stream runner client treats delivery as best
+effort and swallows failures. The command sweep also skips a pending command while the session
+still beats.
+
 ## Components
 
 - **Client:** Desktop, mobile, or an external API consumer.
-- **API:** The public authority for accepting work and reading session state.
+- **API:** The public authority for Stop, snapshots, events, and session state.
+- **Agent service:** The existing invoke admission path.
 - **Runner:** The private service that starts a sandbox and drives a coding harness.
 - **Sandbox:** The isolated environment that holds files and processes for a session.
-- **Harness:** Pi, Claude Code, Codex, or another program that drives the model and tools.
-- **Postgres:** Durable commands, inputs, interactions, records, and session projections.
-- **Redis:** Current execution ownership, health leases, temporary frames, and wake-up signals.
+- **Harness:** Pi, Claude Code, Codex, or another program that drives models and tools.
+- **Postgres:** Durable commands, inputs, interactions, records, cursors, and projections.
+- **Redis:** Ownership, health leases, the records ingest stream, and wake-up signals.
 
 ## Command path
 
-The client submits an operation to the API. The API validates ownership and optional execution
-guards, commits the operation to Postgres, and returns acceptance. After the commit, a delivery
-adapter sends the command to the runner.
+The client submits Stop to the API. The API validates access and the optional execution guard,
+commits a private command, and returns acceptance. A delivery adapter then calls the runner.
 
 ```text
-Client -> API -> Postgres commit -> direct delivery -> Runner -> settlement -> Postgres
+Client -> API -> Postgres command -> deliver(command) -> Runner
 ```
 
-A failed delivery does not erase acceptance. The command remains recoverable. The public client
-follows execution state rather than private delivery state.
+The transport returns a receipt. The command service owns retry scheduling, recovery, and
+settlement. Stop uses an adapter in the commands domain and never reuses
+`streams/runner_client.py`, whose best-effort failure policy serves a different purpose.
+
+If direct delivery fails or the API dies after commit, the command remains `pending`. The sweep
+redelivers it with the same command ID and bounded attempts while the target session still beats.
+If the runner is gone, the sweep settles the command and execution as `lost`.
 
 ## Live-output path
 
-The runner emits one ordered sequence of temporary frames. The API writes those frames to a bounded
-Redis Stream. The API relays them to all connected clients through Server-Sent Events (SSE).
+The runner wraps invoke frames in the shared envelope and posts them through the existing records
+ingest stream. A relay consumer reads temporary frames and forwards them through Server-Sent Events
+(SSE). The records worker ignores temporary frames and persists durable events.
 
 ```text
-Runner -> API -> Redis Stream -> API SSE -> Client A
-                                      `-> Client B
-                                      `-> Mobile
+Runner -> records ingest stream -> relay consumer -> API SSE -> secondary clients
+                              `-> records worker -> Postgres
 ```
 
-The runner never waits for a browser. The API closes a slow reader when its buffer fills. A client
-that disconnects reloads durable state before following again.
+Increment 4 serves secondary readers while the sender stays on invoke. Increment 5 moves the sender
+to the same reducer and event connection. A slow reader never blocks the runner.
 
 ## Durable-history path
 
-Complete messages, tool results, interactions, and execution outcomes become durable records in
-Postgres. The database assigns each new durable fact the next sequence for its session in the same
-transaction that inserts it.
+Complete messages, tool results, and execution outcomes become immutable records. A records-domain
+cursor allocates the next session sequence in the same analytics transaction as the record unless
+Mahmoud chooses to move records to core.
 
 ```text
-temporary frames -> complete checkpoint -> Postgres record + session sequence
+temporary frames -> complete checkpoint -> record plus session sequence
 ```
 
-The snapshot and replay interfaces read Postgres. Redis notifications only wake readers so they can
-query after their last sequence.
+The snapshot reads one consistent database view. The event route subscribes before its first replay
+query, then queries after the last sequence whenever a wake-up arrives. Redis notifications carry
+no durable truth.
 
 ## Ownership and health
 
-Redis stores current `alive`, `running`, `owner`, and `superseded` values. The runner refreshes its
-lease through heartbeats. The Postgres session row mirrors user-facing liveness for queries.
+Redis stores `alive`, `running`, `owner`, and `superseded`. Heartbeats refresh the lease and prove
+health. The Postgres session row is a user-facing mirror, not the ownership authority.
 
-Direct delivery carries Stop. Heartbeats answer another question: whether the runner is still
-healthy and still owns the execution. When heartbeats stop, the watchdog writes a terminal `lost`
-outcome and releases the session.
+The runner and watchdog are the two terminal writers. Both call the same compare-and-set on the
+execution row. The runner normally updates the mirror during settlement. The watchdog updates it
+when the runner cannot.
 
 ## Stop sequence
 
-1. The client asks the API to stop the session. It may name the expected execution.
-2. The API validates the guard and commits a Stop command.
-3. The API delivers the command directly to the owning runner.
+1. The client sends `POST /sessions/{session_id}/cancel` with an idempotency key and optional
+   `expected_execution_id`.
+2. The API validates access, the guard, and idempotency. It commits the private Stop command.
+3. The API calls `deliver(command)`. A lost delivery result leaves the command recoverable.
 4. The runner stops new work and asks the harness to cancel active work.
-5. The runner verifies that active tool children ended.
-6. The runner writes the stopped outcome and parks the safe sandbox.
-7. Settlement clears `running`, keeps `alive` during the park window, and updates Postgres.
-8. A later message resumes the parked session. Normal idle expiry eventually clears `alive`.
+5. The runner verifies that tool child processes ended.
+6. The runner writes the terminal outcome with `UPDATE ... WHERE terminal_state IS NULL`.
+7. Where the data shares a database, one transaction settles the command, clears the stopping
+   marker, updates the Postgres mirror, and cancels interactions.
+8. After commit, an idempotent Redis write clears `running` and keeps `alive` only for a safe park.
+9. A later message resumes the safe parked session. Idle expiry eventually clears `alive`.
 
-If cancellation cannot prove a safe park, the runner destroys or isolates the sandbox and reports
-that outcome. It never advertises warm continuation while abandoned work remains active.
+If the runner cannot settle, the watchdog uses the same terminal compare-and-set. It writes the
+ending, clears `running`, releases `alive`, updates the mirror, and settles the command. A sweep
+repairs any Redis write missed after the Postgres commit.
+
+The runner and watchdog can race, but only one compare-and-set wins. Late records consult that same
+terminal row for every outcome. Their final quarantine or rejection policy remains open.
 
 ## Failure recovery
 
 - A browser failure does not affect execution.
-- An API replica failure leaves commands and history in shared storage.
-- A runner failure expires through its lease and watchdog.
-- A Redis live-frame failure can lose animation but not committed history.
-- A Postgres failure leaves unacknowledged record work in the Redis ingest stream.
-- A stale runner that sends output after terminal settlement receives `execution_terminal`.
-- Any terminal failure releases the session for another message.
+- An API failure after command commit leaves the command available for redelivery.
+- A runner failure expires through its lease and settles within the 150-second recovery SLO.
+- The client shows `recovering` while the watchdog owns recovery.
+- A Redis frame failure can lose temporary animation but not committed history.
+- A Postgres failure leaves unacknowledged record work pending in the ingest stream.
+- A database failure during the terminal check leaves records pending instead of admitting them.
+- A timed-out sweep pass is logged, and the loop continues with a later bounded pass.
+- Every terminal failure releases the session for another message.
 
-## Migration
+## Migration and rollback
 
-The first shared-output stage keeps the sender on its existing invoke response and sends the same
-runner frames to secondary readers through the relay. After shared reading and replay pass their QA
-gates, the sender becomes an ordinary event reader. Only then can the start request finish without
-owning the execution stream.
+Increment 2 gates durable Stop with `AGENTA_SESSIONS_DURABLE_STOP`. Increment 3 gates new history
+writes with `AGENTA_SESSIONS_HISTORY_WRITES`. Increments 4 and 5 gate shared readers with
+`AGENTA_SESSIONS_SHARED_READER`.
+
+The API reads all switches through `env.py`. Turning a switch off restores the mounted old path.
+Every durable write after sequence migration allocates a sequence, including old endpoint writes.
+A compatibility path that cannot meet that rule remains disabled behind the history flag.
