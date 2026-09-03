@@ -53,6 +53,7 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.streams.dtos import SessionStreamCommandRequest
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -108,6 +109,20 @@ class SessionCommandsService:
         self._delivery = delivery
 
     # -- admission ---------------------------------------------------------- #
+
+    async def request_cancel_legacy(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> None:
+        """Use the heartbeat-carried Stop path kept for rollout rollback."""
+        await self._streams.command(
+            project_id=project_id,
+            user_id=user_id,
+            request=SessionStreamCommandRequest(session_id=session_id),
+        )
 
     async def request_cancel(
         self,

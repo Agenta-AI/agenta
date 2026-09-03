@@ -1,7 +1,7 @@
 import os
 import hashlib
 import warnings
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -664,6 +664,12 @@ class SessionsCommandsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    durable_stop: bool = (
+        os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false"
+    ).lower() in _TRUTHY
+    late_output: Literal["quarantine", "reject"] = (
+        (os.getenv("AGENTA_SESSIONS_LATE_OUTPUT") or "quarantine").strip().lower()
+    )
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
