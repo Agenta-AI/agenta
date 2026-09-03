@@ -204,8 +204,12 @@ Files: `pi-local-all.json`, `claude-local-all2.json`, `claude-local-stop-tool2.j
 
 ## How credentials were obtained
 
-No value is printed here, in any evidence file, or in any message this lane sent. Both evidence
-directories were scanned with gitleaks and no leak was found.
+No value is printed here, in any evidence file, or in any message this lane sent. Both
+directories were scanned with gitleaks. The report directory is clean. The evidence directory
+reports 25 `generic-api-key` hits, ALL of them `token=<uuid>` lines inside the two preserved
+runner logs. Those are per-interaction tokens, not credentials, and a targeted search for real
+key shapes (`sk-`, `sk-ant-api`, `dtn_`) over the whole directory returns nothing. This is the
+known false-positive class for QA artifacts; no rotation is needed.
 
 - **The Daytona platform key, and why the stack was changed.** The stack's original Daytona API
   key could create sandboxes but could not manage Daytona Secrets, so every Daytona run failed at
@@ -223,12 +227,14 @@ directories were scanned with gitleaks and no leak was found.
   the Secrets-capable key is the correct one for this stack.
 - **The runner recreate.** The runner container was recreated at 12:18:22 UTC, because only a new
   container picks up a changed environment variable. The previous container's complete log was
-  dumped first to
+  dumped first, so the lane reading this stack lost nothing. There are two dumps, and they are
+  the same log:
   `~/agenta-qa-evidence/2026-09-03-session-round2/daytona/preserved-runner-log/runner-before-recreate.log`,
-  4871 timestamped lines covering 2026-09-02T22:31:34 to 2026-09-03T12:18:02 UTC, so the lane
-  reading this stack lost nothing. No other container was touched; every one of the other
-  fourteen had been up thirteen hours and stayed up. The `child-cleanup` lane was told when the
-  runner was healthy.
+  4871 timestamped lines covering 2026-09-02T22:31:34 to 2026-09-03T12:18:02 UTC, written by this
+  lane, and `runner-log-before-recreate.txt` beside it, written by the team lead in the same
+  minute. Either can be read; neither is needed twice. No other container was touched; every one
+  of the other fourteen had been up thirteen hours and stayed up. The `child-cleanup` lane was
+  told when the runner was healthy, and where to read the preserved log.
 - **OpenAI model key, for Pi.** Read from `~/.agenta-qa-openai.env` (mode 600) as
   `OPENAI_API_KEY`, by `env.sh`, which exports it without echoing it. Loaded into each test
   project's vault by `POST /api/vault/v1/secrets/` with `secret.kind = provider_key` and
