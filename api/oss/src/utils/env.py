@@ -561,52 +561,6 @@ class SessionAttachmentsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class SessionsCommandsConfig(BaseModel):
-    """Durable session commands: how a Stop reaches the runner, and how long it may wait.
-
-    `adapter` picks the control-delivery transport behind `ControlDeliveryPort`:
-
-      * `direct` — the API posts the command to the runner's own `/cancel`, over the
-        authenticated hop that already carries hard kill. One runner process, no held
-        connection, no poll loop. This is the default.
-      * `long_poll` — the runner holds a claim request open and the API answers it. Correct for
-        two or more runner replicas and for a runner the API cannot reach inbound. Not built in
-        this slice; naming it here fails loudly rather than silently falling back.
-
-    `direct` calls one service address, so with two runner replicas behind a load balancer the
-    call lands on the right process only by luck. Nothing here guards that, on purpose: the
-    detector is exact and lives in the service, where a `not_held` for a session that is alive
-    and beating is the wrong-replica failure and nothing else produces it.
-    """
-
-    adapter: str = os.getenv("AGENTA_SESSIONS_CONTROL_ADAPTER") or "direct"
-
-    # How long a claimed command may go unreported before the settlement sweep acts. Three
-    # heartbeat intervals.
-    lease_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_LEASE_SECONDS") or 90
-    )
-    # Bounds a delivery loop where a runner accepts a command and never reports.
-    max_deliveries: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_MAX_DELIVERIES") or 3
-    )
-    sweep_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_SWEEP_SECONDS") or 10
-    )
-    # A command nobody ever claimed is a runner that is not there.
-    admission_timeout_seconds: int = (
-        _parse_optional_positive_int_env(
-            "AGENTA_SESSIONS_COMMAND_ADMISSION_TIMEOUT_SECONDS"
-        )
-        or 90
-    )
-    # How long the direct call waits for the runner to acknowledge. The runner answers before
-    # it cancels anything, so this covers a network hop, not a harness cancel.
-    delivery_timeout_seconds: float = float(
-        os.getenv("AGENTA_SESSIONS_COMMAND_DELIVERY_TIMEOUT_SECONDS") or 5.0
-    )
-
-
 class SessionWatchdogConfig(BaseModel):
     """The execution watchdog: how long a running turn may go silent before it is settled.
 
@@ -657,6 +611,53 @@ class SessionWatchdogConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE") or 500
     )
 
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionsCommandsConfig(BaseModel):
+    """Durable session commands: how a Stop reaches the runner, and how long it may wait.
+
+    `adapter` picks the control-delivery transport behind `ControlDeliveryPort`:
+
+      * `direct` — the API posts the command to the runner's own `/cancel`, over the
+        authenticated hop that already carries hard kill. One runner process, no held
+        connection, no poll loop. This is the default.
+      * `long_poll` — the runner holds a claim request open and the API answers it. Correct for
+        two or more runner replicas and for a runner the API cannot reach inbound. Not built in
+        this slice; naming it here fails loudly rather than silently falling back.
+
+    `direct` calls one service address, so with two runner replicas behind a load balancer the
+    call lands on the right process only by luck. Nothing here guards that, on purpose: the
+    detector is exact and lives in the service, where a `not_held` for a session that is alive
+    and beating is the wrong-replica failure and nothing else produces it.
+    """
+
+    adapter: str = os.getenv("AGENTA_SESSIONS_CONTROL_ADAPTER") or "direct"
+
+    # How long a claimed command may go unreported before the settlement sweep acts. Three
+    # heartbeat intervals.
+    lease_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_LEASE_SECONDS") or 90
+    )
+    # Bounds a delivery loop where a runner accepts a command and never reports.
+    max_deliveries: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_MAX_DELIVERIES") or 3
+    )
+    sweep_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_SWEEP_SECONDS") or 10
+    )
+    # A command nobody ever claimed is a runner that is not there.
+    admission_timeout_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_COMMAND_ADMISSION_TIMEOUT_SECONDS"
+        )
+        or 90
+    )
+    # How long the direct call waits for the runner to acknowledge. The runner answers before
+    # it cancels anything, so this covers a network hop, not a harness cancel.
+    delivery_timeout_seconds: float = float(
+        os.getenv("AGENTA_SESSIONS_COMMAND_DELIVERY_TIMEOUT_SECONDS") or 5.0
+    )
     model_config = ConfigDict(extra="ignore")
 
 
