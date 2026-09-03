@@ -24,8 +24,13 @@ import {
   type ControlCommand,
   type ControlOutcome,
 } from "../../src/sessions/control-channel.ts";
+import { stopParkedApprovalSession } from "../../src/server.ts";
 import { resetAppliedCommandsForTest } from "../../src/sessions/applied-commands.ts";
 import { shouldPark } from "../../src/engines/sandbox_agent/engine.ts";
+import type {
+  ParkedApproval,
+  SessionEnvironment,
+} from "../../src/engines/sandbox_agent.ts";
 import {
   isUserStopAbort,
   USER_STOP_ABORT_REASON,
@@ -179,6 +184,116 @@ describe("applyCommand", () => {
     }
     assert.deepEqual(prompts, ["what next?"]);
     assert.deepEqual(reported, [outcome]);
+  });
+
+  it("reparks a stopped approval only after the harness cancel settles", async () => {
+    const journal: string[] = [];
+    let settlePrompt!: (value: unknown) => void;
+    const promptPromise = new Promise<unknown>((resolve) => {
+      settlePrompt = resolve;
+    });
+    const gate: ParkedApproval = {
+      gateType: "claude-acp-permission",
+      permissionId: "perm-a",
+      toolCallId: "tool-a",
+      toolName: "commit",
+      args: {},
+      interactionToken: "interaction-a",
+      promptPromise,
+    };
+    const env = {
+      sandbox: {
+        cancelSession: async () => {
+          journal.push("cancel");
+          settlePrompt({ stopReason: "cancelled" });
+        },
+      },
+      session: {
+        id: "harness-session",
+        respondPermission: async () => journal.push("reject"),
+      },
+      logger: () => {},
+      parkedApprovals: new Map([[gate.toolCallId, gate]]),
+      parkedApproval: gate,
+      parkedApprovedExecutions: new Map([["approved", {}]]),
+      approvalGateCount: 1,
+      nonParkablePauseCount: 1,
+      commitAuthorization: {},
+      sessionDestroyRequested: false,
+      clearTurn: () => journal.push("clear"),
+    } as unknown as SessionEnvironment;
+    let tornDown = 0;
+
+    await stopParkedApprovalSession({
+      environment: env,
+      repark: async () => {
+        journal.push("repark");
+        return true;
+      },
+      teardown: async () => {
+        tornDown += 1;
+      },
+      cancelSettleMs: 1,
+      wait: async () => {},
+    });
+
+    assert.deepEqual(journal, ["reject", "cancel", "clear", "repark"]);
+    assert.equal(env.parkedApprovals.size, 0);
+    assert.equal(env.parkedApproval, undefined);
+    assert.equal(env.sessionDestroyRequested, true);
+    assert.equal(tornDown, 0);
+  });
+
+  it("tears down a stopped approval when the harness cancel does not settle", async () => {
+    const journal: string[] = [];
+    const gate: ParkedApproval = {
+      gateType: "claude-acp-permission",
+      permissionId: "perm-a",
+      toolCallId: "tool-a",
+      toolName: "commit",
+      args: {},
+      interactionToken: "interaction-a",
+      promptPromise: new Promise(() => {}),
+    };
+    const env = {
+      sandbox: {
+        cancelSession: async () => journal.push("cancel"),
+      },
+      session: {
+        id: "harness-session",
+        respondPermission: async () => journal.push("reject"),
+      },
+      logger: () => {},
+      parkedApprovals: new Map([[gate.toolCallId, gate]]),
+      parkedApproval: gate,
+      parkedApprovedExecutions: new Map(),
+      approvalGateCount: 1,
+      nonParkablePauseCount: 0,
+      sessionDestroyRequested: false,
+      clearTurn: () => journal.push("clear"),
+    } as unknown as SessionEnvironment;
+
+    await assert.rejects(
+      stopParkedApprovalSession({
+        environment: env,
+        repark: async () => {
+          journal.push("repark");
+          return true;
+        },
+        teardown: async () => {
+          journal.push("teardown");
+        },
+        cancelSettleMs: 1,
+        wait: async () => {
+          journal.push("timeout");
+        },
+      }),
+      /parked approval harness cancel did not settle/,
+    );
+
+    assert.deepEqual(journal, ["reject", "cancel", "timeout", "teardown"]);
+    assert.equal(env.parkedApprovals.size, 1);
+    assert.equal(env.sessionDestroyRequested, true);
   });
 
   it("refuses to abort an execution that started AFTER the command was created", async () => {
