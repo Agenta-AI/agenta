@@ -182,6 +182,14 @@ and the session remains available for a new message.
 Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
 Durable checkpoints replace those previews.
 
+### Bound temporary frames and reload on disconnect
+
+Redis frame retention uses both age and size or frame-count limits. A measurement spike sets their
+values. The runner never waits for readers, and each reader has a bounded outgoing buffer. The API
+closes a reader that falls behind. On every disconnect, the first client implementation discards
+temporary previews, reloads the durable snapshot, and follows from its sequence. Version one does
+not add a separate `resync_required` event.
+
 ### Preserve approval continuation and make waiting explicit
 
 The current approval path already ends the requesting execution, stores a pending interaction,

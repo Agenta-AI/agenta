@@ -550,7 +550,14 @@ the relay, projector, or public read contract.
 ### Temporary retention
 
 Redis retains frames for a bounded recovery window. Temporary frames do not advance the durable
-cursor. If a client misses them, the next durable message or tool checkpoint replaces its preview.
+cursor. Retention has both an age limit and a size or frame-count limit. Measurements of real
+executions determine the initial values.
+
+The runner never waits for a browser. Each reader has a bounded outgoing buffer. If a reader falls
+too far behind, the API closes that reader's event connection. On every disconnect, the first
+client implementation discards unfinished previews, fetches a fresh durable snapshot, and follows
+again after the snapshot sequence. It does not require a separate `resync_required` event. Missing
+temporary frames can reduce token animation but cannot block execution or corrupt durable state.
 
 ### Multiple API processes
 

@@ -31,6 +31,8 @@
 - Final endpoint names remain open.
 - The public interface exposes explicit session operations while the durable command store remains
   private. Existing routes remain during migration; final route spelling is deferred.
+- Temporary frames have bounded age and size. A slow reader is disconnected and reloads the
+  durable snapshot; it never slows the runner. Measurements set the numeric limits.
 
 ## Work in review
 
