@@ -8,12 +8,13 @@
 ### Fast Stop and command delivery
 
 1. Trace current Stop, kill, heartbeat, abort, sandbox, and interaction paths.
-2. Prove warm cancellation and identify sandbox-agent or Daytona work.
+2. Use the completed warm-cancellation evidence and close the remaining Codex Daytona check.
 3. Add the durable command repository and state transitions.
-4. Add runner-initiated long polling behind the command-delivery adapter.
+4. Add direct authenticated delivery behind the command-delivery adapter.
 5. Make public Stop create a durable command with an optional execution guard.
 6. Keep current Redis ownership until cancellation settles.
-7. Add heartbeat command discovery as fallback.
+7. Keep durable commands pending when direct delivery fails so recovery can settle or redeliver
+   them. Long polling remains parked in Linear AGE-4253.
 8. Emit stopped or lost outcomes and notify existing clients.
 
 ### Shared live reading
@@ -30,7 +31,7 @@
 1. Complete the stable record-ID spike.
 2. Review the provisional separate-event-table choice.
 3. Add the selected append-only event store and per-session commit order.
-4. Build session projections and snapshots through an opaque cursor.
+4. Build session projections and snapshots through the numeric per-session sequence.
 5. Add replay followed by live delivery.
 6. Migrate desktop and mobile before removing the old watch path.
 
@@ -55,7 +56,7 @@ The following tasks do not require the final event-store decision:
 
 ## First releasable slice
 
-The first release contains durable Stop, long-poll delivery, heartbeat fallback, honest terminal
+The first release contains durable Stop, direct delivery, durable recovery, honest terminal
 outcomes, and warm resume. It keeps existing Redis ownership and existing client watch behavior.
 
 ## Completion evidence
@@ -68,4 +69,4 @@ Each program needs:
 - Exact current and changed API behavior.
 - Known limitations.
 
-The draft RFC contains the complete test matrix.
+The complete release validation contract is in [qa-matrix.md](qa-matrix.md).

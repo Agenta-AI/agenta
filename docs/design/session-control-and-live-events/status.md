@@ -39,11 +39,19 @@
 - HTTP reports admission results through commit. New durable work and identical retries return
   stable accepted IDs. Later execution outcomes arrive through the event stream. Idle unguarded
   Stop is a successful no-op; stale guarded Stop conflicts.
+- Warm Stop is confirmed by live evidence for Pi and Claude Code on Daytona and Pi, Claude Code,
+  and Codex locally. Model-output, active-tool, and pending-approval cases resumed in the same
+  sandbox and native harness session.
+- Stop settlement clears `running`, keeps `alive` during safe parking, and updates the Postgres
+  session-row mirror. Normal idle expiry later clears `alive`.
+- Version one rejects output after terminal settlement. It does not add a quarantine table.
+- The release validation contract is recorded in [qa-matrix.md](qa-matrix.md).
 
 ## Work in review
 
-1. Warm cancellation and harness compatibility, PR #6496. Hold because Codex can leave a tool
-   child process running and Daytona and Claude Code remain untested.
+1. Warm cancellation and harness compatibility, PR #6496. Core warm cancellation is proven.
+   Codex child cleanup still needs Daytona verification and comparison against a current Codex ACP
+   version.
 2. Durable command and transport design, PR #6497.
 3. Current Stop path map, PR #6498.
 4. Stable record-ID semantics, PR #6499. Evidence only. Its focused tests pass, but the new runner
@@ -57,19 +65,17 @@
 
 ## Work ready to start
 
-1. Prove Daytona and Claude Code warm Stop.
-2. Prove restart behavior and durable continuity.
-3. Prevent or quarantine output after watchdog terminal settlement.
-4. Verify the post-Stop `running` and `alive` contract.
-5. Design live-frame ingress and shared reading.
+1. Verify Codex child cleanup on Daytona and test a current Codex ACP version.
+2. Implement rejection of records after terminal settlement on the watchdog branch.
+3. Verify the final runner shutdown grace period.
+4. Design live-frame ingress and shared reading.
 
 ## Human review priorities
 
-1. Confirm that the first Stop release is small enough.
-2. Decide repaired records versus a separate session-event table after reviewing Spike D.
-3. Confirm manual Stop behavior for queued input.
-4. Review the public resource boundaries without focusing on final route spelling.
-5. Assign owners for the independent spikes.
+1. Decide repaired records versus a separate session-event table after reviewing Spike D.
+2. Review the public resource boundaries without focusing on final route spelling.
+3. Set measured live-frame retention and slow-reader limits.
+4. Decide the final endpoint names.
 
 ## Branch
 

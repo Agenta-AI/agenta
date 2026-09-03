@@ -10,10 +10,11 @@
 3. [Requirements](requirements.md) maps open issues to required system behavior.
 4. [Implementation plan](plan.md) divides the work into independent programs.
 5. [Status](status.md) lists work that can start and the next human review priorities.
-6. [Research](research.md) records verified repository and competitor findings.
-7. [Record properties](records-invariants.md) analyzes current record durability and ordering.
-8. [Tonight handoff](tonight-handoff.md) contains focused spike briefs.
-9. [Context](context.md) describes the original problem and system boundary.
+6. [QA matrix](qa-matrix.md) defines the release validation contract.
+7. [Research](research.md) records verified repository and competitor findings.
+8. [Record properties](records-invariants.md) analyzes current record durability and ordering.
+9. [Tonight handoff](tonight-handoff.md) contains focused spike briefs.
+10. [Context](context.md) describes the original problem and system boundary.
 
 ## Terms
 

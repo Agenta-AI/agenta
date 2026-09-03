@@ -36,6 +36,18 @@ The Stop spike must prove that the next message resumes the same sandbox and nat
 session. If the current sandbox agent cannot do this, the spike must identify the patch and Daytona
 snapshot work.
 
+Evidence gathered on 2026-09-02 and 2026-09-03 confirms warm continuation during model output,
+an active tool, and a pending approval. The tested matrix covers Pi and Claude Code on Daytona and
+Pi, Claude Code, and Codex on the local provider. Stop answered in 70 to 104 milliseconds on
+Daytona. Harness cancellation took 19 to 151 milliseconds there. Durable Stop reached runner abort
+in 72 to 82 milliseconds locally. The sandbox-agent client patch is eight lines. It does not
+change the daemon and does not require a Daytona snapshot rebuild.
+
+Codex needs one additional release decision. Test the current Codex ACP adapter and a
+straightforward version upgrade against the full Codex Stop matrix. If the upgrade fixes child
+cleanup without regressions, prefer it over maintaining process-table cleanup in the runner. The
+upgrade is an investigation and release option, not an assumed architectural dependency.
+
 ### Use five seconds as the provisional Stop target
 
 Within five seconds of accepted Stop under normal operation, the runner stops starting new model
@@ -105,6 +117,9 @@ command after direct delivery fails.
 After cancellation settles, clear `running`. Retain `alive` only when the runner confirms that
 the harness, all tool child processes, and the sandbox are safely parked. Normal idle expiry later
 clears `alive`. A failed or unsafe park clears both flags.
+
+Stop settlement also updates the `session_streams` Postgres mirror. A final runner heartbeat cannot
+own this update because terminal settlement may correctly reject that heartbeat.
 
 ### Add new read contracts beside old endpoints
 
@@ -191,6 +206,11 @@ sending output for that execution. The API records diagnostic logs and metrics b
 permanent quarantine table in version one. A watchdog-lost execution is already marked incomplete,
 and the session remains available for a new message.
 
+This choice was confirmed after the watchdog spike demonstrated an alternative quarantine design.
+Version one prefers a simple canonical history. Rejected late records produce structured logs and
+metrics with their session, execution, record type, and rejection reason. The runner treats
+`execution_terminal` as final and does not retry it.
+
 ### Use one client reducer
 
 Desktop and mobile apply the same snapshot and event vocabulary. Temporary frames create previews.
@@ -231,7 +251,8 @@ acceptance.
 
 ## Reviewer gates
 
-1. Warm cancellation behavior in each harness and sandbox.
+1. Verify Codex child-process cleanup on Daytona and compare the current Codex ACP pin with a
+   straightforward upgrade using the full Codex Stop matrix.
 2. Confirm direct-delivery failure recovery. Keep long-poll authentication and claim-expiry design
    parked in Linear AGE-4253.
 3. Manual Stop behavior for pending input.
@@ -246,7 +267,7 @@ acceptance.
 10. Confirm the remaining API status codes and payload fields for retryable delivery failure,
     duplicate success, conflicting payload, and `execution_terminal`.
 11. Verify every current liveness consumer implements the confirmed post-Stop `running` and
-   `alive` contract.
+   `alive` contract. The contract itself is no longer open.
 
 ## Deferred decisions
 

@@ -20,7 +20,7 @@ Agenta will separate session commands from session reading.
 - The runner sends live frames to one shared backend path.
 - All authorized clients read the same session snapshot and event stream.
 - Temporary live frames stay in bounded Redis storage.
-- Permanent session facts live in Postgres and support replay after an opaque cursor.
+- Permanent session facts live in Postgres and support replay after a numeric per-session sequence.
 - Stop preserves the sandbox and native harness session for warm resume.
 
 The implementation proceeds in independent control and read programs. Fast Stop does not wait for
@@ -78,11 +78,11 @@ code can map existing fields without renaming every stored column in the first r
 1. At most one execution owns a session under the current Redis ownership contract.
 2. Every accepted execution reaches one terminal outcome: completed, waiting, stopped, failed, or
    lost. `waiting` ends that execution at an interaction boundary; it does not keep a runner active.
-3. After that terminal outcome, later non-terminal output for the execution is rejected or
-   quarantined.
-3. Stop prevents new model and tool work within five seconds under normal operation.
-4. Stop preserves the sandbox and native harness session for warm resume.
-5. Delete remains separate and can remove the session and its resources.
+3. After that terminal outcome, later output for the execution is rejected with a non-retryable
+   `execution_terminal` conflict.
+4. Stop prevents new model and tool work within five seconds under normal operation.
+5. Stop preserves the sandbox and native harness session for warm resume.
+6. Delete remains separate and can remove the session and its resources.
 
 ### Reading
 
@@ -449,6 +449,10 @@ harness, all tool child processes, and the sandbox are safely parked. Normal idl
 clears `alive`. A failed or unsafe park clears both flags. Reviewers must verify every current
 liveness consumer implements this contract.
 
+Settlement writes the same state to the `session_streams` Postgres mirror. The runner's final
+heartbeat is not responsible for that mirror update because terminal settlement can reject a
+heartbeat from the finished execution.
+
 ### Delivery
 
 The API delivers Stop directly to the runner after the durable command commits. Heartbeat remains
@@ -466,16 +470,34 @@ outcome, clears owner-checked `running`, and applies the reviewed post-Stop `ali
 ### Missing runner
 
 If the runner disappears, the command claim expires. Existing heartbeat and orphan recovery clear
-stale liveness. Recovery records `lost` rather than claiming that cancellation completed. The exact
-settlement timeout depends on the sandbox cancellation spike.
+stale liveness. Recovery records `lost` rather than claiming that cancellation completed. The
+watchdog considers a heartbeat stale after 90 seconds and runs every 60 seconds, so settlement
+currently takes 90 to 150 seconds.
 
-### Reviewer gate: warm cancellation
+Normal runner shutdown releases its ownership claims. A forced kill cannot run cleanup code and
+waits for the 120-second owner lease. After either path, recovery must leave the session able to
+accept another message.
 
-Implementation must not claim warm Stop support until a spike proves Stop followed by resume in the
-same sandbox and native harness session. The spike must cover model calls, active tools, partial
-messages, Pi, Claude Code, sandbox-agent changes, and Daytona snapshot impact. Local Pi and Codex
-prompt continuation passed, but Codex left an in-flight shell child running. Codex warm parking
-therefore remains unsupported until child-process termination is proven.
+### Warm cancellation evidence
+
+Live tests on 2026-09-02 and 2026-09-03 proved Stop followed by continuation in the same sandbox
+and native harness session during model output, an active tool, and a pending approval. The matrix
+covers Pi and Claude Code on Daytona and Pi, Claude Code, and Codex locally. Daytona Stop requests
+answered in 70 to 104 milliseconds, and harness cancellation took 19 to 151 milliseconds. Local
+durable Stop reached runner abort in 72 to 82 milliseconds.
+
+The sandbox-agent client patch is eight lines. The daemon needs no change, and Daytona needs no
+snapshot rebuild for warm cancellation. Codex has a separate child-process issue: its current ACP
+adapter can leave an active shell command inside the parked sandbox. A local runner-side cleanup
+passed, but release still requires a Daytona check and a comparison against a current Codex ACP
+version. If a straightforward upgrade fixes cleanup and passes the complete Codex matrix, prefer
+the upgrade over maintaining custom process inspection.
+
+The evidence also exposed implementation defects that the release matrix now pins: named Stop
+during approval, Stop-outcome settlement races, Stop after execution completion, stale Postgres
+liveness, missing continuity after Stop, ownership left behind on normal shutdown, Codex child
+processes, missing terminal output after a stopped runner dies, and an `alive` key left by that
+recovery. These are evidence about the candidate branches, not new architectural mechanisms.
 
 ## Queue and Steer
 
@@ -742,6 +764,11 @@ stream provides lifecycle, interaction, and transcript updates.
 | Postgres commit succeeds but wake-up fails | Readers query after their cursor and recover the event. |
 | Slow browser | API disconnects it after a bounded buffer. Runner continues. |
 | Old temporary frames expire | Durable checkpoint replaces the incomplete preview. |
+| Runner sends output after a terminal outcome | API returns non-retryable `execution_terminal`; the row is not stored and the runner stops retrying. |
+
+A runner or sandbox failure may lose the unconfirmed output tail. Recovery must still write one
+terminal outcome, release the session, and allow another message using the last committed history.
+The session must never become permanently unusable because an execution failed.
 
 ## Ports and adapters
 
@@ -757,7 +784,8 @@ SessionEventStore
 SessionSnapshotStore
 ```
 
-Initial adapters use Postgres, current Redis ownership, HTTP long polling, Redis Streams, and SSE.
+Initial adapters use Postgres, current Redis ownership, direct authenticated HTTP delivery, Redis
+Streams, and SSE.
 Later adapters can change transport without changing public resources or state transitions.
 
 ## Migration plan
@@ -765,19 +793,20 @@ Later adapters can change transport without changing public resources or state t
 ### Preparation and spikes
 
 1. Map all current cancel, kill, steer, approval, heartbeat, and invoke paths.
-2. Prove warm cancellation and identify sandbox-agent or Daytona work.
-3. Inventory stable record-ID reuse.
-4. Confirm the separate session-event table or select repaired records instead.
+2. Record the completed warm-cancellation matrix and verify Codex cleanup on Daytona.
+3. Test the current Codex ACP pin and a current version against the same Stop matrix.
+4. Inventory stable record-ID reuse.
+5. Confirm the separate session-event table or select repaired records instead.
 
 ### Fast Stop
 
 1. Add the command repository and service.
-2. Add long-poll claim and acknowledgement endpoints.
-3. Add the runner claim loop behind the delivery adapter.
+2. Add direct authenticated delivery behind the delivery adapter.
+3. Keep accepted commands recoverable when delivery fails. Keep long polling parked in AGE-4253.
 4. Make Stop create a durable command with an optional execution guard.
 5. Keep Redis ownership until cancellation settles.
-6. Add heartbeat command discovery as fallback.
-7. Emit stopped or lost outcomes and notify current watch clients.
+6. Emit stopped or lost outcomes and notify current watch clients.
+7. Reject late output after terminal settlement and record rejection metrics.
 
 ### Shared live reading
 
@@ -805,40 +834,9 @@ Later adapters can change transport without changing public resources or state t
 
 ## Test plan
 
-### Stop
-
-- Stop reaches the runner within five seconds under normal operation.
-- Stop followed by Send resumes the same warm sandbox and native harness session.
-- Repeated Stop does not perform cancellation twice.
-- A mismatched optional execution guard cannot stop newer work.
-- New work cannot start while normal cancellation is unsettled.
-- A broken long poll falls back to heartbeat command discovery.
-- A missing runner reaches `lost` rather than remaining `running` forever.
-
-### Commands and input
-
-- A lost API response followed by retry creates one command or input.
-- A runner disconnect after claim causes safe redelivery.
-- Every client sees the same pending input order.
-- Removing a promoted input fails without losing it.
-- Failed Steer preserves its saved input.
-- One interaction response wins under concurrent answers.
-
-### Shared reading
-
-- Sender, second browser, and mobile render the same live text and tool progress.
-- A slow reader does not change runner throughput.
-- Refresh during execution reconstructs durable state and continues live output.
-- Different API processes can host the runner ingress and browser stream.
-- Expired temporary frames are repaired by the next durable checkpoint.
-
-### Replay
-
-- Snapshot cursor N followed by events after N loses no committed event.
-- Reconnect after cursor N does not duplicate durable state.
-- Concurrent commits preserve the exposed per-session order.
-- Projector failure does not acknowledge unwritten Redis entries.
-- A detected persistence gap marks history incomplete.
+[qa-matrix.md](qa-matrix.md) is the release validation contract. It records the provider, harness,
+failure point, expected user-visible result, durable result, ownership result, and evidence for
+each cell. A feature is not proven by one happy-path harness or one provider.
 
 ## Alternatives
 
@@ -847,11 +845,11 @@ Later adapters can change transport without changing public resources or state t
 Rejected because normal delivery can take one heartbeat interval and does not acknowledge the
 command independently from ownership state.
 
-### Direct runner calls
+### Runner-initiated long polling
 
-Deferred as a possible managed-runner adapter. The first design uses long polling because durable
-claims and reconnection have a clearer recovery model. Possible user-operated runners strengthen
-this choice but are not a current requirement.
+Deferred in Linear AGE-4253. Direct authenticated runner calls are the version-one adapter because
+they are small, measured, and already use the managed runner's existing authenticated path. Long
+polling remains the designed alternative if private or user-operated runners become real.
 
 ### Runner Redis subscriptions
 
@@ -887,7 +885,8 @@ change has substantial migration cost and limited immediate user value.
 
 These points remain deliberately open even though this RFC provides provisional defaults:
 
-1. Prove warm Stop and determine sandbox-agent and Daytona changes.
+1. Verify Codex child cleanup on Daytona and compare the current Codex ACP pin with a current
+   version against the full Codex matrix.
 2. Confirm direct-delivery retry and recovery behavior. Keep long-poll claim design parked in
    Linear AGE-4253.
 3. Confirm whether manual Stop pauses all queued input until an explicit resume action.
@@ -900,10 +899,10 @@ These points remain deliberately open even though this RFC provides provisional 
 10. Confirm the exact API response contract for retryable delivery failure, duplicate success,
     conflicting payload, and output after terminal settlement.
 11. Confirm Spike D found every intentional progressive record update.
-12. Verify the terminal-settlement and record-ingest transaction prevents the demonstrated
-    stale-tail race.
+12. Verify record ingest rejects every record after terminal settlement, including a late `done`,
+    without retry.
 13. Verify every current liveness consumer implements the confirmed post-Stop `running` and
-    `alive` contract.
+    `alive` contract. The contract itself is confirmed.
 
 ## Approval
 

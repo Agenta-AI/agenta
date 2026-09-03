@@ -34,8 +34,9 @@ Draft requirements:
 
 - Normal Stop reaches the active runner within a defined short deadline through direct delivery.
 - Heartbeats report runner health and refresh ownership. They are not the normal Stop-delivery path.
-- After Stop settles, the session is not running. Whether it remains `alive` while its sandbox is
-  parked is an open contract question that must be resolved against every liveness consumer.
+- After Stop settles, the session is not running. It remains `alive` while the runner safely parks
+  the sandbox, then normal idle expiry clears `alive`. Settlement updates both Redis and the
+  Postgres session-row mirror.
 - Every accepted execution reaches exactly one durable terminal outcome.
 - The sender and every other reader see the same terminal outcome.
 - Runner, sandbox, provider, tool, adapter, and record-delivery failures cannot leave an unbounded
@@ -70,8 +71,9 @@ Observed examples:
 Draft requirements:
 
 - At most one execution is active for a session at one time.
-- After an execution reaches a terminal outcome, later non-terminal output for that execution is
-  rejected or quarantined. The first release does not add ownership generations.
+- After an execution reaches a terminal outcome, later output for that execution is rejected with
+  a non-retryable conflict. The first release does not add ownership generations or a quarantine
+  table. Rejections produce structured logs and metrics.
 - A second message uses an explicit `reject`, `queue`, or `steer` policy.
 - The API saves an accepted queue or steer message before interrupting current work.
 - The API resolves every execution-affecting command to one execution before delivery.

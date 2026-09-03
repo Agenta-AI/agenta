@@ -2,14 +2,20 @@
 
 > AGENT-GENERATED, low weight. Draft execution handoff. Mahmoud makes final decisions.
 
+> **UPDATE, 2026-09-03:** This pre-spike handoff is historical. Direct authenticated delivery is
+> now the confirmed version-one adapter. Runner-initiated long polling remains parked in Linear
+> AGE-4253. Current status and release coverage live in [status.md](status.md) and
+> [qa-matrix.md](qa-matrix.md).
+
 ## Fixed direction
 
 - Keep current Redis execution ownership for version one.
 - Add durable commands with `pending`, `claimed`, `applied`, and `obsolete` states.
-- Use runner-initiated HTTP long polling behind a replaceable control-delivery port.
+- Use direct authenticated delivery behind a replaceable control-delivery port.
 - Keep `expected_execution_id` optional on public Stop.
 - Keep the Redis ownership lock until Stop settles.
-- Use heartbeat command discovery as delivery fallback.
+- Keep accepted commands durable when direct delivery fails. Use the watchdog and ownership lease
+  for recovery. Do not make heartbeat polling the normal Stop path.
 - Require Stop followed by warm resume of the same sandbox and native harness session.
 - Keep live-frame work independent from Stop work.
 - Park the repaired-records versus separate-event-table decision for review.
