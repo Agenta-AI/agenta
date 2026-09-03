@@ -188,3 +188,153 @@ window is untested here. No browser was driven, so the "running somewhere else" 
 through the query that feeds it and not by looking at it. The mobile surfaces were changed and
 unit-tested but not run. The second-Stop-after-settlement case that the trace raises as its
 question four was not probed.
+
+---
+
+# Addendum: the restart refusal, and two more settlement defects
+
+> Same weight and same caveats as above. Added after the lead sent three follow-ups.
+
+## The restart refusal is the `owner` key, and the mirror fix does not remove it
+
+The restart lane saw a continuation refused for 90 to 150 s after a settled Stop plus a runner
+restart. It is neither the Redis `running` key nor the `session_streams` row. It is the `owner`
+affinity key, and the refusal is raised in the runner, by name.
+
+Reproduced on this branch WITH the mirror fix in place. At the moment of the refusal the row
+already read `is_running: false, is_alive: true` and `running` was absent from Redis. The
+continuation still failed, with the runner's own message:
+
+```
+Agent run failed: local sandbox requires a single runner: replica
+'b0d4696a-…' is not the owner of session 'c17216a5-…' (owned by 'abc294f0-…').
+Refusing to cold-start on the wrong host.
+```
+
+The mechanism, read end to end:
+
+- `claim_owner` in `api/oss/src/dbs/redis/sessions/locks.py:330` never steals. It returns the
+  current owner when another replica holds the key.
+- `OWNER_TTL_SECONDS` is 120 (`api/oss/src/utils/env.py:1476`), so a dead replica's claim
+  survives up to two minutes. Measured TTL at the refusal: 101 s.
+- A restarted runner is a new process with a new `REPLICA_ID`, so it can never match.
+- `assertLocalRunnerOwnership`, called from
+  `services/runner/src/engines/sandbox_agent/environment-setup.ts:87-101` through
+  `defaultResolveLocalRunnerOwner` (`runtime-policy.ts:224-234`), turns a known-different owner
+  into a hard refusal rather than a wrong-host cold start.
+- The runner never speaks Redis and never clears `owner` at shutdown, and nothing on the API
+  side clears it at settlement.
+
+The timings the lane recorded, refusals through 90 s and admission at 123.6 s, are the 120-second
+owner lease expiring, not the sweep. On the watchdog branch the sweep also calls
+`force_clear_owner`, which would clear the same key, so the two explanations co-time.
+
+**The decisive test.** Timing agreement is not causation, so the probe deleted ONE key by hand and
+retried immediately:
+
+| t (s) | Step | Result |
+|---|---|---|
+| 10.6 | Stop settled | row `is_running: false`, `running` absent, `alive` held, tombstone written |
+| 18.3 | runner restarted, healthy | `owner` unchanged, still the dead replica's id |
+| 19.1 | continuation | REFUSED, naming the owner replica |
+| 20.2 | `DEL owner:<project>:session:<id>` | 1 key deleted, nothing else touched |
+| 27.6 | continuation | ADMITTED, replied "RESUMED" |
+
+Evidence: `~/agenta-qa-evidence/2026-09-03-session-round2/post-stop-mirror/restart-owner-isolation.json`
+and `restart_probe.py`.
+
+**The smallest fix, and why I did not make it.** The honest fix is that a restarted runner must
+be able to say it holds nothing, so affinity is released rather than waited out. Three shapes,
+smallest first:
+
+1. **Release the claim on the way out.** The runner clears the `owner` key for every session in
+   its pool during shutdown, through a new authenticated API call. It is the smallest change that
+   is unambiguously correct, because the runner knows the truth about its own pool. It does not
+   help a runner that is killed rather than stopped.
+2. **Let the API expire affinity faster when nothing is running.** `owner` protects a warm pool
+   entry on a specific host. A session with no `running` turn and no beating replica has no pool
+   entry to protect after that replica dies. Lowering `OWNER_TTL_SECONDS` shortens the outage
+   proportionally and changes nothing else, but it also shortens legitimate affinity for a parked
+   warm session, which is the property the key exists for.
+3. **Make `claim_owner` steal from an owner that is provably gone.** Correct in principle and the
+   largest change, because it needs a per-replica liveness key that does not exist today.
+
+I did not implement any of them. The `owner` key is shared surface: the watchdog lane owns
+`force_clear_owner`, and option 2 is a one-line TTL change with a warm-affinity cost that is
+Mahmoud's call, not mine. Recommendation: option 1, on the runner lane, with option 2 as the
+fallback for a killed runner.
+
+## Defect: a named Stop was refused on a parked approval
+
+Confirmed and fixed. Commit `fe1396625e`.
+
+Admission resolved the target from `running` with a fallback to `alive`, then compared
+`expected_execution_id` against `running` alone. A parked approval holds `alive` and not
+`running`, so the guard read none, refused with a conflict, and left the gate pending. The same
+Stop with no expectation was accepted. The browser always sends the id it streamed.
+
+Verified live, one session, gate read straight from Postgres:
+
+| Reading | Value |
+|---|---|
+| Redis when parked | `alive` = the turn id, `running` = none |
+| Row when parked | `is_alive: true, is_running: false` |
+| Gate before | `pending` |
+| Named Stop | **202 accepted** |
+| Gate after | `cancelled` |
+
+Evidence: `.../settlement-defects-clean.json`, key `d1`.
+
+The guard still refuses a stale id. A Stop naming a finished turn on a session parked under a
+newer one is refused, and the conflict now names the turn that would have been stopped instead of
+none. Both directions are pinned by unit tests.
+
+## Defect: an outcome report could be refused and left unsettled
+
+Confirmed and fixed. Commit `89d7c7c90d`.
+
+Admission inserts the command `pending`, delivers it, and writes `claimed` on the runner's behalf
+only after the runner answers. A runner that aborts fast reports inside that window, against a row
+that still says `pending`, and the guard on `claimed` alone refused it.
+
+The race showed itself unprompted during the first live run. Two outcome reports arrived 2 ms
+apart for one command whose row was `pending` with `claimed_by` null: the runner's won and
+returned 200, the duplicate correctly got 409. Under the old guard the runner's report would have
+been the one refused, because `pending` is not `claimed`.
+
+Then a clean single-writer run, with the runner frozen so nothing else could settle the row:
+
+| Reading | Value |
+|---|---|
+| Row after admission | `state: pending`, `claimed_by: null` |
+| Outcome report | **200**, settled_at 12:26:18.878 |
+| Row after report | `state: applied`, `outcome: stopped` |
+| Duplicate report | **409** |
+
+Evidence: `.../settlement-defects-clean.json`, key `d2`.
+
+The replica guard is widened only where there is nothing to guard: a `pending` row holds no claim,
+so a null `claimed_by` passes, and a report from a replica that does not hold an existing claim is
+still refused. Both are pinned by unit tests, and both new tests were checked against the unfixed
+code first.
+
+## Addendum: what was verified and what was not
+
+The four commits were re-verified together after the last change: the mirror still writes
+`is_running: false, is_alive: true` at the Stop, and the parked sandbox still resumes warm. The
+API session unit suite is 563 passing.
+
+Not covered: the runner-restart fix itself, because I did not make it; a killed rather than
+stopped runner; and the claim race under real concurrency rather than the frozen-runner
+substitute, which reproduces the row state but not the timing.
+
+## Open questions for Mahmoud, second set
+
+6. **Which shape should the restart-affinity fix take, and on whose lane?** Recommendation: the
+   runner releases its owner claims at shutdown, on the runner lane. Reason: the runner is the only
+   party that knows what its pool holds, and the alternative that needs no new call is a shorter
+   owner lease, which buys restart recovery by shortening the warm affinity the key exists to
+   protect.
+7. **Should a killed runner be covered too, or is a stopped runner enough for version one?**
+   Recommendation: enough for now, and note the gap. Reason: a kill leaves a two-minute affinity
+   shadow, which is bad but bounded, and closing it properly needs replica liveness.
