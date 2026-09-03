@@ -486,6 +486,17 @@ class SessionCommandsService:
             # normal turn leaves it. Warm resume is the required outcome of Stop, so the session
             # must end up in the state a finished turn leaves it in, not in a torn-down one.
 
+            # Mirror the nest onto the row HERE, because nothing else will. The tombstone
+            # above refuses the stopped execution's own final `is_running=false` beat before it
+            # can reach the heartbeat's mirror write, and the read model the product polls
+            # (`query_streams`) reads Postgres and never Redis. Skipping this leaves the row
+            # saying `is_running: true` until the orphan sweep collapses it, so the tab that
+            # pressed Stop shows a "running somewhere else" strip over its own session.
+            await self._streams.mirror_liveness(
+                project_id=project_id,
+                session_id=session_id,
+            )
+
         if outcome in (
             SessionCommandOutcome.stopped,
             SessionCommandOutcome.not_running,
