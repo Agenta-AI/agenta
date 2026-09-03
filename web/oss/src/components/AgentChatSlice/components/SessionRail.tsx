@@ -52,10 +52,6 @@ const TRASH_ICON = <Trash size={12} />
 const ARCHIVE_ICON = <Archive size={12} />
 const RESTORE_ICON = <ArrowCounterClockwise size={12} />
 
-// Stable no-op for an archived row's `onSelect` (archived rows aren't openable) — keeps the
-// id-taking setter identity stable so the memoized row doesn't re-render.
-const NOOP = () => {}
-
 interface SessionRailRowProps {
     session: AgentChatSession
     label: string
@@ -468,9 +464,9 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                                             key={session.id}
                                             session={session}
                                             label={label}
-                                            active={false}
+                                            active={session.id === currentActiveId}
                                             archived
-                                            onSelect={NOOP}
+                                            onSelect={openSession}
                                             onDelete={deleteSession}
                                             onRename={handleRename}
                                             onArchive={archiveSession}

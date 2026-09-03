@@ -25,6 +25,7 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import {type DriveId} from "./DriveExplorer"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
+import {DriveSessionProvider} from "./driveSessionContext"
 import {FilesDrawer} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
@@ -99,7 +100,7 @@ export default function StorageSection({
      * host resolves it (a package cannot read the app's chat slice). */
     scope: string
 }) {
-    const {drive} = useConfigDrive(revisionId, sessionId)
+    const {drive, sessionId: resolvedSessionId, artifactId} = useConfigDrive(revisionId, sessionId)
     // A row opens the chat's DOCKED pane on that file with the tree collapsed; the header's icon
     // opens the browse-all DRAWER instead (see StorageFilesHeader).
     const {openPane: openPaneRoot} = useSessionFilesPane(scope, sessionId ?? "")
@@ -273,17 +274,26 @@ export default function StorageSection({
             </AnimatePresence>
 
             {/* The ONE Files drawer (DriveExplorer: lazy per-directory loading + the single header).
-                Same component the chat uses; only the open-atom + resolved drive differ. */}
-            <FilesDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                drive={drive}
-                driveIds={driveIds}
-                scope="session"
-                initialPath={null}
-                stagedFiles={[]}
-                onStagedChange={setPaneStaged}
-            />
+                Same component the chat uses; only the open-atom + resolved drive differ.
+
+                Its own DriveSessionProvider because the drive it browses is THIS section's, not an
+                ancestor's. The listing arrives as a prop, but the per-file actions inside read the
+                ids from context — and the only providers were the chat surfaces, so on a
+                configuration page with no conversation open there was no context at all and the
+                files resolved to no mount (#6388). `useConfigDrive` already resolved both ids from
+                the edited revision; the artifact one does not need a session to exist. */}
+            <DriveSessionProvider sessionId={resolvedSessionId} artifactId={artifactId ?? null}>
+                <FilesDrawer
+                    open={drawerOpen}
+                    onClose={() => setDrawerOpen(false)}
+                    drive={drive}
+                    driveIds={driveIds}
+                    scope="session"
+                    initialPath={null}
+                    stagedFiles={[]}
+                    onStagedChange={setPaneStaged}
+                />
+            </DriveSessionProvider>
         </div>
     )
 }
