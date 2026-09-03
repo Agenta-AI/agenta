@@ -1203,16 +1203,6 @@ export async function runTurn(
         }
         pause.pause();
       }
-      if (opts.settleApprovalsThenPrompt) {
-        // The request ends in a NEW user turn. Finish applying the interaction decision to the
-        // old prompt first, then make the request's actual work a regular prompt. Without this
-        // second prompt the runner silently answers the old denied tool call and drops the new
-        // text. `continuation` makes promptBlocks contain only that fresh tail.
-        await promptPromise;
-        promptStartedAtMs = Date.now();
-        promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
-        promptPromise.catch(() => {});
-      }
     } else {
       promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
@@ -1235,15 +1225,34 @@ export async function runTurn(
           once: true,
         });
     });
-    const raced = await Promise.race([
-      promptPromise.then(
-        (value) => value,
-        (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
-      ),
-      pause.signal.then(() => PAUSED),
-      runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
-      cancelled,
-    ]);
+    const racePrompt = (pending: Promise<unknown>) =>
+      Promise.race([
+        pending.then(
+          (value) => value,
+          (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
+        ),
+        pause.signal.then(() => PAUSED),
+        runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
+        cancelled,
+      ]);
+    let raced = await racePrompt(promptPromise);
+    if (
+      opts.settleApprovalsThenPrompt &&
+      raced !== PAUSED &&
+      raced !== RUN_LIMIT_TRIPPED &&
+      raced !== CANCELLED &&
+      !pause.active
+    ) {
+      // The request ends in a NEW user turn. Finish applying the interaction decision to the old
+      // prompt first, then make the request's actual work a regular prompt. Without this second
+      // prompt the runner silently answers the old denied tool call and drops the new text. The
+      // old prompt was raced above, so a harness that opened another gate after the denial pauses
+      // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
+      promptStartedAtMs = Date.now();
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
+      promptPromise.catch(() => {});
+      raced = await racePrompt(promptPromise);
+    }
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED) {
