@@ -51,7 +51,10 @@ from agenta.sdk.agents.dtos import RunContext, RunContextRun
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
 from agenta.sdk.redaction.redactor import Redactor
-from agenta.sdk.redaction.seed import seed_from_request
+from agenta.sdk.redaction.seed import (
+    is_non_secret_credential_locator,
+    seed_from_request,
+)
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
@@ -276,6 +279,12 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     credential.value
                     for credential in (
                         resolved_connection.credentials if resolved_connection else []
+                    )
+                    if not (
+                        credential.binding.kind == "environment"
+                        and is_non_secret_credential_locator(
+                            credential.binding.name, credential.value
+                        )
                     )
                 ),
                 *(

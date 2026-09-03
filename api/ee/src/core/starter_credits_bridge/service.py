@@ -248,7 +248,7 @@ async def _mint_key(
     for attempt in range(_MINT_ATTEMPTS):
         try:
             # The proxy caps what a key may ask for (`upperbound_key_generate_params`:
-            # max_budget 5, max_parallel_requests 2, rpm 30, tpm 200000, duration 90d)
+            # max_budget 5, max_parallel_requests 2, rpm 30, tpm 1000000, duration 90d)
             # and fills an OMITTED duration with its cap, so every funded key expires
             # after 90 days. Send no duration rather than a longer one. Raising
             # `grant_usd` or a per-key limit in the policy payload ABOVE a cap makes

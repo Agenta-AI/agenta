@@ -129,6 +129,7 @@ export {
 export {
     detectFileActivity,
     drivePathFromToolPath,
+    PATH_KEYS,
     fileRecencyFromRecords,
     mountPathMatchesToolPath,
     type DriveToolPath,

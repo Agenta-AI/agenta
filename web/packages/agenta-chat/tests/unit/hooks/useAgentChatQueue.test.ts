@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {act, renderHook} from "@testing-library/react"
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
@@ -183,7 +183,7 @@ describe("useAgentChatQueue", () => {
         expect(released.sendQueued).toHaveBeenCalledTimes(1)
     })
 
-    it("removeQueued and clearQueue edit the held list without sending", () => {
+    it("removeQueued edits the held list without sending", () => {
         const streaming: HarnessProps = {
             status: "streaming",
             messages: [userTurn("u1", "go")],
@@ -200,10 +200,6 @@ describe("useAgentChatQueue", () => {
             result.current.removeQueued(secondId)
         })
         expect(result.current.queued.map((m) => m.text)).toEqual(["one", "three"])
-        act(() => {
-            result.current.clearQueue()
-        })
-        expect(result.current.queued).toHaveLength(0)
         expect(sendQueued).not.toHaveBeenCalled()
     })
 
@@ -226,8 +222,143 @@ describe("useAgentChatQueue", () => {
         // …and a different session starts empty.
         const other = setup({...streaming, sessionId: `${sessionId}-other`})
         expect(other.result.current.queued).toHaveLength(0)
+        // Empty the session store again — it outlives the test, keyed on this id.
         act(() => {
-            second.result.current.clearQueue()
+            second.result.current.removeQueued(second.result.current.queued[0].id)
         })
+    })
+
+    it("rewrites the edited message in place, keeping its position and attachments", () => {
+        const streaming: HarnessProps = {
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+        }
+        const {result, sendQueued} = setup(streaming)
+        const png = {type: "file", url: "data:,", mediaType: "image/png"} as FileUIPart
+        act(() => {
+            result.current.submit({text: "one"})
+            result.current.submit({text: "two", fileParts: [png]})
+            result.current.submit({text: "three"})
+        })
+        const secondId = result.current.queued[1].id
+        act(() => {
+            result.current.beginEdit(secondId, "half-typed draft")
+        })
+        expect(result.current.editingId).toBe(secondId)
+        act(() => {
+            result.current.commitEdit({text: "two, rewritten"})
+        })
+        expect(result.current.queued.map((m) => m.text)).toEqual(["one", "two, rewritten", "three"])
+        // Same message, not a re-queued copy at the tail.
+        expect(result.current.queued[1].id).toBe(secondId)
+        // The composer submits only NEWLY staged files, so a text-only edit must keep the originals.
+        expect(result.current.queued[1].fileParts).toEqual([png])
+        expect(result.current.editingId).toBeNull()
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    it("hands the stashed composer draft back when an edit is cancelled", () => {
+        const {result} = setup({
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+        })
+        act(() => {
+            result.current.submit({text: "one"})
+        })
+        const id = result.current.queued[0].id
+        act(() => {
+            result.current.beginEdit(id, "half-typed draft")
+        })
+        let restored = ""
+        act(() => {
+            restored = result.current.cancelEdit()
+        })
+        expect(restored).toBe("half-typed draft")
+        expect(result.current.editingId).toBeNull()
+        expect(result.current.queued.map((m) => m.text)).toEqual(["one"])
+    })
+
+    it("hands the stashed draft back on commit too, and only once", () => {
+        const {result} = setup({
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+        })
+        act(() => {
+            result.current.submit({text: "one"})
+        })
+        const id = result.current.queued[0].id
+        act(() => {
+            result.current.beginEdit(id, "half-typed draft")
+        })
+        let restored = ""
+        act(() => {
+            restored = result.current.commitEdit({text: "one, rewritten"})
+        })
+        // Committing consumes the composer, so the displaced draft must come back here as well —
+        // otherwise typing then editing silently destroys what was typed.
+        expect(restored).toBe("half-typed draft")
+        expect(result.current.queued.map((m) => m.text)).toEqual(["one, rewritten"])
+        // A second session with no draft must not resurrect the old one.
+        act(() => {
+            result.current.beginEdit(id)
+        })
+        let second = "unset"
+        act(() => {
+            second = result.current.cancelEdit()
+        })
+        expect(second).toBe("")
+    })
+
+    it("queues a new message when the edited one drained mid-edit", () => {
+        const streaming: HarnessProps = {
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+        }
+        const {result, rerender, sendQueued} = setup(streaming)
+        act(() => {
+            result.current.submit({text: "one"})
+            result.current.submit({text: "two"})
+        })
+        const headId = result.current.queued[0].id
+        act(() => {
+            result.current.beginEdit(headId, "")
+        })
+        // The turn settles while the user is still editing, so the head is released.
+        act(() => {
+            rerender({...streaming, status: "ready"})
+        })
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(sendQueued.mock.calls[0][0].text).toBe("one")
+        act(() => {
+            result.current.commitEdit({text: "one, but better"})
+        })
+        // Nothing was left to rewrite, so the content becomes a message of its own rather than
+        // disappearing — the tail, because the queue still holds "two".
+        expect(result.current.queued.map((m) => m.text)).toEqual(["two", "one, but better"])
+        expect(result.current.editingId).toBeNull()
+    })
+
+    it("drops a message edited down to nothing", () => {
+        const {result} = setup({
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+        })
+        act(() => {
+            result.current.submit({text: "one"})
+            result.current.submit({text: "two"})
+        })
+        const headId = result.current.queued[0].id
+        act(() => {
+            result.current.beginEdit(headId, "")
+        })
+        act(() => {
+            result.current.commitEdit({text: "   "})
+        })
+        expect(result.current.queued.map((m) => m.text)).toEqual(["two"])
     })
 })

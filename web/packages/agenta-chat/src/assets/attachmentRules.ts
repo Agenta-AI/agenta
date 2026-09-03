@@ -98,7 +98,7 @@ export const formatBytes = (n: number): string => {
 export interface AttachmentRejection {
     /** The file's name, for the inline message. */
     name: string
-    /** Why it was rejected (verb phrase): "is too large (8.2 MB) · max 10 MB for images". */
+    /** Why it was rejected (verb phrase): "is too large, max 10.0 MB supported". */
     reason: string
 }
 
@@ -133,7 +133,7 @@ export const validateIncoming = (
         if (file.size > maxBytes) {
             rejections.push({
                 name: file.name,
-                reason: `is too large (${formatBytes(file.size)}) · max ${formatBytes(maxBytes)} for ${KIND_NOUN[kind]}`,
+                reason: `is too large, max ${formatBytes(maxBytes)} supported`,
             })
             continue
         }
@@ -148,9 +148,34 @@ export const validateIncoming = (
     return {accepted, rejections}
 }
 
-/** A file kind an attachment viewer can preview; audio plays inline in the tray instead. */
+/** Extensions worth spelling out on a card tile; anything else falls back to the real extension. */
+const BADGE_BY_TYPE: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/json": "json",
+    "text/csv": "csv",
+    "text/markdown": "md",
+    "text/plain": "txt",
+}
+
+/**
+ * Short lowercase label for a document tile ("csv", "pdf"). Prefers the media type, because a
+ * download can arrive with a generic name, and falls back to the filename's extension so an
+ * `application/octet-stream` still reads as something. Capped at four characters — the tile is a
+ * 32px square, and a longer string renders as a smear.
+ */
+export const typeBadgeFor = (mediaType: string, name?: string): string => {
+    const known = BADGE_BY_TYPE[mediaType]
+    if (known) return known
+    const ext = name?.includes(".") ? name.split(".").pop()?.toLowerCase() : undefined
+    if (ext && ext.length <= 4 && /^[a-z0-9]+$/.test(ext)) return ext
+    const subtype = mediaType.split("/")[1]
+    return subtype && subtype.length <= 4 ? subtype : "file"
+}
+
+/** A file kind the Files drawer can preview; audio is excluded because it plays in its card. */
 export const isViewable = (mediaType: string): boolean =>
     mediaType.startsWith("image/") ||
+    mediaType.startsWith("video/") ||
     mediaType === "application/pdf" ||
     mediaType.startsWith("text/") ||
     mediaType === "application/json"

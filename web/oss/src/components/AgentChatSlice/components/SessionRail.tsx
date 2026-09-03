@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {useSessionPins} from "@agenta/sessions/state"
-import {timeAgo} from "@agenta/shared/utils"
+import {shortcutAria, timeAgo} from "@agenta/shared/utils"
 import {Button, EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {
     Archive,
@@ -402,7 +402,8 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                         ref={searchRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search sessions"
+                        placeholder="Search sessions (Alt+K)"
+                        aria-keyshortcuts={shortcutAria("session.search")}
                         prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
                         className="border-[var(--ag-surface-inset-border)] bg-[var(--ag-surface-inset)] text-xs"
                     />

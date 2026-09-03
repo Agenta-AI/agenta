@@ -208,6 +208,16 @@ export const useSessionsList = ({
             loadNext: () => void fetchNextPage(),
         },
         isPending: listQuery.isPending || (pinnedIds.length > 0 && pinnedQuery.isPending),
+        /**
+         * These rows answer a PREVIOUS query, not the current one.
+         *
+         * `placeholderData: keepPreviousData` keeps the old rows on screen while a new key
+         * resolves, which is right for a pin toggle (same rows, membership rechecked) and wrong
+         * for a search (the rows genuinely do not match what was typed). Without this flag the
+         * view cannot tell the two apart, so it presented one query's results as the answer to
+         * another, and rendered "No sessions yet" over a list that had simply not settled.
+         */
+        isPlaceholder: listQuery.isPlaceholderData || pinnedQuery.isPlaceholderData,
         isError: listQuery.isError || pinnedQuery.isError,
         refetch,
         /** Distinct sessions with an open gate — the rail's "Waiting" count. */
