@@ -8,10 +8,8 @@ import {NextRequest, NextResponse} from "next/server"
 /**
  * Forward gate: desktop routes are redirected into the /m app, for two independent reasons.
  *
- * - AGENTA_MOBILE_GATE — the device gate: mobile devices. DEFAULT ON; a deployment opts out
- *   with AGENTA_MOBILE_GATE=false (resolveGateEnabled owns that rule).
- * - AGENTA_CLASSIC_MODE_GATE — the preference gate: users whose "Classic mode" is off, on any
- *   device, for the routes /m covers. DEFAULT ON; set it to "false" to disable.
+ * - AGENTA_MOBILE_GATE — the device gate. DEFAULT ON; "false" opts out.
+ * - AGENTA_CLASSIC_MODE_GATE — the preference gate, any device. DEFAULT ON; "false" opts out.
  *
  * Both flags are read inside the handler at request time: on the self-hosted
  * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime

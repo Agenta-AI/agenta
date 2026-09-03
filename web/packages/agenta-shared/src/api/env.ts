@@ -44,8 +44,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
         process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
     NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: process.env.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY,
-    // The client half of AGENTA_CLASSIC_MODE_GATE. The middleware reads the bare variable
-    // server-side; the redirect hook cannot, so entrypoint.sh mirrors it into __env.js.
+    // Client half of AGENTA_CLASSIC_MODE_GATE; entrypoint.sh mirrors it into __env.js.
     NEXT_PUBLIC_AGENTA_CLASSIC_MODE_GATE: process.env.NEXT_PUBLIC_AGENTA_CLASSIC_MODE_GATE,
 }
 

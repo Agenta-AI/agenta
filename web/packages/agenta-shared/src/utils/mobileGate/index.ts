@@ -1,17 +1,6 @@
 /**
- * The gate that decides which app a request gets — pure decision core.
- *
- * Two independent reasons to send someone to `/m`, each with its own flag:
- * - the DEVICE gate (agenta-mobile WP5): a mobile device on a desktop route.
- * - the CLASSIC-MODE gate: a user whose "Classic mode" preference is off, whatever
- *   they are browsing on. The preference lives in `state/classicMode`; it reaches
- *   this request-time code as a cookie the apps mirror (see CLASSIC_MODE_COOKIE).
- *
- * Framework-free: the Next middlewares (desktop forward gate in web/oss +
- * web/ee, mobile reverse gate in web/mobile) adapt NextRequest into a
- * `GateInput` and apply the returned `GateDecision`. Keeping the logic pure
- * means detection, the route map, cookie semantics, and the documented
- * exceptions are all unit-tested here without NextRequest mocks.
+ * Pure core deciding which app a request gets: the DEVICE gate and the CLASSIC-MODE gate
+ * (a cookie, since request-time code cannot read the localStorage preference) each send to `/m`.
  */
 
 import {SESSION_QUERY_PARAM} from "../sessionParam"

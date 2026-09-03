@@ -1,11 +1,6 @@
 /**
- * The client half of the classic-mode gate, shared so the two apps cannot drift.
- *
- * The preference is a jotai atom over localStorage; the middleware that redirects without a
- * flash can only read cookies. So the browser mirrors it ({@link useClassicModeCookieSync}),
- * and because a cookie cannot exist before the first render, the first visit is caught in the
- * client instead ({@link useClassicModeRedirect}). From the second navigation on, the
- * middleware does the work.
+ * Client half of the classic-mode gate: the middleware reads only cookies, and none exists
+ * before the first render, so the first visit redirects here and later ones in middleware.
  */
 
 import {useEffect} from "react"

@@ -36,8 +36,7 @@ export const ContextSync = () => {
         setActiveUserId(user?.id ?? null)
     }, [profilePending, user?.id, setActiveUserId])
 
-    // Classic mode is toggled here as well as on the desktop, and the desktop's middleware reads
-    // it as a cookie — so this app publishes it too, or a switch flipped here would not stick.
+    // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
     useClassicModeCookieSync()
 
     // The auth half of the same context, and the other half of the desktop's `SessionListener`.

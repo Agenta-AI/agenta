@@ -11,13 +11,8 @@ import {NextRequest, NextResponse} from "next/server"
  * deployment opts out with AGENTA_MOBILE_GATE=false (read at
  * request time; runtime-flippable on the standalone Node server).
  *
- * There is deliberately NO reverse classic-mode gate: a Classic-mode user who opens /m stays
- * there. Leaving is an explicit act — the switch in Settings › Preferences navigates out.
- *
- * This file is the NextRequest adapter only; the decision lives in
- * @agenta/shared/utils/mobileGate and is unit-tested there. (It used to be a
- * declared verbatim copy, because web/mobile had no workspace deps; it now
- * transpiles @agenta/shared, so the twin is gone.)
+ * No reverse classic-mode gate on purpose: leaving /m is an explicit act (Settings › Preferences).
+ * NextRequest adapter only; the decision lives in @agenta/shared/utils/mobileGate.
  */
 export function proxy(request: NextRequest) {
     // At runtime Next strips basePath ("/m") from nextUrl before the handler;

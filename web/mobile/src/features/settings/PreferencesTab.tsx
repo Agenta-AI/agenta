@@ -4,12 +4,8 @@ import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/sh
 import {useAtom} from "jotai"
 
 /**
- * Mobile binding: the shared preferences page — appearance, then the experiments. The switches
- * are per-user and share their storage with the desktop, so a flag turned on here is on there
- * too (same browser).
- *
- * Classic mode is how a user leaves this app: with it off the gate keeps sending them back here,
- * so turning it on has to carry them over to the desktop itself.
+ * Mobile binding for the shared preferences page; switches share storage with the desktop.
+ * Classic mode is how a user leaves /m, so turning it on must navigate them there.
  */
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
