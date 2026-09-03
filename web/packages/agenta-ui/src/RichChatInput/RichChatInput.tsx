@@ -4,6 +4,7 @@ import {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
     useState,
 } from "react"
@@ -33,18 +34,20 @@ import {
     type LexicalEditor,
 } from "lexical"
 
+import type {PaletteSpec} from "./assets/palette"
 import type {SlashCommandSection} from "./assets/slashCommands"
+import {slashPaletteSpec} from "./assets/slashPalette"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
 import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
+import {CommandPalettePlugin} from "./plugins/CommandPalettePlugin"
 import {beginDictation, type DictationSession} from "./plugins/dictation"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
 import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
 import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
-import {SlashCommandPlugin} from "./plugins/SlashCommandPlugin"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
 /** Imperative handle for prefill / clear / focus (e.g. rewind-to-edit). */
@@ -122,6 +125,11 @@ export interface RichChatInputProps {
      * are untouched. See `assets/slashCommands`.
      */
     slashCommands?: SlashCommandSection[]
+    /**
+     * The `@` file-mention palette. Built by the host (it needs drive data); omitted → no palette.
+     * Independent of `slashCommands`, so a surface can have either, both, or neither.
+     */
+    filePalette?: PaletteSpec
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -173,12 +181,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onChange,
             initialMarkdown,
             slashCommands,
+            filePalette,
         },
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
-        // The `/` palette spans this box and floats above it.
+        // The palettes span this box and float above it.
         const boxRef = useRef<HTMLDivElement | null>(null)
         const [focused, setFocused] = useState(false)
         // Resolved after mount: SSR has no platform, and answering during render would mismatch on
@@ -186,6 +195,14 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const [modKey, setModKey] = useState("⌘")
 
         useEffect(() => setModKey(modifierKeyLabel()), [])
+
+        // One plugin owns every trigger — see `CommandPalettePlugin` for why two would collide.
+        const palettes = useMemo(() => {
+            const specs: PaletteSpec[] = []
+            if (slashCommands?.length) specs.push(slashPaletteSpec(slashCommands))
+            if (filePalette) specs.push(filePalette)
+            return specs
+        }, [slashCommands, filePalette])
 
         // A send empties the editor, so the session must go with it: the recogniser flushes a last
         // final result on its way out, which would otherwise rebuild its nodes in the empty box.
@@ -396,9 +413,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
                     {/* Registers Enter above SubmitPlugin, so it must mount after it. */}
-                    {slashCommands?.length ? (
-                        <SlashCommandPlugin
-                            sections={slashCommands}
+                    {palettes.length ? (
+                        <CommandPalettePlugin
+                            palettes={palettes}
                             anchorRef={boxRef}
                             disabled={disabled || dictating}
                         />
