@@ -619,6 +619,9 @@ class SessionsCommandsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    durable_stop: bool = (
+        os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false"
+    ).lower() in _TRUTHY
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
