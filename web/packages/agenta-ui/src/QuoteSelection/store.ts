@@ -54,7 +54,8 @@ export const restoreQuotes = (sessionId: string, quotes: Quote[]) => write(sessi
 /** Mark every quote taken from a message stale — its turn was rewound or replaced. */
 export const markMessageQuotesStale = (sessionId: string, messageId: string) => {
     const current = getQuotes(sessionId)
-    if (!current.some((q) => q.source.kind === "message" && q.source.messageId === messageId)) return
+    if (!current.some((q) => q.source.kind === "message" && q.source.messageId === messageId))
+        return
     write(
         sessionId,
         current.map((quote) =>

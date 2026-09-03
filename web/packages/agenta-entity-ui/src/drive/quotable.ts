@@ -5,7 +5,11 @@
  *
  * Only text-family bodies (markdown, plain text, code) opt in — the rest have no text to select.
  */
-import {isQuoteReplyEnabled, useFileQuoteFreshness, useQuoteSource} from "@agenta/ui/quote-selection"
+import {
+    isQuoteReplyEnabled,
+    useFileQuoteFreshness,
+    useQuoteSource,
+} from "@agenta/ui/quote-selection"
 
 import {useDriveSessionId} from "./driveSessionContext"
 
