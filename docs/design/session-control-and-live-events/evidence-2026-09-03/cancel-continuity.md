@@ -2,7 +2,8 @@
 
 > AGENT-GENERATED, low weight. Lane: cancel continuity, 2026-09-03. Branch
 > `spike/session-cancel-continuity`, cut from `spike/session-cancel-warm` at `9e21fba4ee`, head
-> `ec4d9f40ef`. Not pushed. To be folded into PR #6496.
+> `2808f97bd9`. Not pushed. To be folded into PR #6496. Two commits: `ec4d9f40ef` (the stopped
+> turn's continuity record) and `2808f97bd9` (releasing the session owner claim at shutdown).
 
 ## The answer first
 
@@ -195,6 +196,93 @@ defaulting to **120 s** (`api/oss/src/utils/env.py:1428`), refreshed on every he
 stolen (`claim_owner`, `api/oss/src/dbs/redis/sessions/locks.py:329`). A restart mints a new
 replica id, so the session is unusable until the dead replica's key expires. The measured 112 to
 123 s matches the 120 s TTL. This lane did not change it, and the fix does not depend on it.
+
+## The second fix: releasing the owner claim at shutdown
+
+The refusal above is not a side effect of anything this lane changed, and it outlives the fix:
+after every runner restart the replacement replica is refused for the rest of the affinity
+lease. `spike/session-cancel-warm` had no release path at all. Commit `2808f97bd9` adds one.
+
+### Why nothing released it
+
+`owner:session:<id>` is claimed by every heartbeat (`claim_owner`,
+`api/oss/src/dbs/redis/sessions/locks.py:329`), refreshed on every later beat, and released by
+nothing on the normal path. `force_clear_owner` exists but only two callers use it: the kill
+route and the orphan sweep. `clear_owner`, the release-if-owner twin at `locks.py:352`, existed
+and had **no caller at all**. So a runner that exited holding claims left each key standing for
+the remainder of `OWNER_TTL_SECONDS`, and `claim_owner` refuses to steal, so the replacement
+replica could not take the session. The runner never released because it had no way to: nothing
+tracked which sessions it owned, and nothing on the API side accepted a hand-back.
+
+### The change
+
+**API**, two files. `SessionHeartbeatRequest` gains `release_owner: bool = False`
+(`api/oss/src/core/sessions/streams/dtos.py`). `SessionStreamsService.heartbeat` handles it
+first, before the superseded check and before any lock is read or written
+(`api/oss/src/core/sessions/streams/service.py`), and does exactly one thing: `clear_owner`.
+No turn lock, no stream row, no liveness — a departing runner asserts none of those. Because
+the release is conditional on still being the owner, a beat from a stale replica is a no-op and
+can never take a session from a live one. The route and its permission are unchanged.
+
+**Runner**, two files. `sessions/alive.ts` gains a process-local map of the sessions this
+replica owns and the freshest credential seen for each. It is fed from the two calls that
+already claim affinity, and only when the API's answer names THIS replica: `sendHeartbeat` now
+reads `replica_id` off the response, and `claimSessionOwnership` already did. `server.ts` calls
+`releaseOwnedSessions(timeoutMs)` from the existing SIGTERM handler, after the pool drain and
+the in-flight sandbox destroy, so a session whose sandbox is still being deleted does not yet
+look free to another replica.
+
+The credential is the run's own ephemeral platform token, the same one every beat already
+carries. It never leaves the process and is never logged. An entry whose token has expired
+simply fails its release and falls back to the lease.
+
+### What it does not cover
+
+A `SIGKILL` reaches no handler, so a killed runner still leaves its claims to expire. So does an
+API the runner cannot reach at shutdown. The 120-second lease remains the fallback for both,
+which is exactly today's behaviour — the fix only removes the case the runner can see coming.
+
+### Live: same scenario, first attempt admitted
+
+Session `86c1f2a5-033b-455d-ab9a-52475d61f920`, codeword `CONTE4C6EC`, same stack, same driver.
+The Stop settled, the turn's row was completed, the sandbox parked, and the shutdown released
+the claim 26 ms after the signal:
+
+```
+12:42:50.228 (session_turns turn 0 end_time)
+12:42:50.266 complete OK session=86c1f2a5-... turn=0
+12:42:50.266 park-cancelled key=...:86c1f2a5-... ttl=60000ms
+12:42:50.626 [sandbox-agent] received SIGTERM, cleaning up in-flight sandboxes
+12:42:50.652 [sessions/alive] releasing 1 session ownership claim(s) on shutdown
+12:42:50.663 [sessions/alive] ownership released session=86c1f2a5-...
+```
+
+The whole shutdown, signal to release, took 37 ms. The runner reported healthy 6.1 s later, and
+the continuation was admitted on its **first** attempt, 11.2 s after the restart and 5.1 s
+after the health check passed:
+
+```
+12:43:01.806 stage=sandbox_start ... mode=create
+12:43:02.453 hydrated session=86c1f2a5-... harness=pi_core turn=0
+12:43:04.141 [continuity] session/load attempted ... loaded=true
+12:43:04.141 stage=create_session ms=1688 sandbox=local/127.0.0.1:41473 mode=load
+12:43:06.493 complete OK session=86c1f2a5-... turn=1
+```
+
+Turn 1 carries the same `agent_session_id` (`01a0674a-ae42-7f4f-b980-fd5b3aea7c97`) as turn 0,
+and the recall answered `CONTE4C6EC` from a one-message client transcript.
+
+| Run | Restart shape | Refusals | Admitted after | Recall |
+|---|---|---|---|---|
+| `before-fix.json` | `docker restart`, neither fix | 6, all local-owner | 122.8 s | failed |
+| `after-fix.json` | `docker restart`, continuity fix only | 6, all local-owner | 112.3 s | passed |
+| `after-release.json` | `docker restart`, both fixes | **0** | **first attempt, 11.2 s** | passed |
+| `kill-control.json` | `docker kill -s SIGKILL`, both fixes | RESULT_REFUSALS | RESULT_ADMITTED | RESULT_RECALL |
+
+The SIGKILL row is the negative control, run on the same stack with the same code and the same
+timing: the handler is skipped, the claim stands, and the identical refusal returns for the
+full lease. That is what makes the `after-release` result attributable to this fix rather than
+to anything else about the stack.
 
 ## Findings
 

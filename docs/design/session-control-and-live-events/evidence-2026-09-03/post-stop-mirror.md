@@ -338,3 +338,82 @@ substitute, which reproduces the row state but not the timing.
 7. **Should a killed runner be covered too, or is a stopped runner enough for version one?**
    Recommendation: enough for now, and note the gap. Reason: a kill leaves a two-minute affinity
    shadow, which is bad but bounded, and closing it properly needs replica liveness.
+
+---
+
+# Addendum 2: a Stop that lost the race destroyed the warm sandbox
+
+> Same weight and caveats. Commit `38cbc92201`.
+
+## Reproduced on this stack, then fixed
+
+Confirmed, and it is two defects in one, in two different places. The trigger matters: firing the
+Stop on the stream's terminal frame does NOT reproduce it, because the runner has already dropped
+the execution by then. The probe fires on the runner's own `prompt stopReason=` line, which it
+writes the instant the harness prompt settles and before teardown runs.
+
+Before, local sandbox with Pi, Stop admitted 819 ms before the stream's terminal frame:
+
+```
+[sandbox-agent] prompt stopReason=end_turn
+[control] aborted command=… turn=c81b783e…
+[control] outcome reported command=… state=stopped
+[keepalive] evict key=… reason=no-park:end_turn
+```
+
+| Measure | Before | After |
+|---|---|---|
+| Command state and outcome | `applied` / `stopped` | `obsolete` / `not_running` |
+| `[control] aborted` logged | yes | no |
+| Sandbox | evicted, `no-park:end_turn` | parked, `state=idle (re-park)` |
+| Next message | cold rebuild, 7.21 s | `hit-continue`, 1.91 s |
+
+Evidence: `~/agenta-qa-evidence/2026-09-03-session-round2/post-stop-mirror/late-stop-before.json`,
+`late-stop-teardown-window.json`, `late-stop-after-final.json`, `before-eviction-lines.txt`, and
+the probe `late_stop_probe.py`.
+
+## The two windows, and what each needed
+
+**Inside teardown, the execution still registered.** The registry entry survives teardown, which
+writes the transcript, exports the trace and decides whether to park. A Stop arriving there found
+a live entry and aborted it. The abort stopped nothing, because the prompt had already settled,
+but `shouldPark` reads `signal.aborted` and refuses to park anything aborted that did not end
+`cancelled`, so a healthy idle environment was destroyed.
+
+The run is now marked settled at the moment the prompt settles
+(`services/runner/src/engines/sandbox_agent/run-turn.ts:1218`), which is before any of that
+teardown, and the applier does nothing for a settled run
+(`services/runner/src/sessions/control-channel.ts:205`). Nothing aborts, so the ordinary park path
+runs. `shouldPark` itself is untouched — the fix removes the false abort rather than teaching the
+park rule to forgive one.
+
+The mark is scoped to the turn id, like the registry's other writers, so a late callback from a
+replaced turn cannot mark its successor finished and turn every Stop into a no-op.
+
+**Past teardown, the execution already dropped.** The runner answers `not_held`, and the API chose
+between `lost` and `not_running` on whether the row was beating. A turn that has just ended leaves
+`alive` set and a fresh beat behind it exactly as a running one does, so every late Stop was
+settled `lost` and the user was told their Stop failed when the work had simply finished. The
+discriminator is now `running` (`api/oss/src/core/sessions/commands/service.py:345`): an execution
+holding it means a process is running this session and it is not the one we called, which is the
+wrong-replica failure `lost` exists for. With no `running` owner nothing is executing anywhere.
+
+## The trade-off in the second half, stated plainly
+
+The `running` discriminator is not free. In a genuine multi-runner deployment where another
+replica holds a session PARKED on an approval, that session has `alive` and no `running`, so a
+Stop misrouted to the wrong replica now settles `not_running` where it used to settle `lost`. The
+user would be told the work had finished when a parked gate is still waiting elsewhere.
+
+I took that trade deliberately. Multi-replica direct delivery is explicitly not version one, the
+error-level log still fires for the case that keeps `running`, and the case I fixed is the
+everyday one that mislabels a correct Stop for every user on every deployment. Separating the two
+properly needs per-replica liveness, which is the same missing signal the owner-key finding above
+runs into.
+
+## Open question for Mahmoud, third set
+
+8. **Is the `not_held` trade above the right one for version one?** Recommendation: yes as built,
+   and revisit it with replica liveness. Reason: today every late Stop on every deployment is
+   recorded as a failed Stop, and the case that regresses needs a deployment shape the RFC has
+   already parked.
