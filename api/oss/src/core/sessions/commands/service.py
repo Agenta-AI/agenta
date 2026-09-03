@@ -93,6 +93,10 @@ class CancelAdmission:
         self.accepted = accepted
 
 
+class _SettlementRejected(Exception):
+    pass
+
+
 class SessionCommandsService:
     def __init__(
         self,
@@ -614,26 +618,59 @@ class SessionCommandsService:
                 SessionCommandOutcome.stopped,
                 SessionCommandOutcome.lost,
             )
-            settled = await self._executions.settle_command_execution(
-                settle=transition,
-                session_id=stored_command.session_id,
-                execution_id=execution_id,
-                terminal_outcome=outcome.value if terminal else None,
-                settled_by=(
-                    "watchdog"
-                    if outcome == SessionCommandOutcome.lost
-                    else "runner"
-                    if terminal
-                    else None
-                ),
-                mirror_stopped=outcome == SessionCommandOutcome.stopped,
-                cancel_interactions=outcome
-                in (
-                    SessionCommandOutcome.stopped,
-                    SessionCommandOutcome.not_running,
-                    SessionCommandOutcome.lost,
-                ),
+            settled_by = (
+                "watchdog"
+                if outcome == SessionCommandOutcome.lost
+                else "runner"
+                if terminal
+                else None
             )
+            try:
+                async with self._dao.transaction() as transaction:
+                    settled = await self._dao.settle_command(
+                        settle=transition,
+                        transaction=transaction,
+                    )
+                    if settled is None:
+                        raise _SettlementRejected
+
+                    if execution_id and terminal and settled_by:
+                        result = await self._executions.settle(
+                            project_id=project_id,
+                            session_id=stored_command.session_id,
+                            execution_id=execution_id,
+                            terminal_outcome=outcome.value,
+                            settled_by=settled_by,
+                            transaction=transaction,
+                        )
+                        winner = result.settlement
+                        if not result.won and (
+                            winner.terminal_outcome != outcome.value
+                            or winner.settled_by != settled_by
+                        ):
+                            raise _SettlementRejected
+
+                    await self._streams.settle_command(
+                        project_id=project_id,
+                        session_id=stored_command.session_id,
+                        turn_id=execution_id,
+                        mirror_stopped=outcome == SessionCommandOutcome.stopped,
+                        transaction=transaction,
+                    )
+                    if execution_id and outcome in (
+                        SessionCommandOutcome.stopped,
+                        SessionCommandOutcome.not_running,
+                        SessionCommandOutcome.lost,
+                    ):
+                        await self._interactions.cancel_session_pending(
+                            project_id=project_id,
+                            session_id=stored_command.session_id,
+                            only_turn_id=execution_id,
+                            transaction=transaction,
+                            publish=False,
+                        )
+            except _SettlementRejected:
+                return None
         else:
             settled = await self._dao.settle_command(settle=transition)
         if settled is None:

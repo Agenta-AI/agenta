@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from sqlalchemy import cast, delete as sa_delete, func, select, update as sa_update
@@ -142,13 +142,15 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
     ) -> int:
         """Cancel still-pending interactions for a session. With `except_turn_id`, spare the
         current turn's own gates (used at turn start to cancel prior turns' unanswered gates;
         without it, cancel all of them, e.g. on kill). `except_tokens` spares prior-turn gates
         the current turn answers in-band, so the resume can resolve them instead. With
         `only_turn_id`, touch nothing but that one turn's gates. Returns the count cancelled."""
-        async with self.engine.session() as session:
+
+        async def execute(session: Any) -> int:
             stmt = (
                 sa_update(SessionInteractionDBE)
                 .where(
@@ -168,8 +170,12 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             if except_tokens:
                 stmt = stmt.where(SessionInteractionDBE.token.notin_(except_tokens))
             result = await session.execute(stmt)
-            await session.commit()
             return result.rowcount or 0
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def query_interactions(
         self,

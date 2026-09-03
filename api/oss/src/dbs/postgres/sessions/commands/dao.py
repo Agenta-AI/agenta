@@ -7,7 +7,7 @@ write a terminal outcome, and it is the same pattern
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, update as sa_update
@@ -43,6 +43,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    def transaction(self):
+        return self.engine.session()
 
     async def create_command(
         self,
@@ -317,6 +320,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         self,
         *,
         settle: SessionCommandSettle,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """Terminal transition. None means the command was in none of the states the caller
         expected, so the caller reads the stored row and answers 409 instead of letting a runner
@@ -326,7 +330,8 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         first and updating after would reopen the very race this exists to close: the claim can
         commit between the read and the write.
         """
-        async with self.engine.session() as session:
+
+        async def execute(session: Any) -> Optional[SessionCommand]:
             now = datetime.now(timezone.utc)
             stmt = sa_update(SessionCommandDBE).where(
                 SessionCommandDBE.project_id == settle.project_id,
@@ -353,8 +358,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             ).returning(SessionCommandDBE)
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            await session.commit()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def clear_stopping_turn(
         self,

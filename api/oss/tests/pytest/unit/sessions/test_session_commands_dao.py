@@ -25,6 +25,8 @@ from oss.src.core.sessions.commands.dtos import (
 from oss.src.core.sessions.commands.interfaces import SessionScope
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
@@ -622,6 +624,8 @@ async def test_runner_and_watchdog_have_one_terminal_winner(command_scope):
 async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
     commands = SessionCommandsDAO(engine=command_scope["engine"])
     executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    streams = SessionStreamsDAO(engine=command_scope["engine"])
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
     command = await commands.create_command(
         user_id=command_scope["user_id"],
         command=_create(command_scope),
@@ -667,24 +671,43 @@ async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
             },
         )
 
-    settled = await executions.settle_command_execution(
-        settle=SessionCommandSettle(
-            project_id=command_scope["project_id"],
-            command_id=command.id,
-            state=SessionCommandState.applied,
-            outcome=SessionCommandOutcome.stopped,
-            expected_states=[SessionCommandState.claimed],
-            replica_id="runner-1",
-        ),
-        session_id=command_scope["session_id"],
-        execution_id="turn-A",
-        terminal_outcome="stopped",
-        settled_by="runner",
-        mirror_stopped=True,
-        cancel_interactions=True,
+    transition = SessionCommandSettle(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        expected_states=[SessionCommandState.claimed],
+        replica_id="runner-1",
     )
+    async with commands.transaction() as transaction:
+        settled = await commands.settle_command(
+            settle=transition,
+            transaction=transaction,
+        )
+        execution = await executions.settle(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="turn-A",
+            terminal_outcome="stopped",
+            settled_by="runner",
+            transaction=transaction,
+        )
+        await streams.settle_command(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            turn_id="turn-A",
+            mirror_stopped=True,
+            transaction=transaction,
+        )
+        await interactions.cancel_session_pending(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            only_turn_id="turn-A",
+            transaction=transaction,
+        )
 
     assert settled is not None
+    assert execution.won is True
     async with command_scope["engine"].session() as session:
         row = (
             await session.execute(
@@ -713,7 +736,7 @@ async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
         "stopped",
         None,
         "false",
-        "false",
+        "true",
         "cancelled",
         "stopped",
     )
