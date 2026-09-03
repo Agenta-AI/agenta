@@ -21,40 +21,43 @@ const STORAGE_KEY = "agenta:sidebar:manual-order"
 /** Per zone. An unbounded list would grow with every session ever arranged. */
 const ZONE_CAP = 200
 
-/** In-memory fallback when localStorage is absent (SSR, a node test env) or throws (private mode). */
+// Fallback for when localStorage is absent (SSR, a node test env) or throws (private mode, quota).
+// Once a key is written or removed this session the in-memory copy is authoritative, so a failed
+// write is never masked by a stale localStorage read.
 const memoryStore = new Map<string, string>()
+const tombstones = new Set<string>()
 const safeLocalStorage: Pick<Storage, "getItem" | "setItem" | "removeItem"> = {
     getItem: (key) => {
+        if (memoryStore.has(key)) return memoryStore.get(key)!
+        if (tombstones.has(key)) return null
         try {
-            return typeof localStorage !== "undefined"
-                ? localStorage.getItem(key)
-                : (memoryStore.get(key) ?? null)
+            return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null
         } catch {
-            return memoryStore.get(key) ?? null
+            return null
         }
     },
     setItem: (key, value) => {
         memoryStore.set(key, value)
+        tombstones.delete(key)
         try {
             localStorage?.setItem(key, value)
         } catch {
-            // Quota or a blocked store — the in-memory copy still serves this session.
+            // The in-memory copy above already holds it for this session.
         }
     },
     removeItem: (key) => {
         memoryStore.delete(key)
+        tombstones.add(key)
         try {
             localStorage?.removeItem(key)
         } catch {
-            // Same as setItem: the in-memory removal is enough.
+            // The tombstone above already hides it for this session.
         }
     },
 }
 
-/**
- * localStorage WITHOUT jotai's cross-tab `storage` subscription. An incoming write from another
- * browser tab would otherwise reshuffle the rail live, under the pointer.
- */
+// Storage WITHOUT jotai's cross-tab `storage` subscription, so a write in another tab cannot
+// reshuffle this rail live under the pointer.
 const railStorage = <T>() => {
     const storage = createJSONStorage<T>(() => safeLocalStorage as Storage)
     delete storage.subscribe
