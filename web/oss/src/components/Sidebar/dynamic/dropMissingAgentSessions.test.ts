@@ -1,4 +1,4 @@
-import {dropArchivedAgentSessions, withLocalSessions} from "@agenta/navigation"
+import {dropMissingAgentSessions, withLocalSessions} from "@agenta/navigation"
 import type {SessionSidebarRef} from "@agenta/navigation"
 import {describe, expect, it} from "vitest"
 
@@ -16,40 +16,40 @@ const ref = (over: Partial<SessionSidebarRef> & {id: string}): SessionSidebarRef
     ...over,
 })
 
-const ARCHIVED = new Set(["agent-archived"])
+/** The catalog lists only non-archived agents, so this is every agent still around. */
+const LIVE = new Set(["agent-live"])
 
-describe("dropArchivedAgentSessions", () => {
-    it("drops sessions whose agent is archived", () => {
-        const kept = dropArchivedAgentSessions(
+describe("dropMissingAgentSessions", () => {
+    it("drops sessions whose agent is no longer listed", () => {
+        const kept = dropMissingAgentSessions(
             [ref({id: "a", appId: "agent-archived"}), ref({id: "b", appId: "agent-live"})],
-            ARCHIVED,
+            LIVE,
         )
 
         expect(kept.map((r) => r.id)).toEqual(["b"])
     })
 
     // A pin is an explicit user request, the same exemption it gets from every other list rule.
-    it("keeps a PINNED session even when its agent is archived", () => {
-        const kept = dropArchivedAgentSessions(
+    it("keeps a PINNED session even when its agent is gone", () => {
+        const kept = dropMissingAgentSessions(
             [ref({id: "pinned", appId: "agent-archived", pinned: true})],
-            ARCHIVED,
+            LIVE,
         )
 
         expect(kept.map((r) => r.id)).toEqual(["pinned"])
     })
 
     it("keeps sessions that have no agent at all", () => {
-        const kept = dropArchivedAgentSessions([ref({id: "orphan", appId: null})], ARCHIVED)
+        const kept = dropMissingAgentSessions([ref({id: "orphan", appId: null})], LIVE)
 
         expect(kept.map((r) => r.id)).toEqual(["orphan"])
     })
 
-    // Absence of evidence is not evidence of archival: until the archived-ids query answers there
-    // is no set at all, and a pending query must never blank the group.
-    it("keeps everything until the archived answer arrives (null)", () => {
+    // The dangerous direction: an empty set would read as "all gone" and blank the whole rail.
+    it("keeps everything until the catalog answers (null)", () => {
         const refs = [ref({id: "a", appId: "agent-archived"}), ref({id: "b", appId: "agent-live"})]
 
-        expect(dropArchivedAgentSessions(refs, null).map((r) => r.id)).toEqual(["a", "b"])
+        expect(dropMissingAgentSessions(refs, null).map((r) => r.id)).toEqual(["a", "b"])
     })
 
     // The filter runs before the visible cap, so a live session behind archived ones still lands
@@ -60,7 +60,7 @@ describe("dropArchivedAgentSessions", () => {
             ref({id: "live", appId: "agent-live"}),
         ]
 
-        expect(dropArchivedAgentSessions(refs, ARCHIVED).map((r) => r.id)).toEqual(["live"])
+        expect(dropMissingAgentSessions(refs, LIVE).map((r) => r.id)).toEqual(["live"])
     })
 })
 

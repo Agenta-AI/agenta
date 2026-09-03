@@ -19,6 +19,7 @@ import {toolReferenceSlug} from "./itemDescriptors"
 import {SubagentList, type SubagentListProps} from "./ToolManagementList"
 
 const iconFamily = (id: string) => agentIconAtomFamily(id)
+const artifactNameFamily = (id: string) => workflowMolecule.selectors.artifactName(id)
 
 export interface SubagentDrawerContainerProps {
     open: boolean
@@ -154,8 +155,8 @@ export function ConnectedSubagentList({
     )
     const {bySlug} = bridge.useWorkflowReferenceCatalog(savedSlugs)
 
-    // Each saved subagent's icon, from the agent it points at. The list stays presentational.
-    const iconIdsKey = useMemo(
+    // The agent each saved subagent points at. Its icon and its name both key off this id.
+    const workflowIdsKey = useMemo(
         () =>
             savedSlugs
                 .map((slug) => bySlug[slug]?.workflowId)
@@ -163,7 +164,21 @@ export function ConnectedSubagentList({
                 .join("\n"),
         [savedSlugs, bySlug],
     )
-    const iconById = useFamilyMap(iconIdsKey, iconFamily)
+    const iconById = useFamilyMap(workflowIdsKey, iconFamily)
+
+    // The CURRENT name, off the workflow ARTIFACT. The reference stores no name of its own, so a
+    // rename reaches every parent without re-adding the subagent (#6444).
+    const nameById = useFamilyMap(workflowIdsKey, artifactNameFamily)
+    const nameBySlug = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const slug of savedSlugs) {
+            const workflowId = bySlug[slug]?.workflowId
+            const name = workflowId ? nameById.get(workflowId) : null
+            if (name) map.set(slug, name)
+        }
+        return map
+    }, [savedSlugs, bySlug, nameById])
+
     const chromeBySlug = useMemo(() => {
         const map = new Map<
             string,
@@ -192,5 +207,12 @@ export function ConnectedSubagentList({
         return slugs
     }, [savedSlugs, bySlug])
 
-    return <SubagentList {...listProps} nonAgentSlugs={nonAgentSlugs} chromeBySlug={chromeBySlug} />
+    return (
+        <SubagentList
+            {...listProps}
+            nonAgentSlugs={nonAgentSlugs}
+            chromeBySlug={chromeBySlug}
+            nameBySlug={nameBySlug}
+        />
+    )
 }

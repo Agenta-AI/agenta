@@ -28,19 +28,19 @@ def _empty_object_schema() -> Dict[str, Any]:
 _TOOL_NAME_ALLOWED = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
-def sanitize_tool_name(raw: Optional[str], *, fallback: str) -> str:
-    """Coerce an authored name into the provider's tool-name pattern.
+def sanitize_tool_name(raw: Optional[str], *, fallback: str = "") -> str:
+    """Coerce a name into the provider's tool-name pattern.
 
-    A subagent's model-visible name is a DISPLAY name the user typed, so it can carry spaces,
-    slashes, or anything else a person writes. Sending it unchanged made the provider refuse the
-    entire tool list with `Invalid 'tools[N].name'`, which bricks every run of the parent agent
-    until the child is renamed. Names like "Support Router" are an ordinary thing to type.
+    Every major provider requires `^[a-zA-Z0-9_.-]+$` and refuses the WHOLE tool list when any
+    entry violates it, which bricks every run of the parent agent. A subagent's name comes from
+    its workflow slug, and a slug saved through the platform already matches; this guards the
+    one that did not, because `ReferenceToolConfig.slug` is an unvalidated string a hand-authored
+    configuration can fill with anything.
 
     The mapping is deterministic and stable, because the model sees this name and a name that
     changed between turns would strand a conversation mid-tool-call: every disallowed run of
     characters becomes one `_`, leading and trailing separators are trimmed, and an input that
-    survives none of that falls back to `fallback` (itself sanitized). Only the WIRE name is
-    touched; the display name is never rewritten.
+    survives none of that falls back to `fallback` (itself sanitized), then to "tool".
     """
     collapsed = _TOOL_NAME_ALLOWED.sub("_", (raw or "").strip())
     # Trim separators the collapse may have produced at either end. `.` and `-` are legal
@@ -378,7 +378,14 @@ class ReferenceToolConfig(ToolConfigBase):
         default=None,
         description="Pin a workflow revision (ref_by='variant' only); absent = latest.",
     )
-    name: Optional[str] = Field(default=None, min_length=1)
+    name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Legacy: a stale copy of the target's display name (#6444). No wire value derives "
+            "from it; kept so references saved before then still parse."
+        ),
+    )
     description: Optional[str] = None
     input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
 
@@ -403,15 +410,18 @@ class ReferenceToolConfig(ToolConfigBase):
 
     @property
     def tool_name(self) -> str:
-        """The model-visible name; defaults to the workflow slug when none is authored.
+        """The model-visible name: the workflow SLUG, never the stored display name.
 
-        Sanitized to the provider's tool-name pattern, because the authored `name` is a DISPLAY
-        name a person typed and may contain spaces or punctuation the provider refuses. The
-        display name itself is never rewritten — only this wire value. Collisions between two
-        children that sanitize alike are resolved by the caller building the tool list, which is
-        the only place that can see siblings.
+        The slug is the reference's only identity and a rename never touches it, so this is
+        stable inside a conversation AND correct after the target is renamed — the stored `name`
+        was neither, because it was a copy taken at add time (#6444).
+
+        Still sanitized to the provider's tool-name pattern: a slug authored through the API
+        rather than the UI need not match it, and a name the provider refuses fails the whole
+        tool list. Collisions between two slugs that sanitize alike are resolved by the caller
+        building the tool list, which is the only place that can see siblings.
         """
-        return sanitize_tool_name(self.name, fallback=self.slug)
+        return sanitize_tool_name(self.slug)
 
     @property
     def call_ref(self) -> str:
