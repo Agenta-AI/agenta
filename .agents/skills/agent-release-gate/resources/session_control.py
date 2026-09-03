@@ -662,7 +662,11 @@ def invoke(
 def assistant_message(turn: dict) -> dict:
     parts: list = []
     text_buf: list[str] = []
-    for seg in turn["segments"]:
+    # `turn` can be `{}` when the driver's own wait for the turn timed out (`handle["out"]` was
+    # never set, e.g. because the runner was unhealthy and the stream thread never finished) — a
+    # driver-side timeout, not a reason to crash the cell with a KeyError instead of reporting a
+    # FAIL. Missing segments means no assistant turn to replay.
+    for seg in turn.get("segments") or []:
         if seg["kind"] == "text":
             text_buf.append(seg["text"])
             continue
