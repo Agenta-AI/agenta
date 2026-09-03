@@ -207,6 +207,11 @@ export interface ElicitationStepperState {
      * a summary of a single answer is noise.
      */
     hasReview: boolean
+    /**
+     * Whether the form is a sequence at all. A single question has nothing to step through, so the
+     * card drops the counter, the nav arrows, the progress rail and the question number.
+     */
+    isMultiStep: boolean
     values: Record<string, unknown>
     error: string | null
     hold: string | null
@@ -275,8 +280,10 @@ export const useElicitationStepper = ({
 }: UseElicitationStepperArgs): ElicitationStepperState => {
     const {steps} = form
     const total = steps.length
+    // A single question is not a sequence: nothing to step through, and nothing to compare.
+    const isMultiStep = total > 1
     // A review screen is worth a step of its own only when there is something to compare.
-    const hasReview = total > 1
+    const hasReview = isMultiStep
     const lastIndex = hasReview ? total : Math.max(total - 1, 0)
 
     // Read by the `pick` callback, which must stay identity-stable across steps: closing over
@@ -417,6 +424,7 @@ export const useElicitationStepper = ({
         total,
         isReview,
         hasReview,
+        isMultiStep,
         values: state.values,
         error: state.error,
         hold: state.hold?.label ?? null,
