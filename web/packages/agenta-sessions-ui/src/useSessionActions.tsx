@@ -10,7 +10,6 @@ import {shareUrl} from "@agenta/sessions/link"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
-import {Input} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {
     ArchiveIcon,
