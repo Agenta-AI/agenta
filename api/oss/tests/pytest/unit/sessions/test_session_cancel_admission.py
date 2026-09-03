@@ -583,7 +583,8 @@ async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(
     lock_engine,
 ):
     # The wrong-replica failure. The user must be told the Stop failed, never that the work had
-    # already finished.
+    # already finished. `_run_turn` holds `running`, which is the discriminator: an execution is
+    # being run somewhere, and it is not by the process we called.
     await _run_turn(lock_engine, "turn-A")
     dao = _FakeCommandsDAO()
     streams = _FakeStreamsService(
@@ -599,6 +600,38 @@ async def test_not_held_on_a_beating_session_is_reported_as_lost_not_finished(
     await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert dao.rows[0].outcome == SessionCommandOutcome.lost
+
+
+@pytest.mark.asyncio
+async def test_not_held_on_a_turn_that_just_ended_is_not_running_not_lost(lock_engine):
+    """The everyday late Stop: the answer landed, the user pressed Stop a moment after.
+
+    The turn released `running` and left `alive` and a fresh heartbeat behind it, exactly as a
+    RUNNING turn would, so a beating-row test calls this a failed Stop and tells the user their
+    Stop was lost. Nothing was lost: the work finished. `running` is what separates the two,
+    because a session nobody is executing has no `running` owner at all.
+    """
+    # `alive` only, which is what a turn leaves when it ends.
+    await acquire_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-A"
+    )
+    dao = _FakeCommandsDAO()
+    streams = _FakeStreamsService(
+        _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+    # Beating, and recently: the turn ended seconds ago, not half an hour ago.
+    streams.stream.updated_at = datetime.now(timezone.utc)
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        delivery=_RecordingDelivery(status="not_held"),
+    )
+
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
 
 
 @pytest.mark.asyncio
