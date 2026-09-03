@@ -1,10 +1,11 @@
 import {useCallback, useMemo, useRef, useState, type KeyboardEvent} from "react"
 
 import {
+    clearSidebarManualOrderAtom,
     DEFAULT_SIDEBAR_SESSION_FILTERS,
     sidebarSessionAgentOptionsAtomFamily,
     sidebarSessionFiltersAtomFamily,
-    sidebarSessionFiltersDirtyAtomFamily,
+    sidebarSessionMenuDirtyAtomFamily,
     type SidebarSessionActivityFilter,
     type SidebarSessionGroupBy,
     type SidebarSessionStatusFilter,
@@ -23,7 +24,7 @@ import {
     PulseIcon,
     RobotIcon,
 } from "@phosphor-icons/react"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 /** The "back to all" row. Never a real workflow id, so it cannot collide with one. */
 const ALL_AGENTS = "__all__"
@@ -64,7 +65,8 @@ const ACTIVITY_OPTIONS = [
 export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     const filtersAtom = useMemo(() => sidebarSessionFiltersAtomFamily(scopeId), [scopeId])
     const [filters, setFilters] = useAtom(filtersAtom)
-    const dirty = useAtomValue(sidebarSessionFiltersDirtyAtomFamily(scopeId))
+    const dirty = useAtomValue(sidebarSessionMenuDirtyAtomFamily(scopeId))
+    const clearManualOrder = useSetAtom(clearSidebarManualOrderAtom)
     const agentOptions = useAtomValue(sidebarSessionAgentOptionsAtomFamily(scopeId))
 
     const facets = useMemo<FilterMenuFacet[]>(
@@ -178,13 +180,20 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         [measureAlign],
     )
 
-    const onReset = useCallback(() => setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS), [setFilters])
+    // Clears the hand-arranged order too, so the label says "Reset" and not "Reset to defaults":
+    // it covers two things now, and naming only the filters would make the order going back feel
+    // like a bug.
+    const onReset = useCallback(() => {
+        setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS)
+        clearManualOrder()
+    }, [clearManualOrder, setFilters])
 
     return (
         <FilterMenu
             facets={facets}
             dirty={dirty}
             onReset={onReset}
+            resetLabel="Reset"
             onFacetChange={onFacetChange}
             onFacetToggle={onFacetToggle}
             // Anchored, not collision-flipped: the rail is narrow enough that Radix would
