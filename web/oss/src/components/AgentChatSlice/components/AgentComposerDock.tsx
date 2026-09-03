@@ -128,6 +128,7 @@ const AgentComposerDock = ({
         selectedTemplateKey,
         handleStripPick,
         handleCreateAgent,
+        handleCreateWithSetup,
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,
@@ -321,7 +322,7 @@ const AgentComposerDock = ({
                             onAddAccount={onboardingSetup.addAccount}
                             permission={onboardingSetup.permission}
                             onPermissionChange={onboardingSetup.setPermission}
-                            onCreate={onboarding?.commitWithSetup ?? (() => undefined)}
+                            onCreate={handleCreateWithSetup}
                             creating={!!onboarding?.committing}
                         />
                     </div>
