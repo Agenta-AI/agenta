@@ -28,19 +28,19 @@ def _empty_object_schema() -> Dict[str, Any]:
 _TOOL_NAME_ALLOWED = re.compile(r"[^a-zA-Z0-9_.-]+")
 
 
-def sanitize_tool_name(raw: Optional[str], *, fallback: str) -> str:
-    """Coerce an authored name into the provider's tool-name pattern.
+def sanitize_tool_name(raw: Optional[str], *, fallback: str = "") -> str:
+    """Coerce a name into the provider's tool-name pattern.
 
-    A subagent's model-visible name is a DISPLAY name the user typed, so it can carry spaces,
-    slashes, or anything else a person writes. Sending it unchanged made the provider refuse the
-    entire tool list with `Invalid 'tools[N].name'`, which bricks every run of the parent agent
-    until the child is renamed. Names like "Support Router" are an ordinary thing to type.
+    Every major provider requires `^[a-zA-Z0-9_.-]+$` and refuses the WHOLE tool list when any
+    entry violates it, which bricks every run of the parent agent. A subagent's name comes from
+    its workflow slug, and a slug saved through the platform already matches; this guards the
+    one that did not, because `ReferenceToolConfig.slug` is an unvalidated string a hand-authored
+    configuration can fill with anything.
 
     The mapping is deterministic and stable, because the model sees this name and a name that
     changed between turns would strand a conversation mid-tool-call: every disallowed run of
     characters becomes one `_`, leading and trailing separators are trimmed, and an input that
-    survives none of that falls back to `fallback` (itself sanitized). Only the WIRE name is
-    touched; the display name is never rewritten.
+    survives none of that falls back to `fallback` (itself sanitized), then to "tool".
     """
     collapsed = _TOOL_NAME_ALLOWED.sub("_", (raw or "").strip())
     # Trim separators the collapse may have produced at either end. `.` and `-` are legal
@@ -382,10 +382,8 @@ class ReferenceToolConfig(ToolConfigBase):
         default=None,
         min_length=1,
         description=(
-            "Legacy: a copy of the target's display name, taken when the subagent was added. "
-            "Renaming the target never reached it, so no wire value derives from it any more "
-            "(#6444); the browser still reads it as a placeholder on a reference saved before "
-            "then. Kept so those configurations still parse."
+            "Legacy: a stale copy of the target's display name (#6444). No wire value derives "
+            "from it; kept so references saved before then still parse."
         ),
     )
     description: Optional[str] = None
@@ -423,7 +421,7 @@ class ReferenceToolConfig(ToolConfigBase):
         tool list. Collisions between two slugs that sanitize alike are resolved by the caller
         building the tool list, which is the only place that can see siblings.
         """
-        return sanitize_tool_name(self.slug, fallback=self.slug)
+        return sanitize_tool_name(self.slug)
 
     @property
     def call_ref(self) -> str:
