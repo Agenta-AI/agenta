@@ -229,7 +229,8 @@ export async function runTurn(
   // A fresh turn never inherits an approval. Only a resume may consume records minted before
   // the park; anything else starts empty, so no call can execute on the strength of an approval
   // raised for an earlier turn.
-  if (!opts.resume) env.commitAuthorization = undefined;
+  if (!opts.resume && !opts.settleApprovalsThenPrompt)
+    env.commitAuthorization = undefined;
   env.nonParkablePauseCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
@@ -1118,10 +1119,12 @@ export async function runTurn(
     // from one the SESSION started earlier (an stdio MCP server). A resumed turn keeps the
     // resume's own start, which only ever makes the reap more conservative. See `reap-exec.ts`.
     let promptStartedAtMs = Date.now();
-    if (opts.resume) {
+    const approvalTransition =
+      opts.resume ?? opts.settleApprovalsThenPrompt;
+    if (approvalTransition) {
       // The resume turn owns continued events; each decision answers one parked gate by id.
       // Carried gates keep the shared original prompt pending until a later answer.
-      const decisions = opts.resume.decisions;
+      const decisions = approvalTransition.decisions;
       promptPromise = Promise.resolve(decisions[0]?.promptPromise);
       promptPromise.catch(() => {});
       for (const seed of carriedApprovedExecutions) {
@@ -1187,7 +1190,7 @@ export async function runTurn(
       // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
       // batch before executing any call, so while a carried sibling gate is pending closure is
       // impossible and the paused-settle's park-and-carry branch owns those spans.
-      if (opts.resume.carriedForward.length > 0) {
+      if (opts.resume && opts.resume.carriedForward.length > 0) {
         if (!plan.isPi) {
           const answeredAllowedIds = decisions
             .filter((decision) => decision.reply === "once")
@@ -1199,6 +1202,16 @@ export async function runTurn(
           );
         }
         pause.pause();
+      }
+      if (opts.settleApprovalsThenPrompt) {
+        // The request ends in a NEW user turn. Finish applying the interaction decision to the
+        // old prompt first, then make the request's actual work a regular prompt. Without this
+        // second prompt the runner silently answers the old denied tool call and drops the new
+        // text. `continuation` makes promptBlocks contain only that fresh tail.
+        await promptPromise;
+        promptStartedAtMs = Date.now();
+        promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
+        promptPromise.catch(() => {});
       }
     } else {
       promptStartedAtMs = Date.now();
