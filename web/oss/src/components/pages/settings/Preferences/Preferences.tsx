@@ -1,6 +1,6 @@
 import {PreferencesPage} from "@agenta/settings-ui"
 import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
