@@ -35,10 +35,11 @@ describe("ChangeSections", () => {
         expect(markup(listSection(id, title, label))).toContain(label)
     })
 
-    // The ghost accordion bleeds its band 8px past the pane's content box on BOTH sides, and its
-    // rows inset by the same 8px to land back on the content line. Header, rows and the drawer
-    // footer then share one left and one right edge; a one-sided bleed is what broke it before.
-    it("bleeds the ghost band symmetrically and insets its rows by the same amount", () => {
+    // Header band, diff rows and the drawer footer have to share one left and one right edge.
+    // Negative margins cannot deliver that: the collapse wrapper around the body sets
+    // overflow-hidden, so a band bled outward is clipped on one side and not the other. The bands
+    // fill the pane's box instead and pad inward.
+    it("keeps the ghost band flush with the pane and pads its rows inward", () => {
         const html = renderToStaticMarkup(
             <ChangeSections
                 sections={[listSection("tools", "Tools", "send_email")]}
@@ -47,15 +48,13 @@ describe("ChangeSections", () => {
                 ghost
             />,
         )
-        // Two bleeding boxes: the header band and the body that hangs under it.
-        expect(html.match(/-mx-2/g)).toHaveLength(2)
-        expect(html).not.toContain("-ml-3.5")
-        // Rows pay the bleed back, so their content sits on the pane's content line.
+        expect(html).not.toMatch(/-m[xl]-/)
+        // One inset, on the header and on every row, so their content lands on one line.
         expect(html).toContain("px-2")
         expect(html).not.toContain("px-3.5")
     })
 
-    it("leaves the card variant on its own inset — nothing bleeds there", () => {
+    it("leaves the card variant on its own wider inset", () => {
         const html = renderToStaticMarkup(
             <ChangeSections
                 sections={[listSection("tools", "Tools", "send_email")]}
@@ -63,7 +62,7 @@ describe("ChangeSections", () => {
                 onToggleSection={() => undefined}
             />,
         )
-        expect(html).not.toContain("-mx-2")
+        expect(html).not.toMatch(/-m[xl]-/)
         expect(html).toContain("px-3.5")
     })
 

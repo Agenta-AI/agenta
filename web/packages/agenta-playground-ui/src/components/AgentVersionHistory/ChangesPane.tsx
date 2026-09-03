@@ -14,6 +14,11 @@ import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {ChangeSections} from "@agenta/entity-ui/changes"
 import {cn, textColors} from "@agenta/ui/styles"
 
+/** The pane's own inset. Section bands fill it edge to edge and pad their content inward. */
+const PANE_PAD = "px-3"
+/** What a band pads inward, so text sits on one line with the heading above it. */
+const BAND_PAD = "px-2"
+
 const SKELETON_SECTIONS = [
     {title: "112px", tag: "56px", body: "34px"},
     {title: "78px", tag: "42px", body: "72px"},
@@ -32,8 +37,9 @@ const Centered = ({children}: {children: React.ReactNode}) => (
 )
 
 const Skeleton = () => (
-    <div className="flex-1 overflow-hidden px-5 pb-4 pt-3.5">
-        <div className="mb-4 h-3.5 w-[132px] animate-pulse rounded-[3px] bg-[var(--ag-colorFillSecondary)]" />
+    <div className={cn("flex-1 overflow-hidden pb-4 pt-3.5", PANE_PAD)}>
+        {/* ml-2 literal: it mirrors BAND_PAD, but Tailwind only sees classes written out. */}
+        <div className="mb-4 ml-2 h-3.5 w-[132px] animate-pulse rounded-[3px] bg-[var(--ag-colorFillSecondary)]" />
         {SKELETON_SECTIONS.map((section, i) => (
             <div key={i} className="mb-3.5">
                 <div className="flex items-center gap-2 px-2 py-2">
@@ -87,8 +93,8 @@ export const ChangesPane = ({
     if (placeholder) return <Centered>{placeholder}</Centered>
 
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-3.5">
-            <div className="mb-3 flex flex-col gap-0.5">
+        <div className={cn("min-h-0 flex-1 overflow-y-auto pb-4 pt-3.5", PANE_PAD)}>
+            <div className={cn("mb-3 flex flex-col gap-0.5", BAND_PAD)}>
                 <span className="text-[13.5px] font-medium text-colorText">
                     Version {version ?? "—"}
                 </span>

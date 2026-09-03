@@ -38,11 +38,9 @@ import {
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
 export const INLINE_TEXT_DIFF_LINES = 6
-/** Row inset inside a card body. Ghost bleeds instead, so its rows carry the smaller one. */
+/** Row inset inside a card body; ghost sits on a tighter one, its band filling the pane's width. */
 const ROW_PAD = "px-3.5"
 const GHOST_ROW_PAD = "px-2"
-/** How far a ghost band bleeds past the pane's content box, on both sides. */
-const GHOST_BLEED = "-mx-2"
 const SUBGROUP_VISIBLE = 5
 const VIRTUALIZE_AT = 50
 
@@ -320,8 +318,8 @@ export function SectionCard({
     ghost?: boolean
 }) {
     const toolItems = items ?? section.items
-    // Ghost bleeds its band outward, so its rows inset by the same amount to land back on the
-    // pane's content line — one left edge for the heading, the header band and every row.
+    // Ghost bands fill the pane's box and pad inward, so nothing relies on a negative margin —
+    // one bled outward gets clipped by the collapse wrapper's overflow-hidden.
     const rowPad = ghost ? GHOST_ROW_PAD : ROW_PAD
     // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
@@ -349,7 +347,6 @@ export function SectionCard({
                         // the heading above it — same left edge, no visible inset.
                         ghost
                             ? cn(
-                                  GHOST_BLEED,
                                   GHOST_ROW_PAD,
                                   "rounded-md border-0 bg-[var(--ag-colorFillQuaternary)] hover:bg-[var(--ag-colorFillTertiary)]",
                                   small ? "gap-2 py-2" : "gap-2.5 py-2.5",
@@ -388,7 +385,7 @@ export function SectionCard({
                     className={cn(
                         "overflow-hidden",
                         ghost
-                            ? cn(GHOST_BLEED, "border-0 bg-transparent")
+                            ? "border-0 bg-transparent"
                             : "rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]",
                     )}
                 >
