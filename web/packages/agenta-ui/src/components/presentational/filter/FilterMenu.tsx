@@ -49,6 +49,11 @@ export interface FilterMenuFacet {
     /** Multi-choice only: the option value that stands for "none selected". It renders checked
      * while the set is empty, and picking it clears the set — a way back to "all" from the menu. */
     noneValue?: string
+    /** The options are still resolving. Renders a disabled placeholder row instead of an empty
+     * submenu, so a facet whose catalog loads lazily never reads as "there are none". */
+    loading?: boolean
+    /** What the placeholder row reads while `loading`. */
+    loadingLabel?: string
     icon?: ReactNode
 }
 
@@ -79,6 +84,9 @@ export interface FilterMenuProps {
     avoidCollisions?: boolean
     /** Nudge along the align axis, in px. */
     alignOffset?: number
+    /** Fires when the menu opens or closes. Lets a host defer work — a facet's catalog, say —
+     * until the menu is actually on screen. */
+    onOpenChange?: (open: boolean) => void
     /** The trigger; it becomes the menu's anchor, so it must forward a ref (`asChild`). */
     children: ReactElement
 }
@@ -102,13 +110,14 @@ export const FilterMenu = ({
     align = "end",
     avoidCollisions = true,
     alignOffset = 0,
+    onOpenChange,
     children,
 }: FilterMenuProps) => {
     const hasFacets = Boolean(facets?.length)
     const hasToggles = Boolean(toggles?.length)
 
     return (
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={onOpenChange}>
             <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
             <DropdownMenuContent
                 side={side}
@@ -187,6 +196,13 @@ export const FilterMenu = ({
                                         ) : null}
                                     </DropdownMenuItem>
                                 ))}
+                                {facet.loading ? (
+                                    <DropdownMenuItem disabled>
+                                        <span className="min-w-0 flex-1 truncate text-colorTextTertiary">
+                                            {facet.loadingLabel ?? "Loading…"}
+                                        </span>
+                                    </DropdownMenuItem>
+                                ) : null}
                             </DropdownMenuSubContent>
                         </DropdownMenuSub>
                     )
