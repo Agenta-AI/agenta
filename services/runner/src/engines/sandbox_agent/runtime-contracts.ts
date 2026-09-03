@@ -211,6 +211,14 @@ export interface RunTurnOptions {
     decisions: ResumeApprovalInput[];
     carriedForward: ParkedApproval[];
   };
+  /**
+   * Settle the parked gate first, then send this request's fresh user tail as a normal prompt on
+   * the same warm session. Unlike `resume`, this does not make the old prompt the request's turn:
+   * its decision is context for the new prompt rather than the turn's terminal interaction.
+   */
+  settleApprovalsThenPrompt?: {
+    decisions: ResumeApprovalInput[];
+  };
 }
 
 /**
