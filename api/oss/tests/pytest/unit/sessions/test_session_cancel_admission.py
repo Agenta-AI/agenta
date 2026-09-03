@@ -30,7 +30,13 @@ from oss.src.core.sessions.commands.dtos import (
 from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
-from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamFlags
+from oss.src.core.sessions.streams.dtos import (
+    CommandMode,
+    SessionStream,
+    SessionStreamCommandResponse,
+    SessionStreamFlags,
+)
+from oss.src.core.sessions.streams.types import SessionTurnMismatch
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
@@ -164,6 +170,24 @@ class _FakeStreamsService:
 
     async def fetch_header(self, *, project_id: UUID, session_id: str):
         return self.stream
+
+    async def command(self, *, project_id, user_id, request):
+        actual = self.stream.turn_id if self.stream is not None else None
+        if (
+            request.expected_execution_id is not None
+            and actual != request.expected_execution_id
+        ):
+            raise SessionTurnMismatch(
+                request.session_id,
+                expected_turn_id=request.expected_execution_id,
+                actual_turn_id=actual,
+            )
+        return SessionStreamCommandResponse(
+            mode=CommandMode.cancel,
+            session_id=request.session_id,
+            turn_id=actual,
+            detached=True,
+        )
 
     async def publish_session_ended(self, *, project_id: UUID, session_id: str):
         self.ended.append(session_id)
@@ -348,6 +372,35 @@ async def test_stale_expected_execution_id_is_refused_and_writes_nothing(lock_en
     assert excinfo.value.current == "turn-B"
     assert dao.rows == [], "a refused Stop must insert nothing"
     assert delivery.delivered == []
+
+
+@pytest.mark.asyncio
+async def test_legacy_cancel_keeps_the_expected_execution_guard(lock_engine):
+    await _run_turn(lock_engine, "turn-B")
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-B", datetime.now(timezone.utc) - timedelta(seconds=5))
+        ),
+    )
+
+    with pytest.raises(ExecutionExpectationFailed) as excinfo:
+        await svc.request_cancel_legacy(
+            project_id=_PROJECT,
+            user_id=_USER,
+            session_id=_SESSION,
+            expected_execution_id="turn-A",
+        )
+
+    assert excinfo.value.current == "turn-B"
+    assert (
+        await get_running_owner(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=_SESSION,
+        )
+        == "turn-B"
+    )
 
 
 @pytest.mark.asyncio
