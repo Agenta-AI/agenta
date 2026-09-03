@@ -228,14 +228,15 @@ function markNonAgent(
 }
 
 /** Stable per-entry keys: the saved reference's own slug, never its array position. A config
- *  hand-authored to repeat a slug (or to omit one) falls back to position rather than colliding. */
+ *  hand-authored to repeat a slug (or to omit one) falls back to position. The two are namespaced
+ *  apart so a slug that reads like a position cannot collide with one. */
 function subagentKeys(entries: IndexedTool[]): string[] {
     const seen = new Set<string>()
     return entries.map(({item, index}) => {
         const slug = toolReferenceSlug(item)
-        if (!slug || seen.has(slug)) return `subagent-${index}`
+        if (!slug || seen.has(slug)) return `subagent-index-${index}`
         seen.add(slug)
-        return slug
+        return `subagent-slug-${slug}`
     })
 }
 
