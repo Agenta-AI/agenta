@@ -21,6 +21,8 @@
 - Approval keeps its current continuation model: the requesting execution ends, the interaction
   remains durable, and an answer starts a new execution. A new durable `execution.waiting` fact
   makes this existing condition explicit to readers.
+- The accepted answer, continuation execution, and continuation command commit together. Delivery
+  can retry afterward. A failed continuation keeps the answer and leaves the session usable.
 - Spike D makes immutable records more viable, but progressive tool writes and stable terminal IDs
   must change first.
 - Records-versus-event-log remains an explicit reviewer gate.

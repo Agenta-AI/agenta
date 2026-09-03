@@ -490,8 +490,21 @@ infer waiting from a pending interaction, records, Redis liveness, and process-l
 state.
 
 An interaction response uses a resource-specific public endpoint and the internal command path.
-The API durably records one winning response before reporting success. A continuation command then
-resumes the session.
+The API durably records one winning response before reporting success. In the same Postgres
+transaction it creates a continuation execution and a durable continuation command. A successful
+response means that the answer and continuation intent are saved. It does not claim that a runner
+has started.
+
+If the transaction fails, the interaction remains pending and no continuation exists. If delivery
+fails after commit, the command remains retryable under the same command ID and the interaction
+does not return to pending. Duplicate delivery cannot start another execution. If continuation
+cannot start or starts and later fails, its execution reaches an explicit `failed` or `lost`
+outcome. The accepted answer remains saved, and the session remains available for retry or a new
+message.
+
+Clients follow public interaction and execution facts rather than internal command claims. A
+typical sequence is `interaction.responded`, `execution.accepted`, `execution.started`, and an
+execution terminal outcome.
 
 Stop cancels pending interactions that belong to the stopped execution. A late response cannot
 resume a stopped or replaced execution. A response remains recoverable if continuation fails to

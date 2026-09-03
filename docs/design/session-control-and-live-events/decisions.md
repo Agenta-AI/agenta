@@ -185,6 +185,14 @@ that mechanism. Add a durable `execution.waiting` fact that names the blocking i
 Waiting is terminal for that execution but resumable for the session. It does not require a live
 runner or heartbeat.
 
+### Route approval continuation through durable commands
+
+Accepting an interaction response, creating its continuation execution, and creating the durable
+continuation command happen in one Postgres transaction. A committed response means the human
+answer and continuation intent are safe, not that execution has started. Temporary delivery
+failure retries the same command. Permanent start or execution failure produces an explicit
+execution outcome, preserves the accepted answer, and leaves the session usable.
+
 ## Reviewer gates
 
 1. Warm cancellation behavior in each harness and sandbox.
