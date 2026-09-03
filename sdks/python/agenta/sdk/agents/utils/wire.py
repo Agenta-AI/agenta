@@ -155,6 +155,7 @@ def request_to_wire(
         "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
+        **config.wire_gateway_guidance(),
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),

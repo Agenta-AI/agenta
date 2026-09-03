@@ -615,8 +615,9 @@ export interface GatewayPolicy {
 
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * Harness id: "pi_core" | "claude" | "codex". `pi_core` drives the ACP agent "pi";
+   * "pi_agenta" (a removed 2026 experiment) is still read as `pi_core` so an old
+   * stored request replays. "claude" drives
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
@@ -701,6 +702,21 @@ export interface AgentRunRequest {
    * yet.
    */
   gatewayPolicy?: GatewayPolicy;
+  /**
+   * The derived gateway-tools instruction section (how to use `search_tools` / `run_tool`,
+   * with the configured integration names as EXAMPLES), plus which prompt surface carries it.
+   *
+   * Its own field, deliberately OUTSIDE `configFingerprint` and the desired-state facets: the
+   * text is derived from the agent's connections at resolve time, and the runner splices it
+   * into `carrier` when it BUILDS an environment (`buildRunPlan`). So adding or removing an
+   * integration never evicts a warm session for a one-word prompt change; the names refresh
+   * on the next session build, and the wording says the list may be stale. When it was
+   * composed into the prompt strings upstream, every integration add went cold.
+   */
+  gatewayGuidance?: {
+    text: string;
+    carrier: "appendSystemPrompt" | "agentsMd";
+  };
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under

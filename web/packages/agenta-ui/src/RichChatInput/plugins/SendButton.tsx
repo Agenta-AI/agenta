@@ -1,5 +1,6 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {shortcutAria} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Stop} from "@phosphor-icons/react"
 
@@ -73,6 +74,7 @@ export function SendButton({
                     variant="ghost"
                     className="rounded-control-round"
                     aria-label="Stop"
+                    aria-keyshortcuts={shortcutAria("run.stop")}
                     onClick={onStop}
                 >
                     <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />

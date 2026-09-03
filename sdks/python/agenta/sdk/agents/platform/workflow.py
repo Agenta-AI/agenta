@@ -27,6 +27,7 @@ from agenta.sdk.agents.tools import (
     GatewayToolResolutionError,
     ReferenceToolConfig,
     ToolCallback,
+    disambiguate_tool_names,
 )
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -62,6 +63,18 @@ class AgentaWorkflowToolResolver:
         # endpoint and its auth cannot diverge.
         authorization = self._connection.authorization()
 
+        # Resolve every model-visible name up front. Sanitizing can merge two distinct children
+        # onto one name ("Support Router" and "Support/Router" both become `Support_Router`), and
+        # a duplicate name silently shadows the earlier tool instead of erroring — so the second
+        # subagent would simply never be callable. This is the only place that sees siblings.
+        names_by_call_ref = disambiguate_tool_names(
+            [
+                (tool_config.call_ref, tool_config.tool_name)
+                for tool_config in tools
+                if not _is_request_connection_workflow(tool_config)
+            ]
+        )
+
         seen: set[str] = set()
         tool_specs: list[CallbackToolSpec | ClientToolSpec] = []
         for tool_config in tools:
@@ -86,10 +99,16 @@ class AgentaWorkflowToolResolver:
                     )
                 )
                 continue
+            resolved_name = names_by_call_ref[call_ref]
             tool_specs.append(
                 CallbackToolSpec(
-                    name=tool_config.tool_name,
-                    description=tool_config.description or tool_config.tool_name,
+                    name=resolved_name,
+                    # The DESCRIPTION keeps the authored display name when there is one: that is
+                    # what the model reads to decide whether to call this subagent, and the
+                    # sanitized wire name may have lost the spacing that made it readable.
+                    description=tool_config.description
+                    or tool_config.name
+                    or resolved_name,
                     # Expand Agenta catalog pointers (``x-ag-type-ref``, e.g. ``messages``) into
                     # concrete JSON Schema so the harness sees a real shape (an array WITH items,
                     # not a bare ``x-ag-type-ref``) and can construct the call. Reference tools are

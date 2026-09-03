@@ -2,7 +2,13 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {CollapsibleMessageBody, StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {
+    AttachmentCard,
+    AttachmentCardGrid,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
 import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
@@ -36,7 +42,6 @@ import {
 import {Button} from "@/components/ui/button"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
@@ -232,6 +237,17 @@ const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: s
     )
 }
 
+/** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
+const downloadAttachment = (url: string, name: string) => {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = name
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+    link.remove()
+}
+
 /**
  * One transcript turn on the shared bubble chrome — the mobile face of the desktop
  * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
@@ -286,8 +302,10 @@ export const TurnRow = ({
     const body = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {turn.items.map((item, position) => {
+                if (item.kind === "files") return null
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
+                        if (!(item.part.text ?? "").trim()) return null
                         // What the user typed renders literally — markdown in your own words
                         // is surprising (desktop parity).
                         if (turn.isUser) {
@@ -308,9 +326,6 @@ export const TurnRow = ({
                                 urgent={position !== turn.items.length - 1}
                             />
                         )
-                    }
-                    if (item.part.type === "file") {
-                        return <AttachmentPart key={item.index} part={item.part} />
                     }
                     if (item.part.type === "reasoning") {
                         return (
@@ -351,6 +366,45 @@ export const TurnRow = ({
         </div>
     )
 
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = turn.items.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={item.index}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentCard
+                            key={`${item.index}-${n}`}
+                            name={file.filename || file.mediaType || "attachment"}
+                            mediaType={file.mediaType ?? ""}
+                            src={file.url}
+                            action={file.url ? "download" : "none"}
+                            onDownload={() =>
+                                downloadAttachment(
+                                    file.url,
+                                    file.filename || file.mediaType || "attachment",
+                                )
+                            }
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
+    const hasBubbleContent =
+        turn.items.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !(item.part.text ?? "").trim()
+                ),
+        ) || turn.status.showError
+
     // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
     const content = turn.isUser ? (
         <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
@@ -364,7 +418,7 @@ export const TurnRow = ({
         <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
-                variant={turn.isUser ? "filled" : "borderless"}
+                variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
                 avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
@@ -373,7 +427,8 @@ export const TurnRow = ({
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={content}
+                content={hasBubbleContent ? content : null}
+                header={attachments}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same
                 lane the desktop transcript reserves, so a settled turn reads quietly until you

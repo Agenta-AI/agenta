@@ -340,12 +340,40 @@ export function resolveOtlpTraceEndpoint(endpoint?: string): string {
  * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
  * because a third-party collector may share the Agenta host behind a different proxy path.
  */
+/**
+ * Host names that all denote THIS deployment's own API host.
+ *
+ * A service running in bridge mode cannot reach the host through `localhost` — that name resolves
+ * to its own container — so the SDK rewrites a configured `localhost`/`0.0.0.0` API URL to
+ * `host.docker.internal` before using it (`agenta/sdk/utils/helpers.py`, `parse_url`). The endpoint
+ * that then arrives on a run request names a DIFFERENT alias than the base configured here, and
+ * comparing them verbatim says "this is somebody else's collector" about the deployment's own
+ * ingest. The credential is withheld on that basis and every session call the runner makes comes
+ * back 401 — with nothing in the message pointing at a hostname.
+ *
+ * Folding the aliases together does not widen who gets the credential: the endpoint must still
+ * equal one of the operator-configured API bases, port and path included. Only the spelling of the
+ * local host is treated as interchangeable, which is the same equivalence the SDK's rewrite asserts.
+ */
+const LOCAL_HOST_ALIASES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+  "host.docker.internal",
+]);
+
 export function isAgentaIngest(endpoint: string): boolean {
   const normalize = (value: string): string | undefined => {
     try {
       const url = new URL(value);
       const path = url.pathname.replace(/\/+$/, "") || "/";
-      return `${url.origin}${path}`;
+      const host = LOCAL_HOST_ALIASES.has(url.hostname)
+        ? "__local__"
+        : url.hostname;
+      const port = url.port ? `:${url.port}` : "";
+      return `${url.protocol}//${host}${port}${path}`;
     } catch {
       return undefined;
     }
@@ -360,14 +388,83 @@ export function isAgentaIngest(endpoint: string): boolean {
   );
 }
 
+/** Hosts the platform rewrites to `host.docker.internal` before it dispatches a run. */
+const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
+
+/**
+ * The same base the platform would hand a dispatched run, or undefined when it rewrites nothing.
+ *
+ * A self-hoster's natural `AGENTA_API_URL` is a localhost URL, but a sandboxed run cannot reach
+ * the host that way from inside its own container, so the trace endpoint is rewritten to
+ * `host.docker.internal` on the way out. The runner reads only the raw env value, so the
+ * configured base and the endpoint it is handed can never string-match, and every run of such a
+ * deployment loses its platform credential.
+ *
+ * The authority for that rewrite is `parse_url` in `sdks/python/agenta/sdk/utils/helpers.py`, NOT
+ * the api's same-named twin in `api/oss/src/utils/helpers.py`. The endpoint on the wire is
+ * `ag.tracing.otlp_url`, which the agent service derives through the SDK's copy; the api's copy
+ * shapes the service URL a run is POSTed to. The two differ, and the differences are what the
+ * limits below are about.
+ *
+ * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the
+ * rewrite touches. Three things it deliberately does NOT do:
+ *
+ *   - `127.0.0.1` earns no alias HERE. Neither copy of `parse_url` rewrites it, so that
+ *     deployment already matches its own raw base and the bridge form is a pair the platform
+ *     cannot produce. It is admitted anyway, one layer up: `isAgentaIngest` folds every
+ *     local-host spelling into one host (#6392), which subsumes this mirror entirely. This
+ *     function is kept because it is the record of WHICH rewrite the platform actually performs,
+ *     and because it names the bridge form in `configuredIngestBases()` so a rejection message
+ *     lists the host the operator will see on the wire.
+ *   - A scheme-less base earns no alias, because it cannot help. The SDK's `parse_url` does no
+ *     scheme defaulting (unlike the api's), so a scheme-less `AGENTA_API_URL` yields an equally
+ *     scheme-less ENDPOINT, which `new URL` reads as an opaque `localhost:`-scheme path. Both
+ *     sides are then unparseable and no aliasing here can make them agree. Such a deployment is
+ *     broken further upstream — the OTLP exporter target itself is malformed — and the fix is
+ *     scheme defaulting in the SDK's `parse_url`, not a wider allowlist.
+ *   - The alias is not gated on the docker network mode, even though the rewrite is: the SDK's
+ *     `parse_url` rewrites only when `DOCKER_NETWORK_MODE` is exactly `bridge`, so in `host` mode
+ *     (and when the var is unset) the platform dispatches the unrewritten localhost endpoint,
+ *     which the raw base already matches, and this alias is merely unused. Gating it is not
+ *     possible and would not be safe: the runner's environment carries no `DOCKER_NETWORK_MODE`
+ *     (it takes no `env_file` by design, and the var is absent from its `environment:` block in
+ *     every compose file), so the runner cannot tell "unset" from "bridge, but invisible to me" —
+ *     and those two need OPPOSITE answers. A mode-gated alias would read "unset" and emit
+ *     nothing on exactly the bridge deployments this exists to fix.
+ *
+ * What that last point leaves is a residual width: in host mode the allowlist also admits
+ * `host.docker.internal` on the configured port, an endpoint the platform will not dispatch
+ * there. It is not an attack surface. The endpoint is always platform-dispatched — the runner
+ * reads it from the run request the agent service builds — and reaching the runner directly needs
+ * `AGENTA_RUNNER_TOKEN` inside the compose network, where a forged request carries its own
+ * credential anyway. The only real exposure is a third-party collector on the docker host at the
+ * exact port of the configured Agenta api, which in practice is that api.
+ */
+function bridgeRewrittenBase(base: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return undefined;
+  }
+  if (!BRIDGE_REWRITTEN_HOSTS.has(url.hostname)) return undefined;
+  url.hostname = "host.docker.internal";
+  return url.toString().replace(/\/+$/, "");
+}
+
 /** The api bases `isAgentaIngest` accepts, in precedence order. Exported so a rejection can name
  * what it compared against — the failure is always a configuration gap, never a code path. */
 export function configuredIngestBases(): string[] {
-  return [
+  const configured = [
     process.env.AGENTA_API_INTERNAL_URL,
     process.env.AGENTA_API_URL,
     CLOUD_API_BASE,
   ].filter((base): base is string => Boolean(base));
+
+  return configured.flatMap((base) => {
+    const bridged = bridgeRewrittenBase(base);
+    return bridged ? [base, bridged] : [base];
+  });
 }
 
 /**

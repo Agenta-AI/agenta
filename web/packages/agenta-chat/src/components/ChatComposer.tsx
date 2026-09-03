@@ -7,16 +7,19 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
+import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
+import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerRejections from "./ComposerRejections"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -36,6 +39,11 @@ export interface ChatComposerProps {
     className?: string
     disabled?: boolean
     hideSendButton?: boolean
+    /**
+     * Force the Send/Newline hints on or off. Left unset they follow the device: shown wherever
+     * there is a keyboard to press them with, hidden on a touch-only screen.
+     */
+    hideShortcutHints?: boolean
     /** Full placeholder override; when absent, `waitingOnUser` picks the queue message. */
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
@@ -70,6 +78,7 @@ export const ChatComposer = ({
     className,
     disabled,
     hideSendButton,
+    hideShortcutHints,
     placeholder,
     waitingOnUser,
     initialMarkdown,
@@ -88,20 +97,45 @@ export const ChatComposer = ({
         uploadsEnabled,
         files,
         rejections,
-        setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         limits,
         atMax,
         attachmentsSettled,
         uploadBlockReason,
         addFiles,
         removeFile,
+        dismissRejection,
         uploads,
     } = attachments
 
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    // Keyboard affordances are only worth their width where there is a keyboard. On a phone the
+    // "Enter to send" hint and the `⌘ ↵` chips name keys the user has no way to press, and they
+    // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
+    // iPhone was being shown the `⌘` variant specifically.
+    const hasKeyboard = useHardwareKeyboard()
+
     return (
         <Suspense fallback={fallback ?? null}>
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={acceptAttrFor(limits)}
+                onChange={(e) => {
+                    const list = e.target.files
+                    if (list && list.length) addFiles(Array.from(list))
+                    e.target.value = "" // let the same file be re-picked after a remove
+                }}
+                className="hidden"
+            />
+            {/* Docked ABOVE the composer, not inside the tray: a rejection has no thumbnail, no
+            upload and nothing to send, so sizing it like an attachment card only cost the reason
+            its room. */}
+            <div className={className}>
+                <HeightCollapse open={rejections.length > 0}>
+                    <ComposerRejections rejections={rejections} onDismiss={dismissRejection} />
+                </HeightCollapse>
+            </div>
             <RichChatInput
                 ref={inputRef}
                 autoFocus={autoFocus}
@@ -110,13 +144,16 @@ export const ChatComposer = ({
                 onSubmit={onSubmit}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
+                hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
                 placeholder={
                     placeholder ??
                     (waitingOnUser
                         ? // The parked interaction is docked directly above, so point at it rather
                           // than describing the wait in the abstract.
                           "Answer above, or type to queue a message"
-                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)")
+                        : hasKeyboard
+                          ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                          : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -146,7 +183,7 @@ export const ChatComposer = ({
                                 variant="ghost"
                                 size="icon"
                                 disabled={!uploadsEnabled || composerDisabled}
-                                onClick={() => setAttachmentsOpen((open) => !open)}
+                                onClick={() => fileInputRef.current?.click()}
                                 aria-label="Attach files"
                             >
                                 <Paperclip size={16} />
@@ -155,14 +192,10 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                    <HeightCollapse open={files.length > 0}>
                         <ComposerAttachments
                             files={files}
-                            rejections={rejections}
-                            limits={limits}
-                            onAdd={addFiles}
                             onRemove={removeFile}
-                            onDismissRejections={() => setRejections([])}
                             onView={uploadsEnabled ? onViewAttachment : undefined}
                             onRetry={uploads.retry}
                             canRetry={uploads.canRetry}
