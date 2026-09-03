@@ -79,12 +79,16 @@ log = get_module_logger(__name__)
 # Raise AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS if healthy turns are being settled.
 ORPHAN_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.stale_heartbeat_seconds
 
-# Alive-but-NOT-running rows are a different thing and owe no ending. Between turns, and while
-# a turn is parked awaiting a human, the runner sends one final beat with `is_running: false`
-# and then stops beating on purpose; that state is resumable and its last turn already reached
-# its own terminal record. Such a row is still reclaimed after a much longer silence — the
-# pre-existing orphan-sweep behaviour, keyed to the 30-minute approval TTL — but the watchdog
-# never writes a terminal record for it. See `_lost_turn_records` callers below.
+# Alive-but-NOT-running rows are RECLAIMED on a different, much longer clock. Between turns, and
+# while a turn is parked awaiting a human, the runner sends one final beat with `is_running:
+# false` and then stops beating on purpose; that state is resumable, so collapsing it is keyed
+# to the 30-minute approval TTL rather than to three missed beats.
+#
+# It does NOT decide whether such a row owes its turn an ending. It used to, on the premise that
+# a not-running row's last turn had already reached a terminal record — a premise a durable Stop
+# broke, because settlement clears `is_running` before the runner has written that record. The
+# ending is now decided by asking the records plane, on the ninety-second clock. See the second
+# selection in `run_orphan_sweep`.
 IDLE_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.idle_grace_seconds
 
 # How often the watchdog runs.
@@ -301,22 +305,55 @@ async def run_orphan_sweep(
         result = await session.execute(stmt)
         orphans = result.scalars().all()
 
-        if not orphans:
-            # No stale row, but a command can still be abandoned: its execution may have ended
-            # normally between the claim and the report.
-            await _settle_abandoned_commands(commands_service, now_utc)
-            return
+        # A SECOND selection, for the ending only. The rule above reads "not running, so its
+        # last turn already ended", and a durable Stop broke that premise: settlement clears
+        # `is_running` on the row the moment it releases the Redis key, so the tab that pressed
+        # Stop is not left spinning. The runner then owes its own terminal record — and if it
+        # dies in that window, the row is already not-running, the rule above skips it, and the
+        # 30-minute idle branch collapses the row without ever writing an ending. Observed live
+        # on the integration stack: a Stop settled `stopped` at 13:09:19, the runner was killed
+        # a moment later, and turn 295351c3 still carried nothing but the user's own message
+        # five minutes on. So the premise is now CHECKED rather than assumed: any stale row
+        # that names a turn is a candidate, and `_unsettled_turns` writes an ending only for a
+        # turn that carries none. A row between turns, or parked on an approval, has its own
+        # terminal record and is filtered out there, at the cost of one lookup per project.
+        #
+        # These rows are NOT collapsed. Collapsing keeps its own, much longer idle grace: a
+        # parked approval lives for thirty minutes and must not be reclaimed at ninety seconds.
+        ending_stmt = (
+            select(SessionStreamDBE)
+            .where(
+                SessionStreamDBE.deleted_at.is_(None),
+                SessionStreamDBE.flags.contains({"is_alive": True}),
+                not_(is_running),
+                SessionStreamDBE.turn_id.is_not(None),
+                last_beat < threshold,
+            )
+            .limit(SWEEP_BATCH_SIZE)
+        )
+        ending_only = (await session.execute(ending_stmt)).scalars().all()
 
-        # A row that claimed a RUNNING turn owes that turn an ending. A row that was merely
-        # alive between turns owes nothing: its last turn already ended normally.
-        claimed: List[Tuple[UUID, str, str]] = [
-            (row.project_id, row.session_id, str(row.turn_id))
-            for row in orphans
-            if row.turn_id and (row.flags or {}).get("is_running") is True
-        ]
+        # A row that claimed a RUNNING turn owes that turn an ending. So does a stopped row
+        # whose runner never wrote one; see the note above.
+        seen: Set[Tuple[UUID, str, str]] = set()
+        claimed: List[Tuple[UUID, str, str]] = []
+        for row in [*orphans, *ending_only]:
+            if not row.turn_id:
+                continue
+            key = (row.project_id, row.session_id, str(row.turn_id))
+            if key in seen:
+                continue
+            seen.add(key)
+            claimed.append(key)
         unsettled = await _unsettled_turns(
             records_service=records_service, candidates=claimed
         )
+
+        if not orphans and not unsettled:
+            # No stale row and nothing owed an ending, but a command can still be abandoned:
+            # its execution may have ended normally between the claim and the report.
+            await _settle_abandoned_commands(commands_service, now_utc)
+            return
 
         # Durable ending FIRST. A crash after this point leaves the row a candidate for the
         # next pass, which re-reads the record it just wrote and does not write a second.

@@ -277,6 +277,10 @@ async def test_an_idle_row_owes_no_ending(anyio_backend):
 
     Its last turn already reached its own terminal record. Writing an error here would
     invent a failure that never happened.
+
+    The records fake says so, because that record is now what decides. The `is_running` flag
+    used to decide instead, and a durable Stop broke it: settlement clears the flag before the
+    runner has written its ending.
     """
     row = _FakeRow(
         session_id="sess-idle",
@@ -289,7 +293,7 @@ async def test_an_idle_row_owes_no_ending(anyio_backend):
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
         _FakeRedis(),
-        records_service=_FakeRecordsService(),
+        records_service=_FakeRecordsService({("sess-idle", "turn-old")}),
         publish=publisher,
     )
 
@@ -304,8 +308,13 @@ async def test_a_parked_approval_is_never_settled(anyio_backend):
     A turn that parks for a human sends one final beat with `is_running: false` and then stops
     beating on purpose. Its heartbeat therefore goes stale immediately, and it is exactly the
     state we most need to keep: the sandbox is warm, the user is about to answer, and the turn
-    is resumable. Only a row that still CLAIMS running is eligible, so this one is not a
-    candidate however long it sits.
+    is resumable.
+
+    What protects it is its own terminal record: a turn that parks writes `done` with
+    `stopReason: paused` at the moment it parks, and any terminal record makes `settled_turns`
+    answer yes. Verified on the integration stack, session f0018938: `done`/`paused` landed in
+    the same second as the `interaction_request`. The `is_running` flag protected it before,
+    and stopped being able to when a durable Stop began clearing that flag early.
     """
     row = _FakeRow(
         session_id="sess-parked",
@@ -318,7 +327,7 @@ async def test_a_parked_approval_is_never_settled(anyio_backend):
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
         _FakeRedis(),
-        records_service=_FakeRecordsService(),
+        records_service=_FakeRecordsService({("sess-parked", "turn-parked")}),
         publish=publisher,
     )
 
@@ -414,3 +423,41 @@ async def test_a_failed_lookup_never_invents_an_ending(anyio_backend):
 
     assert publisher.published == []
     assert _collapsed(row)
+
+
+@pytest.mark.anyio
+async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backend):
+    """The seam between the durable Stop and the watchdog, found by running the cells.
+
+    Settlement writes `is_running: false` onto the row the moment it releases the Redis key,
+    so the tab that pressed Stop is not left spinning. The runner still owes its own terminal
+    record. If it dies in that window the row is already not-running, and the old rule — only
+    a row that CLAIMS running owes an ending — skipped it for ever: the 30-minute idle branch
+    collapses such a row and writes nothing.
+
+    Observed live on the integration stack. Command 01a06763-5807 settled `applied`/`stopped`
+    at 13:09:19, the runner was killed a moment later, and turn 295351c3 still carried nothing
+    but the user's own `message` five minutes and five sweep passes later.
+
+    This row is deliberately NOT collapsed here: it is younger than the idle grace, and a
+    parked approval of the same age must survive. Only the ending is owed.
+    """
+    row = _FakeRow(
+        session_id="sess-stopped",
+        turn_id="turn-stopped",
+        is_running=False,
+        age_seconds=ORPHAN_THRESHOLD_SECONDS + 30,
+    )
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_FakeRecordsService(),
+        publish=publisher,
+    )
+
+    assert [event.record_type for event in publisher.published] == ["error", "done"], (
+        "a stopped turn whose runner never wrote an ending must be given one"
+    )
+    assert all(event.turn_id == "turn-stopped" for event in publisher.published)
