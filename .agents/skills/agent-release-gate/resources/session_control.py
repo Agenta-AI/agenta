@@ -53,6 +53,13 @@ REQUIRED_ENV = ("AGENTA_BASE", "AGENTA_ADMIN_KEY", "QA_OPENAI_API_KEY")
 BASE = ""
 ADMIN_KEY = ""
 OPENAI_KEY = ""
+# Only required when --harness claude is selected; checked in bootstrap(), not resolve_env(),
+# so a pi_core/codex-only run never needs it set.
+ANTHROPIC_KEY = ""
+
+# Set in main() from --sandbox: Daytona sandboxes take 10 to 20s to start, on top of whatever a
+# local sandbox needs, so every wait that assumes "local" gets this much extra slack.
+SANDBOX_STARTUP_SLACK_S = 0.0
 
 RUNS = pathlib.Path(
     os.environ.get(
@@ -86,6 +93,8 @@ def resolve_env() -> None:
     BASE = os.environ["AGENTA_BASE"]
     ADMIN_KEY = os.environ["AGENTA_ADMIN_KEY"]
     OPENAI_KEY = os.environ["QA_OPENAI_API_KEY"]
+    global ANTHROPIC_KEY
+    ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 
 # --------------------------------------------------------------------------- #
@@ -349,6 +358,15 @@ HARNESSES = {
         "provider": "openai",
         "connection": {"mode": "agenta", "slug": None},
     },
+    "claude": {
+        # `sonnet` alias, not a full model id: a full id is dropped to the default on the Claude
+        # ACP path (qa_product.py F-007). VAULT key (mode "agenta"), not subscription: this
+        # driver's cells run on Daytona too, and Daytona rejects subscription auth by design.
+        "kind": "claude",
+        "model": "sonnet",
+        "provider": "anthropic",
+        "connection": {"mode": "agenta", "slug": None},
+    },
 }
 
 
@@ -369,7 +387,7 @@ def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Respon
     )
 
 
-def bootstrap() -> None:
+def bootstrap(harness: str = "pi_core") -> None:
     uid = uuid.uuid4().hex[:12]
     r = httpx.post(
         f"{BASE}/api/admin/simple/accounts/",
@@ -408,6 +426,33 @@ def bootstrap() -> None:
     if r.status_code != 200:
         raise SystemExit(f"vault create HTTP {r.status_code}: {r.text[:400]}")
     print("[bootstrap] vault stocked with an openai provider key", file=sys.stderr)
+
+    if harness == "claude":
+        # The claude harness's vault connection (agent_config mode "agenta") needs a funded
+        # Anthropic key, the same way the OpenAI key above covers pi_core and codex. Checked
+        # here, not in resolve_env(), so a pi_core/codex-only run never needs it set.
+        if not ANTHROPIC_KEY:
+            raise SystemExit(
+                "Missing environment variable: ANTHROPIC_API_KEY. Required for --harness "
+                "claude (the vault connection needs a funded Anthropic key). "
+                "e.g. export ANTHROPIC_API_KEY=...   # ~/.agenta-qa-secrets.env"
+            )
+        r = api(
+            "POST",
+            "/vault/v1/secrets/",
+            json={
+                "header": {"name": "Anthropic", "description": "session-control gate"},
+                "secret": {
+                    "kind": "provider_key",
+                    "data": {"kind": "anthropic", "provider": {"key": ANTHROPIC_KEY}},
+                },
+            },
+        )
+        if r.status_code != 200:
+            raise SystemExit(f"vault create HTTP {r.status_code}: {r.text[:400]}")
+        print(
+            "[bootstrap] vault stocked with an anthropic provider key", file=sys.stderr
+        )
 
 
 def agent_config(
@@ -648,6 +693,41 @@ def assistant_message(turn: dict) -> dict:
     return {"id": str(uuid.uuid4()), "role": "assistant", "parts": parts}
 
 
+def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
+    """The session's turn rows, newest first, over HTTP only (no docker needed).
+
+    The runner writes `agent_session_id` and `sandbox_id` on every turn, so this is a STORED
+    outcome, not an echo of what the client sent. Used to check the resume after a Stop landed
+    in the SAME sandbox rather than a rebuilt one.
+    """
+    r = api(
+        "POST",
+        "/sessions/turns/query",
+        json={
+            "query": {"session_id": session_id},
+            "windowing": {"limit": limit, "order": "descending"},
+        },
+    )
+    if r.status_code != 200:
+        return []
+    try:
+        body = r.json()
+    except Exception:  # noqa: BLE001
+        return []
+    turns = body.get("turns") if isinstance(body, dict) else None
+    return turns if isinstance(turns, list) else []
+
+
+def sandbox_ids(session_id: str) -> list[str]:
+    """Distinct sandbox ids across the session's turn ledger.
+
+    ONE id = the resume reused the same sandbox (warm). TWO or more = the sandbox was rebuilt.
+    """
+    return sorted(
+        {r.get("sandbox_id") for r in turn_ledger(session_id) if r.get("sandbox_id")}
+    )
+
+
 def session_stream(session_id: str) -> dict:
     r = api("GET", "/sessions/streams/", params={"session_id": session_id})
     if r.status_code != 200:
@@ -747,7 +827,7 @@ def invoke_async(session_id, messages, cfg, references, label) -> dict:
 
 
 def wait_for_turn(session_id: str, *, timeout: float = 40.0) -> str | None:
-    deadline = time.time() + timeout
+    deadline = time.time() + timeout + SANDBOX_STARTUP_SLACK_S
     while time.time() < deadline:
         stream = session_stream(session_id)
         turn = stream.get("turn_id")
@@ -759,7 +839,7 @@ def wait_for_turn(session_id: str, *, timeout: float = 40.0) -> str | None:
 
 
 def wait_for_tool(handle: dict, *, timeout: float = 60.0) -> dict | None:
-    deadline = time.time() + timeout
+    deadline = time.time() + timeout + SANDBOX_STARTUP_SLACK_S
     live = handle["live"]
     while time.time() < deadline:
         calls = live.get("tool_calls") or []
@@ -826,6 +906,8 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "resume_recalled_marker": marker in (t2.get("text") or ""),
         "resume_elapsed_s": t2.get("elapsed_s"),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if stop["status"] not in (200, 202):
         return evidence, _fail(
             f"Stop returned HTTP {stop['status']}, expected 200 or 202"
@@ -868,6 +950,8 @@ def cell_double_send(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "turn1_errors": t1.get("errors"),
         "third_send_recalled_marker": marker in (t3.get("text") or ""),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     refused = bool(t2.get("errors"))
     if not refused:
         return evidence, _fail("second Send during a running turn was not refused")
@@ -920,6 +1004,8 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "turn2_elapsed_s": t2.get("elapsed_s"),
         "turn3_recalled_marker": marker in (t3.get("text") or ""),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if stale["status"] not in (400, 404, 409):
         return evidence, _fail(
             f"stale Stop returned HTTP {stale['status']}, expected a mismatch status"
@@ -969,6 +1055,8 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         "late_answer": late,
         "resume_recalled_marker": marker in (t2.get("text") or ""),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if pending is None:
         return evidence, _fail(
             "no pending approval was seen before the Stop; the race did not land"
@@ -1129,6 +1217,8 @@ def cell_stop_after_finish(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "resume_recalled_marker": marker in (t2.get("text") or ""),
         "terminal_records": terminal_records(session_id, turn),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if hooks.available:
         logs = hooks.runner_log(since)
         evidence["control_aborted_lines"] = [
@@ -1396,6 +1486,8 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "terminal_records": terminal_records(session_id, turn),
         "resume_recalled_marker": marker in (t3.get("text") or ""),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if hooks.available:
         evidence["commands"] = hooks.command_rows(session_id)
     accepted = [r for r in results if r["status"] in (200, 202)]
@@ -1464,6 +1556,8 @@ def cell_stop_during_completion(cfg, references, args, hooks: OperatorHooks) -> 
         "stream_after_flags": (stream_after or {}).get("flags"),
         "resume_recalled_marker": marker in (t2.get("text") or ""),
     }
+    evidence["sandbox_ids"] = sandbox_ids(session_id)
+    evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
     if len(terminal) > 1:
         return evidence, _fail(
             f"the race produced {len(terminal)} terminal records for one turn, expected one"
@@ -1531,6 +1625,9 @@ def main() -> int:
     hooks: OperatorHooks = (
         DockerComposeHooks(args.project) if args.project else NullHooks()
     )
+    if args.sandbox == "daytona":
+        global SANDBOX_STARTUP_SLACK_S
+        SANDBOX_STARTUP_SLACK_S = 25.0
 
     prior: dict = {}
     if args.resume:
@@ -1542,7 +1639,7 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    bootstrap()
+    bootstrap(args.harness)
     spec = HARNESSES[args.harness]
     base_cfg = agent_config(
         spec["kind"], spec["model"], spec["provider"], spec["connection"], args.sandbox

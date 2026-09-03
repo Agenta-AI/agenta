@@ -225,6 +225,8 @@ fallback:
   `~/.agenta-qa-secrets.env`.
 - `QA_OPENAI_API_KEY` — stocked into that account's vault so the `pi_core` and `codex` harnesses
   have a provider key. Lives in `~/.agenta-qa-openai.env`.
+- `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
+  same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
 
 A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
 session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
