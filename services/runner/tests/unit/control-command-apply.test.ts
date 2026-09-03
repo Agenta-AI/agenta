@@ -8,8 +8,8 @@
  *     (the abort ends the turn `cancelled`, and only a cancelled turn takes the park path).
  *  2. It aborts NOTHING when it holds an execution that started after the command was created.
  *     That is the late-Stop guard, and it is exact because it reads this process's own memory.
- *  3. A session it holds parked awaiting an approval answers `not_running` and stays parked.
- *     Stop ends the work, not the session.
+ *  3. A session it holds parked awaiting an approval releases every gate, answers `stopped`,
+ *     and stays warm as an idle session for the next normal prompt.
  *  4. The same command delivered twice aborts once and acknowledges twice.
  *  5. It aborts NOTHING when the named execution's prompt has already settled and only its
  *     teardown is still running. That Stop lost the race by a moment, and aborting a finished
@@ -110,9 +110,7 @@ describe("applyCommand", () => {
     assert.deepEqual(reported, [outcome]);
   });
 
-  it("aborts nothing when this process holds no execution for the session", async () => {
-    // The parked-approval case. There is no turn to abort, and the parked environment must
-    // stay in the pool so the next message is warm.
+  it("reports not_running when this process holds no execution or parked approval", async () => {
     const { reported, report } = collector();
 
     const outcome = await applyCommand(command(), {
@@ -123,6 +121,65 @@ describe("applyCommand", () => {
     assert.equal(outcome.result, "applied");
     assert.equal(outcome.execution.state, "not_running");
     assert.equal(reported.length, 1);
+  });
+
+  it("stops a parked approval, clears its gates, and leaves the next prompt warm", async () => {
+    const { reported, report } = collector();
+    const permissionReplies: Array<{ id: string; reply: string }> = [];
+    const prompts: string[] = [];
+    const parked = {
+      state: "awaiting_approval" as "awaiting_approval" | "idle",
+      gates: new Map([
+        ["tool-a", { permissionId: "perm-a" }],
+        ["tool-b", { permissionId: "perm-b" }],
+      ]),
+      session: {
+        respondPermission: async (id: string, reply: string) => {
+          permissionReplies.push({ id, reply });
+        },
+        prompt: async (text: string) => {
+          prompts.push(text);
+        },
+      },
+    };
+
+    const outcome = await applyCommand(command(), {
+      findLive: () => undefined,
+      isParked: (projectId, sessionId) =>
+        projectId === PROJECT &&
+        sessionId === SESSION &&
+        parked.state === "awaiting_approval"
+          ? {
+              stop: async () => {
+                for (const gate of parked.gates.values()) {
+                  await parked.session.respondPermission(
+                    gate.permissionId,
+                    "reject",
+                  );
+                }
+                parked.gates.clear();
+                parked.state = "idle";
+              },
+            }
+          : undefined,
+      report,
+    });
+
+    assert.equal(outcome.result, "applied");
+    assert.equal(outcome.execution.state, "stopped");
+    assert.equal(outcome.execution.id, TURN);
+    assert.deepEqual(permissionReplies, [
+      { id: "perm-a", reply: "reject" },
+      { id: "perm-b", reply: "reject" },
+    ]);
+    assert.equal(parked.gates.size, 0);
+    assert.equal(parked.state, "idle");
+
+    if (parked.state === "idle") {
+      await parked.session.prompt("what next?");
+    }
+    assert.deepEqual(prompts, ["what next?"]);
+    assert.deepEqual(reported, [outcome]);
   });
 
   it("refuses to abort an execution that started AFTER the command was created", async () => {
@@ -408,11 +465,10 @@ describe("holdsSession", () => {
     // heartbeating, so the existing Stop signal never reaches it.
     assert.equal(holdsSession(PROJECT, SESSION), false);
     assert.equal(
-      holdsSession(
-        PROJECT,
-        SESSION,
-        (projectId, sessionId) =>
-          projectId === PROJECT && sessionId === SESSION,
+      holdsSession(PROJECT, SESSION, (projectId, sessionId) =>
+        projectId === PROJECT && sessionId === SESSION
+          ? { stop: () => {} }
+          : undefined,
       ),
       true,
     );
@@ -425,14 +481,19 @@ describe("holdsSession", () => {
         SESSION,
         (projectId, sessionId) =>
           projectId === "22222222-2222-4222-8222-222222222222" &&
-          sessionId === SESSION,
+          sessionId === SESSION
+            ? { stop: () => {} }
+            : undefined,
       ),
       false,
     );
   });
 
   it("is false for a session this process does not hold, which is what answers 404", () => {
-    assert.equal(holdsSession(PROJECT, "other-session", () => false), false);
+    assert.equal(
+      holdsSession(PROJECT, "other-session", () => undefined),
+      false,
+    );
   });
 });
 
