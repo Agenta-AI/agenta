@@ -30,8 +30,7 @@ const targetForStream = (session: SessionStream) => ({
  */
 export const useSessionRowMenu = (base: string) => {
     const router = useRouter()
-    // A session's link is its own page here, so every session has one — no agent needed, unlike
-    // the desktop, which can only link at a playground.
+    // Every session has its own page here, so no agent is needed for a link.
     const sharePathFor = useCallback(
         ({sessionId}: SessionActionTarget) => sessionRoutePath(base, sessionId),
         [base],

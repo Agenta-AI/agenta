@@ -98,19 +98,15 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(ChatsCircleIcon, {size: 14}),
         listAtom: sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
-        // The session's own deep link, so copying it or opening it in a new tab lands here. The
-        // click still hands the target over directly, carrying the title the tab shows before its
-        // records hydrate. A first-turn session has no agent to open on yet (#5974).
+        // The session's own deep link, so copy/open-in-new-tab lands here (#5974).
         childPath: (session) =>
             session.appId
                 ? playgroundSessionPath("/apps", session.appId, session.sessionId)
                 : "/sessions",
-        // Highlight on the agent's playground, whatever session is on the URL: the deep link
-        // above would only match its own session, and only with no other param beside it.
+        // Highlight on the agent's playground whatever session the URL carries.
         childMatchPaths: (session) => (session.appId ? [`/apps/${session.appId}/playground`] : []),
         getOnClick: (session) => () => {
-            // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
-            // a first-turn session keeps its place (#5974).
+            // No resolved agent yet: nothing to open, but the row keeps its place (#5974).
             if (!session.appId) return
             getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
