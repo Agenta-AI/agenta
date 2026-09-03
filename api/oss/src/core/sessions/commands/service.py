@@ -623,6 +623,7 @@ class SessionCommandsService:
             replica_id=replica_id,
         )
         atomic_core_settlement = self._executions is not None
+        cancelled_interactions = 0
         if atomic_core_settlement:
             stored_command = await self._dao.fetch_command(command_id=command_id)
             if stored_command is None:
@@ -675,12 +676,14 @@ class SessionCommandsService:
                         SessionCommandOutcome.not_running,
                         SessionCommandOutcome.lost,
                     ):
-                        await self._interactions.cancel_session_pending(
-                            project_id=project_id,
-                            session_id=stored_command.session_id,
-                            only_turn_id=execution_id,
-                            transaction=transaction,
-                            publish=False,
+                        cancelled_interactions = (
+                            await self._interactions.cancel_session_pending(
+                                project_id=project_id,
+                                session_id=stored_command.session_id,
+                                only_turn_id=execution_id,
+                                transaction=transaction,
+                                publish=False,
+                            )
                         )
             except _SettlementRejected:
                 return None
@@ -691,6 +694,12 @@ class SessionCommandsService:
 
         session_id = settled.session_id
         target = settled.target_turn_id
+
+        if cancelled_interactions:
+            await self._interactions.publish_session_pending_cancelled(
+                project_id=project_id,
+                session_id=session_id,
+            )
 
         if not atomic_core_settlement:
             await self._dao.clear_stopping_turn(
