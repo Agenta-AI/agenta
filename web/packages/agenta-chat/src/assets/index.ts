@@ -18,3 +18,4 @@ export {getMessageTurnId, latestTurnId} from "./agentTurn"
 export * from "./resolveStopExecution"
 
 export {liveCommittedRevisions, type CommittedRevision} from "./committedRevisions"
+export * from "./filePaletteRows"
