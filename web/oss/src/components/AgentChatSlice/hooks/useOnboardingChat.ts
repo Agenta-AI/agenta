@@ -1,7 +1,7 @@
 import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
@@ -124,6 +124,25 @@ export const useOnboardingChat = ({
         onboarding.commit(text, templateName)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
     }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
+
+    // The step's "Create agent". The composer stayed editable behind the card, so the description
+    // is re-read here — the draft the step opened with is one edit out of date.
+    const handleCreateWithSetup = useCallback(
+        (selection: AgentSetupSelection) => {
+            if (!onboarding || onboarding.committing) return
+            const live = richInputRef.current?.getMarkdown()
+            if (live === undefined) {
+                onboarding.commitWithSetup(selection)
+                return
+            }
+            const text = live.trim()
+            onboarding.commitWithSetup(selection, {
+                seedMessage: text,
+                name: stripProvenance.resolveTemplateName(text),
+            })
+        },
+        [onboarding, richInputRef, stripProvenance.resolveTemplateName],
+    )
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
@@ -256,6 +275,7 @@ export const useOnboardingChat = ({
         pendingFirstTurn,
         pendingFirstMessage,
         handleCreateAgent,
+        handleCreateWithSetup,
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,

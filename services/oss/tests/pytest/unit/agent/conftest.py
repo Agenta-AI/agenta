@@ -90,7 +90,6 @@ class FakeBackend(Backend):
         supported: Sequence[HarnessKind] = (
             HarnessKind.PI,
             HarnessKind.CLAUDE,
-            HarnessKind.AGENTA,
         ),
     ) -> None:
         self.supported_harnesses = frozenset(supported)

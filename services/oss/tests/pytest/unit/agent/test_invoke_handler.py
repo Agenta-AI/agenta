@@ -286,14 +286,13 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     }
     bodies = [
         await _invoke(harness, permission_default="deny", skills=[skill])
-        for harness in ("pi_core", "pi_agenta", "claude")
+        for harness in ("pi_core", "claude")
     ]
-    pi_body, agenta_body, claude_body = bodies
+    pi_body, claude_body = bodies
 
     # (1) identical body regardless of harness
     assert (
         pi_body
-        == agenta_body
         == claude_body
         == {
             "messages": [
@@ -305,11 +304,10 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
         }
     )
 
-    # (2) the three harness-shaped configs that reached the backend boundary, in call order
-    assert len(backend.created_configs) == 3
-    pi_cfg, agenta_cfg, claude_cfg = backend.created_configs
+    # (2) the two harness-shaped configs that reached the backend boundary, in call order
+    assert len(backend.created_configs) == 2
+    pi_cfg, claude_cfg = backend.created_configs
     pi_wire = pi_cfg.wire_tools()
-    agenta_wire = agenta_cfg.wire_tools()
     claude_wire = claude_cfg.wire_tools()
 
     # Pi carries its custom tool natively and always names every built-in on the deprecated
@@ -324,19 +322,12 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     assert claude_wire["permissions"] == {"default": "deny"}
     assert "skills" not in claude_wire
 
-    # Agenta is Pi-with-an-opinion, and the opinion is prompt-shaped, not tool-shaped: the two
-    # share a tool wire. Skills are not tools, so they never appear in it either.
-    assert agenta_wire == pi_wire
-    assert "skills" not in agenta_wire
-
     # skills ride the dedicated wire_skills seam, not the tool wire
     assert pi_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
-    assert agenta_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
     assert claude_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
 
     # configs genuinely differ; the body's sameness is not a tautology
     assert pi_wire != claude_wire
-    assert agenta_cfg.wire_prompt() != pi_cfg.wire_prompt()
 
 
 async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(

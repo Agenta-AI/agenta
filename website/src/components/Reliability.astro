@@ -64,10 +64,14 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
             </div>
           </div>
         </div>
-        <span
-          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Human in the loop</span
+        <!-- Card titles are <h3> under the section's <h2> (SectionTitle), so the
+             page has a real outline for crawlers and screen readers. `margin:0`
+             keeps the rendering identical — global.css has no heading reset. -->
+        <h3
+          style="margin:0;font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Human in the loop
+        </h3>
         <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
           >Consequential actions wait for you. Approve, edit, or reject before
           anything ships.</span
@@ -142,10 +146,11 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
             >
           </svg>
         </div>
-        <span
-          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Version every change</span
+        <h3
+          style="margin:0;font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Version every change
+        </h3>
         <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
           >Prompts, skills, and tools are versioned like code. Roll back to any
           point, anytime.</span
@@ -184,10 +189,11 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
             </div>
           </div>
         </div>
-        <span
-          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Trace every run</span
+        <h3
+          style="margin:0;font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Trace every run
+        </h3>
         <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
           >See each step, its cost, and its outcome — and find the exact failure
           points.</span
@@ -211,10 +217,11 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
             </div>
           </div>
         </div>
-        <span
-          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Improve continuously</span
+        <h3
+          style="margin:0;font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Improve continuously
+        </h3>
         <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
           >Feedback becomes test cases; every change is evaluated before it
           ships.</span

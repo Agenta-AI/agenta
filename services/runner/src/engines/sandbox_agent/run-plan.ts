@@ -12,6 +12,7 @@ import {
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
+import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
@@ -418,6 +419,15 @@ export function buildRunPlan(
   const runnerConfig = loadRunnerConfig();
   const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
   const enabled = enabledProviders ?? runnerConfig.providers.enabled;
+  // Fail CLOSED on a non-string harness, matching `harnessKindOf`: `/stream` decodes with an
+  // unchecked `JSON.parse`, so a malformed payload can put `null`, `0`, or `false` here, and a
+  // bare `||` would quietly run it as Pi while the lifecycle router classifies it `unknown`.
+  if (request.harness !== undefined && typeof request.harness !== "string") {
+    return {
+      ok: false,
+      error: `Unrecognized harness ${JSON.stringify(request.harness)}: not a string.`,
+    };
+  }
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || defaultProvider || "local";
 
@@ -449,17 +459,18 @@ export function buildRunPlan(
   }
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
-  // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
+  // `pi_agenta` (a removed experiment: Pi plus a forced Agenta overlay) is read as Pi so an
+  // old stored request or replay still runs; the mapping is `harnessKindOf`, THE shared
+  // normalizer — `pi_core` and that legacy spelling both
   // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
   // selected identity for logs, traces, and user-facing errors.
-  const acpAgent =
-    harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
+  const acpAgent = harnessKindOf(harness) === "pi" ? "pi" : harness;
 
   // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
   // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
   // rather than as a daemon "unknown agent" error mid-run.
   assert(
-    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    (harnessKindOf(harness) === "pi") === (acpAgent === "pi"),
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
@@ -676,8 +687,25 @@ export function buildRunPlan(
   const systemPrompt = isPi
     ? request.systemPrompt?.trim() || undefined
     : undefined;
+  // The gateway guidance is spliced HERE, at environment build time, guidance first and the
+  // author's text after it (the platform half leads, matching the old composed order). It is
+  // excluded from the session fingerprint on purpose, so this is the only moment the names
+  // list can change: a warm session keeps the text it was built with (the wording says the
+  // list may be stale), and the next cold or reopened session picks up the current names.
+  const guidance = request.gatewayGuidance?.text?.trim() || undefined;
+  const spliceGuidance = (
+    carrier: "appendSystemPrompt" | "agentsMd",
+    authored: string | undefined,
+  ): string | undefined => {
+    if (!guidance || request.gatewayGuidance?.carrier !== carrier)
+      return authored;
+    return authored ? `${guidance}\n\n${authored}` : guidance;
+  };
   const appendSystemPrompt = isPi
-    ? request.appendSystemPrompt?.trim() || undefined
+    ? spliceGuidance(
+        "appendSystemPrompt",
+        request.appendSystemPrompt?.trim() || undefined,
+      )
     : undefined;
 
   // Debug assertions: the derived run state must be self-consistent before the engine acts on
@@ -759,7 +787,10 @@ export function buildRunPlan(
       prompt: {
         text: prompt,
         turnText: buildTurnText(request, log),
-        agentsMd: request.agentsMd?.trim() || undefined,
+        agentsMd: spliceGuidance(
+          "agentsMd",
+          request.agentsMd?.trim() || undefined,
+        ),
         systemPrompt,
         appendSystemPrompt,
         hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

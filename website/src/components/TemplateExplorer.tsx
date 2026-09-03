@@ -266,15 +266,19 @@ export default function TemplateExplorer() {
           }}
         >
           <span style={eyebrow}>{current.area}</span>
-          <span
+          {/* The selected template's name is an <h3> under TemplateSection's
+              <h2>. marginBottom:0 pins the UA heading margin the inline styles
+              would otherwise leave in place; marginTop stays as designed. */}
+          <h3
             style={{
               font: "300 32px/1.15 var(--font-display,'GT Alpina',serif)",
               color: "#F7F6F4",
               marginTop: 12,
+              marginBottom: 0,
             }}
           >
             {current.title}
-          </span>
+          </h3>
           <span
             style={{
               font: "var(--text-body-md)",

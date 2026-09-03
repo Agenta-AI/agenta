@@ -271,11 +271,17 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         [entityId, committing, realEntityId, runCommit, setupStep.open],
     )
 
+    // The draft is what the composer said when the step OPENED; the composer is still editable
+    // behind the card, so a surface that can read it passes what it says now.
     const commitWithSetup = useCallback(
-        (selection: AgentSetupSelection) => {
+        (selection: AgentSetupSelection, draftOverride?: {seedMessage: string; name?: string}) => {
             const draft = setupStep.draft
             if (!draft) return
-            runCommit(draft.seedMessage, draft.name, selection)
+            runCommit(
+                draftOverride?.seedMessage ?? draft.seedMessage,
+                draftOverride ? draftOverride.name : draft.name,
+                selection,
+            )
         },
         [setupStep.draft, runCommit],
     )

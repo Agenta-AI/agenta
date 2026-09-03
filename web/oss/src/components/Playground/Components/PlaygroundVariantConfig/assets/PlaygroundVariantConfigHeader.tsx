@@ -11,9 +11,11 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {shortcutAria} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleLeft, DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -207,10 +209,17 @@ const PlaygroundVariantConfigHeader = ({
                 // design and kept them on the classic prompt header; the package extraction
                 // reinstated them here, which also cost this control its accessible name.
                 trailing={
-                    <SimpleTooltip title="Hide configuration">
+                    <SimpleTooltip
+                        title={
+                            <span className="flex items-center gap-1.5">
+                                Hide configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                            </span>
+                        }
+                    >
                         <EnhancedButton
                             type="text"
                             size="small"
+                            aria-keyshortcuts={shortcutAria("panel.config")}
                             aria-label="Hide configuration"
                             icon={<CaretDoubleLeft size={14} />}
                             onClick={handleCollapseConfigPanel}

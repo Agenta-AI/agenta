@@ -1,4 +1,7 @@
+import {useEffect} from "react"
+
 import {
+    invalidateAgentCommittedRevisionCache,
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -112,6 +115,17 @@ export const AgentRevisionStatus = ({
     onSelectRevision,
     className,
 }: AgentRevisionStatusProps) => {
+    // A commit can land while this surface is closed — the agent commits itself mid-session, or
+    // the same agent is driven from another surface (the desktop playground and `/m` share one
+    // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
+    // surface has none, so on return the revision queries were still inside their staleTime and
+    // this chip named the superseded version (#6380). Revalidate once on mount, where the
+    // observers ARE active. It lives here, in the shared chip, because every host that shows a
+    // revision has the problem — putting it in one app's wrapper fixed only that app.
+    useEffect(() => {
+        invalidateAgentCommittedRevisionCache()
+    }, [])
+
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId || ""))
     const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(revisionId || ""))

@@ -35,8 +35,12 @@ export interface OnboardingContextValue {
      * means the card is showing in place of the composer's create action.
      */
     setup: AgentSetupStep | null
-    /** Commit with what the step decided — the card's "Create agent". */
-    commitWithSetup: (selection: AgentSetupSelection) => void
+    /** Commit with what the step decided — the card's "Create agent". The composer stays editable
+     * behind the card, so a caller that can read it passes the live text rather than the seed. */
+    commitWithSetup: (
+        selection: AgentSetupSelection,
+        draftOverride?: {seedMessage: string; name?: string},
+    ) => void
     /** "Browse all templates" — swaps the right-panel empty state for the full in-place template
      * gallery (set from the left config panel, read by the chat empty-state surface). */
     browseAll: boolean
