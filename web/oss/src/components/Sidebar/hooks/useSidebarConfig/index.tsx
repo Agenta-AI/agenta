@@ -9,6 +9,7 @@ import {
 import {SidebarConfig} from "@agenta/navigation"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {advancedNavHiddenAtom} from "@agenta/shared/state"
 import {
     ChartLineUpIcon,
     DesktopIcon,
@@ -28,11 +29,7 @@ import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
 import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
-import {
-    advancedNavHiddenAtom,
-    deadEndNavDisabledAtom,
-    homeNavInertAtom,
-} from "@/oss/state/onboarding"
+import {deadEndNavDisabledAtom, homeNavInertAtom} from "@/oss/state/onboarding"
 
 import {
     injectDynamicChildren,

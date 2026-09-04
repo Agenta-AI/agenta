@@ -1,17 +1,9 @@
 /**
- * Mobile device gate — pure decision core (agenta-mobile WP5).
- *
- * Framework-free: the Next middlewares (desktop forward gate in web/oss +
- * web/ee, mobile reverse gate in web/mobile) adapt NextRequest into a
- * `GateInput` and apply the returned `GateDecision`. Keeping the logic pure
- * means detection, the deep-link map, cookie semantics, and the documented
- * exceptions are all unit-tested here without NextRequest mocks.
- *
- * web/mobile carries a DECLARED VERBATIM COPY of the reverse-gate subset
- * (it has no workspace deps until WP2 wires @agenta/* into its compose
- * service and Dockerfile) — see the copy header in web/mobile/src/middleware.ts.
- * Behavior changes must land here first, then be mirrored there.
+ * Pure core deciding which app a request gets: the DEVICE gate and the CLASSIC-MODE gate
+ * (a cookie, since request-time code cannot read the localStorage preference) each send to `/m`.
  */
+
+import {SESSION_QUERY_PARAM} from "../sessionParam"
 
 export const MOBILE_OPTOUT_COOKIE = "agenta-mobile-optout"
 export const MOBILE_OPTIN_COOKIE = "agenta-mobile-optin"
@@ -26,6 +18,16 @@ export const MOBILE_OPTIN_COOKIE = "agenta-mobile-optin"
 export const MOBILE_AUTH_CALLBACK_COOKIE = "agenta-mobile-auth-callback"
 /** 10 minutes — matches SuperTokens' own OAuth state expiry. */
 export const MOBILE_AUTH_CALLBACK_MAX_AGE = 60 * 10
+/**
+ * The user's "Classic mode" preference, mirrored from localStorage by both apps so it is
+ * readable at request time. `"1"` = classic on (desktop), `"0"` = classic off (`/m`).
+ *
+ * Absent means UNKNOWN, never "off": the preference is per-browser, so a user who has not
+ * loaded either app since this shipped, or who cleared their site data, has no cookie — and
+ * bouncing them on a guess would move people who never chose the simplified experience.
+ */
+export const CLASSIC_MODE_COOKIE = "agenta-classic-mode"
+
 /** Reserved query param: `view=desktop` | `view=mobile` set the escape cookies. */
 export const VIEW_PARAM = "view"
 /** 180 days, in seconds. */
@@ -41,9 +43,8 @@ export interface GateInput {
     header: (name: string) => string | null
     cookie: (name: string) => string | undefined
     /**
-     * AGENTA_MOBILE_GATE, resolved by the adapter at request time with
-     * `resolveGateEnabled`. DEFAULT ON: a deployment opts out with
-     * `AGENTA_MOBILE_GATE=false`.
+     * AGENTA_MOBILE_GATE — the DEVICE gate, resolved by the adapter at request time with
+     * `resolveGateEnabled`. DEFAULT ON: a deployment opts out with `AGENTA_MOBILE_GATE=false`.
      */
     gateEnabled: boolean
     /**
@@ -52,6 +53,11 @@ export interface GateInput {
      * as non-mobile, so the bounce blocks deliberate visits. Defaults to on.
      */
     reverseGateEnabled?: boolean
+    /**
+     * AGENTA_CLASSIC_MODE_GATE — the CLASSIC-MODE gate, independent of `gateEnabled` so a bad
+     * `/m` surface can be switched off without also disabling device detection. Defaults to on.
+     */
+    classicGateEnabled?: boolean
 }
 
 /**
@@ -133,41 +139,147 @@ export function isPolicyAuthLink(pathname: string, search: string): boolean {
 
 const DESKTOP_EXCEPTIONS = [AUTH_CALLBACK_RE, /^\/post-signup(\/|$)/, /^\/workspaces\/accept(\/|$)/]
 
-const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(\/|$)/
-
-/** Desktop URL → mobile equivalent (design.md "Gate and routing"). */
-export function mapDesktopToMobile(pathname: string, search: string): string {
-    // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
-    if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
-    const m = pathname.match(PROJECT_PATH_RE)
-    if (m) {
-        const [, ws, proj] = m
-        // /observability?session={id} is the desktop session deep link today
-        // (web/oss/src/state/url/session.ts) — land in that session's chat.
-        const sessionId = new URLSearchParams(search).get("session")
-        if (sessionId && /\/observability(\/|$)/.test(pathname)) {
-            return `/m/w/${ws}/p/${proj}/sessions/${encodeURIComponent(sessionId)}`
-        }
-        return `/m/w/${ws}/p/${proj}/sessions`
-    }
-    // No project context: the mobile root resolves last-used workspace/project
-    // (same resolution as post-login) and forwards to the sessions list.
-    return "/m/"
+/**
+ * Routes that finish where they landed, whatever any gate would prefer: an OAuth callback, the
+ * post-signup survey, an invite acceptance, and any `/auth` link carrying a one-time token or a
+ * policy error. One list, so the middleware and the client-side redirect cannot disagree.
+ */
+export function isDesktopOnlyLink(pathname: string, search: string): boolean {
+    if (DESKTOP_EXCEPTIONS.some((re) => re.test(pathname))) return true
+    return isTokenBearingAuthLink(pathname, search) || isPolicyAuthLink(pathname, search)
 }
 
-/** Mobile URL (basePath already stripped) → desktop equivalent. */
-export function mapMobileToDesktop(pathname: string): string {
-    const m = pathname.match(/^\/w\/([^/]+)\/p\/([^/]+)\/sessions(?:\/([^/]+))?\/?$/)
-    if (m) {
-        const [, ws, proj, sessionId] = m
-        const base = `/w/${ws}/p/${proj}/observability`
-        // Desktop opens sessions via the observability SessionDrawer today.
-        // TODO(post-WP5): retarget to the agent playground once it adopts
-        // sessions from the URL (adoptSessionAtomFamily has no URL caller yet).
-        return sessionId ? `${base}?session=${encodeURIComponent(sessionId)}` : base
+const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
+
+/**
+ * Desktop sub-paths under `/apps` that are NOT an agent id — they must not be read as one.
+ * `/apps/archived` is the archived list, `/apps/agent-templates` the template gallery.
+ */
+const APPS_RESERVED = new Set(["archived", "agent-templates"])
+
+const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "")
+
+/**
+ * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
+ * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
+ *
+ * Null is a real answer, not a failure: the classic-mode gate leaves those on the desktop app
+ * rather than dumping the user somewhere unrelated. The device gate treats it as "/m root",
+ * because a phone cannot use those pages either way — see {@link mapDesktopToMobile}.
+ */
+export function mobileRouteFor(pathname: string, search: string): string | null {
+    // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
+    if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
+
+    // The mobile root resolves last-used workspace/project (same resolution as post-login).
+    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return "/m/"
+
+    const match = pathname.match(PROJECT_PATH_RE)
+    if (!match) return null
+
+    const [, ws, proj, tail] = match
+    const base = `/m/w/${ws}/p/${proj}`
+    const rest = trimSlashes(tail ?? "")
+    const [head, first, second] = rest.split("/")
+    const params = new URLSearchParams(search)
+
+    // The project root and /apps are both the home screen.
+    if (!head || head === "apps") {
+        if (head !== "apps" || !first) return `${base}/apps`
+
+        if (first === "agent-templates") {
+            return second ? `${base}/templates/${second}` : `${base}/templates`
+        }
+        if (APPS_RESERVED.has(first)) return null
+
+        // `/m` has no playground route: a session's page IS the playground, and `?agent=`
+        // names the agent for a session whose turns cannot yet.
+        const sessionId = params.get(SESSION_QUERY_PARAM)
+        if (second === "playground" && sessionId) {
+            return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
+        }
+        // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
+        // collapses to the agent's own screen — the only agent surface `/m` has.
+        return `${base}/agents/${first}`
     }
+
+    if (head === "agents") {
+        if (!first) return `${base}/agents`
+        return first === "archived" ? null : `${base}/agents/${first}`
+    }
+
+    if (head === "sessions") {
+        return first ? `${base}/sessions/${encodeURIComponent(first)}` : `${base}/sessions`
+    }
+
+    if (head === "observability" && !first) {
+        // ?session={id} is the observability drawer's own param (web/oss/src/state/url/session.ts),
+        // distinct from SESSION_QUERY_PARAM — land in that session's chat.
+        const drawerSession = params.get("session")
+        return drawerSession
+            ? `${base}/sessions/${encodeURIComponent(drawerSession)}`
+            : `${base}/observability`
+    }
+
+    if (head === "settings" && !first) return `${base}/settings`
+
+    return null
+}
+
+/**
+ * Desktop URL → mobile equivalent for the DEVICE gate, which is total: a phone gets `/m` even
+ * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
+ */
+export function mapDesktopToMobile(pathname: string, search: string): string {
+    return mobileRouteFor(pathname, search) ?? "/m/"
+}
+
+/**
+ * Mobile URL (basePath already stripped) → the desktop route showing the same thing, or `null`
+ * when nothing better than the desktop root applies.
+ *
+ * The inverse of {@link mobileRouteFor}, and the destination when a user turns Classic mode back
+ * on from inside `/m` — landing them on the desktop equivalent of the page they were reading,
+ * rather than at the top of the app.
+ */
+export function desktopRouteFor(pathname: string, search = ""): string | null {
     if (/^\/auth(\/|$)/.test(pathname)) return "/auth"
-    return "/w"
+
+    const match = pathname.match(PROJECT_PATH_RE)
+    if (!match) return null
+
+    const [, ws, proj, tail] = match
+    const base = `/w/${ws}/p/${proj}`
+    const rest = trimSlashes(tail ?? "")
+    const [head, first] = rest.split("/")
+
+    if (!head || head === "apps") return first ? null : `${base}/apps`
+
+    if (head === "agents") return first ? `${base}/apps/${first}/playground` : `${base}/agents`
+
+    if (head === "templates") {
+        return first ? `${base}/apps/agent-templates/${first}` : `${base}/apps/agent-templates`
+    }
+
+    if (head === "sessions") {
+        if (!first) return `${base}/sessions`
+        // A session opens as a tab on its agent's playground; `?agent=` is the only place the
+        // mobile URL names that agent. Without it, the observability drawer still shows the
+        // session — it needs no agent to open one.
+        const agentId = new URLSearchParams(search).get("agent")
+        return agentId
+            ? `${base}/apps/${encodeURIComponent(agentId)}/playground?${SESSION_QUERY_PARAM}=${encodeURIComponent(first)}`
+            : `${base}/observability?session=${encodeURIComponent(first)}`
+    }
+
+    if ((head === "observability" || head === "settings") && !first) return `${base}/${head}`
+
+    return null
+}
+
+/** The same map for the reverse DEVICE gate, which must always name somewhere to go. */
+export function mapMobileToDesktop(pathname: string, search = ""): string {
+    return desktopRouteFor(pathname, search) ?? "/w"
 }
 
 function stripViewParam(pathname: string, search: string): string {
@@ -200,10 +312,12 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
         }
 
-        if (!input.gateEnabled) return {kind: "pass"}
+        const classicGateEnabled = input.classicGateEnabled !== false
+        if (!input.gateEnabled && !classicGateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
-        // Escape hatch: "View desktop site" links carry ?view=desktop.
+        // Escape hatch: "View desktop site" links carry ?view=desktop. It opts out of BOTH
+        // reasons to bounce — a user asking to stay here does not care which one sent them.
         if (wantsDesktop) {
             return {
                 kind: "set-cookie-redirect",
@@ -214,15 +328,21 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         }
 
         // The mobile-started callback is handled above, before the flag.
-        if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) return {kind: "pass"}
-        // A one-time token completes where it landed; see isTokenBearingAuthLink.
-        if (isTokenBearingAuthLink(input.pathname, input.search)) return {kind: "pass"}
-        // Same reasoning for a policy error; see isPolicyAuthLink.
-        if (isPolicyAuthLink(input.pathname, input.search)) return {kind: "pass"}
+        if (isDesktopOnlyLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
-        if (!isMobileDevice(input.header)) return {kind: "pass"}
 
-        return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
+        // Device: a phone gets /m for anything, mapped or not.
+        if (input.gateEnabled && isMobileDevice(input.header)) {
+            return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
+        }
+
+        // Preference: Classic mode off means live in /m — but only for pages /m actually has.
+        if (classicGateEnabled && input.cookie(CLASSIC_MODE_COOKIE) === "0") {
+            const location = mobileRouteFor(input.pathname, input.search)
+            if (location) return {kind: "redirect", location}
+        }
+
+        return {kind: "pass"}
     } catch {
         // Design rule: the gate never hard-fails — ambiguity falls through.
         return {kind: "pass"}
@@ -249,11 +369,18 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
+        // Classic mode off means /m is where this user belongs, so the device heuristic must not
+        // bounce them out of it. Without this the two gates ping-pong forever on a desktop UA:
+        // the desktop gate sends them here for the preference, this one sends them back for the
+        // device, and the cookie that started it never changes.
+        if (input.classicGateEnabled !== false && input.cookie(CLASSIC_MODE_COOKIE) === "0") {
+            return {kind: "pass"}
+        }
         // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
         if (input.reverseGateEnabled === false) return {kind: "pass"}
         if (isMobileDevice(input.header)) return {kind: "pass"}
 
-        return {kind: "redirect", location: mapMobileToDesktop(input.pathname)}
+        return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
     } catch {
         return {kind: "pass"}
     }
