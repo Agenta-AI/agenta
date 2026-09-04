@@ -488,6 +488,7 @@ export {
     templateBuilderMessage,
     templateCategories,
     templateConnections,
+    templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
 } from "./agentTemplates"

@@ -35,7 +35,11 @@ export interface TemplateConnection {
     role: string
     /** False for a slot the playbook calls optional — it never gates Create. */
     required: boolean
-    /** Interchangeable providers; `[0]` is the primary, and its tools front the Tools preview. */
+    /**
+     * Interchangeable providers, PREFERRED FIRST. The order is load-bearing, not cosmetic: the
+     * primary fronts the Tools preview, labels the row, and is the mark a truncated or overlapped
+     * card must keep — `templatePrimaryProvider` is the single reader of that rule.
+     */
     options: RequiredIntegration[]
 }
 
@@ -170,10 +174,22 @@ export const templateProviderSlugs = (template: AgentStarterTemplate): string[] 
         )
         return [...new Set(slugs)]
     }
-    return template.logoSlugs?.length
+    const declared = template.logoSlugs?.length
         ? template.logoSlugs
         : (template.requiredIntegrations ?? []).map((integration) => integration.slug)
+    // Lead with the primary whatever order the hand-kept list is in. Five templates drew a
+    // provider they do not require ahead of the one they do, and an overlapped card showed it.
+    const primary = (template.requiredIntegrations ?? [])[0]?.slug
+    if (!primary || declared[0] === primary || !declared.includes(primary)) return declared
+    return [primary, ...declared.filter((slug) => slug !== primary)]
 }
+
+/**
+ * The provider a surface should lead with — the first option of the first slot. Anywhere that
+ * shows fewer marks than the template has, this is the one that must survive.
+ */
+export const templatePrimaryProvider = (template: AgentStarterTemplate): string | undefined =>
+    templateConnections(template)[0]?.options[0]?.slug
 
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentStarterTemplate): number =>

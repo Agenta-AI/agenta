@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     AGENT_TEMPLATES,
     templateConnections,
+    templatePrimaryProvider,
     templateProviderSlugs,
     PROVIDERS,
     TEMPLATE_CATEGORY_ORDER,
@@ -44,6 +45,17 @@ describe("AGENT_TEMPLATES", () => {
         const slots = templateConnections(legacy)
         expect(slots).toHaveLength(legacy.requiredIntegrations.length)
         expect(slots.every((slot) => slot.required && slot.options.length === 1)).toBe(true)
+    })
+
+    it("leads with the preferred provider, so a truncated card keeps it", () => {
+        // Order in `options` is the preference. A card that overlaps or truncates its marks shows
+        // this one; the PR reviewer reading as GitLab was that rule going unenforced.
+        for (const template of AGENT_TEMPLATES) {
+            const slots = templateConnections(template)
+            if (!slots.length) continue
+            expect(templatePrimaryProvider(template)).toBe(slots[0].options[0].slug)
+            expect(templateProviderSlugs(template)[0]).toBe(templatePrimaryProvider(template))
+        }
     })
 
     it("offers GitLab as an alternative to GitHub on the PR reviewer", () => {
