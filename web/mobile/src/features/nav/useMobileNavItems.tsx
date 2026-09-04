@@ -14,7 +14,7 @@ import {
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
+    SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
     withRefsByRecency,
@@ -101,7 +101,7 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
-        maxItems: sidebarSessionScopeLimit(MOBILE_NAV_SCOPE_ID),
+        maxItems: SIDEBAR_UNBOUNDED,
     },
 )
 
