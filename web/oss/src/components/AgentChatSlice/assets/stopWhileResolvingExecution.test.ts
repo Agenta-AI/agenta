@@ -1,6 +1,8 @@
 import {act, createElement, useCallback} from "react"
 
+import {latestTurnId} from "@agenta/chat/assets"
 import {clearSessionTurnId, getSessionTurnId, setSessionTurnId} from "@agenta/chat/state"
+import type {UIMessage} from "ai"
 import {createRoot} from "react-dom/client"
 import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
@@ -41,6 +43,30 @@ describe("stopPinnedExecution", () => {
         held.resolve()
         await stopping
         expect(cancelExecution).toHaveBeenCalledWith("turn-A")
+    })
+
+    it("stops turn B before metadata without restoring turn A's id", async () => {
+        const stop = vi.fn()
+        const cancelExecution = vi.fn(async (_executionId: string | undefined) => {})
+        setSessionTurnId(sessionId, "turn-A")
+
+        clearSessionTurnId(sessionId)
+        const messages = [
+            {id: "a1", role: "assistant", parts: [], metadata: {turnId: "turn-A"}},
+            {id: "u2", role: "user", parts: []},
+        ] as UIMessage[]
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+
+        await stopPinnedExecution({
+            stop,
+            expectedExecutionId: getSessionTurnId(sessionId),
+            cancelExecution,
+        })
+
+        expect(stop).toHaveBeenCalledOnce()
+        expect(cancelExecution).toHaveBeenCalledWith(undefined)
+        expect(cancelExecution).not.toHaveBeenCalledWith("turn-A")
     })
 
     it("keeps turn A pinned when turn B is admitted while cancellation is held", async () => {

@@ -49,6 +49,12 @@ describe("latestTurnId", () => {
             latestTurnId([assistant("a1", {turnId: "turn-1"}), assistant("a2")]),
         ).toBeNull()
     })
+
+    it("does not cross a trailing user message into an older turn", () => {
+        expect(
+            latestTurnId([assistant("a1", {turnId: "turn-A"}), user("u2")]),
+        ).toBeNull()
+    })
 })
 
 describe("session turn ids", () => {
