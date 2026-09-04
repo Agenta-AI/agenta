@@ -42,6 +42,7 @@ from uuid import UUID, uuid5, NAMESPACE_URL
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.records.dtos import (
@@ -316,21 +317,8 @@ async def run_orphan_sweep(
         result = await session.execute(stmt)
         orphans = result.scalars().all()
 
-        # A SECOND selection, for the ending only. The rule above reads "not running, so its
-        # last turn already ended", and a durable Stop broke that premise: settlement clears
-        # `is_running` on the row the moment it releases the Redis key, so the tab that pressed
-        # Stop is not left spinning. The runner then owes its own terminal record — and if it
-        # dies in that window, the row is already not-running, the rule above skips it, and the
-        # 30-minute idle branch collapses the row without ever writing an ending. Observed live
-        # on the integration stack: a Stop settled `stopped` at 13:09:19, the runner was killed
-        # a moment later, and turn 295351c3 still carried nothing but the user's own message
-        # five minutes on. So the premise is now CHECKED rather than assumed: any stale row
-        # that names a turn is a candidate, and `_unsettled_turns` writes an ending only for a
-        # turn that carries none. A row between turns, or parked on an approval, has its own
-        # terminal record and is filtered out there, at the cost of one lookup per project.
-        #
-        # These rows are NOT collapsed. Collapsing keeps its own, much longer idle grace: a
-        # parked approval lives for thirty minutes and must not be reclaimed at ninety seconds.
+        # Current stopped turns get their missing ending on the short clock without collapsing
+        # a parked session, whose reclamation stays on the longer idle grace.
         ending_stmt = (
             select(SessionStreamDBE)
             .where(
@@ -344,6 +332,21 @@ async def run_orphan_sweep(
         )
         ending_only = (await session.execute(ending_stmt)).scalars().all()
 
+        # A stream row names only its current turn. Older terminal executions must remain
+        # visible after that row advances, or their missing transcript ending is permanent.
+        terminal_executions = []
+        if records_service is not None:
+            terminal_stmt = (
+                select(SessionExecutionDBE)
+                .where(
+                    SessionExecutionDBE.terminal_outcome.in_(("stopped", "lost")),
+                    SessionExecutionDBE.settled_at < threshold,
+                )
+                .order_by(SessionExecutionDBE.settled_at)
+                .limit(SWEEP_BATCH_SIZE)
+            )
+            terminal_executions = (await session.execute(terminal_stmt)).scalars().all()
+
         # A row that claimed a RUNNING turn owes that turn an ending. So does a stopped row
         # whose runner never wrote one; see the note above.
         seen: Set[Tuple[UUID, str, str]] = set()
@@ -352,6 +355,19 @@ async def run_orphan_sweep(
             if not row.turn_id:
                 continue
             key = (row.project_id, row.session_id, str(row.turn_id))
+            if key in seen:
+                continue
+            seen.add(key)
+            claimed.append(key)
+        current_turns = set(claimed)
+        terminal_turns: Set[Tuple[UUID, str, str]] = set()
+        for execution in terminal_executions:
+            key = (
+                execution.project_id,
+                execution.session_id,
+                execution.execution_id,
+            )
+            terminal_turns.add(key)
             if key in seen:
                 continue
             seen.add(key)
@@ -373,7 +389,8 @@ async def run_orphan_sweep(
         terminal_winners: Set[Tuple[UUID, str, str]] = set()
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
             if (
-                env.agenta.sessions.durable_stop
+                (project_id, session_id, turn_id) not in terminal_turns
+                and env.agenta.sessions.durable_stop
                 and commands_service is not None
                 and not await commands_service.settle_execution_lost(
                     project_id=project_id,
@@ -412,7 +429,7 @@ async def run_orphan_sweep(
         # ending landed at 96.7 s and the next message was still refused.
         collapsing = {(r.project_id, r.session_id, str(r.turn_id)) for r in orphans}
         for project_id, session_id, turn_id in sorted(
-            unsettled - collapsing, key=lambda t: t[1]
+            (unsettled - collapsing) & current_turns, key=lambda t: t[1]
         ):
             released = await release_alive(
                 lock_engine,
