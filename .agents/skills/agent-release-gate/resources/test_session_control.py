@@ -225,6 +225,68 @@ def test_judge_runner_gone_fails_when_the_next_send_did_not_run():
     assert "race" not in evidence
 
 
+def _restart_after_stop_evidence(**overrides) -> dict:
+    base = {
+        "runner_healthy_after_s": 5.0,
+        "admitted_at_s": 12.0,
+        "recalled_marker": True,
+        "same_sandbox": True,
+        "loaded_true": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_judge_restart_after_stop_accepts_the_same_sandbox_signal():
+    """Recall plus an unchanged sandbox id is a real native resume: no rebuild happened."""
+    evidence = _restart_after_stop_evidence(same_sandbox=True, loaded_true=False)
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is True
+
+
+def test_judge_restart_after_stop_accepts_the_loaded_true_signal():
+    """Recall plus a genuine native hydrate in the runner log is also a real resume, even when
+    the sandbox itself had to be rebuilt (a new sandbox that loads the OLD native session)."""
+    evidence = _restart_after_stop_evidence(same_sandbox=False, loaded_true=True)
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is True
+
+
+def test_judge_restart_after_stop_fails_when_recall_is_the_only_signal():
+    """The exact false-pass this cell exists to catch: the codeword comes back, but neither the
+    sandbox id nor the runner log backs up a genuine native resume — the runner recovered it by
+    reconstructing the conversation from persisted records, not by resuming the native session."""
+    evidence = _restart_after_stop_evidence(same_sandbox=False, loaded_true=False)
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is False
+    assert (
+        verdict["why"] == "native session not resumed, recovered by transcript replay"
+    )
+
+
+def test_judge_restart_after_stop_fails_without_recall_even_with_both_signals():
+    evidence = _restart_after_stop_evidence(
+        recalled_marker=False, same_sandbox=True, loaded_true=True
+    )
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is False
+    assert "codeword was not recalled" in verdict["why"]
+
+
+def test_judge_restart_after_stop_fails_when_the_runner_never_reported_healthy():
+    evidence = _restart_after_stop_evidence(runner_healthy_after_s=None)
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is False
+    assert "never reported healthy" in verdict["why"]
+
+
+def test_judge_restart_after_stop_fails_when_the_continuation_was_never_admitted():
+    evidence = _restart_after_stop_evidence(admitted_at_s=None)
+    verdict = sc._judge_restart_after_stop(evidence)
+    assert verdict["pass"] is False
+    assert "refused for the whole wait window" in verdict["why"]
+
+
 def test_run_cell_finally_path_with_null_hooks_does_not_crash():
     """run_cell()'s runner-health recovery is gated on `needs_hooks and hooks.available`. With
     NullHooks (no --project), hooks.available is False, so the finally block must skip the

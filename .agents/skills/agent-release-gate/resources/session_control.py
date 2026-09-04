@@ -1541,7 +1541,19 @@ def cell_stop_after_finish(cfg, references, args, hooks: OperatorHooks) -> Cell:
 
 
 def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
-    """Stop, restart the runner, continue with an EMPTY client transcript."""
+    """Stop, restart the runner, continue with an EMPTY client transcript.
+
+    The codeword recall alone is not proof of native continuity: when the native session did not
+    truly hydrate, the runner can still answer correctly by reconstructing the conversation from
+    the persisted record log (the `[reconstruct]` / `session/load ... loaded=false` path), and a
+    driver that ever sent more than the trailing message could paper over the same gap from the
+    client side. So this cell forces its resume onto `--client-shape last-message` (the shape the
+    desktop actually sends) regardless of the run's own `--client-shape`, and requires a SECOND,
+    independent signal beyond the recalled codeword: either the sandbox id after the restart is
+    the SAME one the turn ran on before it (true continuity needs no rebuild), or the runner log
+    for the resume shows `session/load ... loaded=true` (a genuine native hydrate, not a
+    reconstruction). Recall without either is a false pass, not a pass.
+    """
     if not hooks.available:
         return {}, _skip("no --project given: restarting the runner needs docker")
     session_id = str(uuid.uuid4())
@@ -1553,27 +1565,44 @@ def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell
     stop = cancel(session_id, expected=turn, label="stop-before-restart")
     handle["thread"].join(timeout=180)
     time.sleep(4)
+    sandbox_id_before = (sandbox_ids(session_id) or [None])[-1]
     restart_at = time.time()
     hooks.restart_runner(grace_seconds=10)
     healthy_after = hooks.wait_for_runner()
     attempts = []
     admitted = None
-    deadline = time.time() + 240
-    while time.time() < deadline:
-        t = invoke(session_id, [user_msg(RECALL)], cfg, references, "restart-recall")
-        refused = any(
-            "already running a turn" in (e or "") for e in t.get("errors", [])
-        )
-        attempts.append(
-            {
-                "at_s_after_restart": round(time.time() - restart_at, 1),
-                "refused": refused,
-            }
-        )
-        if not refused:
-            admitted = t
-            break
-        time.sleep(5)
+    global CLIENT_SHAPE
+    prior_client_shape = CLIENT_SHAPE
+    CLIENT_SHAPE = "last-message"
+    try:
+        deadline = time.time() + 240
+        while time.time() < deadline:
+            t = invoke(
+                session_id, [user_msg(RECALL)], cfg, references, "restart-recall"
+            )
+            refused = any(
+                "already running a turn" in (e or "") for e in t.get("errors", [])
+            )
+            attempts.append(
+                {
+                    "at_s_after_restart": round(time.time() - restart_at, 1),
+                    "refused": refused,
+                }
+            )
+            if not refused:
+                admitted = t
+                break
+            time.sleep(5)
+    finally:
+        CLIENT_SHAPE = prior_client_shape
+    sandbox_id_after = (sandbox_ids(session_id) or [None])[-1]
+    resume_log = [
+        line
+        for line in hooks.runner_log(restart_at)
+        if session_id in line and "session/load" in line
+    ]
+    loaded_true = any("loaded=true" in line for line in resume_log)
+    same_sandbox = bool(sandbox_id_before) and sandbox_id_before == sandbox_id_after
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
@@ -1582,18 +1611,34 @@ def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell
         "attempts": attempts,
         "admitted_at_s": attempts[-1]["at_s_after_restart"] if admitted else None,
         "recalled_marker": marker in ((admitted or {}).get("text") or ""),
+        "sandbox_id_before": sandbox_id_before,
+        "sandbox_id_after": sandbox_id_after,
+        "same_sandbox": same_sandbox,
+        "resume_load_log_lines": resume_log,
+        "loaded_true": loaded_true,
     }
-    if healthy_after is None:
-        return evidence, _fail("the runner never reported healthy after the restart")
-    if admitted is None:
-        return evidence, _fail(
+    return evidence, _judge_restart_after_stop(evidence)
+
+
+def _judge_restart_after_stop(evidence: dict) -> dict:
+    """PASS rule for `restart-after-stop`. A recalled codeword alone is not proof of native
+    continuity — the runner can recover it by reconstructing the conversation from persisted
+    records even when the native session did not truly hydrate. Require the recall AND one of:
+    the sandbox was not rebuilt (`same_sandbox`), or the runner log shows a genuine native hydrate
+    (`loaded_true`). See `cell_restart_after_stop`'s docstring for why."""
+    if evidence.get("runner_healthy_after_s") is None:
+        return _fail("the runner never reported healthy after the restart")
+    if evidence.get("admitted_at_s") is None:
+        return _fail(
             "the continuation was refused for the whole wait window after the restart"
         )
-    if not evidence["recalled_marker"]:
-        return evidence, _fail(
+    if not evidence.get("recalled_marker"):
+        return _fail(
             "the native harness session did not survive the restart: the codeword was not recalled"
         )
-    return evidence, _pass(
+    if not (evidence.get("same_sandbox") or evidence.get("loaded_true")):
+        return _fail("native session not resumed, recovered by transcript replay")
+    return _pass(
         "the runner rehydrated the native session across a restart and recalled the codeword"
     )
 
