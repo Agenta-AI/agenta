@@ -30,11 +30,13 @@ export interface ReconstructHistoryOptions {
   restore?: (messages: ChatMessage[]) => Promise<ChatMessage[]>;
 }
 
-function isTruncatedRecord(row: { attributes?: unknown }): boolean {
+function isLegacyWholeBodyTruncation(row: { attributes?: unknown }): boolean {
+  const attributes = row.attributes;
   return (
-    !!row.attributes &&
-    typeof row.attributes === "object" &&
-    "_truncated" in row.attributes
+    !!attributes &&
+    typeof attributes === "object" &&
+    (attributes as { _truncated?: unknown })._truncated === true &&
+    !("type" in attributes)
   );
 }
 
@@ -108,7 +110,7 @@ export async function reconstructHistoryIfNeeded(
   const prior = currentTurnId
     ? records.filter((row) => row.turn_id !== currentTurnId)
     : records;
-  if (prior.some(isTruncatedRecord)) {
+  if (prior.some(isLegacyWholeBodyTruncation)) {
     throw new Error(
       `session ${sessionId} contains a truncated durable record; refusing to rebuild an incomplete conversation`,
     );
