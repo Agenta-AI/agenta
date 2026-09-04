@@ -16,8 +16,8 @@ export interface RevertFooterProps {
     phase: RevertPhase
     /** The selected version's number. Null = nothing selected. */
     selectedVersion: number | null
-    /** The current version, so the confirm copy can name the range that stays untouched. */
-    currentVersion: number | null
+    /** The latest version — the drawer's baseline, and what the confirm copy counts from. */
+    latestVersion: number | null
     /** Revert is pointless when the selection is already the current configuration. */
     disabled: boolean
     onRequestConfirm: () => void
@@ -29,7 +29,7 @@ export interface RevertFooterProps {
 export const RevertFooter = ({
     phase,
     selectedVersion,
-    currentVersion,
+    latestVersion,
     disabled,
     onRequestConfirm,
     onCancel,
@@ -40,7 +40,7 @@ export const RevertFooter = ({
         return (
             <div className={cn("flex items-center gap-2 text-xs", textColors.secondary)}>
                 <Spinner className="size-3.5" />
-                Creating v{(currentVersion ?? 0) + 1} from v{selectedVersion}…
+                Creating v{(latestVersion ?? 0) + 1} from v{selectedVersion}…
             </div>
         )
     }
@@ -49,7 +49,7 @@ export const RevertFooter = ({
         return (
             <div className="flex items-center gap-2 text-xs text-[var(--ag-colorSuccess)]">
                 <CheckCircle size={14} />
-                Reverted. v{currentVersion} now matches v{selectedVersion}.
+                Reverted. The latest version now holds v{selectedVersion}&apos;s configuration.
             </div>
         )
     }
@@ -81,8 +81,8 @@ export const RevertFooter = ({
                     />
                     <span className="text-[11.5px] leading-snug text-colorText">
                         <strong className="font-semibold">Revert to v{selectedVersion}?</strong>{" "}
-                        This commits v{(currentVersion ?? 0) + 1} with v{selectedVersion}&apos;s
-                        configuration. Versions v1–v{currentVersion} stay exactly as they are.
+                        This commits v{(latestVersion ?? 0) + 1} with v{selectedVersion}&apos;s
+                        configuration. Versions v1–v{latestVersion} stay exactly as they are.
                     </span>
                 </span>
                 <span className="flex shrink-0 gap-2">

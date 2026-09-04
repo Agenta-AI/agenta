@@ -23,7 +23,6 @@ const rows: AgentVersionRow[] = [
         version: 4,
         message: "Tighten refusal wording and add the Write tool",
         createdAt: new Date(now - 2 * HOUR).toISOString(),
-        isCurrent: true,
         isLatest: true,
     },
     {
@@ -31,7 +30,6 @@ const rows: AgentVersionRow[] = [
         version: 3,
         message: 'Revert to v1 — "Initial commit"',
         createdAt: new Date(now - 72 * HOUR).toISOString(),
-        isCurrent: false,
         isLatest: false,
     },
     {
@@ -39,7 +37,6 @@ const rows: AgentVersionRow[] = [
         version: 2,
         message: "Add the Linear MCP server",
         createdAt: new Date(now - 144 * HOUR).toISOString(),
-        isCurrent: false,
         isLatest: false,
     },
     {
@@ -47,7 +44,6 @@ const rows: AgentVersionRow[] = [
         version: 1,
         message: null,
         createdAt: new Date(now - 336 * HOUR).toISOString(),
-        isCurrent: false,
         isLatest: false,
     },
 ]
@@ -92,7 +88,7 @@ export const ListSingleVersion: ListStory = {
     ...List,
     args: {
         ...listArgs,
-        rows: [{...rows[3], isCurrent: true, isLatest: true}],
+        rows: [{...rows[3], isLatest: true}],
         selectedId: null,
     },
 }
@@ -199,7 +195,7 @@ export const ChangesNoSelection: PaneStory = {
 
 const footerArgs = {
     selectedVersion: 2,
-    currentVersion: 4,
+    latestVersion: 4,
     revertedFrom: 2,
     disabled: false,
     onRequestConfirm: () => undefined,
@@ -243,7 +239,7 @@ export const FooterReverting: FooterStory = {
 
 export const FooterDone: FooterStory = {
     ...FooterIdle,
-    args: {...footerArgs, phase: "done", currentVersion: 5},
+    args: {...footerArgs, phase: "done", latestVersion: 5},
 }
 
 export const FooterFailed: FooterStory = {

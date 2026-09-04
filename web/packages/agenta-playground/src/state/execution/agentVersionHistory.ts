@@ -29,9 +29,7 @@ export interface AgentVersionRow {
     version: number
     message: string | null
     createdAt: string | null
-    /** The revision the header is on — the side every diff compares against. */
-    isCurrent: boolean
-    /** The newest version. Usually also `isCurrent`, but not when the surface sits on an older one. */
+    /** The newest version — the one baseline every diff and every footer count is measured from. */
     isLatest: boolean
 }
 
@@ -41,10 +39,7 @@ export interface AgentVersionRow {
  * Drops the `version: 0` seed every workflow carries: it holds no configuration, so it can be
  * neither compared nor restored. The revision pickers filter it the same way.
  */
-export const buildVersionRows = (
-    revisions: Workflow[],
-    currentRevisionId: string | null,
-): AgentVersionRow[] =>
+export const buildVersionRows = (revisions: Workflow[]): AgentVersionRow[] =>
     revisions
         .filter((revision) => (revision.version as number | null | undefined) !== 0)
         // Version first, timestamp only as a tie-break — `created_at` can disagree with the order.
@@ -64,7 +59,6 @@ export const buildVersionRows = (
                 version: (revision.version as number | null | undefined) ?? 0,
                 message,
                 createdAt: revision.created_at ?? null,
-                isCurrent: revision.id === currentRevisionId,
                 isLatest: index === 0,
             }
         })

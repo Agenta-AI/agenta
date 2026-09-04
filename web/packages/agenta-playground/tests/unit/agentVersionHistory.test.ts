@@ -149,46 +149,35 @@ describe("buildVersionRows", () => {
         ({id: "r", version: 1, message: null, created_at: null, ...over}) as any
 
     it("drops the v0 seed — it holds no configuration to compare or restore", () => {
-        const rows = buildVersionRows(
-            [revision({id: "a", version: 2}), revision({id: "b", version: 0})],
-            "a",
-        )
+        const rows = buildVersionRows([
+            revision({id: "a", version: 2}),
+            revision({id: "b", version: 0}),
+        ])
         expect(rows.map((r) => r.id)).toEqual(["a"])
     })
 
-    it("marks the revision under edit as current", () => {
-        const rows = buildVersionRows(
-            [revision({id: "a", version: 2}), revision({id: "b", version: 1})],
-            "b",
-        )
-        expect(rows.map((r) => r.isCurrent)).toEqual([false, true])
-    })
-
     it("puts the highest version on top even when created_at disagrees", () => {
-        const rows = buildVersionRows(
-            [
-                revision({id: "old", version: 1, created_at: "2026-01-09T00:00:00Z"}),
-                revision({id: "new", version: 3, created_at: "2026-01-01T00:00:00Z"}),
-                revision({id: "mid", version: 2, created_at: "2026-01-05T00:00:00Z"}),
-            ],
-            "old",
-        )
+        const rows = buildVersionRows([
+            revision({id: "old", version: 1, created_at: "2026-01-09T00:00:00Z"}),
+            revision({id: "new", version: 3, created_at: "2026-01-01T00:00:00Z"}),
+            revision({id: "mid", version: 2, created_at: "2026-01-05T00:00:00Z"}),
+        ])
         expect(rows.map((r) => r.version)).toEqual([3, 2, 1])
     })
 
-    it("separates latest from current — the surface can sit on an older revision", () => {
-        const rows = buildVersionRows(
-            [revision({id: "a", version: 3}), revision({id: "b", version: 1})],
-            "b",
-        )
-        expect(rows.map((r) => [r.version, r.isLatest, r.isCurrent])).toEqual([
-            [3, true, false],
-            [1, false, true],
+    it("marks only the highest version as latest — the drawer's single baseline", () => {
+        const rows = buildVersionRows([
+            revision({id: "a", version: 3}),
+            revision({id: "b", version: 1}),
+        ])
+        expect(rows.map((r) => [r.version, r.isLatest])).toEqual([
+            [3, true],
+            [1, false],
         ])
     })
 
     it("normalises a blank commit message to null", () => {
-        expect(buildVersionRows([revision({message: "   "})], null)[0].message).toBeNull()
+        expect(buildVersionRows([revision({message: "   "})])[0].message).toBeNull()
     })
 })
 

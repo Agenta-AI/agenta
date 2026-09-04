@@ -55,13 +55,13 @@ export const AgentVersionHistoryDrawer = ({
     const query = useAtomValue(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
     const revisions = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(workflowId))
 
-    const rows = useMemo(() => buildVersionRows(revisions, revisionId), [revisions, revisionId])
+    const rows = useMemo(() => buildVersionRows(revisions), [revisions])
     const selectedRow = rows.find((row) => row.id === selectedId) ?? null
-    // The footer counts off the LATEST version: a revert mints the next one after it, which is
-    // not `current + 1` when the surface happens to sit on an older revision.
+    // The latest version is the drawer's ONE baseline: what every diff compares against, and what
+    // the footer counts from. A revert mints the version after it, whichever revision is on screen.
     const latestRow = rows.find((row) => row.isLatest) ?? null
 
-    const currentParams = useAtomValue(workflowMolecule.selectors.configuration(revisionId || ""))
+    const latestParams = useAtomValue(workflowMolecule.selectors.configuration(latestRow?.id ?? ""))
     const selectedParams = useAtomValue(
         workflowMolecule.selectors.serverConfiguration(selectedId || ""),
     )
@@ -115,10 +115,10 @@ export const AgentVersionHistoryDrawer = ({
     // restoring this version would bring back — the diff doubles as the revert preview.
     const sections = useMemo(
         () =>
-            selectedParams && currentParams
-                ? classifyAgentChanges(selectedParams, currentParams)
+            selectedParams && latestParams
+                ? classifyAgentChanges(selectedParams, latestParams)
                 : [],
-        [selectedParams, currentParams],
+        [selectedParams, latestParams],
     )
 
     // An empty `sections` is not proof the configs match — the classifier only surfaces what it
@@ -126,22 +126,21 @@ export const AgentVersionHistoryDrawer = ({
     const identical = useMemo(
         () =>
             !!selectedParams &&
-            !!currentParams &&
-            stableStringify(selectedParams) === stableStringify(currentParams),
-        [selectedParams, currentParams],
+            !!latestParams &&
+            stableStringify(selectedParams) === stableStringify(latestParams),
+        [selectedParams, latestParams],
     )
-    const isCurrentRevision = !!selectedId && selectedId === revisionId
-    const emptyText = isCurrentRevision
-        ? "This is the version you are on."
-        : identical
-          ? "Identical to your current configuration — restoring it would change nothing."
-          : "This version differs, but not in anything the summary can describe. Restoring it still applies the stored configuration."
+    const isLatestSelected = !!selectedId && selectedId === latestRow?.id
+    const emptyText =
+        identical || isLatestSelected
+            ? `Identical to v${latestRow?.version ?? "—"} — restoring it would change nothing.`
+            : "This version differs, but not in anything the summary can describe. Restoring it still applies the stored configuration."
 
     const listLoading = query.isPending && revisions.length === 0
     const isError = query.isError && revisions.length === 0
     // A selected version whose config has not resolved is LOADING, not "identical" — an empty
     // `sections` means both, and only this tells them apart.
-    const diffLoading = listLoading || (!!selectedId && (!selectedParams || !currentParams))
+    const diffLoading = listLoading || (!!selectedId && (!selectedParams || !latestParams))
     const placeholder = isError
         ? "The version history could not be loaded. Retry from the list."
         : rows.length <= 1
@@ -162,8 +161,8 @@ export const AgentVersionHistoryDrawer = ({
                 <RevertFooter
                     phase={phase}
                     selectedVersion={selectedRow?.version ?? null}
-                    currentVersion={latestRow?.version ?? null}
-                    disabled={!selectedRow || diffLoading || identical || isCurrentRevision}
+                    latestVersion={latestRow?.version ?? null}
+                    disabled={!selectedRow || diffLoading || identical || isLatestSelected}
                     onRequestConfirm={() => setPhase("confirm")}
                     onCancel={() => setPhase("idle")}
                     onConfirm={handleConfirm}
