@@ -1,6 +1,11 @@
 import {useState} from "react"
 
-import {PROVIDERS, templateToolCount, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    PROVIDERS,
+    templateConnections,
+    templateToolCount,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/drawers/shared"
 
 /**
@@ -9,14 +14,19 @@ import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/draw
  * rows) but without the edit/add affordances. First provider group is expanded by default.
  */
 const ToolsPreview = ({template}: {template: AgentStarterTemplate}) => {
+    // The primary option per slot: an alternative does the same job elsewhere, so listing it
+    // here would double the apparent tool count.
+    const integrations = templateConnections(template)
+        .map((slot) => slot.options[0])
+        .filter(Boolean)
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-        Object.fromEntries(template.requiredIntegrations.map((i, idx) => [i.slug, idx === 0])),
+        Object.fromEntries(integrations.map((i, idx) => [i.slug, idx === 0])),
     )
 
     return (
         <div className="flex flex-col gap-2">
             <SubSectionHeader label="Connected apps" count={templateToolCount(template)} />
-            {template.requiredIntegrations.map((integration) => {
+            {integrations.map((integration) => {
                 const provider = PROVIDERS[integration.slug]
                 const open = expanded[integration.slug] ?? false
                 return (

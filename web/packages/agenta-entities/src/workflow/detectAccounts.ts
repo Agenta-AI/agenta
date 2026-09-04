@@ -9,7 +9,7 @@
  * Pure and network-free, so a backend that plans the account list pre-commit can replace the
  * text half wholesale behind this same return type.
  */
-import {PROVIDERS, type AgentStarterTemplate} from "./agentTemplates"
+import {PROVIDERS, templateConnections, type AgentStarterTemplate} from "./agentTemplates"
 
 export interface DetectedAccount {
     /** `PROVIDERS` key / Composio integration slug. */
@@ -146,18 +146,56 @@ export function detectAccountsFromText(description: string): DetectedAccount[] {
 }
 
 /** A template's declared integrations — exact, and the only accounts allowed to gate create. */
+/**
+ * One connection the template needs, and every provider that can satisfy it. A slot with two
+ * options is the playbook's "GitHub (or GitLab)": connecting EITHER settles it, so a GitLab user
+ * is never told to connect GitHub.
+ */
+export interface DetectedAccountGroup {
+    /** What the slot is for — the row's heading when the options are shown as a choice. */
+    role: string
+    /** Gates Create only when true; an optional slot is offered, never demanded. */
+    required: boolean
+    /** Interchangeable accounts, primary first. */
+    options: DetectedAccount[]
+}
+
+const toAccount = (
+    integration: {slug: string; scope: string},
+    required: boolean,
+): DetectedAccount => {
+    const provider = PROVIDERS[integration.slug]
+    return {
+        slug: integration.slug,
+        label: provider?.label ?? integration.slug,
+        logo: provider?.logo,
+        why: integration.scope,
+        origin: "template" as const,
+        required,
+    }
+}
+
+/** The template's slots, each with its interchangeable options. */
+export function detectAccountGroupsFromTemplate(
+    template: AgentStarterTemplate,
+): DetectedAccountGroup[] {
+    return templateConnections(template).map((connection) => ({
+        role: connection.role,
+        required: connection.required,
+        options: connection.options.map((option) => toAccount(option, connection.required)),
+    }))
+}
+
+/**
+ * Flat view of a template's accounts, primary option per slot.
+ *
+ * An alternative is deliberately NOT flattened in: it would read as a second thing to connect
+ * rather than a substitute for the first. Surfaces that can render a choice take the groups.
+ */
 export function detectAccountsFromTemplate(template: AgentStarterTemplate): DetectedAccount[] {
-    return template.requiredIntegrations.map((integration) => {
-        const provider = PROVIDERS[integration.slug]
-        return {
-            slug: integration.slug,
-            label: provider?.label ?? integration.slug,
-            logo: provider?.logo,
-            why: integration.scope,
-            origin: "template" as const,
-            required: true,
-        }
-    })
+    return detectAccountGroupsFromTemplate(template)
+        .map((group) => group.options[0])
+        .filter(Boolean)
 }
 
 /**

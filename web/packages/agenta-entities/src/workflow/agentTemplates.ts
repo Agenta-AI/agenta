@@ -114,7 +114,7 @@ export interface AgentStarterTemplate {
      * alternative group is required. Mirrors each playbook's Connections section in
      * `sdks/python/agenta/sdk/agents/adapters/agent_templates/*.py`.
      */
-    requiredIntegrations: RequiredIntegration[]
+    requiredIntegrations?: RequiredIntegration[]
 }
 
 /** Provider slug → display label + brand logo URL (Composio logo CDN, the tool catalog's source). */
@@ -152,7 +152,7 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
  */
 export function templateConnections(template: AgentStarterTemplate): TemplateConnection[] {
     if (template.connections) return template.connections
-    return template.requiredIntegrations.map((integration) => ({
+    return (template.requiredIntegrations ?? []).map((integration) => ({
         role: integration.scope,
         required: true,
         options: [integration],
@@ -172,12 +172,12 @@ export const templateProviderSlugs = (template: AgentStarterTemplate): string[] 
     }
     return template.logoSlugs?.length
         ? template.logoSlugs
-        : template.requiredIntegrations.map((integration) => integration.slug)
+        : (template.requiredIntegrations ?? []).map((integration) => integration.slug)
 }
 
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentStarterTemplate): number =>
-    template.requiredIntegrations.reduce((n, integration) => n + integration.tools.length, 0)
+    templateConnections(template).reduce((n, slot) => n + (slot.options[0]?.tools.length ?? 0), 0)
 
 /**
  * The initial instruction message for the agent-builder flow (Mahmoud's template mode): it seeds a
@@ -307,26 +307,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                                 description: "Post the plain-English summary on the MR.",
                             },
                         ],
-                    },
-                ],
-            },
-        ],
-        requiredIntegrations: [
-            {
-                slug: "github",
-                scope: "Read PRs, post reviews & comments",
-                tools: [
-                    {
-                        name: "Get pull request",
-                        description: "Read a PR's diff, changed files, and metadata.",
-                    },
-                    {
-                        name: "Create review comment",
-                        description: "Comment inline on specific lines of the diff.",
-                    },
-                    {
-                        name: "Create issue comment",
-                        description: "Post the plain-English summary on the PR.",
                     },
                 ],
             },

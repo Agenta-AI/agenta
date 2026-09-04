@@ -18,7 +18,11 @@
  */
 import type {ReactNode} from "react"
 
-import {PROVIDERS, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    PROVIDERS,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
 import {EnhancedButton, FilterRailLayout, Tag} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -87,8 +91,11 @@ export const TemplateDetail = ({
         )
     }
 
-    const tools = template.requiredIntegrations.flatMap((integration) =>
-        integration.tools.map((tool) => ({...tool, provider: integration.slug})),
+    const slots = templateConnections(template)
+    // The primary option fronts the Tools list: an alternative's tools are the same job done
+    // elsewhere, and listing both would read as twice the work.
+    const tools = slots.flatMap((slot) =>
+        (slot.options[0]?.tools ?? []).map((tool) => ({...tool, provider: slot.options[0].slug})),
     )
 
     const backLink = (
@@ -134,16 +141,38 @@ export const TemplateDetail = ({
         </EnhancedButton>
     )
 
+    const requiredSlots = slots.filter((slot) => slot.required)
+    const optionalSlots = slots.filter((slot) => !slot.required)
+
     const meta = (
         <>
-            {template.requiredIntegrations.length ? (
+            {requiredSlots.length ? (
                 <section className="flex flex-col gap-2">
                     <SectionLabel>Connections it uses</SectionLabel>
-                    {template.requiredIntegrations.map((integration) => (
+                    {requiredSlots.map((slot) => (
                         <DetailRow
-                            key={integration.slug}
-                            label={PROVIDERS[integration.slug]?.label ?? integration.slug}
-                            detail={integration.scope}
+                            key={slot.options.map((option) => option.slug).join("-")}
+                            // "GitHub or GitLab" — a slot names every provider that satisfies it,
+                            // so an alternative can no longer vanish between card and detail.
+                            label={slot.options
+                                .map((option) => PROVIDERS[option.slug]?.label ?? option.slug)
+                                .join(" or ")}
+                            detail={slot.options[0]?.scope ?? slot.role}
+                        />
+                    ))}
+                </section>
+            ) : null}
+
+            {optionalSlots.length ? (
+                <section className="flex flex-col gap-2">
+                    <SectionLabel>Optional connections</SectionLabel>
+                    {optionalSlots.map((slot) => (
+                        <DetailRow
+                            key={slot.options.map((option) => option.slug).join("-")}
+                            label={slot.options
+                                .map((option) => PROVIDERS[option.slug]?.label ?? option.slug)
+                                .join(" or ")}
+                            detail={slot.role}
                         />
                     ))}
                 </section>

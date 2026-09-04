@@ -14,7 +14,11 @@ import {
     canCreateAgent,
     setupStatus,
 } from "../../src/workflow/agentSetup"
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "../../src/workflow/agentTemplates"
+import {
+    AGENT_TEMPLATES,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "../../src/workflow/agentTemplates"
 import {detectAccounts} from "../../src/workflow/detectAccounts"
 
 /** Everything the step does between the user's input and `createAgent`. */
@@ -86,9 +90,10 @@ describe("free-text onboarding", () => {
 
 describe("template onboarding", () => {
     const template = AGENT_TEMPLATES.find(
-        (entry) => entry.requiredIntegrations.length > 0,
+        (entry) => templateConnections(entry).length > 0,
     ) as AgentStarterTemplate
-    const declared = template.requiredIntegrations.map((integration) => integration.slug)
+    // The primary option of each slot — what detection offers, and so what gating sees.
+    const declared = templateConnections(template).map((slot) => slot.options[0].slug)
 
     it("blocks create until every declared integration is connected", () => {
         expect(runStep({template}).canCreate).toBe(false)

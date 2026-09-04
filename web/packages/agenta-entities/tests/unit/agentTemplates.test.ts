@@ -60,7 +60,9 @@ describe("AGENT_TEMPLATES", () => {
             for (const slug of template.logoSlugs ?? []) {
                 expect(PROVIDERS[slug], `${template.key}: logo slug "${slug}"`).toBeDefined()
             }
-            for (const integration of template.requiredIntegrations) {
+            for (const integration of (template.requiredIntegrations ?? []).concat(
+                templateConnections(template).flatMap((slot) => slot.options),
+            )) {
                 expect(
                     PROVIDERS[integration.slug],
                     `${template.key}: required integration slug "${integration.slug}"`,

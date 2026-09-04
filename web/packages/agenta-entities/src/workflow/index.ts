@@ -487,11 +487,13 @@ export {
     categorySlug,
     templateBuilderMessage,
     templateCategories,
+    templateConnections,
     templateProviderSlugs,
     templateToolCount,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
+    TemplateConnection,
     RequiredIntegration,
     TemplateExampleSession,
     TemplateTool,
@@ -499,12 +501,13 @@ export type {
 
 export {
     detectAccounts,
+    detectAccountGroupsFromTemplate,
     detectAccountsFromTemplate,
     detectAccountsFromText,
     requiredAccounts,
     suggestionAccounts,
 } from "./detectAccounts"
-export type {DetectedAccount} from "./detectAccounts"
+export type {DetectedAccount, DetectedAccountGroup} from "./detectAccounts"
 
 export {
     DEFAULT_PERMISSION,
