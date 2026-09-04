@@ -31,4 +31,53 @@ describe("getPendingApprovals", () => {
     it("is empty for an empty message list", () => {
         expect(getPendingApprovals([])).toEqual([])
     })
+
+    it.each(["done", "error"])(
+        "retires a stale approval after its continuation is %s",
+        (state) => {
+            const [, message] = approvalTurnFixture as UIMessage[]
+            const stale = {
+                ...message,
+                metadata: {
+                    approvalContinuation: {
+                        sourceExecutionId: "source-turn",
+                        executionId: "continuation-turn",
+                        state,
+                        approvalIds: ["appr_1", "appr_2"],
+                    },
+                },
+            } as UIMessage
+
+            expect(getPendingApprovals([stale])).toEqual([])
+        },
+    )
+
+    it("keeps a later interaction out of an earlier continuation's terminal sweep", () => {
+        const [, message] = approvalTurnFixture as UIMessage[]
+        const withLaterGate = {
+            ...message,
+            parts: [
+                ...message.parts,
+                {
+                    type: "tool-create_issue",
+                    toolCallId: "call_4",
+                    state: "approval-requested",
+                    input: {title: "Follow-up"},
+                    approval: {id: "appr_3"},
+                },
+            ],
+            metadata: {
+                approvalContinuation: {
+                    sourceExecutionId: "source-turn",
+                    executionId: "continuation-turn",
+                    state: "done",
+                    approvalIds: ["appr_1", "appr_2"],
+                },
+            },
+        } as UIMessage
+
+        expect(getPendingApprovals([withLaterGate])).toEqual([
+            {approvalId: "appr_3", toolName: "create_issue", input: {title: "Follow-up"}},
+        ])
+    })
 })

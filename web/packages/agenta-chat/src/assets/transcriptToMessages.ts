@@ -73,6 +73,7 @@ interface DraftMessage {
         sourceExecutionId: string
         executionId: string
         state: "running" | "done" | "error"
+        approvalIds: string[]
     }
     /** Execution id of the paused approval turn, kept internal while replay associates its resume. */
     pausedExecutionId?: string
@@ -132,6 +133,14 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     text: new Map(),
     reasoning: new Map(),
 })
+
+const pendingApprovalIds = (draft: DraftMessage): string[] =>
+    draft.parts.flatMap((part) => {
+        const approval = part.approval as {id?: unknown} | undefined
+        return part.state === "approval-requested" && typeof approval?.id === "string"
+            ? [approval.id]
+            : []
+    })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
@@ -686,6 +695,7 @@ export function transcriptToMessages(
                         sourceExecutionId: latestPaused.pausedExecutionId,
                         executionId,
                         state: "running",
+                        approvalIds: pendingApprovalIds(latestPaused),
                     }
                 }
             }
@@ -718,8 +728,18 @@ export function transcriptToMessages(
     // continuation frame instead of waiting for that optional event or `done`.
     for (const d of drafts) {
         if (!d.resumed && !d.approvalContinuation) continue
+        const continuationApprovalIds = d.approvalContinuation
+            ? new Set(d.approvalContinuation.approvalIds)
+            : null
         for (const part of d.parts) {
-            if (part.state === "approval-requested") part.state = "approval-responded"
+            const approval = part.approval as {id?: unknown} | undefined
+            if (
+                part.state === "approval-requested" &&
+                (!continuationApprovalIds ||
+                    (typeof approval?.id === "string" && continuationApprovalIds.has(approval.id)))
+            ) {
+                part.state = "approval-responded"
+            }
         }
     }
 

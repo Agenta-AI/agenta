@@ -44,6 +44,7 @@ const assistantContinuation = (
                 sourceExecutionId: `${id}-source-execution`,
                 executionId: `${id}-continuation-execution`,
                 state,
+                approvalIds: [`${id}-approval`],
             },
         },
         parts: [

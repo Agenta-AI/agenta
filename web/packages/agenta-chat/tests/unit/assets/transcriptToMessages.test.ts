@@ -301,7 +301,11 @@ describe("transcriptToMessages approval resume", () => {
             expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
         )
         expect(firstAssistantMetadata(continuationRunning)).toMatchObject({
-            approvalContinuation: {executionId: "continuation-turn", state: "running"},
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "running",
+                approvalIds: ["approval-1"],
+            },
         })
 
         const continuationDone = transcriptToMessages([
@@ -318,7 +322,11 @@ describe("transcriptToMessages approval resume", () => {
             expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
         )
         expect(firstAssistantMetadata(continuationDone)).toMatchObject({
-            approvalContinuation: {executionId: "continuation-turn", state: "done"},
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "done",
+                approvalIds: ["approval-1"],
+            },
         })
     })
 
@@ -376,6 +384,7 @@ describe("transcriptToMessages approval resume", () => {
                 sourceExecutionId: "source-turn",
                 executionId: "continuation-turn",
                 state: "running",
+                approvalIds: ["approval-1"],
             },
         })
 
@@ -390,6 +399,7 @@ describe("transcriptToMessages approval resume", () => {
                 sourceExecutionId: "source-turn",
                 executionId: "continuation-turn",
                 state: "done",
+                approvalIds: ["approval-1"],
             },
         })
     })

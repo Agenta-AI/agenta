@@ -245,6 +245,7 @@ describe("canReleaseQueuedMessage", () => {
                             sourceExecutionId: "source-turn",
                             executionId: "continuation-turn",
                             state: "running",
+                            approvalIds: ["perm_1"],
                         },
                     },
                 },

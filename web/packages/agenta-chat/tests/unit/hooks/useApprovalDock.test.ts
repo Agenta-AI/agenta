@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import {act, renderHook} from "@testing-library/react"
+import type {SessionInteractionRowStates} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
+import {reconcileInteractionRowStates} from "../../../src/assets/transcriptToMessages"
 import {useApprovalDock} from "../../../src/hooks/useApprovalDock"
 
 const gatePart = (approvalId: string, toolName = "send_email") => ({
@@ -128,6 +130,43 @@ describe("useApprovalDock", () => {
         expect(result.current.open).toBe(false)
         // The latched gate is still available for the closing animation frame.
         expect(result.current.current?.approvalId).toBe("g1")
+    })
+
+    it("closes when the continuation reaches a terminal record", () => {
+        const terminal = {
+            ...assistantWithGates("g1"),
+            metadata: {
+                approvalContinuation: {
+                    sourceExecutionId: "source-turn",
+                    executionId: "continuation-turn",
+                    state: "done",
+                    approvalIds: ["g1"],
+                },
+            },
+        } as UIMessage
+
+        const {result} = setup([userTurn, terminal])
+
+        expect(result.current.open).toBe(false)
+    })
+
+    it("closes when another reader resolves the interaction row", () => {
+        const pending = assistantWithGates("g1")
+        const rows: SessionInteractionRowStates = new Map([
+            [
+                "g1",
+                {
+                    token: "g1",
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "approved"},
+                },
+            ],
+        ])
+        const reconciled = reconcileInteractionRowStates([pending], rows)
+        const {result} = setup(reconciled)
+
+        expect(result.current.open).toBe(false)
     })
 
     it("moves from sending to answered only after the response promise resolves", async () => {
