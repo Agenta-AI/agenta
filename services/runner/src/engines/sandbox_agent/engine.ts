@@ -30,25 +30,37 @@ import {
  *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
  *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
  *
- * Every other abort leaves the environment in an unknown state and still destroys. The
- * `clientGone` check moved ABOVE the abort check so a disconnect keeps destroying exactly as it
- * did before, whatever the abort says.
+ * Every other abort leaves the environment in an unknown state and still destroys.
+ *
+ * A SETTLED USER STOP IS CHECKED BEFORE `clientGone`, AND THAT ORDER IS THE WHOLE POINT.
+ * `clientGone` used to be read first, which read well and broke the product on every real Stop.
+ * The browser's Stop button aborts its own chat stream in the SAME tick it sends the durable
+ * cancel command (`web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts`,
+ * `handleStop`), so the disconnect and the labelled abort always arrive together. With the
+ * disconnect read first, every Stop fell into the destroy branch: the sandbox was deleted, the
+ * native harness session went with it, and the next message replayed cold. Observed on the
+ * increment-6 stack on 2026-09-04, three Stops, three evictions, no warm park.
+ *
+ * The disconnect rule loses nothing it was written for. It exists so an UNATTENDED session is
+ * never kept warm on a guess, and a Stop is not a guess: it is an authenticated command the API
+ * recorded durably, from a user who is still on the page and about to type. Every other
+ * disconnect — mid-turn tab close, a dropped connection, a failed turn — still destroys, and the
+ * parked entry still expires on its own TTL.
  */
 export function shouldPark(
   result: AgentRunResult,
   signal: AbortSignal | undefined,
   clientGone: (() => boolean) | undefined,
 ): boolean {
+  // The harness is idle and the sandbox is worth keeping warm, whatever the stream did.
+  const settledUserStop =
+    isUserStopAbort(signal) &&
+    result.ok === true &&
+    result.stopReason === "cancelled" &&
+    result.cancelSettled === true;
+  if (settledUserStop) return true;
   if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
-  if (signal?.aborted) {
-    // A settled user Stop: the harness is idle and the sandbox is worth keeping warm.
-    return (
-      isUserStopAbort(signal) &&
-      result.ok === true &&
-      result.stopReason === "cancelled" &&
-      result.cancelSettled === true
-    );
-  }
+  if (signal?.aborted) return false; // any other abort: unknown state, destroy
   if (!result.ok) return false; // failed turn: teardown as today
   if (result.stopReason === "paused") return false; // a plain pause never parks
   return true;

@@ -180,13 +180,30 @@ describe("shouldPark on a user Stop", () => {
     assert.equal(shouldPark(runLimitTrip, userStopSignal(), undefined), false);
   });
 
-  it("keeps destroying on client disconnect, settled cancel or not", () => {
+  it("parks a settled Stop even though the client dropped its stream", () => {
+    // The case the product actually produces. The browser's Stop button aborts the chat stream
+    // in the same tick it sends the durable cancel command, so a real Stop ALWAYS reaches this
+    // predicate with the client already gone. This assertion used to read `false`, and reading
+    // the disconnect first is what deleted the sandbox on every Stop.
     assert.equal(
       shouldPark(cancelledTurn(true), userStopSignal(), () => true),
+      true,
+    );
+  });
+
+  it("keeps destroying on every disconnect that is not a settled Stop", () => {
+    // A disconnect with no Stop behind it, an unlabelled abort, and an unconfirmed cancel all
+    // leave a session nobody asked to keep. The rule the disconnect check exists for is intact.
+    assert.equal(
+      shouldPark({ ok: true, stopReason: "end_turn" }, undefined, () => true),
       false,
     );
     assert.equal(
-      shouldPark({ ok: true, stopReason: "end_turn" }, undefined, () => true),
+      shouldPark(cancelledTurn(true), abortedSignal(), () => true),
+      false,
+    );
+    assert.equal(
+      shouldPark(cancelledTurn(false), userStopSignal(), () => true),
       false,
     );
   });
