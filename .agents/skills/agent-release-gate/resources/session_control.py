@@ -240,6 +240,17 @@ class OperatorHooks:
     ) -> dict:
         raise HooksUnavailable
 
+    def wait_for_sandbox_ready(
+        self,
+        session_id: str | None = None,
+        ledger_id_getter=None,
+        since: float | None = None,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        clock=time,
+    ):
+        raise HooksUnavailable
+
 
 class NullHooks(OperatorHooks):
     """No `--project` was given. Every method raises; cells that need it SKIP with a reason."""
@@ -589,6 +600,75 @@ class DockerComposeHooks(OperatorHooks):
             "killed": [pid],
         }
 
+    def wait_for_local_sandbox_port(
+        self,
+        session_id: str,
+        ledger_id_getter=None,
+        since: float | None = None,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        clock=time,
+    ) -> int:
+        """Poll until THIS session's local sandbox port is resolvable, or refuse on timeout.
+
+        A cold acquire writes the `prepare_workspace` line ~35 s after the turn starts, so reading
+        once right after the turn began finds nothing and the cell refused correctly but uselessly.
+        Poll the runner log (and the turn ledger via `ledger_id_getter`) until the port appears.
+        A transient log/ledger disagreement during acquire is retried, not fatal; only its
+        persistence to the deadline raises. When nothing appears within `timeout`, raise
+        WrongSandboxTarget so the cell fails as `wrong target` rather than killing a guess."""
+        timeout = SANDBOX_GONE_RESOLVE_TIMEOUT_S if timeout is None else timeout
+        poll_interval = (
+            SANDBOX_GONE_RESOLVE_POLL_S if poll_interval is None else poll_interval
+        )
+        getter = ledger_id_getter or (lambda: None)
+        deadline = clock.time() + timeout
+        last_error: WrongSandboxTarget | None = None
+        while True:
+            try:
+                ledger_id = getter()
+            except Exception:  # noqa: BLE001
+                ledger_id = None
+            try:
+                port = self.local_sandbox_port(
+                    session_id, sandbox_id=ledger_id, since=since
+                )
+            except WrongSandboxTarget as exc:
+                # A log/ledger disagreement mid-acquire is usually transient; keep polling and
+                # let it raise only if it is still the state at the deadline.
+                last_error = exc
+                port = None
+            if port is not None:
+                return port
+            if clock.time() >= deadline:
+                if last_error is not None:
+                    raise last_error
+                raise WrongSandboxTarget(
+                    f"this session's prepare_workspace line never appeared in the runner log "
+                    f"(and no local ledger sandbox id) within {timeout:.0f}s for session "
+                    f"{session_id}; refusing to kill a guess"
+                )
+            clock.sleep(poll_interval)
+
+    def wait_for_sandbox_ready(
+        self,
+        session_id: str | None = None,
+        ledger_id_getter=None,
+        since: float | None = None,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        clock=time,
+    ):
+        """Local: block until this session's own sandbox port is resolvable (returns the port)."""
+        return self.wait_for_local_sandbox_port(
+            session_id,
+            ledger_id_getter=ledger_id_getter,
+            since=since,
+            timeout=timeout,
+            poll_interval=poll_interval,
+            clock=clock,
+        )
+
 
 class DaytonaAwareHooks(DockerComposeHooks):
     """`DockerComposeHooks` plus a Daytona-provider-aware `kill_sandbox` and `sandbox_procs`.
@@ -697,6 +777,39 @@ class DaytonaAwareHooks(DockerComposeHooks):
             "cmdline": None,
             "killed": killed,
         }
+
+    def wait_for_sandbox_ready(
+        self,
+        session_id: str | None = None,
+        ledger_id_getter=None,
+        since: float | None = None,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        clock=time,
+    ):
+        """Daytona: block until this session's remote sandbox id is observed (returns the id).
+
+        A remote sandbox is even slower to appear than a local one, so the same poll applies; the
+        target here is the ledger id, not a port. Refuse on timeout rather than deleting a guess."""
+        timeout = SANDBOX_GONE_RESOLVE_TIMEOUT_S if timeout is None else timeout
+        poll_interval = (
+            SANDBOX_GONE_RESOLVE_POLL_S if poll_interval is None else poll_interval
+        )
+        getter = ledger_id_getter or (lambda: None)
+        deadline = clock.time() + timeout
+        while True:
+            try:
+                sandbox_id = getter()
+            except Exception:  # noqa: BLE001
+                sandbox_id = None
+            if sandbox_id:
+                return sandbox_id
+            if clock.time() >= deadline:
+                raise WrongSandboxTarget(
+                    f"no Daytona sandbox id was observed for session {session_id} within "
+                    f"{timeout:.0f}s; refusing to kill a guess"
+                )
+            clock.sleep(poll_interval)
 
     def sandbox_procs(self, marker: str, sandbox_id: str | None = None) -> list[dict]:
         if not sandbox_id:
@@ -828,17 +941,42 @@ def stream_timeout_s(cfg: dict) -> float:
 # cell waits that budget plus slack, and never less than the slow command itself — so a healthy
 # turn that outlives a mis-targeted kill can never be misread as "still running" before it would
 # even have finished. The command duration is a constant the cell prints in its evidence.
-SANDBOX_GONE_COMMAND_S = 240
 SANDBOX_LIVENESS_PROBE_INTERVAL_S = 30.0
 SANDBOX_LIVENESS_PROBE_FAILURES = 3
 SANDBOX_GONE_SETTLE_SLACK_S = 60.0
+
+# A cold acquire on the gate stack takes ~35 s before the sandbox's `prepare_workspace` line is
+# even written (observed `acquire_total ms=34766`), so the cell must POLL for this session's own
+# sandbox to become resolvable rather than reading once right after the turn starts. Poll the
+# runner log and the turn ledger for up to this long, then let the slow command run a moment
+# before the kill. If the line never appears, refuse (never kill a guess).
+SANDBOX_GONE_ACQUIRE_BUDGET_S = 60.0
+SANDBOX_GONE_RESOLVE_TIMEOUT_S = 120.0
+SANDBOX_GONE_RESOLVE_POLL_S = 3.0
+SANDBOX_GONE_RUNNING_SLACK_S = 5.0
+
+# The design window the runner needs to end the turn once the sandbox is dead: PROBE_FAILURES
+# probes at PROBE_INTERVAL_S each.
+_SANDBOX_GONE_DESIGN_WINDOW_S = (
+    SANDBOX_LIVENESS_PROBE_INTERVAL_S * SANDBOX_LIVENESS_PROBE_FAILURES
+)
+
+# The slow command must OUTLAST the whole worst case before the kill lands, plus the design
+# window, so it is still running when the sandbox dies and a failed kill cannot be misread as a
+# healthy completion: acquire budget + the resolve poll window + the probe design window + margin.
+SANDBOX_GONE_COMMAND_S = int(
+    SANDBOX_GONE_ACQUIRE_BUDGET_S
+    + SANDBOX_GONE_RESOLVE_TIMEOUT_S
+    + _SANDBOX_GONE_DESIGN_WINDOW_S
+    + 30
+)
 
 
 def sandbox_gone_settle_budget_s() -> float:
     """Seconds to wait for the runner to end the turn after the sandbox is killed: the probe's
     three-strikes budget plus slack plus any sandbox-startup slack the run declared."""
     return (
-        SANDBOX_LIVENESS_PROBE_INTERVAL_S * SANDBOX_LIVENESS_PROBE_FAILURES
+        _SANDBOX_GONE_DESIGN_WINDOW_S
         + SANDBOX_GONE_SETTLE_SLACK_S
         + SANDBOX_STARTUP_SLACK_S
     )
@@ -1743,22 +1881,39 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     msgs = [user_msg(sleep_prompt(marker, SANDBOX_GONE_COMMAND_S))]
     handle = invoke_async(session_id, msgs, cfg, references, "sandbox-turn1")
     turn = wait_for_turn(session_id)
-    time.sleep(12)
-    # The sandbox id this session's own turn ledger observed (`local/<host>:<port>` on local, the
-    # remote uuid on Daytona). Used to derive the port on local and to address the remote sandbox
-    # on Daytona; never a shared `ps | grep`, which cannot tell two sessions apart.
-    observed_ids = sandbox_ids(session_id)
-    target_sandbox_id = observed_ids[-1] if observed_ids else None
     settle_budget = sandbox_gone_settle_budget_s()
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
         "command_seconds": SANDBOX_GONE_COMMAND_S,
+        "resolve_timeout_seconds": SANDBOX_GONE_RESOLVE_TIMEOUT_S,
         "settle_budget_seconds": round(settle_budget, 1),
-        "target_sandbox_id": target_sandbox_id,
     }
-    # Target the tested session's OWN sandbox, assert it is a sandbox-agent daemon, and refuse
-    # (never kill a guess) when the mapping cannot be made.
+    # A cold acquire writes this session's `prepare_workspace` line ~35 s in, so POLL for the
+    # session's own sandbox to become resolvable (up to the resolve timeout) instead of reading
+    # once right after the turn started. Refuse if the line never appears — never kill a guess.
+    # The ledger id (`local/<host>:<port>` on local, the remote uuid on Daytona) is the
+    # cross-check; never a shared `ps | grep`, which cannot tell two sessions apart.
+    resolve_started = time.time()
+    try:
+        hooks.wait_for_sandbox_ready(
+            session_id,
+            ledger_id_getter=lambda: (sandbox_ids(session_id) or [None])[-1],
+            since=since,
+            timeout=SANDBOX_GONE_RESOLVE_TIMEOUT_S,
+        )
+    except WrongSandboxTarget as exc:
+        evidence["wrong_target"] = str(exc)
+        evidence["resolve_seconds"] = round(time.time() - resolve_started, 1)
+        return evidence, _fail(f"wrong target, refused to kill a guess: {exc}")
+    evidence["resolve_seconds"] = round(time.time() - resolve_started, 1)
+    # Let the slow command actually be running before the kill, so the sandbox dies mid-turn.
+    time.sleep(SANDBOX_GONE_RUNNING_SLACK_S)
+    observed_ids = sandbox_ids(session_id)
+    target_sandbox_id = observed_ids[-1] if observed_ids else None
+    evidence["target_sandbox_id"] = target_sandbox_id
+    # Now resolve the pid on the tested session's own port (or the remote id), assert it is a
+    # sandbox-agent daemon, and refuse (never kill a guess) if the mapping cannot be made.
     try:
         target = hooks.kill_sandbox_for_session(
             session_id, sandbox_id=target_sandbox_id, since=since

@@ -53,6 +53,7 @@ def test_null_hooks_raises_on_every_method():
         "start_postgres",
         "kill_sandbox",
         "kill_sandbox_for_session",
+        "wait_for_sandbox_ready",
     ):
         try:
             getattr(hooks, method)()
@@ -834,15 +835,26 @@ class _FakeLocalHooks(sc.DockerComposeHooks):
     """DockerComposeHooks with the container round-trips (`dc`, `runner_log`) scripted, so the
     port-to-pid mapping and the wrong-target refusals are tested without Docker."""
 
-    def __init__(self, *, log_lines=None, ss="", proc_pid="", cmdlines=None):
+    def __init__(
+        self, *, log_lines=None, log_reads=None, ss="", proc_pid="", cmdlines=None
+    ):
         super().__init__("fake-project")
         self._log_lines = log_lines or []
+        # `log_reads` scripts one return value per `runner_log` call (the last repeats), so a test
+        # can make this session's line appear on, say, the third poll. `log_lines` is the fixed
+        # fallback when no script is given.
+        self._log_reads = log_reads
         self._ss = ss
         self._proc_pid = proc_pid
         self._cmdlines = cmdlines or {}
         self.killed: list[str] = []
+        self.log_read_count = 0
 
     def runner_log(self, since: float) -> list[str]:
+        self.log_read_count += 1
+        if self._log_reads is not None:
+            i = min(self.log_read_count - 1, len(self._log_reads) - 1)
+            return list(self._log_reads[i])
         return list(self._log_lines)
 
     def dc(self, *args: str, timeout: float = 60.0) -> str:
@@ -993,6 +1005,93 @@ def test_daytona_kill_for_session_refuses_without_a_sandbox_id():
         raise AssertionError("expected WrongSandboxTarget")
     finally:
         _restore_env(saved)
+
+
+class _FakeClock:
+    """A clock whose `sleep` advances `time` instantly, so poll loops run without real waiting."""
+
+    def __init__(self):
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def time(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def test_wait_for_local_sandbox_port_returns_when_the_line_appears_on_the_third_read():
+    sid = "sess"
+    line = (
+        "12:29 [sandbox-agent] [timing] stage=prepare_workspace ms=0 "
+        f"sandbox=local/127.0.0.1:44831 session={sid}"
+    )
+    hooks = _FakeLocalHooks(log_reads=[[], [], [line]])  # empty, empty, then the line
+    clock = _FakeClock()
+    port = hooks.wait_for_local_sandbox_port(
+        sid,
+        ledger_id_getter=lambda: None,
+        since=0.0,
+        timeout=120.0,
+        poll_interval=3.0,
+        clock=clock,
+    )
+    assert port == 44831
+    assert hooks.log_read_count == 3
+    assert clock.sleeps == [3.0, 3.0]  # slept twice before the third read found it
+
+
+def test_wait_for_local_sandbox_port_refuses_when_the_line_never_appears():
+    hooks = _FakeLocalHooks(log_reads=[[]])  # every read is empty
+    clock = _FakeClock()
+    try:
+        hooks.wait_for_local_sandbox_port(
+            "sess",
+            ledger_id_getter=lambda: None,
+            since=0.0,
+            timeout=9.0,
+            poll_interval=3.0,
+            clock=clock,
+        )
+    except sc.WrongSandboxTarget as exc:
+        assert "never appeared" in str(exc)
+        assert clock.now >= 9.0
+        return
+    raise AssertionError("expected WrongSandboxTarget on timeout")
+
+
+def test_wait_for_local_sandbox_port_resolves_from_the_ledger_when_the_log_is_silent():
+    calls = {"n": 0}
+
+    def ledger():
+        calls["n"] += 1
+        return "local/127.0.0.1:44831" if calls["n"] >= 3 else None
+
+    hooks = _FakeLocalHooks(
+        log_reads=[[]]
+    )  # log stays empty; the ledger supplies the port
+    clock = _FakeClock()
+    port = hooks.wait_for_local_sandbox_port(
+        "sess",
+        ledger_id_getter=ledger,
+        since=0.0,
+        timeout=120.0,
+        poll_interval=3.0,
+        clock=clock,
+    )
+    assert port == 44831
+    assert calls["n"] == 3
+
+
+def test_sandbox_gone_command_outlasts_acquire_resolve_and_the_design_window():
+    assert (
+        sc.SANDBOX_GONE_COMMAND_S
+        > sc.SANDBOX_GONE_ACQUIRE_BUDGET_S
+        + sc.SANDBOX_GONE_RESOLVE_TIMEOUT_S
+        + sc._SANDBOX_GONE_DESIGN_WINDOW_S
+    )
 
 
 def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
