@@ -173,6 +173,17 @@ export async function claimSessionOwnership(
  * the caller MUST await in the run's `finally` so the heartbeat stops and the row is marked
  * `ended`.
  *
+ * That first beat is also this turn's ADMISSION request, and `admitted` reports its answer. The
+ * beat's `nx` acquire of the `alive` lock is the platform's single atomic arbiter of "who runs
+ * this session" (`api/oss/src/core/sessions/streams/service.py`), and it already refuses a turn
+ * that arrives while a different turn holds `running`. Reading that answer BEFORE the caller
+ * touches the sandbox is what makes at-most-one-execution-per-session true: a refused turn stops
+ * at the edge instead of reaching the keepalive pool and destroying the live turn's environment.
+ *
+ * `admitted` is false ONLY on an explicit `is_current_turn: false`. A network or HTTP failure
+ * fails OPEN (`admitted: true`), matching every other use of this beat: a transient API blip must
+ * not refuse a healthy turn. The keepalive pool's own busy check is the backstop for that window.
+ *
  * `proposal` rides EVERY beat rather than only the first. The server fills each field once, so
  * repeating them is a no-op, and one payload for all beats beats a "was this the first?" flag.
  */
@@ -186,6 +197,8 @@ export async function startAliveWatchdog(
   release: () => Promise<void>;
   credential: () => string;
   streamId: () => string | undefined;
+  /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
+  admitted: boolean;
 }> {
   // Session coordination and standalone turns share this lease. The watchdog owns it here so
   // heartbeat, persistence, and trace export all observe the same current credential.
@@ -238,6 +251,9 @@ export async function startAliveWatchdog(
   }
 
   return {
+    // Read from the FIRST beat only. A later interruption is a cancel, not a failed admission,
+    // and it travels the `onInterrupted` -> abort path instead.
+    admitted: !first.interrupted,
     async release() {
       clearInterval(interval);
       credentialLease.release();

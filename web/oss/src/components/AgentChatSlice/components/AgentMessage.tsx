@@ -20,7 +20,7 @@ import {
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -159,6 +159,14 @@ const RETRYABLE_CODES = new Set([
     "rate_limited",
 ])
 
+/**
+ * Single-turn admission refused the message because another turn already owns the session
+ * (#6417). Nothing ran and nothing failed, so the failure header would be a lie. The composer
+ * already has the user's text back (see AgentConversation's restore effect), which is why there is
+ * no retry button either: sending again is one keystroke away and only the user knows when.
+ */
+const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
+
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
 
@@ -189,13 +197,17 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerRetry = !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
+    const notSent = !!code && NOT_SENT_CODES.has(code)
+    const offerRetry =
+        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">The agent run failed</span>
+                <span className="text-xs font-medium text-colorError">
+                    {notSent ? "Message not sent" : "The agent run failed"}
+                </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
