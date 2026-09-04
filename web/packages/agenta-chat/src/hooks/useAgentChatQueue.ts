@@ -19,6 +19,18 @@ export interface QueuedMessage {
     text: string
     fileParts?: FileUIPart[]
     stagedFiles?: ComposerAttachment[]
+    attachmentCount?: number
+    policy?: "queue" | "steer"
+    source?: "local" | "server"
+    editable?: boolean
+}
+
+export interface ServerQueueAdapter {
+    capabilities: {queue: boolean; steer: boolean}
+    busy: boolean
+    queued: QueuedMessage[]
+    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    remove: (id: string) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -60,6 +72,8 @@ interface UseAgentChatQueueArgs {
     /** Persist held messages under this key across pane remounts (route re-entry, tab
      * close/reopen) — a restored queue releases normally once the conversation settles. */
     sessionId?: string
+    /** Durable server queue. Omit (or advertise queue=false) for the browser-local fallback. */
+    server?: ServerQueueAdapter
 }
 
 // In-memory, page-session lifetime — same as the composer drafts it accompanies.
@@ -100,6 +114,7 @@ export const useAgentChatQueue = ({
     markRunOwned,
     sendQueued,
     sessionId,
+    server,
 }: UseAgentChatQueueArgs) => {
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
@@ -208,6 +223,14 @@ export const useAgentChatQueue = ({
                 }
                 return
             }
+            if (server?.capabilities.queue && server.busy) {
+                void server.submit(message, "queue").catch(() => {
+                    // The server did not accept ownership. Preserve the input in the original
+                    // page-session queue so a transient admission failure never clears user work.
+                    setQueued((q) => [...q, message])
+                })
+                return
+            }
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
                 lastSentRef.current = message
@@ -217,12 +240,30 @@ export const useAgentChatQueue = ({
                 setQueued((q) => [...q, message])
             }
         },
-        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued],
+        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
 
-    const removeQueued = useCallback((id: string) => {
-        setQueued((q) => q.filter((m) => m.id !== id))
-    }, [])
+    const removeQueued = useCallback(
+        (id: string) => {
+            if (server?.queued.some((message) => message.id === id)) {
+                void server.remove(id).catch(() => {})
+                return
+            }
+            setQueued((q) => q.filter((m) => m.id !== id))
+        },
+        [server],
+    )
+
+    const steer = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            if (!server?.capabilities.steer || !server.busy) return
+            const message: QueuedMessage = {...item, id: generateId()}
+            void server.submit(message, "steer").catch(() => {
+                setQueued((q) => [...q, message])
+            })
+        },
+        [server],
+    )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
     // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
@@ -319,11 +360,15 @@ export const useAgentChatQueue = ({
     }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
     return {
-        queued,
+        queued: [...(server?.queued ?? []), ...queued],
         submit,
+        steer,
         removeQueued,
         /** This tab received the durable respond body for this still-running execution. */
         ownsContinuation,
+        queueEnabled: !!server?.capabilities.queue,
+        steerEnabled: !!server?.capabilities.steer,
+        serverBusy: !!server?.busy,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
         /** Id of the held message the composer is currently editing, or null. */

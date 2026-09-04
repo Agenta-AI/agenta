@@ -674,6 +674,7 @@ export const LiveConversation = ({
                                         composerRef.current?.setMarkdown(draft),
                                     )
                             }}
+                            onSteer={({text, parts}) => conversation.steer({text, parts})}
                             disabled={conversation.isHydrating || modelBlocked}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
@@ -685,6 +686,9 @@ export const LiveConversation = ({
                             })}
                             stopping={stopping}
                             onStop={stopHere}
+                            queueEnabled={conversation.queueEnabled}
+                            steerEnabled={conversation.steerEnabled}
+                            inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
                         />
                     </div>

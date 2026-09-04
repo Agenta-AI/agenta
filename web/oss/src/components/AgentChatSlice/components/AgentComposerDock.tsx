@@ -79,8 +79,11 @@ const AgentComposerDock = ({
     elicits,
     onClientToolOutput,
     onSubmit,
+    onSteer,
     onStop,
     stopping,
+    queueEnabled,
+    steerEnabled,
     richInputRef,
     composer,
     attachments,
@@ -104,6 +107,7 @@ const AgentComposerDock = ({
         editingId: string | null
         beginEdit: (id: string, draft?: string) => void
         cancelEdit: () => string
+        serverBusy: boolean
     }
     modelKey: React.ComponentProps<typeof ConnectModelBanner>
     modelBlocked: boolean
@@ -126,8 +130,11 @@ const AgentComposerDock = ({
     elicits: ElicitationDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
+    onSteer: (text: string) => void | Promise<void>
     onStop: () => void
     stopping: boolean
+    queueEnabled: boolean
+    steerEnabled: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -140,6 +147,7 @@ const AgentComposerDock = ({
     /** Read at event time — attachments are refused right now (a take in flight, or the above). */
     attachmentsBlocked: () => boolean
 }) => {
+    const inputBusy = busy || queue.serverBusy
     const {
         onboarding,
         onboardingActive,
@@ -467,6 +475,17 @@ const AgentComposerDock = ({
                         streaming={shouldShowStopControl({busy, hitlPending})}
                         stopping={stopping}
                         onStop={onStop}
+                        busyActions={
+                            inputBusy && queueEnabled
+                                ? [
+                                      {label: "Queue", onSubmit: submitMessage},
+                                      ...(steerEnabled
+                                          ? [{label: "Steer", onSubmit: onSteer}]
+                                          : []),
+                                  ]
+                                : undefined
+                        }
+                        showQueuePauseCopy={inputBusy && queueEnabled}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}
                         composerDisabled={composerDisabled}

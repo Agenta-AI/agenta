@@ -664,5 +664,6 @@ export const useSessionHydration = ({
         stoppingTurnId: liveness.stoppingTurnId,
         sharedReaderAdvertised: liveness.sharedReader,
         refreshFromRecords,
+        revalidate: refreshFromRecords,
     }
 }

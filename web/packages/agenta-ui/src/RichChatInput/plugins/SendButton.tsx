@@ -21,6 +21,8 @@ interface SendButtonProps {
     stopping?: boolean
     /** Request a durable stop — required for the `streaming` state. */
     onStop?: () => void
+    /** Additional submit choices shown beside Stop while a run is active. */
+    busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
@@ -34,6 +36,7 @@ export function SendButton({
     streaming,
     stopping,
     onStop,
+    busyActions,
 }: SendButtonProps) {
     const [editor] = useLexicalComposerContext()
     const [empty, setEmpty] = useState(true)
@@ -52,36 +55,61 @@ export function SendButton({
         submitEditorAsMarkdown(editor, onSubmit)
     }
 
-    if (streaming) {
+    if (streaming || busyActions?.length) {
         // A spinning ring (stream in progress) around a Stop square — one affordance that both
         // signals progress and stops the run on click. Two-layer ring: a faint neutral track under
         // a thin, muted-primary arc, so the accent reads as a calm progress cue rather than a loud
         // full-saturation halo; the Stop glyph stays neutral so the accent isn't doubled up.
         return (
-            <span className="relative inline-flex">
-                <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 rounded-full border-[1.5px] border-solid border-[var(--ag-colorFillSecondary)]"
-                />
-                <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 animate-spin rounded-full border-[1.5px] border-solid border-transparent"
-                    style={{
-                        borderTopColor:
-                            "color-mix(in srgb, var(--ag-colorPrimary) 60%, var(--ag-colorBgContainer))",
-                    }}
-                />
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-control-round"
-                    aria-label={stopping ? "Stopping" : "Stop"}
-                    aria-keyshortcuts={shortcutAria("run.stop")}
-                    onClick={onStop}
-                    disabled={stopping}
-                >
-                    <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />
-                </Button>
+            <span className="inline-flex items-center gap-1">
+                {busyActions?.map((action) => (
+                    <Button
+                        key={action.label}
+                        size="sm"
+                        variant="ghost"
+                        disabled={empty && !forceEnabled}
+                        onClick={() => {
+                            if (empty) {
+                                if (forceEnabled) action.onSubmit("")
+                                return
+                            }
+                            submitEditorAsMarkdown(editor, action.onSubmit)
+                        }}
+                    >
+                        {action.label}
+                    </Button>
+                ))}
+                {streaming ? (
+                    <span className="relative inline-flex">
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-0 rounded-full border-[1.5px] border-solid border-[var(--ag-colorFillSecondary)]"
+                        />
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-0 animate-spin rounded-full border-[1.5px] border-solid border-transparent"
+                            style={{
+                                borderTopColor:
+                                    "color-mix(in srgb, var(--ag-colorPrimary) 60%, var(--ag-colorBgContainer))",
+                            }}
+                        />
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="rounded-control-round"
+                            aria-label={stopping ? "Stopping" : "Stop"}
+                            aria-keyshortcuts={shortcutAria("run.stop")}
+                            onClick={onStop}
+                            disabled={stopping}
+                        >
+                            <Stop
+                                size={13}
+                                weight="fill"
+                                className="text-[var(--ag-colorTextSecondary)]"
+                            />
+                        </Button>
+                    </span>
+                ) : null}
             </span>
         )
     }

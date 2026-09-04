@@ -14,6 +14,7 @@ import {
     useComposerAttachments,
     useAgentChatQueue,
     useSessionLivePreview,
+    useServerSessionInputs,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {
@@ -161,6 +162,7 @@ const AgentConversation = ({
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        revalidate,
         setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
     const {
@@ -367,6 +369,18 @@ const AgentConversation = ({
 
     const consumedRunNonceRef = useRef<number | null>(null)
 
+    const serverInputs = useServerSessionInputs({
+        entityId,
+        sessionId,
+        messages,
+        locallyBusy: busy,
+        onExecuted: revalidate,
+    })
+
+    useEffect(() => {
+        if (status === "ready" || status === "error") void serverInputs.refresh()
+    }, [status, serverInputs.refresh])
+
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
     const sendQueued = useCallback(
@@ -401,8 +415,12 @@ const AgentConversation = ({
     const {
         queued,
         submit,
+        steer,
         removeQueued,
         ownsContinuation,
+        queueEnabled,
+        steerEnabled,
+        serverBusy,
         hitlPending,
         editingId,
         beginEdit,
@@ -421,6 +439,7 @@ const AgentConversation = ({
         markRunOwned,
         sendQueued,
         sessionId,
+        server: serverInputs,
     })
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
@@ -661,6 +680,7 @@ const AgentConversation = ({
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
         stagedFiles: typeof files,
+        policy: "queue" | "steer" = "queue",
     ) => {
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
@@ -674,7 +694,8 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            submit({text: trimmed, fileParts, stagedFiles})
+            if (policy === "steer") steer({text: trimmed, fileParts, stagedFiles})
+            else submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -684,7 +705,11 @@ const AgentConversation = ({
 
     // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
     const inFlightSubmitRef = useRef(false)
-    const handleSubmit = (text: string, extraFiles: File[] = []) =>
+    const handleSubmit = (
+        text: string,
+        extraFiles: File[] = [],
+        policy: "queue" | "steer" = "queue",
+    ) =>
         runWithInFlightSubmit(inFlightSubmitRef, async () => {
             const trimmed = text.trim()
             if (!trimmed && files.length === 0 && extraFiles.length === 0) return
@@ -715,7 +740,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids, files)
+                finishSubmit(trimmed, fileParts, stagedUids, files, policy)
                 return
             }
 
@@ -728,7 +753,7 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles)
+            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
         })
 
     handleSubmitRef.current = handleSubmit
@@ -977,6 +1002,7 @@ const AgentConversation = ({
                                             editingId,
                                             beginEdit,
                                             cancelEdit,
+                                            serverBusy,
                                         }}
                                         modelKey={{...modelKey, entityId}}
                                         modelBlocked={modelBlocked}
@@ -990,8 +1016,11 @@ const AgentConversation = ({
                                         elicits={elicits}
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
+                                        onSteer={(text) => handleSubmit(text, [], "steer")}
                                         onStop={handleStop}
                                         stopping={stopping}
+                                        queueEnabled={queueEnabled}
+                                        steerEnabled={steerEnabled}
                                         richInputRef={richInputRef}
                                         composer={{...composer, handleComposerChange}}
                                         attachments={attachments}

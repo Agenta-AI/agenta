@@ -3,7 +3,10 @@ import {act, renderHook} from "@testing-library/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
-import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
+import {
+    useAgentChatQueue,
+    type ServerQueueAdapter,
+} from "../../../src/hooks/useAgentChatQueue"
 
 // The pure release predicates (`canReleaseQueuedMessage`, `isHitlPending`) are unit-tested in
 // the playground package; these tests cover the HOOK's stateful behavior on top of them:
@@ -63,6 +66,7 @@ interface HarnessProps {
     resumeOrphaned?: boolean
     recoverable?: boolean
     sessionId?: string
+    server?: ServerQueueAdapter
 }
 
 const setup = (initial: HarnessProps) => {
@@ -127,6 +131,58 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "hold behind the accepted turn"})
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("hands busy Queue and Steer submissions to the durable server adapter", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            result.current.submit({text: "wait next"})
+            result.current.steer({text: "change direction"})
+        })
+
+        expect(server.submit).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({text: "wait next"}),
+            "queue",
+        )
+        expect(server.submit).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({text: "change direction"}),
+            "steer",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("renders and removes server rows without releasing them through the local queue", () => {
+        const durable = {
+            id: "input-1",
+            text: "shared",
+            source: "server" as const,
+            editable: false,
+        }
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: false},
+            busy: true,
+            queued: [durable],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        expect(result.current.queued).toEqual([durable])
+        act(() => result.current.removeQueued("input-1"))
+
+        expect(server.remove).toHaveBeenCalledWith("input-1")
+        expect(sendQueued).not.toHaveBeenCalled()
     })
 
     it("releases held messages one per settle, in FIFO order", () => {

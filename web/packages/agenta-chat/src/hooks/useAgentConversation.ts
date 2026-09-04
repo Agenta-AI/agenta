@@ -99,6 +99,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import {useServerSessionInputs} from "./useServerSessionInputs"
 import {useSessionChat} from "./useSessionChat"
 import {useSessionLivePreview} from "./useSessionLivePreview"
 
@@ -184,6 +185,14 @@ export interface AgentConversation {
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
     queued: QueuedMessage[]
+    /** Queue is server-owned for this session. */
+    queueEnabled: boolean
+    /** Steer is server-owned and available as a second busy action. */
+    steerEnabled: boolean
+    /** The server currently owns an execution, including one started in another browser. */
+    inputBusy: boolean
+    /** Submit the current composer value as a priority Steer input. */
+    steer: (input: SendInput) => Promise<void>
     /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
@@ -644,13 +653,31 @@ export const useAgentConversation = ({
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
 
+    const serverInputs = useServerSessionInputs({
+        entityId,
+        sessionId,
+        messages,
+        locallyBusy: busy,
+        onExecuted: () => {
+            void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
+        },
+    })
+
+    useEffect(() => {
+        if (status === "ready" || status === "error") void serverInputs.refresh()
+    }, [status, serverInputs.refresh])
+
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval).
     const {
         queued,
         submit,
+        steer,
         removeQueued,
         ownsContinuation,
+        queueEnabled,
+        steerEnabled,
+        serverBusy,
         hitlPending,
         editingId,
         beginEdit,
@@ -668,6 +695,7 @@ export const useAgentConversation = ({
         markRunOwned,
         sendQueued,
         sessionId,
+        server: serverInputs,
     })
 
     // The server capability chooses one owner. Feature-off servers keep the original ordered row
@@ -1102,6 +1130,20 @@ export const useAgentConversation = ({
         [submit, sessionId],
     )
 
+    const steerInput = useCallback(
+        async ({text, files, parts}: SendInput) => {
+            const trimmed = text.trim()
+            const fileObjs = files ?? []
+            const refParts = parts ?? []
+            if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
+            const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
+            const merged = [...(encoded?.parts ?? []), ...refParts]
+            steer({text: trimmed, fileParts: merged.length ? merged : undefined})
+            composerDraftBySession.delete(sessionId)
+        },
+        [sessionId, steer],
+    )
+
     const regenerateTurn = useCallback(
         (id: string) => {
             clearSessionTurnId(sessionId)
@@ -1180,6 +1222,10 @@ export const useAgentConversation = ({
         historyUnavailable,
         stopped,
         queued,
+        queueEnabled,
+        steerEnabled,
+        inputBusy: serverBusy,
+        steer: steerInput,
         hitlPending,
         removeQueued,
         editingId,

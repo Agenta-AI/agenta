@@ -289,6 +289,46 @@ export const sessionStreamResponseSchema = z.object({
         .default({durable_approvals: false}),
 })
 
+export const pendingSessionInputSchema = z.object({
+    id: z.string(),
+    session_id: z.string(),
+    content: z.record(z.string(), z.unknown()),
+    position: z.number(),
+    state: z.enum(["pending", "promoted", "removed"]),
+    policy: z.enum(["queue", "steer"]),
+    created_at: z.string().nullish(),
+    promoted_execution_id: z.string().nullish(),
+})
+
+export const sessionSnapshotResponseSchema = z.object({
+    session: sessionStreamSchema.nullish(),
+    execution: z
+        .object({
+            id: z.string().nullish(),
+            state: z.enum(["idle", "running", "stopping"]).default("idle"),
+        })
+        .default({state: "idle"}),
+    pending: z
+        .object({
+            inputs: z.array(pendingSessionInputSchema).default([]),
+            interactions: z.array(sessionInteractionSchema).default([]),
+        })
+        .default({inputs: [], interactions: []}),
+    read: z
+        .object({
+            latest_sequence: z.number().default(0),
+            history_complete: z.boolean().default(true),
+        })
+        .default({latest_sequence: 0, history_complete: true}),
+    capabilities: z
+        .object({
+            durable_approvals: z.boolean().optional().default(false),
+            queue: z.boolean().optional().default(false),
+            steer: z.boolean().optional().default(false),
+        })
+        .default({durable_approvals: false, queue: false, steer: false}),
+})
+
 /** Control-call result for the prompt × force command matrix. */
 export const sessionStreamCommandResponseSchema = z.object({
     mode: z.string(),
@@ -326,6 +366,8 @@ export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
 export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
+export type PendingSessionInput = z.infer<typeof pendingSessionInputSchema>
+export type SessionSnapshotResponse = z.infer<typeof sessionSnapshotResponseSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders
  * are flagged (`is_folder`) or implied by nested file paths. The backend lists the whole tree

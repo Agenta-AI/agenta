@@ -20,6 +20,7 @@ export {
     setSessionHeader,
     fetchSessionStream,
     fetchSessionDurableApprovalsCapability,
+    removePendingSessionInput,
     invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
@@ -69,6 +70,8 @@ export {
     sessionDurableEventTypeSchema,
     sessionRecordsReadStateSchema,
     sessionSnapshotSchema,
+    pendingSessionInputSchema,
+    sessionSnapshotResponseSchema,
     sessionsQueryResponseSchema,
     type SessionRecord,
     type SessionRecordsQueryResponse,
@@ -92,6 +95,8 @@ export {
     type SessionMessagePreview,
     type SessionWindowing,
     type SessionStreamCommandResponse,
+    type PendingSessionInput,
+    type SessionSnapshotResponse,
     type StreamStatusCode,
     type CommandMode,
     mountFileSchema,
@@ -99,6 +104,7 @@ export {
     type MountFile,
     type Mount,
 } from "./core/schema"
+export {fetchSessionSnapshotAtom, removePendingSessionInputAtom} from "./state/pendingInputs"
 export {
     deriveStreamNest,
     deriveSessionLifecycle,

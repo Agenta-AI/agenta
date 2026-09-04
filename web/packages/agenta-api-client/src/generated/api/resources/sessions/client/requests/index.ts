@@ -8,10 +8,12 @@ export type { DownloadSessionAttachmentContentRequest } from "./DownloadSessionA
 export type { DownloadSessionMountFileRequest } from "./DownloadSessionMountFileRequest.js";
 export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
+export type { FetchSessionSnapshotRequest } from "./FetchSessionSnapshotRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
 export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";
 export type { ResumeSessionContinuationRequest } from "./ResumeSessionContinuationRequest.js";
+export type { RemovePendingSessionInputRequest } from "./RemovePendingSessionInputRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
 export type { SessionAttachmentReferenceRequest } from "./SessionAttachmentReferenceRequest.js";
 export type { SessionDetachRequest } from "./SessionDetachRequest.js";

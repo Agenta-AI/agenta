@@ -24,6 +24,7 @@ import {
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
+    sessionSnapshotResponseSchema,
     sessionStreamsResponseSchema,
     type MountFile,
     type Mount,
@@ -36,6 +37,7 @@ import {
     type SessionOrigin,
     type SessionStream,
     type SessionStreamCommandResponse,
+    type SessionSnapshotResponse,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -152,24 +154,42 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-/** Fetch the lifecycle/pending state and durable sequence watermark used to reconnect safely. */
 export async function fetchSessionSnapshot({
     sessionId,
     projectId,
     appId,
     abortSignal,
-}: SessionScopedParams): Promise<SessionSnapshot | null> {
+}: SessionScopedParams): Promise<SessionSnapshotResponse | null> {
     if (!projectId || !sessionId) return null
 
     const data = await callFern("[fetchSessionSnapshot]", () =>
-        getSessionsClient().getSessionSnapshot(
+        getSessionsClient().fetchSessionSnapshot(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
     if (!data) return null
+    return (
+        safeParseWithLogging(sessionSnapshotResponseSchema, data, "[fetchSessionSnapshot]") ?? null
+    )
+}
 
-    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
+export async function removePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+
+    const data = await callFern("[removePendingSessionInput]", () =>
+        getSessionsClient().removePendingSessionInput(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
 }
 
 const durableApprovalsCapabilityCache = new Map<string, Promise<boolean>>()

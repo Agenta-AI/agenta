@@ -104,6 +104,7 @@ const Row = ({
 }) => {
     const text = message.text.trim()
     const files = message.fileParts ?? []
+    const attachmentCount = Math.max(files.length, message.attachmentCount ?? 0)
     return (
         <div
             className={`group flex min-h-8 items-center gap-1.5 rounded-lg px-2 transition-colors ${
@@ -117,9 +118,19 @@ const Row = ({
                 </span>
             ) : (
                 <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
-                    {files.length ? "(attachments only)" : "(empty message)"}
+                    {attachmentCount ? "(attachments only)" : "(empty message)"}
                 </span>
             )}
+            {attachmentCount > files.length ? (
+                <span className="shrink-0 text-[10px] text-colorTextTertiary">
+                    {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
+                </span>
+            ) : null}
+            {message.policy === "steer" ? (
+                <span className="shrink-0 rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] font-medium text-colorTextSecondary">
+                    Steer
+                </span>
+            ) : null}
             {/* Revealed on hover, but always present for keyboard and while this row is under
                 edit — an action you can only reach with a pointer is not an action on mobile. */}
             <span
@@ -138,7 +149,7 @@ const Row = ({
                     >
                         Cancel
                     </Button>
-                ) : onEdit ? (
+                ) : onEdit && message.editable !== false ? (
                     <Button
                         size="icon-sm"
                         variant="ghost"

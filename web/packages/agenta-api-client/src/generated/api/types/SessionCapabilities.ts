@@ -2,4 +2,6 @@
 
 export interface SessionCapabilities {
     durable_approvals?: boolean | undefined;
+    queue?: boolean | undefined;
+    steer?: boolean | undefined;
 }
