@@ -16,6 +16,7 @@ actually builds — including `@>` containment semantics on absent keys and NULL
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from uuid import UUID
 
 import pytest
 from sqlalchemy.sql import operators
@@ -299,6 +300,14 @@ class _CompletedRecords:
         return set(keys)
 
 
+class _NoCompletedRecords(_CompletedRecords):
+    async def settled_turns(self, *, project_id, keys):
+        return set()
+
+    async def runner_completed_turns(self, *, project_id, keys):
+        return set()
+
+
 class _CompletionLookupFailure(_CompletedRecords):
     async def runner_completed_turns(self, *, project_id, keys):
         raise RuntimeError("records database unavailable")
@@ -340,6 +349,36 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     assert _swept(row), (
         "6 minutes of silence from a turn that beats every 30s means the runner died"
     )
+
+
+@pytest.mark.anyio
+async def test_turn_settled_lost_by_this_pass_collapses_after_timestamp_advance(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    row = _FakeRow(
+        session_id="sess-settled-during-sweep",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-lost",
+    )
+    row.project_id = UUID("00000000-0000-4000-8000-000000000001")
+
+    def advance_timestamp_only():
+        row.updated_at = datetime.now(timezone.utc)
+
+    async def publish(**_kwargs):
+        return False
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=advance_timestamp_only),
+        _FakeRedis(),
+        records_service=_NoCompletedRecords(),
+        publish=publish,
+    )
+
+    assert _swept(row)
 
 
 @pytest.mark.anyio

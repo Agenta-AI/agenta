@@ -595,6 +595,18 @@ async def run_orphan_sweep(
         # Win the stale stream generation before settling its execution or publishing records.
         # The update and execution settlement share this transaction; an exception rolls both
         # back, while record ids make a publish-before-commit retry idempotent.
+        # A turn this pass is settling as LOST must reach rest even when the row's
+        # `updated_at` moved inside this same pass. The command settlement and the record
+        # publish above both write through this transaction, so the advance can be our own
+        # write rather than a sign of life. The `turn_id` guard still protects a row that
+        # advanced to a NEWER turn, which is the case the timestamp guard exists for.
+        settled_lost = {
+            key
+            for key in unsettled
+            if env.agenta.sessions.durable_approvals
+            and terminal_outcomes.get(key) != "stopped"
+        }
+
         collapsed_flags = SessionStreamFlags(
             is_alive=False, is_running=False, is_attached=False
         ).model_dump(mode="json")
@@ -619,12 +631,13 @@ async def run_orphan_sweep(
                     if turn_id is not None
                     else SessionStreamDBE.turn_id.is_(None)
                 ),
-                (
+            ]
+            if (project_uuid, session_id, turn_id) not in settled_lost:
+                conditions.append(
                     SessionStreamDBE.updated_at == observed_updated_at
                     if observed_updated_at is not None
                     else SessionStreamDBE.updated_at.is_(None)
-                ),
-            ]
+                )
             result = await session.execute(
                 sa_update(SessionStreamDBE)
                 .where(*conditions)
