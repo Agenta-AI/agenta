@@ -134,6 +134,97 @@ def test_cell_names_are_stable_and_known():
     assert set(sc.CELLS) == expected
 
 
+def _runner_gone_evidence(**overrides) -> dict:
+    """A minimal evidence dict shaped the way cell_runner_gone / cell_runner_gone_late build
+    it, with sane defaults that satisfy `_judge_runner_gone` on their own. Tests override just
+    the field(s) under test."""
+    base = {
+        "terminal_records": [
+            {
+                "type": "error",
+                "attributes": {"code": "execution_lost", "settled_by": "watchdog"},
+            },
+            {"type": "done", "attributes": {"settled_by": "watchdog"}},
+        ],
+        "stop_command": {"state": "applied", "outcome": "stopped"},
+        "stream_row": {"flags": {"is_running": False}},
+        "new_message_ran": True,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_judge_runner_gone_accepts_the_never_reported_race():
+    """The hard race: the command settles `lost` because the runner never got to claim or
+    report it. This must PASS and record which race landed."""
+    evidence = _runner_gone_evidence(
+        stop_command={"state": "applied", "outcome": "lost"}
+    )
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is True
+    assert verdict["skip"] is False
+    assert evidence["race"] == "never-reported"
+
+
+def test_judge_runner_gone_accepts_the_outcome_reported_then_died_race():
+    """The soft race: the runner reports the Stop's outcome before it actually dies. This must
+    ALSO pass — both races satisfy the same invariant — and record the other race label."""
+    evidence = _runner_gone_evidence(
+        stop_command={"state": "obsolete", "outcome": "stopped"}
+    )
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is True
+    assert verdict["skip"] is False
+    assert evidence["race"] == "outcome-reported-then-died"
+
+
+def test_judge_runner_gone_fails_without_any_terminal_record():
+    evidence = _runner_gone_evidence(terminal_records=[])
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is False
+    assert "race" not in evidence
+
+
+def test_judge_runner_gone_fails_without_a_stop_command_row():
+    evidence = _runner_gone_evidence(stop_command=None)
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is False
+    assert "race" not in evidence
+
+
+def test_judge_runner_gone_fails_on_an_unexpected_command_state():
+    evidence = _runner_gone_evidence(
+        stop_command={"state": "claimed", "outcome": "stopped"}
+    )
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is False
+    assert "race" not in evidence
+
+
+def test_judge_runner_gone_fails_while_the_command_is_still_pending_or_claimed():
+    for outcome in (None, "", "pending", "claimed"):
+        evidence = _runner_gone_evidence(
+            stop_command={"state": "applied", "outcome": outcome}
+        )
+        verdict = sc._judge_runner_gone(evidence)
+        assert verdict["pass"] is False, outcome
+        assert "race" not in evidence, outcome
+
+
+def test_judge_runner_gone_fails_when_is_running_still_reads_true():
+    evidence = _runner_gone_evidence(stream_row={"flags": {"is_running": True}})
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is False
+    assert "race" not in evidence
+
+
+def test_judge_runner_gone_fails_when_the_next_send_did_not_run():
+    evidence = _runner_gone_evidence(new_message_ran=False)
+    verdict = sc._judge_runner_gone(evidence)
+    assert verdict["pass"] is False
+    assert "race" not in evidence
+
+
 def test_run_cell_finally_path_with_null_hooks_does_not_crash():
     """run_cell()'s runner-health recovery is gated on `needs_hooks and hooks.available`. With
     NullHooks (no --project), hooks.available is False, so the finally block must skip the
