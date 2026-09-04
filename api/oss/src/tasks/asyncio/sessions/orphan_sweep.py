@@ -60,7 +60,11 @@ from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterfa
 from oss.src.dbs.redis.sessions.contract import WATCH_LIFECYCLE_ENDED
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.locks import (
+    clear_running,
+    force_cancel_alive,
+    force_clear_owner,
     get_owner_value,
+    mark_turn_superseded,
     release_watchdog_turn,
 )
 
@@ -761,15 +765,36 @@ async def run_orphan_sweep(
             row_turn_id,
             _observed_updated_at,
         ) in collapsed_rows:
+            if row_turn_id is None:
+                project_id = str(project_uuid)
+                displaced_alive = await force_cancel_alive(
+                    lock_engine, project_id=project_id, session_id=session_id
+                )
+                displaced_running = await clear_running(
+                    lock_engine, project_id=project_id, session_id=session_id
+                )
+                for displaced_turn_id in {
+                    turn_id
+                    for turn_id in (displaced_alive, displaced_running)
+                    if turn_id
+                }:
+                    await mark_turn_superseded(
+                        lock_engine,
+                        project_id=project_id,
+                        session_id=session_id,
+                        turn_id=displaced_turn_id,
+                    )
+                await force_clear_owner(
+                    lock_engine, project_id=project_id, session_id=session_id
+                )
+                continue
             await release_watchdog_turn(
                 lock_engine,
                 project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=row_turn_id,
-                owner_value=(
-                    observed_owners.get((project_uuid, session_id, row_turn_id))
-                    if row_turn_id is not None
-                    else None
+                owner_value=observed_owners.get(
+                    (project_uuid, session_id, row_turn_id)
                 ),
             )
 

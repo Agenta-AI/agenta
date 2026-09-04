@@ -178,11 +178,14 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
     await lock_engine.set(
         f"running:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
     )
+    await lock_engine.set(
+        f"owner:{_PROJECT_ID}:session:{_SESSION_ID}", b"replica-legacy", ex=120
+    )
 
     stale_row = _FakeRow(
         session_id=_SESSION_ID,
         updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
-        turn_id="turn-1",
+        turn_id=None,
     )
     pg_engine = _FakeTransactionsEngine([stale_row])
 
@@ -206,6 +209,7 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
         lock_engine, project_id=_PROJECT_ID, session_id=_SESSION_ID
     )
     assert liveness_after == {"alive": False, "running": False, "attached": False}
+    assert await lock_engine.get(f"owner:{_PROJECT_ID}:session:{_SESSION_ID}") is None
 
     # SEND gate logic (service.py:99-101): would raise if alive were still true.
     def _send_gate(liveness):
@@ -233,7 +237,7 @@ async def test_orphan_sweep_tombstones_the_turn_it_swept(anyio_backend):
     stale_row = _FakeRow(
         session_id=_SESSION_ID,
         updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
-        turn_id="turn-1",
+        turn_id=None,
     )
 
     await run_orphan_sweep(_FakeTransactionsEngine([stale_row]), lock_engine)
