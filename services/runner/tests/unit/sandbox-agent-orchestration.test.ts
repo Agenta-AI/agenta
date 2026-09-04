@@ -2660,14 +2660,15 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     });
     delete deps.responderFactory;
     const startSandboxAgent = deps.startSandboxAgent!;
-    deps.startSandboxAgent = (async (options: unknown) => {
-      const sandbox = (await startSandboxAgent(options as never)) as {
-        destroySession: (id: string) => Promise<void>;
-        cancelSession?: (id: string) => Promise<void>;
+    deps.startSandboxAgent = async (options) => {
+      const sandbox = await startSandboxAgent(options);
+      const cancellable = sandbox as unknown as {
+        destroySession: (id: string) => Promise<unknown>;
+        cancelSession?: (id: string) => Promise<unknown>;
       };
-      sandbox.cancelSession = (id) => sandbox.destroySession(id);
+      cancellable.cancelSession = (id) => cancellable.destroySession(id);
       return sandbox;
-    }) as typeof deps.startSandboxAgent;
+    };
 
     const projectId = "11111111-1111-4111-8111-111111111111";
     const sessionId = "conv-stop-during-pause-teardown";
